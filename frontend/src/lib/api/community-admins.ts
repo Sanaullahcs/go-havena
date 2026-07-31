@@ -1,0 +1,94 @@
+import api from "./client";
+import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
+
+export type CommunityAdminApplicant = {
+  id: number;
+  reassign_row_id?: string;
+  reassign_reason?: "previous_admin_suspended" | "missing_admin";
+  name: string;
+  email?: string;
+  phone?: string;
+  role: string;
+  avatar_url?: string | null;
+  community_admin_status: string;
+  community_admin_rejection_reason?: string | null;
+  status: string;
+  suspension_reason?: string | null;
+  needs_reassign?: boolean;
+  created_at?: string;
+  profile?: {
+    display_name?: string;
+    unit_number?: string;
+    residence_type?: string;
+    avatar_url?: string | null;
+    utility_bill_url?: string | null;
+  };
+  community_request?: {
+    id: number;
+    name: string;
+    review_status?: string;
+    status?: string;
+    region?: string;
+  } | null;
+};
+
+export type CommunityAdminStats = {
+  total: number;
+  pending: number;
+  approved: number;
+  active?: number;
+  suspended?: number;
+  needs_reassign?: number;
+  rejected: number;
+};
+
+export type CommunityAdminsResponse = {
+  data: CommunityAdminApplicant[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    total: number;
+    per_page?: number;
+    stats?: CommunityAdminStats;
+  };
+};
+
+export async function fetchCommunityAdmins(params?: {
+  status?: string;
+  search?: string;
+  page?: number;
+  per_page?: number;
+}): Promise<CommunityAdminsResponse> {
+  const res = await api.get("/v1/admin/community-admins", {
+    params: {
+      status: params?.status ?? "pending",
+      search: params?.search || undefined,
+      page: params?.page ?? 1,
+      per_page: params?.per_page ?? ADMIN_TABLE_PAGE_SIZE,
+    },
+  });
+  return {
+    data: res.data?.data ?? [],
+    meta: res.data?.meta ?? { current_page: 1, last_page: 1, total: 0 },
+  };
+}
+
+export async function approveCommunityAdmin(id: number) {
+  const res = await api.patch(`/v1/admin/community-admins/${id}/approve`);
+  return res.data;
+}
+
+export async function reapproveCommunityAdmin(id: number) {
+  const res = await api.patch(`/v1/admin/community-admins/${id}/reapprove`);
+  return res.data;
+}
+
+export async function rejectCommunityAdmin(id: number, reason?: string) {
+  const res = await api.patch(`/v1/admin/community-admins/${id}/reject`, { reason });
+  return res.data;
+}
+
+export async function suspendCommunityAdmin(id: number) {
+  const res = await api.patch(`/v1/admin/community-admins/${id}/suspend`);
+  return res.data as { data: CommunityAdminApplicant; message: string };
+}

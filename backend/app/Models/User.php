@@ -1,0 +1,75 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
+use Laravel\Sanctum\HasApiTokens;
+
+class User extends Authenticatable
+{
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
+
+    protected $fillable = [
+        'uuid',
+        'name',
+        'email',
+        'phone',
+        'phone_verified_at',
+        'password',
+        'google_id',
+        'apple_id',
+        'status',
+        'role',
+        'community_admin_status',
+        'community_admin_rejection_reason',
+        'suspension_reason',
+    ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (User $user) {
+            if (empty($user->uuid)) {
+                $user->uuid = (string) Str::ulid();
+            }
+        });
+    }
+
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'phone_verified_at' => 'datetime',
+            'password' => 'hashed',
+        ];
+    }
+
+    public function profile(): HasOne
+    {
+        return $this->hasOne(Profile::class);
+    }
+
+    public function memberships(): HasMany
+    {
+        return $this->hasMany(CommunityMembership::class);
+    }
+
+    public static function isPhonePlaceholderEmail(?string $email): bool
+    {
+        if (! filled($email)) {
+            return true;
+        }
+
+        return str_ends_with(strtolower(trim($email)), '@phone.nbrlink.local');
+    }
+}

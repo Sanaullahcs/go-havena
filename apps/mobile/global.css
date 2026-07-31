@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .section-label {
+    @apply font-bold text-[13px] uppercase tracking-wider text-[#007BFF];
+  }
+
+  .login-phone-input {
+    @apply mt-2 h-[60px] rounded-[14px] border-2 bg-white px-4 font-regular text-[16px] text-black;
+    border-color: rgba(190, 219, 255, 0.5);
+  }
+
+  .signup-country-code {
+    @apply mr-3 h-12 min-w-[64px] items-center justify-center rounded-[12px] border border-[#E6E9EE] bg-white;
+  }
+
+  .signup-phone-input {
+    @apply h-12 flex-1 rounded-[12px] border border-[#E6E9EE] bg-white px-4 font-regular text-base text-[#0F172A];
+  }
+
+  .auth-divider {
+    @apply h-px bg-[#D1D1D1];
+  }
+
+  .auth-link {
+    @apply font-semibold text-[#0179FF];
+  }
+
+  .auth-footer {
+    @apply text-center font-regular text-xs text-[#6B7280];
+  }
+
+  .chip-pill {
+    @apply flex-row items-center gap-2 rounded-full border border-[#EDEDED] bg-white px-3.5 py-2.5;
+  }
+
+  .card-surface {
+    @apply rounded-[16px] border border-[#EDEDED] bg-white;
+  }
+}

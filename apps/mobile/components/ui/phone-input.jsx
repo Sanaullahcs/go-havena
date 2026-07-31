@@ -1,0 +1,402 @@
+import { useState } from "react";
+import { Platform, TextInput, View, Text, Pressable, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
+import { authStyles } from "../../constants/auth-styles";
+import { Fonts } from "../../constants/font";
+import { DEFAULT_PHONE_COUNTRY, formatDialLabel } from "../../constants/phone-countries";
+import CountryCodePicker from "./country-code-picker";
+import PhoneKeyboardAccessory, {
+  PHONE_KEYBOARD_ACCESSORY_ID,
+} from "./phone-keyboard-accessory";
+import { sw, sf } from "../../utils/responsive";
+
+const iosPhonePadProps =
+  Platform.OS === "ios"
+    ? { inputAccessoryViewID: PHONE_KEYBOARD_ACCESSORY_ID }
+    : {};
+import {
+  formatNationalDisplay,
+  getCountryPlaceholder,
+  getFormattedMaxLength,
+  getPhoneValidationError,
+  normalizeDigitsForCountry,
+  parsePhoneInputChange,
+} from "../../utils/phone";
+
+function PhoneFieldMessage({ digits, country, showError }) {
+  if (!digits) {
+    if (showError) {
+      return <Text style={authStyles.inputErrorText}>Enter your phone number</Text>;
+    }
+    return null;
+  }
+
+  const error = getPhoneValidationError(digits, country);
+  if (error) {
+    return <Text style={authStyles.inputErrorText}>{error}</Text>;
+  }
+
+  return null;
+}
+
+function ClearButton({ onPress }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={authStyles.phoneClearBtn}
+      hitSlop={8}
+      accessibilityLabel="Clear phone number"
+    >
+      <Ionicons name="close-circle" size={22} color="#9CA3AF" />
+    </Pressable>
+  );
+}
+
+function CountryCodeButton({ country, variant, onPress }) {
+  const label = formatDialLabel(country);
+
+  if (variant === "signup") {
+    return (
+      <Pressable
+        style={[authStyles.countryCode, styles.countryCodeWide]}
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`Country code ${label}`}
+      >
+        <Text style={authStyles.countryCodeText}>{label}</Text>
+        <Ionicons name="chevron-down" size={14} color="#6B7280" style={styles.chevron} />
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable
+      style={styles.loginPrefixBtn}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Country code ${label}`}
+    >
+      <Text style={authStyles.loginPhonePrefix}>{label}</Text>
+      <Ionicons name="chevron-down" size={14} color="#6B7280" />
+    </Pressable>
+  );
+}
+
+function usePhoneInputState({
+  digits,
+  onChangeDigits,
+  country = DEFAULT_PHONE_COUNTRY,
+  onCountryChange,
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const display = formatNationalDisplay(digits, country);
+  const validationError = getPhoneValidationError(digits, country);
+  const hasError = Boolean(digits && validationError);
+  const formattedMaxLength = getFormattedMaxLength(country);
+
+  const handleChange = (text) => {
+    onChangeDigits(parsePhoneInputChange(text, country, digits));
+  };
+
+  const handleCountrySelect = (nextCountry) => {
+    setPickerOpen(false);
+    onCountryChange?.(nextCountry);
+    if (digits) {
+      const normalized = normalizeDigitsForCountry(digits, nextCountry);
+      if (normalized !== digits) {
+        onChangeDigits(normalized);
+      }
+    }
+  };
+
+  return {
+    pickerOpen,
+    setPickerOpen,
+    display,
+    hasError,
+    formattedMaxLength,
+    handleChange,
+    handleCountrySelect,
+  };
+}
+
+export default function LoginPhoneInput({
+  digits,
+  onChangeDigits,
+  country = DEFAULT_PHONE_COUNTRY,
+  onCountryChange,
+  showError = false,
+  showHints = true,
+  placeholder,
+  containerStyle,
+}) {
+  const {
+    pickerOpen,
+    setPickerOpen,
+    display,
+    hasError,
+    formattedMaxLength,
+    handleChange,
+    handleCountrySelect,
+  } = usePhoneInputState({ digits, onChangeDigits, country, onCountryChange });
+
+  const resolvedPlaceholder = placeholder ?? getCountryPlaceholder(country);
+  const showFieldError = Boolean(digits && hasError) || (showError && !digits);
+
+  return (
+    <View style={containerStyle}>
+      <View style={[authStyles.loginPhoneRow, showFieldError && authStyles.loginInputError]}>
+        <CountryCodeButton
+          country={country}
+          variant="login"
+          onPress={() => setPickerOpen(true)}
+        />
+        <TextInput
+          style={authStyles.loginPhoneField}
+          placeholder={resolvedPlaceholder}
+          placeholderTextColor="rgba(10, 10, 10, 0.45)"
+          value={display}
+          onChangeText={handleChange}
+          keyboardType="phone-pad"
+          textContentType="telephoneNumber"
+          autoComplete="tel"
+          maxLength={formattedMaxLength}
+          clearButtonMode="never"
+          {...iosPhonePadProps}
+        />
+        {digits.length > 0 ? <ClearButton onPress={() => onChangeDigits("")} /> : null}
+      </View>
+      {showHints ? <PhoneFieldMessage digits={digits} country={country} showError={showError} /> : null}
+      <PhoneKeyboardAccessory mode="hidden" />
+
+      <CountryCodePicker
+        visible={pickerOpen}
+        selectedCode={country}
+        onSelect={handleCountrySelect}
+        onClose={() => setPickerOpen(false)}
+      />
+    </View>
+  );
+}
+
+/** Compact phone field styled for internal forms (matches text inputs). */
+export function FormPhoneInput({
+  digits,
+  onChangeDigits,
+  country = DEFAULT_PHONE_COUNTRY,
+  onCountryChange,
+  showError = false,
+  placeholder,
+  containerStyle,
+  onFocus,
+}) {
+  const {
+    pickerOpen,
+    setPickerOpen,
+    display,
+    hasError,
+    formattedMaxLength,
+    handleChange,
+    handleCountrySelect,
+  } = usePhoneInputState({ digits, onChangeDigits, country, onCountryChange });
+
+  const resolvedPlaceholder = placeholder ?? getCountryPlaceholder(country);
+  const showFieldError = Boolean(digits && hasError) || (showError && !digits);
+
+  return (
+    <View style={containerStyle}>
+      <View style={[formStyles.row, showFieldError && formStyles.rowError]}>
+        <Pressable
+          style={formStyles.countryBtn}
+          onPress={() => setPickerOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel={`Country code ${formatDialLabel(country)}`}
+        >
+          <Text style={formStyles.countryText}>{formatDialLabel(country)}</Text>
+          <Feather name="chevron-down" size={sf(12)} color="#64748B" />
+        </Pressable>
+        <View style={formStyles.divider} />
+        <TextInput
+          style={formStyles.field}
+          placeholder={resolvedPlaceholder}
+          placeholderTextColor="#98A2B3"
+          value={display}
+          onChangeText={handleChange}
+          onFocus={onFocus}
+          keyboardType="phone-pad"
+          textContentType="telephoneNumber"
+          autoComplete="tel"
+          maxLength={formattedMaxLength}
+          clearButtonMode="never"
+          {...iosPhonePadProps}
+        />
+        {digits.length > 0 ? (
+          <Pressable
+            onPress={() => onChangeDigits("")}
+            style={formStyles.clearBtn}
+            hitSlop={8}
+            accessibilityLabel="Clear phone number"
+          >
+            <Feather name="x-circle" size={sf(16)} color="#94A3B8" />
+          </Pressable>
+        ) : null}
+      </View>
+      <PhoneKeyboardAccessory mode="hidden" />
+
+      <CountryCodePicker
+        visible={pickerOpen}
+        selectedCode={country}
+        onSelect={handleCountrySelect}
+        onClose={() => setPickerOpen(false)}
+      />
+    </View>
+  );
+}
+
+export function SignupPhoneInput({
+  digits,
+  onChangeDigits,
+  country = DEFAULT_PHONE_COUNTRY,
+  onCountryChange,
+  showError = false,
+  showHints = true,
+  placeholder,
+  containerStyle,
+  rowStyle,
+}) {
+  const {
+    pickerOpen,
+    setPickerOpen,
+    display,
+    hasError,
+    formattedMaxLength,
+    handleChange,
+    handleCountrySelect,
+  } = usePhoneInputState({ digits, onChangeDigits, country, onCountryChange });
+
+  const resolvedPlaceholder = placeholder ?? getCountryPlaceholder(country);
+  const showFieldError = Boolean(digits && hasError) || (showError && !digits);
+
+  return (
+    <View style={containerStyle}>
+      <View style={[authStyles.signupRow, rowStyle]}>
+        <CountryCodeButton
+          country={country}
+          variant="signup"
+          onPress={() => setPickerOpen(true)}
+        />
+        <View style={[styles.signupFieldWrap, showFieldError && authStyles.signupInputError]}>
+          <TextInput
+            style={styles.signupField}
+            placeholder={resolvedPlaceholder}
+            placeholderTextColor="#9CA3AF"
+            value={display}
+            onChangeText={handleChange}
+            keyboardType="phone-pad"
+            textContentType="telephoneNumber"
+            autoComplete="tel"
+            maxLength={formattedMaxLength}
+            clearButtonMode="never"
+            {...iosPhonePadProps}
+          />
+          {digits.length > 0 ? <ClearButton onPress={() => onChangeDigits("")} /> : null}
+        </View>
+      </View>
+      {showHints ? <PhoneFieldMessage digits={digits} country={country} showError={showError} /> : null}
+      <PhoneKeyboardAccessory mode="hidden" />
+
+      <CountryCodePicker
+        visible={pickerOpen}
+        selectedCode={country}
+        onSelect={handleCountrySelect}
+        onClose={() => setPickerOpen(false)}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  loginPrefixBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    marginRight: 8,
+    flexShrink: 0,
+  },
+  countryCodeWide: {
+    flexDirection: "row",
+    paddingHorizontal: 12,
+    gap: 4,
+  },
+  chevron: {
+    marginTop: 1,
+  },
+  signupFieldWrap: {
+    flex: 1,
+    height: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E6E9EE",
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    paddingLeft: 16,
+    paddingRight: 8,
+  },
+  signupField: {
+    flex: 1,
+    fontSize: 16,
+    fontFamily: Fonts.regular,
+    color: "#0F172A",
+    paddingVertical: 0,
+    height: "100%",
+  },
+});
+
+const formStyles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: sw(12),
+    backgroundColor: "#FAFBFC",
+    paddingHorizontal: sw(12),
+    minHeight: sw(46),
+  },
+  rowError: {
+    borderColor: "#FCA5A5",
+    backgroundColor: "#FEF2F2",
+  },
+  countryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(4),
+    paddingRight: sw(10),
+    flexShrink: 0,
+  },
+  countryText: {
+    fontFamily: Fonts.semibold,
+    fontSize: sf(13),
+    color: "#0F172A",
+  },
+  divider: {
+    width: 1,
+    alignSelf: "stretch",
+    backgroundColor: "#E2E8F0",
+    marginVertical: sw(10),
+    marginRight: sw(10),
+  },
+  field: {
+    flex: 1,
+    fontFamily: Fonts.regular,
+    fontSize: sf(13),
+    color: "#0F172A",
+    paddingVertical: sw(12),
+  },
+  clearBtn: {
+    paddingLeft: sw(6),
+  },
+});

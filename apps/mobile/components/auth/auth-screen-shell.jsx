@@ -1,0 +1,79 @@
+import React from "react";
+import { View, StyleSheet } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenStatusBar from "../layout/screen-status-bar";
+import { Gradients } from "../../constants/tokens";
+
+/** Auth backdrop — plain white or soft gradient with optional orbs */
+export default function AuthScreenShell({
+  children,
+  edges = ["top", "left", "right"],
+  style,
+  contentStyle,
+  showOrbs = true,
+  background = "gradient",
+}) {
+  const plain = background === "plain";
+
+  return (
+    <>
+      <ScreenStatusBar style="dark" opaque />
+      {plain ? (
+        <SafeAreaView style={[styles.plain, contentStyle, style]} edges={edges}>
+          {children}
+        </SafeAreaView>
+      ) : (
+        <LinearGradient
+          colors={Gradients.authScreen}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.gradient, style]}
+        >
+          {showOrbs ? (
+            <>
+              <View style={styles.orbTop} pointerEvents="none" />
+              <View style={styles.orbBottom} pointerEvents="none" />
+            </>
+          ) : null}
+          <SafeAreaView style={[styles.safe, contentStyle]} edges={edges}>
+            {children}
+          </SafeAreaView>
+        </LinearGradient>
+      )}
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  gradient: {
+    flex: 1,
+  },
+  plain: {
+    flex: 1,
+    paddingHorizontal: 24,
+    backgroundColor: "#FFFFFF",
+  },
+  safe: {
+    flex: 1,
+    paddingHorizontal: 24,
+  },
+  orbTop: {
+    position: "absolute",
+    top: -48,
+    right: -32,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: "rgba(0, 82, 223, 0.08)",
+  },
+  orbBottom: {
+    position: "absolute",
+    bottom: 120,
+    left: -64,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: "rgba(16, 185, 129, 0.06)",
+  },
+});

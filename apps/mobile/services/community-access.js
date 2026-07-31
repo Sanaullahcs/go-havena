@@ -1,0 +1,418 @@
+/**
+ * Determines whether a resident can access the main app (tabs/dashboard).
+ */
+
+export function getPrimaryMembership(user) {
+  const memberships = user?.memberships ?? [];
+  if (!memberships.length) return null;
+
+  const approved = memberships.find((m) => m.status === "approved");
+  if (approved) return approved;
+
+  const pending = memberships.find((m) => m.status === "pending");
+  if (pending) return pending;
+
+  const rejected = memberships.find((m) => m.status === "rejected");
+  if (rejected) return rejected;
+
+  return memberships[0];
+}
+
+function isAwaitingCommunityReview(membership) {
+  const community = membership?.community;
+  if (!community || community.review_status !== "pending") return false;
+  if (membership.status === "rejected") return false;
+  return true;
+}
+
+export function hasPendingCommunityRequest(user) {
+  return (user?.memberships ?? []).some(isAwaitingCommunityReview);
+}
+
+/** Resident selected an existing community — waiting for community admin to approve membership. */
+export function hasPendingMembershipApproval(user) {
+  if (isCommunityAdminRole(user)) return false;
+
+  return (user?.memberships ?? []).some((m) => {
+    if (m.status !== "pending") return false;
+    const community = m.community;
+    if (!community) return true;
+    if (community.review_status === "pending") return false;
+    if (community.review_status === "rejected") return false;
+    return true;
+  });
+}
+
+export function hasAnyPendingApproval(user) {
+  return hasPendingCommunityRequest(user) || hasPendingMembershipApproval(user);
+}
+
+export function hasRejectedCommunityRequest(user) {
+  if (hasPendingCommunityRequest(user)) return false;
+  return (user?.memberships ?? []).some(
+    (m) => m.community?.review_status === "rejected",
+  );
+}
+
+/** Resident's join request to an existing community was declined. */
+export function hasRejectedMembershipApproval(user) {
+  if (isCommunityAdminRole(user)) return false;
+  if (hasPendingCommunityRequest(user) || hasPendingMembershipApproval(user)) return false;
+
+  return (user?.memberships ?? []).some((m) => {
+    if (m.status !== "rejected") return false;
+    const community = m.community;
+    if (!community) return false;
+    if (community.review_status === "rejected") return false;
+    return true;
+  });
+}
+
+export function isGuestUser(user) {
+  if (user?.role === "guest") return true;
+  return (user?.memberships ?? []).some(
+    (m) => m.role === "guest" && m.status === "approved",
+  );
+}
+
+export function isGuestPendingApproval(user) {
+  if (!isGuestUser(user)) return false;
+  return user?.guest_access?.status === "pending_approval";
+}
+
+export function canAccessDashboard(user) {
+  if (isGuestUser(user)) {
+    if (user?.guest_access && typeof user.guest_access.can_access_dashboard === "boolean") {
+      return user.guest_access.can_access_dashboard;
+    }
+
+    return (user?.memberships ?? []).some(
+      (m) => m.status === "approved" && m.role === "guest",
+    );
+  }
+
+  if (isCommunityAdminRole(user)) {
+    if (user.community_admin_status !== "approved") {
+      return false;
+    }
+
+    return (user?.memberships ?? []).some((m) => {
+      if (m.status !== "approved" || m.role !== "admin") return false;
+
+      const community = m.community;
+      if (!community) return false;
+
+      if (community.review_status === "pending" || community.review_status === "rejected") {
+        return false;
+      }
+
+      if (community.status && community.status !== "active") {
+        return false;
+      }
+
+      return true;
+    });
+  }
+
+  return (user?.memberships ?? []).some((m) => {
+    if (m.status !== "approved") return false;
+
+    const community = m.community;
+    if (!community) return true;
+
+    if (community.review_status === "pending" || community.review_status === "rejected") {
+      return false;
+    }
+
+    if (community.status && community.status !== "active") {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+export function getPendingCommunity(user) {
+  const membership = (user?.memberships ?? []).find(isAwaitingCommunityReview);
+  return membership?.community ?? null;
+}
+
+/** Community the user is waiting on (new community request or membership approval). */
+export function getPendingApprovalDetails(user) {
+  const communityRequest = getPendingCommunity(user);
+  if (communityRequest) {
+    return { community: communityRequest, kind: "community_request" };
+  }
+
+  const membership = (user?.memberships ?? []).find((m) => {
+    if (m.status !== "pending") return false;
+    const community = m.community;
+    if (!community) return true;
+    if (community.review_status === "pending") return false;
+    if (community.review_status === "rejected") return false;
+    return true;
+  });
+
+  if (membership?.community) {
+    return { community: membership.community, kind: "membership_approval" };
+  }
+
+  return null;
+}
+
+function fallbackCommunity(membership) {
+  if (membership?.community) return membership.community;
+  if (membership?.community_id) {
+    return { id: membership.community_id, name: "Your community" };
+  }
+  return null;
+}
+
+/** Authoritative onboarding review state derived from memberships or API review payload. */
+export function resolveOnboardingReviewState(user, reviewSnapshot = null) {
+  if (reviewSnapshot?.status && reviewSnapshot.status !== "unknown") {
+    return {
+      reviewState: reviewSnapshot.status,
+      kind: reviewSnapshot.kind ?? "membership_approval",
+      community: reviewSnapshot.community ?? null,
+      rejection_reason: reviewSnapshot.rejection_reason ?? null,
+      rejected_by: reviewSnapshot.rejected_by ?? null,
+    };
+  }
+
+  const memberships = user?.memberships ?? [];
+
+  for (const membership of memberships) {
+    const community = membership.community;
+    if (community?.review_status === "rejected") {
+      return {
+        reviewState: "rejected",
+        kind: "community_request",
+        community,
+        rejection_reason: community.rejection_reason ?? membership.rejection_reason ?? null,
+        rejected_by: "system_admin",
+      };
+    }
+  }
+
+  for (const membership of memberships) {
+    if (membership.status !== "rejected") continue;
+
+    const community = fallbackCommunity(membership);
+    if (community?.review_status === "rejected") continue;
+
+    return {
+      reviewState: "rejected",
+      kind: "membership_approval",
+      community,
+      rejection_reason: membership.rejection_reason ?? null,
+      rejected_by: membership.rejected_by ?? "community_admin",
+    };
+  }
+
+  for (const membership of memberships) {
+    const community = membership.community;
+    if (membership.status === "pending" && community?.review_status === "pending") {
+      return {
+        reviewState: "pending",
+        kind: "community_request",
+        community,
+      };
+    }
+  }
+
+  for (const membership of memberships) {
+    if (membership.status !== "pending") continue;
+    const community = fallbackCommunity(membership);
+    if (!community) continue;
+    if (community.review_status === "pending" || community.review_status === "rejected") continue;
+
+    return {
+      reviewState: "pending",
+      kind: "membership_approval",
+      community,
+    };
+  }
+
+  for (const membership of memberships) {
+    const community = membership.community;
+    if (
+      membership.status === "approved" &&
+      community &&
+      community.review_status !== "pending"
+    ) {
+      return {
+        reviewState: "approved",
+        kind: "membership_approval",
+        community,
+      };
+    }
+  }
+
+  return null;
+}
+
+export function getRejectedCommunity(user) {
+  return getRejectedApprovalDetails(user)?.community ?? null;
+}
+
+export function getRejectedApprovalDetails(user) {
+  const resolved = resolveOnboardingReviewState(user);
+  if (!resolved || resolved.reviewState !== "rejected") return null;
+
+  return {
+    community: resolved.community,
+    kind: resolved.kind,
+    rejection_reason: resolved.rejection_reason ?? null,
+    rejected_by: resolved.rejected_by ?? null,
+  };
+}
+
+export function isCommunityAdminRole(user) {
+  return user?.role === "community_admin";
+}
+
+/** User applied as community admin but system admin has not approved yet. */
+export function isCommunityAdminPending(user) {
+  return isCommunityAdminRole(user) && (user?.community_admin_status ?? "pending") === "pending";
+}
+
+/** Community admin has selected or registered a community during signup. */
+export function hasCommunityAdminLinkedCommunity(user) {
+  if (!isCommunityAdminRole(user)) return false;
+
+  return (user?.memberships ?? []).some((m) => Boolean(m.community_id));
+}
+
+/** System admin approval applies only after the community admin has linked a community. */
+export function awaitsCommunityAdminApproval(user) {
+  return isCommunityAdminPending(user) && hasCommunityAdminLinkedCommunity(user);
+}
+
+/** Signup complete but system admin has not fully approved the user and/or their community. */
+export function needsSystemApprovalWait(user) {
+  if (!user || canAccessDashboard(user)) return false;
+
+  return (
+    hasPendingCommunityRequest(user) ||
+    awaitsCommunityAdminApproval(user) ||
+    hasPendingMembershipApproval(user)
+  );
+}
+
+/** Community admin account approved but their new community request is still under review. */
+export function awaitsCommunityReviewOnly(user) {
+  return (
+    isCommunityAdminRole(user) &&
+    !isCommunityAdminPending(user) &&
+    hasPendingCommunityRequest(user)
+  );
+}
+
+export function isCommunityAdminRejected(user) {
+  return user?.role === "community_admin" && user?.community_admin_status === "rejected";
+}
+
+/** Approved community admin with community access (incl. admin/moderator membership). */
+export function isCommunityAdmin(user) {
+  if (!user) return false;
+
+  const memberships = user.memberships ?? [];
+  const hasAdminMembership = memberships.some(
+    (m) =>
+      m.status === "approved" &&
+      ["admin", "moderator"].includes(m.role),
+  );
+
+  if (!hasAdminMembership) return false;
+
+  // Platform community-admin accounts must not be pending/rejected when status is known.
+  if (user.role === "community_admin") {
+    if (user.community_admin_status === "rejected") return false;
+    if (user.community_admin_status === "pending") return false;
+  }
+
+  return true;
+}
+
+/** Primary approved admin community membership */
+export function getAdminMembership(user) {
+  return (user?.memberships ?? []).find(
+    (m) =>
+      m.status === "approved" &&
+      ["admin", "moderator"].includes(m.role),
+  ) ?? null;
+}
+
+/** Apply a membership-rejection API error onto cached session user data. */
+export function mergeRejectionIntoUser(user, error) {
+  if (!user || !error) return user;
+
+  const reason = String(error.reason ?? "").trim() || null;
+  const rejectedBy = error.rejectedBy ?? "community_admin";
+  const isCommunityRejection = error.code === "COMMUNITY_REQUEST_REJECTED";
+
+  const memberships = (user.memberships ?? []).map((membership) => {
+    const community = membership.community;
+    if (isCommunityRejection) {
+      if (community?.review_status !== "rejected") return membership;
+      return {
+        ...membership,
+        community: {
+          ...community,
+          review_status: "rejected",
+          rejection_reason: reason ?? community.rejection_reason,
+        },
+      };
+    }
+
+    if (membership.status !== "pending" && membership.status !== "rejected") {
+      return membership;
+    }
+
+    return {
+      ...membership,
+      status: "rejected",
+      rejection_reason: reason ?? membership.rejection_reason ?? null,
+      rejected_by: rejectedBy,
+    };
+  });
+
+  return { ...user, memberships };
+}
+
+export function isRejectedStatusError(error) {
+  return error?.code === "MEMBERSHIP_REJECTED" || error?.code === "COMMUNITY_REQUEST_REJECTED";
+}
+
+/** Merge API review snapshot into cached session user memberships. */
+export function mergeReviewSnapshotIntoUser(user, snapshot) {
+  if (!user || !snapshot?.community?.id) return user;
+
+  const communityId = snapshot.community.id;
+  const memberships = [...(user.memberships ?? [])];
+  const index = memberships.findIndex((m) => m.community_id === communityId);
+  const existing = index >= 0 ? memberships[index] : null;
+  const nextMembership = {
+    ...(existing ?? {}),
+    community_id: communityId,
+    role: existing?.role ?? "member",
+    status:
+      snapshot.status === "approved"
+        ? "approved"
+        : snapshot.status === "rejected"
+          ? "rejected"
+          : "pending",
+    rejection_reason: snapshot.rejection_reason ?? existing?.rejection_reason ?? null,
+    rejected_by: snapshot.rejected_by ?? existing?.rejected_by ?? null,
+    community: {
+      ...(existing?.community ?? {}),
+      ...snapshot.community,
+    },
+  };
+
+  if (index >= 0) memberships[index] = nextMembership;
+  else memberships.push(nextMembership);
+
+  return { ...user, memberships };
+}
