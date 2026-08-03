@@ -16,7 +16,7 @@ const ADMIN_NOTIFICATIONS: AppNotification[] = [
   { id: 2, type: "success", title: "Membership approved", body: "Sarah Mitchell's membership request was auto-approved.", time: "15m ago", read: false },
   { id: 3, type: "message", title: "New message", body: "Lisa Wang: 'Can I reschedule my maintenance appointment?'", time: "1h ago", read: false },
   { id: 4, type: "info", title: "Marketplace listing posted", body: "David Chen posted a new item in the marketplace.", time: "2h ago", read: true },
-  { id: 5, type: "system", title: "System update", body: "NeighborLink v2.1.4 deployed successfully.", time: "Yesterday", read: true },
+  { id: 5, type: "system", title: "System update", body: "Havena v2.1.4 deployed successfully.", time: "Yesterday", read: true },
   { id: 6, type: "warning", title: "Lease expiring soon", body: "3 residents have leases expiring within 30 days.", time: "Yesterday", read: true },
 ];
 
@@ -61,7 +61,7 @@ export function AdminTopBar({
 
   const displayName =
     user?.name || user?.profile?.display_name || user?.email?.split("@")[0] || "Admin";
-  const email = user?.email || "admin@neighborlink.app";
+  const email = user?.email || "admin@havena.app";
   const avatarUrl = user?.profile?.avatar_url ?? user?.profile?.avatar ?? null;
 
   const handleLogout = async () => {

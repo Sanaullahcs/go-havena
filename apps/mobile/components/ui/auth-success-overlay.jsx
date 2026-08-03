@@ -10,7 +10,7 @@ import { Fonts } from "../../constants/font";
 export default function AuthSuccessOverlay({
   visible,
   title = "You're in!",
-  subtitle = "Welcome back to NeighborLink",
+  subtitle = "Welcome back to Havena",
   onComplete,
   delayMs = 1400,
 }) {

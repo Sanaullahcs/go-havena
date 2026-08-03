@@ -443,7 +443,7 @@ export function DtPagination({
     >
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-px"
-        style={{ background: "linear-gradient(90deg, transparent, rgba(0, 123, 255, 0.18), transparent)" }}
+        style={{ background: "linear-gradient(90deg, transparent, rgba(190, 219, 255, 0.18), transparent)" }}
         aria-hidden
       />
 
@@ -493,7 +493,7 @@ export function DtPagination({
                 style={{
                   width: `${progress}%`,
                   background: NL.gradientCta,
-                  boxShadow: "0 0 10px rgba(0, 123, 255, 0.35)",
+                  boxShadow: "0 0 10px rgba(190, 219, 255, 0.35)",
                 }}
               />
             </div>

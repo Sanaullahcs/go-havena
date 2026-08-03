@@ -58,7 +58,7 @@ class CommunityAdminReassignTest extends TestCase
     {
         $this->seed(SystemAdminSeeder::class);
 
-        return User::query()->where('email', 'admin@neighborlink.app')->firstOrFail();
+        return User::query()->where('email', 'admin@havena.app')->firstOrFail();
     }
 
     public function test_suspend_moves_community_to_reassign_not_suspended_list(): void

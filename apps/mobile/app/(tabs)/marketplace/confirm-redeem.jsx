@@ -52,7 +52,7 @@ export default function ConfirmRedeem() {
           Show this screen to the staff to confirm your redemption
         </Text>
 
-        <LinearGradient colors={["#E9F6FF", "#D7F3F6"]} style={styles.codeCard}>
+        <LinearGradient colors={["#EFF6FF", "#D7F3F6"]} style={styles.codeCard}>
           <Text style={styles.codeLabel}>Redemption Code</Text>
           <Text style={styles.codeText}>BURGER20</Text>
         </LinearGradient>

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# NeighborLink — Expo Go on Android (SDK 56)
+# Havena — Expo Go on Android (SDK 56)
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -10,7 +10,7 @@ IP="$(
 )"
 
 echo ""
-echo "=== NeighborLink mobile (Expo SDK 56) ==="
+echo "=== Havena mobile (Expo SDK 56) ==="
 echo ""
 echo "IMPORTANT — Android Expo Go must match SDK 56."
 echo "The Play Store app is often too old and will fail to load this project."

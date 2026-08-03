@@ -20,7 +20,7 @@ type AuthTab = "login" | "signup";
 type SignupRole = "resident" | "admin";
 type SignupStep = "role" | "phone" | "code";
 
-const DEMO_RESIDENT = { email: "sarah@neighborlink.app", password: "password" };
+const DEMO_RESIDENT = { email: "sarah@havena.app", password: "password" };
 
 function resolvePostLoginPath(role?: string) {
   if (role === "system_admin" || role === "admin" || role === "community_admin") {
@@ -216,8 +216,8 @@ export function AuthPanel() {
           <h3 className="text-lg font-bold text-slate-900">Account created!</h3>
           <p className="mt-2 text-sm text-slate-600">
             {signupRole === "admin"
-              ? "Your community admin application is pending. Download the NeighborLink app to complete setup."
-              : "Welcome to NeighborLink! Download the mobile app to join your community and complete your profile."}
+              ? "Your community admin application is pending. Download the Havena app to complete setup."
+              : "Welcome to Havena! Download the mobile app to join your community and complete your profile."}
           </p>
           <a href="/home" className="nl-auth-btn mt-5 inline-flex w-full justify-center">
             Continue to portal

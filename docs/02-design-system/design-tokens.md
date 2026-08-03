@@ -1,6 +1,6 @@
 # Design Tokens
 
-> Tokens are derived from the Figma file **NeighborLink‑App** and the implemented mobile app (`constants/theme.js`, tab bar, and component styles). The mobile UI must match Figma exactly; dashboards reuse the same tokens via Tailwind theme config.
+> Tokens are derived from the Figma file **Havena‑App** and the implemented mobile app (`constants/theme.js`, tab bar, and component styles). The mobile UI must match Figma exactly; dashboards reuse the same tokens via Tailwind theme config.
 
 ![Approved home screen (Figma reference)](./assets/home-screen.png)
 
@@ -10,7 +10,7 @@
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| `brand/primary` | `#007BFF` (`rgba(0,123,255,1)`) | Primary accent, active tab icons, links |
+| `brand/primary` | `#007BFF` (`rgba(190,219,255,1)`) | Primary accent, active tab icons, links |
 | `brand/primary-deep` | `#0052DF` (`rgba(0,82,223,1)`) | Floating create button, gradient end |
 | `brand/gradient` | `#007BFF → #0052DF` | CTAs, hero widgets, premium cards |
 

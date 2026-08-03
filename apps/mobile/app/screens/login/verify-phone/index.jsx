@@ -150,7 +150,7 @@ export default function VerifyPhoneScreen() {
 
   const successSubtitle = verifiedUser && isCommunityAdminRole(verifiedUser)
     ? "Opening your admin dashboard…"
-    : "You're signed in to NeighborLink";
+    : "You're signed in to Havena";
 
   const resendFooter = resendNotice ? (
     <Text style={[layout.footerNote, layout.resendSuccess]}>New code sent</Text>

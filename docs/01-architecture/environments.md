@@ -5,10 +5,10 @@
 | Env | Purpose | API base URL (example) |
 |-----|---------|------------------------|
 | `local` | Developer machine (WAMP / `php artisan serve`, Expo dev, `next dev`) | `http://localhost:8000/api/v1` |
-| `staging` | QA + design review against real devices | `https://staging-api.neighborlink.app/api/v1` |
-| `production` | Live | `https://api.neighborlink.app/api/v1` |
+| `staging` | QA + design review against real devices | `https://staging-api.havena.app/api/v1` |
+| `production` | Live | `https://api.havena.app/api/v1` |
 
-> Local backend runs under WAMP at `D:\wamp64-330\www\Nbr-link\backend`. MySQL is the bundled WAMP MySQL 8 instance.
+> Local backend runs under WAMP at `D:\wamp64-330\www\go-havena\backend`. MySQL is the bundled WAMP MySQL 8 instance.
 
 ## API versioning
 
@@ -18,14 +18,14 @@ All endpoints are namespaced under `/api/v1/`. Breaking changes introduce `/api/
 
 ### Backend (`backend/.env`)
 ```dotenv
-APP_NAME=NeighborLink
+APP_NAME=Havena
 APP_ENV=local
 APP_URL=http://localhost:8000
 
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=nbrlink
+DB_DATABASE=havena
 DB_USERNAME=root
 DB_PASSWORD=
 

@@ -384,7 +384,7 @@ class AdminCommunityAdminController extends Controller
             return 'Your community admin account has been approved. Your community request is still under review — you will get full access once a system administrator approves it.';
         }
 
-        return 'Your community admin account has been approved. You can now manage your community in NeighborLink.';
+        return 'Your community admin account has been approved. You can now manage your community in Havena.';
     }
 
     private function transform(User $user, array $reassignCommunityIds = []): array

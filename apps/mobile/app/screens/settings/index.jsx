@@ -30,7 +30,7 @@ export default function ProfileSetting() {
     if (nextValue && /denied|permission/i.test(result.message ?? "")) {
       const choice = await dialog.showConfirm(
         "Notifications blocked",
-        "Enable notifications for NeighborLink in your phone settings, then turn push notifications on again.",
+        "Enable notifications for Havena in your phone settings, then turn push notifications on again.",
         { confirmLabel: "Open Settings", cancelLabel: "Not now" },
       );
       if (choice === "confirm") {
@@ -98,7 +98,7 @@ export default function ProfileSetting() {
 
   const support = [
     { id: 1, title: "Help Center", subTitle: "FAQs and support articles", icon: "help-circle", iconColor: "#0052DF", iconBg: "#EFF6FF", chevron: true, onPress: () => {} },
-    { id: 2, title: "About NeighborLink", subTitle: "Version 1.0.0", icon: "info", iconColor: "#6B7280", iconBg: "#F3F4F6", chevron: true, onPress: () => {} },
+    { id: 2, title: "About Havena", subTitle: "Version 1.0.0", icon: "info", iconColor: "#6B7280", iconBg: "#F3F4F6", chevron: true, onPress: () => {} },
     { id: 3, title: "Log Out", subTitle: "Sign out of your account", icon: "log-out", iconColor: "#DC2626", iconBg: "#FEF2F2", danger: true, onPress: handleLogout },
     { id: 4, title: "Delete Account", subTitle: "Permanently delete your account", icon: "trash-2", iconColor: "#DC2626", iconBg: "#FEF2F2", danger: true, onPress: () => dialog.showError("Delete Account", "Please contact support to delete your account.") },
   ];
@@ -162,7 +162,7 @@ export default function ProfileSetting() {
         ))}
       </MenuGroup>
 
-      <Text style={styles.footer}>NeighborLink · Version 1.0.0</Text>
+      <Text style={styles.footer}>Havena · Version 1.0.0</Text>
     </InternalPageShell>
   );
 }

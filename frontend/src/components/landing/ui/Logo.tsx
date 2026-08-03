@@ -79,7 +79,7 @@ export function Logo({
         return (
             <span
                 className={`inline-block shadow-fab rounded-xl overflow-hidden ${className}`}
-                aria-label="NeighborLink"
+                aria-label="Havena"
             >
                 <BrandMark size={36} />
             </span>
@@ -94,7 +94,7 @@ export function Logo({
                 <span className="inline-block overflow-hidden rounded-lg shadow-sm">
                     <BrandMark size={28} />
                 </span>
-                <span className="text-base font-bold tracking-tight">NeighborLink</span>
+                <span className="text-base font-bold tracking-tight">Havena</span>
             </span>
         );
     }
@@ -109,7 +109,7 @@ export function Logo({
                     <span
                         className={`text-[16px] font-bold tracking-tight transition-colors duration-300 ease-out ${toneTextClass[tone]}`}
                     >
-                        NeighborLink
+                        Havena
                     </span>
                 </span>
             )}

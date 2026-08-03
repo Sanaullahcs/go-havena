@@ -11,10 +11,10 @@ const CAT_META: Record<string, { label: string; color: string }> = {
   weight:        { label: "Weight & Diet",   color: "#0052DF" },
   exercise:      { label: "Exercise",        color: "#0F766E" },
   learning:      { label: "Learning",        color: "#0369A1" },
-  stress:        { label: "Lowering Stress", color: "#4338CA" },
+  stress:        { label: "Lowering Stress", color: "#007BFF" },
   social:        { label: "Social",          color: "#C2410C" },
   nutrition:     { label: "Nutrition",       color: "#B45309" },
-  sleep:         { label: "Sleep",           color: "#4338CA" },
+  sleep:         { label: "Sleep",           color: "#007BFF" },
   mindful:       { label: "Mindfulness",     color: "#0052DF" },
   // Legacy flat-content keys (kept for older rows)
   fitness:       { label: "Fitness",         color: "#2563eb" },

@@ -11,7 +11,7 @@ import { Fonts } from "../../../constants/font";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
-import NeighborLinkLogo from "../../../components/ui/neighborlink-logo";
+import HavenaLogo from "../../../components/ui/havena-logo";
 import BackButton from "../../../components/ui/back-button";
 import { Routes } from "../../../constants/onboarding-routes";
 import { setCurrentRole } from "../../../constants/role-session";
@@ -61,11 +61,11 @@ export default function Roles() {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.brandRow}>
           <View style={styles.logoBox}>
-            <NeighborLinkLogo size={44} compact />
+            <HavenaLogo size={44} compact />
           </View>
 
           <View>
-            <Text style={styles.brandTitle}>NeighborLink</Text>
+            <Text style={styles.brandTitle}>Havena</Text>
             <Text style={styles.brandSubTitle}>
               Community & Wellness Platform
             </Text>
@@ -73,7 +73,7 @@ export default function Roles() {
         </View>
 
         <View style={styles.headingWrap}>
-          <Text style={styles.pageTitle}>Join NeighborLink</Text>
+          <Text style={styles.pageTitle}>Join Havena</Text>
           <Text style={styles.pageSubTitle}>
             Select your role to get started with the right experience for you.
           </Text>
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semiBold,
     fontSize: 11,
     lineHeight: 15,
-    color: "rgba(0, 123, 255, 1)",
+    color: "rgba(190, 219, 255, 1)",
     fontWeight: "600",
   },
   cardDescription: {
@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   adminChipText: {
-    color: "rgba(0, 123, 255, 1)",
+    color: "rgba(190, 219, 255, 1)",
   },
   residentChipText: {
     color: "rgba(1, 102, 48, 1)",
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: 12,
     lineHeight: 18,
-    color: "rgba(0, 123, 255, 1)",
+    color: "rgba(190, 219, 255, 1)",
     fontWeight: "700",
   },
   signInHint: {

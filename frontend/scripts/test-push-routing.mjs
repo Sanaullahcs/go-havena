@@ -97,7 +97,7 @@ function enrichPushContent(data) {
 
   if (!title) {
     if (kind === "post_comment") title = "New comment";
-    else title = "NeighborLink";
+    else title = "Havena";
   }
   if (!body && kind === "post_comment" && actor) {
     body = `${actor} commented on your post.`;

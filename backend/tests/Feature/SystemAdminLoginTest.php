@@ -16,7 +16,7 @@ class SystemAdminLoginTest extends TestCase
         $this->seed(SystemAdminSeeder::class);
 
         $response = $this->postJson('/api/v1/auth/login', [
-            'email' => 'admin@neighborlink.app',
+            'email' => 'admin@havena.app',
             'password' => 'password',
         ]);
 
@@ -29,14 +29,14 @@ class SystemAdminLoginTest extends TestCase
     public function test_system_admin_login_rejects_wrong_password(): void
     {
         User::factory()->create([
-            'email' => 'admin@neighborlink.app',
+            'email' => 'admin@havena.app',
             'password' => 'password',
             'role' => 'system_admin',
             'status' => 'active',
         ]);
 
         $response = $this->postJson('/api/v1/auth/login', [
-            'email' => 'admin@neighborlink.app',
+            'email' => 'admin@havena.app',
             'password' => 'wrong-password',
         ]);
 

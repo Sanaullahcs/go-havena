@@ -14,7 +14,7 @@ export function PhoneDisplay({
   className?: string;
 }) {
   const raw = String(value ?? "").trim();
-  if (!raw || (raw.includes("@") && !raw.includes("@phone.nbrlink.local"))) {
+  if (!raw || (raw.includes("@") && !raw.includes("@phone.havena.local"))) {
     return <span className={`text-slate-400 ${className}`.trim()}>—</span>;
   }
 

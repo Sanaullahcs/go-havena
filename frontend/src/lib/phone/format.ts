@@ -49,8 +49,8 @@ function formatNanpInternational(digits: string): string {
 export function normalizePhoneE164(input: string | null | undefined): string {
   const raw = String(input ?? "").trim();
   if (!raw) return "";
-  if (raw.includes("@phone.nbrlink.local")) {
-    return normalizePhoneE164(raw.replace("@phone.nbrlink.local", ""));
+  if (raw.includes("@phone.havena.local")) {
+    return normalizePhoneE164(raw.replace("@phone.havena.local", ""));
   }
   if (raw.startsWith("+")) {
     const digits = raw.replace(/\D/g, "");
@@ -230,8 +230,8 @@ export function toE164(digits: string, country = DEFAULT_PHONE_COUNTRY): string 
 export function formatPhoneDisplay(input: string | null | undefined): string {
   const raw = String(input ?? "").trim();
   if (!raw) return "—";
-  if (raw.includes("@phone.nbrlink.local")) {
-    return formatPhoneDisplay(raw.replace("@phone.nbrlink.local", ""));
+  if (raw.includes("@phone.havena.local")) {
+    return formatPhoneDisplay(raw.replace("@phone.havena.local", ""));
   }
   if (raw.includes("@")) return raw;
 

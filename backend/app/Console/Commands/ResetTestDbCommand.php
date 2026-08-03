@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Schema;
 
 class ResetTestDbCommand extends Command
 {
-    protected $signature = 'neighborlink:reset-test-db
+    protected $signature = 'havena:reset-test-db
                             {--force : Skip confirmation prompt}';
 
     protected $description = 'Clear all app data except the regions list and system admin login';
@@ -59,7 +59,7 @@ class ResetTestDbCommand extends Command
 
         $this->info("Truncated {$cleared} tables.");
 
-        $code = $this->call('neighborlink:ensure-system-admin');
+        $code = $this->call('havena:ensure-system-admin');
         if ($code !== self::SUCCESS) {
             return $code;
         }
@@ -69,7 +69,7 @@ class ResetTestDbCommand extends Command
         $this->newLine();
         $this->info('Test database reset complete.');
         $this->line("  Regions kept: {$regionCount}");
-        $this->line('  System admin: admin@neighborlink.app / password');
+        $this->line('  System admin: admin@havena.app / password');
         $this->line('  Wellness hub: W-E-L-L-S categories seeded (add courses and lessons in admin)');
 
         return self::SUCCESS;

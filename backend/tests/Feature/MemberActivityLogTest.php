@@ -69,7 +69,7 @@ class MemberActivityLogTest extends TestCase
         ActivityLogService::user('post_created', 'Published a community post', 'Post', 12, 'info', (int) $resident->id, [
             'related_item' => 'Hello neighbors',
         ]);
-        ActivityLogService::user('login', 'Signed in to NeighborLink', null, null, 'info', (int) $resident->id);
+        ActivityLogService::user('login', 'Signed in to Havena', null, null, 'info', (int) $resident->id);
 
         Sanctum::actingAs($admin);
 

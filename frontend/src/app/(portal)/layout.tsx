@@ -40,7 +40,7 @@ export default function ResidentPortalLayout({ children }: { children: React.Rea
   }, [router]);
 
   useEffect(() => {
-    document.title = `${getTitle(pathname)} · NeighborLink`;
+    document.title = `${getTitle(pathname)} · Havena`;
   }, [pathname]);
 
   if (!checked) {

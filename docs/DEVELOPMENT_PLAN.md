@@ -1,4 +1,4 @@
-# NeighborLink — Full-Stack Development Plan
+# Havena — Full-Stack Development Plan
 > Real-time, end-to-end feature development across Admin Portal, Resident Portal, and Mobile App.
 
 ---
@@ -479,8 +479,8 @@ Expo screens mirroring the resident portal features.
 ## API Base URL Convention
 
 ```
-Development:  http://localhost/Nbr-link/backend/public/api
-Production:   https://api.neighborlink.app/api
+Development:  http://localhost/go-havena/backend/public/api
+Production:   https://api.havena.app/api
 ```
 
 All authenticated routes require:

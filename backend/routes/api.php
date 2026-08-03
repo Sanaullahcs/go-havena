@@ -38,7 +38,7 @@ Route::prefix('v1')->group(function () {
 
     /* ── Health ── */
     Route::get('/health', fn() => response()->json([
-        'data' => ['status' => 'ok', 'service' => 'neighborlink-api', 'version' => '2.0.0', 'time' => now()->toIso8601String()],
+        'data' => ['status' => 'ok', 'service' => 'havena-api', 'version' => '2.0.0', 'time' => now()->toIso8601String()],
     ]));
 
     /* ── Auth ── */

@@ -23,7 +23,7 @@ class GuestInvitationService
 
     public static function qrPayload(string $code): string
     {
-        return 'neighborlink://guest?invite_code='.urlencode($code);
+        return 'havena://guest?invite_code='.urlencode($code);
     }
 
     public static function normalizeInviteCode(string $code): string
@@ -323,12 +323,12 @@ class GuestInvitationService
             return $guestEmail;
         }
 
-        $phoneEmail = str_replace('+', '', $invitation->guest_phone).'@guest.nbrlink.local';
+        $phoneEmail = str_replace('+', '', $invitation->guest_phone).'@guest.havena.local';
         if (! User::query()->where('email', $phoneEmail)->exists()) {
             return $phoneEmail;
         }
 
-        return str_replace('+', '', $invitation->guest_phone).'.'.$invitation->id.'@guest.nbrlink.local';
+        return str_replace('+', '', $invitation->guest_phone).'.'.$invitation->id.'@guest.havena.local';
     }
 
     private static function activateGuest(GuestInvitation $invitation, User $guestUser, int $activatedByUserId): GuestInvitation

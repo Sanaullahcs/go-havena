@@ -18,8 +18,8 @@ return [
             'http://localhost:3001',
             'http://127.0.0.1:3000',
             'http://127.0.0.1:3001',
-            'https://neighborlink.tabsgi.com',
-            'https://www.neighborlink.tabsgi.com',
+            'https://havena.tabsgi.com',
+            'https://www.havena.tabsgi.com',
         ],
         array_filter(array_map('trim', explode(',', (string) env('CORS_ALLOWED_ORIGINS', '')))),
         array_filter([

@@ -17,8 +17,8 @@ class ContactIdentityService
 
     /** @var list<string> */
     private const PLACEHOLDER_EMAIL_SUFFIXES = [
-        '@phone.nbrlink.local',
-        '@guest.nbrlink.local',
+        '@phone.havena.local',
+        '@guest.havena.local',
     ];
 
     public static function isPlaceholderEmail(?string $email): bool

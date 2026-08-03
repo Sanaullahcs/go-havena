@@ -58,7 +58,7 @@ export function SystemSignInStep({
             id="admin-email"
             type="email"
             autoComplete="username"
-            placeholder="admin@neighborlink.app"
+            placeholder="admin@havena.app"
             required
             value={email}
             onChange={(e) => onEmailChange(e.target.value)}

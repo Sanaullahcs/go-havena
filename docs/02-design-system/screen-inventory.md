@@ -1,6 +1,6 @@
 # Screen Inventory (from Figma)
 
-> Source: **NeighborLink‑App** Figma file, canvas *"APP REVAMP"*. <https://www.figma.com/design/jm6QleNo5bYJxu5lxGCAGL/NeighborLink-App?node-id=1430-3533>
+> Source: **Havena‑App** Figma file, canvas *"APP REVAMP"*. <https://www.figma.com/design/jm6QleNo5bYJxu5lxGCAGL/Havena-App?node-id=1430-3533>
 >
 > Every frame is **390px** wide (iPhone). The mobile app must match these frames exactly. The "Implemented" column maps each frame to the existing Expo route/component so design ↔ code stays traceable.
 

@@ -150,7 +150,7 @@ class OtpController extends Controller
                     $user = $trashed;
                     $user->update([
                         'phone' => $phone,
-                        'email' => str_replace('+', '', $phone).'@phone.nbrlink.local',
+                        'email' => str_replace('+', '', $phone).'@phone.havena.local',
                         'phone_verified_at' => now(),
                         'status' => 'active',
                         'role' => $userRole,
@@ -164,7 +164,7 @@ class OtpController extends Controller
             } else {
                 $user->update([
                     'phone' => $phone,
-                    'email' => str_replace('+', '', $phone).'@phone.nbrlink.local',
+                    'email' => str_replace('+', '', $phone).'@phone.havena.local',
                     'phone_verified_at' => now(),
                     'role' => $userRole,
                     'community_admin_status' => $adminStatus,
@@ -207,7 +207,7 @@ class OtpController extends Controller
         if ($userId) {
             ActivityLogService::user(
                 'logout',
-                'Signed out of NeighborLink',
+                'Signed out of Havena',
                 null,
                 null,
                 'info',
@@ -222,7 +222,7 @@ class OtpController extends Controller
 
     private function createSignupUser(string $phone, string $userRole, ?string $adminStatus): User
     {
-        $email = str_replace('+', '', $phone).'@phone.nbrlink.local';
+        $email = str_replace('+', '', $phone).'@phone.havena.local';
 
         try {
             $user = User::query()->create([

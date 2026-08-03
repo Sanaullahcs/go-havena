@@ -236,7 +236,7 @@ export function CTA() {
               <span className="gradient-text">connected community?</span>
             </h2>
             <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-ink-body sm:text-[16px]">
-              Join neighborhoods already using NeighborLink to stay informed, engaged, and connected without
+              Join neighborhoods already using Havena to stay informed, engaged, and connected without
               the noise.
             </p>
 

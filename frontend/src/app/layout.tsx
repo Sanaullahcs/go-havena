@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     default: APP_NAME,
     template: `%s · ${APP_NAME}`,
   },
-  description: "NeighborLink community & wellness platform",
+  description: "Havena community & wellness platform",
   icons: {
     icon: [{ url: "/favicon.png", type: "image/png" }],
     apple: [{ url: "/app-icon.png" }],

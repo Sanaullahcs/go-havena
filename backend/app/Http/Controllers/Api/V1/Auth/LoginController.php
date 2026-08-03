@@ -67,7 +67,7 @@ class LoginController extends Controller
 
         ActivityLogService::user(
             'login',
-            'Signed in to NeighborLink',
+            'Signed in to Havena',
             null,
             null,
             'info',
@@ -87,7 +87,7 @@ class LoginController extends Controller
         if ($userId) {
             ActivityLogService::user(
                 'logout',
-                'Signed out of NeighborLink',
+                'Signed out of Havena',
                 null,
                 null,
                 'info',

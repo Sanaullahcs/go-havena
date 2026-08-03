@@ -749,7 +749,7 @@ export default function PendingCommunityScreen() {
             {
               icon: "mail-outline",
               title: "Need help?",
-              body: "Contact your community office or NeighborLink support if you think this was a mistake.",
+              body: "Contact your community office or Havena support if you think this was a mistake.",
             },
           ]
         : [

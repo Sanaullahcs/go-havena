@@ -5,7 +5,7 @@ The backend exposes a versioned REST API at `/api/v1`. The contract is documente
 ## Base URL & versioning
 
 ```
-https://api.neighborlink.app/api/v1
+https://api.havena.app/api/v1
 ```
 Breaking changes → new version namespace (`/api/v2`). The OpenAPI `info.version` mirrors the contract.
 

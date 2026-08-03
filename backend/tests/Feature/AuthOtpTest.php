@@ -64,7 +64,7 @@ class AuthOtpTest extends TestCase
         User::factory()->create([
             'phone' => $phone,
             'phone_verified_at' => now(),
-            'email' => '55555555555@phone.nbrlink.local',
+            'email' => '55555555555@phone.havena.local',
         ]);
 
         $this->postJson('/api/v1/auth/otp/request', [
@@ -90,7 +90,7 @@ class AuthOtpTest extends TestCase
         User::factory()->create([
             'phone' => $phone,
             'phone_verified_at' => now(),
-            'email' => '55555555555@phone.nbrlink.local',
+            'email' => '55555555555@phone.havena.local',
         ]);
 
         $this->postJson('/api/v1/auth/otp/request', [
@@ -141,7 +141,7 @@ class AuthOtpTest extends TestCase
         User::factory()->create([
             'phone' => $phone,
             'phone_verified_at' => now(),
-            'email' => 'community.admin@neighborlink.app',
+            'email' => 'community.admin@havena.app',
             'role' => 'community_admin',
             'community_admin_status' => 'approved',
         ]);
@@ -169,7 +169,7 @@ class AuthOtpTest extends TestCase
         User::factory()->create([
             'phone' => $phone,
             'phone_verified_at' => now(),
-            'email' => '55555555555@phone.nbrlink.local',
+            'email' => '55555555555@phone.havena.local',
             'role' => 'resident',
         ]);
 
@@ -199,7 +199,7 @@ class AuthOtpTest extends TestCase
         User::factory()->create([
             'phone' => '+12017777777',
             'phone_verified_at' => now(),
-            'email' => '2017777777@phone.nbrlink.local',
+            'email' => '2017777777@phone.havena.local',
             'role' => 'community_admin',
             'community_admin_status' => 'approved',
         ]);
@@ -230,7 +230,7 @@ class AuthOtpTest extends TestCase
         User::factory()->create([
             'phone' => '+12018888888',
             'phone_verified_at' => null,
-            'email' => '12018888888@phone.nbrlink.local',
+            'email' => '12018888888@phone.havena.local',
             'role' => 'resident',
         ]);
 
@@ -250,7 +250,7 @@ class AuthOtpTest extends TestCase
 
         $this->assertDatabaseHas('users', [
             'phone' => '+201888888888',
-            'email' => '201888888888@phone.nbrlink.local',
+            'email' => '201888888888@phone.havena.local',
         ]);
     }
 

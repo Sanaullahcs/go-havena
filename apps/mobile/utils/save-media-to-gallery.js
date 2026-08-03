@@ -58,7 +58,7 @@ export async function saveImageToGallery(url, { showError, showSuccess } = {}) {
   }
 
   const ext = extensionFromUrl(remoteUrl);
-  const destination = new File(Paths.cache, `neighborlink-feed-${Date.now()}.${ext}`);
+  const destination = new File(Paths.cache, `havena-feed-${Date.now()}.${ext}`);
 
   try {
     const downloaded = await File.downloadFileAsync(remoteUrl, destination);
@@ -73,7 +73,7 @@ export async function saveImageToGallery(url, { showError, showSuccess } = {}) {
     if (status !== "granted") {
       await showError?.(
         "Permission required",
-        "Allow NeighborLink to save photos to your gallery.",
+        "Allow Havena to save photos to your gallery.",
       );
       return false;
     }

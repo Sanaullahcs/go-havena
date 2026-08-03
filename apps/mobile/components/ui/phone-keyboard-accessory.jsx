@@ -3,7 +3,7 @@ import { Fonts } from "../../constants/font";
 import { Colors } from "../../constants/tokens";
 
 /** Shared nativeID so phone/OTP pads don't show the stock gray “Done” toolbar. */
-export const PHONE_KEYBOARD_ACCESSORY_ID = "neighborlinkPhoneKeyboardAccessory";
+export const PHONE_KEYBOARD_ACCESSORY_ID = "havenaPhoneKeyboardAccessory";
 
 /**
  * iOS phone-pad / number-pad have no return key. RN/Expo often injects a bulky

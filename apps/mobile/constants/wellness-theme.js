@@ -2,7 +2,7 @@ import { Colors } from "./tokens";
 
 /**
  * Wellness — brand-led, minimal, no gradients.
- * Chrome stays NeighborLink blue; pillars use restrained accents.
+ * Chrome stays Havena blue; pillars use restrained accents.
  */
 export const WellnessTheme = {
   screenBg: "#F8FAFC",

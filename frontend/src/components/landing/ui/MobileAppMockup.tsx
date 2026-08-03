@@ -8,7 +8,7 @@ export function MobileAppMockup({ className = "" }: { className?: string }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={MOBILE_SRC}
-            alt="NeighborLink mobile app showing a community post and comments"
+            alt="Havena mobile app showing a community post and comments"
             width={750}
             height={1624}
             className="product-mockup-img block h-auto w-full"

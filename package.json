@@ -1,8 +1,8 @@
 {
-  "name": "nbr-link",
+  "name": "go-havena",
   "version": "1.0.0",
   "private": true,
-  "description": "NeighborLink monorepo — script runner only; dependencies live in each app folder",
+  "description": "Havena monorepo — script runner only; dependencies live in each app folder",
   "scripts": {
     "install:mobile": "npm install --prefix apps/mobile",
     "install:frontend": "npm install --prefix frontend",

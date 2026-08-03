@@ -16,7 +16,7 @@ function extractNotificationContent(content) {
     if (kind === "post_comment") title = "New comment";
     else if (kind === "message" || kind === "new_message") title = "New message";
     else if (kind === "post_like") title = "New like";
-    else title = "NeighborLink";
+    else title = "Havena";
   }
 
   if (!body) {

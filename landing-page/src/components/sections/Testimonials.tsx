@@ -53,10 +53,10 @@ export function Testimonials() {
                         <h2 className="display-title mt-4 text-[36px] sm:text-4xl lg:text-[44px]">
                             Neighbors Love
                             <br />
-                            <span className="gradient-text">NeighborLink</span>
+                            <span className="gradient-text">Havena</span>
                         </h2>
                         <p className="mt-5 max-w-md text-[15px] leading-relaxed text-ink-body">
-                            NeighborLink has transformed the way our community connects.
+                            Havena has transformed the way our community connects.
                             Everything we need is in one place!
                         </p>
 

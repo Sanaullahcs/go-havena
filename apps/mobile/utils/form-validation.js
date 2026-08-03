@@ -43,7 +43,7 @@ export const LIMITS = {
 };
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-export const PLACEHOLDER_EMAIL_SUFFIX = "@phone.nbrlink.local";
+export const PLACEHOLDER_EMAIL_SUFFIX = "@phone.havena.local";
 
 export function isPlaceholderEmail(email) {
   const value = String(email ?? "").trim().toLowerCase();

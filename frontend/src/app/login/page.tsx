@@ -135,7 +135,7 @@ export default function LoginPage() {
                 <span className="nl-login-brand__mark !h-10 !w-10 !rounded-xl">
                   <NbrLogoMark />
                 </span>
-                <span className="text-[15px] font-bold text-white">NeighborLink</span>
+                <span className="text-[15px] font-bold text-white">Havena</span>
               </div>
             </div>
 
@@ -152,7 +152,7 @@ export default function LoginPage() {
               </p>
             </div>
 
-            <p className="text-[12px] text-white/35">© NeighborLink · Secured access</p>
+            <p className="text-[12px] text-white/35">© Havena · Secured access</p>
           </div>
         </aside>
 
@@ -173,7 +173,7 @@ export default function LoginPage() {
               <span className="nl-login-brand__mark !h-11 !w-11 !rounded-xl">
                 <NbrLogoMark />
               </span>
-              <span className="nl-login-brand__name">NeighborLink</span>
+              <span className="nl-login-brand__name">Havena</span>
             </div>
 
             {otpStep === "code" ? (

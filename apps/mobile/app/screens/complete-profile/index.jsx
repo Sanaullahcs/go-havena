@@ -1449,7 +1449,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   uploadLink: {
-    color: "rgba(0, 123, 255, 1)",
+    color: "rgba(190, 219, 255, 1)",
     fontFamily: Fonts.semiBold,
     fontWeight: "600",
   },

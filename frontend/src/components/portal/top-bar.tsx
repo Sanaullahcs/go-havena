@@ -48,7 +48,7 @@ export function PortalTopBar({
 
   const displayName =
     user?.name || user?.profile?.display_name || user?.email?.split("@")[0] || "Resident";
-  const email = user?.email || "resident@neighborlink.app";
+  const email = user?.email || "resident@havena.app";
 
   const initials = displayName
     .split(" ")

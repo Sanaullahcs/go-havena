@@ -3,7 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
 import { Colors, Gradients, Shadows } from "../../constants/tokens";
 
-/** NeighborLink mark — auth screens use gradient tile; splash uses white tile for contrast. */
+/** Havena mark — auth screens use gradient tile; splash uses white tile for contrast. */
 export default function AuthLogo({ size = 62, style, compact = false, variant = "auth" }) {
   const radius = Math.round(size * (12 / 36));
   const inset = Math.round(size * 0.14);
@@ -48,7 +48,7 @@ export default function AuthLogo({ size = 62, style, compact = false, variant = 
           tileStyle,
           style,
         ]}
-        accessibilityLabel="NeighborLink logo"
+        accessibilityLabel="Havena logo"
       >
         {iconWrap}
       </View>
@@ -66,7 +66,7 @@ export default function AuthLogo({ size = 62, style, compact = false, variant = 
         tileStyle,
         style,
       ]}
-      accessibilityLabel="NeighborLink logo"
+      accessibilityLabel="Havena logo"
     >
       {iconWrap}
     </LinearGradient>

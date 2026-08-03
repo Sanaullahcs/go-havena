@@ -72,7 +72,7 @@ const FALLBACK: AppNotification[] = [
     id: 5,
     type: "system",
     title: "System update",
-    body: "NeighborLink platform services are running normally.",
+    body: "Havena platform services are running normally.",
     time: "Yesterday",
     read: true,
   },

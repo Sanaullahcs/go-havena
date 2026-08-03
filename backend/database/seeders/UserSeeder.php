@@ -14,7 +14,7 @@ class UserSeeder extends Seeder
         $accounts = [
             [
                 'name'     => 'Admin User',
-                'email'    => 'admin@neighborlink.app',
+                'email'    => 'admin@havena.app',
                 'password' => 'password',
                 'role'     => 'system_admin',
                 'status'   => 'active',
@@ -22,7 +22,7 @@ class UserSeeder extends Seeder
             ],
             [
                 'name'     => 'Moderator User',
-                'email'    => 'mod@neighborlink.app',
+                'email'    => 'mod@havena.app',
                 'password' => 'password',
                 'role'     => 'moderator',
                 'status'   => 'active',
@@ -30,7 +30,7 @@ class UserSeeder extends Seeder
             ],
             [
                 'name'     => 'Resident Demo',
-                'email'    => 'resident@neighborlink.app',
+                'email'    => 'resident@havena.app',
                 'password' => 'password',
                 'role'     => 'resident',
                 'status'   => 'active',
@@ -38,7 +38,7 @@ class UserSeeder extends Seeder
             ],
             [
                 'name'     => 'Guest User',
-                'email'    => 'guest@neighborlink.app',
+                'email'    => 'guest@havena.app',
                 'password' => 'password',
                 'role'     => 'resident',
                 'status'   => 'active',

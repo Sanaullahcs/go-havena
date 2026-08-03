@@ -12,7 +12,7 @@ use Illuminate\Console\Command;
 
 class EnsureCommunityAdminCommand extends Command
 {
-    protected $signature = 'neighborlink:ensure-community-admin
+    protected $signature = 'havena:ensure-community-admin
                             {phone : Phone in international format, e.g. +2017777777}
                             {--name=Community Admin : Display name}
                             {--approve : Mark community admin as approved (default true)}';
@@ -60,7 +60,7 @@ class EnsureCommunityAdminCommand extends Command
         $attributes = [
             'name' => (string) $this->option('name'),
             'phone' => $phone,
-            'email' => str_replace('+', '', $phone).'@phone.nbrlink.local',
+            'email' => str_replace('+', '', $phone).'@phone.havena.local',
             'password' => 'password',
             'role' => 'community_admin',
             'community_admin_status' => 'approved',

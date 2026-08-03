@@ -84,20 +84,20 @@ class DemoContentSeeder extends Seeder
     {
         // [name, email, unit, residence_type, bio, avatarN, membership, role]
         $people = [
-            ['Sarah Mitchell', 'sarah@neighborlink.app', 'Apt 4B', 'Two-bedroom', 'Book club host and weekend gardener. Always happy to lend a hand.', 5, 'approved', 'member'],
-            ['David Chen', 'david@neighborlink.app', 'Apt 6D', 'Studio', 'Software engineer, coffee enthusiast, and casual cyclist.', 12, 'approved', 'member'],
-            ['Lisa Wang', 'lisa@neighborlink.app', 'Apt 2A', 'One-bedroom', 'Yoga instructor and plant collector. Ask me about houseplants.', 20, 'approved', 'member'],
-            ['James Okafor', 'james@neighborlink.app', 'Apt 7A', 'Two-bedroom', 'New to the neighborhood and excited to get involved.', 33, 'pending', 'member'],
-            ['Emily Rodriguez', 'emily@neighborlink.app', 'Apt 1C', 'One-bedroom', 'Freelance designer who loves farmers markets and long walks.', 45, 'approved', 'member'],
-            ['Michael Torres', 'michael@neighborlink.app', 'Apt 5F', 'Three-bedroom', 'Dad of two, grill master, and community volunteer.', 15, 'approved', 'moderator'],
-            ['Priya Patel', 'priya@neighborlink.app', 'Apt 3B', 'Two-bedroom', 'Physician and runner. Organizing the morning run group.', 26, 'approved', 'member'],
-            ['Carlos Mendez', 'carlos@neighborlink.app', 'Apt 8C', 'One-bedroom', 'Photographer capturing everyday moments around the community.', 51, 'approved', 'member'],
-            ['Aisha Johnson', 'aisha@neighborlink.app', 'Apt 2D', 'Studio', 'Teacher, baker, and proud dog mom to a golden retriever.', 47, 'approved', 'member'],
-            ['Tom Becker', 'tom@neighborlink.app', 'Apt 6A', 'Two-bedroom', 'Retired contractor. Handy with just about anything.', 60, 'approved', 'member'],
-            ['Nina Kowalski', 'nina@neighborlink.app', 'Apt 4C', 'One-bedroom', 'Marketing lead who loves community events and trivia nights.', 31, 'approved', 'member'],
-            ['Diego Alvarez', 'diego@neighborlink.app', 'Apt 9B', 'Three-bedroom', 'Chef exploring the local food scene one dish at a time.', 13, 'pending', 'member'],
-            ['Grace Lee', 'grace@neighborlink.app', 'Apt 1A', 'One-bedroom', 'Nurse and volunteer who enjoys quiet evenings by the pool.', 44, 'approved', 'member'],
-            ['Robert Hayes', 'robert@neighborlink.app', 'Apt 7D', 'Two-bedroom', 'Musician and night owl.', 68, 'banned', 'member'],
+            ['Sarah Mitchell', 'sarah@havena.app', 'Apt 4B', 'Two-bedroom', 'Book club host and weekend gardener. Always happy to lend a hand.', 5, 'approved', 'member'],
+            ['David Chen', 'david@havena.app', 'Apt 6D', 'Studio', 'Software engineer, coffee enthusiast, and casual cyclist.', 12, 'approved', 'member'],
+            ['Lisa Wang', 'lisa@havena.app', 'Apt 2A', 'One-bedroom', 'Yoga instructor and plant collector. Ask me about houseplants.', 20, 'approved', 'member'],
+            ['James Okafor', 'james@havena.app', 'Apt 7A', 'Two-bedroom', 'New to the neighborhood and excited to get involved.', 33, 'pending', 'member'],
+            ['Emily Rodriguez', 'emily@havena.app', 'Apt 1C', 'One-bedroom', 'Freelance designer who loves farmers markets and long walks.', 45, 'approved', 'member'],
+            ['Michael Torres', 'michael@havena.app', 'Apt 5F', 'Three-bedroom', 'Dad of two, grill master, and community volunteer.', 15, 'approved', 'moderator'],
+            ['Priya Patel', 'priya@havena.app', 'Apt 3B', 'Two-bedroom', 'Physician and runner. Organizing the morning run group.', 26, 'approved', 'member'],
+            ['Carlos Mendez', 'carlos@havena.app', 'Apt 8C', 'One-bedroom', 'Photographer capturing everyday moments around the community.', 51, 'approved', 'member'],
+            ['Aisha Johnson', 'aisha@havena.app', 'Apt 2D', 'Studio', 'Teacher, baker, and proud dog mom to a golden retriever.', 47, 'approved', 'member'],
+            ['Tom Becker', 'tom@havena.app', 'Apt 6A', 'Two-bedroom', 'Retired contractor. Handy with just about anything.', 60, 'approved', 'member'],
+            ['Nina Kowalski', 'nina@havena.app', 'Apt 4C', 'One-bedroom', 'Marketing lead who loves community events and trivia nights.', 31, 'approved', 'member'],
+            ['Diego Alvarez', 'diego@havena.app', 'Apt 9B', 'Three-bedroom', 'Chef exploring the local food scene one dish at a time.', 13, 'pending', 'member'],
+            ['Grace Lee', 'grace@havena.app', 'Apt 1A', 'One-bedroom', 'Nurse and volunteer who enjoys quiet evenings by the pool.', 44, 'approved', 'member'],
+            ['Robert Hayes', 'robert@havena.app', 'Apt 7D', 'Two-bedroom', 'Musician and night owl.', 68, 'banned', 'member'],
         ];
 
         $map = [];
@@ -145,7 +145,7 @@ class DemoContentSeeder extends Seeder
         }
 
         // Give the standing test accounts avatars too, if present.
-        foreach (['test.resident@neighborlink.app' => 8, 'test.community.admin@neighborlink.app' => 3, 'community.admin@neighborlink.app' => 11] as $email => $n) {
+        foreach (['test.resident@havena.app' => 8, 'test.community.admin@havena.app' => 3, 'community.admin@havena.app' => 11] as $email => $n) {
             $uid = DB::table('users')->where('email', $email)->value('id');
             if ($uid) {
                 DB::table('profiles')->updateOrInsert(
@@ -331,12 +331,12 @@ class DemoContentSeeder extends Seeder
         $u = fn (string $email) => $residents[$email] ?? null;
 
         $posts = [
-            ['aisha@neighborlink.app', 'help', "Has anyone seen Biscuit? Our golden retriever slipped out of the lobby this afternoon near the east tower. He is very friendly and wearing a blue collar. Please call me if you spot him. Thank you neighbors!", "{$this->img}/feed-dog.jpg", 14, 3, 1],
-            ['emily@neighborlink.app', 'general', "The Saturday farmers market two blocks over is amazing right now. Fresh strawberries, local honey, and the best sourdough. Highly recommend a morning stroll over there this weekend.", "{$this->img}/feed-market.jpg", 22, 5, 2],
-            ['priya@neighborlink.app', 'general', "Starting a morning run group! We meet at the clubhouse at 6:30 AM on Tuesdays and Thursdays. All paces welcome, we stick together. Comment below if you want to join.", null, 18, 6, 3],
-            ['tom@neighborlink.app', 'help', "Looking for a recommendation for a reliable plumber who has worked in the building before. Slow drain in the kitchen. Appreciate any leads.", null, 4, 4, 4],
-            ['david@neighborlink.app', 'general', "Big thank you to the maintenance team for fixing the gym AC so quickly. Back to full workouts in comfort. You all are the best.", null, 27, 2, 5],
-            ['nina@neighborlink.app', 'general', "Free moving boxes available! We just unpacked and have about fifteen sturdy boxes plus packing paper. First come first served, message me and I will leave them by the mailroom.", null, 9, 3, 6],
+            ['aisha@havena.app', 'help', "Has anyone seen Biscuit? Our golden retriever slipped out of the lobby this afternoon near the east tower. He is very friendly and wearing a blue collar. Please call me if you spot him. Thank you neighbors!", "{$this->img}/feed-dog.jpg", 14, 3, 1],
+            ['emily@havena.app', 'general', "The Saturday farmers market two blocks over is amazing right now. Fresh strawberries, local honey, and the best sourdough. Highly recommend a morning stroll over there this weekend.", "{$this->img}/feed-market.jpg", 22, 5, 2],
+            ['priya@havena.app', 'general', "Starting a morning run group! We meet at the clubhouse at 6:30 AM on Tuesdays and Thursdays. All paces welcome, we stick together. Comment below if you want to join.", null, 18, 6, 3],
+            ['tom@havena.app', 'help', "Looking for a recommendation for a reliable plumber who has worked in the building before. Slow drain in the kitchen. Appreciate any leads.", null, 4, 4, 4],
+            ['david@havena.app', 'general', "Big thank you to the maintenance team for fixing the gym AC so quickly. Back to full workouts in comfort. You all are the best.", null, 27, 2, 5],
+            ['nina@havena.app', 'general', "Free moving boxes available! We just unpacked and have about fifteen sturdy boxes plus packing paper. First come first served, message me and I will leave them by the mailroom.", null, 9, 3, 6],
         ];
 
         foreach ($posts as [$email, $category, $body, $image, $likes, $comments, $daysAgo]) {
@@ -365,13 +365,13 @@ class DemoContentSeeder extends Seeder
 
         $comments = [];
         if ($dogPost) {
-            $comments[] = [$dogPost, 'sarah@neighborlink.app', 'I think I saw him near the pool gate about an hour ago. Keeping an eye out!'];
-            $comments[] = [$dogPost, 'michael@neighborlink.app', 'Sharing with my floor group chat. We will help look.'];
-            $comments[] = [$dogPost, 'grace@neighborlink.app', 'So glad he was found safe. What a sweetheart.'];
+            $comments[] = [$dogPost, 'sarah@havena.app', 'I think I saw him near the pool gate about an hour ago. Keeping an eye out!'];
+            $comments[] = [$dogPost, 'michael@havena.app', 'Sharing with my floor group chat. We will help look.'];
+            $comments[] = [$dogPost, 'grace@havena.app', 'So glad he was found safe. What a sweetheart.'];
         }
         if ($marketPost) {
-            $comments[] = [$marketPost, 'lisa@neighborlink.app', 'The honey vendor is my favorite. See you there Saturday!'];
-            $comments[] = [$marketPost, 'carlos@neighborlink.app', 'Great photos. Adding this to my weekend plans.'];
+            $comments[] = [$marketPost, 'lisa@havena.app', 'The honey vendor is my favorite. See you there Saturday!'];
+            $comments[] = [$marketPost, 'carlos@havena.app', 'Great photos. Adding this to my weekend plans.'];
         }
 
         foreach ($comments as [$postId, $email, $body]) {
@@ -416,14 +416,14 @@ class DemoContentSeeder extends Seeder
         $u = fn (string $email) => $residents[$email] ?? null;
 
         $rows = [
-            ['sarah@neighborlink.app', 'for_sale', 'Furniture', 'Like new', 'Gray 3-Seat Sofa', 220.00, "Comfortable light gray fabric sofa in excellent condition. Smoke free and pet free home. Pickup from Apt 4B.", ['listing-sofa'], 3],
-            ['david@neighborlink.app', 'for_sale', 'Sports', 'Good', 'Hybrid Commuter Bike', 180.00, "Reliable hybrid bike, recently tuned with new tires. Great for the trail or commuting. Minor cosmetic wear.", ['listing-bike'], 5],
-            ['emily@neighborlink.app', 'for_sale', 'Furniture', 'Good', 'White Office Desk', 95.00, "Clean white home office desk with drawers. Perfect for a study nook. Some light scuffs on the legs.", ['listing-desk'], 6],
-            ['lisa@neighborlink.app', 'for_sale', 'Home & Garden', 'New', 'Indoor Plant Bundle', 40.00, "Five healthy potted houseplants including a snake plant and pothos. Great starter set for a green corner.", ['listing-plants'], 2],
-            ['carlos@neighborlink.app', 'for_sale', 'Electronics', 'Good', '55 inch 4K Smart TV', 300.00, "55 inch 4K smart TV with remote and stand. Crisp picture, works perfectly. Upgrading to a larger size.", ['listing-tv'], 8],
-            ['nina@neighborlink.app', 'for_sale', 'Baby & Kids', 'Like new', 'Baby Stroller', 120.00, "Lightweight stroller, folds easily, barely used. Includes rain cover. Pickup from the lobby.", ['listing-stroller'], 4],
-            ['priya@neighborlink.app', 'service', 'Services', null, 'Math Tutoring (Grades 6-12)', 30.00, "Experienced tutor offering math help for middle and high school students. Evenings and weekends. First session is free.", [], 10],
-            ['tom@neighborlink.app', 'wanted', 'Furniture', null, 'Wanted: Standing Desk', null, "Looking for a used sit-stand desk in good condition. Willing to pick up. Let me know what you have.", [], 7],
+            ['sarah@havena.app', 'for_sale', 'Furniture', 'Like new', 'Gray 3-Seat Sofa', 220.00, "Comfortable light gray fabric sofa in excellent condition. Smoke free and pet free home. Pickup from Apt 4B.", ['listing-sofa'], 3],
+            ['david@havena.app', 'for_sale', 'Sports', 'Good', 'Hybrid Commuter Bike', 180.00, "Reliable hybrid bike, recently tuned with new tires. Great for the trail or commuting. Minor cosmetic wear.", ['listing-bike'], 5],
+            ['emily@havena.app', 'for_sale', 'Furniture', 'Good', 'White Office Desk', 95.00, "Clean white home office desk with drawers. Perfect for a study nook. Some light scuffs on the legs.", ['listing-desk'], 6],
+            ['lisa@havena.app', 'for_sale', 'Home & Garden', 'New', 'Indoor Plant Bundle', 40.00, "Five healthy potted houseplants including a snake plant and pothos. Great starter set for a green corner.", ['listing-plants'], 2],
+            ['carlos@havena.app', 'for_sale', 'Electronics', 'Good', '55 inch 4K Smart TV', 300.00, "55 inch 4K smart TV with remote and stand. Crisp picture, works perfectly. Upgrading to a larger size.", ['listing-tv'], 8],
+            ['nina@havena.app', 'for_sale', 'Baby & Kids', 'Like new', 'Baby Stroller', 120.00, "Lightweight stroller, folds easily, barely used. Includes rain cover. Pickup from the lobby.", ['listing-stroller'], 4],
+            ['priya@havena.app', 'service', 'Services', null, 'Math Tutoring (Grades 6-12)', 30.00, "Experienced tutor offering math help for middle and high school students. Evenings and weekends. First session is free.", [], 10],
+            ['tom@havena.app', 'wanted', 'Furniture', null, 'Wanted: Standing Desk', null, "Looking for a used sit-stand desk in good condition. Willing to pick up. Let me know what you have.", [], 7],
         ];
 
         foreach ($rows as [$email, $type, $category, $condition, $title, $price, $desc, $images, $daysAgo]) {
@@ -457,10 +457,10 @@ class DemoContentSeeder extends Seeder
         $u = fn (string $email) => $residents[$email] ?? $adminId;
 
         $businesses = [
-            ['Sunrise Coffee Co.', 'Cafe', "Neighborhood coffee bar serving specialty espresso, fresh pastries, and cold brew. Locally roasted beans and a cozy patio.", '1200 Palm Grove Blvd, Suite 4', '(305) 555-0142', 'Mon-Sun 6:30 AM - 7:00 PM', 'Free WiFi, Outdoor seating, Loyalty rewards', 'business-cafe', 'emily@neighborlink.app'],
-            ['Core Pilates Studio', 'Fitness', "Boutique pilates and reformer studio with certified instructors. Small classes for all levels, from beginner to advanced.", '1200 Palm Grove Blvd, Suite 8', '(305) 555-0187', 'Mon-Sat 6:00 AM - 8:00 PM', 'Reformer classes, Private sessions, First class free', 'business-fitness', 'lisa@neighborlink.app'],
-            ['Luxe Hair & Spa', 'Beauty & Spa', "Full service salon and spa offering cuts, color, facials, and massage. Relax and refresh close to home.", '1200 Palm Grove Blvd, Suite 12', '(305) 555-0164', 'Tue-Sun 9:00 AM - 6:00 PM', 'Hair, Color, Facials, Massage', 'business-salon', 'nina@neighborlink.app'],
-            ['Bella Cucina Trattoria', 'Restaurant', "Family owned Italian trattoria with wood-fired pizza, handmade pasta, and a warm atmosphere. Dine in or takeout.", '1200 Palm Grove Blvd, Suite 1', '(305) 555-0119', 'Mon-Sun 11:00 AM - 10:00 PM', 'Wood-fired pizza, Handmade pasta, Takeout, Delivery', 'business-restaurant', 'diego@neighborlink.app'],
+            ['Sunrise Coffee Co.', 'Cafe', "Neighborhood coffee bar serving specialty espresso, fresh pastries, and cold brew. Locally roasted beans and a cozy patio.", '1200 Palm Grove Blvd, Suite 4', '(305) 555-0142', 'Mon-Sun 6:30 AM - 7:00 PM', 'Free WiFi, Outdoor seating, Loyalty rewards', 'business-cafe', 'emily@havena.app'],
+            ['Core Pilates Studio', 'Fitness', "Boutique pilates and reformer studio with certified instructors. Small classes for all levels, from beginner to advanced.", '1200 Palm Grove Blvd, Suite 8', '(305) 555-0187', 'Mon-Sat 6:00 AM - 8:00 PM', 'Reformer classes, Private sessions, First class free', 'business-fitness', 'lisa@havena.app'],
+            ['Luxe Hair & Spa', 'Beauty & Spa', "Full service salon and spa offering cuts, color, facials, and massage. Relax and refresh close to home.", '1200 Palm Grove Blvd, Suite 12', '(305) 555-0164', 'Tue-Sun 9:00 AM - 6:00 PM', 'Hair, Color, Facials, Massage', 'business-salon', 'nina@havena.app'],
+            ['Bella Cucina Trattoria', 'Restaurant', "Family owned Italian trattoria with wood-fired pizza, handmade pasta, and a warm atmosphere. Dine in or takeout.", '1200 Palm Grove Blvd, Suite 1', '(305) 555-0119', 'Mon-Sun 11:00 AM - 10:00 PM', 'Wood-fired pizza, Handmade pasta, Takeout, Delivery', 'business-restaurant', 'diego@havena.app'],
         ];
 
         $businessIds = [];
@@ -487,10 +487,10 @@ class DemoContentSeeder extends Seeder
         }
 
         $deals = [
-            ['20% Off Any Latte', 'Sunrise Coffee Co.', "Show this coupon at the counter to get 20% off any latte, hot or iced. Start your morning right.", 'coupon', '20% OFF', 5.50, 4.40, 'BREW20', 'Cafe', 'deal-coffee', true, 'emily@neighborlink.app', 30],
-            ['Free First Pilates Class', 'Core Pilates Studio', "New to the studio? Your first reformer class is on us. Book online or drop by to reserve your spot.", 'offer', 'FREE TRIAL', null, null, null, 'Fitness', 'business-fitness', false, 'lisa@neighborlink.app', 45],
-            ['$15 Off Any Spa Service', 'Luxe Hair & Spa', "Treat yourself to a facial or massage and take $15 off any spa service over $60. Neighbors only.", 'deal', '$15 OFF', 80.00, 65.00, 'RELAX15', 'Beauty & Spa', 'deal-spa', false, 'nina@neighborlink.app', 20],
-            ['Family Pizza Night 2-for-1', 'Bella Cucina Trattoria', "Buy any large wood-fired pizza and get a second of equal or lesser value free, every Tuesday night.", 'deal', '2 FOR 1', 24.00, 12.00, 'PIZZATUES', 'Restaurant', 'deal-pizza', true, 'diego@neighborlink.app', 14],
+            ['20% Off Any Latte', 'Sunrise Coffee Co.', "Show this coupon at the counter to get 20% off any latte, hot or iced. Start your morning right.", 'coupon', '20% OFF', 5.50, 4.40, 'BREW20', 'Cafe', 'deal-coffee', true, 'emily@havena.app', 30],
+            ['Free First Pilates Class', 'Core Pilates Studio', "New to the studio? Your first reformer class is on us. Book online or drop by to reserve your spot.", 'offer', 'FREE TRIAL', null, null, null, 'Fitness', 'business-fitness', false, 'lisa@havena.app', 45],
+            ['$15 Off Any Spa Service', 'Luxe Hair & Spa', "Treat yourself to a facial or massage and take $15 off any spa service over $60. Neighbors only.", 'deal', '$15 OFF', 80.00, 65.00, 'RELAX15', 'Beauty & Spa', 'deal-spa', false, 'nina@havena.app', 20],
+            ['Family Pizza Night 2-for-1', 'Bella Cucina Trattoria', "Buy any large wood-fired pizza and get a second of equal or lesser value free, every Tuesday night.", 'deal', '2 FOR 1', 24.00, 12.00, 'PIZZATUES', 'Restaurant', 'deal-pizza', true, 'diego@havena.app', 14],
         ];
 
         foreach ($deals as [$title, $vendor, $desc, $type, $label, $orig, $disc, $promo, $cat, $image, $featured, $ownerEmail, $endDays]) {
@@ -630,7 +630,7 @@ class DemoContentSeeder extends Seeder
 
     private function placeholderPdf(string $title): string
     {
-        $text = 'NeighborLink Demo Document: '.str_replace(['(', ')'], '', $title);
+        $text = 'Havena Demo Document: '.str_replace(['(', ')'], '', $title);
         $content = "BT /F1 18 Tf 72 720 Td ({$text}) Tj ET";
         $len = strlen($content);
 
@@ -647,19 +647,19 @@ class DemoContentSeeder extends Seeder
 
     private function seedMessages(array $residents, int $adminId): void
     {
-        $resident = $residents['test.resident@neighborlink.app']
+        $resident = $residents['test.resident@havena.app']
             ?? DB::table('users')->where('phone', '+15555550100')->value('id')
-            ?? ($residents['sarah@neighborlink.app'] ?? null);
+            ?? ($residents['sarah@havena.app'] ?? null);
 
         if (! $resident) {
             return;
         }
 
         $threads = [
-            [$residents['sarah@neighborlink.app'] ?? null, 'direct', [
-                [$residents['sarah@neighborlink.app'] ?? null, 'Hi! Welcome to the building. Let me know if you need anything getting settled in.', 3],
+            [$residents['sarah@havena.app'] ?? null, 'direct', [
+                [$residents['sarah@havena.app'] ?? null, 'Hi! Welcome to the building. Let me know if you need anything getting settled in.', 3],
                 [$resident, 'Thank you so much! Where is the best place to pick up packages?', 3],
-                [$residents['sarah@neighborlink.app'] ?? null, 'The mailroom on the ground floor by the east elevators. There are lockers for larger packages.', 2],
+                [$residents['sarah@havena.app'] ?? null, 'The mailroom on the ground floor by the east elevators. There are lockers for larger packages.', 2],
                 [$resident, 'Perfect, appreciate it!', 2],
             ]],
             [$adminId, 'direct', [
@@ -667,9 +667,9 @@ class DemoContentSeeder extends Seeder
                 [$resident, 'Great, thank you. Is the clubhouse available to reserve for a small gathering?', 4],
                 [$adminId, 'Absolutely. You can request it from the Amenities section in the app. I will approve it once submitted.', 1],
             ]],
-            [$residents['david@neighborlink.app'] ?? null, 'direct', [
+            [$residents['david@havena.app'] ?? null, 'direct', [
                 [$resident, 'Hi David, is the commuter bike still available?', 2],
-                [$residents['david@neighborlink.app'] ?? null, 'Yes it is! Happy to show it to you this weekend if you like.', 1],
+                [$residents['david@havena.app'] ?? null, 'Yes it is! Happy to show it to you this weekend if you like.', 1],
             ]],
         ];
 
@@ -731,8 +731,8 @@ class DemoContentSeeder extends Seeder
     private function seedNotifications(array $residents, int $adminId): void
     {
         $targets = array_filter([
-            $residents['test.resident@neighborlink.app'] ?? DB::table('users')->where('phone', '+15555550100')->value('id'),
-            $residents['test.community.admin@neighborlink.app'] ?? DB::table('users')->where('phone', '+15555550200')->value('id'),
+            $residents['test.resident@havena.app'] ?? DB::table('users')->where('phone', '+15555550100')->value('id'),
+            $residents['test.community.admin@havena.app'] ?? DB::table('users')->where('phone', '+15555550200')->value('id'),
             $adminId,
         ]);
 
@@ -801,10 +801,10 @@ class DemoContentSeeder extends Seeder
         $u = fn (string $email) => $residents[$email] ?? null;
 
         $rows = [
-            ['noise', 'Loud music after quiet hours', "Repeated loud music coming from a nearby unit well past 11 PM on weekends. Have tried knocking with no response.", 'open', 'medium', 'tom@neighborlink.app', 'robert@neighborlink.app', null],
-            ['safety', 'Broken light in parking garage', "The light on level P2 near the ramp has been out for a week. It feels unsafe walking to my car at night.", 'in_review', 'high', 'grace@neighborlink.app', null, null],
-            ['spam', 'Repeated solicitation flyers', "Someone keeps leaving business flyers on every door despite the no soliciting policy.", 'resolved', 'low', 'nina@neighborlink.app', null, 'Management posted signage and addressed the vendor. Resolved.'],
-            ['damage', 'Damaged mailbox lock', "The lock on the cluster mailbox by the lobby is jammed and will not open properly.", 'open', 'medium', 'david@neighborlink.app', null, null],
+            ['noise', 'Loud music after quiet hours', "Repeated loud music coming from a nearby unit well past 11 PM on weekends. Have tried knocking with no response.", 'open', 'medium', 'tom@havena.app', 'robert@havena.app', null],
+            ['safety', 'Broken light in parking garage', "The light on level P2 near the ramp has been out for a week. It feels unsafe walking to my car at night.", 'in_review', 'high', 'grace@havena.app', null, null],
+            ['spam', 'Repeated solicitation flyers', "Someone keeps leaving business flyers on every door despite the no soliciting policy.", 'resolved', 'low', 'nina@havena.app', null, 'Management posted signage and addressed the vendor. Resolved.'],
+            ['damage', 'Damaged mailbox lock', "The lock on the cluster mailbox by the lobby is jammed and will not open properly.", 'open', 'medium', 'david@havena.app', null, null],
         ];
 
         foreach ($rows as [$type, $title, $desc, $status, $severity, $reporterEmail, $reportedEmail, $note]) {
@@ -837,12 +837,12 @@ class DemoContentSeeder extends Seeder
     private function seedContactSubmissions(): void
     {
         $rows = [
-            ['resident', 'Olivia Brooks', 'olivia.brooks@example.com', 'Harbor Point Residences', "I would love to bring NeighborLink to our building. Who should I connect with about getting our HOA set up?", 'new'],
+            ['resident', 'Olivia Brooks', 'olivia.brooks@example.com', 'Harbor Point Residences', "I would love to bring Havena to our building. Who should I connect with about getting our HOA set up?", 'new'],
             ['admin', 'Marcus Reid', 'marcus.reid@example.com', 'Cedar Ridge Community', "We manage three properties and are interested in a demo for our board meeting next month.", 'new'],
             ['resident', 'Hannah Kim', 'hannah.kim@example.com', 'Lakeside Villas', "Does the app support event RSVPs and amenity booking? Our residents have been asking for this.", 'read'],
             ['admin', 'Derek Alvarado', 'derek.alvarado@example.com', 'Metro Lofts', "Following up on pricing for a 250 unit community. Please send details.", 'read'],
             ['resident', 'Sophia Nguyen', 'sophia.nguyen@example.com', null, "Just wanted to say the marketplace feature is a fantastic idea. Hope our community adopts it soon.", 'archived'],
-            ['admin', 'Patricia Gomez', 'patricia.gomez@example.com', 'Bayfront Towers', "Our previous portal was clunky. NeighborLink looks much cleaner. Can we schedule a walkthrough?", 'new'],
+            ['admin', 'Patricia Gomez', 'patricia.gomez@example.com', 'Bayfront Towers', "Our previous portal was clunky. Havena looks much cleaner. Can we schedule a walkthrough?", 'new'],
         ];
 
         foreach ($rows as [$role, $name, $email, $community, $message, $status]) {
@@ -939,7 +939,7 @@ class DemoContentSeeder extends Seeder
                 'entity_type' => null,
                 'entity_id' => null,
                 'ip_address' => '198.51.100.'.rand(2, 250),
-                'user_agent' => 'NeighborLink Mobile',
+                'user_agent' => 'Havena Mobile',
                 'severity' => $severity,
                 'created_at' => now()->subDays(rand(0, 14)),
                 'updated_at' => now()->subDays(rand(0, 14)),
@@ -953,7 +953,7 @@ class DemoContentSeeder extends Seeder
                 'action' => $action,
                 'description' => $desc,
                 'ip_address' => '198.51.100.'.rand(2, 250),
-                'user_agent' => 'NeighborLink Web',
+                'user_agent' => 'Havena Web',
                 'severity' => $severity,
                 'created_at' => now()->subDays(rand(0, 14)),
                 'updated_at' => now()->subDays(rand(0, 14)),

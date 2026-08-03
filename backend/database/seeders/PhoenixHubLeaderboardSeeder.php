@@ -57,7 +57,7 @@ class PhoenixHubLeaderboardSeeder extends Seeder
         }
 
         $leader = User::query()->firstOrCreate(
-            ['email' => 'phoenix.leader@neighborlink.app'],
+            ['email' => 'phoenix.leader@havena.app'],
             [
                 'name'       => 'Jordan Lee',
                 'password'   => Hash::make('password'),
@@ -74,7 +74,7 @@ class PhoenixHubLeaderboardSeeder extends Seeder
         );
 
         $third = User::query()->firstOrCreate(
-            ['email' => 'phoenix.member@neighborlink.app'],
+            ['email' => 'phoenix.member@havena.app'],
             [
                 'name'       => 'Taylor Brooks',
                 'password'   => Hash::make('password'),

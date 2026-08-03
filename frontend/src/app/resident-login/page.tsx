@@ -8,8 +8,8 @@ import { handleLoginError } from "@/lib/auth/login-error";
 import { AuthRedirectOverlay, LoadingButton } from "@/components/shared/loaders";
 
 const DEMO_ACCOUNTS = [
-  { label: "Resident", email: "sarah@neighborlink.app",  password: "password", accent: "#059669" },
-  { label: "Resident 2", email: "david@neighborlink.app", password: "password", accent: "#0891b2" },
+  { label: "Resident", email: "sarah@havena.app",  password: "password", accent: "#059669" },
+  { label: "Resident 2", email: "david@havena.app", password: "password", accent: "#0891b2" },
 ];
 
 export default function ResidentLoginPage() {
@@ -66,7 +66,7 @@ export default function ResidentLoginPage() {
               <NbrLogoMark />
             </span>
             <div>
-              <p className="text-[15px] font-bold leading-tight tracking-tight text-slate-900">NeighborLink</p>
+              <p className="text-[15px] font-bold leading-tight tracking-tight text-slate-900">Havena</p>
               <p className="text-[11px] leading-tight text-slate-500">Resident Portal</p>
             </div>
           </div>
@@ -229,7 +229,7 @@ export default function ResidentLoginPage() {
               </div>
 
               <p className="mt-5 text-center text-[12px] text-slate-400">
-                NeighborLink Resident Portal · Community access
+                Havena Resident Portal · Community access
               </p>
             </div>
           </div>

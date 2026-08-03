@@ -123,7 +123,7 @@ class CommunityLifecycleTest extends TestCase
     public function test_system_admin_can_toggle_community_status_via_api(): void
     {
         $this->seed(SystemAdminSeeder::class);
-        Sanctum::actingAs(User::query()->where('email', 'admin@neighborlink.app')->firstOrFail());
+        Sanctum::actingAs(User::query()->where('email', 'admin@havena.app')->firstOrFail());
 
         ['community' => $community] = $this->seedApprovedCommunity();
 

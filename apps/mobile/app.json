@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "NeighborLink",
+    "name": "Havena",
     "slug": "neighborlink",
     "owner": "sanas-team",
     "version": "1.0.0",
@@ -12,9 +12,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.zsquare.neighborlink",
       "infoPlist": {
-        "NSFaceIDUsageDescription": "NeighborLink uses Face ID to sign you in quickly and securely.",
-        "NSPhotoLibraryUsageDescription": "Allow NeighborLink to save photos from the community feed to your gallery.",
-        "NSPhotoLibraryAddUsageDescription": "Allow NeighborLink to save photos from the community feed to your gallery.",
+        "NSFaceIDUsageDescription": "Havena uses Face ID to sign you in quickly and securely.",
+        "NSPhotoLibraryUsageDescription": "Allow Havena to save photos from the community feed to your gallery.",
+        "NSPhotoLibraryAddUsageDescription": "Allow Havena to save photos from the community feed to your gallery.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -73,28 +73,28 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow NeighborLink to choose a profile photo from your library.",
-          "cameraPermission": "Allow NeighborLink to take a profile photo with your camera."
+          "photosPermission": "Allow Havena to choose a profile photo from your library.",
+          "cameraPermission": "Allow Havena to take a profile photo with your camera."
         }
       ],
       [
         "expo-media-library",
         {
-          "photosPermission": "Allow NeighborLink to save photos from the community feed to your gallery.",
-          "savePhotosPermission": "Allow NeighborLink to save photos from the community feed to your gallery.",
+          "photosPermission": "Allow Havena to save photos from the community feed to your gallery.",
+          "savePhotosPermission": "Allow Havena to save photos from the community feed to your gallery.",
           "isAccessMediaLocationEnabled": false
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow NeighborLink to scan invite QR codes and take photos."
+          "cameraPermission": "Allow Havena to scan invite QR codes and take photos."
         }
       ],
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Allow NeighborLink to sign you in with Face ID."
+          "faceIDPermission": "Allow Havena to sign you in with Face ID."
         }
       ],
       "expo-secure-store",

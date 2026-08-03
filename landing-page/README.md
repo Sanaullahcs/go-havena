@@ -1,6 +1,6 @@
-# NeighborLink — Landing Page
+# Havena — Landing Page
 
-A premium, modern, fully responsive marketing landing page for NeighborLink, built as a **standalone Next.js 16 + React 19 + Tailwind CSS v4** application.
+A premium, modern, fully responsive marketing landing page for Havena, built as a **standalone Next.js 16 + React 19 + Tailwind CSS v4** application.
 
 This is a **separate, dedicated project** and does **not** modify the existing mobile app (`apps/mobile`) or the existing dashboards Next.js app (`frontend`).
 
@@ -72,11 +72,11 @@ landing-page/
    Digital Notice Board, Resource Hub, Property Management, Community Feed,
    Neighborhood Marketplace, Gamification, Admin Dashboard).
 5. **HowItWorks** — dark gradient section with "Simple. Smart. Connected."
-   eyebrow, "How NeighborLink Works" headline, 4 step circles with dashed
+   eyebrow, "How Havena Works" headline, 4 step circles with dashed
    connector (Join Your Community, Stay Informed, Connect & Engage, Earn &
    Grow).
 6. **Testimonials** — "Loved by Communities" eyebrow, "Neighbors Love
-   NeighborLink" headline, 3 testimonial cards.
+   Havena" headline, 3 testimonial cards.
 7. **CTA** — dark gradient panel with house illustration + "Ready to build a
    stronger, more connected community?" + App Store / Google Play buttons.
 8. **Footer** — dark footer with brand + tagline, Quick Links, Support, Follow

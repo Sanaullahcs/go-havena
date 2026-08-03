@@ -196,7 +196,7 @@ class AuthAccountBlockTest extends TestCase
             'status'       => 'pending',
         ]);
 
-        $systemAdmin = User::query()->where('email', 'admin@neighborlink.app')->firstOrFail();
+        $systemAdmin = User::query()->where('email', 'admin@havena.app')->firstOrFail();
 
         $this->actingAs($systemAdmin)
             ->patchJson("/api/v1/admin/community-admins/{$admin->id}/reapprove")
@@ -228,7 +228,7 @@ class AuthAccountBlockTest extends TestCase
             'status'       => 'pending',
         ]);
 
-        $systemAdmin = User::query()->where('email', 'admin@neighborlink.app')->firstOrFail();
+        $systemAdmin = User::query()->where('email', 'admin@havena.app')->firstOrFail();
 
         $this->actingAs($systemAdmin)
             ->patchJson("/api/v1/admin/community-admins/{$admin->id}/reject", [

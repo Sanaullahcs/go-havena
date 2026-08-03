@@ -98,14 +98,14 @@ if ($health['status'] !== 200) {
 }
 
 $adminToken = null;
-foreach (['test.community.admin@neighborlink.app', 'community.admin@neighborlink.app', 'alex@gmail.com'] as $email) {
+foreach (['test.community.admin@havena.app', 'community.admin@havena.app', 'alex@gmail.com'] as $email) {
     $adminToken = login($email);
     if ($adminToken) {
         break;
     }
 }
 $residentToken = null;
-foreach (['test.resident@neighborlink.app', 'turner@gmail.com'] as $email) {
+foreach (['test.resident@havena.app', 'turner@gmail.com'] as $email) {
     $residentToken = login($email);
     if ($residentToken) {
         break;

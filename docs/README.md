@@ -1,6 +1,6 @@
-# NeighborLink — Project Documentation
+# Havena — Project Documentation
 
-> **NeighborLink** is a hyperlocal neighborhood community platform: a mobile app, a unified web portal (admin + resident), and a Laravel API. This `docs/` folder is the **single source of truth** for product, design, data, API, and engineering decisions.
+> **Havena** is a hyperlocal neighborhood community platform: a mobile app, a unified web portal (admin + resident), and a Laravel API. This `docs/` folder is the **single source of truth** for product, design, data, API, and engineering decisions.
 
 ---
 
@@ -23,7 +23,7 @@
 
 ## 🧭 Product at a glance
 
-- **Product name:** NeighborLink (internal doc series: *Well‑Smart*, `WS-DFD-001`)
+- **Product name:** Havena (internal doc series: *Well‑Smart*, `WS-DFD-001`)
 - **Tagline:** *"An app that connects neighbors while saving time, reducing friction, improving safety, improving convenience, and saving money."*
 - **Audience:** Residents of a managed neighborhood / community, plus community admins & moderators.
 - **MVP features:** Secure Resident Verification · Digital Notice Board · Resource Hub (Wellness) · Property Management · Community Feed · Neighborhood Marketplace · Gamification.
@@ -46,7 +46,7 @@
 
 The mobile UI **strictly follows** the Figma file:
 
-> **NeighborLink‑App** — <https://www.figma.com/design/jm6QleNo5bYJxu5lxGCAGL/NeighborLink-App?node-id=1430-3533>
+> **Havena‑App** — <https://www.figma.com/design/jm6QleNo5bYJxu5lxGCAGL/Havena-App?node-id=1430-3533>
 
 The full list of designed screens is catalogued in [02-design-system/screen-inventory.md](./02-design-system/screen-inventory.md). Any UI built must match these frames pixel‑for‑pixel (spacing, color, typography, radii). Deviations require a design ticket.
  

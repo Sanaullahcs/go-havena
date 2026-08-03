@@ -1,4 +1,4 @@
-# NeighborLink Web Portal
+# Havena Web Portal
 
 Single **Next.js** application serving both **Admin** and **Resident** experiences. One codebase, shared components, one API client — role-specific areas are separated by route groups.
 

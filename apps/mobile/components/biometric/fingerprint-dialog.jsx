@@ -85,7 +85,7 @@ export default function FingerprintDialog({ visible, onClose }) {
       <AuthSuccessOverlay
         visible={showSuccess}
         title="Authenticated"
-        subtitle="Opening NeighborLink…"
+        subtitle="Opening Havena…"
         onComplete={finishSignIn}
       />
       <Modal visible={showSheet} transparent animationType="fade">

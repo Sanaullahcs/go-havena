@@ -18,7 +18,7 @@ class AdminDashboardStatsTest extends TestCase
     public function test_dashboard_resident_counts_exclude_community_admin_memberships(): void
     {
         $this->seed(SystemAdminSeeder::class);
-        Sanctum::actingAs(User::query()->where('email', 'admin@neighborlink.app')->firstOrFail());
+        Sanctum::actingAs(User::query()->where('email', 'admin@havena.app')->firstOrFail());
 
         $region = Region::query()->create([
             'title'       => 'Cairo Metro',
@@ -75,7 +75,7 @@ class AdminDashboardStatsTest extends TestCase
     public function test_dashboard_shows_zero_residents_when_only_community_admins_exist(): void
     {
         $this->seed(SystemAdminSeeder::class);
-        Sanctum::actingAs(User::query()->where('email', 'admin@neighborlink.app')->firstOrFail());
+        Sanctum::actingAs(User::query()->where('email', 'admin@havena.app')->firstOrFail());
 
         $region = Region::query()->create([
             'title'       => 'Cairo Metro',
@@ -120,7 +120,7 @@ class AdminDashboardStatsTest extends TestCase
     public function test_dashboard_published_notices_excludes_events_and_alerts(): void
     {
         $this->seed(SystemAdminSeeder::class);
-        Sanctum::actingAs(User::query()->where('email', 'admin@neighborlink.app')->firstOrFail());
+        Sanctum::actingAs(User::query()->where('email', 'admin@havena.app')->firstOrFail());
 
         $region = Region::query()->create([
             'title'       => 'Cairo Metro',
@@ -206,7 +206,7 @@ class AdminDashboardStatsTest extends TestCase
     public function test_mobile_dashboard_returns_lightweight_payload(): void
     {
         $this->seed(SystemAdminSeeder::class);
-        Sanctum::actingAs(User::query()->where('email', 'admin@neighborlink.app')->firstOrFail());
+        Sanctum::actingAs(User::query()->where('email', 'admin@havena.app')->firstOrFail());
 
         $response = $this->getJson('/api/v1/admin/dashboard/stats?mobile=1');
 

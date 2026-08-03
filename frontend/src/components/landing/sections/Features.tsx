@@ -239,7 +239,7 @@ export function Features() {
             Two roles, <span className="gradient-text">one connected</span> community
           </h2>
           <p className="mx-auto mt-3 text-[14px] leading-relaxed text-ink-body sm:text-[15px]">
-            Tap a role and explore what each person can do on NeighborLink.
+            Tap a role and explore what each person can do on Havena.
           </p>
         </div>
 

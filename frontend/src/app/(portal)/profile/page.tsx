@@ -29,7 +29,7 @@ const NOTIFICATION_PREFS = [
 export default function ProfilePage() {
   const router   = useRouter();
   const user     = getUser();
-  const email    = user?.email ?? "resident@neighborlink.app";
+  const email    = user?.email ?? "resident@havena.app";
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [editing, setEditing]     = useState(false);

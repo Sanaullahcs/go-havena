@@ -14,15 +14,15 @@ export type LegalDocument = {
 
 export const privacyPolicy: LegalDocument = {
   title: "Privacy Policy",
-  description: "How NeighborLink collects, uses, and protects your information.",
+  description: "How Havena collects, uses, and protects your information.",
   lastUpdated: "14 July 2026",
   sections: [
     {
       id: "introduction",
       title: "Introduction",
       paragraphs: [
-        "NeighborLink (“we”, “our”, or “us”) provides a community platform for neighborhoods, HOAs, and managed communities. This Privacy Policy explains what information we collect, how we use it, and the choices you have when you use our website, mobile app, and admin dashboard (collectively, the “Services”).",
-        "By using NeighborLink, you agree to the collection and use of information as described in this policy. If you do not agree, please do not use the Services.",
+        "Havena (“we”, “our”, or “us”) provides a community platform for neighborhoods, HOAs, and managed communities. This Privacy Policy explains what information we collect, how we use it, and the choices you have when you use our website, mobile app, and admin dashboard (collectively, the “Services”).",
+        "By using Havena, you agree to the collection and use of information as described in this policy. If you do not agree, please do not use the Services.",
       ],
     },
     {
@@ -53,7 +53,7 @@ export const privacyPolicy: LegalDocument = {
       id: "sharing",
       title: "How we share information",
       paragraphs: [
-        "NeighborLink is not a public social network. Your profile and community content are visible to other members and authorized admins within your community according to your role and community settings.",
+        "Havena is not a public social network. Your profile and community content are visible to other members and authorized admins within your community according to your role and community settings.",
         "We do not sell your personal information. We may share data with service providers who help us host, secure, or operate the platform (under confidentiality obligations), or when required by law.",
       ],
     },
@@ -87,7 +87,7 @@ export const privacyPolicy: LegalDocument = {
       id: "children",
       title: "Children",
       paragraphs: [
-        "NeighborLink is intended for community members aged 13 and older. We do not knowingly collect personal information from children under 13 without appropriate consent.",
+        "Havena is intended for community members aged 13 and older. We do not knowingly collect personal information from children under 13 without appropriate consent.",
       ],
     },
     {
@@ -109,21 +109,21 @@ export const privacyPolicy: LegalDocument = {
 
 export const termsOfService: LegalDocument = {
   title: "Terms of Service",
-  description: "Rules and conditions for using the NeighborLink platform.",
+  description: "Rules and conditions for using the Havena platform.",
   lastUpdated: "14 July 2026",
   sections: [
     {
       id: "agreement",
       title: "Agreement to terms",
       paragraphs: [
-        "These Terms of Service (“Terms”) govern your access to and use of NeighborLink’s website, mobile application, and admin dashboard. By creating an account or using the Services, you agree to these Terms.",
-        "If you use NeighborLink on behalf of a community or organization, you represent that you have authority to bind that organization to these Terms.",
+        "These Terms of Service (“Terms”) govern your access to and use of Havena’s website, mobile application, and admin dashboard. By creating an account or using the Services, you agree to these Terms.",
+        "If you use Havena on behalf of a community or organization, you represent that you have authority to bind that organization to these Terms.",
       ],
     },
     {
       id: "eligibility",
       title: "Eligibility & accounts",
-      paragraphs: ["To use NeighborLink you must:"],
+      paragraphs: ["To use Havena you must:"],
       bullets: [
         "Be invited to or approved for a specific community, or hold an authorized admin role.",
         "Provide accurate registration information and keep your account credentials secure.",
@@ -147,7 +147,7 @@ export const termsOfService: LegalDocument = {
       id: "content",
       title: "Your content",
       paragraphs: [
-        "You retain ownership of content you submit (posts, listings, messages, documents). By posting on NeighborLink, you grant us a limited license to host, display, and distribute that content within the Services and to your intended community audience.",
+        "You retain ownership of content you submit (posts, listings, messages, documents). By posting on Havena, you grant us a limited license to host, display, and distribute that content within the Services and to your intended community audience.",
         "Community admins may moderate, remove, or restrict content according to community guidelines and applicable law.",
       ],
     },
@@ -163,7 +163,7 @@ export const termsOfService: LegalDocument = {
       id: "marketplace-wellness",
       title: "Marketplace & wellness features",
       paragraphs: [
-        "Marketplace listings, deals, and wellness content are provided for community convenience. NeighborLink does not guarantee the quality, safety, or legality of third-party offers. Transactions and participation are at your own discretion.",
+        "Marketplace listings, deals, and wellness content are provided for community convenience. Havena does not guarantee the quality, safety, or legality of third-party offers. Transactions and participation are at your own discretion.",
       ],
     },
     {
@@ -185,7 +185,7 @@ export const termsOfService: LegalDocument = {
       id: "liability",
       title: "Limitation of liability",
       paragraphs: [
-        "To the fullest extent permitted by law, NeighborLink and its affiliates will not be liable for indirect, incidental, special, consequential, or punitive damages arising from your use of the Services. Our total liability for any claim related to the Services is limited to the amount you paid us in the twelve months before the claim, or one hundred US dollars if no fees were paid.",
+        "To the fullest extent permitted by law, Havena and its affiliates will not be liable for indirect, incidental, special, consequential, or punitive damages arising from your use of the Services. Our total liability for any claim related to the Services is limited to the amount you paid us in the twelve months before the claim, or one hundred US dollars if no fees were paid.",
       ],
     },
     {

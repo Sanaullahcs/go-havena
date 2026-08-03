@@ -20,7 +20,7 @@ class ContactSubmissionTest extends TestCase
             'name'      => 'Sarah Chen',
             'email'     => 'sarah@example.com',
             'community' => 'Greenwood HOA',
-            'message'   => 'We would love to bring NeighborLink to our community.',
+            'message'   => 'We would love to bring Havena to our community.',
         ]);
 
         $response->assertCreated()
@@ -47,7 +47,7 @@ class ContactSubmissionTest extends TestCase
     public function test_system_admin_can_list_contact_submissions(): void
     {
         $this->seed(SystemAdminSeeder::class);
-        Sanctum::actingAs(User::query()->where('email', 'admin@neighborlink.app')->firstOrFail());
+        Sanctum::actingAs(User::query()->where('email', 'admin@havena.app')->firstOrFail());
 
         ContactSubmission::query()->create([
             'role'    => 'admin',
@@ -85,7 +85,7 @@ class ContactSubmissionTest extends TestCase
     public function test_system_admin_can_update_submission_status(): void
     {
         $this->seed(SystemAdminSeeder::class);
-        Sanctum::actingAs(User::query()->where('email', 'admin@neighborlink.app')->firstOrFail());
+        Sanctum::actingAs(User::query()->where('email', 'admin@havena.app')->firstOrFail());
 
         $submission = ContactSubmission::query()->create([
             'role'    => 'other',

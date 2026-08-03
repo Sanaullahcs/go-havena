@@ -23,10 +23,10 @@ use Illuminate\Support\Str;
 class MobileTestAccountsSeeder extends Seeder
 {
     public const RESIDENT_PHONE = '+15555550100';
-    public const RESIDENT_EMAIL = 'test.resident@neighborlink.app';
+    public const RESIDENT_EMAIL = 'test.resident@havena.app';
 
     public const COMMUNITY_ADMIN_PHONE = '+15555550200';
-    public const COMMUNITY_ADMIN_EMAIL = 'test.community.admin@neighborlink.app';
+    public const COMMUNITY_ADMIN_EMAIL = 'test.community.admin@havena.app';
 
     public const LEGACY_RESIDENT_PHONE = '+15555555555';
     public const LEGACY_ADMIN_PHONE = '+15556668888';
@@ -183,7 +183,7 @@ class MobileTestAccountsSeeder extends Seeder
     private function refreshLegacyResident(?Region $region, Community $community): void
     {
         $user = User::query()->where('phone', self::LEGACY_RESIDENT_PHONE)
-            ->orWhere('email', 'sarah@neighborlink.app')
+            ->orWhere('email', 'sarah@havena.app')
             ->first();
 
         if (! $user) {

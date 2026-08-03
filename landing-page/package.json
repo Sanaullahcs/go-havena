@@ -1,8 +1,8 @@
 {
-  "name": "neighborlink-landing",
+  "name": "havena-landing",
   "version": "0.1.0",
   "private": true,
-  "description": "NeighborLink — public marketing landing page (Next.js 16 + Tailwind 4)",
+  "description": "Havena — public marketing landing page (Next.js 16 + Tailwind 4)",
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",

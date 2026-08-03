@@ -69,8 +69,8 @@ $health = request('GET', '/health');
 assertOk($health['status'] === 200, 'API health check');
 
 $adminEmails = [
-    'test.community.admin@neighborlink.app',
-    'community.admin@neighborlink.app',
+    'test.community.admin@havena.app',
+    'community.admin@havena.app',
     'alex@gmail.com',
 ];
 $adminToken = null;
@@ -86,7 +86,7 @@ if (! $adminToken) {
 }
 
 $residentEmails = [
-    'test.resident@neighborlink.app',
+    'test.resident@havena.app',
     'turner@gmail.com',
 ];
 $residentToken = null;

@@ -96,7 +96,7 @@ async function ensureAndroidChannel(Notifications) {
   if (Platform.OS !== "android") return;
 
   await Notifications.setNotificationChannelAsync("default", {
-    name: "NeighborLink Alerts",
+    name: "Havena Alerts",
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 250, 250, 250],
     lightColor: "#0052DF",

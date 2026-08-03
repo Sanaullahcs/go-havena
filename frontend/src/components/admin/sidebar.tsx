@@ -304,7 +304,7 @@ function Brand() {
         <NbrLogoMark size={20} />
       </span>
       <span className="flex min-w-0 flex-col justify-center gap-0">
-        <span className="nl-sidebar-brand-name">NeighborLink</span>
+        <span className="nl-sidebar-brand-name">Havena</span>
         <span className="nl-sidebar-brand-role">Admin Portal</span>
       </span>
     </Link>
@@ -385,8 +385,8 @@ function SidebarInner({
       {/* Bottom: version badge */}
       <div className="mt-auto shrink-0 border-t border-slate-100 bg-white pt-3">
         <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
-          <p className="text-[11.5px] font-semibold text-slate-700">NeighborLink Admin</p>
-          <p className="mt-0.5 text-[11px] text-slate-400">v2.1.4 · support@neighborlink.app</p>
+          <p className="text-[11.5px] font-semibold text-slate-700">Havena Admin</p>
+          <p className="mt-0.5 text-[11px] text-slate-400">v2.1.4 · support@havena.app</p>
         </div>
       </div>
     </div>

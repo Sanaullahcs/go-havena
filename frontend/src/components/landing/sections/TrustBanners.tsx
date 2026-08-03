@@ -173,7 +173,7 @@ export function TrustBanners() {
               )}
             </span>
             <h2 className="section-title mt-4">
-              Explore what makes NeighborLink{" "}
+              Explore what makes Havena{" "}
               <span className="gradient-text">different</span>
             </h2>
             <p className="mt-3 text-[15px] text-ink-body sm:text-[16px]">

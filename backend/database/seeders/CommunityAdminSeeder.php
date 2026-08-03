@@ -17,7 +17,7 @@ use Illuminate\Support\Str;
 class CommunityAdminSeeder extends Seeder
 {
     public const DEV_PHONE = '+15556668888';
-    public const DEV_EMAIL = 'community.admin@neighborlink.app';
+    public const DEV_EMAIL = 'community.admin@havena.app';
 
     public function run(): void
     {

@@ -38,14 +38,14 @@ const FAQS = [
 const CONTACTS = [
   {
     label: "Technical Support",
-    value: "support@neighborlink.app",
+    value: "support@havena.app",
     note: "Response within 4 hours",
     icon: <IcoMail />,
     color: "blue",
   },
   {
     label: "Billing Inquiries",
-    value: "billing@neighborlink.app",
+    value: "billing@havena.app",
     note: "Mon–Fri, 9 AM – 6 PM",
     icon: <IcoCard />,
     color: "violet",
@@ -250,10 +250,10 @@ export default function AdminSupportPage() {
           <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
         </span>
         <p className="text-[13px] font-medium text-emerald-800">
-          All systems operational — NeighborLink platform is running smoothly.
+          All systems operational — Havena platform is running smoothly.
         </p>
         <a
-          href="https://status.neighborlink.app"
+          href="https://status.havena.app"
           target="_blank"
           rel="noopener noreferrer"
           className="ml-auto shrink-0 text-[12px] font-semibold text-emerald-700 underline underline-offset-2 hover:text-emerald-900"

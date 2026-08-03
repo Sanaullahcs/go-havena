@@ -27,7 +27,7 @@ class MainSeeder extends Seeder
         /* ── Users ── */
         $adminId = DB::table('users')->insertGetId([
             'name'       => 'Admin User',
-            'email'      => 'admin@neighborlink.app',
+            'email'      => 'admin@havena.app',
             'password'   => Hash::make('password'),
             'status'     => 'active',
             'role'       => 'system_admin',
@@ -36,12 +36,12 @@ class MainSeeder extends Seeder
         ]);
 
         $residents = [
-            ['Sarah Mitchell',  'sarah@neighborlink.app',   'Apt 4B', 'Two-bedroom'],
-            ['David Chen',      'david@neighborlink.app',   'Apt 6D', 'Studio'],
-            ['Lisa Wang',       'lisa@neighborlink.app',    'Apt 2A', 'One-bedroom'],
-            ['James Okafor',    'james@neighborlink.app',   'Apt 7A', 'Two-bedroom'],
-            ['Emily Rodriguez', 'emily@neighborlink.app',   'Apt 1C', 'One-bedroom'],
-            ['Michael Torres',  'michael@neighborlink.app', 'Apt 5F', 'Three-bedroom'],
+            ['Sarah Mitchell',  'sarah@havena.app',   'Apt 4B', 'Two-bedroom'],
+            ['David Chen',      'david@havena.app',   'Apt 6D', 'Studio'],
+            ['Lisa Wang',       'lisa@havena.app',    'Apt 2A', 'One-bedroom'],
+            ['James Okafor',    'james@havena.app',   'Apt 7A', 'Two-bedroom'],
+            ['Emily Rodriguez', 'emily@havena.app',   'Apt 1C', 'One-bedroom'],
+            ['Michael Torres',  'michael@havena.app', 'Apt 5F', 'Three-bedroom'],
         ];
 
         $residentIds = [];
@@ -273,7 +273,7 @@ class MainSeeder extends Seeder
             DB::table('app_notifications')->insert([
                 ['user_id' => $uid, 'type' => 'info',    'title' => 'Community BBQ This Saturday',   'body' => 'Join us at 4 PM in the courtyard!',               'read_at' => null, 'created_at' => $now->copy()->subHours(2),  'updated_at' => $now],
                 ['user_id' => $uid, 'type' => 'warning', 'title' => 'Water Maintenance - June 25',   'body' => 'Water shutoff 9 AM–1 PM. Please plan ahead.',     'read_at' => null, 'created_at' => $now->copy()->subHours(5),  'updated_at' => $now],
-                ['user_id' => $uid, 'type' => 'success', 'title' => 'Welcome to NeighborLink!',      'body' => 'Your account is active. Explore your community.',  'read_at' => $now, 'created_at' => $now->copy()->subDays(3), 'updated_at' => $now],
+                ['user_id' => $uid, 'type' => 'success', 'title' => 'Welcome to Havena!',      'body' => 'Your account is active. Explore your community.',  'read_at' => $now, 'created_at' => $now->copy()->subDays(3), 'updated_at' => $now],
             ]);
         }
 

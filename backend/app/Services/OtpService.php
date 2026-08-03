@@ -25,7 +25,7 @@ class OtpService
         ]);
 
         if (app()->environment('local', 'testing', 'uat')) {
-            Log::info('NeighborLink OTP', ['phone' => $phone, 'code' => $code]);
+            Log::info('Havena OTP', ['phone' => $phone, 'code' => $code]);
         }
     }
 

@@ -35,7 +35,7 @@ const CATEGORY_PALETTE = [
   { icon: "trash-2", color: "#059669", bg: "#ECFDF5" },
   { icon: "shield", color: "#DC2626", bg: "#FEF2F2" },
   { icon: "sun", color: "#D97706", bg: "#FFFBEB" },
-  { icon: "tool", color: "#4F46E5", bg: "#EEF2FF" },
+  { icon: "tool", color: "#4F46E5", bg: "#EFF6FF" },
   { icon: "users", color: "#F97316", bg: "#FFEDD5" },
   { icon: "folder", color: "#64748B", bg: "#F8FAFC" },
 ];

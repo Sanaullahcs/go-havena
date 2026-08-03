@@ -19,7 +19,7 @@ class AdminCommunityCrudTest extends TestCase
     {
         $this->seed(SystemAdminSeeder::class);
 
-        return User::query()->where('email', 'admin@neighborlink.app')->firstOrFail();
+        return User::query()->where('email', 'admin@havena.app')->firstOrFail();
     }
 
     private function approvedCommunity(): Community

@@ -1,11 +1,11 @@
-# NeighborLink — Monorepo
+# Havena — Monorepo
 
-NeighborLink is a hyperlocal community platform: **mobile app**, **web portal**, **Laravel API**, and **docs**.
+Havena is a hyperlocal community platform: **mobile app**, **web portal**, **Laravel API**, and **docs**.
 
 ## Repository layout
 
 ```text
-Nbr-link/
+go-havena/
 ├── apps/          # Mobile applications (React Native / Expo)
 │   └── mobile/
 ├── frontend/      # Web portal — admin + resident in ONE Next.js codebase

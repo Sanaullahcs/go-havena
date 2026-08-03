@@ -71,7 +71,7 @@ export function MemberInviteResultModal({ result, onClose }: Props) {
     if (!qrDataUrl) return;
     const link = document.createElement("a");
     link.href = qrDataUrl;
-    link.download = `neighborlink-invite-${result.invite_code}.png`;
+    link.download = `havena-invite-${result.invite_code}.png`;
     link.click();
   };
 
@@ -135,7 +135,7 @@ export function MemberInviteResultModal({ result, onClose }: Props) {
 
             <div className="rounded-xl border border-blue-100 bg-blue-50/70 px-4 py-4 text-[12.5px] leading-relaxed text-slate-700">
               <p>
-                The resident can open <strong>NeighborLink → Enter invite code</strong> and scan this QR or type{" "}
+                The resident can open <strong>Havena → Enter invite code</strong> and scan this QR or type{" "}
                 <strong className="font-mono">{result.invite_code}</strong>.
               </p>
               {result.community_name ? (

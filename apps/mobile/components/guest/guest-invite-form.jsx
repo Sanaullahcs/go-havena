@@ -283,12 +283,12 @@ function InviteSuccessCard({ result, variant, accessWindow, onShare, onInviteAno
   const guestSteps =
     variant === "admin"
       ? [
-          "Open NeighborLink and tap Login as Guest",
+          "Open Havena and tap Login as Guest",
           "Enter the phone number from this invite",
           "Verify OTP, then enter the invite code below",
         ]
       : [
-          "Open NeighborLink and tap Login as Guest",
+          "Open Havena and tap Login as Guest",
           "Enter the phone number from this invite",
           "Verify OTP and invite code, then wait for your approval",
         ];
@@ -462,7 +462,7 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
   const handleShare = async () => {
     if (!result?.invite_code) return;
     const lines = [
-      "You're invited to NeighborLink as a guest!",
+      "You're invited to Havena as a guest!",
       `Invite code: ${result.invite_code}`,
       accessWindow ? `Access window: ${accessWindow}` : null,
       result.invite_qr_value ? `Or open: ${result.invite_qr_value}` : null,

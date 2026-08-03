@@ -164,7 +164,7 @@ class NoticeBoardTest extends TestCase
 
         Sanctum::actingAs($resident);
 
-        config(['app.url' => 'http://10.0.2.2/Nbr-link/backend/public']);
+        config(['app.url' => 'http://10.0.2.2/go-havena/backend/public']);
 
         $imageUrl = $this->getJson('/api/v1/notices/'.$noticeId)
             ->assertOk()

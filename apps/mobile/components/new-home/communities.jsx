@@ -7,6 +7,7 @@ import UserAvatar from "../ui/user-avatar";
 import CrispImage from "../ui/crisp-image";
 import { Fonts } from "../../constants/font";
 import { Home, homeStyles } from "../../constants/home-styles";
+import { HomeTheme } from "../../constants/home-theme";
 import HomeSectionHeader from "./section-header";
 import SectionCarousel from "./section-carousel";
 import HomeSectionCard from "./home-section-card";
@@ -29,12 +30,13 @@ function formatCount(value) {
 
 const CARD_HEIGHT = Home.feedCardHeight;
 
-function FeedCard({ post, width, onPress, onComments, onLike, onProfile, now }) {
+function FeedCard({ post, width, onPress, onComments, onLike, onProfile, onShare, now }) {
   const authorName = post.user?.display_name ?? post.user?.name ?? "Neighbor";
   const likeCount = formatCount(post.likes_count ?? post.likes);
   const commentCount = formatCount(post.comments_count ?? post.comments);
   const isLiked = post.liked_by_me ?? false;
   const likeScale = useRef(new Animated.Value(1)).current;
+  const roleLabel = post.user?.role_label || (post.user?.is_admin ? "Admin" : null);
 
   useEffect(() => {
     if (!isLiked) {
@@ -75,9 +77,16 @@ function FeedCard({ post, width, onPress, onComments, onLike, onProfile, now }) 
             style={styles.avatar}
           />
           <View style={styles.userText}>
-            <Text style={styles.userName} numberOfLines={1}>
-              {authorName}
-            </Text>
+            <View style={styles.nameRow}>
+              <Text style={styles.userName} numberOfLines={1}>
+                {authorName}
+              </Text>
+              {roleLabel ? (
+                <View style={styles.adminPill}>
+                  <Text style={styles.adminPillText}>{roleLabel}</Text>
+                </View>
+              ) : null}
+            </View>
             <Text style={styles.userMeta} numberOfLines={1}>
               {relativeTime}
               {post.user?.location ? ` · ${post.user.location}` : ""}
@@ -117,14 +126,18 @@ function FeedCard({ post, width, onPress, onComments, onLike, onProfile, now }) 
               <Ionicons
                 name={isLiked ? "heart" : "heart-outline"}
                 size={sf(16)}
-                color={isLiked ? LIKE_HEART_RED : "#262626"}
+                color={isLiked ? LIKE_HEART_RED : HomeTheme.mediumGray}
               />
             </Animated.View>
             <Text style={[styles.statText, isLiked && styles.statTextLiked]}>{likeCount}</Text>
           </Pressable>
           <Pressable style={styles.stat} onPress={onComments}>
-            <Feather name="message-circle" size={sf(16)} color="#99A1AF" />
+            <Feather name="message-circle" size={sf(16)} color={HomeTheme.mediumGray} />
             <Text style={styles.statText}>{commentCount}</Text>
+          </Pressable>
+          <Pressable style={[styles.stat, styles.shareStat]} onPress={onShare}>
+            <Feather name="share-2" size={sf(15)} color={HomeTheme.seaGreen} />
+            <Text style={styles.shareText}>Share</Text>
           </Pressable>
         </View>
       </View>
@@ -167,7 +180,7 @@ export default function Communities({ posts = [], onPostsChange }) {
     return (
       <View style={homeStyles.section}>
         <HomeSectionHeader
-          label="Community Feed"
+          label="Community Board"
           onPress={() => router.push("/screens/community-feed")}
         />
         <HomeSectionEmpty
@@ -181,7 +194,7 @@ export default function Communities({ posts = [], onPostsChange }) {
   return (
     <View style={homeStyles.section}>
       <HomeSectionHeader
-        label="Community Feed"
+        label="Community Board"
         onPress={() => router.push("/screens/community-feed")}
       />
 
@@ -200,6 +213,7 @@ export default function Communities({ posts = [], onPostsChange }) {
             now={now}
             onPress={() => router.push("/screens/community-feed")}
             onLike={() => handleLike(item.id)}
+            onShare={() => router.push("/screens/community-feed")}
             onProfile={() =>
               openNeighborProfile(router, {
                 userId: item.user_id ?? item.user?.id,
@@ -244,18 +258,39 @@ const styles = StyleSheet.create({
   userRow: { flexGrow: 1, flexShrink: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
   avatar: { width: sw(32), height: sw(32), borderRadius: sw(16), marginRight: sw(8) },
   userText: { flex: 1, minWidth: 0 },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    minWidth: 0,
+  },
   userName: {
+    flexShrink: 1,
     fontFamily: Fonts.bold,
     fontSize: sf(13),
     lineHeight: sf(17),
-    color: "#101828",
+    color: HomeTheme.darkText,
+    fontWeight: "700",
+  },
+  adminPill: {
+    marginLeft: sw(6),
+    paddingHorizontal: sw(7),
+    paddingVertical: sw(2),
+    borderRadius: 999,
+    backgroundColor: HomeTheme.primaryTeal,
+    flexShrink: 0,
+  },
+  adminPillText: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(9),
+    lineHeight: sf(12),
+    color: "#FFFFFF",
     fontWeight: "700",
   },
   userMeta: {
     fontFamily: Fonts.regular,
     fontSize: sf(11),
     lineHeight: sf(14),
-    color: "#99A1AF",
+    color: HomeTheme.mediumGray,
     marginTop: 1,
   },
   bodyRow: {
@@ -271,7 +306,7 @@ const styles = StyleSheet.create({
     height: THUMB_SIZE,
     borderRadius: sw(10),
     overflow: "hidden",
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "#E8F8F6",
     flexShrink: 0,
   },
   thumb: {
@@ -287,12 +322,12 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: sf(13),
     lineHeight: sf(18),
-    color: "#334155",
+    color: HomeTheme.darkText,
   },
   tag: {
     flexShrink: 0,
     alignSelf: "center",
-    backgroundColor: "#F3E8FF",
+    backgroundColor: "rgba(0, 201, 136, 0.12)",
     borderRadius: 999,
     paddingHorizontal: sw(8),
     paddingVertical: hp(0.2),
@@ -301,23 +336,30 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semiBold,
     fontSize: sf(10),
     lineHeight: sf(13),
-    color: "#7C3AED",
+    color: HomeTheme.freshGreen,
     fontWeight: "600",
   },
   footer: {
     marginTop: sw(10),
     width: "100%",
   },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: "#E5E7EB", marginBottom: sw(8) },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: HomeTheme.lightBorder, marginBottom: sw(8) },
   stats: { flexDirection: "row", gap: sw(14), alignItems: "center" },
   stat: { flexDirection: "row", alignItems: "center", gap: sw(5), minWidth: sw(36) },
+  shareStat: { marginLeft: "auto" },
   statText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(12),
     lineHeight: sf(16),
-    color: "#4A5565",
+    color: HomeTheme.mediumGray,
     fontWeight: "600",
     minWidth: sw(12),
+  },
+  shareText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(12),
+    color: HomeTheme.seaGreen,
+    fontWeight: "600",
   },
   statTextLiked: { color: LIKE_HEART_RED },
 });

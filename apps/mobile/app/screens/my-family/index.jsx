@@ -102,7 +102,7 @@ export default function MyFamilyScreen() {
     if (!family?.family_number) return;
     try {
       await Share.share({
-        message: `Join my NeighborLink family with number ${family.family_number}.`,
+        message: `Join my Havena family with number ${family.family_number}.`,
       });
     } catch {
       // user dismissed

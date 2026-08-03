@@ -25,10 +25,10 @@ class MediaUrlTest extends TestCase
 
     public function test_to_public_rewrites_storage_path_for_request_host(): void
     {
-        config(['app.url' => 'http://10.0.2.2/Nbr-link/backend/public']);
+        config(['app.url' => 'http://10.0.2.2/go-havena/backend/public']);
 
         $request = Request::create(
-            'http://10.0.2.2/Nbr-link/backend/public/api/v1/notices',
+            'http://10.0.2.2/go-havena/backend/public/api/v1/notices',
             'GET',
         );
 
@@ -38,7 +38,7 @@ class MediaUrlTest extends TestCase
         );
 
         $this->assertSame(
-            'http://10.0.2.2/Nbr-link/backend/public/storage/notices/cover.jpg',
+            'http://10.0.2.2/go-havena/backend/public/storage/notices/cover.jpg',
             $resolved,
         );
     }

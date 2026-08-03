@@ -1,8 +1,8 @@
 # Product Vision
 
-## What NeighborLink is
+## What Havena is
 
-NeighborLink is a **hyperlocal community platform** that lets verified residents of a neighborhood connect, stay informed, share resources, manage property/amenities, discover local deals, and engage through gamified participation — inside a safe, moderated environment.
+Havena is a **hyperlocal community platform** that lets verified residents of a neighborhood connect, stay informed, share resources, manage property/amenities, discover local deals, and engage through gamified participation — inside a safe, moderated environment.
 
 It is **not** a generic social network. The experience is designed to feel **alive, premium, and habit‑forming from the first screen**, anchored to a single physical community (e.g. *Oak Valley, Austin TX*).
 

@@ -3,14 +3,14 @@
 const VISUALS = [
   { key: "pool", match: ["pool", "swim"], tint: "#0284C7", soft: "#E0F2FE", label: "Pool" },
   { key: "gym", match: ["gym", "fitness", "workout"], tint: "#DB2777", soft: "#FCE7F3", label: "Gym" },
-  { key: "hall", match: ["hall", "party", "event", "lounge", "community", "clubhouse"], tint: "#6366F1", soft: "#EEF2FF", label: "Hall" },
+  { key: "hall", match: ["hall", "party", "event", "lounge", "community", "clubhouse"], tint: "#6366F1", soft: "#EFF6FF", label: "Hall" },
   { key: "meeting", match: ["meeting", "conference", "business", "office", "co-work", "cowork"], tint: "#0052DF", soft: "#EFF6FF", label: "Meeting" },
   { key: "dining", match: ["bbq", "grill", "kitchen", "dining", "cafe", "restaurant"], tint: "#EA580C", soft: "#FFF7ED", label: "Dining" },
   { key: "sports", match: ["tennis", "court", "sport", "basketball", "court"], tint: "#059669", soft: "#ECFDF5", label: "Sports" },
   { key: "playground", match: ["kid", "playground", "child", "play"], tint: "#D97706", soft: "#FEF3C7", label: "Play" },
   { key: "terrace", match: ["garden", "park", "green", "roof", "terrace", "outdoor"], tint: "#16A34A", soft: "#F0FDF4", label: "Outdoor" },
   { key: "spa", match: ["spa", "sauna", "wellness", "yoga"], tint: "#BE185D", soft: "#FDF2F8", label: "Wellness" },
-  { key: "library", match: ["library", "study", "reading"], tint: "#4F46E5", soft: "#EEF2FF", label: "Study" },
+  { key: "library", match: ["library", "study", "reading"], tint: "#4F46E5", soft: "#EFF6FF", label: "Study" },
   { key: "parking", match: ["parking", "garage", "car"], tint: "#475569", soft: "#F1F5F9", label: "Parking" },
   { key: "laundry", match: ["laundry", "wash"], tint: "#0D9488", soft: "#F0FDFA", label: "Laundry" },
   { key: "cinema", match: ["cinema", "theater", "theatre", "movie"], tint: "#7C3AED", soft: "#F5F3FF", label: "Cinema" },
@@ -19,8 +19,8 @@ const VISUALS = [
 
 const DEFAULT_VISUAL = {
   key: "building",
-  tint: "#0052DF",
-  soft: "#EFF6FF",
+  tint: "#0A2A43",
+  soft: "#E8F8F6",
   label: "Building",
 };
 

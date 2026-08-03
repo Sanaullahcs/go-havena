@@ -1,9 +1,9 @@
-# NeighborLink Mobile App — Complete Development & Verification Plan
+# Havena Mobile App — Complete Development & Verification Plan
 > End-to-end screen-by-screen guide. Every feature mapped from UI → API → backend. Includes verification test cases and a full list of missing screens to be built.
 
 **Stack:** Expo SDK 56 · NativeWind v4 · Expo Router · Laravel 11 Sanctum API  
 **Auth:** Phone OTP (Laravel `phone_otps` table) · `SecureStore` for token persistence  
-**API Base:** `http://<LAN-IP>/Nbr-link/backend/public/api/v1`  
+**API Base:** `http://<LAN-IP>/go-havena/backend/public/api/v1`  
 **Today:** June 22, 2026
 
 ---
@@ -12,10 +12,10 @@
 
 | Role | Phone | OTP | Email | Status |
 |------|-------|-----|-------|--------|
-| Resident (Sarah) | `+15555555555` | `123456` | sarah@neighborlink.app | Approved |
-| Resident (David) | `+15555550002` | `123456` | david@neighborlink.app | Approved |
-| Resident (Pending) | `+15555550009` | `123456` | pending@neighborlink.app | Pending |
-| Resident (Suspended) | `+15555550011` | `123456` | banned@neighborlink.app | Suspended |
+| Resident (Sarah) | `+15555555555` | `123456` | sarah@havena.app | Approved |
+| Resident (David) | `+15555550002` | `123456` | david@havena.app | Approved |
+| Resident (Pending) | `+15555550009` | `123456` | pending@havena.app | Pending |
+| Resident (Suspended) | `+15555550011` | `123456` | banned@havena.app | Suspended |
 
 > In dev: any phone matching `5555555555` bypasses real SMS and accepts OTP `123456`.
 
@@ -489,7 +489,7 @@ apps/mobile/services/
 
 ## Environment Notes
 
-- Backend runs on WAMP at `http://192.168.x.x/Nbr-link/backend/public/api`
+- Backend runs on WAMP at `http://192.168.x.x/go-havena/backend/public/api`
 - Update `constants/api-config.js` with your LAN IP
 - Run Expo on physical device on same WiFi, or use Android Emulator `10.0.2.2`
 - All authenticated routes require `Authorization: Bearer <token>` header

@@ -18,7 +18,7 @@ class AdminMembersListTest extends TestCase
     public function test_members_list_includes_community_admins_with_membership(): void
     {
         $this->seed(SystemAdminSeeder::class);
-        Sanctum::actingAs(User::query()->where('email', 'admin@neighborlink.app')->firstOrFail());
+        Sanctum::actingAs(User::query()->where('email', 'admin@havena.app')->firstOrFail());
 
         $region = Region::query()->create([
             'title'       => 'Cairo Metro',
@@ -75,7 +75,7 @@ class AdminMembersListTest extends TestCase
     public function test_residents_list_excludes_community_admins_when_role_member_filter(): void
     {
         $this->seed(SystemAdminSeeder::class);
-        Sanctum::actingAs(User::query()->where('email', 'admin@neighborlink.app')->firstOrFail());
+        Sanctum::actingAs(User::query()->where('email', 'admin@havena.app')->firstOrFail());
 
         $region = Region::query()->create([
             'title'       => 'Cairo Metro',
@@ -140,7 +140,7 @@ class AdminMembersListTest extends TestCase
     public function test_onboarding_tab_lists_residents_without_membership(): void
     {
         $this->seed(SystemAdminSeeder::class);
-        Sanctum::actingAs(User::query()->where('email', 'admin@neighborlink.app')->firstOrFail());
+        Sanctum::actingAs(User::query()->where('email', 'admin@havena.app')->firstOrFail());
 
         User::factory()->create([
             'role'   => 'resident',
@@ -252,7 +252,7 @@ class AdminMembersListTest extends TestCase
     public function test_system_admin_can_approve_system_rejected_resident(): void
     {
         $this->seed(SystemAdminSeeder::class);
-        Sanctum::actingAs(User::query()->where('email', 'admin@neighborlink.app')->firstOrFail());
+        Sanctum::actingAs(User::query()->where('email', 'admin@havena.app')->firstOrFail());
 
         $region = Region::query()->create([
             'title'       => 'Cairo Metro',

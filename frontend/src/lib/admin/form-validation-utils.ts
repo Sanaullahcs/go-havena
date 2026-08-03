@@ -19,7 +19,7 @@ export function validateEmailField(email: string): string | null {
   if (!value) return "Email address is required.";
   if (value.length > 255) return "Email must be 255 characters or less.";
   if (!EMAIL_RE.test(value)) return "Enter a valid email address.";
-  if (value.toLowerCase().endsWith("@phone.nbrlink.local")) {
+  if (value.toLowerCase().endsWith("@phone.havena.local")) {
     return "Enter a personal email address.";
   }
   return null;

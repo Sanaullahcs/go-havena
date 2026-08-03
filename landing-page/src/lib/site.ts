@@ -5,11 +5,11 @@
  */
 
 export const site = {
-    name: "NeighborLink",
+    name: "Havena",
     tagline: "Your Neighborhood. Connected.",
     description:
-        "NeighborLink brings everything your community needs into one smart platform—events, updates, resources, marketplace, and more.",
-    url: "https://neighborlink.app",
+        "Havena brings everything your community needs into one smart platform—events, updates, resources, marketplace, and more.",
+    url: "https://havena.app",
 } as const;
 
 export type NavItem = {

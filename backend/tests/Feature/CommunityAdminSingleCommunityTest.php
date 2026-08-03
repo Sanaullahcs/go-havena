@@ -78,7 +78,7 @@ class CommunityAdminSingleCommunityTest extends TestCase
         $admin = $this->seedCommunityAdminFor($linked);
 
         $this->seed(SystemAdminSeeder::class);
-        Sanctum::actingAs(User::query()->where('email', 'admin@neighborlink.app')->firstOrFail());
+        Sanctum::actingAs(User::query()->where('email', 'admin@havena.app')->firstOrFail());
 
         $this->postJson("/api/v1/admin/communities/{$open->id}/assign-admin", [
             'name'  => 'Duplicate Admin',
@@ -109,7 +109,7 @@ class CommunityAdminSingleCommunityTest extends TestCase
         ]);
 
         $this->seed(SystemAdminSeeder::class);
-        Sanctum::actingAs(User::query()->where('email', 'admin@neighborlink.app')->firstOrFail());
+        Sanctum::actingAs(User::query()->where('email', 'admin@havena.app')->firstOrFail());
 
         $this->postJson("/api/v1/admin/communities/{$newCommunity->id}/assign-admin", [
             'name'  => $admin->name,

@@ -150,7 +150,7 @@ export function LandingPage() {
               Everything You Need for Modern Communities
             </h2>
             <p className="nl-landing-section-desc">
-              From notice boards to wellness tracking, NeighborLink handles every aspect
+              From notice boards to wellness tracking, Havena handles every aspect
               of your neighborhood community experience.
             </p>
           </div>
@@ -209,7 +209,7 @@ export function LandingPage() {
               Ready to Transform Your Community?
             </h2>
             <p className="nl-landing-cta-desc">
-              Join leading communities who trust NeighborLink for engagement and operations.
+              Join leading communities who trust Havena for engagement and operations.
             </p>
           </div>
           <div className="nl-landing-cta-actions">

@@ -7,19 +7,19 @@ import { actionLinks, site } from "@/lib/landing/site";
 const HERO_PHONES = [
   {
     src: "/landing/mobile-app-mockup.png",
-    alt: "NeighborLink community post with comments and engagement",
+    alt: "Havena community post with comments and engagement",
     label: "Community",
     position: "left" as const,
   },
   {
     src: "/landing/hero-home.png",
-    alt: "NeighborLink home screen with neighborhood updates and quick actions",
-    label: "NeighborLink",
+    alt: "Havena home screen with neighborhood updates and quick actions",
+    label: "Havena",
     position: "center" as const,
   },
   {
     src: "/landing/hero-marketplace.png",
-    alt: "NeighborLink neighborhood marketplace with local deals and businesses",
+    alt: "Havena neighborhood marketplace with local deals and businesses",
     label: "Marketplace",
     position: "right" as const,
   },

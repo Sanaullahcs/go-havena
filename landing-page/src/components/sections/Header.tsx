@@ -43,7 +43,7 @@ export function Header() {
                 >
                     <Link
                         href="#top"
-                        aria-label="NeighborLink home"
+                        aria-label="Havena home"
                         className="shrink-0"
                     >
                         <Logo tone={scrolled ? "brand" : "light"} />
@@ -70,8 +70,8 @@ export function Header() {
                                         isActive
                                             ? {
                                                 borderBottom: scrolled
-                                                    ? "2px solid #312e81" // brand-deep
-                                                    : "2px solid #818cf8", // brand-end (light purple)
+                                                    ? "2px solid #0052df" // brand-deep
+                                                    : "2px solid #0179ff", // brand-end (light purple)
                                                 borderRadius: 0,
                                                 paddingBottom: "4px",
                                                 transition: "border-color 300ms ease-out",

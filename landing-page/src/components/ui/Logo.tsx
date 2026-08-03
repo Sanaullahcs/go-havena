@@ -39,7 +39,7 @@ function BrandMark({ size = 36 }: { size?: number }) {
                 <linearGradient id="bm-grad" x1="0" y1="0" x2="1" y2="1">
                     <stop offset="0%" stopColor="#6366f1" />
                     <stop offset="50%" stopColor="#4f46e5" />
-                    <stop offset="100%" stopColor="#312e81" />
+                    <stop offset="100%" stopColor="#0052df" />
                 </linearGradient>
             </defs>
             <rect width="48" height="48" rx="12" fill="url(#bm-grad)" />
@@ -79,7 +79,7 @@ export function Logo({
         return (
             <span
                 className={`inline-block shadow-fab rounded-xl overflow-hidden ${className}`}
-                aria-label="NeighborLink"
+                aria-label="Havena"
             >
                 <BrandMark size={36} />
             </span>
@@ -94,7 +94,7 @@ export function Logo({
                 <span className="inline-block overflow-hidden rounded-lg shadow-sm">
                     <BrandMark size={28} />
                 </span>
-                <span className="text-base font-bold tracking-tight">NeighborLink</span>
+                <span className="text-base font-bold tracking-tight">Havena</span>
             </span>
         );
     }
@@ -109,7 +109,7 @@ export function Logo({
                     <span
                         className={`text-[16px] font-bold tracking-tight transition-colors duration-300 ease-out ${toneTextClass[tone]}`}
                     >
-                        NeighborLink
+                        Havena
                     </span>
                 </span>
             )}

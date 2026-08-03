@@ -107,7 +107,7 @@ export default function SignupScreen() {
             {
               color:
                 role === "admin"
-                  ? "rgba(0, 123, 255, 1)"
+                  ? "rgba(190, 219, 255, 1)"
                   : "rgba(0, 130, 54, 1)",
             },
           ]}

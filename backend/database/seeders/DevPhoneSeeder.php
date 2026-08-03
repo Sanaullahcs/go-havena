@@ -14,26 +14,26 @@ use Illuminate\Support\Facades\DB;
 class DevPhoneSeeder extends Seeder
 {
     private const PHONE_MAP = [
-        '+15555550100' => 'test.resident@neighborlink.app',
-        '+15555550200' => 'test.community.admin@neighborlink.app',
-        '+15555555555' => 'sarah@neighborlink.app',    // legacy dev phone (555) 555-5555
-        '+15555550002' => 'david@neighborlink.app',
-        '+15555550003' => 'lisa@neighborlink.app',
-        '+15555550004' => 'james@neighborlink.app',
-        '+15555550005' => 'emily@neighborlink.app',
-        '+15555550006' => 'michael@neighborlink.app',
-        '+15555550007' => 'aisha@neighborlink.app',
-        '+15555550008' => 'carlos@neighborlink.app',
-        '+15555550009' => 'zara@neighborlink.app',     // pending
-        '+15555550010' => 'tom@neighborlink.app',      // pending
-        '+15555550011' => 'jake@neighborlink.app',     // suspended/banned
-        '+15555550012' => 'nina@neighborlink.app',
-        '+15555550013' => 'noah@neighborlink.app',
-        '+15555550014' => 'fatima@neighborlink.app',
-        '+15555550015' => 'lucas@neighborlink.app',
-        '+15555550016' => 'amara@neighborlink.app',
-        '+15555550017' => 'ryan@neighborlink.app',
-        '+15555550018' => 'priya@neighborlink.app',
+        '+15555550100' => 'test.resident@havena.app',
+        '+15555550200' => 'test.community.admin@havena.app',
+        '+15555555555' => 'sarah@havena.app',    // legacy dev phone (555) 555-5555
+        '+15555550002' => 'david@havena.app',
+        '+15555550003' => 'lisa@havena.app',
+        '+15555550004' => 'james@havena.app',
+        '+15555550005' => 'emily@havena.app',
+        '+15555550006' => 'michael@havena.app',
+        '+15555550007' => 'aisha@havena.app',
+        '+15555550008' => 'carlos@havena.app',
+        '+15555550009' => 'zara@havena.app',     // pending
+        '+15555550010' => 'tom@havena.app',      // pending
+        '+15555550011' => 'jake@havena.app',     // suspended/banned
+        '+15555550012' => 'nina@havena.app',
+        '+15555550013' => 'noah@havena.app',
+        '+15555550014' => 'fatima@havena.app',
+        '+15555550015' => 'lucas@havena.app',
+        '+15555550016' => 'amara@havena.app',
+        '+15555550017' => 'ryan@havena.app',
+        '+15555550018' => 'priya@havena.app',
     ];
 
     public function run(): void

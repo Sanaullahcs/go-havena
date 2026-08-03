@@ -20,7 +20,7 @@ export function CTA() {
                 className="relative w-full overflow-hidden px-6 py-12 sm:px-10 sm:py-16 lg:px-16 lg:py-20"
                 style={{
                     background:
-                        "linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%)",
+                        "linear-gradient(135deg, #1e1b4b 0%, #0052df 50%, #4c1d95 100%)",
                 }}
             >
                 {/* Decorative grid */}
@@ -82,12 +82,12 @@ export function CTA() {
                             >
                                 <defs>
                                     <linearGradient id="cta-sky" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#312e81" />
+                                        <stop offset="0%" stopColor="#0052df" />
                                         <stop offset="100%" stopColor="#1e1b4b" />
                                     </linearGradient>
                                     <linearGradient id="cta-house1" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="0%" stopColor="#6366f1" />
-                                        <stop offset="100%" stopColor="#4338ca" />
+                                        <stop offset="100%" stopColor="#007bff" />
                                     </linearGradient>
                                     <linearGradient id="cta-house2" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="0%" stopColor="#7c3aed" />
@@ -131,7 +131,7 @@ export function CTA() {
 
                                 {/* House left */}
                                 <g transform="translate(40 130)">
-                                    <path d="M0 50 L50 0 L100 50 Z" fill="#4338ca" />
+                                    <path d="M0 50 L50 0 L100 50 Z" fill="#007bff" />
                                     <rect x="10" y="50" width="80" height="100" fill="url(#cta-house1)" />
                                     <rect x="25" y="70" width="18" height="22" fill="url(#cta-window)" opacity="0.9" />
                                     <rect x="57" y="70" width="18" height="22" fill="url(#cta-window)" opacity="0.7" />
@@ -145,7 +145,7 @@ export function CTA() {
                                     <rect x="35" y="85" width="22" height="30" fill="url(#cta-window)" opacity="0.95" />
                                     <rect x="83" y="85" width="22" height="30" fill="url(#cta-window)" opacity="0.85" />
                                     <rect x="58" y="130" width="26" height="60" fill="#0f172a" />
-                                    <rect x="105" y="22" width="16" height="40" fill="#312e81" />
+                                    <rect x="105" y="22" width="16" height="40" fill="#0052df" />
                                 </g>
 
                                 {/* Tree */}
@@ -171,7 +171,7 @@ export function CTA() {
                             </span>
                         </h2>
                         <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-white/80 sm:text-[16px]">
-                            Join thousands of neighborhoods already using NeighborLink.
+                            Join thousands of neighborhoods already using Havena.
                         </p>
 
                         {/* App store buttons */}

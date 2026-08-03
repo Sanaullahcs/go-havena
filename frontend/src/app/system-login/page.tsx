@@ -9,7 +9,7 @@ import { AuthErrorBanner } from "@/components/auth/auth-form-shell";
 import { SystemSignInStep } from "@/components/auth/system-sign-in-step";
 import { AuthRedirectOverlay } from "@/components/shared/loaders";
 
-const SYSTEM_DEMO = { email: "admin@neighborlink.app", password: "password" };
+const SYSTEM_DEMO = { email: "admin@havena.app", password: "password" };
 
 export default function SystemLoginPage() {
   const router = useRouter();
@@ -64,7 +64,7 @@ export default function SystemLoginPage() {
             Platform <em className="not-italic text-blue-600">sign in</em>
           </h1>
           <p className="mt-2 text-[14px] leading-relaxed text-slate-500">
-            For NeighborLink platform operators only.
+            For Havena platform operators only.
           </p>
 
           {error ? (

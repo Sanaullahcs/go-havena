@@ -1,10 +1,10 @@
-# NeighborLink — Mobile App · Complete Feature Plan
+# Havena — Mobile App · Complete Feature Plan
 > Real-life, end-to-end scenario documentation. Every feature described from the perspective of both the resident (user) and the admin, covering the full journey from action to response.
 
 **Stack:** Expo SDK 56 · NativeWind v4 · React Navigation (Expo Router) · Laravel 11 API  
 **Auth:** Phone number OTP · Dummy credentials for development  
 **Dev Phone:** `(555) 555-5555` · OTP: `123456`  
-**API Base:** `http://<LAN-IP>/Nbr-link/backend/public/api/v1`
+**API Base:** `http://<LAN-IP>/go-havena/backend/public/api/v1`
 
 ---
 
@@ -56,7 +56,7 @@ apps/mobile/
 ## Feature 1 — Authentication (Phone OTP)
 
 ### Real-Life Scenario
-Sarah downloads the NeighborLink app. She opens it and sees the welcome screen. She enters her phone number `(555) 555-5555` and taps "Send Code". A 6-digit OTP arrives by SMS (in dev: `123456` is pre-filled or shown as a hint). She enters the code, the app verifies it, and she lands on the Home screen. The next time she opens the app, she is auto-logged in — no need to enter her phone again.
+Sarah downloads the Havena app. She opens it and sees the welcome screen. She enters her phone number `(555) 555-5555` and taps "Send Code". A 6-digit OTP arrives by SMS (in dev: `123456` is pre-filled or shown as a hint). She enters the code, the app verifies it, and she lands on the Home screen. The next time she opens the app, she is auto-logged in — no need to enter her phone again.
 
 ### User Journey
 1. **Splash / Root** → Check `SecureStore` for token → if exists, navigate to `/(tabs)/home` → if not, navigate to `/screens/login`
@@ -305,7 +305,7 @@ Carlos wants to book the swimming pool for Thursday. He opens the app → taps "
 ## Feature 7 — Notifications
 
 ### Real-Life Scenario
-Aisha is away from the app. The admin publishes an emergency notice: "Building evacuation drill at 11 AM." Aisha's phone buzzes with a push notification. She pulls down the notification → it opens the NeighborLink app directly to the notice. Inside the app, there is also a notification bell icon (top-right of home screen) with a red badge showing "2". She taps it → sees a notification center with 2 unread items. She taps the first → it opens the notice. She taps "Mark all read" → the badge disappears.
+Aisha is away from the app. The admin publishes an emergency notice: "Building evacuation drill at 11 AM." Aisha's phone buzzes with a push notification. She pulls down the notification → it opens the Havena app directly to the notice. Inside the app, there is also a notification bell icon (top-right of home screen) with a red badge showing "2". She taps it → sees a notification center with 2 unread items. She taps the first → it opens the notice. She taps "Mark all read" → the badge disappears.
 
 ### User Journey
 1. **Notification bell** (top-right of home) with red badge = unread count
@@ -628,7 +628,7 @@ Carlos has been very active: 15 feed posts, 3 bookings, 8 marketplace saves. He 
 ## API Base URL Configuration
 
 ```
-WAMP local: http://192.168.x.x/Nbr-link/backend/public/api/v1
+WAMP local: http://192.168.x.x/go-havena/backend/public/api/v1
 ```
 Set `EXPO_PUBLIC_API_URL` in `.env` or rely on the auto-detection in `api-config.js` which reads the Metro bundler host IP.
 

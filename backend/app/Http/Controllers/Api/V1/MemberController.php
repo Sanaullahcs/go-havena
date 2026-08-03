@@ -480,7 +480,7 @@ class MemberController extends Controller
             $userId,
             'info',
             'Community invitation',
-            "You have been invited to {$communityName}. Open NeighborLink and enter invite code {$invite->code} or scan your QR invite.",
+            "You have been invited to {$communityName}. Open Havena and enter invite code {$invite->code} or scan your QR invite.",
             '/screens/invite-code',
         );
 

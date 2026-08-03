@@ -15,7 +15,7 @@ export function LegalPageShell({ document }: LegalPageShellProps) {
     <div className="landing-page min-h-screen overflow-x-hidden bg-white text-ink-primary antialiased">
       <header className="sticky top-0 z-40 border-b border-border-card bg-white/90 backdrop-blur-md">
         <Container size="xl" className="flex h-16 items-center justify-between gap-4">
-          <Link href="/" aria-label="NeighborLink home" className="shrink-0">
+          <Link href="/" aria-label="Havena home" className="shrink-0">
             <Logo tone="brand" />
           </Link>
           <Link

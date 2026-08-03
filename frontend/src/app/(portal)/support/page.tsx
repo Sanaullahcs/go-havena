@@ -35,7 +35,7 @@ const FAQS = [
 const CONTACTS = [
   {
     label: "Resident Support",
-    value: "residents@neighborlink.app",
+    value: "residents@havena.app",
     note: "Response within 24 hours",
     icon: <IcoMail />,
     color: "emerald",

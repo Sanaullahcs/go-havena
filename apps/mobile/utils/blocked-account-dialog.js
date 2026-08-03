@@ -39,7 +39,7 @@ function blockedAccountIntro(error, fallbackMessage) {
     return "Your community request was not approved. You can submit a new request with updated details.";
   }
   if (code === "COMMUNITY_DEACTIVATED") {
-    return "Your community is no longer active. Contact your community administrator or NeighborLink support for assistance.";
+    return "Your community is no longer active. Contact your community administrator or Havena support for assistance.";
   }
   if (isRejectedBlock(error)) {
     return "Your account is not approved for access. Review the details below or contact support for help.";
@@ -95,7 +95,7 @@ export function buildBlockedAccountDialogOptions(error, fallbackMessage) {
           label: rejected ? "Reason for decline" : "Additional details",
           value:
             reason ||
-            "No reason was provided. Contact your community office or NeighborLink support for more information.",
+            "No reason was provided. Contact your community office or Havena support for more information.",
         }
       : null;
 

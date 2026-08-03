@@ -39,7 +39,7 @@ class ResidentSuspensionTest extends TestCase
             'status'            => 'active',
             'phone'             => '+201700000099',
             'phone_verified_at' => now(),
-            'email'             => '201700000099@phone.nbrlink.local',
+            'email'             => '201700000099@phone.havena.local',
         ]);
 
         CommunityMembership::query()->create([
@@ -90,7 +90,7 @@ class ResidentSuspensionTest extends TestCase
         $this->seed(SystemAdminSeeder::class);
         ['community' => $community, 'resident' => $resident] = $this->seedResidentWithCommunity();
 
-        $admin = User::query()->where('email', 'admin@neighborlink.app')->firstOrFail();
+        $admin = User::query()->where('email', 'admin@havena.app')->firstOrFail();
         Sanctum::actingAs($admin);
 
         $this->patchJson("/api/v1/admin/members/{$resident->id}/suspend", [

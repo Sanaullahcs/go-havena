@@ -68,7 +68,7 @@ export function PushNotificationTestButton({ compact = false }: { compact?: bool
       notifyWebPushChanged();
 
       const result = await sendTestPush({
-        title: "NeighborLink test",
+        title: "Havena test",
         body: "Push notifications are working!",
       });
       toastSuccess(result.message ?? "Test push sent.");

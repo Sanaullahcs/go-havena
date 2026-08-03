@@ -11,7 +11,7 @@ class SendTestPushCommand extends Command
 {
     protected $signature = 'nbr:push-test
                             {userId? : User ID to notify}
-                            {--title=NeighborLink test : Notification title}
+                            {--title=Havena test : Notification title}
                             {--body=Push notifications are working! : Notification body}';
 
     protected $description = 'Send a test Expo push notification to a user registered devices';

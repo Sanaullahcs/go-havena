@@ -85,7 +85,7 @@ class DeviceController extends Controller
         ]);
 
         $userId = (int) $request->user()->id;
-        $title  = $validated['title'] ?? 'NeighborLink test';
+        $title  = $validated['title'] ?? 'Havena test';
         $body   = $validated['body'] ?? 'Push notifications are working!';
 
         $payload = [

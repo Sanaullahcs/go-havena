@@ -1,4 +1,4 @@
-export const PLACEHOLDER_EMAIL_SUFFIX = "@phone.nbrlink.local";
+export const PLACEHOLDER_EMAIL_SUFFIX = "@phone.havena.local";
 
 export function isPlaceholderEmail(email?: string | null): boolean {
   const value = String(email ?? "").trim().toLowerCase();

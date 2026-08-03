@@ -70,6 +70,6 @@ class User extends Authenticatable
             return true;
         }
 
-        return str_ends_with(strtolower(trim($email)), '@phone.nbrlink.local');
+        return str_ends_with(strtolower(trim($email)), '@phone.havena.local');
     }
 }

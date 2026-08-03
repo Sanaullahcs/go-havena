@@ -2,7 +2,7 @@
 
 Every feature maps back to one or more of these seven values. When prioritizing or designing, confirm the feature serves at least one primary value.
 
-| Value | Promise | How NeighborLink delivers |
+| Value | Promise | How Havena delivers |
 |-------|---------|----------------------------|
 | 🏠 **Local** | "Your neighborhood's digital notice board" | Digital Notice Board: posts, events, updates, neighborhood info in one place |
 | 🔒 **Safety** | "Know who's in your neighborhood" | Secure Resident Verification + AI moderation keeps content safe |

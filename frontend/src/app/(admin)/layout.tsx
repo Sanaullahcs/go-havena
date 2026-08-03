@@ -100,7 +100,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [checked, accessBlocked, pathname, router]);
 
   useEffect(() => {
-    document.title = `${getTitle(pathname)} · NeighborLink`;
+    document.title = `${getTitle(pathname)} · Havena`;
   }, [pathname]);
 
   if (!checked) {

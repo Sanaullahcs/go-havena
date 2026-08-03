@@ -30,7 +30,7 @@ const TYPE_META: Record<
   notice: { tone: "violet", icon: FileText, accent: "#7C3AED", soft: "#F5F3FF" },
   event: { tone: "cyan", icon: Calendar, accent: "#06B6D4", soft: "#ECFEFF" },
   alert: { tone: "red", icon: AlertTriangle, accent: "#EF4444", soft: "#FEF2F2" },
-  community_request: { tone: "violet", icon: Building2, accent: "#6366F1", soft: "#EEF2FF" },
+  community_request: { tone: "violet", icon: Building2, accent: "#6366F1", soft: "#EFF6FF" },
 };
 
 function ReviewQueueRow({

@@ -8,8 +8,8 @@ use Illuminate\Support\Facades\Auth;
 
 class EnsureSystemAdminCommand extends Command
 {
-    protected $signature = 'neighborlink:ensure-system-admin
-                            {--email=admin@neighborlink.app : System admin email}
+    protected $signature = 'havena:ensure-system-admin
+                            {--email=admin@havena.app : System admin email}
                             {--password=password : Plain-text password (hashed once by the model)}';
 
     protected $description = 'Create or reset the platform system admin (fixes login after bad seed hashes)';

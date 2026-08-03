@@ -70,7 +70,7 @@ export function BenefitsRow() {
 
       <Container size="xl">
         <div className="mx-auto mb-10 max-w-4xl text-center sm:mb-12">
-          <p className="section-label justify-center">Why NeighborLink</p>
+          <p className="section-label justify-center">Why Havena</p>
           <h2 className="section-title mt-3 lg:whitespace-nowrap">
             Built for real communities, not generic social feeds
           </h2>

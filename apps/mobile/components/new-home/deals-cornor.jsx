@@ -1,21 +1,21 @@
 import { Text, View, StyleSheet, Pressable, useWindowDimensions, FlatList, Platform } from "react-native";
 import React, { useCallback, useMemo } from "react";
 import { useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import { Fonts } from "../../constants/font";
-import { Colors } from "../../constants/tokens";
 import { Home, homeStyles } from "../../constants/home-styles";
+import { HomeTheme } from "../../constants/home-theme";
 import { Media } from "../../constants/media";
 import CrispImage from "../ui/crisp-image";
 import HomeSectionHeader from "./section-header";
-import { timeAgo } from "../../services/feed-api";
 import HomeSectionEmpty from "./home-section-empty";
 import { sw, sf, hp } from "../../utils/responsive";
 import { getCurrentRole } from "../../constants/role-session";
 import { MarketplaceRoutes, dealDetailsParams } from "../../constants/marketplace-routes";
 
 const CARD_GAP = sw(10);
-const CAROUSEL_PEEK = sw(24);
-const CARD_RADIUS = sw(14);
+const CAROUSEL_PEEK = sw(20);
+const CARD_RADIUS = sw(16);
 
 const FALLBACK_IMAGES = [
   Media.heroFood,
@@ -24,73 +24,65 @@ const FALLBACK_IMAGES = [
   Media.businessSpa,
 ];
 
-function mapDealToCard(deal, index) {
-  const badgeText = deal.isTrending
-    ? "LIMITED TIME"
-    : (deal.category || "LOCAL DEAL").toUpperCase();
+function formatValidity(deal) {
+  if (deal.validUntil || deal.expires_at || deal.endsAt) {
+    const raw = deal.validUntil || deal.expires_at || deal.endsAt;
+    try {
+      const d = new Date(raw);
+      if (!Number.isNaN(d.getTime())) {
+        return `Valid till ${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  if (deal.isTrending) return "Limited time";
+  return deal.category || "Neighborhood offer";
+}
 
-  const headline = (deal.offerTag || deal.title || "").trim();
+function mapDealToCard(deal, index) {
+  const offer = (deal.offerTag || "").trim();
+  const title = (deal.title || deal.vendor || "Local offer").trim();
   const vendor = deal.vendor?.trim() ?? "";
   const businessName =
-    vendor &&
-    vendor.toLowerCase() !== headline.toLowerCase() &&
-    vendor.toLowerCase() !== (deal.title || "").trim().toLowerCase()
-      ? vendor
-      : "";
+    vendor && vendor.toLowerCase() !== title.toLowerCase() ? vendor : title;
 
   return {
     id: String(deal.id),
-    badgeText,
+    discountLabel: offer || (deal.isTrending ? "SPECIAL" : "OFFER"),
     image: deal.imageUrl || FALLBACK_IMAGES[index % FALLBACK_IMAGES.length],
-    title: headline,
     businessName,
-    timeLabel: timeAgo(deal.createdAt) || "",
-    location: deal.location?.trim() || "",
+    validity: formatValidity(deal),
     deal,
   };
 }
 
-function DealCard({ item, cardWidth, imageHeight, onPress }) {
+function OfferCard({ item, cardWidth, cardHeight, onPress }) {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.cardShell, { width: cardWidth }, pressed && styles.cardPressed]}
+      style={({ pressed }) => [
+        styles.card,
+        { width: cardWidth, height: cardHeight },
+        pressed && styles.cardPressed,
+      ]}
     >
-      <View style={styles.cardSurface}>
-        <View style={[styles.imageWrap, { height: imageHeight }]}>
-          <CrispImage source={item.image} style={styles.image} contentFit="cover" />
-          <View style={styles.badge}>
-            <Text style={styles.badgeText} numberOfLines={1}>
-              {item.badgeText}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.body}>
-          <View style={styles.titleRow}>
-            <Text style={styles.title} numberOfLines={1}>
-              {item.title}
-            </Text>
-            {item.timeLabel ? (
-              <Text style={styles.timeLabel} numberOfLines={1}>
-                {item.timeLabel}
-              </Text>
-            ) : null}
-          </View>
-          {item.businessName ? (
-            <Text style={styles.businessName} numberOfLines={1}>
-              {item.businessName}
-            </Text>
-          ) : null}
-          {item.location ? (
-            <Text style={styles.metaLine} numberOfLines={1}>
-              {item.location}
-            </Text>
-          ) : null}
-          <View style={styles.btn}>
-            <Text style={styles.btnText}>Get Deal</Text>
-          </View>
-        </View>
+      <CrispImage source={item.image} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+      <LinearGradient
+        colors={["transparent", "rgba(10, 42, 67, 0.55)", "rgba(10, 42, 67, 0.92)"]}
+        locations={[0.25, 0.6, 1]}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <View style={styles.copy}>
+        <Text style={styles.discount} numberOfLines={1}>
+          {item.discountLabel}
+        </Text>
+        <Text style={styles.business} numberOfLines={1}>
+          {item.businessName}
+        </Text>
+        <Text style={styles.validity} numberOfLines={1}>
+          {item.validity}
+        </Text>
       </View>
     </Pressable>
   );
@@ -108,10 +100,10 @@ export default function DealsCornor({ items = [] }) {
 
   const layout = useMemo(() => {
     const contentWidth = screenWidth - Home.gutter * 2;
-    const cardWidth = Math.floor((contentWidth - CARD_GAP - CAROUSEL_PEEK) / 2);
-    const imageHeight = Math.round(cardWidth * 0.4);
+    const cardWidth = Math.floor((contentWidth - CARD_GAP - CAROUSEL_PEEK) / 2.15);
+    const cardHeight = Math.round(cardWidth * 1.4);
     const snapInterval = cardWidth + CARD_GAP;
-    return { cardWidth, imageHeight, snapInterval };
+    return { cardWidth, cardHeight, snapInterval };
   }, [screenWidth]);
 
   const openDeal = useCallback((item) => {
@@ -123,26 +115,26 @@ export default function DealsCornor({ items = [] }) {
 
   const renderItem = useCallback(({ item }) => (
     <View style={{ width: layout.cardWidth, flexShrink: 0 }}>
-      <DealCard
+      <OfferCard
         item={item}
         cardWidth={layout.cardWidth}
-        imageHeight={layout.imageHeight}
+        cardHeight={layout.cardHeight}
         onPress={() => openDeal(item)}
       />
     </View>
-  ), [layout.cardWidth, layout.imageHeight, openDeal]);
+  ), [layout.cardWidth, layout.cardHeight, openDeal]);
 
   if (!cards.length) {
     return (
       <View style={homeStyles.section}>
         <HomeSectionHeader
-          label="Deal Corner"
+          label="Local Offers"
           onPress={() => router.push(MarketplaceRoutes.DEALS)}
           style={styles.sectionHeader}
         />
         <HomeSectionEmpty
-          message="No deals available"
-          hint="Local offers from your community will show here."
+          message="No offers available"
+          hint="Local deals from your community will show here."
         />
       </View>
     );
@@ -151,7 +143,7 @@ export default function DealsCornor({ items = [] }) {
   return (
     <View style={homeStyles.section}>
       <HomeSectionHeader
-        label="Deal Corner"
+        label="Local Offers"
         onPress={() => router.push(MarketplaceRoutes.DEALS)}
         style={styles.sectionHeader}
       />
@@ -167,7 +159,11 @@ export default function DealsCornor({ items = [] }) {
         nestedScrollEnabled
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
-        getItemLayout={(_, index) => ({ length: layout.snapInterval, offset: layout.snapInterval * index, index })}
+        getItemLayout={(_, index) => ({
+          length: layout.snapInterval,
+          offset: layout.snapInterval * index,
+          index,
+        })}
         ItemSeparatorComponent={() => <View style={{ width: CARD_GAP }} />}
         contentContainerStyle={styles.listContent}
       />
@@ -179,106 +175,39 @@ const styles = StyleSheet.create({
   sectionHeader: { marginBottom: hp(0.15) },
   carousel: { marginTop: 0, flexGrow: 0, alignSelf: "stretch" },
   listContent: { paddingRight: CAROUSEL_PEEK, alignItems: "flex-start" },
-  cardShell: {
+  card: {
     borderRadius: CARD_RADIUS,
-    ...(Platform.OS === "android"
-      ? { backgroundColor: "transparent", elevation: 0 }
-      : {
-          backgroundColor: "#FFFFFF",
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.05,
-          shadowRadius: 6,
-        }),
-  },
-  cardSurface: {
-    borderRadius: CARD_RADIUS,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#E8E8E8",
-    backgroundColor: "#FFFFFF",
     overflow: "hidden",
+    backgroundColor: HomeTheme.deepNavy,
     ...(Platform.OS === "ios" ? { borderCurve: "continuous" } : null),
   },
   cardPressed: { opacity: 0.94 },
-  imageWrap: {
-    position: "relative",
-    width: "100%",
-    backgroundColor: "#F3F4F6",
-  },
-  image: { width: "100%", height: "100%" },
-  badge: {
+  copy: {
     position: "absolute",
-    top: sw(6),
-    left: sw(6),
-    paddingHorizontal: sw(6),
-    paddingVertical: sw(3),
-    borderRadius: 999,
-    backgroundColor: "#EBF5FF",
-    maxWidth: "88%",
+    left: sw(12),
+    right: sw(12),
+    bottom: sw(12),
   },
-  badgeText: {
+  discount: {
     fontFamily: Fonts.bold,
-    fontSize: sf(8),
+    fontSize: sf(18),
+    lineHeight: sf(22),
+    color: "#FFFFFF",
     fontWeight: "700",
-    letterSpacing: 0.3,
-    color: "#0052DF",
-    textTransform: "uppercase",
   },
-  body: {
-    paddingHorizontal: sw(8),
-    paddingTop: sw(6),
-    paddingBottom: sw(6),
-  },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: sw(6),
-  },
-  title: {
-    flex: 1,
-    minWidth: 0,
-    fontFamily: Fonts.bold,
+  business: {
+    marginTop: sw(2),
+    fontFamily: Fonts.semiBold,
     fontSize: sf(12),
     lineHeight: sf(16),
-    color: "#101828",
-    fontWeight: "700",
+    color: "rgba(255,255,255,0.95)",
+    fontWeight: "600",
   },
-  timeLabel: {
-    flexShrink: 0,
+  validity: {
+    marginTop: sw(2),
     fontFamily: Fonts.regular,
-    fontSize: sf(9),
-    lineHeight: sf(12),
-    color: "#99A1AF",
-  },
-  businessName: {
-    fontFamily: Fonts.medium,
     fontSize: sf(10),
     lineHeight: sf(13),
-    color: "#6A7282",
-    fontWeight: "600",
-    marginTop: sw(2),
-  },
-  metaLine: {
-    fontFamily: Fonts.regular,
-    fontSize: sf(9),
-    lineHeight: sf(12),
-    color: "#99A1AF",
-    marginTop: sw(2),
-  },
-  btn: {
-    marginTop: sw(5),
-    paddingVertical: sw(5),
-    borderRadius: 999,
-    borderWidth: 1.5,
-    borderColor: Colors.brandPrimaryDeep,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-  },
-  btnText: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(10),
-    fontWeight: "700",
-    color: Colors.brandPrimaryDeep,
+    color: "rgba(255,255,255,0.75)",
   },
 });

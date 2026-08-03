@@ -150,7 +150,7 @@ export default function WelcomeScreen() {
       <View style={styles.content}>
         <View style={styles.brand}>
           <AuthLogo size={86} compact variant="splash" />
-          <Text style={styles.title}>NeighborLink</Text>
+          <Text style={styles.title}>Havena</Text>
           <Text style={styles.subtitle}>Community & Wellness Platform</Text>
         </View>
         <Animated.View style={[styles.loader, { transform: [{ rotate: loaderRotation }] }]} />

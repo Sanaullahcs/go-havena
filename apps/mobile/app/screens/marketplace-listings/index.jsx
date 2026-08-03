@@ -554,7 +554,7 @@ const styles = StyleSheet.create({
   },
   conditionChipActive: {
     borderColor: "#007BFF",
-    backgroundColor: "rgba(0, 123, 255, 0.08)",
+    backgroundColor: "rgba(190, 219, 255, 0.08)",
   },
   conditionChipText: {
     fontFamily: Fonts.medium,
@@ -582,7 +582,7 @@ const styles = StyleSheet.create({
   },
   categoryChipActive: {
     borderColor: "#007BFF",
-    backgroundColor: "rgba(0, 123, 255, 0.08)",
+    backgroundColor: "rgba(190, 219, 255, 0.08)",
   },
   categoryChipText: {
     fontFamily: Fonts.medium,
@@ -764,7 +764,7 @@ const styles = StyleSheet.create({
   postButton: {
     height: 50,
     borderRadius: 12,
-    backgroundColor: "rgba(0, 123, 255, 1)",
+    backgroundColor: "rgba(190, 219, 255, 1)",
     alignItems: "center",
     justifyContent: "center",
     boxShadow:

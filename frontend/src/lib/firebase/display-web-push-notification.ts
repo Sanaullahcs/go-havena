@@ -33,7 +33,7 @@ export function enrichPushContent(payload: {
     else if (kind === "message" || kind === "new_message") title = "New message";
     else if (kind === "post_like") title = "New like";
     else if (kind === "post_created") title = "New community post";
-    else title = "NeighborLink";
+    else title = "Havena";
   }
 
   if (!body) {

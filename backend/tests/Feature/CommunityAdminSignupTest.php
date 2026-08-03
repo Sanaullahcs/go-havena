@@ -162,7 +162,7 @@ class CommunityAdminSignupTest extends TestCase
         ]);
 
         $this->seed(SystemAdminSeeder::class);
-        $systemAdmin = User::query()->where('email', 'admin@neighborlink.app')->firstOrFail();
+        $systemAdmin = User::query()->where('email', 'admin@havena.app')->firstOrFail();
         Sanctum::actingAs($systemAdmin);
 
         $this->patchJson("/api/v1/admin/community-requests/{$community->id}/approve", [
@@ -209,7 +209,7 @@ class CommunityAdminSignupTest extends TestCase
         ]);
 
         $this->seed(SystemAdminSeeder::class);
-        $systemAdmin = User::query()->where('email', 'admin@neighborlink.app')->firstOrFail();
+        $systemAdmin = User::query()->where('email', 'admin@havena.app')->firstOrFail();
         Sanctum::actingAs($systemAdmin);
 
         $this->patchJson("/api/v1/admin/community-admins/{$applicant->id}/approve")
@@ -239,7 +239,7 @@ class CommunityAdminSignupTest extends TestCase
         ]);
 
         $this->seed(SystemAdminSeeder::class);
-        $systemAdmin = User::query()->where('email', 'admin@neighborlink.app')->firstOrFail();
+        $systemAdmin = User::query()->where('email', 'admin@havena.app')->firstOrFail();
         Sanctum::actingAs($systemAdmin);
 
         $this->patchJson("/api/v1/admin/community-admins/{$applicant->id}/approve")

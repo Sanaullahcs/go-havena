@@ -356,7 +356,7 @@ function SideMenuPanel({ visible, onClose }) {
                     <Feather name="home" size={16} color="#FFFFFF" />
                   </View>
                   <View style={styles.brandCopy}>
-                    <Text style={styles.brandTitle}>NeighborLink</Text>
+                    <Text style={styles.brandTitle}>Havena</Text>
                     <Text style={styles.brandSubtitle}>Community & Wellness</Text>
                   </View>
                 </View>

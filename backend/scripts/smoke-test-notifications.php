@@ -84,7 +84,7 @@ assertOk(mapMobileScreenToAdminHref('/screens/admin-bookings') === '/admin/ameni
 assertOk(mapMobileScreenToAdminHref('/screens/admin-amenities') === '/admin/amenities', 'admin-amenities → amenities');
 assertOk(mapMobileScreenToAdminHref('/screens/guest-approvals') === '/admin/guests', 'guest-approvals → guests');
 
-$adminToken = login('test.community.admin@neighborlink.app');
+$adminToken = login('test.community.admin@havena.app');
 if (! $adminToken) {
     fwrite(STDERR, "Admin login required.\n");
     exit(1);

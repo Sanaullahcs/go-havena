@@ -1,11 +1,11 @@
 # Monorepo Structure
 
-`Nbr-link/` is organized into **four top-level areas**: `apps`, `frontend`, `backend`, and `docs`.
+`go-havena/` is organized into **four top-level areas**: `apps`, `frontend`, `backend`, and `docs`.
 
 ## Layout
 
 ```text
-Nbr-link/
+go-havena/
 ├── apps/                       # Client applications (native / mobile)
 │   └── mobile/                 # React Native (Expo SDK 56) — residents' primary client
 │       ├── app/                # expo-router routes

@@ -21,8 +21,8 @@ import { getUser } from "../../services/auth-session";
 import { isGuestUser } from "../../services/community-access";
 import { guestCanAccessFeature } from "../../constants/guest-permissions";
 
-const ACTIVE = Colors.brandPrimaryDeep;
-const INACTIVE = "#99A1AF";
+const ACTIVE = Colors.brandPrimary;
+const INACTIVE = "#6B7280";
 const FAB_SIZE = sw(58);
 const FAB_MARGIN = sw(16);
 const DRAG_THRESHOLD = 6;
@@ -282,7 +282,7 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
             accessibilityRole="button"
             accessibilityLabel="Open navigation menu"
           >
-            <Feather name="menu" size={sf(22)} color={Colors.brandPrimaryDeep} />
+            <Feather name="menu" size={sf(22)} color="#FFFFFF" />
           </Pressable>
         </View>
       ) : null}
@@ -342,12 +342,11 @@ const styles = StyleSheet.create({
     width: FAB_SIZE,
     height: FAB_SIZE,
     borderRadius: FAB_SIZE / 2,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "rgba(229, 231, 235, 0.9)",
-    shadowColor: "#0F172A",
+    backgroundColor: Colors.brandPrimary,
+    borderWidth: 0,
+    shadowColor: "#148BA6",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.35,
     shadowRadius: 12,
     elevation: 8,
   },

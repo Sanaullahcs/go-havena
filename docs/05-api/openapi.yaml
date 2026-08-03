@@ -1,17 +1,17 @@
 openapi: 3.1.0
 info:
-  title: NeighborLink API
+  title: Havena API
   version: 1.0.0
   description: >
-    REST API for the NeighborLink neighborhood community platform.
+    REST API for the Havena neighborhood community platform.
     Backend: Laravel 11 + MySQL 8. Auth: Laravel Sanctum bearer tokens.
     Almost all resources are scoped to a community; send X-Community-Id or use the {cid} path param.
 servers:
   - url: http://localhost:8000/api/v1
     description: Local
-  - url: https://staging-api.neighborlink.app/api/v1
+  - url: https://staging-api.havena.app/api/v1
     description: Staging
-  - url: https://api.neighborlink.app/api/v1
+  - url: https://api.havena.app/api/v1
     description: Production
 
 security:

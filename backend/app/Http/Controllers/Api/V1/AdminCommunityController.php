@@ -553,7 +553,7 @@ class AdminCommunityController extends Controller
             $assigned->id,
             'success',
             'Community admin access granted',
-            "You have been assigned to manage {$community->name} in NeighborLink.",
+            "You have been assigned to manage {$community->name} in Havena.",
         );
 
         return response()->json([

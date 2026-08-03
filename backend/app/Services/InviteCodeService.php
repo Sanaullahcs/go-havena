@@ -72,7 +72,7 @@ class InviteCodeService
                 ->delete();
 
             $invited->update([
-                'email' => 'claimed-'.$invited->id.'@invited-claimed.nbrlink.local',
+                'email' => 'claimed-'.$invited->id.'@invited-claimed.havena.local',
             ]);
             $invited->delete();
 
@@ -107,6 +107,6 @@ class InviteCodeService
     /** Value encoded in QR — mobile scanner accepts code or URL with invite_code param. */
     public static function qrPayload(string $code): string
     {
-        return 'neighborlink://join?invite_code='.urlencode($code);
+        return 'havena://join?invite_code='.urlencode($code);
     }
 }

@@ -207,7 +207,7 @@ export function HowItWorks() {
                 className="absolute inset-0 -z-10"
                 style={{
                     background:
-                        "linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%)",
+                        "linear-gradient(135deg, #1e1b4b 0%, #0052df 50%, #4c1d95 100%)",
                 }}
             />
 
@@ -264,7 +264,7 @@ export function HowItWorks() {
                         <span className="text-amber-300">✦</span>
                     </span>
                     <h2 className="display-title mx-auto mt-4 max-w-2xl text-[36px] text-white sm:text-4xl lg:text-[48px]">
-                        How NeighborLink Works
+                        How Havena Works
                     </h2>
                 </div>
 

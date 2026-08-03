@@ -8,32 +8,32 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-const siteUrl = "https://neighborlink.app";
+const siteUrl = "https://havena.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "NeighborLink — Know your neighbors. Love where you live.",
-    template: "%s · NeighborLink",
+    default: "Havena — Know your neighbors. Love where you live.",
+    template: "%s · Havena",
   },
   description:
-    "NeighborLink is the easiest way to discover what's happening on your street. Share updates, join local events, support neighborhood businesses, and stay connected to the people next door.",
+    "Havena is the easiest way to discover what's happening on your street. Share updates, join local events, support neighborhood businesses, and stay connected to the people next door.",
   keywords: [
-    "NeighborLink",
+    "Havena",
     "hyperlocal community",
     "neighborhood app",
     "local events",
     "neighbors",
     "community",
   ],
-  applicationName: "NeighborLink",
-  authors: [{ name: "NeighborLink" }],
-  creator: "NeighborLink",
+  applicationName: "Havena",
+  authors: [{ name: "Havena" }],
+  creator: "Havena",
   openGraph: {
     type: "website",
     url: siteUrl,
-    siteName: "NeighborLink",
-    title: "NeighborLink — Know your neighbors. Love where you live.",
+    siteName: "Havena",
+    title: "Havena — Know your neighbors. Love where you live.",
     description:
       "Discover what's happening on your street. Calm, private, and made for the people next door.",
     images: [
@@ -41,13 +41,13 @@ export const metadata: Metadata = {
         url: "/main-logo.png",
         width: 1200,
         height: 630,
-        alt: "NeighborLink",
+        alt: "Havena",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "NeighborLink — Know your neighbors.",
+    title: "Havena — Know your neighbors.",
     description:
       "Discover what's happening on your street. Calm, private, and made for the people next door.",
     images: ["/main-logo.png"],
@@ -64,7 +64,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
-  themeColor: "#4338ca",
+  themeColor: "#007bff",
 };
 
 export default function RootLayout({

@@ -16,43 +16,43 @@ class TestUsersSeeder extends Seeder
 
         $users = [
             // Residents — active
-            ['Aisha Malik',      'aisha@neighborlink.app',   'resident',  'active',    'Apt 8A',  'One-bedroom'],
-            ['Carlos Mendez',    'carlos@neighborlink.app',  'resident',  'active',    'Apt 3C',  'Two-bedroom'],
-            ['Priya Sharma',     'priya@neighborlink.app',   'resident',  'active',    'Apt 5B',  'Studio'],
-            ['Noah Williams',    'noah@neighborlink.app',    'resident',  'active',    'Apt 2D',  'Three-bedroom'],
-            ['Fatima Hassan',    'fatima@neighborlink.app',  'resident',  'active',    'Apt 9E',  'One-bedroom'],
-            ['Lucas Petrov',     'lucas@neighborlink.app',   'resident',  'active',    'Apt 11C', 'Two-bedroom'],
-            ['Amara Osei',       'amara@neighborlink.app',   'resident',  'active',    'Apt 6F',  'Studio'],
-            ['Ryan Kim',         'ryan@neighborlink.app',    'resident',  'active',    'Apt 4A',  'One-bedroom'],
+            ['Aisha Malik',      'aisha@havena.app',   'resident',  'active',    'Apt 8A',  'One-bedroom'],
+            ['Carlos Mendez',    'carlos@havena.app',  'resident',  'active',    'Apt 3C',  'Two-bedroom'],
+            ['Priya Sharma',     'priya@havena.app',   'resident',  'active',    'Apt 5B',  'Studio'],
+            ['Noah Williams',    'noah@havena.app',    'resident',  'active',    'Apt 2D',  'Three-bedroom'],
+            ['Fatima Hassan',    'fatima@havena.app',  'resident',  'active',    'Apt 9E',  'One-bedroom'],
+            ['Lucas Petrov',     'lucas@havena.app',   'resident',  'active',    'Apt 11C', 'Two-bedroom'],
+            ['Amara Osei',       'amara@havena.app',   'resident',  'active',    'Apt 6F',  'Studio'],
+            ['Ryan Kim',         'ryan@havena.app',    'resident',  'active',    'Apt 4A',  'One-bedroom'],
 
             // Residents — pending approval
-            ['Zara Ahmed',       'zara@neighborlink.app',    'resident',  'active',    'Apt 12B', 'One-bedroom'],
-            ['Tom Bradley',      'tom@neighborlink.app',     'resident',  'active',    'Apt 10A', 'Two-bedroom'],
+            ['Zara Ahmed',       'zara@havena.app',    'resident',  'active',    'Apt 12B', 'One-bedroom'],
+            ['Tom Bradley',      'tom@havena.app',     'resident',  'active',    'Apt 10A', 'Two-bedroom'],
 
             // Residents — suspended
-            ['Jake Turner',      'jake@neighborlink.app',    'resident',  'suspended', 'Apt 1D',  'Studio'],
+            ['Jake Turner',      'jake@havena.app',    'resident',  'suspended', 'Apt 1D',  'Studio'],
 
             // Second moderator
-            ['Nina Patel',       'nina@neighborlink.app',    'moderator', 'active',    null,      null],
+            ['Nina Patel',       'nina@havena.app',    'moderator', 'active',    null,      null],
 
             // Second admin
-            ['Alex Johnson',     'alex@neighborlink.app',    'admin',     'active',    null,      null],
+            ['Alex Johnson',     'alex@havena.app',    'admin',     'active',    null,      null],
         ];
 
         $membershipStatuses = [
-            'aisha@neighborlink.app'  => 'approved',
-            'carlos@neighborlink.app' => 'approved',
-            'priya@neighborlink.app'  => 'approved',
-            'noah@neighborlink.app'   => 'approved',
-            'fatima@neighborlink.app' => 'approved',
-            'lucas@neighborlink.app'  => 'approved',
-            'amara@neighborlink.app'  => 'approved',
-            'ryan@neighborlink.app'   => 'approved',
-            'zara@neighborlink.app'   => 'pending',
-            'tom@neighborlink.app'    => 'pending',
-            'jake@neighborlink.app'   => 'banned',
-            'nina@neighborlink.app'   => 'approved',
-            'alex@neighborlink.app'   => 'approved',
+            'aisha@havena.app'  => 'approved',
+            'carlos@havena.app' => 'approved',
+            'priya@havena.app'  => 'approved',
+            'noah@havena.app'   => 'approved',
+            'fatima@havena.app' => 'approved',
+            'lucas@havena.app'  => 'approved',
+            'amara@havena.app'  => 'approved',
+            'ryan@havena.app'   => 'approved',
+            'zara@havena.app'   => 'pending',
+            'tom@havena.app'    => 'pending',
+            'jake@havena.app'   => 'banned',
+            'nina@havena.app'   => 'approved',
+            'alex@havena.app'   => 'approved',
         ];
 
         foreach ($users as [$name, $email, $role, $status, $unit, $resType]) {
@@ -96,7 +96,7 @@ class TestUsersSeeder extends Seeder
                 DB::table('app_notifications')->insert([
                     'user_id'    => $uid,
                     'type'       => 'success',
-                    'title'      => 'Welcome to NeighborLink!',
+                    'title'      => 'Welcome to Havena!',
                     'body'       => 'Your account is active. Explore your community.',
                     'read_at'    => null,
                     'created_at' => $now,

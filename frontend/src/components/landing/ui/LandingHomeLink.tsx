@@ -15,7 +15,7 @@ type LandingHomeLinkProps = {
 export function LandingHomeLink({
   className,
   children,
-  ariaLabel = "NeighborLink home",
+  ariaLabel = "Havena home",
   onNavigate,
 }: LandingHomeLinkProps) {
   const pathname = usePathname();

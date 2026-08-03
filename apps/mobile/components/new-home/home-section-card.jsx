@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
   surface: {
     borderRadius: RADIUS,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#EDEDED",
+    borderColor: "#E6ECEC",
     backgroundColor: "#FFFFFF",
     overflow: "hidden",
     flex: 1,

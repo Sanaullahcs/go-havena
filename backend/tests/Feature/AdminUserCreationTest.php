@@ -17,7 +17,7 @@ class AdminUserCreationTest extends TestCase
     private function actingAsSystemAdmin(): User
     {
         $this->seed(SystemAdminSeeder::class);
-        $admin = User::query()->where('email', 'admin@neighborlink.app')->firstOrFail();
+        $admin = User::query()->where('email', 'admin@havena.app')->firstOrFail();
         Sanctum::actingAs($admin);
 
         return $admin;

@@ -114,12 +114,12 @@ if ($health['status'] !== 200) {
 }
 
 $adminEmails = [
-    'test.community.admin@neighborlink.app',
-    'community.admin@neighborlink.app',
+    'test.community.admin@havena.app',
+    'community.admin@havena.app',
     'alex@gmail.com',
 ];
 $residentEmails = [
-    'test.resident@neighborlink.app',
+    'test.resident@havena.app',
     'turner@gmail.com',
 ];
 $secondResidentEmails = [
