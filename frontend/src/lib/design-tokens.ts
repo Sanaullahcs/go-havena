@@ -1,29 +1,43 @@
-/** Havena design tokens — Coastal Harbor (aligned with mobile `constants/tokens.js`) */
+/** Havena design tokens — Ocean Breeze (solid fills only, no gradients). */
+
 export const NL = {
-  brandPrimary: "#00D9B8",
+  brandPrimary: "#14B8A6",
   brandPrimaryDeep: "#0A2A43",
-  brandSeaGreen: "#148BA6",
-  brandFresh: "#00C988",
-  brandGradientEnd: "#148BA6",
-  heroGradientStart: "#0A2A43",
-  textPrimary: "#1F2D3D",
+  brandSecondaryTeal: "#0D9488",
+  brandSecondaryTurquoise: "#0D9488",
+  brandSecondaryGreen: "#0D9488",
+  brandSeaGreen: "#14B8A6",
+  brandFresh: "#0D9488",
+
+  textPrimary: "#0A2A43",
   textSecondary: "#6B7280",
-  textBody: "#1F2D3D",
+  textBody: "#0A2A43",
   textMuted: "#6B7280",
+
   surface: "#FFFFFF",
-  surfaceMuted: "#F4FBFD",
-  borderCard: "#E6ECEC",
-  borderInput: "rgba(20, 139, 166, 0.28)",
-  link: "#148BA6",
-  success: "#00C988",
+  surfaceMuted: "#F4F8FD",
+  borderCard: "#E5E7EB",
+  borderInput: "rgba(20, 184, 166, 0.28)",
+
+  link: "#14B8A6",
+  success: "#0D9488",
   warning: "#D97706",
   danger: "#E7000B",
-  canvas: "#F4FBFD",
-  chipBg: "#E8F8F6",
-  gradientCta: "linear-gradient(135deg, #00D9B8 0%, #148BA6 100%)",
-  gradientHero: "linear-gradient(135deg, #0A2A43 0%, #148BA6 100%)",
-  gradientAuthWash:
-    "linear-gradient(135deg, rgba(244,251,253,0.95) 0%, #FFFFFF 45%, rgba(232,248,246,0.85) 100%)",
+
+  canvas: "#F4F8FD",
+  chipBg: "#D1FAF5",
+
+  /** Solid fills — use instead of gradient* tokens */
+  fillCta: "#14B8A6",
+  fillHero: "#0A2A43",
+  fillAuthWash: "#F4F8FD",
+  fillSoft: "#D1FAF5",
+
+  /** @deprecated Use fillCta — solid only */
+  gradientCta: "#14B8A6",
+  /** @deprecated Use fillHero — solid only */
+  gradientHero: "#0A2A43",
+
   shadowCard: "0 2px 8px rgba(10, 42, 67, 0.06)",
   radiusCard: "16px",
   radiusButton: "12px",

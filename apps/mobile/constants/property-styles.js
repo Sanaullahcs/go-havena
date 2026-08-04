@@ -75,7 +75,7 @@ export const propertyStyles = StyleSheet.create({
   primaryBtn: {
     paddingVertical: sw(14),
     borderRadius: sw(12),
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
     alignItems: "center",
     justifyContent: "center",
   },

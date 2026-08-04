@@ -77,17 +77,25 @@ class FeedPostSeeder extends Seeder
                     continue;
                 }
 
-                DB::table('posts')->insert([
+                $postId = DB::table('posts')->insertGetId([
                     'community_id'   => $community->id,
                     'user_id'        => $userId,
                     'body'           => $body,
                     'category'       => $category,
                     'status'         => 'approved',
                     'approved_at'    => now(),
-                    'likes_count'    => rand(2, 24),
-                    'comments_count' => rand(0, 8),
+                    'likes_count'    => 0,
+                    'comments_count' => 0,
                     'created_at'     => now()->subHours($index * 4 + rand(1, 12)),
                     'updated_at'     => now(),
+                ]);
+
+                app(FeedEngagementSeeder::class)->seedPostEngagement((object) [
+                    'id'             => $postId,
+                    'user_id'        => $userId,
+                    'community_id'   => $community->id,
+                    'likes_count'    => rand(2, 12),
+                    'comments_count' => rand(1, 4),
                 ]);
                 $created++;
             }

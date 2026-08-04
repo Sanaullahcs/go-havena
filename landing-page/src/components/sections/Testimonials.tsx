@@ -25,7 +25,7 @@ const TESTIMONIALS: Testimonial[] = [
         name: "David R.",
         role: "Community Admin",
         initials: "DR",
-        color: "linear-gradient(135deg,#06b6d4,#6366f1)",
+        color: "#14B8A6",
     },
     {
         quote:

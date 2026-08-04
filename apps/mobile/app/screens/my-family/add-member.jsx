@@ -160,7 +160,7 @@ export default function AddFamilyMemberScreen() {
           contentContainerStyle={styles.content}
         >
           <View style={styles.infoBanner}>
-            <Feather name="info" size={sf(14)} color="#0052DF" />
+            <Feather name="info" size={sf(14)} color="#0A2A43" />
             <Text style={styles.infoText}>
               Your community admin reviews this first. After they approve, you will confirm the
               member in Family requests.
@@ -309,9 +309,9 @@ const styles = StyleSheet.create({
     marginBottom: sw(18),
     padding: sw(12),
     borderRadius: sw(12),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
   infoText: {
     flex: 1,
@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
     gap: sw(6),
     minHeight: sw(50),
     borderRadius: sw(12),
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
   },
   submitText: {
     fontFamily: Fonts.semiBold,

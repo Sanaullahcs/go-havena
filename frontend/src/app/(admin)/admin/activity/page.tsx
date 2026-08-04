@@ -165,7 +165,7 @@ export default function ActivityLogsPage() {
                 ].join(" ")}
                 style={
                   active
-                    ? { background: NL.gradientCta, boxShadow: "0 4px 12px rgba(0, 82, 223, 0.22)" }
+                    ? { background: NL.fillCta, boxShadow: "0 4px 12px rgba(20, 184, 166, 0.22)" }
                     : { borderColor: NL.borderCard, color: NL.textSecondary }
                 }
               >

@@ -1,9 +1,8 @@
 import { StyleSheet, View } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
-import { Colors, Gradients, Shadows } from "../../constants/tokens";
+import { Colors, Shadows } from "../../constants/tokens";
 
-/** Havena mark — auth screens use gradient tile; splash uses white tile for contrast. */
+/** Havena mark — auth screens use solid teal tile; splash uses white tile for contrast. */
 export default function AuthLogo({ size = 62, style, compact = false, variant = "auth" }) {
   const radius = Math.round(size * (12 / 36));
   const inset = Math.round(size * 0.14);
@@ -56,12 +55,10 @@ export default function AuthLogo({ size = 62, style, compact = false, variant = 
   }
 
   return (
-    <LinearGradient
-      colors={Gradients.cta}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
+    <View
       style={[
         compact ? styles.markCompact : styles.mark,
+        styles.authMark,
         Shadows.button,
         tileStyle,
         style,
@@ -69,7 +66,7 @@ export default function AuthLogo({ size = 62, style, compact = false, variant = 
       accessibilityLabel="Havena logo"
     >
       {iconWrap}
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -86,6 +83,11 @@ const styles = StyleSheet.create({
   },
   splashMark: {
     backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  authMark: {
+    backgroundColor: Colors.brandPrimary,
     alignItems: "center",
     justifyContent: "center",
   },

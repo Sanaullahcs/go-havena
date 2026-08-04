@@ -12,6 +12,7 @@ import { Fonts } from "../../../constants/font";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { UserPlus, Users } from "lucide-react-native";
 import BackButton from "../../../components/ui/back-button";
 import { Image } from "expo-image";
 import { pickImage } from "../../../utils/pickImage";
@@ -33,7 +34,7 @@ import { isAuthenticated } from "../../../services/auth-session";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { hasFieldErrors, LIMITS, validateCompleteProfileForm } from "../../../utils/form-validation";
-import { getProfileFields } from "../../../utils/profile-display";
+import { getProfileFields, isPlaceholderDisplayName } from "../../../utils/profile-display";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
 
@@ -307,7 +308,7 @@ export default function CompleteProfile() {
         if (cancelled) return;
         setIsGuestProfile(isGuestUser(user));
         const fields = getProfileFields(user);
-        setName(fields.displayName !== "My Profile" ? fields.displayName : "");
+        setName(isPlaceholderDisplayName(fields.displayName) ? "" : fields.displayName);
         setEmail(fields.displayEmail ?? "");
         setBio(fields.bio ?? "");
         setUnitNumber(fields.unitNumber ?? "");
@@ -687,7 +688,7 @@ export default function CompleteProfile() {
 
           {isResidentJoin && !isEditMode ? (
             <View style={styles.infoBanner}>
-              <Ionicons name="information-circle-outline" size={18} color="#0B66E8" />
+              <Ionicons name="information-circle-outline" size={18} color="#14B8A6" />
               <Text style={styles.infoBannerText}>
                 Your details help the community admin verify you live in {communityName}.
               </Text>
@@ -695,13 +696,13 @@ export default function CompleteProfile() {
           ) : null}
 
           {profileLoading ? (
-            <ActivityIndicator size="large" color="#0052DF" style={{ marginVertical: 24 }} />
+            <ActivityIndicator size="large" color="#0A2A43" style={{ marginVertical: 24 }} />
           ) : null}
 
           {!profileLoading ? (
           <>
-          <View style={styles.inputContainer}>
-            <View>
+          <View style={styles.form}>
+            <View style={styles.fieldGroup}>
               <Text style={styles.inputText}>
                 Full Name <Text style={styles.requiredMark}>*</Text>
               </Text>
@@ -720,7 +721,7 @@ export default function CompleteProfile() {
               {showError("name", liveErrors) ? <Text style={styles.errorText}>{showError("name", liveErrors)}</Text> : null}
             </View>
 
-            <View>
+            <View style={styles.fieldGroup}>
               <Text style={styles.inputText}>
                 Email Address <Text style={styles.requiredMark}>*</Text>
               </Text>
@@ -744,7 +745,7 @@ export default function CompleteProfile() {
               {showError("email", liveErrors) ? <Text style={styles.errorText}>{showError("email", liveErrors)}</Text> : null}
             </View>
 
-            <View>
+            <View style={styles.fieldGroup}>
               <Text style={styles.inputText}>Bio</Text>
               <TextInput
                 style={[styles.input, styles.textArea, showError("bio", liveErrors) && styles.inputError]}
@@ -764,7 +765,7 @@ export default function CompleteProfile() {
               {showError("bio", liveErrors) ? <Text style={styles.errorText}>{showError("bio", liveErrors)}</Text> : null}
             </View>
 
-            <View>
+            <View style={styles.fieldGroup}>
               <Text style={styles.inputText}>
                 Unit / Apartment Number
                 {!isGuestProfile ? <Text style={styles.requiredMark}> *</Text> : null}
@@ -785,9 +786,9 @@ export default function CompleteProfile() {
             </View>
 
             {showFamilyNumberField && !isGuestProfile ? (
-              <View>
+              <View style={styles.fieldGroup}>
                 <Text style={styles.inputText}>Family</Text>
-                <Text style={styles.helperText}>
+                <Text style={styles.fieldHint}>
                   Create a household, join one with a Family Number, or skip and set up family later.
                 </Text>
 
@@ -802,12 +803,18 @@ export default function CompleteProfile() {
                         ]}
                         onPress={() => selectFamilyMode("create")}
                       >
-                        <Ionicons
-                          name="people-outline"
-                          size={22}
-                          color={familyMode === "create" ? "#0052DF" : "#667085"}
-                          style={styles.roleIcon}
-                        />
+                        <View
+                          style={[
+                            styles.familyModeIconWrap,
+                            familyMode === "create" && styles.familyModeIconWrapActive,
+                          ]}
+                        >
+                          <Users
+                            size={20}
+                            color={familyMode === "create" ? "#14B8A6" : "#667085"}
+                            strokeWidth={2}
+                          />
+                        </View>
                         <Text style={styles.typeTitle}>Create My Family</Text>
                         <Text style={styles.typeSubTitle}>Become Family Head</Text>
                       </TouchableOpacity>
@@ -820,13 +827,19 @@ export default function CompleteProfile() {
                         ]}
                         onPress={() => selectFamilyMode("join")}
                       >
-                        <Ionicons
-                          name="enter-outline"
-                          size={22}
-                          color={familyMode === "join" ? "#0052DF" : "#667085"}
-                          style={styles.roleIcon}
-                        />
-                        <Text style={styles.typeTitle}>Join Existing Family</Text>
+                        <View
+                          style={[
+                            styles.familyModeIconWrap,
+                            familyMode === "join" && styles.familyModeIconWrapActive,
+                          ]}
+                        >
+                          <UserPlus
+                            size={20}
+                            color={familyMode === "join" ? "#14B8A6" : "#667085"}
+                            strokeWidth={2}
+                          />
+                        </View>
+                        <Text style={styles.typeTitle}>Join Family</Text>
                         <Text style={styles.typeSubTitle}>Request to join</Text>
                       </TouchableOpacity>
                     </View>
@@ -834,20 +847,35 @@ export default function CompleteProfile() {
                     <TouchableOpacity
                       activeOpacity={0.85}
                       style={[
-                        styles.familyModeCardSkip,
-                        familyMode === "skip" && styles.familyModeCardActive,
+                        styles.familySkipCard,
+                        familyMode === "skip" && styles.familySkipCardActive,
                       ]}
                       onPress={() => selectFamilyMode("skip")}
                     >
-                      <Ionicons
-                        name="arrow-forward-circle-outline"
-                        size={22}
-                        color={familyMode === "skip" ? "#0052DF" : "#667085"}
-                        style={styles.roleIcon}
-                      />
+                      <View
+                        style={[
+                          styles.familySkipIconWrap,
+                          familyMode === "skip" && styles.familySkipIconWrapActive,
+                        ]}
+                      >
+                        <Ionicons
+                          name="time-outline"
+                          size={20}
+                          color={familyMode === "skip" ? "#14B8A6" : "#667085"}
+                        />
+                      </View>
                       <View style={styles.familySkipCopy}>
-                        <Text style={styles.typeTitle}>Skip for Now</Text>
-                        <Text style={styles.typeSubTitle}>Continue without a family</Text>
+                        <Text
+                          style={[
+                            styles.familySkipTitle,
+                            familyMode === "skip" && styles.familySkipTitleActive,
+                          ]}
+                        >
+                          Skip for Now
+                        </Text>
+                        <Text style={styles.typeSubTitle}>
+                          Continue without a family. Set up later in My Family
+                        </Text>
                       </View>
                     </TouchableOpacity>
                   </>
@@ -868,9 +896,16 @@ export default function CompleteProfile() {
                   </View>
                 ) : null}
 
+                <View style={styles.familyNumberSection}>
                 <View style={styles.familyLabelRow}>
                   <Text style={styles.inputText}>
-                    {familyMode === "join" ? "Enter Family Number" : "Family Number"}
+                    {familyMode === "join" ? (
+                      <>
+                        Enter Family Number <Text style={styles.requiredMark}>*</Text>
+                      </>
+                    ) : (
+                      "Family Number"
+                    )}
                   </Text>
                   {familyMode === "create" && !familyNumberLocked ? (
                     <TouchableOpacity
@@ -878,7 +913,7 @@ export default function CompleteProfile() {
                       disabled={familyNumberLoading}
                       hitSlop={8}
                     >
-                      <Text style={styles.familyRegenerateText}>New code</Text>
+                      <Text style={styles.familyRegenerateText}>Refresh</Text>
                     </TouchableOpacity>
                   ) : null}
                 </View>
@@ -907,7 +942,7 @@ export default function CompleteProfile() {
                     editable={!familyNumberLocked}
                   />
                   {familyNumberLoading || familyNumberChecking ? (
-                    <ActivityIndicator size="small" color="#0052DF" style={styles.familyInputSpinner} />
+                    <ActivityIndicator size="small" color="#0A2A43" style={styles.familyInputSpinner} />
                   ) : null}
                 </View>
                 <Text style={styles.helperText}>
@@ -924,22 +959,28 @@ export default function CompleteProfile() {
                     {familyNumberError || showError("familyNumber", liveErrors)}
                   </Text>
                 ) : null}
+                </View>
                   </>
                 ) : (
-                  <View style={styles.familySkipBanner}>
-                    <Ionicons name="information-circle-outline" size={18} color="#0B66E8" />
-                    <Text style={styles.familySkipBannerText}>
-                      You can create or join a family anytime from My Family after onboarding.
-                    </Text>
+                  <View style={styles.familySkipSelectedBanner}>
+                    <View style={styles.familySkipBannerIconWrap}>
+                      <Ionicons name="checkmark-circle" size={22} color="#14B8A6" />
+                    </View>
+                    <View style={styles.familySkipBannerCopy}>
+                      <Text style={styles.familySkipBannerTitle}>Family setup skipped</Text>
+                      <Text style={styles.familySkipBannerText}>
+                        No problem. You can create or join a household later from My Family in your
+                        profile.
+                      </Text>
+                    </View>
                   </View>
                 )}
               </View>
             ) : null}
-          </View>
 
           {!isGuestProfile ? (
           <>
-          <View>
+          <View style={styles.fieldGroup}>
             <Text style={styles.inputText}>
               I am a... <Text style={styles.requiredMark}>*</Text>
             </Text>
@@ -960,7 +1001,7 @@ export default function CompleteProfile() {
                 <Ionicons
                   name="home-outline"
                   size={26}
-                  color={residenceType === "homeowner" ? "#0052DF" : "#667085"}
+                  color={residenceType === "homeowner" ? "#0A2A43" : "#667085"}
                   style={styles.roleIcon}
                 />
                 <Text style={styles.typeTitle}>Homeowner</Text>
@@ -982,7 +1023,7 @@ export default function CompleteProfile() {
                 <Ionicons
                   name="person-outline"
                   size={26}
-                  color={residenceType === "tenant" ? "#0052DF" : "#667085"}
+                  color={residenceType === "tenant" ? "#0A2A43" : "#667085"}
                   style={styles.roleIcon}
                 />
                 <Text style={styles.typeTitle}>Tenant</Text>
@@ -994,7 +1035,7 @@ export default function CompleteProfile() {
             ) : null}
           </View>
 
-          <View>
+          <View style={styles.fieldGroup}>
             <Text style={styles.inputText}>
               Upload lease or last 3 month utility bill{" "}
               {!isEditMode || !existingUtilityBillUrl ? (
@@ -1031,7 +1072,7 @@ export default function CompleteProfile() {
               {selectedFile ? (
                 isPdfAsset(selectedFile) ? (
                   <View style={styles.uploadPdfPreview}>
-                    <Ionicons name="document-text-outline" size={40} color="#0052DF" />
+                    <Ionicons name="document-text-outline" size={40} color="#0A2A43" />
                     <Text style={styles.uploadText}>
                       {selectedFile.fileName || "Document.pdf"}
                     </Text>
@@ -1046,7 +1087,7 @@ export default function CompleteProfile() {
               ) : existingUtilityBillUrl ? (
                 isPdfAsset({ uri: existingUtilityBillUrl }) ? (
                   <View style={styles.uploadPdfPreview}>
-                    <Ionicons name="document-text-outline" size={40} color="#0052DF" />
+                    <Ionicons name="document-text-outline" size={40} color="#0A2A43" />
                     <Text style={styles.uploadText}>Uploaded document</Text>
                   </View>
                 ) : (
@@ -1080,6 +1121,7 @@ export default function CompleteProfile() {
           </View>
           </>
           ) : null}
+          </View>
           </>
           ) : null}
         </View>
@@ -1095,8 +1137,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
   },
   topBar: {
-    padding: 24,
-
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(243, 244, 246, 1)",
   },
@@ -1113,7 +1156,7 @@ const styles = StyleSheet.create({
     color: "#667085",
   },
   content: {
-    paddingTop: 24,
+    paddingTop: 8,
     paddingBottom: 8,
     flexDirection: "column",
     gap: 20,
@@ -1172,9 +1215,9 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 14,
     borderRadius: 14,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
   infoBannerText: {
     flex: 1,
@@ -1199,7 +1242,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(1, 121, 255, 1)",
+    backgroundColor: "#14B8A6",
   },
   currentDot: {
     width: 24,
@@ -1235,9 +1278,19 @@ const styles = StyleSheet.create({
     color: "rgba(0, 0, 0, 1)",
     fontWeight: "600",
   },
-  inputContainer: {
+  form: {
     flexDirection: "column",
-    gap: 16,
+    gap: 20,
+  },
+  fieldGroup: {
+    flexDirection: "column",
+    gap: 8,
+  },
+  fieldHint: {
+    fontFamily: Fonts.regular,
+    fontSize: 12,
+    lineHeight: 17,
+    color: "rgba(106, 114, 130, 1)",
   },
   inputText: {
     fontFamily: Fonts.semiBold,
@@ -1252,7 +1305,6 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderColor: "rgba(229, 231, 235, 1)",
-    marginTop: 6,
     borderRadius: 12,
     backgroundColor: "rgba(249, 250, 251, 1)",
     height: 54,
@@ -1261,14 +1313,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#000000",
   },
+  familyNumberSection: {
+    marginTop: 14,
+    flexDirection: "column",
+    gap: 8,
+  },
   familyLabelRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 10,
   },
   familyModeRow: {
-    marginTop: 10,
     flexDirection: "row",
     gap: 10,
   },
@@ -1280,44 +1335,109 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 1)",
     padding: 14,
   },
-  familyModeCardActive: {
-    borderColor: "#0B66E8",
-    backgroundColor: "#EFF6FF",
+  familyModeIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#F4F8FD",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "rgba(20, 184, 166, 0.15)",
   },
-  familyModeCardSkip: {
-    marginTop: 10,
+  familyModeIconWrapActive: {
+    backgroundColor: "#D1FAF5",
+    borderColor: "rgba(20, 184, 166, 0.35)",
+  },
+  familyModeCardActive: {
+    borderColor: "#14B8A6",
+    backgroundColor: "#D1FAF5",
+  },
+  familySkipCard: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: "rgba(243, 244, 246, 1)",
+    gap: 12,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "rgba(20, 184, 166, 0.4)",
     borderRadius: 14,
-    backgroundColor: "rgba(255, 255, 255, 1)",
-    padding: 14,
+    backgroundColor: "#F4F8FD",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  familySkipCardActive: {
+    borderStyle: "solid",
+    borderColor: "#14B8A6",
+    backgroundColor: "#D1FAF5",
+  },
+  familySkipIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(20, 184, 166, 0.22)",
+  },
+  familySkipIconWrapActive: {
+    backgroundColor: "#FFFFFF",
+    borderColor: "rgba(20, 184, 166, 0.45)",
+  },
+  familySkipTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: 14,
+    lineHeight: 19,
+    color: "#0A2A43",
+    fontWeight: "700",
+  },
+  familySkipTitleActive: {
+    color: "#0A2A43",
   },
   familySkipCopy: {
     flex: 1,
     minWidth: 0,
   },
-  familySkipBanner: {
-    marginTop: 12,
+  familySkipSelectedBanner: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 10,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: "#EFF6FF",
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: "#F4F8FD",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
+  },
+  familySkipBannerIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#D1FAF5",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(20, 184, 166, 0.2)",
+  },
+  familySkipBannerCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  familySkipBannerTitle: {
+    fontFamily: Fonts.semiBold,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#0A2A43",
+    fontWeight: "600",
   },
   familySkipBannerText: {
-    flex: 1,
+    marginTop: 4,
     fontFamily: Fonts.regular,
     fontSize: 12,
     lineHeight: 17,
-    color: "#364155",
+    color: "#6B7280",
   },
   familyPendingBanner: {
-    marginTop: 12,
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 10,
@@ -1346,7 +1466,7 @@ const styles = StyleSheet.create({
   familyRegenerateText: {
     fontFamily: Fonts.semiBold,
     fontSize: 12,
-    color: "#0052DF",
+    color: "#14B8A6",
   },
   familyInputWrap: {
     position: "relative",
@@ -1371,7 +1491,6 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
   },
   residenceRow: {
-    marginTop: 10,
     flexDirection: "row",
     gap: 10,
   },
@@ -1384,8 +1503,8 @@ const styles = StyleSheet.create({
     padding: 18,
   },
   typeCardActive: {
-    borderColor: "#0B66E8",
-    backgroundColor: "#EFF6FF",
+    borderColor: "#14B8A6",
+    backgroundColor: "#D1FAF5",
   },
   typeEmoji: {
     fontSize: 24,
@@ -1409,7 +1528,6 @@ const styles = StyleSheet.create({
     color: "rgba(106, 114, 130, 1)",
   },
   uploadBox: {
-    marginTop: 10,
     minHeight: 140,
     borderWidth: 2,
     borderStyle: "dashed",
@@ -1449,12 +1567,11 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   uploadLink: {
-    color: "rgba(190, 219, 255, 1)",
+    color: "rgba(20, 184, 166, 1)",
     fontFamily: Fonts.semiBold,
     fontWeight: "600",
   },
   helperText: {
-    marginTop: 8,
     fontFamily: Fonts.regular,
     fontSize: 11,
     lineHeight: 15,
@@ -1471,7 +1588,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   buttonActive: {
-    backgroundColor: "#0B66E8",
+    backgroundColor: "#14B8A6",
   },
   buttonDisabled: {
     backgroundColor: "rgba(225, 227, 227, 1)",

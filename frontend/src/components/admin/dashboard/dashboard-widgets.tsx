@@ -96,7 +96,7 @@ export function DashboardActivityItem({
   relTime: string;
 }) {
   const palette: Record<string, { bg: string; color: string; border: string }> = {
-    info: { bg: NL.chipBg, color: NL.brandPrimaryDeep, border: "rgba(190, 219, 255, 0.55)" },
+    info: { bg: NL.chipBg, color: NL.brandPrimaryDeep, border: "rgba(20, 184, 166, 0.55)" },
     warning: { bg: "#FFFBEB", color: NL.warning, border: "rgba(253, 230, 138, 0.45)" },
     error: { bg: "#FEF2F2", color: NL.danger, border: "rgba(254, 202, 202, 0.45)" },
     critical: { bg: "#F5F3FF", color: "#7C3AED", border: "rgba(221, 214, 254, 0.55)" },
@@ -198,7 +198,6 @@ export function PendingFilterTabs({
     { id: "membership", label: "Members" },
     { id: "community_admin", label: "Admins" },
     { id: "community_request", label: "Communities" },
-    { id: "post", label: "Posts" },
   ];
 
   return (
@@ -214,7 +213,7 @@ export function PendingFilterTabs({
             className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-[12px] font-semibold transition"
             style={
               active
-                ? { background: NL.gradientCta, color: "#fff", boxShadow: "0 3px 10px rgba(0, 82, 223, 0.18)" }
+                ? { background: NL.fillCta, color: "#fff", boxShadow: "0 3px 10px rgba(20, 184, 166, 0.18)" }
                 : { background: NL.surfaceMuted, color: NL.textSecondary, border: `1px solid ${NL.borderCard}` }
             }
           >

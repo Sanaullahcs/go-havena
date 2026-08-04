@@ -8,16 +8,16 @@ import { PageLoader, EmptyState } from "@/components/shared/page-states";
 
 const CAT_META: Record<string, { label: string; color: string }> = {
   // Current WELLS / course catalog keys
-  weight:        { label: "Weight & Diet",   color: "#0052DF" },
+  weight:        { label: "Weight & Diet",   color: "#0A2A43" },
   exercise:      { label: "Exercise",        color: "#0F766E" },
   learning:      { label: "Learning",        color: "#0369A1" },
-  stress:        { label: "Lowering Stress", color: "#007BFF" },
+  stress:        { label: "Lowering Stress", color: "#14B8A6" },
   social:        { label: "Social",          color: "#C2410C" },
   nutrition:     { label: "Nutrition",       color: "#B45309" },
-  sleep:         { label: "Sleep",           color: "#007BFF" },
-  mindful:       { label: "Mindfulness",     color: "#0052DF" },
+  sleep:         { label: "Sleep",           color: "#14B8A6" },
+  mindful:       { label: "Mindfulness",     color: "#0A2A43" },
   // Legacy flat-content keys (kept for older rows)
-  fitness:       { label: "Fitness",         color: "#2563eb" },
+  fitness:       { label: "Fitness",         color: "#14B8A6" },
   mental_health: { label: "Mental Health",   color: "#7c3aed" },
   mindfulness:   { label: "Mindfulness",     color: "#d97706" },
 };
@@ -108,7 +108,7 @@ export default function WellnessPage() {
           <p className="text-[13px] font-medium text-slate-700">Lessons Completed</p>
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-slate-200/70 bg-white p-4 shadow-sm">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[14px] font-bold text-white" style={{ background: "#2563eb" }}>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[14px] font-bold text-white" style={{ background: "#14B8A6" }}>
             {totalItems - totalCompleted}
           </div>
           <p className="text-[13px] font-medium text-slate-700">Lessons Remaining</p>
@@ -165,7 +165,7 @@ export default function WellnessPage() {
                   className="h-1.5 rounded-full transition-all duration-500"
                   style={{
                     width: `${Math.round((categories[activeTab].completed / Math.max(1, categories[activeTab].total)) * 100)}%`,
-                    background: CAT_META[activeTab]?.color ?? "#2563eb",
+                    background: CAT_META[activeTab]?.color ?? "#14B8A6",
                   }}
                 />
               </div>

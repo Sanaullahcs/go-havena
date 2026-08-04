@@ -139,7 +139,7 @@ export default function RuleForm() {
       <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
         <InternalScreenHeader title={isEdit ? "Edit Rule" : "Add Rule"} />
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#0052DF" />
+          <ActivityIndicator size="large" color="#0A2A43" />
         </View>
       </SafeAreaView>
     );
@@ -276,8 +276,8 @@ export default function RuleForm() {
           <Switch
             value={form.requires_acknowledgment}
             onValueChange={(v) => setF("requires_acknowledgment", v)}
-            trackColor={{ false: "#E5E7EB", true: "#BFDBFE" }}
-            thumbColor={form.requires_acknowledgment ? "#0052DF" : "#FFFFFF"}
+            trackColor={{ false: "#E5E7EB", true: "rgba(20, 184, 166, 0.28)" }}
+            thumbColor={form.requires_acknowledgment ? "#0A2A43" : "#FFFFFF"}
           />
         </View>
 
@@ -290,8 +290,8 @@ export default function RuleForm() {
           <Switch
             value={form.status === "active"}
             onValueChange={(v) => setF("status", v ? "active" : "inactive")}
-            trackColor={{ false: "#E5E7EB", true: "#BFDBFE" }}
-            thumbColor={form.status === "active" ? "#0052DF" : "#FFFFFF"}
+            trackColor={{ false: "#E5E7EB", true: "rgba(20, 184, 166, 0.28)" }}
+            thumbColor={form.status === "active" ? "#0A2A43" : "#FFFFFF"}
           />
         </View>
 
@@ -354,9 +354,9 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
     backgroundColor: "#FFFFFF",
   },
-  chipActive:   { borderColor: "#0052DF", backgroundColor: "#EFF6FF" },
+  chipActive:   { borderColor: "#0A2A43", backgroundColor: "#D1FAF5" },
   chipText:     { fontFamily: Fonts.medium, fontSize: sf(12), color: "#374151" },
-  chipTextActive: { color: "#0052DF", fontFamily: Fonts.bold, fontWeight: "700" },
+  chipTextActive: { color: "#0A2A43", fontFamily: Fonts.bold, fontWeight: "700" },
   severityRow:  { flexDirection: "row", gap: sw(8) },
   severityBtn: {
     flex: 1,
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   submitBtn: {
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
     borderRadius: sw(14),
     paddingVertical: sw(15),
     alignItems: "center",

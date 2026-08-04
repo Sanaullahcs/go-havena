@@ -1,16 +1,18 @@
-/** Coastal Harbor home palette — matches design system template */
+/** Ocean Breeze home palette — matches design system */
 export const HomeTheme = {
   deepNavy: "#0A2A43",
-  primaryTeal: "#00D9B8",
-  seaGreen: "#148BA6",
-  freshGreen: "#00C988",
-  darkText: "#1F2D3D",
+  darkTeal: "#0D9488",
+  primaryTeal: "#14B8A6",
+  seaGreen: "#14B8A6",
+  freshGreen: "#0D9488",
+  softMint: "#D1FAF5",
+  darkText: "#0A2A43",
   mediumGray: "#6B7280",
-  lightBorder: "#E6ECEC",
-  pageBg: "#F4FBFD",
+  lightBorder: "#E5E7EB",
+  pageBg: "#F4F8FD",
   cardBg: "#FFFFFF",
-  noticeGradient: ["#0A2A43", "#148BA6"],
-  buttonGradient: ["#00D9B8", "#148BA6"],
+  noticeFill: "#0A2A43",
+  buttonFill: "#14B8A6",
 };
 
 export default HomeTheme;

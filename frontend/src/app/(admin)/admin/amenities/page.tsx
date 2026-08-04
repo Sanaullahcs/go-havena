@@ -535,7 +535,7 @@ export default function AdminAmenitiesPage() {
                         setPickerOpen(false);
                         setBooking(amenity);
                       }}
-                      className="flex w-full items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left transition hover:border-[#BFDBFE] hover:bg-[#F8FAFF]"
+                      className="flex w-full items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left transition hover:border-[rgba(20, 184, 166, 0.28)] hover:bg-[#F8FAFF]"
                     >
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50">
                         <AmenityIcon iconKey={amenity.icon_key} name={amenity.name} size={18} />

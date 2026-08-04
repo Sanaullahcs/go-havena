@@ -1,6 +1,6 @@
 import { Pressable, Text, View, StyleSheet, ActivityIndicator } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { authStyles, Gradients, Shadows } from "../../constants/auth-styles";
+import { authStyles, Shadows } from "../../constants/auth-styles";
+import { Colors } from "../../constants/tokens";
 
 export default function PrimaryButton({
   label,
@@ -24,11 +24,13 @@ export default function PrimaryButton({
           <Text style={authStyles.buttonText}>{label}</Text>
         </View>
       ) : (
-        <LinearGradient
-          colors={Gradients.cta}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[authStyles.button, Shadows.button, loading && styles.loadingBtn]}
+        <View
+          style={[
+            authStyles.button,
+            Shadows.button,
+            styles.primaryBtn,
+            loading && styles.loadingBtn,
+          ]}
         >
           {loading ? (
             <View style={styles.loadingRow}>
@@ -38,7 +40,7 @@ export default function PrimaryButton({
           ) : (
             <Text style={authStyles.buttonText}>{label}</Text>
           )}
-        </LinearGradient>
+        </View>
       )}
     </Pressable>
   );
@@ -46,6 +48,9 @@ export default function PrimaryButton({
 
 const styles = StyleSheet.create({
   pressable: { width: "100%" },
+  primaryBtn: {
+    backgroundColor: Colors.brandPrimary,
+  },
   loadingBtn: { opacity: 0.95 },
   loadingRow: {
     flexDirection: "row",

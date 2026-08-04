@@ -17,6 +17,25 @@ import { Routes } from "../../../constants/onboarding-routes";
 import { setCurrentRole } from "../../../constants/role-session";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import { prepareAuthScreenChrome } from "../../../components/layout/chrome-manager";
+import { HavenaColors as C } from "../../../constants/color-scheme";
+import RoleIcon from "../../../components/ui/role-icon";
+
+const ADMIN_THEME = {
+  border: "rgba(10, 42, 67, 0.14)",
+  accent: C.primary.teal,
+  chipBg: "#D1FAF5",
+  chipText: C.primary.darkNavy,
+  iconBg: "#D1FAF5",
+};
+
+const RESIDENT_THEME = {
+  border: "rgba(0, 201, 136, 0.22)",
+  accent: C.primary.vibrantGreen,
+  chipBg: "rgba(0, 201, 136, 0.12)",
+  chipText: "#047857",
+  iconBg: "#F0FDF4",
+};
+
 export default function Roles() {
   const router = useRouter();
 
@@ -28,8 +47,7 @@ export default function Roles() {
       description:
         "Create and manage your building or neighborhood, verify residents, and control announcements.",
       chips: ["Create Community", "Verify Residents", "Manage Events"],
-      border: "rgba(92, 225, 230, 0.3)",
-      source: require("../../../assets/images/commiunity-admin.svg"),
+      theme: ADMIN_THEME,
     },
     {
       key: "resident",
@@ -38,8 +56,7 @@ export default function Roles() {
       description:
         "Join your verified community to access wellness programs, notices, and local marketplace.",
       chips: ["Join Community", "Wellness Programs", "Community Feed"],
-      border: "rgba(193, 255, 114, 0.4)",
-      source: require("../../../assets/images/resident-icon.svg"),
+      theme: RESIDENT_THEME,
     },
   ];
 
@@ -52,26 +69,25 @@ export default function Roles() {
     <>
       <ScreenStatusBar style="dark" opaque />
       <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-      <View style={styles.topBar}>
+      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#F4F8FD" }]} />
+      <View style={styles.headerColumn}>
         <BackButton onPress={() => {
           prepareAuthScreenChrome();
           router.replace(Routes.LOGIN);
         }} />
-      </View>
-      <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.brandRow}>
           <View style={styles.logoBox}>
-            <HavenaLogo size={44} compact />
+            <HavenaLogo size={40} compact />
           </View>
-
-          <View>
+          <View style={styles.brandCopy}>
             <Text style={styles.brandTitle}>Havena</Text>
             <Text style={styles.brandSubTitle}>
               Community & Wellness Platform
             </Text>
           </View>
         </View>
-
+      </View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.headingWrap}>
           <Text style={styles.pageTitle}>Join Havena</Text>
           <Text style={styles.pageSubTitle}>
@@ -83,37 +99,33 @@ export default function Roles() {
           {roleCards.map((role) => (
             <TouchableOpacity
               key={role.key}
-              style={[styles.card, { borderColor: role.border }]}
-              activeOpacity={0.85}
+              style={[
+                styles.card,
+                {
+                  borderColor: role.theme.border,
+                  backgroundColor: C.neutral.white,
+                },
+              ]}
+              activeOpacity={0.88}
               onPress={() => handleRoleSelect(role.key)}
             >
               <View style={styles.cardTopRow}>
-                <Image source={role.source} style={{ width: 56, height: 56 }} />
+                <RoleIcon role={role.key} size="md" />
 
                 <View style={styles.cardHeaderTextWrap}>
                   <Text style={styles.cardTitle}>{role.title}</Text>
-                  <Text style={styles.cardSubTitle}>{role.subTitle}</Text>
+                  <Text style={[styles.cardSubTitle, { color: role.theme.accent }]}>
+                    {role.subTitle}
+                  </Text>
                   <Text style={styles.cardDescription}>{role.description}</Text>
 
                   <View style={styles.chipsRow}>
                     {role.chips.map((chip) => (
                       <View
                         key={chip}
-                        style={[
-                          styles.chip,
-                          role.key === "admin"
-                            ? styles.adminChip
-                            : styles.residentChip,
-                        ]}
+                        style={[styles.chip, { backgroundColor: role.theme.chipBg }]}
                       >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            role.key === "admin"
-                              ? styles.adminChipText
-                              : styles.residentChipText,
-                          ]}
-                        >
+                        <Text style={[styles.chipText, { color: role.theme.chipText }]}>
                           {chip}
                         </Text>
                       </View>
@@ -121,17 +133,21 @@ export default function Roles() {
                   </View>
                 </View>
 
-                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                <View style={[styles.chevronWrap, { backgroundColor: role.theme.iconBg }]}>
+                  <Ionicons name="chevron-forward" size={18} color={role.theme.accent} />
+                </View>
               </View>
             </TouchableOpacity>
           ))}
         </View>
 
         <View style={styles.noteRow}>
-          <Image
-            source={require("../../../assets/images/sheild-check.png")}
-            style={{ width: 16, height: 16 }}
-          />
+          <View style={styles.noteIconWrap}>
+            <Image
+              source={require("../../../assets/images/sheild-check.png")}
+              style={{ width: 16, height: 16 }}
+            />
+          </View>
           <Text style={styles.noteText}>
             All accounts are verified by phone number for community safety.
           </Text>
@@ -158,37 +174,45 @@ export default function Roles() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: C.neutral.background,
   },
   scrollContent: {
-    paddingHorizontal: 14,
+    paddingBottom: 12,
+  },
+  headerColumn: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 12,
+    paddingHorizontal: 24,
     paddingTop: 20,
-    paddingBottom: 24,
+    paddingBottom: 8,
   },
   brandRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 32,
-    paddingTop: 48,
+    gap: 10,
+    width: "100%",
+  },
+  brandCopy: {
+    flex: 1,
+    minWidth: 0,
   },
   logoBox: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#EFF6FF",
-  },
-  logoImage: {
-    width: 36,
-    height: 36,
+    backgroundColor: "#D1FAF5",
+    borderWidth: 1,
+    borderColor: "rgba(0, 217, 184, 0.18)",
+    flexShrink: 0,
   },
   brandTitle: {
     fontFamily: Fonts.bold,
     fontSize: 16,
     lineHeight: 20,
-    color: "#000000",
+    color: C.primary.darkNavy,
     fontWeight: "700",
   },
   brandSubTitle: {
@@ -196,52 +220,43 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: 11,
     lineHeight: 15,
-    color: "#6A7282",
+    color: C.neutral.mediumGray,
   },
   headingWrap: {
-    padding: 32,
+    paddingHorizontal: 24,
+    paddingTop: 4,
+    paddingBottom: 20,
   },
   pageTitle: {
     fontFamily: Fonts.bold,
-    fontSize: 20,
+    fontSize: 22,
     lineHeight: 28,
-    color: "#000000",
+    color: C.primary.darkNavy,
     fontWeight: "700",
+    letterSpacing: -0.3,
   },
   pageSubTitle: {
-    marginTop: 5,
-    maxWidth: 290,
+    marginTop: 6,
+    maxWidth: 300,
     fontFamily: Fonts.regular,
-    fontSize: 12,
-    lineHeight: 18,
-    color: "#6A7282",
+    fontSize: 13,
+    lineHeight: 19,
+    color: C.neutral.mediumGray,
   },
   cardsWrap: {
     paddingHorizontal: 24,
-    gap: 16,
-  },
-  topBar: {
-    paddingHorizontal: 24,
-    paddingTop: 8,
+    gap: 14,
   },
   card: {
-    borderWidth: 2,
-    borderRadius: 16,
-    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 14,
     paddingVertical: 16,
-    backgroundColor: "#FFFFFF",
   },
   cardTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
-  },
-  iconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
   },
   cardHeaderTextWrap: {
     flex: 1,
@@ -250,24 +265,22 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontFamily: Fonts.bold,
     fontSize: 16,
-    lineHeight: 24,
-    color: "rgba(0, 0, 0, 1)",
+    lineHeight: 22,
+    color: C.neutral.darkText,
     fontWeight: "700",
   },
   cardSubTitle: {
     fontFamily: Fonts.semiBold,
     fontSize: 11,
     lineHeight: 15,
-    color: "rgba(190, 219, 255, 1)",
     fontWeight: "600",
   },
   cardDescription: {
     marginTop: 8,
-    fontFamily: Fonts.medium,
-    fontSize: 11,
-    lineHeight: 17,
-    color: "rgba(106, 114, 130, 1)",
-    fontWeight: "500",
+    fontFamily: Fonts.regular,
+    fontSize: 12,
+    lineHeight: 18,
+    color: C.neutral.mediumGray,
   },
   chipsRow: {
     marginTop: 12,
@@ -278,67 +291,77 @@ const styles = StyleSheet.create({
   chip: {
     borderRadius: 999,
     paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  adminChip: {
-    backgroundColor: "rgba(212, 236, 245, 1)",
-  },
-  residentChip: {
-    backgroundColor: "rgba(193, 255, 114, 0.2)",
+    paddingVertical: 5,
   },
   chipText: {
-    fontFamily: Fonts.medium,
+    fontFamily: Fonts.semiBold,
     fontSize: 9,
-    lineHeight: 13,
+    lineHeight: 12,
     fontWeight: "600",
   },
-  adminChipText: {
-    color: "rgba(190, 219, 255, 1)",
-  },
-  residentChipText: {
-    color: "rgba(1, 102, 48, 1)",
+  chevronWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+    flexShrink: 0,
   },
   noteRow: {
-    marginTop: 16,
+    marginTop: 14,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
     paddingHorizontal: 24,
-    width: 290,
+    paddingVertical: 12,
+    marginHorizontal: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.72)",
+    borderWidth: 1,
+    borderColor: C.neutral.lightGray,
+  },
+  noteIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "#D1FAF5",
+    alignItems: "center",
+    justifyContent: "center",
   },
   noteText: {
     flex: 1,
     fontFamily: Fonts.regular,
     fontSize: 11,
-    lineHeight: 15,
-    color: "rgba(106, 114, 130, 1)",
+    lineHeight: 16,
+    color: C.neutral.mediumGray,
   },
   footerRow: {
-    marginTop: 30,
+    marginTop: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
   },
   footerText: {
     fontFamily: Fonts.regular,
-    fontSize: 12,
+    fontSize: 13,
     lineHeight: 18,
-    color: "rgba(74, 85, 101, 1)",
+    color: C.neutral.mediumGray,
   },
   signInText: {
     fontFamily: Fonts.bold,
-    fontSize: 12,
+    fontSize: 13,
     lineHeight: 18,
-    color: "rgba(190, 219, 255, 1)",
+    color: C.primary.teal,
     fontWeight: "700",
   },
   signInHint: {
-    marginTop: 8,
-    marginBottom: 24,
+    marginTop: 6,
+    marginBottom: 8,
     fontFamily: Fonts.regular,
     fontSize: 11,
     lineHeight: 16,
-    color: "rgba(106, 114, 130, 1)",
+    color: C.neutral.mediumGray,
     textAlign: "center",
     paddingHorizontal: 24,
   },

@@ -26,7 +26,7 @@ import { getCurrentRole } from "../../../../constants/role-session";
 
 const CATEGORY_META = {
   "Rules & Policies": { icon: "file-text", color: "#E7000B", bg: "#FEF2F2" },
-  Forms:            { icon: "clipboard", color: "#2563EB", bg: "#EFF6FF" },
+  Forms:            { icon: "clipboard", color: "#14B8A6", bg: "#D1FAF5" },
   Guidelines:       { icon: "book-open", color: "#059669", bg: "#ECFDF5" },
   Safety:           { icon: "shield", color: "#DC2626", bg: "#FEF2F2" },
   "Maps & Diagrams": { icon: "map", color: "#0891B2", bg: "#ECFEFF" },
@@ -149,7 +149,7 @@ export default function Documents() {
       <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
         <InternalScreenHeader title="Documents" subtitle="Loading…" />
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#0052DF" />
+          <ActivityIndicator size="large" color="#0A2A43" />
         </View>
       </SafeAreaView>
     );
@@ -169,7 +169,7 @@ export default function Documents() {
             </Pressable>
             {isAdmin ? (
               <Pressable onPress={openAddDocument} style={styles.addBtn}>
-                <Feather name="plus" size={sf(16)} color="#0052DF" />
+                <Feather name="plus" size={sf(16)} color="#0A2A43" />
                 <Text style={styles.addBtnText}>Add</Text>
               </Pressable>
             ) : null}
@@ -180,7 +180,7 @@ export default function Documents() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={pageStyles.scrollBottom}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0052DF" colors={["#0052DF"]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0A2A43" colors={["#0A2A43"]} />}
       >
         {showSearch && (
           <View style={propertyStyles.sectionBlock}>
@@ -330,11 +330,11 @@ const styles = StyleSheet.create({
     paddingVertical: sw(6),
     paddingHorizontal: sw(10),
     borderRadius: sw(8),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
-  addBtnText: { fontFamily: Fonts.bold, fontSize: sf(12), color: "#0052DF", fontWeight: "700" },
+  addBtnText: { fontFamily: Fonts.bold, fontSize: sf(12), color: "#0A2A43", fontWeight: "700" },
   searchWrap: {
     flexDirection: "row",
     alignItems: "center",
@@ -367,8 +367,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   categoryTileActive: {
-    borderColor: "#0052DF",
-    backgroundColor: "#EFF6FF",
+    borderColor: "#0A2A43",
+    backgroundColor: "#D1FAF5",
   },
   categoryIcon: {
     width: sw(34),
@@ -385,7 +385,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: sw(10),
   },
-  categoryTitleActive: { color: "#0052DF" },
+  categoryTitleActive: { color: "#0A2A43" },
   categoryCount: { fontFamily: Fonts.medium, fontSize: sf(11), color: "#9CA3AF", fontWeight: "600" },
   sectionHeader: { marginBottom: sw(8) },
   sectionSub: { fontFamily: Fonts.regular, fontSize: sf(12), color: "#9CA3AF", marginTop: 2 },
@@ -399,7 +399,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     maxWidth: sw(180),
   },
-  filterChipActive: { borderColor: "#0052DF", backgroundColor: "#0052DF" },
+  filterChipActive: { borderColor: "#0A2A43", backgroundColor: "#0A2A43" },
   filterChipText: { fontFamily: Fonts.medium, fontSize: sf(12), color: "#4A5565", fontWeight: "600" },
   filterChipTextActive: { color: "#FFFFFF" },
   lastSection: { borderBottomWidth: 0 },
@@ -451,5 +451,5 @@ const styles = StyleSheet.create({
   emptyHint: { fontFamily: Fonts.regular, fontSize: sf(12), color: "#D1D5DB", textAlign: "center" },
   errorBox: { gap: sw(8) },
   errorText: { fontFamily: Fonts.regular, fontSize: sf(13), color: "#E7000B" },
-  retryText: { fontFamily: Fonts.bold, fontSize: sf(13), color: "#0052DF", fontWeight: "700" },
+  retryText: { fontFamily: Fonts.bold, fontSize: sf(13), color: "#0A2A43", fontWeight: "700" },
 });

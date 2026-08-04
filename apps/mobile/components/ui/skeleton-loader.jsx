@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from "react";
 import { View, Animated, StyleSheet, useWindowDimensions, Platform } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { Home } from "../../constants/home-styles";
 import { sw, sf, hp } from "../../utils/responsive";
 
@@ -8,7 +7,7 @@ const SHIMMER_TONES = {
   default: { color: "#E2E8F0", min: 0.38, max: 0.82 },
   soft: { color: "#F1F5F9", min: 0.45, max: 0.9 },
   card: { color: "#E5E7EB", min: 0.4, max: 0.78 },
-  brand: { color: "#BFDBFE", min: 0.35, max: 0.88 },
+  brand: { color: "rgba(20, 184, 166, 0.28)", min: 0.35, max: 0.88 },
   hero: { color: "rgba(255,255,255,0.28)", min: 0.25, max: 0.62 },
   amber: { color: "#FDE68A", min: 0.42, max: 0.82 },
   mint: { color: "#A7F3D0", min: 0.42, max: 0.82 },
@@ -207,10 +206,7 @@ function PopularNearbyCardSkeleton({ index, cardW }) {
     <View style={[styles.mpPopularCard, MP_CARD_SHADOW, { width: cardW }]}>
       <View style={[styles.mpPopularImageWrap, { height: imageHeights[index % imageHeights.length] }]}>
         <ShimmerBlock tone="photo" style={styles.mpPopularImageFill} delay={stagger} />
-        <LinearGradient
-          colors={["transparent", "rgba(15, 23, 42, 0.12)"]}
-          style={styles.mpPopularImageGradient}
-        />
+        <View style={[styles.mpPopularImageGradient, { backgroundColor: "rgba(15, 23, 42, 0.12)" }]} />
         <View style={styles.mpPopularCategoryChipWrap}>
           <ShimmerBlock tone="brand" style={styles.mpPopularCategoryChip} delay={stagger + 50} />
         </View>
@@ -1184,7 +1180,7 @@ const styles = StyleSheet.create({
     marginHorizontal: Home.gutter,
     marginTop: hp(0.5),
     borderRadius: sw(14),
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
     overflow: "hidden",
     shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 4 },
@@ -1219,13 +1215,13 @@ const styles = StyleSheet.create({
     width: sw(6),
     height: sw(6),
     borderRadius: sw(3),
-    backgroundColor: "rgba(0, 82, 223, 0.18)",
+    backgroundColor: "rgba(20, 184, 166, 0.18)",
   },
   homeDotActive: {
     width: sw(16),
     height: sw(6),
     borderRadius: sw(3),
-    backgroundColor: "rgba(0, 82, 223, 0.35)",
+    backgroundColor: "rgba(20, 184, 166, 0.35)",
   },
   homeQuickActionsBlock: {
     marginTop: hp(0.35),

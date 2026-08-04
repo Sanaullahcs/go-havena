@@ -108,8 +108,8 @@ const styles = StyleSheet.create({
     borderColor: "#FCD34D",
   },
   weekCard: {
-    backgroundColor: "#EFF6FF",
-    borderColor: "#BFDBFE",
+    backgroundColor: "#D1FAF5",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
   weekHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
   summaryLabel: {

@@ -40,7 +40,7 @@ export default function ProfilePhotoAvatar({
           />
         ) : (
           <View style={[styles.placeholder, { borderRadius: radius }]}>
-            <Feather name="user" size={iconSize} color="#0052DF" />
+            <Feather name="user" size={iconSize} color="#0A2A43" />
           </View>
         )}
       </View>
@@ -79,19 +79,19 @@ const styles = StyleSheet.create({
   },
   circle: {
     overflow: "hidden",
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },
   placeholder: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 82, 223, 0.08)",
+    backgroundColor: "rgba(20, 184, 166, 0.08)",
     alignItems: "center",
     justifyContent: "center",
   },
   badge: {
     position: "absolute",
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,

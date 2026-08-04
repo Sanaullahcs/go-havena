@@ -22,10 +22,10 @@ export const FEED_TAG_THEME = {
     icon: "help-circle",
   },
   Neighborhood: {
-    bg: "#EFF6FF",
+    bg: "#d1faf5",
     border: "#BFDBFE",
     text: "#1D4ED8",
-    accent: "#3B82F6",
+    accent: "#14B8A6",
     icon: "map-pin",
   },
   Announcements: {

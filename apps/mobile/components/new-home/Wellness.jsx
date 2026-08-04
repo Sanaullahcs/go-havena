@@ -3,7 +3,6 @@ import React, { useMemo } from "react";
 import { useRouter } from "expo-router";
 import { Fonts } from "../../constants/font";
 import { Home, homeStyles } from "../../constants/home-styles";
-import { HomeTheme } from "../../constants/home-theme";
 import HomeSectionHeader from "./section-header";
 import SectionCarousel from "./section-carousel";
 import HomeSectionCard from "./home-section-card";
@@ -112,7 +111,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: sf(13),
     lineHeight: sf(17),
-    color: HomeTheme.darkText,
+    color: "#101828",
     fontWeight: "700",
     includeFontPadding: false,
   },
@@ -120,7 +119,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: sf(10.5),
     lineHeight: sf(14),
-    color: HomeTheme.mediumGray,
+    color: "#99A1AF",
     marginTop: 2,
     includeFontPadding: false,
   },
@@ -130,8 +129,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: HomeTheme.lightBorder,
-    backgroundColor: "#E8F8F6",
   },
   progressFill: {
     height: "100%",

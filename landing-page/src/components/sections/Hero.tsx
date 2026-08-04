@@ -24,7 +24,7 @@ export function Hero() {
                 className="absolute inset-0 -z-20"
                 style={{
                     background:
-                        "linear-gradient(180deg, #1e1b4b 0%, #0052df 35%, #1e1b4b 75%, #0f172a 100%)",
+                        "#14B8A6",
                 }}
             />
 
@@ -135,7 +135,7 @@ export function Hero() {
                             <div className="flex items-center -space-x-2">
                                 {[
                                     "linear-gradient(135deg,#f43f5e,#fb923c)",
-                                    "linear-gradient(135deg,#0ea5e9,#6366f1)",
+                                    "#14B8A6",
                                     "linear-gradient(135deg,#10b981,#0ea5e9)",
                                     "linear-gradient(135deg,#a855f7,#ec4899)",
                                 ].map((g, i) => (
@@ -309,12 +309,12 @@ function HouseBackdrop() {
             >
                 <defs>
                     <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#0052df" stopOpacity="0" />
+                        <stop offset="0%" stopColor="#14B8A6" stopOpacity="0" />
                         <stop offset="100%" stopColor="#1e1b4b" />
                     </linearGradient>
                     <linearGradient id="house1" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#4f46e5" />
-                        <stop offset="100%" stopColor="#0052df" />
+                        <stop offset="100%" stopColor="#14B8A6" />
                     </linearGradient>
                     <linearGradient id="house2" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#7c3aed" />
@@ -322,7 +322,7 @@ function HouseBackdrop() {
                     </linearGradient>
                     <linearGradient id="house3" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#6366f1" />
-                        <stop offset="100%" stopColor="#007bff" />
+                        <stop offset="100%" stopColor="#14B8A6" />
                     </linearGradient>
                     <linearGradient id="windowGlow" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#fde047" />
@@ -360,7 +360,7 @@ function HouseBackdrop() {
                 {/* House left */}
                 <g transform="translate(60 200)" opacity="0.75">
                     {/* Roof */}
-                    <path d="M0 60 L60 0 L120 60 Z" fill="#007bff" />
+                    <path d="M0 60 L60 0 L120 60 Z" fill="#14B8A6" />
                     {/* Body */}
                     <rect x="10" y="60" width="100" height="120" fill="url(#house1)" />
                     {/* Windows */}
@@ -384,12 +384,12 @@ function HouseBackdrop() {
                     <rect x="65" y="150" width="30" height="70" fill="#0f172a" />
                     <circle cx="86" cy="190" r="2" fill="#fde047" />
                     {/* Chimney */}
-                    <rect x="115" y="20" width="18" height="40" fill="#0052df" />
+                    <rect x="115" y="20" width="18" height="40" fill="#14B8A6" />
                 </g>
 
                 {/* House right */}
                 <g transform="translate(440 200)" opacity="0.7">
-                    <path d="M0 60 L60 0 L120 60 Z" fill="#007bff" />
+                    <path d="M0 60 L60 0 L120 60 Z" fill="#14B8A6" />
                     <rect x="10" y="60" width="100" height="120" fill="url(#house3)" />
                     <rect x="28" y="85" width="22" height="28" fill="url(#windowGlow)" opacity="0.8" />
                     <rect x="70" y="85" width="22" height="28" fill="url(#windowGlow)" opacity="0.6" />
@@ -414,19 +414,19 @@ function HouseBackdrop() {
                 <g transform="translate(680 280)" opacity="0.65">
                     <g>
                         <circle cx="0" cy="0" r="6" fill="#1e1b4b" />
-                        <path d="M-6 8 L-8 35 L-2 35 L0 18 L2 35 L8 35 L6 8 Z" fill="#0052df" />
+                        <path d="M-6 8 L-8 35 L-2 35 L0 18 L2 35 L8 35 L6 8 Z" fill="#14B8A6" />
                     </g>
                 </g>
                 <g transform="translate(710 285)" opacity="0.6">
                     <g>
-                        <circle cx="0" cy="0" r="5" fill="#0052df" />
-                        <path d="M-5 7 L-7 30 L-2 30 L0 15 L2 30 L7 30 L5 7 Z" fill="#007bff" />
+                        <circle cx="0" cy="0" r="5" fill="#14B8A6" />
+                        <path d="M-5 7 L-7 30 L-2 30 L0 15 L2 30 L7 30 L5 7 Z" fill="#14B8A6" />
                     </g>
                 </g>
                 <g transform="translate(740 282)" opacity="0.55">
                     <g>
                         <circle cx="0" cy="0" r="5" fill="#1e1b4b" />
-                        <path d="M-5 7 L-7 30 L-2 30 L0 15 L2 30 L7 30 L5 7 Z" fill="#0052df" />
+                        <path d="M-5 7 L-7 30 L-2 30 L0 15 L2 30 L7 30 L5 7 Z" fill="#14B8A6" />
                     </g>
                 </g>
 
@@ -445,12 +445,12 @@ function HouseBackdrop() {
                     <rect x="123" y="115" width="32" height="42" fill="url(#windowGlow)" opacity="0.85" />
                     <rect x="80" y="175" width="40" height="65" fill="#0f172a" />
                     <circle cx="110" cy="210" r="2" fill="#fde047" />
-                    <rect x="160" y="35" width="20" height="50" fill="#0052df" />
+                    <rect x="160" y="35" width="20" height="50" fill="#14B8A6" />
                 </g>
 
                 {/* House far right */}
                 <g transform="translate(1180 220)" opacity="0.7">
-                    <path d="M0 60 L70 0 L140 60 Z" fill="#007bff" />
+                    <path d="M0 60 L70 0 L140 60 Z" fill="#14B8A6" />
                     <rect x="15" y="60" width="110" height="120" fill="url(#house3)" />
                     <rect x="35" y="85" width="22" height="28" fill="url(#windowGlow)" opacity="0.7" />
                     <rect x="83" y="85" width="22" height="28" fill="url(#windowGlow)" opacity="0.6" />
@@ -459,7 +459,7 @@ function HouseBackdrop() {
 
                 {/* Foreground sidewalk */}
                 <rect x="0" y="380" width="1440" height="40" fill="#0f172a" opacity="0.4" />
-                <line x1="0" y1="400" x2="1440" y2="400" stroke="#0052df" strokeWidth="1" opacity="0.3" />
+                <line x1="0" y1="400" x2="1440" y2="400" stroke="#14B8A6" strokeWidth="1" opacity="0.3" />
             </svg>
         </div>
     );

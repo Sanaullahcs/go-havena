@@ -6,12 +6,13 @@
    rounded cards, glass surfaces, soft shadows.
    ───────────────────────────────────────────────────────────────── */
 @theme {
-  --color-brand: #4338ca;
-  --color-brand-primary: #4338ca;
-  --color-brand-deep: #312e81;
-  --color-brand-end: #818cf8;
-  --color-brand-soft: #eef2ff;
-  --color-brand-tint: #f5f5ff;
+  --color-brand: #14b8a6;
+  --color-brand-primary: #14b8a6;
+  --color-brand-deep: #0a2a43;
+  --color-brand-end: #14b8a6;
+  --color-brand-dark-teal: #0d9488;
+  --color-brand-soft: #d1faf5;
+  --color-brand-tint: #f4f8fd;
 
   --color-accent-violet: #7c3aed;
   --color-accent-rose: #f43f5e;
@@ -29,7 +30,7 @@
 
   --color-surface: #ffffff;
   --color-surface-muted: #f8fafc;
-  --color-surface-chip: #eef2ff;
+  --color-surface-chip: #d1faf5;
   --color-border-subtle: rgba(15, 23, 42, 0.06);
   --color-border-card: rgba(15, 23, 42, 0.08);
   --color-border-input: rgba(190, 219, 255, 0.6);
@@ -185,7 +186,7 @@
   .soft-section {
     background:
       radial-gradient(900px 360px at 50% 0%, rgba(99, 102, 241, 0.05), transparent 70%),
-      linear-gradient(180deg, #ffffff 0%, #fafbff 100%);
+      #F4F8FD;
   }
 
   .hairline {

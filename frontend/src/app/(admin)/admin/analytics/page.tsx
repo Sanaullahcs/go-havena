@@ -34,7 +34,7 @@ const TOP_CONTRIBUTORS = [
 ];
 
 const CATEGORY_STATS = [
-  { name: "Community Feed",  count: 1340, pct: 45, color: "#2563eb" },
+  { name: "Community Feed",  count: 1340, pct: 45, color: "#14B8A6" },
   { name: "Marketplace",     count: 890,  pct: 30, color: "#0891b2" },
   { name: "Notices",         count: 430,  pct: 14, color: "#7c3aed" },
   { name: "Events",          count: 220,  pct: 7,  color: "#059669" },
@@ -145,7 +145,7 @@ export default function AnalyticsPage() {
             <tbody className="divide-y divide-slate-100">
               {TOP_CONTRIBUTORS.map(({ name, posts, likes, role }, i) => {
                 const score = posts * 3 + likes;
-                const colors = ["#2563eb", "#7c3aed", "#059669", "#d97706", "#0891b2"];
+                const colors = ["#14B8A6", "#7c3aed", "#059669", "#d97706", "#0891b2"];
                 return (
                   <tr key={name} className="hover:bg-slate-50/60">
                     <td className="py-3 pr-4 text-[13px] font-bold text-slate-400">#{i + 1}</td>

@@ -37,7 +37,7 @@ const STATUS_META = {
   approved: { label: "Approved", bg: "#ECFDF5", text: "#059669" },
   rejected: { label: "Rejected", bg: "#FEF2F2", text: "#DC2626" },
   banned: { label: "Suspended", bg: "#F1F5F9", text: "#64748B" },
-  onboarding: { label: "Onboarding", bg: "#EFF6FF", text: "#2563EB" },
+  onboarding: { label: "Onboarding", bg: "#D1FAF5", text: "#14B8A6" },
 };
 
 function memberStatusMeta(status) {
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -540,7 +540,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   filterChipActive: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderColor: "#93C5FD",
   },
   filterChipText: {
@@ -579,7 +579,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },

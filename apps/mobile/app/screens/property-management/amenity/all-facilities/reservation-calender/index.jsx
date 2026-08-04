@@ -243,7 +243,7 @@ export default function ReservationCalender() {
             </View>
 
             {slotsLoading ? (
-              <ActivityIndicator color="#0052DF" style={{ marginVertical: sw(20) }} />
+              <ActivityIndicator color="#0A2A43" style={{ marginVertical: sw(20) }} />
             ) : slotsMessage ? (
               <Text style={styles.emptySlots}>{slotsMessage}</Text>
             ) : slots.length === 0 ? (

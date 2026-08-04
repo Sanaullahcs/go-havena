@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { Colors, Layout } from "../../constants/tokens";
@@ -54,11 +54,18 @@ export function FeatureBlockedHero({
   const theme = HERO_THEMES[variant] ?? HERO_THEMES.blue;
 
   return (
-    <LinearGradient
-      colors={theme.gradient}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
-      style={styles.hero}
+    <View
+      style={[
+        styles.hero,
+        {
+          backgroundColor:
+            variant === "blue"
+              ? Colors.brandPrimaryDeep
+              : variant === "red"
+                ? "#FEF2F2"
+                : "#FFFBEB",
+        },
+      ]}
     >
       <View style={styles.heroIconRing}>
         <Feather name={icon} size={sf(compact ? 18 : 20)} color={theme.accent} />
@@ -75,7 +82,7 @@ export function FeatureBlockedHero({
         <Feather name={badgeIcon} size={sf(10)} color={theme.accent} />
         <Text style={[styles.badgeText, { color: theme.accent }]}>{badgeLabel}</Text>
       </View>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -276,9 +283,9 @@ export default function GuestFeatureErrorState({
 
   return (
     <View style={[styles.genericWrap, compact && styles.wrapCompact]}>
-      <LinearGradient colors={["#EFF6FF", "#ECFDF5"]} style={styles.genericIcon}>
+      <View style={styles.genericIcon}>
         <Feather name={resolved.icon} size={sf(30)} color={Colors.brandPrimaryDeep} />
-      </LinearGradient>
+      </View>
       <Text style={styles.genericTitle}>{resolved.title}</Text>
       <Text style={styles.genericMessage}>{resolved.message}</Text>
       {!resolved.hideRetry && onRetry ? (

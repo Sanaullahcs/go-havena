@@ -16,7 +16,7 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ScrollView } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+
 import CommunityListingsBanner from "../../../components/marketplace/community-listings-banner";
 import MarketplaceSectionHeader from "../../../components/marketplace/marketplace-section-header";
 import ThemedIconBox from "../../../components/ui/themed-icon-box";
@@ -115,7 +115,7 @@ function ExploreCard({ category, onPress }) {
 function SectionLoader() {
   return (
     <View style={styles.sectionLoader}>
-      <ActivityIndicator size="large" color="#0052DF" />
+      <ActivityIndicator size="large" color="#0A2A43" />
     </View>
   );
 }
@@ -470,10 +470,7 @@ export default function Marketplace() {
                 activeOpacity={0.85}
                 onPress={() => goTo(MarketplaceRoutes.MANAGE)}
               >
-              <LinearGradient
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                colors={["#FAF5FF", "#F3E8FF"]}
+              <View
                 style={styles.adminCard}
               >
                 <View style={styles.adminRow}>
@@ -490,7 +487,7 @@ export default function Marketplace() {
                     </Text>
                   </View>
                 </View>
-              </LinearGradient>
+              </View>
               </TouchableOpacity>
             </View>
           )}

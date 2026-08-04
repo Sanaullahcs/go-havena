@@ -14,7 +14,7 @@ import { disableWebPush, enableWebPush, isWebPushEnabledLocally } from "@/lib/fi
 
 const ACHIEVEMENTS = [
   { id: 1, label: "Early Adopter",    color: "#7c3aed", desc: "One of the first 50 residents to join" },
-  { id: 2, label: "Community Voice",  color: "#2563eb", desc: "Made 10+ community feed posts" },
+  { id: 2, label: "Community Voice",  color: "#14B8A6", desc: "Made 10+ community feed posts" },
   { id: 3, label: "Wellness Starter", color: "#059669", desc: "Completed your first wellness course" },
   { id: 4, label: "Marketplace Fan",  color: "#d97706", desc: "Saved 5+ marketplace listings" },
 ];
@@ -119,7 +119,7 @@ export default function ProfilePage() {
     <div className="mx-auto max-w-4xl space-y-6">
       {/* Header card */}
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="h-28 w-full" style={{ background: "linear-gradient(135deg,#059669 0%,#0891b2 100%)" }} />
+        <div className="h-28 w-full" style={{ background: "#14B8A6" }} />
         <div className="px-6 pb-6">
           <div className="-mt-12 flex flex-wrap items-end gap-4">
             {/* Avatar */}
@@ -152,7 +152,7 @@ export default function ProfilePage() {
               type="button"
               onClick={() => setEditing((v) => !v)}
               className={`shrink-0 flex items-center gap-1.5 rounded-xl px-4 py-2 text-[13px] font-semibold transition ${editing ? "bg-slate-100 text-slate-700 hover:bg-slate-200" : "text-white hover:opacity-90"}`}
-              style={editing ? undefined : { background: "linear-gradient(135deg,#059669,#047857)" }}
+              style={editing ? undefined : { background: "#14B8A6" }}
             >
               {editing ? <><IcoX /> Cancel</> : <><IcoPencil /> Edit Profile</>}
             </button>
@@ -210,7 +210,7 @@ export default function ProfilePage() {
                   <textarea className="nl-input w-full resize-none" rows={3} value={form.bio} onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))} />
                 </div>
                 <div className="flex gap-2 pt-1">
-                  <button type="submit" disabled={saving} className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:opacity-60" style={{ background: "linear-gradient(135deg,#059669,#047857)" }}>
+                  <button type="submit" disabled={saving} className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:opacity-60" style={{ background: "#14B8A6" }}>
                     {saving ? <><svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>Saving…</> : "Save Changes"}
                   </button>
                   <button type="button" onClick={() => setEditing(false)} className="nl-btn-secondary">Cancel</button>
@@ -341,7 +341,7 @@ function PasswordSection() {
             <label className="nl-label mb-1.5">Confirm new password</label>
             <input type="password" className="nl-input w-full" value={form.confirm} onChange={(e) => setForm((f) => ({ ...f, confirm: e.target.value }))} required />
           </div>
-          <button type="submit" disabled={saving} className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:opacity-60 mt-1" style={{ background: "linear-gradient(135deg,#059669,#047857)" }}>
+          <button type="submit" disabled={saving} className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:opacity-60 mt-1" style={{ background: "#14B8A6" }}>
             {saving ? <><svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>Updating…</> : "Update Password"}
           </button>
         </form>

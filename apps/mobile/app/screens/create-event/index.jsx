@@ -662,16 +662,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 999,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
     marginRight: 10,
     marginBottom: 8,
   },
   chipText: {
     fontFamily: Fonts.medium,
     fontSize: 12,
-    color: "#1D4ED8",
+    color: "#0A2A43",
   },
   publishWrap: {
     paddingHorizontal: 24,
@@ -681,7 +681,7 @@ const styles = StyleSheet.create({
   publishButton: {
     height: 56,
     borderRadius: 14,
-    backgroundColor: "rgba(0, 82, 223, 1)",
+    backgroundColor: "rgba(20, 184, 166, 1)",
     alignItems: "center",
     justifyContent: "center",
   },

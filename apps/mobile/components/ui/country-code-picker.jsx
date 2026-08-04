@@ -97,7 +97,7 @@ export default function CountryCodePicker({
                     <Text style={styles.dialCode}>{formatDialLabel(item.code)}</Text>
                   </View>
                   {selected ? (
-                    <Ionicons name="checkmark" size={20} color="#0179FF" />
+                    <Ionicons name="checkmark" size={20} color="#0D9488" />
                   ) : null}
                 </Pressable>
               );
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   rowSelected: {
-    backgroundColor: "#F0F7FF",
+    backgroundColor: "#f4f8fd",
     borderRadius: 10,
   },
   flag: {

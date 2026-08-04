@@ -36,7 +36,7 @@ const TYPE_COLOR: Record<string, string> = {
   Harassment:     "#dc2626",
   Impersonation:  "#7c3aed",
   Fraud:          "#d97706",
-  Misinformation: "#2563eb",
+  Misinformation: "#14B8A6",
   "Hate Speech":  "#be123c",
   Trolling:       "#94a3b8",
   Violence:       "#991b1b",

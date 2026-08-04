@@ -5,7 +5,7 @@ import { Image } from "expo-image";
 import { Fonts } from "../../../constants/font";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
+
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import { MarketplaceRoutes } from "../../../constants/marketplace-routes";
 import { MARKETPLACE_FEATURES } from "../../../constants/marketplace-features";
@@ -66,8 +66,7 @@ export default function RedeemCoupon() {
       />
 
       <View style={styles.contentWrap}>
-        <LinearGradient
-          colors={["#FFFBEB", "#FEF3C6"]}
+        <View
           style={styles.ticketCard}
         >
           <View style={styles.ticketNotchLeft} />
@@ -81,7 +80,7 @@ export default function RedeemCoupon() {
           <View style={styles.cardDivider} />
 
           <Text style={styles.vendorText}>{vendor || "Partner Store"}</Text>
-        </LinearGradient>
+        </View>
 
         <View style={styles.infoWrap}>
           <Text style={styles.readyTitle}>Ready to Redeem?</Text>
@@ -249,7 +248,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   confirmBtn: {
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: "center",

@@ -7,7 +7,6 @@ import UserAvatar from "../ui/user-avatar";
 import CrispImage from "../ui/crisp-image";
 import { Fonts } from "../../constants/font";
 import { Home, homeStyles } from "../../constants/home-styles";
-import { HomeTheme } from "../../constants/home-theme";
 import HomeSectionHeader from "./section-header";
 import SectionCarousel from "./section-carousel";
 import HomeSectionCard from "./home-section-card";
@@ -16,7 +15,9 @@ import {
   applyLikeToPost,
   timeAgo,
   parsePostDisplayContent,
+  isSensitivePost,
 } from "../../services/feed-api";
+import FeedSensitiveContent from "../feed/feed-sensitive-content";
 import { openNeighborProfile } from "../../services/profile-api";
 import { mediaImageSource } from "../../utils/profile-display";
 import { useNow } from "../../hooks/use-now";
@@ -30,13 +31,12 @@ function formatCount(value) {
 
 const CARD_HEIGHT = Home.feedCardHeight;
 
-function FeedCard({ post, width, onPress, onComments, onLike, onProfile, onShare, now }) {
+function FeedCard({ post, width, onPress, onComments, onLike, onProfile, now }) {
   const authorName = post.user?.display_name ?? post.user?.name ?? "Neighbor";
   const likeCount = formatCount(post.likes_count ?? post.likes);
   const commentCount = formatCount(post.comments_count ?? post.comments);
   const isLiked = post.liked_by_me ?? false;
   const likeScale = useRef(new Animated.Value(1)).current;
-  const roleLabel = post.user?.role_label || (post.user?.is_admin ? "Admin" : null);
 
   useEffect(() => {
     if (!isLiked) {
@@ -54,7 +54,10 @@ function FeedCard({ post, width, onPress, onComments, onLike, onProfile, onShare
 
   const display = parsePostDisplayContent(post);
   const relativeTime = timeAgo(post.created_at, now) || post.user?.time || "";
-  const bodyText = display.mainText || (display.hasImage ? "Shared a photo with the community" : "");
+  const sensitive = isSensitivePost(post);
+  const bodyText = sensitive
+    ? null
+    : display.mainText || (display.hasImage ? "Shared a photo with the community" : "");
 
   return (
     <HomeSectionCard
@@ -77,67 +80,80 @@ function FeedCard({ post, width, onPress, onComments, onLike, onProfile, onShare
             style={styles.avatar}
           />
           <View style={styles.userText}>
-            <View style={styles.nameRow}>
-              <Text style={styles.userName} numberOfLines={1}>
-                {authorName}
-              </Text>
-              {roleLabel ? (
-                <View style={styles.adminPill}>
-                  <Text style={styles.adminPillText}>{roleLabel}</Text>
-                </View>
-              ) : null}
-            </View>
+            <Text style={styles.userName} numberOfLines={1}>
+              {authorName}
+            </Text>
             <Text style={styles.userMeta} numberOfLines={1}>
               {relativeTime}
               {post.user?.location ? ` · ${post.user.location}` : ""}
             </Text>
           </View>
         </Pressable>
-        {post.tag ? (
+        {sensitive ? (
+          <View style={[styles.tag, styles.sensitiveTag]}>
+            <Text style={[styles.tagText, styles.sensitiveTagText]}>Sensitive</Text>
+          </View>
+        ) : post.tag ? (
           <View style={styles.tag}>
             <Text style={styles.tagText}>{post.tag}</Text>
           </View>
         ) : null}
       </View>
 
-      <View style={styles.bodyRow}>
-        {display.hasImage ? (
-          <View style={styles.thumbWrap}>
-            <CrispImage
-              source={mediaImageSource(post.image_url)}
-              style={styles.thumb}
-              contentFit="cover"
-              contentPosition="center"
-            />
-          </View>
-        ) : null}
-        <View style={styles.textCol}>
-          <Text style={styles.content} numberOfLines={2}>
-            {bodyText}
-          </Text>
+      {sensitive ? (
+        <View style={styles.sensitiveWrap}>
+          <FeedSensitiveContent compact />
         </View>
-      </View>
+      ) : (
+        <View style={styles.bodyRow}>
+          {display.hasImage ? (
+            <View style={styles.thumbWrap}>
+              <CrispImage
+                source={mediaImageSource(post.image_url)}
+                style={styles.thumb}
+                contentFit="cover"
+                contentPosition="center"
+              />
+            </View>
+          ) : null}
+          <View style={styles.textCol}>
+            <Text style={styles.content} numberOfLines={2}>
+              {bodyText}
+            </Text>
+          </View>
+        </View>
+      )}
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, sensitive && styles.footerDisabled]}>
         <View style={styles.divider} />
         <View style={styles.stats}>
-          <Pressable style={styles.stat} onPress={onLike}>
+          <Pressable style={styles.stat} onPress={onLike} disabled={sensitive}>
             <Animated.View style={{ transform: [{ scale: likeScale }] }}>
               <Ionicons
                 name={isLiked ? "heart" : "heart-outline"}
                 size={sf(16)}
-                color={isLiked ? LIKE_HEART_RED : HomeTheme.mediumGray}
+                color={sensitive ? "#CBD5E1" : isLiked ? LIKE_HEART_RED : "#262626"}
               />
             </Animated.View>
-            <Text style={[styles.statText, isLiked && styles.statTextLiked]}>{likeCount}</Text>
+            <Text
+              style={[
+                styles.statText,
+                isLiked && !sensitive && styles.statTextLiked,
+                sensitive && styles.statTextDisabled,
+              ]}
+            >
+              {likeCount}
+            </Text>
           </Pressable>
-          <Pressable style={styles.stat} onPress={onComments}>
-            <Feather name="message-circle" size={sf(16)} color={HomeTheme.mediumGray} />
-            <Text style={styles.statText}>{commentCount}</Text>
-          </Pressable>
-          <Pressable style={[styles.stat, styles.shareStat]} onPress={onShare}>
-            <Feather name="share-2" size={sf(15)} color={HomeTheme.seaGreen} />
-            <Text style={styles.shareText}>Share</Text>
+          <Pressable style={styles.stat} onPress={onComments} disabled={sensitive}>
+            <Feather
+              name="message-circle"
+              size={sf(16)}
+              color={sensitive ? "#CBD5E1" : "#99A1AF"}
+            />
+            <Text style={[styles.statText, sensitive && styles.statTextDisabled]}>
+              {commentCount}
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -180,7 +196,7 @@ export default function Communities({ posts = [], onPostsChange }) {
     return (
       <View style={homeStyles.section}>
         <HomeSectionHeader
-          label="Community Board"
+          label="Community Feed"
           onPress={() => router.push("/screens/community-feed")}
         />
         <HomeSectionEmpty
@@ -194,7 +210,7 @@ export default function Communities({ posts = [], onPostsChange }) {
   return (
     <View style={homeStyles.section}>
       <HomeSectionHeader
-        label="Community Board"
+        label="Community Feed"
         onPress={() => router.push("/screens/community-feed")}
       />
 
@@ -213,7 +229,6 @@ export default function Communities({ posts = [], onPostsChange }) {
             now={now}
             onPress={() => router.push("/screens/community-feed")}
             onLike={() => handleLike(item.id)}
-            onShare={() => router.push("/screens/community-feed")}
             onProfile={() =>
               openNeighborProfile(router, {
                 userId: item.user_id ?? item.user?.id,
@@ -258,39 +273,18 @@ const styles = StyleSheet.create({
   userRow: { flexGrow: 1, flexShrink: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
   avatar: { width: sw(32), height: sw(32), borderRadius: sw(16), marginRight: sw(8) },
   userText: { flex: 1, minWidth: 0 },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    minWidth: 0,
-  },
   userName: {
-    flexShrink: 1,
     fontFamily: Fonts.bold,
     fontSize: sf(13),
     lineHeight: sf(17),
-    color: HomeTheme.darkText,
-    fontWeight: "700",
-  },
-  adminPill: {
-    marginLeft: sw(6),
-    paddingHorizontal: sw(7),
-    paddingVertical: sw(2),
-    borderRadius: 999,
-    backgroundColor: HomeTheme.primaryTeal,
-    flexShrink: 0,
-  },
-  adminPillText: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(9),
-    lineHeight: sf(12),
-    color: "#FFFFFF",
+    color: "#101828",
     fontWeight: "700",
   },
   userMeta: {
     fontFamily: Fonts.regular,
     fontSize: sf(11),
     lineHeight: sf(14),
-    color: HomeTheme.mediumGray,
+    color: "#99A1AF",
     marginTop: 1,
   },
   bodyRow: {
@@ -301,12 +295,27 @@ const styles = StyleSheet.create({
     width: "100%",
     minHeight: 0,
   },
+  sensitiveWrap: {
+    flex: 1,
+    width: "100%",
+    minWidth: 0,
+    minHeight: 0,
+    maxHeight: sw(56),
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  sensitiveTag: {
+    backgroundColor: "#FEF3C7",
+  },
+  sensitiveTagText: {
+    color: "#B45309",
+  },
   thumbWrap: {
     width: THUMB_SIZE,
     height: THUMB_SIZE,
     borderRadius: sw(10),
     overflow: "hidden",
-    backgroundColor: "#E8F8F6",
+    backgroundColor: "#F1F5F9",
     flexShrink: 0,
   },
   thumb: {
@@ -322,12 +331,12 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: sf(13),
     lineHeight: sf(18),
-    color: HomeTheme.darkText,
+    color: "#334155",
   },
   tag: {
     flexShrink: 0,
     alignSelf: "center",
-    backgroundColor: "rgba(0, 201, 136, 0.12)",
+    backgroundColor: "#F3E8FF",
     borderRadius: 999,
     paddingHorizontal: sw(8),
     paddingVertical: hp(0.2),
@@ -336,30 +345,27 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semiBold,
     fontSize: sf(10),
     lineHeight: sf(13),
-    color: HomeTheme.freshGreen,
+    color: "#7C3AED",
     fontWeight: "600",
   },
   footer: {
     marginTop: sw(10),
     width: "100%",
   },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: HomeTheme.lightBorder, marginBottom: sw(8) },
+  footerDisabled: {
+    opacity: 0.55,
+  },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: "#E5E7EB", marginBottom: sw(8) },
   stats: { flexDirection: "row", gap: sw(14), alignItems: "center" },
   stat: { flexDirection: "row", alignItems: "center", gap: sw(5), minWidth: sw(36) },
-  shareStat: { marginLeft: "auto" },
   statText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(12),
     lineHeight: sf(16),
-    color: HomeTheme.mediumGray,
+    color: "#4A5565",
     fontWeight: "600",
     minWidth: sw(12),
   },
-  shareText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: sf(12),
-    color: HomeTheme.seaGreen,
-    fontWeight: "600",
-  },
   statTextLiked: { color: LIKE_HEART_RED },
+  statTextDisabled: { color: "#CBD5E1" },
 });

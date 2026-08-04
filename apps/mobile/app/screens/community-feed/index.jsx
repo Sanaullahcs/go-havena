@@ -9,7 +9,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
+
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import { Feather } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -183,12 +183,11 @@ export default function CommunityFeedScreen() {
               <View style={styles.composerInput}>
                 <Text style={styles.composerPlaceholder}>What's on your mind?</Text>
               </View>
-              <LinearGradient
-                colors={[Colors.brandPrimaryDeep, Colors.brandPrimary]}
+              <View
                 style={styles.composerBtn}
               >
                 <Feather name="edit-3" size={16} color="#FFFFFF" />
-              </LinearGradient>
+              </View>
             </TouchableOpacity>
 
             <ScrollView
@@ -265,8 +264,7 @@ export default function CommunityFeedScreen() {
           />
         ) : filtered.length === 0 ? (
           <View style={styles.empty}>
-            <LinearGradient
-              colors={["#EFF6FF", "#ECFDF5"]}
+            <View
               style={styles.emptyIcon}
             >
               <Feather
@@ -274,7 +272,7 @@ export default function CommunityFeedScreen() {
                 size={32}
                 color={Colors.brandPrimaryDeep}
               />
-            </LinearGradient>
+            </View>
             <Text style={styles.emptyTitle}>
               {emptyReason === "no_approved_membership" ? "Join your community" : "No posts yet"}
             </Text>
@@ -292,15 +290,14 @@ export default function CommunityFeedScreen() {
                 )
               }
             >
-              <LinearGradient
-                colors={[Colors.brandPrimaryDeep, Colors.brandPrimary]}
+              <View
                 style={styles.emptyBtnGradient}
               >
                 <Feather name="plus" size={16} color="#FFFFFF" />
                 <Text style={styles.emptyBtnText}>
                   {emptyReason === "no_approved_membership" ? "Select region" : "Create Post"}
                 </Text>
-              </LinearGradient>
+              </View>
             </TouchableOpacity>
           </View>
         ) : (
@@ -343,7 +340,7 @@ const styles = StyleSheet.create({
     marginBottom: sw(14),
     borderWidth: 1,
     borderColor: Colors.borderSubtle,
-    shadowColor: "#0052DF",
+    shadowColor: "#0A2A43",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -389,7 +386,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   chipActive: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderColor: Colors.brandPrimaryDeep,
   },
   chipText: {
@@ -415,7 +412,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   countBadge: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     paddingHorizontal: sw(8),
     paddingVertical: sw(2),
     borderRadius: 999,

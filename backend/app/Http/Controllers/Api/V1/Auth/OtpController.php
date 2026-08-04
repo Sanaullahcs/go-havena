@@ -226,7 +226,7 @@ class OtpController extends Controller
 
         try {
             $user = User::query()->create([
-                'name' => 'Neighbor',
+                'name' => '',
                 'email' => $email,
                 'phone' => $phone,
                 'phone_verified_at' => now(),

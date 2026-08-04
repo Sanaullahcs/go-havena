@@ -10,28 +10,28 @@ const ICON_ASSETS = {
 const DEFAULT_VISUAL = {
   ionicon: "notifications-outline",
   assetKey: "reminder",
-  color: "#0052DF",
-  bg: "#EFF6FF",
+  color: "#0A2A43",
+  bg: "#D1FAF5",
 };
 
 const KIND_VISUALS = {
   post_created: {
     ionicon: "newspaper-outline",
     assetKey: "reminder",
-    color: "#0052DF",
-    bg: "#EFF6FF",
+    color: "#0A2A43",
+    bg: "#D1FAF5",
   },
   post_comment: {
     ionicon: "chatbubbles-outline",
     assetKey: "comment",
-    color: "#0052DF",
-    bg: "#EFF6FF",
+    color: "#0A2A43",
+    bg: "#D1FAF5",
   },
   post_comment_reply: {
     ionicon: "return-down-forward-outline",
     assetKey: "comment",
-    color: "#0052DF",
-    bg: "#EFF6FF",
+    color: "#0A2A43",
+    bg: "#D1FAF5",
   },
   post_like: {
     ionicon: "heart",
@@ -48,26 +48,26 @@ const KIND_VISUALS = {
   message: {
     ionicon: "chatbubble-ellipses-outline",
     assetKey: null,
-    color: "#0052DF",
-    bg: "#EFF6FF",
+    color: "#0A2A43",
+    bg: "#D1FAF5",
   },
   new_message: {
     ionicon: "chatbubble-ellipses-outline",
     assetKey: null,
-    color: "#0052DF",
-    bg: "#EFF6FF",
+    color: "#0A2A43",
+    bg: "#D1FAF5",
   },
   listing: {
     ionicon: "pricetag-outline",
     assetKey: null,
-    color: "#2563EB",
-    bg: "#EFF6FF",
+    color: "#14B8A6",
+    bg: "#D1FAF5",
   },
   neighbor: {
     ionicon: "chatbubble-outline",
     assetKey: null,
-    color: "#0052DF",
-    bg: "#EFF6FF",
+    color: "#0A2A43",
+    bg: "#D1FAF5",
   },
   community_request: {
     ionicon: "people-outline",
@@ -84,8 +84,8 @@ const KIND_VISUALS = {
   test_push: {
     ionicon: "notifications-outline",
     assetKey: "reminder",
-    color: "#0052DF",
-    bg: "#EFF6FF",
+    color: "#0A2A43",
+    bg: "#D1FAF5",
   },
 };
 
@@ -168,8 +168,8 @@ function matchHaystackVisual(haystack) {
     return buildVisual({
       ionicon: "storefront-outline",
       assetKey: "reminder",
-      color: "#2563EB",
-      bg: "#EFF6FF",
+      color: "#14B8A6",
+      bg: "#D1FAF5",
     });
   }
   if (
@@ -248,8 +248,8 @@ export function resolveNotificationVisual(input = {}) {
     return buildVisual({
       ionicon: "storefront-outline",
       assetKey: "reminder",
-      color: "#2563EB",
-      bg: "#EFF6FF",
+      color: "#14B8A6",
+      bg: "#D1FAF5",
     });
   }
 

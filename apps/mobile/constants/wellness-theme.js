@@ -8,7 +8,7 @@ export const WellnessTheme = {
   screenBg: "#F8FAFC",
   surface: "#FFFFFF",
   brand: Colors.brandPrimaryDeep,
-  brandSoft: "#EFF6FF",
+  brandSoft: "#d1faf5",
   brandBorder: "#DBEAFE",
   text: "#0F172A",
   textMuted: "#64748B",
@@ -22,7 +22,7 @@ export const WELLNESS_CATEGORY_META = {
   weight: {
     icon: "target",
     color: Colors.brandPrimaryDeep,
-    bg: "#EFF6FF",
+    bg: "#d1faf5",
     border: "#DBEAFE",
     tip: "Small daily choices compound — start with one lesson today.",
     tipIcon: "sun",
@@ -46,7 +46,7 @@ export const WELLNESS_CATEGORY_META = {
   stress: {
     icon: "wind",
     color: "#4338CA",
-    bg: "#EEF2FF",
+    bg: "#d1faf5",
     border: "#C7D2FE",
     tip: "Breathe first. Calm minds make clearer choices.",
     tipIcon: "wind",
@@ -70,7 +70,7 @@ export const WELLNESS_CATEGORY_META = {
   sleep: {
     icon: "moon",
     color: "#4338CA",
-    bg: "#EEF2FF",
+    bg: "#d1faf5",
     border: "#C7D2FE",
     tip: "Protect your wind-down — rest powers everything else.",
     tipIcon: "moon",
@@ -78,7 +78,7 @@ export const WELLNESS_CATEGORY_META = {
   mindful: {
     icon: "heart",
     color: Colors.brandPrimaryDeep,
-    bg: "#EFF6FF",
+    bg: "#d1faf5",
     border: "#DBEAFE",
     tip: "Presence is practice. Give yourself a quiet minute.",
     tipIcon: "heart",
@@ -88,7 +88,7 @@ export const WELLNESS_CATEGORY_META = {
 const DEFAULT_META = {
   icon: "heart",
   color: Colors.brandPrimaryDeep,
-  bg: "#EFF6FF",
+  bg: "#d1faf5",
   border: "#DBEAFE",
   tip: "Explore at your own pace.",
   tipIcon: "heart",
@@ -100,7 +100,7 @@ export function getWellnessCategoryMeta(categoryKey) {
 }
 
 export const WELLNESS_STAT_THEMES = {
-  courses: { icon: "book-open", color: Colors.brandPrimaryDeep, soft: "#EFF6FF" },
+  courses: { icon: "book-open", color: Colors.brandPrimaryDeep, soft: "#d1faf5" },
   progress: { icon: "trending-up", color: "#0F766E", soft: "#F0FDFA" },
   week: { icon: "calendar", color: "#0369A1", soft: "#F0F9FF" },
 };

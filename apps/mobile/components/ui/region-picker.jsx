@@ -79,7 +79,7 @@ export default function RegionPicker({
 
           {loading ? (
             <View style={styles.loadingWrap}>
-              <ActivityIndicator size="small" color="#0B66E8" />
+              <ActivityIndicator size="small" color="#14B8A6" />
               <Text style={styles.loadingText}>Loading regions…</Text>
             </View>
           ) : (
@@ -103,7 +103,7 @@ export default function RegionPicker({
                     onPress={() => handleSelect(item)}
                   >
                     <View style={styles.rowIcon}>
-                      <Ionicons name="location-outline" size={18} color={selected ? "#0B66E8" : "#667085"} />
+                      <Ionicons name="location-outline" size={18} color={selected ? "#14B8A6" : "#667085"} />
                     </View>
                     <View style={styles.rowText}>
                       <Text style={[styles.regionName, selected && styles.regionNameSelected]}>
@@ -114,7 +114,7 @@ export default function RegionPicker({
                       ) : null}
                     </View>
                     {selected ? (
-                      <Ionicons name="checkmark-circle" size={22} color="#0B66E8" />
+                      <Ionicons name="checkmark-circle" size={22} color="#14B8A6" />
                     ) : (
                       <Ionicons name="chevron-forward" size={18} color="#C6CBD3" />
                     )}
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
     color: "#101828",
   },
   regionNameSelected: {
-    color: "#0B66E8",
+    color: "#14B8A6",
   },
   regionMeta: {
     marginTop: 2,

@@ -1,10 +1,9 @@
 import { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import AuthLogo from "../components/ui/auth-logo";
-import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useRootNavigationState } from "expo-router";
 import { Fonts } from "../constants/font";
-import { Gradients } from "../constants/tokens";
+import { SolidFills } from "../constants/tokens";
 import { isAuthenticated, getUser, clearSession } from "../services/auth-session";
 import { fetchMe } from "../services/auth-api";
 import { navigateFromColdStart, Routes } from "../constants/onboarding-routes";
@@ -146,7 +145,7 @@ export default function WelcomeScreen() {
   return (
     <>
       <ScreenStatusBar style="light" variant="splash" />
-      <LinearGradient colors={Gradients.splash} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.container}>
+      <View style={styles.container}>
       <View style={styles.content}>
         <View style={styles.brand}>
           <AuthLogo size={86} compact variant="splash" />
@@ -155,13 +154,13 @@ export default function WelcomeScreen() {
         </View>
         <Animated.View style={[styles.loader, { transform: [{ rotate: loaderRotation }] }]} />
       </View>
-      </LinearGradient>
+      </View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center" },
+  container: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: SolidFills.splash },
   content: { flex: 1, justifyContent: "center", alignItems: "center" },
   brand: { alignItems: "center", gap: 10 },
   title: {

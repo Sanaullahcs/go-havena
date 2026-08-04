@@ -11,10 +11,10 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { Ionicons } from "@expo/vector-icons";
 import { Fonts } from "../../../constants/font";
-import { Colors, Gradients } from "../../../constants/tokens";
+import { Colors, SolidFills } from "../../../constants/tokens";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
 import { fetchMe, fetchMembershipReviewStatus } from "../../../services/auth-api";
 import { confirmSignOut } from "../../../services/sign-out";
@@ -230,7 +230,7 @@ function ReviewTimeline({ steps, reviewState }) {
                     step.status === "upcoming"
                       ? "#98A2B3"
                       : step.status === "current"
-                        ? "#0B66E8"
+                        ? "#14B8A6"
                         : "#FFFFFF"
                   }
                 />
@@ -770,12 +770,12 @@ export default function PendingCommunityScreen() {
             },
           ];
 
-  const heroGradient =
+  const heroBg =
     reviewState === "approved"
-      ? ["#ECFDF5", "#FFFFFF"]
+      ? "#ECFDF5"
       : reviewState === "rejected"
-        ? ["#FEF2F2", "#FFFFFF"]
-        : Gradients.authScreen;
+        ? "#FEF2F2"
+        : SolidFills.authWash;
 
   const heroIconStyle =
     reviewState === "approved"
@@ -852,11 +852,8 @@ export default function PendingCommunityScreen() {
           />
         }
       >
-        <LinearGradient
-          colors={heroGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.hero}
+        <View
+          style={[styles.hero, { backgroundColor: heroBg }]}
         >
           <View style={[styles.heroIconWrap, heroIconStyle]}>
             <Ionicons name={heroIconName} size={34} color={heroIconColor} />
@@ -871,7 +868,7 @@ export default function PendingCommunityScreen() {
 
           <Text style={styles.title}>{screenTitle}</Text>
           <Text style={styles.subtitle}>{screenSubtitle}</Text>
-        </LinearGradient>
+        </View>
 
         {community ? (
           <View
@@ -950,7 +947,7 @@ export default function PendingCommunityScreen() {
 
             {reviewState === "pending" ? (
               <View style={styles.reviewPill}>
-                <Ionicons name="time-outline" size={14} color="#0B66E8" />
+                <Ionicons name="time-outline" size={14} color="#14B8A6" />
                 <Text style={styles.reviewPillText}>
                   {isGuestMode ? "Waiting for host approval" : "Review in progress"}
                 </Text>
@@ -1136,9 +1133,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   heroIconPending: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
   heroIconApproved: {
     backgroundColor: "#D1FAE5",
@@ -1160,9 +1157,9 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   statusBadgePending: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
   statusBadgeSuccess: {
     backgroundColor: "#ECFDF5",
@@ -1180,7 +1177,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   statusDotPending: {
-    backgroundColor: "#0B66E8",
+    backgroundColor: "#14B8A6",
   },
   statusDotSuccess: {
     backgroundColor: "#059669",
@@ -1194,7 +1191,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   statusBadgeTextPending: {
-    color: "#0B66E8",
+    color: "#14B8A6",
   },
   statusBadgeTextSuccess: {
     color: "#047857",
@@ -1250,7 +1247,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1296,13 +1293,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     marginTop: 4,
   },
   reviewPillText: {
     fontFamily: Fonts.medium,
     fontSize: 12,
-    color: "#0B66E8",
+    color: "#14B8A6",
   },
   approvedPill: {
     alignSelf: "flex-start",
@@ -1465,15 +1462,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   timelineDotDone: {
-    backgroundColor: "#0B66E8",
+    backgroundColor: "#14B8A6",
   },
   timelineDotApproved: {
     backgroundColor: "#059669",
   },
   timelineDotCurrent: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 2,
-    borderColor: "#0B66E8",
+    borderColor: "#14B8A6",
   },
   timelineDotFailed: {
     backgroundColor: "#DC2626",
@@ -1491,7 +1488,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   timelineLineDone: {
-    backgroundColor: "#BFDBFE",
+    backgroundColor: "rgba(20, 184, 166, 0.28)",
   },
   timelineLineApproved: {
     backgroundColor: "#A7F3D0",
@@ -1512,7 +1509,7 @@ const styles = StyleSheet.create({
     color: "#047857",
   },
   timelineLabelCurrent: {
-    color: "#0B66E8",
+    color: "#14B8A6",
   },
   timelineLabelFailed: {
     color: "#B91C1C",
@@ -1560,7 +1557,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },

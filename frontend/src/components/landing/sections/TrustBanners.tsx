@@ -158,7 +158,7 @@ export function TrustBanners() {
         />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-[#0052df]/5 blur-3xl"
+          className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-[#14B8A6]/5 blur-3xl"
         />
 
         <Container size="xl">
@@ -367,7 +367,7 @@ export function TrustBanners() {
                         />
                         <div
                           aria-hidden="true"
-                          className="trust-step-fill absolute left-4 top-[18px] hidden h-0.5 rounded-full bg-gradient-to-r from-brand-deep to-[#0179ff] sm:block"
+                          className="trust-step-fill absolute left-4 top-[18px] hidden h-0.5 rounded-full bg-gradient-to-r from-brand-deep to-[#14B8A6] sm:block"
                           style={{
                             width: `calc(${(activeIndex / (PILLARS.length - 1)) * 100}% - 2rem)`,
                             maxWidth: "calc(100% - 2rem)",

@@ -29,10 +29,10 @@ const TONE = {
     icon: "x-circle",
   },
   approval: {
-    badgeBg: "#EFF6FF",
-    badgeColor: "#1D4ED8",
-    accent: "#0052DF",
-    noteBg: "#EFF6FF",
+    badgeBg: "#D1FAF5",
+    badgeColor: "#0A2A43",
+    accent: "#0A2A43",
+    noteBg: "#D1FAF5",
     icon: "inbox",
   },
 };

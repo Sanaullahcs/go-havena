@@ -472,7 +472,7 @@ export default function ManageAllMarketplace() {
         </Text>
 
         {loading ? (
-          <ActivityIndicator size="large" color="#0052DF" style={{ marginTop: 24 }} />
+          <ActivityIndicator size="large" color="#0A2A43" style={{ marginTop: 24 }} />
         ) : listData.length === 0 ? (
           <Text style={styles.emptyText}>
             {activeTab === "businesses"
@@ -664,7 +664,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(243, 244, 246, 1)",
   },
   segmentButtonActive: {
-    backgroundColor: "rgba(0, 82, 223, 1)",
+    backgroundColor: "rgba(20, 184, 166, 1)",
   },
   segmentText: {
     fontFamily: Fonts.bold,
@@ -773,7 +773,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   myBadge: {
-    backgroundColor: "rgba(0, 82, 223, 1)",
+    backgroundColor: "rgba(20, 184, 166, 1)",
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -875,8 +875,8 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   filterChipActive: {
-    backgroundColor: "rgba(0, 82, 223, 1)",
-    borderColor: "rgba(0, 82, 223, 1)",
+    backgroundColor: "rgba(20, 184, 166, 1)",
+    borderColor: "rgba(20, 184, 166, 1)",
   },
   filterChipText: {
     fontFamily: Fonts.medium,

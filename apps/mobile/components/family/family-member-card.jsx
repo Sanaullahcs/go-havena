@@ -8,13 +8,13 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+
 import ProfilePhotoAvatar from "../profile/profile-photo-avatar";
 import { Fonts } from "../../constants/font";
 import { sf, sw } from "../../utils/responsive";
 
 const STATUS_META = {
-  head: { label: "Head", bg: "#EFF6FF", color: "#0052DF", border: "#BFDBFE" },
+  head: { label: "Head", bg: "#D1FAF5", color: "#0A2A43", border: "rgba(20, 184, 166, 0.28)" },
   active: { label: "Active", bg: "#ECFDF5", color: "#059669", border: "#A7F3D0" },
   pending: { label: "Pending", bg: "#FFFBEB", color: "#B45309", border: "#FDE68A" },
   suspended: { label: "Suspended", bg: "#FEF2F2", color: "#DC2626", border: "#FECACA" },
@@ -23,7 +23,7 @@ const STATUS_META = {
 
 const TONE_COLOR = {
   default: "#475569",
-  primary: "#0052DF",
+  primary: "#0A2A43",
   success: "#059669",
   danger: "#DC2626",
 };
@@ -88,7 +88,7 @@ function MemberActionsDropdown({ actions, disabled = false }) {
           hitSlop={8}
           accessibilityLabel="Member options"
         >
-          <Feather name="more-horizontal" size={sf(16)} color={open ? "#0052DF" : "#64748B"} />
+          <Feather name="more-horizontal" size={sf(16)} color={open ? "#0A2A43" : "#64748B"} />
         </Pressable>
       </View>
 
@@ -231,7 +231,7 @@ export default function FamilyMemberCard({
               hitSlop={8}
               accessibilityLabel="View profile"
             >
-              <Feather name="user" size={sf(14)} color="#0052DF" />
+              <Feather name="user" size={sf(14)} color="#0A2A43" />
             </Pressable>
           ) : null}
         </View>
@@ -242,14 +242,11 @@ export default function FamilyMemberCard({
 
 export function FamilyHeroCard({ familyNumber, onCopy, onShare }) {
   return (
-    <LinearGradient
-      colors={["#0052DF", "#003DA5"]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
+    <View
       style={styles.hero}
     >
       <View style={styles.heroIcon}>
-        <Feather name="users" size={sf(22)} color="#0052DF" />
+        <Feather name="users" size={sf(22)} color="#0A2A43" />
       </View>
       <Text style={styles.heroLabel}>Family Number</Text>
       <Text style={styles.heroNumber} selectable>
@@ -258,7 +255,7 @@ export function FamilyHeroCard({ familyNumber, onCopy, onShare }) {
       <Text style={styles.heroHint}>Share this code so neighbors can request to join your family.</Text>
       <View style={styles.heroActions}>
         <Pressable style={styles.heroBtn} onPress={onCopy}>
-          <Feather name="copy" size={sf(14)} color="#0052DF" />
+          <Feather name="copy" size={sf(14)} color="#0A2A43" />
           <Text style={styles.heroBtnText}>Copy</Text>
         </Pressable>
         <Pressable style={[styles.heroBtn, styles.heroBtnGhost]} onPress={onShare}>
@@ -266,7 +263,7 @@ export function FamilyHeroCard({ familyNumber, onCopy, onShare }) {
           <Text style={[styles.heroBtnText, styles.heroBtnTextGhost]}>Share</Text>
         </Pressable>
       </View>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -326,8 +323,8 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   menuTriggerOpen: {
-    backgroundColor: "#EFF6FF",
-    borderColor: "#BFDBFE",
+    backgroundColor: "#D1FAF5",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
   menuTriggerDisabled: {
     opacity: 0.5,
@@ -337,8 +334,8 @@ const styles = StyleSheet.create({
     height: sw(28),
     borderRadius: sw(8),
     borderWidth: 1,
-    borderColor: "#BFDBFE",
-    backgroundColor: "#EFF6FF",
+    borderColor: "rgba(20, 184, 166, 0.28)",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -448,7 +445,7 @@ const styles = StyleSheet.create({
   heroBtnText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(14),
-    color: "#0052DF",
+    color: "#0A2A43",
   },
   heroBtnTextGhost: {
     color: "#FFFFFF",

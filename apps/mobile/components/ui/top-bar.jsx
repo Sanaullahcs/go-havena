@@ -3,8 +3,6 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import BurgerButton from "./burger-button";
 import { Fonts } from "../../constants/font";
-import { Colors } from "../../constants/tokens";
-import { HomeTheme } from "../../constants/home-theme";
 import React, { useCallback, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import { getProfileFields, getRoleLabel } from "../../utils/profile-display";
@@ -14,12 +12,18 @@ import { getUser } from "../../services/auth-session";
 import { HeaderShell } from "../layout/header-chrome";
 import { sw, sf } from "../../utils/responsive";
 import { useNotificationUnread } from "../../hooks/use-notification-unread";
+import { useMessageUnread } from "../../hooks/use-message-unread";
 import NotificationCountBadge from "./notification-count-badge";
+import { HavenaColors } from "../../constants/color-scheme";
+
+const navy = HavenaColors.primary.darkNavy;
+const lightBorder = HavenaColors.neutral.lightGray;
 
 export default function TopBar({ onMenuPress }) {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const { unread } = useNotificationUnread();
+  const { unread: messageUnread } = useMessageUnread();
 
   useFocusEffect(
     useCallback(() => {
@@ -46,14 +50,14 @@ export default function TopBar({ onMenuPress }) {
     <HeaderShell padded dense>
       <View style={styles.row}>
         <View style={styles.left}>
-          <BurgerButton onPress={onMenuPress} compact />
+          <BurgerButton onPress={onMenuPress} compact plain iconColor={navy} />
           <Pressable
             style={styles.location}
             accessibilityLabel={`Community location: ${title}`}
             onPress={() => router.push("/screens/profile")}
           >
             <View style={styles.pinWrap}>
-              <Feather name="map-pin" size={sf(13)} color="#FFFFFF" />
+              <Feather name="map-pin" size={sf(14)} color={HavenaColors.neutral.white} />
             </View>
             <View style={styles.locationCopy}>
               <View style={styles.titleRow}>
@@ -70,17 +74,18 @@ export default function TopBar({ onMenuPress }) {
                 {subtitle}
               </Text>
             </View>
-            <Feather name="chevron-down" size={sf(14)} color={HomeTheme.mediumGray} />
+            <Feather name="chevron-down" size={sf(14)} color={navy} />
           </Pressable>
         </View>
 
         <View style={styles.right}>
           <Pressable
             style={styles.iconBtn}
-            onPress={() => router.push("/screens/community-feed/search")}
-            accessibilityLabel="Search"
+            onPress={() => router.push("/screens/messages")}
+            accessibilityLabel="Messages"
           >
-            <Feather name="search" size={sf(17)} color={HomeTheme.deepNavy} />
+            <Feather name="message-circle" size={sf(17)} color={navy} />
+            <NotificationCountBadge count={messageUnread} size="sm" label="messages" />
           </Pressable>
 
           <Pressable
@@ -88,16 +93,8 @@ export default function TopBar({ onMenuPress }) {
             onPress={() => router.push("/screens/notification")}
             accessibilityLabel="Notifications"
           >
-            <Feather name="bell" size={sf(17)} color={HomeTheme.deepNavy} />
+            <Feather name="bell" size={sf(17)} color={navy} />
             <NotificationCountBadge count={unread} size="sm" label="notifications" />
-          </Pressable>
-
-          <Pressable
-            style={styles.iconBtn}
-            onPress={() => router.push("/screens/profile")}
-            accessibilityLabel="Profile"
-          >
-            <Feather name="user" size={sf(17)} color={HomeTheme.deepNavy} />
           </Pressable>
         </View>
       </View>
@@ -110,20 +107,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: sw(10),
     minHeight: sw(44),
   },
   left: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    gap: sw(8),
     minWidth: 0,
-    marginRight: sw(8),
   },
   pinWrap: {
-    width: sw(30),
-    height: sw(30),
-    borderRadius: sw(9),
-    backgroundColor: HomeTheme.deepNavy,
+    width: sw(32),
+    height: sw(32),
+    borderRadius: sw(10),
+    backgroundColor: navy,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -132,40 +130,40 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    gap: sw(8),
     minWidth: 0,
-    marginLeft: sw(8),
-    backgroundColor: Colors.surface,
+    backgroundColor: HavenaColors.neutral.white,
     borderRadius: sw(12),
     borderWidth: 1,
-    borderColor: HomeTheme.lightBorder,
+    borderColor: lightBorder,
     paddingHorizontal: sw(8),
-    paddingVertical: sw(5),
+    paddingVertical: sw(6),
   },
   locationCopy: {
     flex: 1,
     minWidth: 0,
     justifyContent: "center",
-    marginLeft: sw(8),
-    marginRight: sw(4),
   },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: sw(6),
     minWidth: 0,
   },
   rolePill: {
-    marginLeft: sw(6),
     paddingHorizontal: sw(6),
     paddingVertical: sw(2),
     borderRadius: 999,
-    backgroundColor: HomeTheme.primaryTeal,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
     flexShrink: 0,
   },
   rolePillText: {
     fontFamily: Fonts.bold,
     fontSize: sf(9),
     lineHeight: sf(12),
-    color: "#FFFFFF",
+    color: "#047857",
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
@@ -174,33 +172,33 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: sf(13),
     lineHeight: sf(17),
-    color: HomeTheme.darkText,
+    color: navy,
     fontWeight: "700",
   },
   locationSub: {
     marginTop: 1,
-    fontFamily: Fonts.medium,
+    fontFamily: Fonts.regular,
     fontSize: sf(10),
     lineHeight: sf(13),
-    color: HomeTheme.mediumGray,
-    fontWeight: "500",
+    color: navy,
+    fontWeight: "400",
   },
   right: {
     flexDirection: "row",
     alignItems: "center",
+    gap: sw(8),
     flexShrink: 0,
   },
   iconBtn: {
-    width: sw(36),
-    height: sw(36),
-    borderRadius: sw(10),
-    backgroundColor: Colors.surface,
+    width: sw(38),
+    height: sw(38),
+    borderRadius: sw(11),
+    backgroundColor: HavenaColors.neutral.white,
     borderWidth: 1,
-    borderColor: HomeTheme.lightBorder,
+    borderColor: lightBorder,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
     overflow: "visible",
-    marginLeft: sw(6),
   },
 });

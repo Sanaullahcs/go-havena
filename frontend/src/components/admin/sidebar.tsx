@@ -257,11 +257,11 @@ function NavSection({
               "group relative flex items-center gap-2.5 overflow-hidden rounded-xl px-2.5 py-2 text-[13px] font-medium transition-colors duration-150",
               active
                 ? "text-white shadow-md"
-                : "text-slate-600 hover:bg-[#EFF6FF] hover:text-[#0052DF]",
+                : "text-slate-600 hover:bg-[#D1FAF5] hover:text-[#0A2A43]",
             ].join(" ")}
             style={
               active
-                ? { background: "linear-gradient(135deg, #0052DF 0%, #0179FF 100%)", boxShadow: "0 4px 12px rgba(0, 82, 223, 0.28)" }
+                ? { background: "#0A2A43", boxShadow: "0 4px 12px rgba(20, 184, 166, 0.28)" }
                 : undefined
             }
           >
@@ -270,7 +270,7 @@ function NavSection({
                 "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all duration-200",
                 active
                   ? "bg-white/15 text-white"
-                  : "text-slate-400 group-hover:scale-105 group-hover:text-[#007BFF]",
+                  : "text-slate-400 group-hover:scale-105 group-hover:text-[#14B8A6]",
               ].join(" ")}
             >
               <Icon />
@@ -280,7 +280,7 @@ function NavSection({
               <span
                 className={[
                   "ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
-                  active ? "bg-white text-[#007BFF]" : "bg-[#007BFF] text-white",
+                  active ? "bg-white text-[#14B8A6]" : "bg-[#14B8A6] text-white",
                 ].join(" ")}
               >
                 {item.badge > 99 ? "99+" : item.badge}
@@ -445,8 +445,8 @@ export function AdminSidebar({
 function NbrLogoMark({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M3 9l9-6 9 6v11a1 1 0 01-1 1H4a1 1 0 01-1-1V9z" stroke="#0052DF" strokeWidth="2" strokeLinejoin="round" />
-      <path d="M9 21V12h6v9" stroke="#0052DF" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M3 9l9-6 9 6v11a1 1 0 01-1 1H4a1 1 0 01-1-1V9z" stroke="#0A2A43" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M9 21V12h6v9" stroke="#0A2A43" strokeWidth="2" strokeLinejoin="round" />
     </svg>
   );
 }

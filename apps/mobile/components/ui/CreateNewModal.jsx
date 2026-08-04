@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: 14,
     fontWeight: "700",
-    color: "rgba(0, 82, 223, 1)",
+    color: "rgba(20, 184, 166, 1)",
     lineHeight: 18,
   },
 

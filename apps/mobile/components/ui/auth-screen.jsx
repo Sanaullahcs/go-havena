@@ -1,19 +1,15 @@
 import { View, StyleSheet } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { AppSafeAreaFull } from "../layout/app-safe-area";
-import { authStyles, Gradients } from "../../constants/auth-styles";
+import { authStyles } from "../../constants/auth-styles";
 
 export default function AuthScreen({ children }) {
   return (
     <AppSafeAreaFull style={styles.safe}>
-      <LinearGradient
-        colors={Gradients.authScreen}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      <View
         style={authStyles.gradient}
       >
         {children}
-      </LinearGradient>
+      </View>
     </AppSafeAreaFull>
   );
 }

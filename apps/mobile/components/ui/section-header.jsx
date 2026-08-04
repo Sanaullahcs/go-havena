@@ -12,7 +12,7 @@ export default function SectionHeader({ title, onPressNext }) {
           className="h-9 w-9 items-center justify-center rounded-full bg-surface-chip active:opacity-85"
           accessibilityLabel={`Browse ${title}`}
         >
-          <Feather name="chevron-right" size={20} color="#007BFF" />
+          <Feather name="chevron-right" size={20} color="#14B8A6" />
         </Pressable>
       ) : null}
     </View>

@@ -10,7 +10,6 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import UserAvatar from "../../../components/ui/user-avatar";
 import CrispImage from "../../../components/ui/crisp-image";
@@ -137,10 +136,10 @@ export default function NoticeDetailScreen() {
     [notice],
   );
 
-  const heroGradient = useMemo(() => {
-    if (notice?.isAlert) return ["#7F1D1D", "#B91C1C", "#EF4444"];
-    if (notice?.isEvent) return ["#1E3A5F", "#0052DF", "#0179FF"];
-    return ["#0F172A", "#113D6F", "#0052DF"];
+  const heroBg = useMemo(() => {
+    if (notice?.isAlert) return "#B91C1C";
+    if (notice?.isEvent) return "#0A2A43";
+    return "#0A2A43";
   }, [notice]);
 
   const onShare = useCallback(async () => {
@@ -167,18 +166,10 @@ export default function NoticeDetailScreen() {
           {notice?.imageUrl ? (
             <>
               <CrispImage source={{ uri: notice.imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
-              <LinearGradient
-                colors={["rgba(15,23,42,0.15)", "rgba(15,23,42,0.55)", "rgba(15,23,42,0.88)"]}
-                style={StyleSheet.absoluteFill}
-              />
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(15,23,42,0.55)" }]} />
             </>
           ) : (
-            <LinearGradient
-              colors={heroGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: heroBg }]} />
           )}
 
           <SafeAreaView edges={["top"]} style={styles.heroSafe}>
@@ -515,9 +506,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(10),
     paddingVertical: sw(6),
     borderRadius: Layout.pillRadius,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
   metaChipText: {
     fontFamily: Fonts.semiBold,

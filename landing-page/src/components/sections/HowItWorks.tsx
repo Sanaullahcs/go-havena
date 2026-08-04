@@ -207,7 +207,7 @@ export function HowItWorks() {
                 className="absolute inset-0 -z-10"
                 style={{
                     background:
-                        "linear-gradient(135deg, #1e1b4b 0%, #0052df 50%, #4c1d95 100%)",
+                        "#14B8A6",
                 }}
             />
 

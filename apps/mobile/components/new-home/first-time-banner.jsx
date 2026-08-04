@@ -1,11 +1,10 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { Home } from "../../constants/home-styles";
-import { HomeTheme } from "../../constants/home-theme";
 import { sw, sf, hp } from "../../utils/responsive";
 
 const STEPS = [
@@ -19,21 +18,18 @@ export default function FirstTimeBanner({ onDismiss }) {
 
   return (
     <View style={styles.wrap}>
-      <LinearGradient
-        colors={["#E8F8F6", "#FFFFFF", "#F4FBFD"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      <View
         style={styles.card}
       >
         <View style={styles.head}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Welcome to Havena!</Text>
+            <Text style={styles.title}>Welcome to NeighborLink!</Text>
             <Text style={styles.sub}>
               Your community hub is ready. Here&apos;s how to get started.
             </Text>
           </View>
           <Pressable onPress={onDismiss} hitSlop={12} accessibilityLabel="Dismiss">
-            <Ionicons name="close" size={sf(20)} color={HomeTheme.mediumGray} />
+            <Ionicons name="close" size={sf(20)} color="#6A7282" />
           </Pressable>
         </View>
 
@@ -45,7 +41,7 @@ export default function FirstTimeBanner({ onDismiss }) {
               onPress={() => router.push(step.route)}
             >
               <Text style={styles.stepText}>{step.label}</Text>
-              <Ionicons name="chevron-forward" size={sf(16)} color={HomeTheme.seaGreen} />
+              <Ionicons name="chevron-forward" size={sf(16)} color="#14B8A6" />
             </Pressable>
           ))}
         </View>
@@ -53,7 +49,7 @@ export default function FirstTimeBanner({ onDismiss }) {
         <Pressable style={styles.cta} onPress={onDismiss}>
           <Text style={styles.ctaText}>Got it -- explore home</Text>
         </Pressable>
-      </LinearGradient>
+      </View>
     </View>
   );
 }
@@ -67,8 +63,9 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: sw(16),
     borderWidth: 1,
-    borderColor: HomeTheme.lightBorder,
+    borderColor: "rgba(20, 184, 166, 0.28)",
     padding: sw(16),
+    backgroundColor: "#D1FAF5",
   },
   head: {
     flexDirection: "row",
@@ -80,14 +77,14 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: sf(16),
     lineHeight: sf(22),
-    color: HomeTheme.darkText,
+    color: "#101828",
     fontWeight: "700",
   },
   sub: {
     fontFamily: Fonts.regular,
     fontSize: sf(13),
     lineHeight: sf(18),
-    color: HomeTheme.mediumGray,
+    color: "#6A7282",
     marginTop: hp(0.5),
   },
   steps: { gap: hp(0.7), marginBottom: hp(1.2) },
@@ -100,12 +97,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(14),
     paddingVertical: hp(1.2),
     borderWidth: 1,
-    borderColor: HomeTheme.lightBorder,
+    borderColor: "#E5E7EB",
   },
   stepText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(13),
-    color: HomeTheme.darkText,
+    color: "#364153",
   },
   cta: {
     alignSelf: "center",
@@ -114,6 +111,6 @@ const styles = StyleSheet.create({
   ctaText: {
     fontFamily: Fonts.bold,
     fontSize: sf(13),
-    color: HomeTheme.seaGreen,
+    color: "#14B8A6",
   },
 });

@@ -138,7 +138,7 @@ export default function RegionCommunitiesScreen() {
 
       <View style={styles.topSection}>
         <View style={styles.regionBadge}>
-          <Ionicons name="location" size={14} color="#0B66E8" />
+          <Ionicons name="location" size={14} color="#14B8A6" />
           <Text style={styles.regionBadgeText}>{regionTitle}</Text>
         </View>
         <Text style={styles.title}>
@@ -164,7 +164,7 @@ export default function RegionCommunitiesScreen() {
             autoCorrect={false}
           />
           {isSearchPending || refreshing ? (
-            <ActivityIndicator size="small" color="#007BFF" />
+            <ActivityIndicator size="small" color="#14B8A6" />
           ) : searchText.length > 0 ? (
             <TouchableOpacity
               onPress={() => setSearchText("")}
@@ -178,7 +178,7 @@ export default function RegionCommunitiesScreen() {
 
       {loading ? (
         <View style={styles.centerState}>
-          <ActivityIndicator size="large" color="#007BFF" />
+          <ActivityIndicator size="large" color="#14B8A6" />
           <Text style={styles.stateText}>Loading communities…</Text>
         </View>
       ) : error ? (
@@ -201,7 +201,7 @@ export default function RegionCommunitiesScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => loadCommunities(true)}
-              tintColor="#007BFF"
+              tintColor="#14B8A6"
             />
           }
         >
@@ -241,7 +241,7 @@ export default function RegionCommunitiesScreen() {
             <>
               {isAdminOnboarding ? (
                 <View style={styles.adminBanner}>
-                  <Ionicons name="information-circle-outline" size={18} color="#0B66E8" />
+                  <Ionicons name="information-circle-outline" size={18} color="#14B8A6" />
                   <Text style={styles.adminBannerText}>
                     Communities with an admin are shown but cannot be selected. Choose an available community or request a new one.
                   </Text>
@@ -267,7 +267,7 @@ export default function RegionCommunitiesScreen() {
                     <Ionicons
                       name="business-outline"
                       size={24}
-                      color={isDisabled ? "#94A3B8" : "#007BFF"}
+                      color={isDisabled ? "#94A3B8" : "#14B8A6"}
                     />
                   </View>
 
@@ -284,7 +284,7 @@ export default function RegionCommunitiesScreen() {
                   </View>
 
                   {busy ? (
-                    <ActivityIndicator size="small" color="#007BFF" />
+                    <ActivityIndicator size="small" color="#14B8A6" />
                   ) : isDisabled ? (
                     <Ionicons name="lock-closed-outline" size={18} color="#94A3B8" />
                   ) : (
@@ -343,13 +343,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     marginBottom: 10,
   },
   regionBadgeText: {
     fontFamily: Fonts.medium,
     fontSize: 12,
-    color: "#0B66E8",
+    color: "#14B8A6",
     fontWeight: "600",
   },
   title: {
@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: "#007BFF",
+    backgroundColor: "#14B8A6",
   },
   retryText: {
     fontFamily: Fonts.medium,
@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 12,
     borderRadius: 14,
-    backgroundColor: "#0B66E8",
+    backgroundColor: "#14B8A6",
   },
   requestBtnText: {
     fontFamily: Fonts.semiBold,
@@ -472,7 +472,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -512,9 +512,9 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 14,
     borderRadius: 14,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
     marginBottom: 4,
   },
   adminBannerText: {

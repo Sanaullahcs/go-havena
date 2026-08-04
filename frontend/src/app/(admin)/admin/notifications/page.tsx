@@ -371,7 +371,7 @@ export default function AdminNotificationsPage() {
                     className="flex w-full items-start gap-3 rounded-2xl border p-3.5 text-left transition hover:shadow-sm"
                     style={{
                       borderColor: n.read ? NL.borderCard : "rgba(0,124,250,0.28)",
-                      background: n.read ? "#fff" : "linear-gradient(165deg, #F8FBFF 0%, #FFFFFF 100%)",
+                      background: n.read ? "#fff" : "#FFFFFF",
                     }}
                   >
                     <span

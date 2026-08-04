@@ -209,7 +209,7 @@ export default function CreateListingScreen() {
     return (
       <SafeAreaView style={styles.container} edges={["left", "right"]}>
         <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color="#007BFF" />
+          <ActivityIndicator size="large" color="#14B8A6" />
         </View>
       </SafeAreaView>
     );
@@ -553,8 +553,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   conditionChipActive: {
-    borderColor: "#007BFF",
-    backgroundColor: "rgba(190, 219, 255, 0.08)",
+    borderColor: "#14B8A6",
+    backgroundColor: "rgba(20, 184, 166, 0.08)",
   },
   conditionChipText: {
     fontFamily: Fonts.medium,
@@ -562,7 +562,7 @@ const styles = StyleSheet.create({
     color: "#4B5563",
   },
   conditionChipTextActive: {
-    color: "#007BFF",
+    color: "#14B8A6",
     fontFamily: Fonts.bold,
     fontWeight: "700",
   },
@@ -581,8 +581,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   categoryChipActive: {
-    borderColor: "#007BFF",
-    backgroundColor: "rgba(190, 219, 255, 0.08)",
+    borderColor: "#14B8A6",
+    backgroundColor: "rgba(20, 184, 166, 0.08)",
   },
   categoryChipText: {
     fontFamily: Fonts.medium,
@@ -590,7 +590,7 @@ const styles = StyleSheet.create({
     color: "#4B5563",
   },
   categoryChipTextActive: {
-    color: "#007BFF",
+    color: "#14B8A6",
     fontFamily: Fonts.bold,
     fontWeight: "700",
   },
@@ -616,7 +616,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontFamily: Fonts.medium,
     fontSize: MarketplaceType.caption,
-    color: "#0B66E8",
+    color: "#14B8A6",
   },
   required: {
     color: "#EF4444",
@@ -670,7 +670,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#E8F2FB",
-    borderColor: "rgba(190, 219, 255, 0.6)",
+    borderColor: "rgba(20, 184, 166, 0.6)",
     borderStyle: "solid",
     boxShadow:
       "0px 1px 2px -1px rgba(0, 0, 0, 0.1), 0px 1px 3px 0px rgba(0, 0, 0, 0.1)",
@@ -690,7 +690,7 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: "rgba(190, 219, 255, 0.6)",
+    borderColor: "rgba(20, 184, 166, 0.6)",
     backgroundColor: "rgba(255, 255, 255, 0.6)",
     paddingHorizontal: 16,
     fontFamily: Fonts.regular,
@@ -704,7 +704,7 @@ const styles = StyleSheet.create({
     minHeight: 130,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: "rgba(190, 219, 255, 0.6)",
+    borderColor: "rgba(20, 184, 166, 0.6)",
     backgroundColor: "rgba(255, 255, 255, 0.6)",
     paddingHorizontal: 16,
     paddingTop: 12,
@@ -738,7 +738,7 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 8,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -764,7 +764,7 @@ const styles = StyleSheet.create({
   postButton: {
     height: 50,
     borderRadius: 12,
-    backgroundColor: "rgba(190, 219, 255, 1)",
+    backgroundColor: "rgba(20, 184, 166, 1)",
     alignItems: "center",
     justifyContent: "center",
     boxShadow:

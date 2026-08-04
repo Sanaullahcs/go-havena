@@ -67,9 +67,9 @@ export const CATEGORY_THEME = {
   },
   general: {
     label: "Announcement",
-    bg: "#EFF6FF",
-    text: "#1D4ED8",
-    accent: "#3B82F6",
+    bg: "#D1FAF5",
+    text: "#0A2A43",
+    accent: "#14B8A6",
     icon: "bell",
   },
 };

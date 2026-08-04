@@ -174,7 +174,7 @@ export default function BusinessHoursInput({ value = "", onChange, showError = f
                   display="spinner"
                   themeVariant="light"
                   textColor="#111827"
-                  accentColor="#0052DF"
+                  accentColor="#0A2A43"
                   onChange={handleValueChange}
                   style={styles.iosPicker}
                 />
@@ -201,7 +201,7 @@ function TimeChip({ label, value, onPress, filled, hasError }) {
       <Ionicons
         name="time-outline"
         size={14}
-        color={filled ? "#0052DF" : hasError ? "#F04438" : "#9CA3AF"}
+        color={filled ? "#0A2A43" : hasError ? "#F04438" : "#9CA3AF"}
       />
       <View>
         <Text style={[styles.chipLabel, filled && styles.chipLabelFilled]}>{label}</Text>
@@ -235,8 +235,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   chipFilled: {
-    borderColor: "#BFDBFE",
-    backgroundColor: "#EFF6FF",
+    borderColor: "rgba(20, 184, 166, 0.28)",
+    backgroundColor: "#D1FAF5",
   },
   chipError: {
     borderColor: "#FECACA",
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   chipLabelFilled: {
-    color: "#2563EB",
+    color: "#14B8A6",
   },
   chipValue: {
     fontFamily: Fonts.bold,
@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
   iosDone: {
     fontFamily: Fonts.bold,
     fontSize: 15,
-    color: "#0052DF",
+    color: "#0A2A43",
   },
   iosPickerWrap: {
     backgroundColor: "#F8FAFC",

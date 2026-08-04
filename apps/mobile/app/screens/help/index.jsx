@@ -8,7 +8,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
@@ -164,9 +164,9 @@ export default function HelpScreen() {
             <NeighborhoodHelpSkeleton count={2} />
           ) : (
             <View style={styles.empty}>
-              <LinearGradient colors={["#EFF6FF", "#FFFFFF"]} style={styles.emptyIcon}>
+              <View style={styles.emptyIcon}>
                 <Feather name="inbox" size={sf(28)} color={Colors.brandPrimaryDeep} />
-              </LinearGradient>
+              </View>
               <Text style={styles.emptyTitle}>No help requests yet</Text>
               <Text style={styles.emptyText}>
                 Be the first to ask. Use the button below to post a request.
@@ -181,15 +181,12 @@ export default function HelpScreen() {
           style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
           onPress={openComposer}
         >
-          <LinearGradient
-            colors={[Colors.brandPrimaryDeep, Colors.brandPrimary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+          <View
             style={styles.ctaGradient}
           >
             <Feather name="edit-3" size={sf(16)} color="#FFFFFF" />
             <Text style={styles.ctaText}>Ask for help</Text>
-          </LinearGradient>
+          </View>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -223,7 +220,7 @@ const styles = StyleSheet.create({
     color: "#101828",
   },
   countBadge: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     paddingHorizontal: sw(8),
     paddingVertical: sw(2),
     borderRadius: 999,

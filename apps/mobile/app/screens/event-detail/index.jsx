@@ -122,7 +122,7 @@ const SCREEN_WIDTH = Dimensions.get("window").width;
 const HERO_HEIGHT = SCREEN_WIDTH / HERO_ASPECT;
 
 const SCHEDULE_META = {
-  date: { icon: "calendar", color: "#0052DF", bg: "#EFF6FF" },
+  date: { icon: "calendar", color: "#0A2A43", bg: "#D1FAF5" },
   time: { icon: "clock", color: "#7C3AED", bg: "#F5F3FF" },
   location: { icon: "map-pin", color: "#059669", bg: "#ECFDF5" },
 };
@@ -408,7 +408,7 @@ export default function EventDetailScreen() {
           shareDisabled
         />
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#0052DF" />
+          <ActivityIndicator size="large" color="#0A2A43" />
         </View>
       </View>
     );
@@ -850,12 +850,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 10,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
   },
   retryText: {
     fontFamily: Fonts.bold,
     fontSize: sf(14),
-    color: "#0052DF",
+    color: "#0A2A43",
   },
   upcomingEvent: {
     paddingHorizontal: 20,
@@ -937,7 +937,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
   },
   attendeeCountBadge: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderRadius: 999,
     paddingHorizontal: sw(10),
     paddingVertical: sw(4),
@@ -946,7 +946,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semiBold,
     fontSize: sf(11),
     lineHeight: sf(15),
-    color: "#0052DF",
+    color: "#0A2A43",
     fontWeight: "600",
   },
   attendeeCard: {
@@ -969,7 +969,7 @@ const styles = StyleSheet.create({
   capacityFill: {
     height: "100%",
     borderRadius: 999,
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
   },
   capacityLabel: {
     fontFamily: Fonts.medium,
@@ -1071,7 +1071,7 @@ const styles = StyleSheet.create({
     width: sw(32),
     height: sw(32),
     borderRadius: sw(10),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1280,7 +1280,7 @@ const styles = StyleSheet.create({
   },
   joinBtn: {
     paddingVertical: 16,
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
     borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
@@ -1323,7 +1323,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 16,
     borderRadius: 16,
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
   },
   shareEventBtnText: {
     fontFamily: Fonts.bold,

@@ -430,7 +430,7 @@ export default function CreateNoticeScreen() {
                     {residentsLoading ? (
                       <View style={styles.residentList}>
                         <View style={styles.residentListEmpty}>
-                          <ActivityIndicator color="rgba(0, 82, 223, 1)" />
+                          <ActivityIndicator color="rgba(20, 184, 166, 1)" />
                         </View>
                       </View>
                     ) : (
@@ -619,7 +619,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(249, 250, 251, 1)",
   },
   chipActive: {
-    borderColor: "rgba(0, 82, 223, 1)",
+    borderColor: "rgba(20, 184, 166, 1)",
     backgroundColor: "rgba(239, 246, 255, 1)",
   },
   chipText: {
@@ -629,7 +629,7 @@ const styles = StyleSheet.create({
     color: "rgba(74, 85, 101, 1)",
   },
   chipTextActive: {
-    color: "rgba(0, 82, 223, 1)",
+    color: "rgba(20, 184, 166, 1)",
     fontFamily: Fonts.bold,
   },
   input: {
@@ -768,8 +768,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   residentCheckActive: {
-    borderColor: "rgba(0, 82, 223, 1)",
-    backgroundColor: "rgba(0, 82, 223, 1)",
+    borderColor: "rgba(20, 184, 166, 1)",
+    backgroundColor: "rgba(20, 184, 166, 1)",
   },
   residentCheckMark: {
     color: "#FFFFFF",
@@ -796,7 +796,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     height: 56,
     borderRadius: 14,
-    backgroundColor: "rgba(0, 82, 223, 1)",
+    backgroundColor: "rgba(20, 184, 166, 1)",
     alignItems: "center",
     justifyContent: "center",
   },

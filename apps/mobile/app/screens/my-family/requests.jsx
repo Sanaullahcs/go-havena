@@ -335,7 +335,7 @@ export default function FamilyRequestsScreen() {
       <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
         <InternalScreenHeader title="Family requests" />
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#0052DF" />
+          <ActivityIndicator size="large" color="#0A2A43" />
         </View>
       </SafeAreaView>
     );
@@ -356,7 +356,7 @@ export default function FamilyRequestsScreen() {
               setRefreshing(true);
               load();
             }}
-            tintColor="#0052DF"
+            tintColor="#0A2A43"
           />
         }
         ListEmptyComponent={
@@ -473,9 +473,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(10),
     paddingVertical: sw(4),
     borderRadius: sw(999),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
     marginBottom: sw(12),
   },
   typePillAdd: {
@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
   typePillText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(10),
-    color: "#0052DF",
+    color: "#0A2A43",
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
@@ -496,14 +496,14 @@ const styles = StyleSheet.create({
     width: sw(48),
     height: sw(48),
     borderRadius: sw(24),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },
   initialsText: {
     fontFamily: Fonts.bold,
     fontSize: sf(16),
-    color: "#0052DF",
+    color: "#0A2A43",
   },
   cardHeader: {
     flexDirection: "row",
@@ -641,7 +641,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(18),
     paddingVertical: sw(12),
     borderRadius: 999,
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
   },
   emptyCtaText: {
     fontFamily: Fonts.semiBold,

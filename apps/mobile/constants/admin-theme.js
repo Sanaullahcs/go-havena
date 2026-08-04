@@ -6,17 +6,17 @@ import { sf, sw } from "../utils/responsive";
 /** Bottom space so scroll content clears the floating nav FAB on tab screens. */
 export const ADMIN_FAB_CLEARANCE = sw(88);
 
-/** Community admin hub — gradient hero + elevated card system. */
+/** Community admin hub — Ocean Breeze solid fills. */
 export const AdminTheme = {
-  screenBg: "#F4F7FB",
+  screenBg: "#F4F8FD",
   surface: "#FFFFFF",
-  gradient: ["#003DA5", "#0052DF", "#0EA5E9"],
-  gradientSoft: ["#E8F2FF", "#F0F9FF", "#FFFFFF"],
-  heroGlow: "rgba(14, 165, 233, 0.35)",
+  heroBg: "#0A2A43",
+  heroBgSoft: "#F4F8FD",
+  heroGlow: "rgba(20, 184, 166, 0.35)",
   accent: Colors.brandPrimaryDeep,
-  accentSoft: "#EFF6FF",
-  accentBorder: "#93C5FD",
-  text: "#0F172A",
+  accentSoft: "#D1FAF5",
+  accentBorder: "rgba(20, 184, 166, 0.35)",
+  text: "#0A2A43",
   textMuted: "#64748B",
   textSecondary: "#334155",
   border: "#E2E8F0",

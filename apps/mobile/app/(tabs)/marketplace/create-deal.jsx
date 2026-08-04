@@ -18,7 +18,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { Fonts } from "../../../constants/font";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { Ionicons } from "@expo/vector-icons";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
@@ -176,7 +176,7 @@ export default function CreateDeal() {
       <SafeAreaView style={styles.container} edges={["left", "right"]}>
         <InternalScreenHeader title={isEdit ? "Edit Deal" : "Create Deal"} subtitle="Loading…" />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator size="large" color="#0052DF" />
+          <ActivityIndicator size="large" color="#0A2A43" />
         </View>
       </SafeAreaView>
     );
@@ -353,7 +353,7 @@ export default function CreateDeal() {
           <Ionicons
             name="calendar-outline"
             size={16}
-            color={validUntilDate ? "#0052DF" : "#9CA3AF"}
+            color={validUntilDate ? "#0A2A43" : "#9CA3AF"}
           />
           <Text style={[styles.datePickerText, validUntilDate && styles.datePickerTextFilled]}>
             {formatDisplayDate(validUntilDate) || "Select expiry date"}
@@ -609,7 +609,7 @@ const styles = StyleSheet.create({
   createButton: {
     height: 56,
     borderRadius: 14,
-    backgroundColor: "rgba(0, 82, 223, 1)",
+    backgroundColor: "rgba(20, 184, 166, 1)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -647,8 +647,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   datePickerFilled: {
-    borderColor: "#BFDBFE",
-    backgroundColor: "#EFF6FF",
+    borderColor: "rgba(20, 184, 166, 0.28)",
+    backgroundColor: "#D1FAF5",
   },
   datePickerText: {
     flex: 1,
@@ -692,7 +692,7 @@ const styles = StyleSheet.create({
   dateModalDone: {
     fontFamily: Fonts.bold,
     fontSize: 15,
-    color: "#0052DF",
+    color: "#0A2A43",
   },
   businessPill: {
     marginTop: 8,
@@ -702,8 +702,8 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: "#BFDBFE",
-    backgroundColor: "#EFF6FF",
+    borderColor: "rgba(20, 184, 166, 0.28)",
+    backgroundColor: "#D1FAF5",
     paddingHorizontal: 14,
   },
   businessPillEmpty: {
@@ -714,7 +714,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: Fonts.medium,
     fontSize: MarketplaceType.caption,
-    color: "#1D4ED8",
+    color: "#0A2A43",
   },
   pendingBadge: {
     borderRadius: 999,

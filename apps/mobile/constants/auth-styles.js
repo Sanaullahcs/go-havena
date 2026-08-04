@@ -1,11 +1,12 @@
 import { StyleSheet } from "react-native";
 import { Fonts } from "./font";
-import { Colors, Gradients, Layout, Shadows } from "./tokens";
+import { Colors, Layout, Shadows } from "./tokens";
 
 export const authStyles = StyleSheet.create({
   gradient: {
     flex: 1,
     paddingHorizontal: Layout.screenPadding,
+    backgroundColor: "#F4F8FD",
   },
   scrollGrow: {
     flexGrow: 1,
@@ -232,4 +233,4 @@ export const authStyles = StyleSheet.create({
   },
 });
 
-export { Gradients, Shadows };
+export { Shadows };

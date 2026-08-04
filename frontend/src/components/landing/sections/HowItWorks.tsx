@@ -50,7 +50,7 @@ export function HowItWorks() {
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-[#0052df]/6 blur-3xl"
+        className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-[#14B8A6]/6 blur-3xl"
       />
 
       <Container size="xl">
@@ -106,10 +106,10 @@ export function HowItWorks() {
           <p className="mb-4 text-center text-[12px] font-bold uppercase tracking-[0.14em] text-brand-deep">
             Who runs what
           </p>
-          <article className="group relative overflow-hidden rounded-[24px] border border-[#0052df]/15 bg-gradient-to-br from-white to-blue-50/80 p-6 shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-elevated sm:p-7">
+          <article className="group relative overflow-hidden rounded-[24px] border border-[#14B8A6]/15 bg-gradient-to-br from-white to-blue-50/80 p-6 shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-elevated sm:p-7">
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-[#0052df]/10 blur-2xl"
+              className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-[#14B8A6]/10 blur-2xl"
             />
             <div className="relative flex items-start gap-4">
               <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-brand-deep text-white shadow-fab">

@@ -2,7 +2,12 @@ import { Pressable, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { sw, sf } from "../../utils/responsive";
 
-export default function BurgerButton({ onPress, compact = false, plain = false }) {
+export default function BurgerButton({
+  onPress,
+  compact = false,
+  plain = false,
+  iconColor = "#000000",
+}) {
   return (
     <Pressable
       onPress={onPress}
@@ -14,7 +19,7 @@ export default function BurgerButton({ onPress, compact = false, plain = false }
         pressed && styles.pressed,
       ]}
     >
-      <Feather name="menu" size={compact ? sf(18) : sf(20)} color="#000000" />
+      <Feather name="menu" size={compact ? sf(18) : sf(20)} color={iconColor} />
     </Pressable>
   );
 }

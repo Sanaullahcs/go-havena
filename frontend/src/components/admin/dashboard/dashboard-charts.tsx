@@ -96,7 +96,7 @@ export function DashboardActivityChart({ data }: { data?: { date: string; count:
               </linearGradient>
               <linearGradient id="dashActivityStroke" x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stopColor={CHART_PRIMARY_DEEP} />
-                <stop offset="100%" stopColor="#0179FF" />
+                <stop offset="100%" stopColor="#0D9488" />
               </linearGradient>
             </defs>
             <CartesianGrid vertical={false} stroke="rgba(148, 163, 184, 0.18)" strokeDasharray="4 6" />
@@ -200,7 +200,7 @@ export function DashboardMembersBarChart({
               {chartData.map((_, i) => (
                 <linearGradient key={i} id={`dashBar${i}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={i === chartData.length - 1 ? CHART_PRIMARY : "#93C5FD"} />
-                  <stop offset="100%" stopColor={i === chartData.length - 1 ? CHART_PRIMARY_DEEP : "#BFDBFE"} />
+                  <stop offset="100%" stopColor={i === chartData.length - 1 ? CHART_PRIMARY_DEEP : "rgba(20, 184, 166, 0.28)"} />
                 </linearGradient>
               ))}
             </defs>
@@ -414,7 +414,7 @@ export function DashboardMembersPieChart({
         className="mt-auto rounded-lg border px-3 py-2.5"
         style={{
           borderColor: needsAttention > 0 ? "rgba(251, 191, 36, 0.35)" : "rgba(16, 185, 129, 0.25)",
-          background: needsAttention > 0 ? "linear-gradient(135deg, #FFFBEB 0%, #FFFFFF 100%)" : "linear-gradient(135deg, #ECFDF5 0%, #FFFFFF 100%)",
+          background: needsAttention > 0 ? "#FFFBEB" : "#ECFDF5",
         }}
       >
         <div className="mb-1.5 flex items-center justify-between gap-2">
@@ -503,7 +503,7 @@ export function DashboardModerationChart({
   );
 }
 
-const COMMUNITY_BAR_COLORS = [CHART_PRIMARY_DEEP, CHART_PRIMARY, "#0179FF", "#0891B2", NL.success, NL.warning];
+const COMMUNITY_BAR_COLORS = [CHART_PRIMARY_DEEP, CHART_PRIMARY, "#0D9488", "#0891B2", NL.success, NL.warning];
 
 export function DashboardTopCommunitiesChart({
   data,
@@ -528,7 +528,7 @@ export function DashboardTopCommunitiesChart({
       {leader ? (
         <div
           className="mb-3 flex shrink-0 items-center justify-between gap-3 rounded-xl px-3 py-2.5"
-          style={{ background: "linear-gradient(135deg, #ECFEFF 0%, #F0F9FF 100%)" }}
+          style={{ background: "#F4F8FD" }}
         >
           <p className="text-[12px] text-slate-600">
             Leading{" "}
@@ -682,7 +682,7 @@ function MetricPill({
     <div
       className={`rounded-xl border ${compact ? "px-2.5 py-1.5" : "px-3 py-2"}`}
       style={{
-        borderColor: accent ? "rgba(0, 82, 223, 0.2)" : NL.borderCard,
+        borderColor: accent ? "rgba(20, 184, 166, 0.2)" : NL.borderCard,
         background: accent ? NL.chipBg : NL.surfaceMuted,
       }}
     >

@@ -240,14 +240,14 @@ export default function DealsOffer() {
         <View style={styles.listWrap}>
           {loading ? (
             <View style={styles.emptyState}>
-              <ActivityIndicator color="#0B66E8" />
+              <ActivityIndicator color="#14B8A6" />
             </View>
           ) : error ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyTitle}>Couldn't load deals</Text>
               <Text style={styles.emptySubTitle}>{error}</Text>
               <TouchableOpacity onPress={load} style={{ marginTop: 10 }}>
-                <Text style={[styles.emptySubTitle, { color: "#0B66E8" }]}>
+                <Text style={[styles.emptySubTitle, { color: "#14B8A6" }]}>
                   Tap to retry
                 </Text>
               </TouchableOpacity>
@@ -310,7 +310,7 @@ export default function DealsOffer() {
                   style={[
                     styles.offerTag,
                     {
-                      backgroundColor: deal.isTrending ? "#FE9A00" : "#0052DF",
+                      backgroundColor: deal.isTrending ? "#FE9A00" : "#0A2A43",
                     },
                   ]}
                 >
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
   },
   createDealBtn: {
-    backgroundColor: "rgba(0, 82, 223, 1)",
+    backgroundColor: "rgba(20, 184, 166, 1)",
     paddingVertical: 9,
     paddingHorizontal: 16,
     borderRadius: 14,

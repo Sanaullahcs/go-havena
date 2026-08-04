@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { Ionicons } from "@expo/vector-icons";
 import ScreenHeader from "../../../components/layout/screen-header";
 import { Fonts } from "../../../constants/font";
@@ -168,10 +168,7 @@ export default function ReviewsScreen() {
       />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <LinearGradient
-          colors={["#EFF6FF", "#DBEAFE"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+        <View
           style={styles.heroCard}
         >
           <View style={styles.heroTop}>
@@ -184,7 +181,7 @@ export default function ReviewsScreen() {
               <Text style={styles.heroSub}>Based on {stats.total} reviews</Text>
             </View>
             <View style={styles.heroIconWrap}>
-              <Ionicons name="chatbubbles-outline" size={28} color="#2563EB" />
+              <Ionicons name="chatbubbles-outline" size={28} color="#14B8A6" />
             </View>
           </View>
 
@@ -204,7 +201,7 @@ export default function ReviewsScreen() {
               <Text style={styles.statLabel}>Approved</Text>
             </View>
           </View>
-        </LinearGradient>
+        </View>
 
         <ScrollView
           horizontal
@@ -303,7 +300,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#F8FAFC" },
   scroll: { paddingHorizontal: 20, paddingBottom: 32 },
   writeBtn: {
-    backgroundColor: "#007BFF",
+    backgroundColor: "#14B8A6",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -319,7 +316,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
   heroTop: {
     flexDirection: "row",
@@ -329,7 +326,7 @@ const styles = StyleSheet.create({
   heroLabel: {
     fontFamily: Fonts.medium,
     fontSize: MarketplaceType.caption,
-    color: "#1D4ED8",
+    color: "#0A2A43",
   },
   heroRatingRow: {
     flexDirection: "row",
@@ -391,7 +388,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   filterChipActive: {
-    backgroundColor: "#0B66E8",
+    backgroundColor: "#14B8A6",
   },
   filterText: {
     fontFamily: Fonts.medium,
@@ -440,14 +437,14 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#DBEAFE",
+    backgroundColor: "rgba(20, 184, 166, 0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
   avatarText: {
     fontFamily: Fonts.bold,
     fontSize: 13,
-    color: "#1D4ED8",
+    color: "#0A2A43",
   },
   reviewUser: {
     fontFamily: Fonts.bold,

@@ -112,7 +112,7 @@ export default function RuleDetail() {
       <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
         <InternalScreenHeader title="Rule Detail" />
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#0052DF" />
+          <ActivityIndicator size="large" color="#0A2A43" />
         </View>
       </SafeAreaView>
     );
@@ -142,7 +142,7 @@ export default function RuleDetail() {
           isAdmin ? (
             <View style={styles.adminActions}>
               <Pressable onPress={handleEdit} style={styles.iconBtn}>
-                <Feather name="edit-2" size={sf(16)} color="#0052DF" />
+                <Feather name="edit-2" size={sf(16)} color="#0A2A43" />
               </Pressable>
               <Pressable onPress={handleDelete} style={[styles.iconBtn, styles.iconBtnRed]}>
                 <Feather name="trash-2" size={sf(16)} color="#E7000B" />
@@ -236,14 +236,14 @@ const styles = StyleSheet.create({
   centered:      { flex: 1, alignItems: "center", justifyContent: "center", gap: sw(12) },
   errorText:     { fontFamily: Fonts.regular, fontSize: sf(14), color: "#E7000B", textAlign: "center" },
   retryBtn:      { paddingVertical: sw(8), paddingHorizontal: sw(16) },
-  retryText:     { fontFamily: Fonts.bold, fontSize: sf(14), color: "#0052DF", fontWeight: "700" },
+  retryText:     { fontFamily: Fonts.bold, fontSize: sf(14), color: "#0A2A43", fontWeight: "700" },
 
   adminActions:  { flexDirection: "row", gap: sw(6) },
   iconBtn: {
     width: sw(34),
     height: sw(34),
     borderRadius: sw(8),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
   ruleCategory: {
     fontFamily: Fonts.medium,
     fontSize: sf(13),
-    color: "#0052DF",
+    color: "#0A2A43",
     marginTop: sw(4),
   },
   metaRow: { flexDirection: "row", alignItems: "center", gap: sw(4), marginTop: sw(8) },
@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: sw(8),
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
     borderRadius: sw(14),
     paddingVertical: sw(15),
   },

@@ -26,7 +26,7 @@ export default function BiometricAuthButtons({
           style={({ pressed }) => [styles.btn, pressed && !disabled && styles.pressed]}
         >
           <View style={[styles.iconWrap, styles.fingerWrap]}>
-            <Ionicons name="finger-print" size={28} color="#0052DF" />
+            <Ionicons name="finger-print" size={28} color="#0A2A43" />
           </View>
         </Pressable>
       ) : null}
@@ -72,8 +72,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   fingerWrap: {
-    backgroundColor: "#EFF6FF",
-    borderColor: "#BFDBFE",
+    backgroundColor: "#D1FAF5",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
   faceWrap: {
     backgroundColor: "#ECFDF5",

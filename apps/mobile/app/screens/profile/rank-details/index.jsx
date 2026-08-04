@@ -124,7 +124,7 @@ export default function RankDetails() {
             activeOpacity={0.85}
           >
             <Text style={styles.leaderboardLinkText}>View full leaderboard</Text>
-            <Feather name="chevron-right" size={16} color="#0052DF" />
+            <Feather name="chevron-right" size={16} color="#0A2A43" />
           </TouchableOpacity>
         </>
       )}
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
   },
   entryRowMe: {
     borderColor: "#0EA5E999",
-    backgroundColor: "#DBEAFE",
+    backgroundColor: "rgba(20, 184, 166, 0.15)",
   },
   entryLeft: {
     flexDirection: "row",
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
   leaderboardLinkText: {
     fontFamily: Fonts.semiBold,
     fontSize: 12,
-    color: "#0052DF",
+    color: "#0A2A43",
     fontWeight: "600",
   },
 });

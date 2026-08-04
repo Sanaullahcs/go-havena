@@ -58,10 +58,10 @@ function MemberRow({ member, loading, onPress }) {
         </Text>
       </View>
       {loading ? (
-        <ActivityIndicator size="small" color="#007BFF" />
+        <ActivityIndicator size="small" color="#14B8A6" />
       ) : (
         <View style={styles.messageBtn}>
-          <Ionicons name="chatbubble-outline" size={16} color="#007BFF" />
+          <Ionicons name="chatbubble-outline" size={16} color="#14B8A6" />
         </View>
       )}
     </TouchableOpacity>
@@ -290,7 +290,7 @@ export default function NewChatSheet({ visible, onClose, onStarted }) {
 
           <View style={styles.header}>
             <View style={styles.headerIcon}>
-              <Ionicons name="people" size={20} color="#007BFF" />
+              <Ionicons name="people" size={20} color="#14B8A6" />
             </View>
             <View style={styles.headerCopy}>
               <Text style={styles.title}>New message</Text>
@@ -317,7 +317,7 @@ export default function NewChatSheet({ visible, onClose, onStarted }) {
             />
             {searching ? (
               <View style={styles.searchingOverlay} pointerEvents="none">
-                <ActivityIndicator size="small" color="#007BFF" />
+                <ActivityIndicator size="small" color="#14B8A6" />
               </View>
             ) : null}
           </View>
@@ -325,7 +325,7 @@ export default function NewChatSheet({ visible, onClose, onStarted }) {
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           {initialLoading && members.length === 0 ? (
-            <ActivityIndicator color="#007BFF" style={styles.loader} />
+            <ActivityIndicator color="#14B8A6" style={styles.loader} />
           ) : (
             <FlatList
               data={members}
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 10,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },

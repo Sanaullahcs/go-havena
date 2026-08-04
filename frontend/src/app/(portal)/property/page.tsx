@@ -23,7 +23,7 @@ import { AmenityFormModal } from "@/components/admin/amenity-form-modal";
 const STATUS_STYLE: Record<string, { bg: string; text: string; label: string; dot: string }> = {
   open:     { bg: "#ecfdf5", text: "#059669", label: "Open availability", dot: "#10b981" },
   closed:   { bg: "#fef2f2", text: "#dc2626", label: "Closed", dot: "#ef4444" },
-  bookable: { bg: "#eff6ff", text: "#2563eb", label: "Timed slots", dot: "#3b82f6" },
+  bookable: { bg: "#d1faf5", text: "#14B8A6", label: "Timed slots", dot: "#14B8A6" },
 };
 
 const RULES = [
@@ -35,7 +35,7 @@ const RULES = [
   { title: "Report Maintenance Issues", desc: "Submit any maintenance requests within 24 hours via the app or by visiting the management office.", icon: <IcoWrench /> },
 ];
 
-const AMENITY_COLOR = ["#2563eb", "#dc2626", "#d97706", "#059669", "#7c3aed", "#0891b2"];
+const AMENITY_COLOR = ["#14B8A6", "#dc2626", "#d97706", "#059669", "#7c3aed", "#0891b2"];
 
 function tomorrowIso() {
   const d = new Date();

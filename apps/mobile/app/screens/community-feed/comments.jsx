@@ -10,7 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
 import FeedPostCard from "../../../components/feed/feed-post-card";
@@ -27,6 +27,7 @@ import {
   fetchComments,
   fetchPost,
   formatCount,
+  isSensitivePost,
   likePost,
   toggleCommentLike,
 } from "../../../services/feed-api";
@@ -159,6 +160,7 @@ export default function FeedCommentsScreen() {
   }, [load]);
 
   const profileFields = getProfileFields(currentUser);
+  const isSensitive = isSensitivePost(post);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -166,7 +168,7 @@ export default function FeedCommentsScreen() {
   }, [load]);
 
   const handleLike = async () => {
-    if (!post || liking) return;
+    if (!post || liking || isSensitivePost(post)) return;
     setLiking(true);
     const prev = post;
     setPost((p) =>
@@ -286,10 +288,13 @@ export default function FeedCommentsScreen() {
   };
 
   const liveErrors = useMemo(() => validateFeedCommentForm(draft), [draft]);
-  const canComment = useMemo(() => !hasFieldErrors(liveErrors) && !sending, [liveErrors, sending]);
+  const canComment = useMemo(
+    () => !isSensitive && !hasFieldErrors(liveErrors) && !sending,
+    [isSensitive, liveErrors, sending],
+  );
 
   const submit = async () => {
-    if (!validateOnSubmit(liveErrors) || sending) return;
+    if (isSensitive || !validateOnSubmit(liveErrors) || sending) return;
     setSending(true);
 
     const text = draft.trim();
@@ -388,7 +393,15 @@ export default function FeedCommentsScreen() {
           ),
         }}
         footer={
-          <>
+          isSensitive ? (
+            <View style={styles.sensitiveComposer}>
+              <Feather name="alert-triangle" size={14} color="#B45309" />
+              <Text style={styles.sensitiveComposerText}>
+                Comments are disabled for sensitive content.
+              </Text>
+            </View>
+          ) : (
+            <>
             {replyTo ? (
               <View style={styles.replyBanner}>
                 <Feather name="corner-down-right" size={14} color={Colors.brandPrimaryDeep} />
@@ -429,19 +442,15 @@ export default function FeedCommentsScreen() {
                 disabled={!canComment}
                 activeOpacity={0.85}
               >
-                <LinearGradient
-                  colors={
-                    draft.trim() && !sending
-                      ? [Colors.brandPrimaryDeep, Colors.brandPrimary]
-                      : ["#CBD5E1", "#CBD5E1"]
-                  }
+                <View
                   style={styles.sendBtnInner}
                 >
                   <Feather name="send" size={16} color="#FFFFFF" />
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             </View>
-          </>
+            </>
+          )
         }
       >
           {post ? (
@@ -474,19 +483,22 @@ export default function FeedCommentsScreen() {
               <CommentListSkeleton count={4} />
             ) : comments.length === 0 ? (
               <View style={styles.emptyWrap}>
-                <LinearGradient
-                  colors={["#EFF6FF", "#F0F2F5"]}
+                <View
                   style={styles.emptyIcon}
                 >
                   <Feather name="message-circle" size={28} color={Colors.brandPrimaryDeep} />
-                </LinearGradient>
+                </View>
                 <Text style={styles.emptyTitle}>No comments yet</Text>
                 <Text style={styles.emptyText}>
-                  Start the conversation — your neighbors would love to hear from you.
+                  {isSensitive
+                    ? "Comments are disabled because this post was marked as sensitive content."
+                    : "Start the conversation — your neighbors would love to hear from you."}
                 </Text>
-                <TouchableOpacity style={styles.emptyBtn} onPress={focusComposer}>
-                  <Text style={styles.emptyBtnText}>Write a comment</Text>
-                </TouchableOpacity>
+                {!isSensitive ? (
+                  <TouchableOpacity style={styles.emptyBtn} onPress={focusComposer}>
+                    <Text style={styles.emptyBtnText}>Write a comment</Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
             ) : (
               displayRows.map((row) => {
@@ -638,12 +650,12 @@ const styles = StyleSheet.create({
     marginBottom: sw(16),
   },
   emptyBtn: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     paddingHorizontal: sw(18),
     paddingVertical: sw(10),
     borderRadius: sw(10),
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
   emptyBtnText: {
     fontFamily: Fonts.semiBold,
@@ -662,6 +674,21 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 8,
   },
+  sensitiveComposer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(8),
+    paddingHorizontal: sw(14),
+    paddingVertical: sw(14),
+    backgroundColor: "#FFFBEB",
+  },
+  sensitiveComposerText: {
+    flex: 1,
+    fontFamily: Fonts.medium,
+    fontSize: sf(12),
+    lineHeight: sf(17),
+    color: "#B45309",
+  },
   replyBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -669,9 +696,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(14),
     paddingTop: sw(10),
     paddingBottom: sw(4),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#BFDBFE",
+    borderBottomColor: "rgba(20, 184, 166, 0.28)",
   },
   replyBannerText: {
     flex: 1,

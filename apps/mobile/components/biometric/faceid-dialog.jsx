@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   retry: {
     fontFamily: Fonts.semiBold,
     fontSize: 14,
-    color: "#0052DF",
+    color: "#0A2A43",
     fontWeight: "600",
   },
   cancelWrap: { marginTop: 20 },

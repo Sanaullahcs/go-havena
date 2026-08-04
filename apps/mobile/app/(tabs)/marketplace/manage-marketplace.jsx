@@ -14,7 +14,7 @@ import { Image } from "expo-image";
 import { Fonts } from "../../../constants/font";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
+
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import { getCurrentRole } from "../../../constants/role-session";
 import {
@@ -183,7 +183,7 @@ export default function ManageMarketplace() {
       >
         {loading ? (
           <View style={styles.stateWrap}>
-            <ActivityIndicator size="large" color="#0052DF" />
+            <ActivityIndicator size="large" color="#0A2A43" />
             <Text style={styles.stateText}>Loading dashboard...</Text>
           </View>
         ) : null}
@@ -214,10 +214,7 @@ export default function ManageMarketplace() {
                       goTo(item.route, item.params);
                     }}
                   >
-                    <LinearGradient
-                      colors={item.gradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
+                    <View
                       style={styles.overViewGradient}
                     >
                       <View style={styles.overViewHeader}>
@@ -232,7 +229,7 @@ export default function ManageMarketplace() {
                       <Text style={[styles.overViewSubtitle, { color: item.fontColor }]}>
                         {item.subtitle}
                       </Text>
-                    </LinearGradient>
+                    </View>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -242,10 +239,7 @@ export default function ManageMarketplace() {
               <Text style={styles.listTitle}>Quick Actions</Text>
               <View style={styles.quickActions}>
                 <TouchableOpacity activeOpacity={0.9} onPress={goToAddOrEditBusiness}>
-                  <LinearGradient
-                    colors={["rgba(0, 82, 223, 1)", "rgba(1, 121, 255, 1)"]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
+                  <View
                     style={styles.businessBtn}
                   >
                     <View style={styles.quickRow}>
@@ -266,14 +260,11 @@ export default function ManageMarketplace() {
                         style={styles.arrowIcon}
                       />
                     </View>
-                  </LinearGradient>
+                  </View>
                 </TouchableOpacity>
 
                 <TouchableOpacity activeOpacity={0.9} onPress={handleCreateDeal}>
-                  <LinearGradient
-                    colors={["rgba(92, 225, 230, 1)", "rgba(192, 255, 114, 1)"]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
+                  <View
                     style={styles.businessBtn}
                   >
                     <View style={styles.quickRow}>
@@ -294,7 +285,7 @@ export default function ManageMarketplace() {
                         style={styles.arrowIcon}
                       />
                     </View>
-                  </LinearGradient>
+                  </View>
                 </TouchableOpacity>
               </View>
             </View>
@@ -509,7 +500,7 @@ const styles = StyleSheet.create({
   retryBtn: {
     marginTop: 14,
     alignSelf: "flex-start",
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,

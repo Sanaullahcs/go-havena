@@ -1,9 +1,8 @@
-import { View, Text, StyleSheet } from "react-native";
 import React, { useCallback, useEffect, useState } from "react";
+import { View, Text, StyleSheet } from "react-native";
 import { Fonts } from "../../../constants/font";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import InternalPageShell from "../../../components/layout/internal-page-shell";
 import { pageStyles } from "../../../constants/page-styles";
 import { fetchAchievements } from "../../../services/achievements-api";
@@ -15,14 +14,14 @@ function AchievementBadgeIcon({ icon, iconColor, iconBg, locked = false }) {
     <View
       style={[
         styles.badgeIconWrap,
-        { backgroundColor: iconBg ?? "#EFF6FF" },
+        { backgroundColor: iconBg ?? "#D1FAF5" },
         locked ? styles.badgeIconWrapLocked : null,
       ]}
     >
       <Ionicons
         name={icon ?? "trophy-outline"}
         size={sf(24)}
-        color={locked ? "rgba(74, 85, 101, 0.45)" : (iconColor ?? "#0052DF")}
+        color={locked ? "rgba(74, 85, 101, 0.45)" : (iconColor ?? "#0A2A43")}
       />
     </View>
   );
@@ -94,14 +93,7 @@ export default function Achievements() {
 
       {/* earned badges */}
 
-      <LinearGradient
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        colors={[
-          "rgba(239, 246, 255, 0.8)",
-          "rgba(255, 255, 255, 1)",
-          "rgba(236, 253, 245, 0.8)",
-        ]}
+      <View
         style={{
           paddingVertical: 24,
           borderBottomWidth: 1,
@@ -124,14 +116,11 @@ export default function Achievements() {
           }}
         >
           {earnedBadges.map((item) => (
-            <LinearGradient
+            <View
               key={item.id}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              colors={["rgba(212, 236, 245, 1)", "rgba(255, 255, 255, 1)"]}
               style={{
                 borderWidth: 1,
-                borderColor: "rgba(92, 225, 230, 1)",
+                borderColor: "rgba(20, 184, 166, 0.35)",
                 borderRadius: 16,
                 padding: 22,
                 flexDirection: "row",
@@ -139,6 +128,7 @@ export default function Achievements() {
                 gap: 16,
                 flex: 1,
                 overflow: "hidden",
+                backgroundColor: "#FFFFFF",
                 shadowColor: "#000",
                 shadowOffset: {
                   width: 0,
@@ -176,21 +166,14 @@ export default function Achievements() {
                   </View>
                 ) : null}
               </View>
-            </LinearGradient>
+            </View>
           ))}
         </View>
-      </LinearGradient>
+      </View>
 
       {/* locked badges */}
 
-      <LinearGradient
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        colors={[
-          "rgba(239, 246, 255, 0.8)",
-          "rgba(255, 255, 255, 1)",
-          "rgba(236, 253, 245, 0.8)",
-        ]}
+      <View
         style={{
           paddingVertical: 24,
         }}
@@ -211,20 +194,18 @@ export default function Achievements() {
           }}
         >
           {lockedBagdes.map((item) => (
-            <LinearGradient
+            <View
               key={item.id}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              colors={["#FFFFFFff", "#FFFFFF", "#FFFFFFff"]}
               style={{
                 borderWidth: 1,
                 borderColor: "#E5E7EB99",
                 borderRadius: 16,
                 padding: 22,
                 flexDirection: "column",
-                gap: "16",
+                gap: 16,
                 flex: 1,
                 overflow: "hidden",
+                backgroundColor: "#FFFFFF",
                 shadowColor: "#000",
                 shadowOffset: {
                   width: 0,
@@ -286,10 +267,10 @@ export default function Achievements() {
                   </View>
                 </View>
               </View>
-            </LinearGradient>
+            </View>
           ))}
         </View>
-      </LinearGradient>
+      </View>
     </InternalPageShell>
   );
 }

@@ -11,6 +11,10 @@ export interface AdminPost {
   content: string;
   category: string;
   status: PostStatus;
+  is_sensitive?: boolean;
+  reports_count?: number | null;
+  resident_reports_count?: number | null;
+  report_status?: "published" | "reported" | "sensitive";
   tag: string;
   image_url: string | null;
   likes_count: number;
@@ -27,6 +31,8 @@ export interface AdminPostStats {
   pending: number;
   approved: number;
   rejected: number;
+  sensitive?: number;
+  reported?: number;
 }
 
 export interface AdminPostsQuery {
@@ -35,6 +41,36 @@ export interface AdminPostsQuery {
   status?: PostStatus | "all";
   search?: string;
   community_id?: number | "all";
+}
+
+export interface AdminPostComment {
+  id: number;
+  body: string;
+  created_at: string;
+  author_name: string;
+  author_avatar: string | null;
+  parent_id?: number | null;
+  depth?: number;
+  parent_author_name?: string | null;
+  likes_count?: number;
+}
+
+export interface AdminPostReport {
+  id: number;
+  post_id: number;
+  reporter_id: number;
+  reporter_name: string;
+  reporter_role?: string | null;
+  source?: "resident" | "admin" | string;
+  type?: string | null;
+  reason: string;
+  created_at: string;
+}
+
+export function postReportStatusLabel(post: Pick<AdminPost, "report_status" | "is_sensitive" | "resident_reports_count" | "reports_count">): "Published" | "Reported" | "Sensitive" {
+  if (post.report_status === "sensitive" || post.is_sensitive) return "Sensitive";
+  if (post.report_status === "reported" || (post.resident_reports_count ?? 0) > 0) return "Reported";
+  return "Published";
 }
 
 export async function fetchAdminPosts(params: AdminPostsQuery = {}) {
@@ -51,12 +87,40 @@ export async function fetchAdminPosts(params: AdminPostsQuery = {}) {
   };
 }
 
+export async function fetchAdminPostDetail(id: number) {
+  const res = await api.get(`/v1/admin/posts/${id}`);
+  return res.data as {
+    data: AdminPost;
+    comments: AdminPostComment[];
+  };
+}
+
+export async function deleteAdminPost(id: number) {
+  return api.delete(`/v1/admin/posts/${id}`);
+}
+
 export async function approvePost(id: number) {
   return api.patch(`/v1/admin/posts/${id}/approve`);
 }
 
 export async function rejectPost(id: number, reason?: string) {
   return api.patch(`/v1/admin/posts/${id}/reject`, reason ? { reason } : undefined);
+}
+
+export async function reportAdminPost(id: number, reason: string, type = "other") {
+  const res = await api.post(`/v1/admin/posts/${id}/report`, { reason, type });
+  return res.data as {
+    message: string;
+    data: { post_id: number; is_sensitive: boolean; reports_count: number };
+  };
+}
+
+export async function fetchAdminPostReports(id: number) {
+  const res = await api.get(`/v1/admin/posts/${id}/reports`);
+  return res.data as {
+    data: AdminPostReport[];
+    meta: { total: number };
+  };
 }
 
 export function postStatusLabel(status: PostStatus): string {

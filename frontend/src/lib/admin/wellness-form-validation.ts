@@ -19,7 +19,7 @@ export function validateWellnessCategoryForm(form: {
     errors.title = "Category title is required.";
   }
   if (form.color?.trim() && !/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(form.color.trim())) {
-    errors.color = "Use a valid hex color (e.g. #0052DF).";
+    errors.color = "Use a valid hex color (e.g. #0A2A43).";
   }
   return errors;
 }

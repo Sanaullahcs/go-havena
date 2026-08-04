@@ -12,7 +12,7 @@ export const SEV_CONFIG: Record<
     color: NL.brandPrimaryDeep,
     bg: NL.chipBg,
     dot: NL.brandPrimary,
-    border: "rgba(190, 219, 255, 0.8)",
+    border: "rgba(20, 184, 166, 0.8)",
   },
   warning: {
     label: "Warning",

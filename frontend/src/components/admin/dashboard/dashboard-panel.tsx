@@ -40,7 +40,7 @@ export function DashboardPanel({
     >
       <div
         className={`flex shrink-0 flex-wrap items-start justify-between gap-2 border-b ${compact ? "px-3.5 py-2.5" : "px-5 py-4"}`}
-        style={{ borderColor: NL.borderCard, background: "linear-gradient(180deg, #FAFCFF 0%, #FFFFFF 100%)" }}
+        style={{ borderColor: NL.borderCard, background: "#FFFFFF" }}
       >
         <div className="flex min-w-0 items-start gap-2.5">
           {Icon ? toneIcon(Icon, tone, compact ? "sm" : "md") : null}

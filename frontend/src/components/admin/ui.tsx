@@ -439,11 +439,11 @@ export function DtPagination({
   return (
     <div
       className="relative overflow-hidden border-t border-slate-100/90 px-4 py-3.5 sm:px-5"
-      style={{ background: "linear-gradient(180deg, #FAFCFF 0%, #FFFFFF 100%)" }}
+      style={{ background: "#FFFFFF" }}
     >
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-px"
-        style={{ background: "linear-gradient(90deg, transparent, rgba(190, 219, 255, 0.18), transparent)" }}
+        style={{ background: "linear-gradient(90deg, transparent, rgba(20, 184, 166, 0.18), transparent)" }}
         aria-hidden
       />
 
@@ -452,7 +452,7 @@ export function DtPagination({
           <div className="flex flex-wrap items-center gap-2">
             <span
               className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-white shadow-sm"
-              style={{ background: NL.gradientCta }}
+              style={{ background: NL.fillCta }}
               aria-hidden
             >
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -492,8 +492,8 @@ export function DtPagination({
                 className="h-full rounded-full transition-all duration-300 ease-out"
                 style={{
                   width: `${progress}%`,
-                  background: NL.gradientCta,
-                  boxShadow: "0 0 10px rgba(190, 219, 255, 0.35)",
+                  background: NL.fillCta,
+                  boxShadow: "0 0 10px rgba(20, 184, 166, 0.35)",
                 }}
               />
             </div>
@@ -586,7 +586,7 @@ function PaginationIconBtn({
         "flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-all duration-200",
         disabled
           ? "cursor-not-allowed opacity-35"
-          : "hover:bg-[#EFF6FF] hover:text-[#0052DF] hover:shadow-sm active:scale-95",
+          : "hover:bg-[#D1FAF5] hover:text-[#0A2A43] hover:shadow-sm active:scale-95",
       ].join(" ")}
     >
       {children}
@@ -617,13 +617,13 @@ function PaginationPageBtn({
           ? "text-white shadow-md"
           : disabled
             ? "cursor-default text-slate-400"
-            : "text-slate-600 hover:bg-slate-50 hover:text-[#0052DF] active:scale-95",
+            : "text-slate-600 hover:bg-slate-50 hover:text-[#0A2A43] active:scale-95",
       ].join(" ")}
       style={
         active
           ? {
-              background: NL.gradientCta,
-              boxShadow: "0 4px 12px rgba(0, 82, 223, 0.28)",
+              background: NL.fillCta,
+              boxShadow: "0 4px 12px rgba(20, 184, 166, 0.28)",
             }
           : undefined
       }

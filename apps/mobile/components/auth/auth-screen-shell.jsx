@@ -1,11 +1,10 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ScreenStatusBar from "../layout/screen-status-bar";
-import { Gradients } from "../../constants/tokens";
+import { SolidFills } from "../../constants/tokens";
 
-/** Auth backdrop — plain white or soft gradient with optional orbs */
+/** Auth backdrop — plain white or soft wash with optional orbs */
 export default function AuthScreenShell({
   children,
   edges = ["top", "left", "right"],
@@ -24,12 +23,7 @@ export default function AuthScreenShell({
           {children}
         </SafeAreaView>
       ) : (
-        <LinearGradient
-          colors={Gradients.authScreen}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.gradient, style]}
-        >
+        <View style={[styles.wash, style]}>
           {showOrbs ? (
             <>
               <View style={styles.orbTop} pointerEvents="none" />
@@ -39,15 +33,16 @@ export default function AuthScreenShell({
           <SafeAreaView style={[styles.safe, contentStyle]} edges={edges}>
             {children}
           </SafeAreaView>
-        </LinearGradient>
+        </View>
       )}
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: {
+  wash: {
     flex: 1,
+    backgroundColor: SolidFills.authWash,
   },
   plain: {
     flex: 1,
@@ -65,7 +60,7 @@ const styles = StyleSheet.create({
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: "rgba(0, 82, 223, 0.08)",
+    backgroundColor: "rgba(20, 184, 166, 0.08)",
   },
   orbBottom: {
     position: "absolute",

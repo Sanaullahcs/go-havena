@@ -15,10 +15,10 @@ const FALLBACK_LOCKED = [
     subtitle: "Complete 30 days of wellness activities",
     status_label: "Active for 30 days",
     icon: "calendar-outline",
-    icon_color: "#0052DF",
-    icon_bg: "#EFF6FF",
+    icon_color: "#0A2A43",
+    icon_bg: "#D1FAF5",
     image_key: "earned_card",
-    progress_color: "#0179FF",
+    progress_color: "#14B8A6",
     progress: { current: 0, total: 30, percent: 0 },
   },
   {

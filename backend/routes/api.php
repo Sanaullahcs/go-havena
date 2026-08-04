@@ -155,6 +155,7 @@ Route::prefix('v1')->group(function () {
         Route::put('/feed/{id}',                                 [FeedController::class, 'update']);
         Route::delete('/feed/{id}',                              [FeedController::class, 'destroy']);
         Route::post('/feed/{id}/like',                         [FeedController::class, 'like']);
+        Route::post('/feed/{id}/report',                       [FeedController::class, 'reportPost']);
         Route::get('/feed/{id}/comments',                      [FeedController::class, 'comments']);
         Route::post('/feed/{id}/comments',                     [FeedController::class, 'addComment']);
         Route::post('/feed/{postId}/comments/{commentId}/like', [FeedController::class, 'likeComment']);
@@ -293,6 +294,10 @@ Route::prefix('v1')->group(function () {
                 Route::patch('/notices/{id}/reject',  [NoticeController::class, 'reject']);
 
                 Route::get('/posts',                    [FeedController::class, 'adminIndex']);
+                Route::get('/posts/{id}',                [FeedController::class, 'adminShow']);
+                Route::post('/posts/{id}/report',        [FeedController::class, 'adminReportPost']);
+                Route::get('/posts/{id}/reports',        [FeedController::class, 'adminPostReports']);
+                Route::delete('/posts/{id}',             [FeedController::class, 'adminDestroy']);
                 Route::patch('/posts/{id}/approve',     [FeedController::class, 'adminApprove']);
                 Route::patch('/posts/{id}/reject',      [FeedController::class, 'adminReject']);
 

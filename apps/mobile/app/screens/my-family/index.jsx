@@ -309,7 +309,7 @@ export default function MyFamilyScreen() {
         hitSlop={8}
         style={styles.requestsBtn}
       >
-        <Feather name="inbox" size={sf(18)} color="#0052DF" />
+        <Feather name="inbox" size={sf(18)} color="#0A2A43" />
         {(family?.pending_requests_count ?? 0) > 0 ? (
           <View style={styles.requestsBadge}>
             <Text style={styles.requestsBadgeText}>{family.pending_requests_count}</Text>
@@ -323,7 +323,7 @@ export default function MyFamilyScreen() {
       <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
         <InternalScreenHeader title="My Family" />
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#0052DF" />
+          <ActivityIndicator size="large" color="#0A2A43" />
         </View>
       </SafeAreaView>
     );
@@ -363,7 +363,7 @@ export default function MyFamilyScreen() {
                 setRefreshing(true);
                 load();
               }}
-              tintColor="#0052DF"
+              tintColor="#0A2A43"
             />
           }
           showsVerticalScrollIndicator={false}
@@ -395,7 +395,7 @@ export default function MyFamilyScreen() {
                 setRefreshing(true);
                 load();
               }}
-              tintColor="#0052DF"
+              tintColor="#0A2A43"
             />
           }
           showsVerticalScrollIndicator={false}
@@ -488,7 +488,7 @@ export default function MyFamilyScreen() {
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor="#0052DF" />
+          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor="#0A2A43" />
         }
         showsVerticalScrollIndicator={false}
       >
@@ -537,7 +537,7 @@ export default function MyFamilyScreen() {
               </Pressable>
             ) : null}
             <Pressable style={styles.treeLink} onPress={() => router.push("/screens/my-family/tree")}>
-              <Feather name="git-branch" size={sf(14)} color="#0052DF" />
+              <Feather name="git-branch" size={sf(14)} color="#0A2A43" />
               <Text style={styles.treeLinkText}>Family tree</Text>
             </Pressable>
           </View>
@@ -615,7 +615,7 @@ export default function MyFamilyScreen() {
 function StatCard({ icon, label, value }) {
   return (
     <View style={styles.statCard}>
-      <Feather name={icon} size={sf(16)} color="#0052DF" />
+      <Feather name={icon} size={sf(16)} color="#0A2A43" />
       <Text style={styles.statLabel}>{label}</Text>
       <Text style={styles.statValue}>{value}</Text>
     </View>
@@ -658,7 +658,7 @@ function CreateFamilyModal({
             <View style={styles.modalLabelRow}>
               <Text style={styles.modalFieldLabel}>Family Number</Text>
               <TouchableOpacity onPress={onRegenerate} disabled={loading || submitting} hitSlop={8}>
-                <Text style={styles.modalLinkText}>New code</Text>
+                <Text style={styles.modalLinkText}>Refresh code</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.modalInputWrap}>
@@ -673,7 +673,7 @@ function CreateFamilyModal({
                 editable={!submitting}
               />
               {loading || checking ? (
-                <ActivityIndicator size="small" color="#0052DF" style={styles.modalInputSpinner} />
+                <ActivityIndicator size="small" color="#0A2A43" style={styles.modalInputSpinner} />
               ) : null}
             </View>
             {error ? <Text style={styles.modalError}>{error}</Text> : null}
@@ -849,7 +849,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(10),
     paddingVertical: sw(6),
     borderRadius: sw(999),
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
   },
   addMemberText: {
     fontFamily: Fonts.semiBold,
@@ -868,12 +868,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(10),
     paddingVertical: sw(6),
     borderRadius: sw(999),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
   },
   treeLinkText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(12),
-    color: "#0052DF",
+    color: "#0A2A43",
   },
   memberList: { gap: sw(8) },
   noMembers: {
@@ -971,7 +971,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: sw(13),
     borderRadius: sw(12),
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
   },
   modalSubmitText: {
     fontFamily: Fonts.semiBold,
@@ -995,7 +995,7 @@ const styles = StyleSheet.create({
   modalLinkText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(12),
-    color: "#0052DF",
+    color: "#0A2A43",
   },
   modalInputWrap: {
     position: "relative",

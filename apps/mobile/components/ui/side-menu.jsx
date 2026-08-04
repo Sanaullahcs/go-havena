@@ -20,7 +20,7 @@ import {
 } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { useRouter } from "expo-router";
 import { sw } from "../../utils/responsive";
 import { confirmSignOut } from "../../services/sign-out";
@@ -61,7 +61,7 @@ const MenuItem = ({
         ? styles.iconBoxBlue
         : styles.iconBoxInactive;
   const glyphColor = isActive
-    ? "#0052DF"
+    ? "#0A2A43"
     : tinted
       ? iconColor
       : isBlueBox
@@ -98,7 +98,7 @@ function WellnessEmpty({ onExplore }) {
   return (
     <View style={styles.wellnessEmpty}>
       <View style={styles.wellnessEmptyIcon}>
-        <Feather name="heart" size={18} color="#0052DF" />
+        <Feather name="heart" size={18} color="#0A2A43" />
       </View>
       <Text style={styles.wellnessEmptyTitle}>Wellness coming soon</Text>
       <Text style={styles.wellnessEmptyHint}>
@@ -106,7 +106,7 @@ function WellnessEmpty({ onExplore }) {
       </Text>
       <Pressable style={styles.wellnessEmptyCta} onPress={onExplore}>
         <Text style={styles.wellnessEmptyCtaText}>Browse wellness</Text>
-        <Feather name="arrow-right" size={14} color="#0052DF" />
+        <Feather name="arrow-right" size={14} color="#0A2A43" />
       </Pressable>
     </View>
   );
@@ -374,10 +374,7 @@ function SideMenuPanel({ visible, onClose }) {
               ]}
               style={styles.menuBody}
             >
-            <LinearGradient
-              colors={["#EFF6FF", "#FFFFFF", "#F0FDF4"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+            <View
               style={styles.profileGradient}
             >
               <View style={styles.profileCard}>
@@ -423,7 +420,7 @@ function SideMenuPanel({ visible, onClose }) {
                   <Feather name="chevron-right" size={20} color="#94A3B8" />
                 </TouchableOpacity>
               </View>
-            </LinearGradient>
+            </View>
 
             <Text style={styles.sectionTitle}>MAIN MENU</Text>
             <View style={styles.menuGroup}>
@@ -604,7 +601,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 11,
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -675,7 +672,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontFamily: Fonts.semiBold,
     fontSize: 10,
-    color: "#0052DF",
+    color: "#0A2A43",
     fontWeight: "600",
     lineHeight: 14,
     textTransform: "uppercase",
@@ -686,7 +683,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semiBold,
     fontSize: 11,
     lineHeight: 14,
-    color: "#0052DF",
+    color: "#0A2A43",
     fontWeight: "600",
   },
 
@@ -721,9 +718,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#DBEAFE",
+    borderColor: "rgba(20, 184, 166, 0.15)",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 10,
@@ -750,12 +747,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
   },
   wellnessEmptyCtaText: {
     fontFamily: Fonts.semiBold,
     fontSize: 12,
-    color: "#0052DF",
+    color: "#0A2A43",
     fontWeight: "600",
   },
 
@@ -768,7 +765,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   menuItemActive: {
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
   },
   iconBox: {
     width: 32,
@@ -788,7 +785,7 @@ const styles = StyleSheet.create({
   iconBoxBlue: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#DBEAFE",
+    borderColor: "rgba(20, 184, 166, 0.15)",
   },
   iconBoxTint: {
     borderWidth: 0,

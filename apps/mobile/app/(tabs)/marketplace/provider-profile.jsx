@@ -10,7 +10,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CrispImage from "../../../components/ui/crisp-image";
-import { LinearGradient } from "expo-linear-gradient";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import { Fonts } from "../../../constants/font";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
@@ -26,7 +25,7 @@ function InfoTile({ icon, label, value, isLast = false }) {
   return (
     <View style={[styles.infoTile, isLast && styles.infoTileLast]}>
       <View style={styles.infoIconWrap}>
-        <Ionicons name={icon} size={18} color="#0052DF" />
+        <Ionicons name={icon} size={18} color="#0A2A43" />
       </View>
       <View style={styles.infoCopy}>
         <Text style={styles.infoLabel}>{label}</Text>
@@ -114,7 +113,7 @@ export default function ProviderProfileScreen() {
 
       {loading ? (
         <View style={styles.centeredState}>
-          <ActivityIndicator color="#0052DF" size="large" />
+          <ActivityIndicator color="#0A2A43" size="large" />
         </View>
       ) : error ? (
         <View style={styles.centeredState}>
@@ -134,9 +133,8 @@ export default function ProviderProfileScreen() {
               contentPosition="center"
               transition={200}
             />
-            <LinearGradient
-              colors={["rgba(248, 250, 252, 0)", "rgba(248, 250, 252, 0.55)"]}
-              style={styles.heroFade}
+            <View
+              style={[styles.heroFade, { backgroundColor: "rgba(248, 250, 252, 0.55)" }]}
               pointerEvents="none"
             />
           </View>
@@ -146,7 +144,7 @@ export default function ProviderProfileScreen() {
               <View style={styles.badgeRow}>
                 {category ? (
                   <View style={styles.categoryPill}>
-                    <Ionicons name="storefront-outline" size={13} color="#1D4ED8" />
+                    <Ionicons name="storefront-outline" size={13} color="#0A2A43" />
                     <Text style={styles.categoryPillText}>{category}</Text>
                   </View>
                 ) : null}
@@ -245,7 +243,7 @@ const styles = StyleSheet.create({
   },
   retryLink: { marginTop: 4 },
   retryLinkText: {
-    color: "#0052DF",
+    color: "#0A2A43",
     fontFamily: Fonts.medium,
     fontSize: MarketplaceType.body,
   },
@@ -288,9 +286,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -298,7 +296,7 @@ const styles = StyleSheet.create({
   categoryPillText: {
     fontFamily: Fonts.bold,
     fontSize: MarketplaceType.caption,
-    color: "#1D4ED8",
+    color: "#0A2A43",
     fontWeight: "700",
   },
   statusPill: {
@@ -368,7 +366,7 @@ const styles = StyleSheet.create({
   statValue: {
     fontFamily: Fonts.bold,
     fontSize: MarketplaceType.stat,
-    color: "#0052DF",
+    color: "#0A2A43",
     fontWeight: "700",
   },
   statLabel: {
@@ -416,7 +414,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -456,8 +454,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     borderRadius: 16,
     overflow: "hidden",
-    backgroundColor: "#0052DF",
-    shadowColor: "#0052DF",
+    backgroundColor: "#0A2A43",
+    shadowColor: "#0A2A43",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
     shadowRadius: 12,

@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { useRouter, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
@@ -319,27 +319,23 @@ function EmptyState({ query, filter, onNewChat }) {
 
   return (
     <View style={styles.empty}>
-      <LinearGradient
-        colors={["#E8F0FF", "#F0F5FF"]}
+      <View
         style={styles.emptyIconWrap}
       >
         <View style={styles.emptyIconInner}>
           <Feather name="message-circle" size={30} color={BRAND_BLUE} />
         </View>
-      </LinearGradient>
+      </View>
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptyText}>{message}</Text>
       {showNewChat ? (
         <TouchableOpacity style={styles.emptyBtn} activeOpacity={0.88} onPress={onNewChat}>
-          <LinearGradient
-            colors={[Colors.brandGradientStart, Colors.brandGradientEnd]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+          <View
             style={styles.emptyBtnGradient}
           >
             <Ionicons name="create-outline" size={18} color="#FFFFFF" />
             <Text style={styles.emptyBtnText}>Start a chat</Text>
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
       ) : null}
     </View>
@@ -565,7 +561,7 @@ const styles = StyleSheet.create({
     borderRadius: sw(12),
     backgroundColor: "#E8F0FF",
     borderWidth: 1,
-    borderColor: "rgba(0, 82, 223, 0.18)",
+    borderColor: "rgba(20, 184, 166, 0.18)",
     alignItems: "center",
     justifyContent: "center",
     ...cardShadow,
@@ -661,7 +657,7 @@ const styles = StyleSheet.create({
     padding: sw(14),
     backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: "rgba(0, 82, 223, 0.08)",
+    borderColor: "rgba(20, 184, 166, 0.08)",
     flexDirection: "row",
     alignItems: "flex-start",
     gap: sw(12),
@@ -669,7 +665,7 @@ const styles = StyleSheet.create({
   },
   neighborCard: {
     backgroundColor: "#FFFFFF",
-    borderColor: "rgba(0, 82, 223, 0.1)",
+    borderColor: "rgba(20, 184, 166, 0.1)",
   },
   neighborAvatarWrap: {
     width: sw(50),
@@ -704,7 +700,7 @@ const styles = StyleSheet.create({
     borderLeftColor: BRAND_BLUE,
     paddingLeft: sw(12),
     backgroundColor: "#EEF4FF",
-    borderColor: "rgba(0, 82, 223, 0.18)",
+    borderColor: "rgba(20, 184, 166, 0.18)",
   },
   cardUnreadListing: {
     borderLeftWidth: 3,
@@ -761,7 +757,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   typeBadgeNeighbor: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
   },
   typeBadgeListing: {
     backgroundColor: "#ECFDF5",
@@ -788,8 +784,8 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   roleBadgeAdmin: {
-    backgroundColor: "#EFF6FF",
-    borderColor: "#BFDBFE",
+    backgroundColor: "#D1FAF5",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
   roleBadgeResident: {
     backgroundColor: "#ECFDF5",
@@ -918,7 +914,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: sw(6),
     borderWidth: 1,
-    borderColor: "rgba(0, 82, 223, 0.12)",
+    borderColor: "rgba(20, 184, 166, 0.12)",
   },
   emptyIconInner: {
     width: sw(52),

@@ -61,7 +61,7 @@ function NavSection({
             ].join(" ")}
             style={
               active
-                ? { background: "linear-gradient(135deg, #059669 0%, #047857 100%)" }
+                ? { background: "#14B8A6" }
                 : undefined
             }
           >

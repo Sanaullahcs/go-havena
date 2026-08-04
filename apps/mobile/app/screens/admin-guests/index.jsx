@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+
 import ScreenHeader from "../../../components/layout/screen-header";
 import { AdminTheme, adminSharedStyles } from "../../../constants/admin-theme";
 import { Fonts } from "../../../constants/font";
@@ -43,10 +43,10 @@ const STATUS_META = {
   },
   pending_verification: {
     label: "Pending verification",
-    bg: "#EFF6FF",
-    text: "#1D4ED8",
-    border: "#BFDBFE",
-    accent: "#2563EB",
+    bg: "#D1FAF5",
+    text: "#0A2A43",
+    border: "rgba(20, 184, 166, 0.28)",
+    accent: "#14B8A6",
     icon: "smartphone",
   },
   pending_approval: {
@@ -376,7 +376,7 @@ export default function AdminGuestsScreen() {
         contentContainerStyle={adminSharedStyles.listContent}
         ListHeaderComponent={
           <View style={styles.headerBlock}>
-            <LinearGradient colors={AdminTheme.gradientSoft} style={styles.hero}>
+            <View style={styles.hero}>
               <View style={styles.heroIcon}>
                 <Feather name="users" size={sf(18)} color={AdminTheme.accent} />
               </View>
@@ -386,7 +386,7 @@ export default function AdminGuestsScreen() {
                   {stats.active ?? 0} active · {pendingTotal} pending review
                 </Text>
               </View>
-            </LinearGradient>
+            </View>
 
             <View style={styles.statsRow}>
               <StatChip label="Total" value={stats.total ?? guests.length} />
@@ -595,9 +595,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(8),
     paddingVertical: sw(4),
     borderRadius: 999,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
   inviteTypePillAdmin: {
     backgroundColor: "#F5F3FF",
@@ -606,7 +606,7 @@ const styles = StyleSheet.create({
   inviteTypePillText: {
     fontFamily: Fonts.semibold,
     fontSize: sf(10),
-    color: "#2563EB",
+    color: "#14B8A6",
   },
   inviteTypePillTextAdmin: {
     color: "#7C3AED",

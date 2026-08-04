@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   typeChipActive: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderColor: Colors.brandPrimaryDeep,
   },
   typeChipText: {

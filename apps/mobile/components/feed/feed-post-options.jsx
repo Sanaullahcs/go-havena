@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import AdminRowActionsMenu from "../admin/admin-row-actions-menu";
 import FeedPostReportSheet from "./feed-post-report-sheet";
-import { fileReport } from "../../services/reports-api";
+import { reportFeedPost } from "../../services/feed-api";
 import { useApiAction } from "../../hooks/use-api-action";
 
 /**
@@ -22,10 +22,15 @@ export default function FeedPostOptions({ post }) {
 
   const handleReportSubmit = useCallback(
     async (payload) => {
+      if (!post?.id) return;
       setReporting(true);
       try {
         await runAction({
-          action: () => fileReport(payload),
+          action: () =>
+            reportFeedPost(post.id, {
+              type: payload.type,
+              description: payload.description,
+            }),
           successTitle: "Report submitted",
           successMessage: "Community admins will review this post.",
           silentSuccess: false,
@@ -35,7 +40,7 @@ export default function FeedPostOptions({ post }) {
         setReporting(false);
       }
     },
-    [runAction],
+    [post?.id, runAction],
   );
 
   const actions = useMemo(

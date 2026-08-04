@@ -269,7 +269,7 @@ export default function RequestForCommunityScreen() {
 
             <View style={styles.selectIconWrap}>
 
-              <Ionicons name="map-outline" size={18} color="#0B66E8" />
+              <Ionicons name="map-outline" size={18} color="#14B8A6" />
 
             </View>
 
@@ -596,7 +596,7 @@ const styles = StyleSheet.create({
 
     borderRadius: 14,
 
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
 
     alignItems: "center",
 
@@ -704,7 +704,7 @@ const styles = StyleSheet.create({
 
     borderRadius: 10,
 
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
 
     alignItems: "center",
 
@@ -836,11 +836,11 @@ const styles = StyleSheet.create({
 
     borderWidth: 1,
 
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
 
     borderRadius: 14,
 
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
 
     paddingHorizontal: 16,
 
@@ -878,7 +878,7 @@ const styles = StyleSheet.create({
 
     borderRadius: 999,
 
-    backgroundColor: "#0B66E8",
+    backgroundColor: "#14B8A6",
 
     alignItems: "center",
 
@@ -920,7 +920,7 @@ const styles = StyleSheet.create({
 
     borderRadius: 14,
 
-    backgroundColor: "#0B66E8",
+    backgroundColor: "#14B8A6",
 
     alignItems: "center",
 

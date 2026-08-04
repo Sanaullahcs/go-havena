@@ -16,7 +16,7 @@ export default function ThemedIconBox({
   name,
   size = "md",
   color = Colors.brandPrimaryDeep,
-  backgroundColor = "#EFF6FF",
+  backgroundColor = "#D1FAF5",
   style,
 }) {
   const dim = SIZES[size] ?? SIZES.md;

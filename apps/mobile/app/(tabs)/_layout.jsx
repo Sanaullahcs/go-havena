@@ -162,7 +162,7 @@ export default function TabLayout() {
       <>
         <ScreenStatusBar style="dark" />
         <View style={styles.guard}>
-          <ActivityIndicator size="large" color="#0B66E8" />
+          <ActivityIndicator size="large" color="#14B8A6" />
         </View>
       </>
     );

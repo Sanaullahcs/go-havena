@@ -17,7 +17,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import { propertyStyles } from "../../../constants/property-styles";
 import { Fonts } from "../../../constants/font";
@@ -101,14 +101,11 @@ function AccessWindowCard({ startsAt, endsAt }) {
 
   return (
     <View style={styles.accessCard}>
-      <LinearGradient
-        colors={["#EFF6FF", "#F8FAFC"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      <View
         style={styles.accessCardHeader}
       >
         <View style={styles.accessCardHeaderIcon}>
-          <Feather name="calendar" size={sf(14)} color="#0052DF" />
+          <Feather name="calendar" size={sf(14)} color="#0A2A43" />
         </View>
         <View style={styles.accessCardHeaderCopy}>
           <Text style={styles.accessCardTitle}>Access window</Text>
@@ -119,7 +116,7 @@ function AccessWindowCard({ startsAt, endsAt }) {
             <Text style={styles.durationBadgeText}>{duration}</Text>
           </View>
         ) : null}
-      </LinearGradient>
+      </View>
 
       <View style={styles.accessTimeline}>
         <View style={styles.accessPoint}>
@@ -135,7 +132,7 @@ function AccessWindowCard({ startsAt, endsAt }) {
         <View style={styles.accessBridge}>
           <View style={styles.accessBridgeLine} />
           <View style={styles.accessBridgeIcon}>
-            <Feather name="arrow-right" size={sf(12)} color="#0052DF" />
+            <Feather name="arrow-right" size={sf(12)} color="#0A2A43" />
           </View>
           <View style={styles.accessBridgeLine} />
         </View>
@@ -209,7 +206,7 @@ function PendingGuestCard({ item, busy, onApprove, onReject }) {
       </View>
 
       <View style={styles.noteCard}>
-        <Feather name="info" size={sf(14)} color="#2563EB" />
+        <Feather name="info" size={sf(14)} color="#14B8A6" />
         <Text style={styles.noteText}>
           This guest completed verification. Approve to grant community access, or reject to decline
           their request.
@@ -344,7 +341,7 @@ export default function GuestApprovalsScreen() {
       <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
         <InternalScreenHeader title="Guest approvals" />
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#0052DF" />
+          <ActivityIndicator size="large" color="#0A2A43" />
         </View>
       </SafeAreaView>
     );
@@ -366,7 +363,7 @@ export default function GuestApprovalsScreen() {
               setRefreshing(true);
               load();
             }}
-            tintColor="#0052DF"
+            tintColor="#0A2A43"
           />
         }
         ListEmptyComponent={
@@ -479,16 +476,16 @@ const styles = StyleSheet.create({
     width: sw(48),
     height: sw(48),
     borderRadius: sw(14),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
     alignItems: "center",
     justifyContent: "center",
   },
   avatarText: {
     fontFamily: Fonts.bold,
     fontSize: sf(16),
-    color: "#0052DF",
+    color: "#0A2A43",
   },
   cardHeaderCopy: { flex: 1, minWidth: 0 },
   name: {
@@ -558,7 +555,7 @@ const styles = StyleSheet.create({
   detailMono: {
     fontFamily: Fonts.bold,
     letterSpacing: 1,
-    color: "#0052DF",
+    color: "#0A2A43",
   },
   detailMuted: {
     color: "#94A3B8",
@@ -568,7 +565,7 @@ const styles = StyleSheet.create({
     marginBottom: sw(14),
     borderRadius: sw(14),
     borderWidth: 1,
-    borderColor: "#DBEAFE",
+    borderColor: "rgba(20, 184, 166, 0.15)",
     overflow: "hidden",
     backgroundColor: "#FFFFFF",
   },
@@ -607,12 +604,12 @@ const styles = StyleSheet.create({
     borderRadius: sw(999),
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
   durationBadgeText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(10),
-    color: "#0052DF",
+    color: "#0A2A43",
   },
   accessMissing: {
     padding: sw(14),
@@ -679,7 +676,7 @@ const styles = StyleSheet.create({
     width: sw(24),
     height: sw(24),
     borderRadius: sw(12),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
     marginHorizontal: sw(2),
@@ -690,9 +687,9 @@ const styles = StyleSheet.create({
     gap: sw(10),
     padding: sw(12),
     borderRadius: sw(12),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
     marginBottom: sw(14),
   },
   noteText: {
@@ -775,7 +772,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(18),
     paddingVertical: sw(12),
     borderRadius: 999,
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
   },
   emptyCtaText: {
     fontFamily: Fonts.semiBold,

@@ -10,12 +10,11 @@ import {
 import React, { useCallback, useMemo, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import UserAvatar from "../../../components/ui/user-avatar";
 import { Fonts } from "../../../constants/font";
-import { Colors, Gradients, Layout, Shadows } from "../../../constants/tokens";
+import { Colors, Layout, Shadows } from "../../../constants/tokens";
 import { fetchNeighbor } from "../../../services/profile-api";
 import { sw, sf } from "../../../utils/responsive";
 
@@ -108,12 +107,7 @@ export default function ResidentProfileScreen() {
           bounces={false}
         >
           <View style={styles.heroCard}>
-            <LinearGradient
-              colors={Gradients.authScreen}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.heroWash}
-            />
+            <View style={[styles.heroWash, { backgroundColor: "#F4F8FD" }]} />
 
             <View style={styles.identity}>
               <View style={[styles.avatarRing, { borderRadius: (avatarSize + sw(8)) / 2 }]}>
@@ -260,7 +254,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(14),
     paddingVertical: sw(8),
     borderRadius: Layout.buttonRadius,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
   },
   retryText: {
     fontFamily: Fonts.semiBold,
@@ -319,7 +313,7 @@ const styles = StyleSheet.create({
     paddingVertical: sw(5),
   },
   chipBrand: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
   },
   chipNeutral: {
     backgroundColor: "#F1F5F9",
@@ -376,7 +370,7 @@ const styles = StyleSheet.create({
     width: sw(38),
     height: sw(38),
     borderRadius: sw(11),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -441,7 +435,7 @@ const styles = StyleSheet.create({
     width: sw(28),
     height: sw(28),
     borderRadius: sw(8),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: sw(8),

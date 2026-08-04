@@ -11,7 +11,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Fonts } from "../../../constants/font";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { useFocusEffect, useRouter } from "expo-router";
 import ScreenHeader from "../../../components/layout/screen-header";
 import {
@@ -32,24 +32,7 @@ const PAGE_SIZE = 15;
 function NotificationRow({ item, onPress }) {
   return (
     <TouchableOpacity activeOpacity={0.9} onPress={() => onPress(item)}>
-      <LinearGradient
-        style={styles.notificationItem}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        colors={
-          !item.read
-            ? [
-                "rgba(239, 246, 255, 0.8)",
-                "rgba(255, 255, 255, 0.9)",
-                "rgba(236, 254, 255, 0.8)",
-              ]
-            : [
-                "rgba(255, 255, 255, 0.9)",
-                "rgba(255, 255, 255, 1)",
-                "rgba(255, 255, 255, 0.9)",
-              ]
-        }
-      >
+      <View style={styles.notificationItem}>
         <View style={styles.itemRow}>
           <View>
             <Image source={item.icon} style={styles.itemIcon} />
@@ -68,7 +51,7 @@ function NotificationRow({ item, onPress }) {
             />
           </View>
         ) : null}
-      </LinearGradient>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -280,10 +263,7 @@ export default function Notifications() {
         }
       />
 
-      <LinearGradient
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        colors={["rgba(239, 246, 255, 0.8)", "rgba(255, 255, 255, 1)", "rgba(236, 253, 245, 0.8)"]}
+      <View
         style={styles.gradient}
       >
         <FlatList
@@ -301,7 +281,7 @@ export default function Notifications() {
           ListEmptyComponent={renderEmpty}
           ListFooterComponent={renderFooter}
         />
-      </LinearGradient>
+      </View>
     </SafeAreaView>
   );
 }
@@ -360,7 +340,7 @@ const styles = StyleSheet.create({
   },
   notificationItem: {
     borderWidth: 1.5,
-    borderColor: "rgba(190, 219, 255, 0.6)",
+    borderColor: "rgba(20, 184, 166, 0.6)",
     borderRadius: sw(14),
     padding: sw(14),
     flexDirection: "row",

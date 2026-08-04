@@ -26,7 +26,9 @@ import {
   fetchMyPosts,
   likePost,
   parsePostDisplayContent,
+  isSensitivePost,
 } from "../../../../services/feed-api";
+import FeedSensitiveContent from "../../../../components/feed/feed-sensitive-content";
 import { fetchMe } from "../../../../services/profile-api";
 import { getProfileFields, mediaImageSource } from "../../../../utils/profile-display";
 import { useApiAction } from "../../../../hooks/use-api-action";
@@ -38,6 +40,7 @@ const PER_PAGE = 10;
 function MyPostCard({ post, profileFields, onLike, onComment, onEdit, onDelete }) {
   const theme = getFeedTagTheme(post.tag);
   const display = parsePostDisplayContent(post);
+  const sensitive = isSensitivePost(post);
 
   return (
     <View style={styles.card}>
@@ -54,7 +57,15 @@ function MyPostCard({ post, profileFields, onLike, onComment, onEdit, onDelete }
             </Text>
             <View style={styles.metaRow}>
               <Text style={styles.timeText}>{post.user?.time ?? "Recently"}</Text>
-              {post.tag ? (
+              {sensitive ? (
+                <>
+                  <View style={styles.metaDot} />
+                  <View style={[styles.tagChip, { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" }]}>
+                    <Feather name="alert-triangle" size={10} color="#B45309" />
+                    <Text style={[styles.tagText, { color: "#B45309" }]}>Sensitive</Text>
+                  </View>
+                </>
+              ) : post.tag ? (
                 <>
                   <View style={styles.metaDot} />
                   <View style={[styles.tagChip, { backgroundColor: theme.bg, borderColor: theme.border }]}>
@@ -74,6 +85,7 @@ function MyPostCard({ post, profileFields, onLike, onComment, onEdit, onDelete }
                 icon: "create-outline",
                 tone: "primary",
                 onPress: () => onEdit(post),
+                hidden: sensitive,
               },
               {
                 id: "delete",
@@ -86,44 +98,50 @@ function MyPostCard({ post, profileFields, onLike, onComment, onEdit, onDelete }
           />
         </View>
 
-        {display.mainText ? (
-          <Text style={styles.bodyText}>{display.mainText}</Text>
-        ) : display.isPhotoOnly ? (
-          <View style={styles.photoOnlyRow}>
-            <Feather name="image" size={14} color={Colors.textMuted} />
-            <Text style={styles.photoOnlyText}>Photo post</Text>
-          </View>
-        ) : null}
-
-        {(display.feeling || display.location) ? (
-          <View style={styles.metaChipRow}>
-            {display.feeling ? (
-              <View style={styles.metaChip}>
-                <Text style={styles.metaChipText}>
-                  {display.feeling.emoji} {display.feeling.label}
-                </Text>
+        {sensitive ? (
+          <FeedSensitiveContent message={post.sensitive_message} />
+        ) : (
+          <>
+            {display.mainText ? (
+              <Text style={styles.bodyText}>{display.mainText}</Text>
+            ) : display.isPhotoOnly ? (
+              <View style={styles.photoOnlyRow}>
+                <Feather name="image" size={14} color={Colors.textMuted} />
+                <Text style={styles.photoOnlyText}>Photo post</Text>
               </View>
             ) : null}
-            {display.location ? (
-              <View style={styles.metaChip}>
-                <Feather name="map-pin" size={11} color="#047857" />
-                <Text style={styles.metaChipText} numberOfLines={1}>
-                  {display.location}
-                </Text>
+
+            {(display.feeling || display.location) ? (
+              <View style={styles.metaChipRow}>
+                {display.feeling ? (
+                  <View style={styles.metaChip}>
+                    <Text style={styles.metaChipText}>
+                      {display.feeling.emoji} {display.feeling.label}
+                    </Text>
+                  </View>
+                ) : null}
+                {display.location ? (
+                  <View style={styles.metaChip}>
+                    <Feather name="map-pin" size={11} color="#047857" />
+                    <Text style={styles.metaChipText} numberOfLines={1}>
+                      {display.location}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
             ) : null}
-          </View>
-        ) : null}
 
-        {display.hasImage ? (
-          <View style={styles.imageWrap}>
-            <CrispImage
-              source={mediaImageSource(post.image_url)}
-              style={styles.postImage}
-              contentFit="cover"
-            />
-          </View>
-        ) : null}
+            {display.hasImage ? (
+              <View style={styles.imageWrap}>
+                <CrispImage
+                  source={mediaImageSource(post.image_url)}
+                  style={styles.postImage}
+                  contentFit="cover"
+                />
+              </View>
+            ) : null}
+          </>
+        )}
       </View>
 
       <FeedCardFooter
@@ -420,7 +438,7 @@ const styles = StyleSheet.create({
     borderRadius: CARD_RADIUS,
     borderWidth: 1,
     borderColor: Colors.borderInput,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     marginBottom: sw(14),
     ...Platform.select({
       ios: {
@@ -630,7 +648,7 @@ const styles = StyleSheet.create({
     width: sw(56),
     height: sw(56),
     borderRadius: sw(28),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: sw(4),

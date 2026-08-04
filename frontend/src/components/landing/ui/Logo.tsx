@@ -37,9 +37,9 @@ function BrandMark({ size = 36 }: { size?: number }) {
         >
             <defs>
                 <linearGradient id="bm-grad" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="#0179FF" />
-                    <stop offset="50%" stopColor="#0052DF" />
-                    <stop offset="100%" stopColor="#113D6F" />
+                    <stop offset="0%" stopColor="#0D9488" />
+                    <stop offset="50%" stopColor="#0A2A43" />
+                    <stop offset="100%" stopColor="#0A2A43" />
                 </linearGradient>
             </defs>
             <rect width="48" height="48" rx="12" fill="url(#bm-grad)" />

@@ -80,7 +80,7 @@ export default function NoticeCoverThumbnail({
 
 const styles = StyleSheet.create({
   image: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     flexShrink: 0,
   },
   placeholder: {

@@ -269,7 +269,7 @@ class DashboardController extends Controller
                     'total_members'              => $totalMembers,
                     'pending_members'            => $pendingMembers,
                     'onboarding_members'         => $onboardingMembers,
-                    'pending_approval_total'     => $pendingMembers + $pendingCommunityRequests + $pendingPosts + $pendingListings + $pendingCommunityAdmins,
+                    'pending_approval_total'     => $pendingMembers + $pendingCommunityRequests + ($communityId ? $pendingPosts : 0) + $pendingListings + $pendingCommunityAdmins,
                     'banned_members'             => $bannedMembers,
                     'open_reports'               => $openReports,
                     'active_listings'            => $activeListings,
@@ -643,37 +643,40 @@ class DashboardController extends Controller
                 ->all();
         }
 
-        $posts = DB::table('posts')
-            ->join('users', 'users.id', '=', 'posts.user_id')
-            ->leftJoin('communities', 'communities.id', '=', 'posts.community_id')
-            ->leftJoin('profiles', 'profiles.user_id', '=', 'posts.user_id')
-            ->where('posts.status', 'pending')
-            ->whereNull('posts.deleted_at')
-            ->when($communityId, fn ($q) => $q->where('posts.community_id', $communityId))
-            ->select([
-                'posts.id',
-                'posts.community_id',
-                'posts.body',
-                'posts.category',
-                'posts.created_at',
-                DB::raw('COALESCE(profiles.display_name, users.name) as author_name'),
-                'communities.name as community_name',
-            ])
-            ->orderByDesc('posts.created_at')
-            ->limit(15)
-            ->get()
-            ->map(fn ($row) => [
-                'type'         => 'post',
-                'id'           => (int) $row->id,
-                'community_id' => (int) $row->community_id,
-                'title'        => $row->author_name,
-                'subtitle'     => $row->community_name ?? 'Community post',
-                'detail'       => \Illuminate\Support\Str::limit($row->body, 120),
-                'created_at'   => $row->created_at,
-                'action_label' => 'Review post',
-                'action_href'  => '/admin/feed?status=pending',
-            ])
-            ->all();
+        $posts = [];
+        if ($communityId) {
+            $posts = DB::table('posts')
+                ->join('users', 'users.id', '=', 'posts.user_id')
+                ->leftJoin('communities', 'communities.id', '=', 'posts.community_id')
+                ->leftJoin('profiles', 'profiles.user_id', '=', 'posts.user_id')
+                ->where('posts.status', 'pending')
+                ->whereNull('posts.deleted_at')
+                ->where('posts.community_id', $communityId)
+                ->select([
+                    'posts.id',
+                    'posts.community_id',
+                    'posts.body',
+                    'posts.category',
+                    'posts.created_at',
+                    DB::raw('COALESCE(profiles.display_name, users.name) as author_name'),
+                    'communities.name as community_name',
+                ])
+                ->orderByDesc('posts.created_at')
+                ->limit(15)
+                ->get()
+                ->map(fn ($row) => [
+                    'type'         => 'post',
+                    'id'           => (int) $row->id,
+                    'community_id' => (int) $row->community_id,
+                    'title'        => $row->author_name,
+                    'subtitle'     => $row->community_name ?? 'Community post',
+                    'detail'       => \Illuminate\Support\Str::limit($row->body, 120),
+                    'created_at'   => $row->created_at,
+                    'action_label' => 'Review post',
+                    'action_href'  => '/admin/feed?status=pending',
+                ])
+                ->all();
+        }
 
         $notices = DB::table('notices')
             ->join('users', 'users.id', '=', 'notices.author_id')

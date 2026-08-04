@@ -128,12 +128,12 @@ export default function MyBooking() {
       </ScrollView>
 
       {loading ? (
-        <ActivityIndicator color="#007BFF" style={{ marginTop: 40 }} />
+        <ActivityIndicator color="#14B8A6" style={{ marginTop: 40 }} />
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.content, pageStyles.scrollBottom]}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#007BFF" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#14B8A6" />}
         >
           {filtered.length === 0 ? (
             <View style={styles.empty}>
@@ -177,14 +177,14 @@ export default function MyBooking() {
                   <View style={styles.details}>
                     <View style={styles.detailRow}>
                       <View style={styles.detailIcon}>
-                        <Feather name="calendar" size={sf(14)} color="#0052DF" />
+                        <Feather name="calendar" size={sf(14)} color="#0A2A43" />
                       </View>
                       <Text style={styles.detailText}>{dateLabel || "Date TBD"}</Text>
                     </View>
                     {reservation.time_slot ? (
                       <View style={styles.detailRow}>
                         <View style={styles.detailIcon}>
-                          <Feather name="clock" size={sf(14)} color="#0052DF" />
+                          <Feather name="clock" size={sf(14)} color="#0A2A43" />
                         </View>
                         <Text style={styles.detailText}>{reservation.time_slot}</Text>
                       </View>
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(14),
     borderRadius: sw(10),
   },
-  tabActive: { backgroundColor: "#0052DF" },
+  tabActive: { backgroundColor: "#0A2A43" },
   tabText: {
     fontFamily: Fonts.medium,
     fontSize: PropertyType.bodyMd,
@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
     width: sw(32),
     height: sw(32),
     borderRadius: sw(10),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,

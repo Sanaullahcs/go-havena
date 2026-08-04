@@ -20,11 +20,11 @@ export function Footer() {
       <div aria-hidden="true" className="grid-mask-light pointer-events-none absolute inset-0 opacity-25" />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -right-20 top-0 h-56 w-56 rounded-full bg-[#0052df]/10 blur-3xl"
+        className="pointer-events-none absolute -right-20 top-0 h-56 w-56 rounded-full bg-[#14B8A6]/10 blur-3xl"
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -left-16 bottom-0 h-48 w-48 rounded-full bg-[#0179ff]/8 blur-3xl"
+        className="pointer-events-none absolute -left-16 bottom-0 h-48 w-48 rounded-full bg-[#14B8A6]/8 blur-3xl"
       />
 
       <Container size="xl" className="relative">

@@ -371,7 +371,7 @@ console.log("\nWellness form validation");
   assertHasError(badCategory, "title", "category requires title");
   assertHasError(badCategory, "color", "category rejects invalid color");
 
-  const okCategory = validateWellnessCategoryForm({ title: "Mindfulness", color: "#0052DF" });
+  const okCategory = validateWellnessCategoryForm({ title: "Mindfulness", color: "#0A2A43" });
   assertNoErrors(okCategory, "accepts valid category");
 
   const badCourse = validateWellnessCourseForm({ title: "", description: "", category_id: null });

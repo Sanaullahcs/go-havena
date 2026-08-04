@@ -57,8 +57,8 @@ export default function ProfileSetting() {
       title: "Edit Profile",
       subTitle: "Update your name, email, and bio",
       icon: "edit-3",
-      iconColor: "#0052DF",
-      iconBg: "#EFF6FF",
+      iconColor: "#0A2A43",
+      iconBg: "#D1FAF5",
       onPress: () =>
         router.push({
           pathname: "/screens/complete-profile",
@@ -89,7 +89,7 @@ export default function ProfileSetting() {
         : "Receive updates via email",
       icon: "mail",
       iconColor: "#0EA5E9",
-      iconBg: "#EFF6FF",
+      iconBg: "#D1FAF5",
       enabled: emailEnabled,
       busy: emailBusy,
       onToggle: handleEmailToggle,
@@ -97,7 +97,7 @@ export default function ProfileSetting() {
   ];
 
   const support = [
-    { id: 1, title: "Help Center", subTitle: "FAQs and support articles", icon: "help-circle", iconColor: "#0052DF", iconBg: "#EFF6FF", chevron: true, onPress: () => {} },
+    { id: 1, title: "Help Center", subTitle: "FAQs and support articles", icon: "help-circle", iconColor: "#0A2A43", iconBg: "#D1FAF5", chevron: true, onPress: () => {} },
     { id: 2, title: "About Havena", subTitle: "Version 1.0.0", icon: "info", iconColor: "#6B7280", iconBg: "#F3F4F6", chevron: true, onPress: () => {} },
     { id: 3, title: "Log Out", subTitle: "Sign out of your account", icon: "log-out", iconColor: "#DC2626", iconBg: "#FEF2F2", danger: true, onPress: handleLogout },
     { id: 4, title: "Delete Account", subTitle: "Permanently delete your account", icon: "trash-2", iconColor: "#DC2626", iconBg: "#FEF2F2", danger: true, onPress: () => dialog.showError("Delete Account", "Please contact support to delete your account.") },

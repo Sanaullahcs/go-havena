@@ -9,10 +9,10 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { Ionicons } from "@expo/vector-icons";
 import { Fonts } from "../../../constants/font";
-import { Colors, Gradients } from "../../../constants/tokens";
+import { Colors, SolidFills } from "../../../constants/tokens";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
 import { useRouter } from "expo-router";
 import { navigateAfterAuth } from "../../../constants/onboarding-routes";
@@ -130,12 +130,7 @@ export default function PendingCommunityAdminScreen() {
           />
         }
       >
-        <LinearGradient
-          colors={Gradients.authScreen}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.hero}
-        >
+        <View style={[styles.hero, { backgroundColor: SolidFills.authWash }]}>
           <View style={styles.iconWrap}>
             <Ionicons name="shield-checkmark" size={34} color={Colors.brandPrimaryDeep} />
           </View>
@@ -151,7 +146,7 @@ export default function PendingCommunityAdminScreen() {
               : " your community admin account and community request"}
             {" "}before you can access the dashboard.
           </Text>
-        </LinearGradient>
+        </View>
 
         {communityName ? (
           <View style={styles.card}>
@@ -201,7 +196,7 @@ export default function PendingCommunityAdminScreen() {
                         step.status === "upcoming"
                           ? "#98A2B3"
                           : step.status === "current"
-                            ? "#0B66E8"
+                            ? "#14B8A6"
                             : "#FFFFFF"
                       }
                     />
@@ -279,9 +274,9 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 22,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
@@ -293,21 +288,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
     marginBottom: 14,
   },
   statusDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#0B66E8",
+    backgroundColor: "#14B8A6",
   },
   statusBadgeText: {
     fontFamily: Fonts.semiBold,
     fontSize: 12,
-    color: "#0B66E8",
+    color: "#14B8A6",
   },
   title: {
     fontFamily: Fonts.bold,
@@ -343,7 +338,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -403,11 +398,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  dotDone: { backgroundColor: "#0B66E8" },
+  dotDone: { backgroundColor: "#14B8A6" },
   dotCurrent: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 2,
-    borderColor: "#0B66E8",
+    borderColor: "#14B8A6",
   },
   dotUpcoming: {
     backgroundColor: "#F3F4F6",
@@ -421,7 +416,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#E5E7EB",
     marginVertical: 4,
   },
-  lineDone: { backgroundColor: "#BFDBFE" },
+  lineDone: { backgroundColor: "rgba(20, 184, 166, 0.28)" },
   stepLabel: {
     flex: 1,
     fontFamily: Fonts.medium,
@@ -430,7 +425,7 @@ const styles = StyleSheet.create({
     color: "#344054",
     paddingBottom: 16,
   },
-  stepLabelCurrent: { color: "#0B66E8" },
+  stepLabelCurrent: { color: "#14B8A6" },
   stepLabelUpcoming: { color: "#98A2B3" },
   infoCard: {
     marginHorizontal: 24,

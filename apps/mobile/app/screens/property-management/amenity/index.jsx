@@ -41,7 +41,7 @@ function AmenityCard({ amenity, onPress, alreadyBooked = false }) {
       : reviewRejected
         ? { bg: "#FEF2F2", dot: "#EF4444", color: "#B91C1C", label: "Rejected" }
         : amenity.is_mine
-          ? { bg: "#EFF6FF", dot: "#0052DF", color: "#1D4ED8", label: "Yours" }
+          ? { bg: "#D1FAF5", dot: "#0A2A43", color: "#0A2A43", label: "Yours" }
           : { bg: status.bg, dot: status.dot, color: status.color, label: status.label };
 
   return (

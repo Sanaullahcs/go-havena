@@ -19,6 +19,7 @@ import {
   searchFeed,
   parsePostDisplayContent,
   timeAgo,
+  isSensitivePost,
 } from "../../../services/feed-api";
 import { getFeedTagTheme } from "../../../constants/feed-theme";
 import { Fonts } from "../../../constants/font";
@@ -185,9 +186,11 @@ export default function FeedSearchScreen() {
                 const authorName =
                   post.user?.display_name ?? post.user?.name ?? "Neighbor";
                 const display = parsePostDisplayContent(post);
-                const body =
-                  display.mainText ||
-                  (display.hasImage ? "Shared a photo" : "View post");
+                const sensitive = isSensitivePost(post);
+                const body = sensitive
+                  ? "⚠️ Sensitive Content — hidden due to community guidelines"
+                  : display.mainText ||
+                    (display.hasImage ? "Shared a photo" : "View post");
                 const theme = getFeedTagTheme(post.tag);
                 const relativeTime =
                   timeAgo(post.created_at, now) || post.user?.time || "";
@@ -212,10 +215,19 @@ export default function FeedSearchScreen() {
                           <Text style={styles.resultTime}>{relativeTime}</Text>
                         ) : null}
                       </View>
-                      <Text style={styles.resultContent} numberOfLines={2}>
+                      <Text
+                        style={[styles.resultContent, sensitive && styles.resultSensitive]}
+                        numberOfLines={2}
+                      >
                         {body}
                       </Text>
-                      {post.tag ? (
+                      {sensitive ? (
+                        <View style={[styles.resultTag, { backgroundColor: "#FEF3C7" }]}>
+                          <Text style={[styles.resultTagText, { color: "#B45309" }]}>
+                            Sensitive
+                          </Text>
+                        </View>
+                      ) : post.tag ? (
                         <View style={[styles.resultTag, { backgroundColor: theme.bg }]}>
                           <Text style={[styles.resultTagText, { color: theme.text }]}>
                             {post.tag}
@@ -293,7 +305,7 @@ const styles = StyleSheet.create({
     borderRadius: sw(16),
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     marginBottom: sw(12),
   },
   idleTitle: {
@@ -357,6 +369,10 @@ const styles = StyleSheet.create({
     fontSize: sf(13),
     lineHeight: sf(18),
     color: "#475569",
+  },
+  resultSensitive: {
+    color: "#B45309",
+    fontFamily: Fonts.medium,
   },
   resultTag: {
     alignSelf: "flex-start",

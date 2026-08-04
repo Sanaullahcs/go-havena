@@ -19,7 +19,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { StatusBar } from "expo-status-bar";
 import { useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+
 import {
   Building2,
   Check,
@@ -711,9 +711,9 @@ export default function AdminAmenitiesScreen() {
           )}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <LinearGradient colors={AdminTheme.gradientSoft} style={styles.emptyIcon}>
+              <View style={styles.emptyIcon}>
                 <Building2 size={sf(28)} color={AdminTheme.accent} strokeWidth={1.75} />
-              </LinearGradient>
+              </View>
               <Text style={styles.emptyTitle}>
                 {filter === "all"
                   ? "No amenities yet"
@@ -896,7 +896,7 @@ export default function AdminAmenitiesScreen() {
                     value={Boolean(form.weekends_available)}
                     onValueChange={(v) => setField("weekends_available", v)}
                     trackColor={{ false: "#E2E8F0", true: "#93C5FD" }}
-                    thumbColor={form.weekends_available ? "#0052DF" : "#F8FAFC"}
+                    thumbColor={form.weekends_available ? "#0A2A43" : "#F8FAFC"}
                   />
                 </View>
                 <FieldError message={errorFor("weekends_available")} />
@@ -1464,15 +1464,15 @@ const styles = StyleSheet.create({
     marginTop: sw(10),
     borderRadius: sw(12),
     borderWidth: 1,
-    borderColor: "#DBEAFE",
-    backgroundColor: "#EFF6FF",
+    borderColor: "rgba(20, 184, 166, 0.15)",
+    backgroundColor: "#D1FAF5",
     padding: sw(12),
     gap: sw(4),
   },
   previewTitle: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(12),
-    color: "#1D4ED8",
+    color: "#0A2A43",
     marginBottom: sw(2),
   },
   previewSlot: {

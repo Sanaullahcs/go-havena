@@ -41,7 +41,7 @@ export default function NoticeCoverImageField({
       >
         {uploading ? (
           <View style={styles.uploadingWrap}>
-            <ActivityIndicator color="#0052DF" />
+            <ActivityIndicator color="#0A2A43" />
             <Text style={styles.uploadingText}>Uploading image…</Text>
           </View>
         ) : value?.uri ? (
@@ -55,7 +55,7 @@ export default function NoticeCoverImageField({
         ) : (
           <View style={styles.placeholder}>
             <View style={styles.iconCircle}>
-              <Ionicons name="image-outline" size={22} color="#0052DF" />
+              <Ionicons name="image-outline" size={22} color="#0A2A43" />
             </View>
             <Text style={styles.placeholderTitle}>Add cover image</Text>
             <Text style={styles.placeholderSub}>Tap to choose from your gallery</Text>
@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "rgba(0, 82, 223, 0.08)",
+    backgroundColor: "rgba(20, 184, 166, 0.08)",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 10,

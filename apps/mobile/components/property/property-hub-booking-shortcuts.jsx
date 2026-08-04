@@ -57,7 +57,7 @@ export default function PropertyHubBookingShortcuts({
       <View style={[styles.col, styles.colGap]}>
         <BookingTile
           icon="calendar"
-          iconBg="#EFF6FF"
+          iconBg="#D1FAF5"
           iconColor={Colors.brandPrimaryDeep}
           title="My Reservations"
           hint="Places you booked"

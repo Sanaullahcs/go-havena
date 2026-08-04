@@ -10,7 +10,6 @@ import {
   Share,
   Platform,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import SchedulePickerField from "../forms/schedule-picker-field";
 import { FormPhoneInput } from "../ui/phone-input";
@@ -102,14 +101,11 @@ function AccessWindowSummary({ start, end }) {
 
   return (
     <View style={styles.accessSummary}>
-      <LinearGradient
-        colors={["#EFF6FF", "#F8FAFC"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      <View
         style={styles.accessSummaryHeader}
       >
         <View style={styles.accessSummaryHeaderIcon}>
-          <Feather name="calendar" size={sf(14)} color="#0052DF" />
+          <Feather name="calendar" size={sf(14)} color="#0A2A43" />
         </View>
         <View style={styles.accessSummaryHeaderCopy}>
           <Text style={styles.accessSummaryTitle}>Access window</Text>
@@ -122,7 +118,7 @@ function AccessWindowSummary({ start, end }) {
             <Text style={styles.durationBadgeText}>{duration}</Text>
           </View>
         ) : null}
-      </LinearGradient>
+      </View>
 
       <View style={[styles.accessTimeline, invalid && styles.accessTimelineInvalid]}>
         <View style={styles.accessPoint}>
@@ -138,7 +134,7 @@ function AccessWindowSummary({ start, end }) {
         <View style={styles.accessBridge}>
           <View style={styles.accessBridgeLine} />
           <View style={styles.accessBridgeIcon}>
-            <Feather name="arrow-right" size={sf(12)} color="#0052DF" />
+            <Feather name="arrow-right" size={sf(12)} color="#0A2A43" />
           </View>
           <View style={styles.accessBridgeLine} />
         </View>
@@ -203,10 +199,7 @@ function InviteHeroCard({ title, subtitle, variant }) {
 
   return (
     <View style={styles.heroCard}>
-      <LinearGradient
-        colors={["#EFF6FF", "#E0F2FE", "#F0FDF4"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      <View
         style={styles.heroCardGradient}
       >
         <View style={styles.heroBadge}>
@@ -216,14 +209,9 @@ function InviteHeroCard({ title, subtitle, variant }) {
 
         <View style={styles.heroMainRow}>
           <View style={styles.heroIconShell}>
-            <LinearGradient
-              colors={[Colors.brandPrimaryDeep, Colors.brandGradientEnd]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.heroIconGradient}
-            >
+            <View style={[styles.heroIconGradient, { backgroundColor: Colors.brandPrimary }]}>
               <Feather name="user-plus" size={sf(22)} color="#FFFFFF" />
-            </LinearGradient>
+            </View>
           </View>
           <View style={styles.heroTextCol}>
             <Text style={styles.heroTitle}>{title}</Text>
@@ -244,7 +232,7 @@ function InviteHeroCard({ title, subtitle, variant }) {
             </React.Fragment>
           ))}
         </View>
-      </LinearGradient>
+      </View>
     </View>
   );
 }
@@ -295,7 +283,7 @@ function InviteSuccessCard({ result, variant, accessWindow, onShare, onInviteAno
 
   return (
     <View style={styles.successWrap}>
-      <LinearGradient colors={["#ECFDF5", "#EFF6FF"]} style={styles.successHero}>
+      <View style={styles.successHero}>
         <View style={styles.successIconRing}>
           <Feather name="check" size={sf(28)} color="#059669" />
         </View>
@@ -303,7 +291,7 @@ function InviteSuccessCard({ result, variant, accessWindow, onShare, onInviteAno
         <Text style={styles.successSub}>
           Share the code below so your guest can sign in during the access window.
         </Text>
-      </LinearGradient>
+      </View>
 
       <View style={styles.codeCard}>
         <Text style={styles.codeLabel}>Invite code</Text>
@@ -334,13 +322,13 @@ function InviteSuccessCard({ result, variant, accessWindow, onShare, onInviteAno
       </View>
 
       <Pressable style={styles.shareBtn} onPress={onShare}>
-        <Feather name="share-2" size={sf(16)} color="#0052DF" />
+        <Feather name="share-2" size={sf(16)} color="#0A2A43" />
         <Text style={styles.shareBtnText}>Share invitation</Text>
       </Pressable>
 
       <View style={styles.successActions}>
         <Pressable style={styles.secondaryBtn} onPress={onInviteAnother}>
-          <Feather name="plus" size={sf(15)} color="#0052DF" />
+          <Feather name="plus" size={sf(15)} color="#0A2A43" />
           <Text style={styles.secondaryBtnText}>Invite another</Text>
         </Pressable>
         {onDone ? (
@@ -751,6 +739,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(18),
     paddingTop: sw(18),
     paddingBottom: sw(16),
+    backgroundColor: "#D1FAF5",
   },
   heroBadge: {
     alignSelf: "flex-start",
@@ -762,7 +751,7 @@ const styles = StyleSheet.create({
     borderRadius: Layout.pillRadius,
     backgroundColor: "rgba(255,255,255,0.82)",
     borderWidth: 1,
-    borderColor: "rgba(0, 82, 223, 0.12)",
+    borderColor: "rgba(20, 184, 166, 0.12)",
     marginBottom: sw(14),
   },
   heroBadgeText: {
@@ -867,8 +856,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   flowDotActive: {
-    backgroundColor: "#0052DF",
-    borderColor: "#0052DF",
+    backgroundColor: "#0A2A43",
+    borderColor: "#0A2A43",
   },
   flowDotNumber: {
     fontFamily: Fonts.bold,
@@ -896,7 +885,7 @@ const styles = StyleSheet.create({
     marginBottom: sw(4),
   },
   flowTitleActive: {
-    color: "#0052DF",
+    color: "#0A2A43",
   },
   flowDesc: {
     fontFamily: Fonts.regular,
@@ -993,8 +982,8 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   chipActive: {
-    backgroundColor: "#EFF6FF",
-    borderColor: "#BFDBFE",
+    backgroundColor: "#D1FAF5",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
   chipText: {
     fontFamily: Fonts.medium,
@@ -1002,7 +991,7 @@ const styles = StyleSheet.create({
     color: "#475569",
   },
   chipTextActive: {
-    color: "#0052DF",
+    color: "#0A2A43",
   },
   scheduleGroupLabel: {
     fontFamily: Fonts.semibold,
@@ -1022,7 +1011,7 @@ const styles = StyleSheet.create({
     marginTop: sw(6),
     borderRadius: sw(14),
     borderWidth: 1,
-    borderColor: "#DBEAFE",
+    borderColor: "rgba(20, 184, 166, 0.15)",
     overflow: "hidden",
     backgroundColor: "#FFFFFF",
   },
@@ -1063,12 +1052,12 @@ const styles = StyleSheet.create({
     borderRadius: sw(999),
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
   durationBadgeText: {
     fontFamily: Fonts.semibold,
     fontSize: sf(10),
-    color: "#0052DF",
+    color: "#0A2A43",
   },
   accessTimeline: {
     flexDirection: "row",
@@ -1136,7 +1125,7 @@ const styles = StyleSheet.create({
     width: sw(24),
     height: sw(24),
     borderRadius: sw(12),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
     marginHorizontal: sw(2),
@@ -1150,7 +1139,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: sw(8),
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
     borderRadius: sw(14),
     paddingVertical: sw(15),
   },
@@ -1213,7 +1202,7 @@ const styles = StyleSheet.create({
   codeValue: {
     fontFamily: Fonts.bold,
     fontSize: sf(26),
-    color: "#0052DF",
+    color: "#0A2A43",
     letterSpacing: 2,
   },
   codeWindow: {
@@ -1263,14 +1252,14 @@ const styles = StyleSheet.create({
     width: sw(22),
     height: sw(22),
     borderRadius: sw(11),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },
   guestStepBadgeText: {
     fontFamily: Fonts.bold,
     fontSize: sf(11),
-    color: "#0052DF",
+    color: "#0A2A43",
   },
   guestStepText: {
     flex: 1,
@@ -1287,14 +1276,14 @@ const styles = StyleSheet.create({
     paddingVertical: sw(14),
     borderRadius: sw(14),
     borderWidth: 1.5,
-    borderColor: "#0052DF",
+    borderColor: "#0A2A43",
     backgroundColor: "#FFFFFF",
     marginBottom: sw(12),
   },
   shareBtnText: {
     fontFamily: Fonts.bold,
     fontSize: sf(14),
-    color: "#0052DF",
+    color: "#0A2A43",
   },
   successActions: {
     flexDirection: "row",
@@ -1309,12 +1298,12 @@ const styles = StyleSheet.create({
     gap: sw(6),
     paddingVertical: sw(14),
     borderRadius: sw(14),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
   },
   secondaryBtnText: {
     fontFamily: Fonts.semibold,
     fontSize: sf(14),
-    color: "#0052DF",
+    color: "#0A2A43",
   },
   primaryBtn: {
     flex: 1,
@@ -1322,7 +1311,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: sw(14),
     borderRadius: sw(14),
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
   },
   primaryBtnText: {
     fontFamily: Fonts.bold,

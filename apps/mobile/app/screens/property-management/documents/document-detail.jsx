@@ -97,7 +97,7 @@ export default function DocumentDetail() {
     return (
       <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
         <InternalScreenHeader title="Document" />
-        <View style={styles.centered}><ActivityIndicator size="large" color="#0052DF" /></View>
+        <View style={styles.centered}><ActivityIndicator size="large" color="#0A2A43" /></View>
       </SafeAreaView>
     );
   }
@@ -122,7 +122,7 @@ export default function DocumentDetail() {
           isAdmin ? (
             <View style={styles.adminActions}>
               <Pressable onPress={handleEdit} style={styles.iconBtn}>
-                <Feather name="edit-2" size={sf(16)} color="#0052DF" />
+                <Feather name="edit-2" size={sf(16)} color="#0A2A43" />
               </Pressable>
               <Pressable onPress={handleDelete} style={[styles.iconBtn, styles.iconBtnRed]}>
                 <Feather name="trash-2" size={sf(16)} color="#E7000B" />
@@ -179,11 +179,11 @@ export default function DocumentDetail() {
 const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: "center", justifyContent: "center", gap: sw(12) },
   errorText: { fontFamily: Fonts.regular, fontSize: sf(14), color: "#E7000B", textAlign: "center" },
-  linkText: { fontFamily: Fonts.bold, fontSize: sf(14), color: "#0052DF", fontWeight: "700" },
+  linkText: { fontFamily: Fonts.bold, fontSize: sf(14), color: "#0A2A43", fontWeight: "700" },
   adminActions: { flexDirection: "row", gap: sw(6) },
   iconBtn: {
     width: sw(34), height: sw(34), borderRadius: sw(8),
-    backgroundColor: "#EFF6FF", alignItems: "center", justifyContent: "center",
+    backgroundColor: "#D1FAF5", alignItems: "center", justifyContent: "center",
   },
   iconBtnRed: { backgroundColor: "#FEF2F2" },
   heroBlock: { alignItems: "flex-start" },
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center", marginBottom: sw(12),
   },
   title: { fontFamily: Fonts.bold, fontSize: sf(20), lineHeight: sf(27), color: "#101828", fontWeight: "700" },
-  category: { fontFamily: Fonts.medium, fontSize: sf(13), color: "#0052DF", marginTop: sw(4) },
+  category: { fontFamily: Fonts.medium, fontSize: sf(13), color: "#0A2A43", marginTop: sw(4) },
   metaRow: { flexDirection: "row", alignItems: "center", gap: sw(4), marginTop: sw(6) },
   metaText: { fontFamily: Fonts.regular, fontSize: sf(11), color: "#9CA3AF" },
   descBlock: { paddingTop: sw(8) },
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
   },
   downloadBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: sw(8),
-    backgroundColor: "#0052DF", borderRadius: sw(14), paddingVertical: sw(15),
+    backgroundColor: "#0A2A43", borderRadius: sw(14), paddingVertical: sw(15),
   },
   btnDisabled: { opacity: 0.5 },
   downloadBtnText: { fontFamily: Fonts.bold, fontSize: sf(15), color: "#FFFFFF", fontWeight: "700" },

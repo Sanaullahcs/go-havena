@@ -26,7 +26,7 @@ export const POST_TYPE_THEMES = {
   Recommendations: { bg: "#F3E8FF", text: "#7C3AED", border: "#DDD6FE" },
   Events: { bg: "#FFF7ED", text: "#C2410C", border: "#FED7AA" },
   Help: { bg: "#ECFDF5", text: "#047857", border: "#A7F3D0" },
-  Neighborhood: { bg: "#EFF6FF", text: "#1D4ED8", border: "#BFDBFE" },
+  Neighborhood: { bg: "#D1FAF5", text: "#0A2A43", border: "rgba(20, 184, 166, 0.28)" },
   Announcements: { bg: "#FEF3C7", text: "#B45309", border: "#FDE68A" },
 };
 
@@ -140,18 +140,29 @@ export function formatEngagementSummary(likesCount, commentsCount) {
   return parts.join(" · ");
 }
 
+export function isSensitivePost(post) {
+  if (!post) return false;
+  const flag = post.is_sensitive;
+  return flag === true || flag === 1 || flag === "1";
+}
+
+const SENSITIVE_POST_MESSAGE =
+  "This post has been reported and hidden due to community guidelines.";
+
 export function normalizePost(raw) {
   if (!raw) return null;
 
   const authorName = raw.author_name ?? raw.user?.display_name ?? raw.user?.name ?? "Neighbor";
   const avatarUrl = resolveMediaUrl(raw.author_avatar ?? raw.user?.avatar);
+  const sensitive = isSensitivePost(raw);
+  const text = sensitive ? "" : (raw.body ?? raw.content ?? "");
 
   return {
     ...raw,
     id: raw.id,
-    content: raw.content ?? raw.body ?? "",
-    body: raw.body ?? raw.content ?? "",
-    image_url: resolveMediaUrl(raw.image_url),
+    content: text,
+    body: text,
+    image_url: sensitive ? null : resolveMediaUrl(raw.image_url),
     tag: raw.tag ?? null,
     likes_count: raw.likes_count ?? raw.likes ?? 0,
     comments_count: raw.comments_count ?? raw.comments ?? 0,
@@ -160,6 +171,10 @@ export function normalizePost(raw) {
     liked_by_me: raw.liked_by_me ?? false,
     is_mine: raw.is_mine ?? false,
     status: raw.status ?? "approved",
+    is_sensitive: sensitive,
+    sensitive_message: sensitive
+      ? (raw.sensitive_message || SENSITIVE_POST_MESSAGE)
+      : null,
     user: {
       name: authorName,
       display_name: authorName,
@@ -411,6 +426,24 @@ export async function likePost(postId) {
   return {
     liked: res.liked ?? false,
     likes_count: res.likes_count ?? 0,
+  };
+}
+
+/** POST /v1/feed/{id}/report — resident reports a post for admin review. */
+export async function reportFeedPost(postId, { type = "other", description } = {}) {
+  await ensureFeedCommunityContext();
+  const res = await apiRequest(`/feed/${postId}/report`, {
+    method: "POST",
+    body: {
+      type,
+      description,
+      reason: description,
+    },
+  });
+
+  return {
+    message: res?.message ?? "Report submitted. Community admins will review this post.",
+    data: res?.data ?? null,
   };
 }
 

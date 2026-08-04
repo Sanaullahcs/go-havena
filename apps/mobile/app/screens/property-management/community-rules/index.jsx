@@ -30,12 +30,12 @@ const TYPE_STYLES = {
 const CATEGORY_PALETTE = [
   { icon: "volume-x", color: "#7C3AED", bg: "#F5F3FF" },
   { icon: "heart", color: "#EC4899", bg: "#FDF2F8" },
-  { icon: "home", color: "#2563EB", bg: "#EFF6FF" },
+  { icon: "home", color: "#14B8A6", bg: "#D1FAF5" },
   { icon: "truck", color: "#0891B2", bg: "#ECFEFF" },
   { icon: "trash-2", color: "#059669", bg: "#ECFDF5" },
   { icon: "shield", color: "#DC2626", bg: "#FEF2F2" },
   { icon: "sun", color: "#D97706", bg: "#FFFBEB" },
-  { icon: "tool", color: "#4F46E5", bg: "#EFF6FF" },
+  { icon: "tool", color: "#4F46E5", bg: "#D1FAF5" },
   { icon: "users", color: "#F97316", bg: "#FFEDD5" },
   { icon: "folder", color: "#64748B", bg: "#F8FAFC" },
 ];
@@ -134,7 +134,7 @@ export default function CommunityRules() {
       <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
         <InternalScreenHeader title="Community Rules" subtitle="Loading…" />
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#0052DF" />
+          <ActivityIndicator size="large" color="#0A2A43" />
         </View>
       </SafeAreaView>
     );
@@ -150,7 +150,7 @@ export default function CommunityRules() {
         right={
           isAdmin ? (
             <Pressable onPress={openAddRule} style={styles.addBtn}>
-              <Feather name="plus" size={sf(16)} color="#0052DF" />
+              <Feather name="plus" size={sf(16)} color="#0A2A43" />
               <Text style={styles.addBtnText}>Add Rule</Text>
             </Pressable>
           ) : null
@@ -160,7 +160,7 @@ export default function CommunityRules() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={pageStyles.scrollBottom}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0052DF" colors={["#0052DF"]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0A2A43" colors={["#0A2A43"]} />}
       >
         {!isAdmin && unacknowledged > 0 && (
           <View style={propertyStyles.sectionBlock}>
@@ -201,7 +201,7 @@ export default function CommunityRules() {
               <View style={styles.quickCategoriesHeader}>
                 <View style={styles.headingRow}>
                   <View style={styles.headingIconWrap}>
-                    <Feather name="grid" size={sf(14)} color="#0052DF" />
+                    <Feather name="grid" size={sf(14)} color="#0A2A43" />
                   </View>
                   <View>
                     <Text style={propertyStyles.sectionTitle}>Quick Categories</Text>
@@ -377,14 +377,14 @@ const styles = StyleSheet.create({
     paddingVertical: sw(6),
     paddingHorizontal: sw(12),
     borderRadius: sw(8),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
   addBtnText: {
     fontFamily: Fonts.bold,
     fontSize: sf(12),
-    color: "#0052DF",
+    color: "#0A2A43",
     fontWeight: "700",
   },
   alertBanner: {
@@ -447,7 +447,7 @@ const styles = StyleSheet.create({
     width: sw(36),
     height: sw(36),
     borderRadius: sw(10),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -485,9 +485,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   quickCatCardActive: {
-    borderColor: "#0052DF",
-    backgroundColor: "#EFF6FF",
-    shadowColor: "#0052DF",
+    borderColor: "#0A2A43",
+    backgroundColor: "#D1FAF5",
+    shadowColor: "#0A2A43",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
     shadowRadius: 6,
@@ -509,7 +509,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: sw(8),
   },
-  quickCatTitleActive: { color: "#0052DF" },
+  quickCatTitleActive: { color: "#0A2A43" },
   quickCatCountInline: {
     fontFamily: Fonts.medium,
     fontSize: sf(10.5),
@@ -545,8 +545,8 @@ const styles = StyleSheet.create({
     maxWidth: sw(200),
   },
   filterChipActive: {
-    borderColor: "#0052DF",
-    backgroundColor: "#0052DF",
+    borderColor: "#0A2A43",
+    backgroundColor: "#0A2A43",
   },
   filterChipText: {
     fontFamily: Fonts.medium,
@@ -659,16 +659,16 @@ const styles = StyleSheet.create({
     paddingVertical: sw(8),
     paddingHorizontal: sw(14),
     borderRadius: sw(8),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
   },
   showAllBtnText: {
     fontFamily: Fonts.bold,
     fontSize: sf(12),
-    color: "#0052DF",
+    color: "#0A2A43",
     fontWeight: "700",
   },
   errorBox: { gap: sw(8) },
   errorText: { fontFamily: Fonts.regular, fontSize: sf(13), color: "#E7000B" },
   retryBtn: { alignSelf: "flex-start" },
-  retryText: { fontFamily: Fonts.bold, fontSize: sf(13), color: "#0052DF", fontWeight: "700" },
+  retryText: { fontFamily: Fonts.bold, fontSize: sf(13), color: "#0A2A43", fontWeight: "700" },
 });

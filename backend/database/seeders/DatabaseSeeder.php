@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
             SystemAdminSeeder::class,
             DevPhoneSeeder::class,
             MobileTestAccountsSeeder::class,
+            FeedEngagementSeeder::class,
         ]);
     }
 }

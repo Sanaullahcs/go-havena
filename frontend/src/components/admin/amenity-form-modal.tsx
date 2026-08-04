@@ -161,7 +161,7 @@ export function AmenityFormModal({
                       className={[
                         "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
                         active
-                          ? "border-[#0052DF] bg-[#EFF6FF] text-[#0052DF]"
+                          ? "border-[#0A2A43] bg-[#D1FAF5] text-[#0A2A43]"
                           : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300",
                       ].join(" ")}
                     >
@@ -228,7 +228,7 @@ export function AmenityFormModal({
                 type="checkbox"
                 checked={form.weekends_available}
                 onChange={(e) => setField("weekends_available", e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-[#0052DF]"
+                className="h-4 w-4 rounded border-slate-300 text-[#0A2A43]"
               />
             </label>
 
@@ -251,7 +251,7 @@ export function AmenityFormModal({
                         className={[
                           "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
                           active
-                            ? "border-[#0052DF] bg-[#EFF6FF] text-[#0052DF]"
+                            ? "border-[#0A2A43] bg-[#D1FAF5] text-[#0A2A43]"
                             : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
                         ].join(" ")}
                       >
@@ -282,7 +282,7 @@ export function AmenityFormModal({
                       className={[
                         "flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-medium transition",
                         active
-                          ? "border-[#0052DF] bg-[#EFF6FF] text-[#0052DF]"
+                          ? "border-[#0A2A43] bg-[#D1FAF5] text-[#0A2A43]"
                           : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
                       ].join(" ")}
                     >
@@ -329,7 +329,7 @@ export function AmenityFormModal({
               type="button"
               onClick={() => void handleSubmit()}
               disabled={!canSubmit}
-              className="rounded-xl bg-[#0052DF] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0046C0] disabled:opacity-60"
+              className="rounded-xl bg-[#0A2A43] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#14B8A6] disabled:opacity-60"
             >
               {submitting ? "Saving…" : mode === "edit" ? "Save changes" : "Create amenity"}
             </button>

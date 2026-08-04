@@ -46,7 +46,7 @@ export const profileStyles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: 12,
     lineHeight: 16,
-    color: "#0052DF",
+    color: "#0A2A43",
     fontWeight: "700",
     flexShrink: 0,
   },

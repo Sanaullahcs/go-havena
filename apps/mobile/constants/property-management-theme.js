@@ -24,10 +24,10 @@ export const PropertyHubTheme = {
   alertTitle: "#92400E",
   alertText: "#B45309",
   alertLink: "#D97706",
-  approvalBg: "#EFF6FF",
-  approvalBorder: "#BFDBFE",
-  approvalText: "#1D4ED8",
-  approvalBadgeBg: "#DBEAFE",
+  approvalBg: "#D1FAF5",
+  approvalBorder: "rgba(20, 184, 166, 0.28)",
+  approvalText: "#0A2A43",
+  approvalBadgeBg: "rgba(20, 184, 166, 0.15)",
   cardRadius: 16,
   cardPad: 16,
 };
@@ -36,9 +36,9 @@ export const PROPERTY_SERVICE_META = {
   amenity: {
     lucide: "CalendarDays",
     icon: "calendar",
-    color: "#0052DF",
-    bg: "#EFF6FF",
-    border: "#BFDBFE",
+    color: "#0A2A43",
+    bg: "#D1FAF5",
+    border: "rgba(20, 184, 166, 0.28)",
   },
   rules: {
     lucide: "ShieldCheck",
@@ -71,9 +71,9 @@ export const PROPERTY_SERVICE_META = {
   approvals: {
     lucide: "BookmarkCheck",
     icon: "check-circle",
-    color: "#0052DF",
-    bg: "#EFF6FF",
-    border: "#BFDBFE",
+    color: "#0A2A43",
+    bg: "#D1FAF5",
+    border: "rgba(20, 184, 166, 0.28)",
   },
 };
 

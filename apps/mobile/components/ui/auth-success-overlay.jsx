@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { View, Text, Modal, StyleSheet, Animated } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { Ionicons } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 
@@ -36,12 +36,7 @@ export default function AuthSuccessOverlay({
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
-      <LinearGradient
-        colors={["#0052DF", "#0179FF"]}
-        style={styles.backdrop}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
+      <View style={styles.backdrop}>
         <Animated.View style={[styles.card, { opacity: fade, transform: [{ scale }] }]}>
           <View style={styles.iconRing}>
             <Ionicons name="checkmark-circle" size={72} color="#10B981" />
@@ -49,7 +44,7 @@ export default function AuthSuccessOverlay({
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
         </Animated.View>
-      </LinearGradient>
+      </View>
     </Modal>
   );
 }
@@ -60,6 +55,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 32,
+    backgroundColor: "rgba(10, 42, 67, 0.92)",
   },
   card: {
     alignItems: "center",

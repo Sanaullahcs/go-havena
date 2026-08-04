@@ -50,8 +50,8 @@ export default function Home() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#00D9B8"
-              colors={["#00D9B8"]}
+              tintColor="#0A2A43"
+              colors={["#0A2A43"]}
             />
           }
         >
@@ -69,9 +69,9 @@ export default function Home() {
               <Notices items={carouselNotices} />
               <HappeningSoon items={upcomingEvents} />
               <Communities posts={posts} onPostsChange={setPosts} />
-              <PropertyNew items={amenities} />
               <DealsCornor items={deals} />
               <WellnessNew items={wellnessCategories} />
+              <PropertyNew items={amenities} />
             </>
           )}
         </ScrollView>

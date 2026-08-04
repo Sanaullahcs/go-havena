@@ -225,15 +225,25 @@ class MainSeeder extends Seeder
         ];
 
         foreach ($posts as [$uid, $cat, $body]) {
-            DB::table('posts')->insert([
+            $postId = DB::table('posts')->insertGetId([
                 'community_id'  => $communityId,
                 'user_id'       => $uid,
                 'body'          => $body,
                 'category'      => $cat,
-                'likes_count'   => rand(2, 18),
-                'comments_count'=> rand(0, 6),
+                'status'        => 'approved',
+                'approved_at'   => $now,
+                'likes_count'   => 0,
+                'comments_count'=> 0,
                 'created_at'    => $now->copy()->subHours(rand(1, 72)),
                 'updated_at'    => $now,
+            ]);
+
+            app(FeedEngagementSeeder::class)->seedPostEngagement((object) [
+                'id'             => $postId,
+                'user_id'        => $uid,
+                'community_id'   => $communityId,
+                'likes_count'    => rand(2, 8),
+                'comments_count' => rand(1, 3),
             ]);
         }
 

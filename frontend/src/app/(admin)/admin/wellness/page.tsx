@@ -51,7 +51,7 @@ import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
 const emptyCategory = {
   title: "",
   subtitle: "",
-  color: "#0052DF",
+  color: "#0A2A43",
   status: "active" as WellnessCategory["status"],
 };
 
@@ -259,7 +259,7 @@ export default function AdminWellnessPage() {
       const created = await createWellnessCategory({
         title: categoryForm.title.trim(),
         subtitle: categoryForm.subtitle.trim() || undefined,
-        color: categoryForm.color.trim() || "#0052DF",
+        color: categoryForm.color.trim() || "#0A2A43",
         status: categoryForm.status,
       });
       toastSuccess("Category created");
@@ -291,7 +291,7 @@ export default function AdminWellnessPage() {
       await updateWellnessCategory(editingCategory.id, {
         title: editingCategory.title.trim(),
         subtitle: editingCategory.subtitle.trim() || undefined,
-        color: editingCategory.color.trim() || "#0052DF",
+        color: editingCategory.color.trim() || "#0A2A43",
         status: editingCategory.status,
       });
       toastSuccess("Category updated");
@@ -629,7 +629,7 @@ export default function AdminWellnessPage() {
               <div className="grid grid-cols-[1fr_auto] gap-2">
                 <input
                   className={inputClass(categoryValidation.showError("color", categoryLiveErrors), "nl-input")}
-                  placeholder="#0052DF"
+                  placeholder="#0A2A43"
                   value={categoryForm.color}
                   onChange={(e) => {
                     categoryValidation.clearError("color");

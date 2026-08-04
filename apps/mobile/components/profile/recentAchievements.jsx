@@ -7,7 +7,7 @@ import { useRouter } from "expo-router";
 import { sw, sf } from "../../utils/responsive";
 
 const PALETTE = [
-  { tint: "#0052DF", soft: "#EFF6FF" },
+  { tint: "#0A2A43", soft: "#D1FAF5" },
   { tint: "#0F766E", soft: "#F0FDFA" },
   { tint: "#C2410C", soft: "#FFF7ED" },
 ];

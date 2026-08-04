@@ -172,7 +172,7 @@ export default function AddBusinessScreen() {
       <SafeAreaView style={styles.container} edges={["left", "right"]}>
         <InternalScreenHeader title={isEdit ? "Edit Business" : "Add Business"} subtitle="Loading…" />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator size="large" color="#0052DF" />
+          <ActivityIndicator size="large" color="#0A2A43" />
         </View>
       </SafeAreaView>
     );
@@ -191,7 +191,7 @@ export default function AddBusinessScreen() {
           </Text>
           <TouchableOpacity
             activeOpacity={0.85}
-            style={{ marginTop: 20, backgroundColor: "#0052DF", borderRadius: 12, paddingHorizontal: 18, paddingVertical: 12 }}
+            style={{ marginTop: 20, backgroundColor: "#0A2A43", borderRadius: 12, paddingHorizontal: 18, paddingVertical: 12 }}
             onPress={() => router.back()}
           >
             <Text style={{ color: "#FFFFFF", fontFamily: Fonts.bold }}>Go back</Text>
@@ -566,7 +566,7 @@ const styles = StyleSheet.create({
   createButton: {
     height: 56,
     borderRadius: 14,
-    backgroundColor: "rgba(0, 82, 223, 1)",
+    backgroundColor: "rgba(20, 184, 166, 1)",
     alignItems: "center",
     justifyContent: "center",
   },

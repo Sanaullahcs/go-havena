@@ -200,7 +200,7 @@ export function AmenityBookModal({
                           taken
                             ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-400"
                             : active
-                              ? "border-[#0052DF] bg-[#EFF6FF] text-[#0046C0]"
+                              ? "border-[#0A2A43] bg-[#D1FAF5] text-[#14B8A6]"
                               : "border-slate-200 text-slate-700 hover:border-slate-300",
                         ].join(" ")}
                       >

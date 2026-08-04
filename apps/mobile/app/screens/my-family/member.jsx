@@ -24,7 +24,7 @@ import { fetchNeighbor } from "../../../services/profile-api";
 import { resolveMediaUrl } from "../../../utils/profile-display";
 
 const STATUS_META = {
-  head: { label: "Family Head", bg: "#EFF6FF", color: "#0052DF", border: "#BFDBFE" },
+  head: { label: "Family Head", bg: "#D1FAF5", color: "#0A2A43", border: "rgba(20, 184, 166, 0.28)" },
   active: { label: "Active", bg: "#ECFDF5", color: "#059669", border: "#A7F3D0" },
   pending: { label: "Pending", bg: "#FFFBEB", color: "#B45309", border: "#FDE68A" },
   suspended: { label: "Suspended", bg: "#FEF2F2", color: "#DC2626", border: "#FECACA" },
@@ -59,7 +59,7 @@ function DetailRow({ icon, label, value, last = false }) {
   return (
     <View style={[styles.detailRow, !last && styles.detailRowBorder]}>
       <View style={styles.detailIcon}>
-        <Feather name={icon} size={sf(14)} color="#0052DF" />
+        <Feather name={icon} size={sf(14)} color="#0A2A43" />
       </View>
       <Text style={styles.detailLabel}>{label}</Text>
       <Text style={styles.detailValue} numberOfLines={3}>
@@ -183,7 +183,7 @@ export default function FamilyMemberDetailScreen() {
 
       {loading ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#0052DF" />
+          <ActivityIndicator size="large" color="#0A2A43" />
         </View>
       ) : error ? (
         <View style={styles.centered}>
@@ -212,7 +212,7 @@ export default function FamilyMemberDetailScreen() {
                 setRefreshing(true);
                 load();
               }}
-              tintColor="#0052DF"
+              tintColor="#0A2A43"
             />
           }
           showsVerticalScrollIndicator={false}
@@ -295,12 +295,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(14),
     paddingVertical: sw(8),
     borderRadius: sw(10),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
   },
   retryText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(13),
-    color: "#0052DF",
+    color: "#0A2A43",
   },
   heroCard: {
     backgroundColor: "#FFFFFF",
@@ -391,7 +391,7 @@ const styles = StyleSheet.create({
     width: sw(30),
     height: sw(30),
     borderRadius: sw(9),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },

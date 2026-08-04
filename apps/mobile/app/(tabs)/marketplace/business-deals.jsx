@@ -148,7 +148,7 @@ export default function BusinessDealsScreen() {
         {!accessBlocked ? (
         <View style={styles.summaryCard}>
           <View style={styles.summaryIcon}>
-            <Ionicons name="pricetags-outline" size={22} color="#2563EB" />
+            <Ionicons name="pricetags-outline" size={22} color="#14B8A6" />
           </View>
           <View style={styles.summaryCopy}>
             <Text style={styles.summaryTitle}>{businessName}</Text>
@@ -163,7 +163,7 @@ export default function BusinessDealsScreen() {
 
         {loading ? (
           <View style={styles.centered}>
-            <ActivityIndicator size="large" color="#0052DF" />
+            <ActivityIndicator size="large" color="#0A2A43" />
           </View>
         ) : error ? (
           <GuestFeatureErrorState
@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 10,
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
   },
   retryBtnText: {
     fontFamily: Fonts.bold,
@@ -326,16 +326,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     flexShrink: 0,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#DBEAFE",
+    borderColor: "rgba(20, 184, 166, 0.15)",
   },
   offerPillText: {
     fontFamily: Fonts.bold,
     fontSize: 10,
     fontWeight: "700",
     textAlign: "center",
-    color: "#1D4ED8",
+    color: "#0A2A43",
   },
   dealDescription: {
     fontFamily: Fonts.regular,

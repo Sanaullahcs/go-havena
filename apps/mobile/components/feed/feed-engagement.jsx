@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
   Animated,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { Feather, Ionicons } from "@expo/vector-icons";
 import UserAvatar from "../ui/user-avatar";
 import { Fonts } from "../../constants/font";
@@ -35,14 +35,11 @@ export function FeedEngagementSummary({
       <View style={styles.summaryLeft}>
         {likes > 0 ? (
           <View style={styles.summaryLikeGroup}>
-            <LinearGradient
-              colors={["#F56040", LIKE_HEART_RED, "#C13584"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+            <View
               style={styles.likeBadge}
             >
               <Ionicons name="heart" size={11} color="#FFFFFF" />
-            </LinearGradient>
+            </View>
             <Text style={styles.summaryText}>
               <Text style={styles.summaryCount}>{formatCount(likes)}</Text>
               {" "}
@@ -76,11 +73,12 @@ export function FeedActionRow({
   onComment,
   likeLabel = "Like",
   commentLabel = "Comment",
+  disabled = false,
 }) {
   const scale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (!liked) {
+    if (!liked || disabled) {
       scale.setValue(1);
       return;
     }
@@ -91,32 +89,39 @@ export function FeedActionRow({
       tension: 200,
       useNativeDriver: true,
     }).start();
-  }, [liked, scale]);
+  }, [liked, scale, disabled]);
 
   return (
-    <View style={styles.actionRow}>
+    <View style={[styles.actionRow, disabled && styles.actionRowDisabled]}>
       <Pressable
         style={({ pressed }) => [
           styles.actionBtn,
-          liked && styles.actionBtnLiked,
-          pressed && styles.actionBtnPressed,
+          liked && !disabled && styles.actionBtnLiked,
+          pressed && !disabled && styles.actionBtnPressed,
         ]}
         onPress={onLike}
+        disabled={disabled || !onLike}
       >
         <Animated.View
           style={[
             styles.actionIconWrap,
-            liked && styles.actionIconWrapLiked,
+            liked && !disabled && styles.actionIconWrapLiked,
             { transform: [{ scale }] },
           ]}
         >
           <Ionicons
             name={liked ? "heart" : "heart-outline"}
             size={18}
-            color={liked ? LIKE_HEART_RED : "#262626"}
+            color={disabled ? "#CBD5E1" : liked ? LIKE_HEART_RED : "#262626"}
           />
         </Animated.View>
-        <Text style={[styles.actionLabel, liked && styles.actionLabelLiked]}>
+        <Text
+          style={[
+            styles.actionLabel,
+            liked && !disabled && styles.actionLabelLiked,
+            disabled && styles.actionLabelDisabled,
+          ]}
+        >
           {likeLabel}
         </Text>
       </Pressable>
@@ -124,13 +129,27 @@ export function FeedActionRow({
       <View style={styles.actionDivider} />
 
       <Pressable
-        style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed]}
+        style={({ pressed }) => [
+          styles.actionBtn,
+          pressed && !disabled && styles.actionBtnPressed,
+        ]}
         onPress={onComment}
+        disabled={disabled || !onComment}
       >
         <View style={styles.actionIconWrapComment}>
-          <Feather name="message-circle" size={16} color={Colors.brandPrimaryDeep} />
+          <Feather
+            name="message-circle"
+            size={16}
+            color={disabled ? "#CBD5E1" : Colors.brandPrimaryDeep}
+          />
         </View>
-        <Text style={[styles.actionLabel, styles.actionLabelComment]}>
+        <Text
+          style={[
+            styles.actionLabel,
+            styles.actionLabelComment,
+            disabled && styles.actionLabelDisabled,
+          ]}
+        >
           {commentLabel}
         </Text>
       </Pressable>
@@ -147,6 +166,7 @@ export function FeedCardFooter({
   onComment,
   likeLabel,
   commentLabel = "Comment",
+  disabled = false,
   style,
 }) {
   const likes = Number(likesCount ?? 0);
@@ -154,12 +174,12 @@ export function FeedCardFooter({
   const hasSummary = likes > 0 || comments > 0;
 
   return (
-    <View style={[styles.footerWrap, style]}>
+    <View style={[styles.footerWrap, style, disabled && styles.footerDisabled]}>
       {hasSummary ? (
         <FeedEngagementSummary
           likesCount={likesCount}
           commentsCount={commentsCount}
-          onCommentsPress={onComment}
+          onCommentsPress={disabled ? undefined : onComment}
         />
       ) : null}
       <FeedActionRow
@@ -168,6 +188,7 @@ export function FeedCardFooter({
         onComment={onComment}
         likeLabel={likeLabel ?? (liked ? "Liked" : "Like")}
         commentLabel={commentLabel}
+        disabled={disabled}
       />
     </View>
   );
@@ -258,6 +279,9 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: sw(16),
     overflow: "hidden",
   },
+  footerDisabled: {
+    opacity: 0.6,
+  },
   summaryRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -314,6 +338,9 @@ const styles = StyleSheet.create({
     paddingTop: sw(4),
     gap: sw(8),
   },
+  actionRowDisabled: {
+    opacity: 0.7,
+  },
   actionBtn: {
     flex: 1,
     flexDirection: "row",
@@ -355,7 +382,7 @@ const styles = StyleSheet.create({
     width: sw(28),
     height: sw(28),
     borderRadius: sw(14),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -367,6 +394,9 @@ const styles = StyleSheet.create({
     fontSize: sf(13),
     color: "#475569",
     fontWeight: "600",
+  },
+  actionLabelDisabled: {
+    color: "#CBD5E1",
   },
   actionLabelLiked: {
     color: LIKE_HEART_RED,

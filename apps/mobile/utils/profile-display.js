@@ -111,6 +111,14 @@ export function getRoleLabel(user) {
   return "Resident";
 }
 
+const PLACEHOLDER_DISPLAY_NAMES = new Set(["My Profile", "Neighbor"]);
+
+/** True when the API still has the default placeholder name — show empty in profile forms. */
+export function isPlaceholderDisplayName(name) {
+  const trimmed = String(name ?? "").trim();
+  return !trimmed || PLACEHOLDER_DISPLAY_NAMES.has(trimmed);
+}
+
 /** Normalize API `/me` payload or cached session user for UI. */
 export function getProfileFields(user) {
   if (!user) {
@@ -130,9 +138,10 @@ export function getProfileFields(user) {
   }
 
   const profile = user.profile ?? user;
+  const rawName = profile.display_name || user.name || "My Profile";
 
   return {
-    displayName: profile.display_name || user.name || "My Profile",
+    displayName: isPlaceholderDisplayName(rawName) ? "My Profile" : rawName,
     avatarUrl: resolveMediaUrl(profile.avatar_url ?? user.avatar_url),
     utilityBillUrl: resolveMediaUrl(profile.utility_bill_url ?? user.utility_bill_url),
     unitNumber: profile.unit_number ?? user.unit_number ?? null,

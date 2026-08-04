@@ -52,7 +52,6 @@ import {
   type AdminDashboardPendingAction,
 } from "@/lib/api/dashboard";
 import { approveMember, approveFamilyAddMemberRequest, rejectMember, rejectFamilyAddMemberRequest } from "@/lib/api/members";
-import { approvePost, rejectPost } from "@/lib/api/posts";
 import { approveListing, rejectListing } from "@/lib/api/listings";
 import { approveNotice, rejectNotice } from "@/lib/api/notices";
 import { approveCommunityAdmin, rejectCommunityAdmin } from "@/lib/api/community-admins";
@@ -83,7 +82,6 @@ function pendingHint(stats: AdminDashboardData["stats"]) {
   if (stats.pending_members) parts.push(`${stats.pending_members} membership${stats.pending_members === 1 ? "" : "s"}`);
   if (stats.pending_community_admins) parts.push(`${stats.pending_community_admins} community admin${stats.pending_community_admins === 1 ? "" : "s"}`);
   if (stats.pending_community_requests) parts.push(`${stats.pending_community_requests} community request${stats.pending_community_requests === 1 ? "" : "s"}`);
-  if (stats.pending_posts) parts.push(`${stats.pending_posts} post${stats.pending_posts === 1 ? "" : "s"}`);
   if (stats.onboarding_members) parts.push(`${stats.onboarding_members} onboarding`);
   return parts.length ? parts.join(" · ") : "Nothing awaiting review";
 }
@@ -92,7 +90,6 @@ const INLINE_PENDING_TYPES = new Set<AdminDashboardPendingAction["type"]>([
   "membership",
   "family_add_member",
   "community_admin",
-  "post",
   "listing",
   "notice",
   "event",
@@ -168,14 +165,6 @@ export default function AdminOverviewPage() {
               action.community_id,
             );
             toastSuccess(`${action.title}'s family request was rejected`);
-          }
-        } else if (action.type === "post") {
-          if (verb === "approve") {
-            await approvePost(action.id);
-            toastSuccess("Post approved and published");
-          } else {
-            await rejectPost(action.id);
-            toastSuccess("Post rejected");
           }
         } else if (action.type === "listing") {
           if (verb === "approve") {
@@ -283,7 +272,8 @@ export default function AdminOverviewPage() {
     return <PageError message={error ?? "Unable to load dashboard."} onRetry={() => load()} />;
   }
 
-  const { stats, pending_actions } = data;
+  const { stats, pending_actions: rawPendingActions } = data;
+  const pending_actions = rawPendingActions.filter((action) => action.type !== "post");
   const generatedLabel = formatGeneratedAt(data.generated_at);
 
   const pendingCounts: Record<PendingFilter, number> = {
@@ -291,7 +281,7 @@ export default function AdminOverviewPage() {
     membership: pending_actions.filter((a) => a.type === "membership" || a.type === "family_add_member").length,
     community_admin: pending_actions.filter((a) => a.type === "community_admin").length,
     community_request: pending_actions.filter((a) => a.type === "community_request").length,
-    post: pending_actions.filter((a) => a.type === "post").length,
+    post: 0,
     listing: pending_actions.filter((a) => a.type === "listing").length,
     notice: pending_actions.filter((a) => a.type === "notice").length,
     event: pending_actions.filter((a) => a.type === "event").length,
@@ -305,7 +295,9 @@ export default function AdminOverviewPage() {
         ? pending_actions.filter(
             (action) => action.type === "membership" || action.type === "family_add_member",
           )
-        : pending_actions.filter((action) => action.type === pendingFilter);
+        : pendingFilter === "post"
+          ? []
+          : pending_actions.filter((action) => action.type === pendingFilter);
 
   const quickLinks = [
     { label: "Community Admins", href: "/admin/community-admins", tone: "violet" as const, badge: stats.pending_community_admins ? `${stats.pending_community_admins} pending` : undefined, icon: UserPlus },
@@ -531,11 +523,7 @@ export default function AdminOverviewPage() {
                         onClick={() => handlePendingAction(action, "approve")}
                         className="nl-btn-primary !py-2 !text-[12px]"
                       >
-                        {actionId === action.id
-                          ? "Working…"
-                          : action.type === "post"
-                            ? "Publish"
-                            : "Approve"}
+                        {actionId === action.id ? "Working…" : "Approve"}
                       </button>
                     </div>
                   ) : null}

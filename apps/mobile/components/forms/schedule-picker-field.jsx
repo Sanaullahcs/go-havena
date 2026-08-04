@@ -176,7 +176,7 @@ export default function SchedulePickerField({
                   display="spinner"
                   themeVariant="light"
                   textColor="#111827"
-                  accentColor="#0052DF"
+                  accentColor="#0A2A43"
                   onValueChange={handleIosValueChange}
                   onChange={handleIosValueChange}
                   style={styles.iosPicker}
@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
   modalActionPrimary: {
     fontFamily: Fonts.bold,
     fontSize: 14,
-    color: "rgba(0, 82, 223, 1)",
+    color: "rgba(20, 184, 166, 1)",
   },
   iosPickerWrap: {
     backgroundColor: "#F8FAFC",

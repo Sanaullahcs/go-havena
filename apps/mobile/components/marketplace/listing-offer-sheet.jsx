@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { Fonts } from "../../constants/font";
 import { formatListingPrice } from "./listing-grid-card";
 
@@ -111,10 +111,7 @@ export default function ListingOfferSheet({
         <View style={styles.sheet}>
           <View style={styles.handle} />
 
-          <LinearGradient
-            colors={["#007BFF", "#0052DF"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
+          <View
             style={styles.hero}
           >
             <View style={styles.heroTop}>
@@ -134,7 +131,7 @@ export default function ListingOfferSheet({
             <Text style={styles.heroSubtitle}>
               Your offer goes straight to the seller in chat — just like Marketplace.
             </Text>
-          </LinearGradient>
+          </View>
 
           <ScrollView
             showsVerticalScrollIndicator={false}
@@ -279,6 +276,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 18,
+    backgroundColor: "#14B8A6",
   },
   heroTop: {
     flexDirection: "row",
@@ -398,7 +396,7 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
   },
   chipActive: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderColor: "#93C5FD",
   },
   chipText: {
@@ -407,7 +405,7 @@ const styles = StyleSheet.create({
     color: "#4B5563",
   },
   chipTextActive: {
-    color: "#1D4ED8",
+    color: "#0A2A43",
     fontWeight: "600",
   },
   amountRow: {
@@ -473,7 +471,7 @@ const styles = StyleSheet.create({
     gap: 8,
     minHeight: 50,
     borderRadius: 14,
-    backgroundColor: "#007BFF",
+    backgroundColor: "#14B8A6",
   },
   submitBtnDisabled: {
     opacity: 0.45,

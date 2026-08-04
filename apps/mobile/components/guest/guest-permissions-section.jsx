@@ -12,7 +12,7 @@ export default function GuestPermissionsSection({ permissions, onChange }) {
     <View style={styles.section}>
       <View style={styles.header}>
         <View style={styles.headerIcon}>
-          <Feather name="shield" size={sf(14)} color="#0052DF" />
+          <Feather name="shield" size={sf(14)} color="#0A2A43" />
         </View>
         <View style={styles.headerCopy}>
           <Text style={styles.title}>Guest permissions</Text>
@@ -31,7 +31,7 @@ export default function GuestPermissionsSection({ permissions, onChange }) {
             <View key={option.key} style={[styles.row, isLast && styles.rowLast]}>
               <View style={styles.rowCopy}>
                 <View style={styles.rowTitleWrap}>
-                  <Feather name={option.icon} size={sf(14)} color={enabled ? "#0052DF" : "#94A3B8"} />
+                  <Feather name={option.icon} size={sf(14)} color={enabled ? "#0A2A43" : "#94A3B8"} />
                   <Text style={[styles.rowTitle, !enabled && styles.rowTitleOff]}>{option.label}</Text>
                 </View>
                 <Text style={styles.rowDescription}>{option.description}</Text>
@@ -40,7 +40,7 @@ export default function GuestPermissionsSection({ permissions, onChange }) {
                 value={enabled}
                 onValueChange={(value) => onChange?.(option.key, value)}
                 trackColor={{ false: "#E5E7EB", true: "#93C5FD" }}
-                thumbColor={enabled ? "#0052DF" : "#FFFFFF"}
+                thumbColor={enabled ? "#0A2A43" : "#FFFFFF"}
               />
             </View>
           );
@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
     width: sw(32),
     height: sw(32),
     borderRadius: sw(10),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },

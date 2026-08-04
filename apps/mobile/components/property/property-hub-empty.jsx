@@ -9,8 +9,8 @@ import { sf, sw } from "../../utils/responsive";
 const ACCENTS = {
   blue: {
     solid: Colors.brandPrimaryDeep,
-    ring: "#EFF6FF",
-    border: "#BFDBFE",
+    ring: "#D1FAF5",
+    border: "rgba(20, 184, 166, 0.28)",
   },
   green: {
     solid: "#059669",

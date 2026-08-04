@@ -17,7 +17,7 @@ import InternalScreenHeader from "../../../components/layout/internal-screen-hea
 import { useKeyboardBottomOffset } from "../../../components/layout/keyboard-safe-screen";
 import UserAvatar from "../../../components/ui/user-avatar";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { Fonts } from "../../../constants/font";
 import { Colors, Layout } from "../../../constants/tokens";
 import { fetchMessages, sendMessage, isPeerAdmin, peerRoleLabel } from "../../../services/messages-api";
@@ -150,14 +150,11 @@ function HeaderRoleBadge({ role }) {
 
 function MineBubble({ children, style }) {
   return (
-    <LinearGradient
-      colors={[Colors.brandGradientStart, Colors.brandGradientEnd]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
+    <View
       style={[styles.bubble, styles.bubbleMine, style]}
     >
       {children}
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -587,8 +584,7 @@ export default function ChatScreen() {
             ListFooterComponent={quickReplyFooter}
             ListEmptyComponent={
               <View style={styles.empty}>
-                <LinearGradient
-                  colors={isListingChat ? ["#ECFDF5", "#F0FDF9"] : ["#E8F0FF", "#F0F5FF"]}
+                <View
                   style={styles.emptyIcon}
                 >
                   <View style={[styles.emptyIconInner, isListingChat && styles.emptyIconInnerListing]}>
@@ -598,7 +594,7 @@ export default function ChatScreen() {
                       color={isListingChat ? "#059669" : Colors.brandPrimaryDeep}
                     />
                   </View>
-                </LinearGradient>
+                </View>
                 <Text style={styles.emptyTitle}>Start the conversation</Text>
                 <Text style={styles.emptyText}>{emptyHint}</Text>
               </View>
@@ -639,14 +635,7 @@ export default function ChatScreen() {
               disabled={!draft.trim() || sending}
               activeOpacity={0.88}
             >
-              <LinearGradient
-                colors={
-                  !draft.trim() || sending
-                    ? ["#94A3B8", "#94A3B8"]
-                    : [Colors.brandGradientStart, Colors.brandGradientEnd]
-                }
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+              <View
                 style={styles.sendBtn}
               >
                 {sending ? (
@@ -654,7 +643,7 @@ export default function ChatScreen() {
                 ) : (
                   <Feather name="send" size={17} color="#FFFFFF" />
                 )}
-              </LinearGradient>
+              </View>
             </TouchableOpacity>
           </View>
         </View>
@@ -712,8 +701,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   headerRoleBadgeAdmin: {
-    backgroundColor: "#EFF6FF",
-    borderColor: "#BFDBFE",
+    backgroundColor: "#D1FAF5",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
   headerRoleBadgeResident: {
     backgroundColor: "#ECFDF5",
@@ -805,7 +794,7 @@ const styles = StyleSheet.create({
   dateDividerLine: {
     flex: 1,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: "rgba(0, 82, 223, 0.12)",
+    backgroundColor: "rgba(20, 184, 166, 0.12)",
   },
   dateDividerPill: {
     paddingHorizontal: sw(12),
@@ -813,7 +802,7 @@ const styles = StyleSheet.create({
     borderRadius: sw(999),
     backgroundColor: "rgba(255, 255, 255, 0.85)",
     borderWidth: 1,
-    borderColor: "rgba(0, 82, 223, 0.1)",
+    borderColor: "rgba(20, 184, 166, 0.1)",
   },
   dateDividerText: {
     fontFamily: Fonts.medium,
@@ -841,11 +830,12 @@ const styles = StyleSheet.create({
   },
   bubbleMine: {
     borderBottomRightRadius: sw(5),
+    backgroundColor: Colors.brandPrimary,
   },
   bubbleOther: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "rgba(0, 82, 223, 0.1)",
+    borderColor: "rgba(20, 184, 166, 0.1)",
     borderBottomLeftRadius: sw(5),
   },
   offerBubble: {
@@ -936,7 +926,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: sw(6),
     borderWidth: 1,
-    borderColor: "rgba(0, 82, 223, 0.12)",
+    borderColor: "rgba(20, 184, 166, 0.12)",
   },
   emptyIconInner: {
     width: sw(48),
@@ -975,7 +965,7 @@ const styles = StyleSheet.create({
     borderRadius: sw(999),
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "rgba(0, 82, 223, 0.12)",
+    borderColor: "rgba(20, 184, 166, 0.12)",
     ...cardShadow,
   },
   quickReplyChipListing: {
@@ -990,7 +980,7 @@ const styles = StyleSheet.create({
   composerShell: {
     backgroundColor: "rgba(255, 255, 255, 0.92)",
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(0, 82, 223, 0.1)",
+    borderTopColor: "rgba(20, 184, 166, 0.1)",
     paddingTop: sw(8),
     ...Platform.select({
       ios: {
@@ -1012,7 +1002,7 @@ const styles = StyleSheet.create({
   inputWrap: {
     flex: 1,
     borderWidth: 1,
-    borderColor: "rgba(0, 82, 223, 0.12)",
+    borderColor: "rgba(20, 184, 166, 0.12)",
     borderRadius: sw(999),
     backgroundColor: "#FFFFFF",
     ...Platform.select({
@@ -1053,6 +1043,7 @@ const styles = StyleSheet.create({
     borderRadius: sw(22),
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: Colors.brandPrimary,
   },
   sendBtnDisabled: { opacity: 0.55 },
 });

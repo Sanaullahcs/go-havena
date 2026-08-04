@@ -14,7 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import BackButton from "../../../components/ui/back-button";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { joinByInviteCode } from "../../../services/auth-api";
 import { showApiFailure, showApiSuccess } from "../../../utils/auth-errors";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
@@ -206,10 +206,7 @@ export default function InviteCodeScreen() {
                 </Text>
               </View>
 
-              <LinearGradient
-                colors={["rgba(233, 246, 255, 1)", "rgba(215, 243, 246, 1)"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+              <View
                 style={styles.qrCard}
               >
                 <Image
@@ -230,7 +227,7 @@ export default function InviteCodeScreen() {
                   <Ionicons name="scan-outline" size={16} color="#FFFFFF" />
                   <Text style={styles.scanButtonText}>Tap to scan</Text>
                 </TouchableOpacity>
-              </LinearGradient>
+              </View>
 
               <View style={styles.dividerRow}>
                 <View style={styles.dividerLine} />
@@ -374,7 +371,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

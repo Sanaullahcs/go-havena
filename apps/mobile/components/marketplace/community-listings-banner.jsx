@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { Feather } from "@expo/vector-icons";
 import ThemedIconBox from "../ui/themed-icon-box";
 import { Fonts } from "../../constants/font";
@@ -16,10 +16,7 @@ export default function CommunityListingsBanner({ onPress }) {
       accessibilityLabel="Community Listings"
       style={styles.touch}
     >
-      <LinearGradient
-        colors={MarketplaceTheme.gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      <View
         style={styles.banner}
       >
         <ThemedIconBox
@@ -37,7 +34,7 @@ export default function CommunityListingsBanner({ onPress }) {
         <View style={styles.arrowWrap}>
           <Feather name="arrow-right" size={sf(16)} color="#FFFFFF" />
         </View>
-      </LinearGradient>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -58,6 +55,7 @@ const styles = StyleSheet.create({
     gap: sw(12),
     paddingHorizontal: sw(16),
     paddingVertical: sw(14),
+    backgroundColor: MarketplaceTheme.gradient,
   },
   textWrap: {
     flex: 1,

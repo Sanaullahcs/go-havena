@@ -69,7 +69,7 @@ const CAT_COLORS: Record<string, string> = {
   general: "#64748b",
   maintenance: "#d97706",
   event: "#7c3aed",
-  security: "#2563eb",
+  security: "#14B8A6",
   finance: "#059669",
   emergency: "#dc2626",
 };

@@ -27,7 +27,7 @@ const MEDALS = {
   3: { ring: "#D69A5C", soft: "#FBEFE2", text: "#9A5B22", label: "3rd" },
 };
 
-const NEUTRAL_RANK = { soft: "#EFF6FF", text: Colors.brandPrimaryDeep };
+const NEUTRAL_RANK = { soft: "#D1FAF5", text: Colors.brandPrimaryDeep };
 
 const PODIUM_ORDER = [2, 1, 3];
 
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: sw(4),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderRadius: 999,
     paddingHorizontal: sw(9),
     paddingVertical: sw(4),
@@ -525,7 +525,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(12),
   },
   listRowMe: {
-    borderColor: "rgba(0, 82, 223, 0.35)",
+    borderColor: "rgba(20, 184, 166, 0.35)",
     backgroundColor: "#F5F9FF",
   },
   rankBadge: {

@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
     borderRadius: FAB_SIZE / 2,
     backgroundColor: Colors.brandPrimary,
     borderWidth: 0,
-    shadowColor: "#148BA6",
+    shadowColor: "#14B8A6",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 12,

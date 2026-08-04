@@ -3,16 +3,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
+import { FeedPostViewModal } from "@/components/admin/feed-post-view-modal";
+import { FeedPostReportModal } from "@/components/admin/feed-post-report-modal";
+import { FeedPostReportsModal } from "@/components/admin/feed-post-reports-modal";
 import { AdminBadge, StatTile, DataTable, DtTable, DtHead, DtRow, DtCell, DtPagination } from "@/components/admin/ui";
-import { confirmAction, confirmRejectWithReason, toastSuccess, toastError } from "@/lib/alert";
+import { confirmAction, toastSuccess, toastError } from "@/lib/alert";
 import {
   fetchAdminPosts,
-  approvePost,
-  rejectPost,
-  postStatusLabel,
+  deleteAdminPost,
+  reportAdminPost,
+  fetchAdminPostReports,
+  postReportStatusLabel,
   type AdminPost,
+  type AdminPostReport,
   type AdminPostStats,
-  type PostStatus,
 } from "@/lib/api/posts";
 import { apiError } from "@/lib/api/client";
 import { getManagedCommunityId, isSystemAdminUser } from "@/lib/auth/session";
@@ -20,23 +24,18 @@ import { PageLoader, PageError } from "@/components/shared/page-states";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 
-type Filter = "all" | PostStatus;
-
-const EMPTY_STATS: AdminPostStats = { total: 0, pending: 0, approved: 0, rejected: 0 };
-
-const STATUS_META: Record<PostStatus, { tone: "green" | "amber" | "red"; label: string }> = {
-  approved: { tone: "green", label: "Published" },
-  pending:  { tone: "amber", label: "Pending" },
-  rejected: { tone: "red",   label: "Rejected" },
+const EMPTY_STATS: AdminPostStats = {
+  total: 0,
+  pending: 0,
+  approved: 0,
+  rejected: 0,
+  sensitive: 0,
+  reported: 0,
 };
 
 export default function AdminFeedPage() {
   const searchParams = useSearchParams();
   const highlightPostId = searchParams.get("post");
-  const initialFilter = (searchParams.get("status") as Filter | null) ?? (highlightPostId ? "all" : "pending");
-  const [filter, setFilter] = useState<Filter>(
-    ["all", "approved", "pending", "rejected"].includes(initialFilter) ? initialFilter : "pending",
-  );
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebouncedValue(searchInput, 400);
   const [page, setPage] = useState(1);
@@ -48,12 +47,26 @@ export default function AdminFeedPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionId, setActionId] = useState<number | null>(null);
+  const [viewing, setViewing] = useState<AdminPost | null>(null);
+  const [reporting, setReporting] = useState<AdminPost | null>(null);
+  const [reportsPost, setReportsPost] = useState<AdminPost | null>(null);
+  const [postReports, setPostReports] = useState<AdminPostReport[]>([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
 
-  const runModeration = async (postId: number, fn: () => Promise<void>) => {
+  const handleDelete = async (post: AdminPost) => {
     if (actionId !== null) return;
-    setActionId(postId);
+    const r = await confirmAction({
+      title: "Delete this post?",
+      text: `This will permanently remove ${post.author_name}'s post from ${post.community_name ?? "the community"} feed.`,
+      confirmText: "Delete post",
+      color: "red",
+    });
+    if (!r.isConfirmed) return;
+    setActionId(post.id);
     try {
-      await fn();
+      await deleteAdminPost(post.id);
+      toastSuccess("Post deleted from the feed.");
+      if (viewing?.id === post.id) setViewing(null);
       await load(true);
     } catch (err) {
       toastError(apiError(err));
@@ -62,37 +75,34 @@ export default function AdminFeedPage() {
     }
   };
 
-  const handleApprove = async (post: AdminPost) => {
-    const isReapproval = post.status === "rejected";
-    const r = await confirmAction({
-      title: isReapproval ? "Re-approve this post?" : "Publish this post?",
-      text: isReapproval
-        ? `It will become visible again in ${post.community_name ?? "the community"} feed.`
-        : `It will become visible to members of ${post.community_name ?? "the community"}.`,
-      confirmText: isReapproval ? "Re-approve" : "Approve",
-      color: "blue",
-    });
-    if (!r.isConfirmed) return;
-    await runModeration(post.id, async () => {
-      await approvePost(post.id);
-      toastSuccess(isReapproval ? "Post re-approved and published." : "Post approved and published.");
-    });
+  const handleReportSubmit = async (payload: { type: string; reason: string }) => {
+    if (!reporting || actionId !== null) return;
+    setActionId(reporting.id);
+    try {
+      const result = await reportAdminPost(reporting.id, payload.reason, payload.type);
+      toastSuccess(result.message ?? "Post reported and marked as sensitive.");
+      setReporting(null);
+      await load(true);
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setActionId(null);
+    }
   };
 
-  const handleReject = async (post: AdminPost) => {
-    const isUnpublish = post.status === "approved";
-    const r = await confirmRejectWithReason({
-      title: isUnpublish ? "Remove this post from the feed?" : "Reject this post?",
-      text: isUnpublish
-        ? "The post will be hidden from the community feed. You can re-approve it later."
-        : "The author will be notified. This post will not appear in the feed.",
-      confirmText: isUnpublish ? "Remove from feed" : "Reject",
-    });
-    if (!r.isConfirmed) return;
-    await runModeration(post.id, async () => {
-      await rejectPost(post.id, String(r.value ?? "").trim() || undefined);
-      toastSuccess(isUnpublish ? "Post removed from the feed." : "Post rejected.");
-    });
+  const handleViewReports = async (post: AdminPost) => {
+    setReportsPost(post);
+    setReportsLoading(true);
+    setPostReports([]);
+    try {
+      const res = await fetchAdminPostReports(post.id);
+      setPostReports(res.data);
+    } catch (err) {
+      toastError(apiError(err));
+      setReportsPost(null);
+    } finally {
+      setReportsLoading(false);
+    }
   };
 
   const load = useCallback(async (silent = false) => {
@@ -104,7 +114,6 @@ export default function AdminFeedPage() {
         page,
         per_page: ADMIN_TABLE_PAGE_SIZE,
         ...(scopedCommunityId ? { community_id: scopedCommunityId } : { community_id: "all" }),
-        ...(filter !== "all" ? { status: filter } : {}),
         ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
       });
       setPosts(res.data);
@@ -117,29 +126,25 @@ export default function AdminFeedPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [filter, debouncedSearch, page]);
+  }, [debouncedSearch, page]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); }, [filter, debouncedSearch]);
+  useEffect(() => { setPage(1); }, [debouncedSearch]);
 
   useEffect(() => {
     if (!highlightPostId || posts.length === 0) return;
     const el = document.getElementById(`feed-post-${highlightPostId}`);
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const match = posts.find((post) => String(post.id) === highlightPostId);
+    if (match) setViewing(match);
   }, [highlightPostId, posts]);
 
   const statTiles = useMemo(() => [
-    { label: "Total Posts", value: String(stats.total), hint: "All communities", tone: "blue" as const, icon: <IcoFeed /> },
-    { label: "Pending Review", value: String(stats.pending), hint: "Awaiting approval", tone: "amber" as const, icon: <IcoClock /> },
-    { label: "Published", value: String(stats.approved), hint: "Live in feeds", tone: "green" as const, icon: <IcoCheck /> },
-    { label: "Rejected", value: String(stats.rejected), hint: "Not published", tone: "slate" as const, icon: <IcoBan /> },
-  ], [stats]);
-
-  const filters = (["all", "pending", "approved", "rejected"] as Filter[]).map((f) => ({
-    key: f,
-    label: f === "all" ? "All" : STATUS_META[f as PostStatus]?.label ?? f,
-    count: f === "all" ? stats.total : stats[f as keyof AdminPostStats] ?? 0,
-  }));
+    { label: "Live Posts", value: String(stats.approved), hint: "Published in feeds", tone: "blue" as const, icon: <IcoFeed /> },
+    { label: "Reported", value: String(stats.reported ?? 0), hint: "Flagged by residents", tone: "red" as const, icon: <IcoFlag /> },
+    { label: "Sensitive", value: String(stats.sensitive ?? 0), hint: "Marked by community admin", tone: "amber" as const, icon: <IcoWarn /> },
+    { label: "This page", value: String(posts.length), hint: `${total} total matching`, tone: "green" as const, icon: <IcoCheck /> },
+  ], [stats.approved, stats.reported, stats.sensitive, posts.length, total]);
 
   if (loading) return <PageLoader skeleton />;
   if (error) return <PageError message={error} onRetry={() => load()} />;
@@ -150,7 +155,7 @@ export default function AdminFeedPage() {
         <p className="nl-eyebrow">Community</p>
         <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Feed moderation</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Posts publish to the feed immediately. Remove posts that break guidelines, or re-approve posts you previously rejected.
+          Resident reports show as Reported. Admin reports mark posts as Sensitive for mobile users.
         </p>
       </div>
 
@@ -165,11 +170,8 @@ export default function AdminFeedPage() {
         search={searchInput}
         onSearch={setSearchInput}
         searchPlaceholder="Search by author, community, or content…"
-        filters={filters}
-        activeFilter={filter}
-        onFilter={(key) => setFilter(key as Filter)}
         isEmpty={posts.length === 0}
-        empty="No posts match your filters."
+        empty="No posts in the feed yet."
         searching={refreshing}
       >
         <DtTable>
@@ -183,19 +185,21 @@ export default function AdminFeedPage() {
           ]} />
           <tbody>
             {posts.map((post) => {
-              const st = STATUS_META[post.status] ?? STATUS_META.pending;
               const busy = actionId === post.id;
               const highlighted = highlightPostId && String(post.id) === highlightPostId;
               return (
                 <DtRow
                   key={post.id}
                   id={`feed-post-${post.id}`}
-                  muted={post.status === "rejected"}
-                  className={highlighted ? "bg-blue-50/80 ring-2 ring-blue-200 ring-inset" : undefined}
+                  className={highlighted ? "bg-teal-50/80 ring-2 ring-teal-200 ring-inset" : undefined}
                 >
                   <DtCell first>
                     <p className="font-semibold text-slate-900">{post.author_name}</p>
                     <p className="mt-1 line-clamp-2 text-[12.5px] text-slate-500">{post.body}</p>
+                    <p className="mt-1.5 flex items-center gap-3 text-[11px] text-slate-400">
+                      <span>{post.likes_count} {post.likes_count === 1 ? "like" : "likes"}</span>
+                      <span>{post.comments_count} {post.comments_count === 1 ? "comment" : "comments"}</span>
+                    </p>
                   </DtCell>
                   <DtCell nowrap muted>{post.community_name ?? "—"}</DtCell>
                   <DtCell nowrap>{post.tag}</DtCell>
@@ -203,25 +207,39 @@ export default function AdminFeedPage() {
                     {new Date(post.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                   </DtCell>
                   <DtCell>
-                    <AdminBadge tone={st.tone}>{postStatusLabel(post.status)}</AdminBadge>
+                    {(() => {
+                      const status = postReportStatusLabel(post);
+                      if (status === "Sensitive") return <AdminBadge tone="amber">Sensitive</AdminBadge>;
+                      if (status === "Reported") return <AdminBadge tone="red">Reported</AdminBadge>;
+                      return <AdminBadge tone="green">Published</AdminBadge>;
+                    })()}
                   </DtCell>
                   <DtCell last right>
                     <AdminActionsMenu
                       disabled={busy}
                       actions={[
                         {
-                          label: post.status === "rejected" ? "Re-approve" : "Approve",
-                          icon: "approve",
-                          tone: "primary",
-                          hidden: !(post.status === "pending" || post.status === "rejected"),
-                          onClick: () => handleApprove(post),
+                          label: "View post",
+                          icon: "view",
+                          onClick: () => setViewing(post),
                         },
                         {
-                          label: post.status === "approved" ? "Remove from feed" : "Reject",
+                          label: "Report post",
+                          icon: "ban",
+                          tone: "warning",
+                          onClick: () => setReporting(post),
+                          hidden: post.is_sensitive || post.report_status === "sensitive",
+                        },
+                        {
+                          label: "View reports",
+                          icon: "view",
+                          onClick: () => handleViewReports(post),
+                        },
+                        {
+                          label: "Delete post",
                           icon: "ban",
                           tone: "danger",
-                          hidden: !(post.status === "pending" || post.status === "approved"),
-                          onClick: () => handleReject(post),
+                          onClick: () => handleDelete(post),
                         },
                       ]}
                     />
@@ -239,11 +257,28 @@ export default function AdminFeedPage() {
           onPageChange={setPage}
         />
       </DataTable>
+
+      <FeedPostViewModal post={viewing} onClose={() => setViewing(null)} />
+      <FeedPostReportModal
+        post={reporting}
+        busy={actionId === reporting?.id}
+        onClose={() => setReporting(null)}
+        onSubmit={handleReportSubmit}
+      />
+      <FeedPostReportsModal
+        post={reportsPost}
+        reports={postReports}
+        loading={reportsLoading}
+        onClose={() => {
+          setReportsPost(null);
+          setPostReports([]);
+        }}
+      />
     </div>
   );
 }
 
 function IcoFeed()  { return <svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h10M4 18h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>; }
-function IcoClock() { return <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8"/><path d="M12 7v5l3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>; }
 function IcoCheck() { return <svg viewBox="0 0 20 20" fill="none"><path d="M5 10l4 4 6-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>; }
-function IcoBan()   { return <svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.6"/><path d="M5.5 5.5l9 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>; }
+function IcoFlag()  { return <svg viewBox="0 0 24 24" fill="none"><path d="M5 4v16M5 5h9l-1.2 3.2L14 11.5H5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>; }
+function IcoWarn()  { return <svg viewBox="0 0 24 24" fill="none"><path d="M12 4.5L21 19H3L12 4.5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><path d="M12 10v4.5M12 17.2h.01" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>; }

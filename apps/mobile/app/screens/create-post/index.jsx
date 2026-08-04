@@ -42,7 +42,7 @@ const TYPE_ICONS = {
 };
 
 const ATTACH_OPTIONS = [
-  { id: "photo", label: "Photo", icon: "image", tint: "#0052DF", soft: "#EFF6FF" },
+  { id: "photo", label: "Photo", icon: "image", tint: "#0A2A43", soft: "#D1FAF5" },
   { id: "location", label: "Location", icon: "map-pin", tint: "#047857", soft: "#ECFDF5" },
   { id: "emoji", label: "Feeling", icon: "smile", tint: "#C2410C", soft: "#FFF7ED" },
 ];
@@ -849,7 +849,7 @@ const styles = StyleSheet.create({
   },
   feelingItemActive: {
     borderColor: Colors.brandPrimaryDeep,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
   },
   feelingEmoji: {
     fontSize: sf(22),

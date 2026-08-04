@@ -70,8 +70,8 @@ export function Header() {
                                         isActive
                                             ? {
                                                 borderBottom: scrolled
-                                                    ? "2px solid #0052df" // brand-deep
-                                                    : "2px solid #0179ff", // brand-end (light purple)
+                                                    ? "2px solid #14B8A6" // brand-deep
+                                                    : "2px solid #14B8A6", // brand-end (light purple)
                                                 borderRadius: 0,
                                                 paddingBottom: "4px",
                                                 transition: "border-color 300ms ease-out",

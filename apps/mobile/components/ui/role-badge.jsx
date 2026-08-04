@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet } from "react-native";
-import { Image } from "expo-image";
-import { Colors } from "../../constants/tokens";
 import { Fonts } from "../../constants/font";
+import RoleIcon from "./role-icon";
+import { HavenaColors as C } from "../../constants/color-scheme";
 
 export default function RoleBadge({ role = "resident" }) {
   const isAdmin = role === "admin";
@@ -10,22 +10,18 @@ export default function RoleBadge({ role = "resident" }) {
     <View
       style={[
         styles.badge,
-        { backgroundColor: isAdmin ? Colors.roleAdminBg : Colors.roleResidentBg },
+        {
+          backgroundColor: isAdmin ? "#D1FAF5" : "rgba(0, 201, 136, 0.12)",
+          borderWidth: 1,
+          borderColor: isAdmin ? "rgba(20, 184, 166, 0.28)" : "rgba(0, 201, 136, 0.28)",
+        },
       ]}
     >
-      <Image
-        source={
-          isAdmin
-            ? require("../../assets/images/admin-icon.png")
-            : require("../../assets/images/resident-new.png")
-        }
-        style={styles.icon}
-        contentFit="contain"
-      />
+      <RoleIcon role={role} size="sm" />
       <Text
         style={[
           styles.text,
-          { color: isAdmin ? Colors.roleAdminText : Colors.roleResidentText },
+          { color: isAdmin ? C.primary.darkNavy : "#047857" },
         ]}
       >
         {isAdmin ? "Community Admin" : "Resident"}
@@ -45,7 +41,6 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     marginBottom: 4,
   },
-  icon: { width: 16, height: 16 },
   text: {
     fontFamily: Fonts.medium,
     fontSize: 12,

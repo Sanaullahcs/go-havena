@@ -29,7 +29,7 @@ function StatCard({ label, value, tone = "default", icon, onPress }) {
           }
         : {
             value: Colors.brandPrimaryDeep,
-            iconBg: "#EFF6FF",
+            iconBg: "#D1FAF5",
             iconColor: Colors.brandPrimaryDeep,
           };
 

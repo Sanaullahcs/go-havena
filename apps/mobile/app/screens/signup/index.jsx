@@ -10,8 +10,8 @@ import AuthSubmitButton from "../../../components/ui/auth-submit-button";
 import { SignupPhoneInput } from "../../../components/ui/phone-input";
 import AuthLogo from "../../../components/ui/auth-logo";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
-import { Image } from "expo-image";
 import { Fonts } from "../../../constants/font";
+import RoleIcon from "../../../components/ui/role-icon";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { setCurrentRole } from "../../../constants/role-session";
 import { DEFAULT_PHONE_COUNTRY } from "../../../constants/phone-countries";
@@ -22,6 +22,25 @@ import { encodeRoutePhone, paramString } from "../../../utils/route-params";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
+import { HavenaColors as C } from "../../../constants/color-scheme";
+
+const ROLE_BADGE = {
+  admin: {
+    bg: "#D1FAF5",
+    text: C.primary.darkNavy,
+    border: "rgba(20, 184, 166, 0.28)",
+  },
+  resident: {
+    bg: "rgba(0, 201, 136, 0.12)",
+    text: "#047857",
+    border: "rgba(0, 201, 136, 0.28)",
+  },
+};
+
+const ROLE_BUTTON = {
+  solid: C.primary.teal,
+  loading: "rgba(20, 184, 166, 0.88)",
+};
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -86,30 +105,16 @@ export default function SignupScreen() {
         style={[
           styles.roleBadge,
           {
-            backgroundColor:
-              role === "admin"
-                ? "rgba(212, 236, 245, 1)"
-                : "rgba(193, 255, 114, 0.2)",
+            backgroundColor: ROLE_BADGE[role]?.bg ?? ROLE_BADGE.resident.bg,
+            borderColor: ROLE_BADGE[role]?.border ?? ROLE_BADGE.resident.border,
           },
         ]}
       >
-        <Image
-          source={
-            role === "admin"
-              ? require("../../../assets/images/admin-icon.png")
-              : require("../../../assets/images/resident-new.png")
-          }
-          style={{ width: 16, height: 16 }}
-        />
+        <RoleIcon role={role} size="sm" />
         <Text
           style={[
             styles.roleText,
-            {
-              color:
-                role === "admin"
-                  ? "rgba(190, 219, 255, 1)"
-                  : "rgba(0, 130, 54, 1)",
-            },
+            { color: ROLE_BADGE[role]?.text ?? ROLE_BADGE.resident.text },
           ]}
         >
           {role === "admin" ? "Community Admin" : "Resident"}
@@ -129,6 +134,9 @@ export default function SignupScreen() {
               enabled={isValid}
               loading={submitting}
               onPress={handleSendCode}
+              variant="solid"
+              solidColor={ROLE_BUTTON.solid}
+              loadingColor={ROLE_BUTTON.loading}
             />
             <Text style={styles.footerText}>
               {"We'll send you a one-time verification code"}
@@ -166,7 +174,7 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: C.neutral.white,
     paddingHorizontal: 24,
   },
   header: {
@@ -175,8 +183,9 @@ const styles = StyleSheet.create({
   },
   roleBadge: {
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 3,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
@@ -213,7 +222,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: 22,
     fontWeight: "700",
-    color: "#000000",
+    color: C.primary.darkNavy,
     lineHeight: 28,
     marginTop: 4,
   },
@@ -223,7 +232,7 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     lineHeight: 20,
     textAlign: "center",
-    color: "#364153",
+    color: C.neutral.mediumGray,
   },
   formSection: {
     marginTop: 14,
@@ -233,7 +242,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.medium,
     fontSize: 14,
     fontWeight: "500",
-    color: "#000000",
+    color: C.neutral.darkText,
     lineHeight: 20,
   },
   phoneInput: {
@@ -246,6 +255,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 12,
     fontWeight: "400",
-    color: "#6B7280",
+    color: C.neutral.mediumGray,
   },
 });

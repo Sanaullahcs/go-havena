@@ -6,7 +6,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { MarketplaceRoutes } from "../../../constants/marketplace-routes";
 import { MARKETPLACE_FEATURES } from "../../../constants/marketplace-features";
 import SafeTop from "../../../components/layout/safe-top";
@@ -52,10 +52,10 @@ export default function ConfirmRedeem() {
           Show this screen to the staff to confirm your redemption
         </Text>
 
-        <LinearGradient colors={["#EFF6FF", "#D7F3F6"]} style={styles.codeCard}>
+        <View style={styles.codeCard}>
           <Text style={styles.codeLabel}>Redemption Code</Text>
           <Text style={styles.codeText}>BURGER20</Text>
-        </LinearGradient>
+        </View>
 
         <View style={styles.buttonsWrap}>
           <TouchableOpacity
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
   codeCard: {
     marginTop: 32,
     borderWidth: 2,
-    borderColor: "#0052DF",
+    borderColor: "#0A2A43",
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   primaryButton: {
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: "center",

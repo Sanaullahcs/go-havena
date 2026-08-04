@@ -99,7 +99,7 @@ async function ensureAndroidChannel(Notifications) {
     name: "Havena Alerts",
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 250, 250, 250],
-    lightColor: "#0052DF",
+    lightColor: "#0A2A43",
     sound: "default",
     enableVibrate: true,
     showBadge: true,

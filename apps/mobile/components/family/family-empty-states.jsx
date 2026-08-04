@@ -40,7 +40,7 @@ export function FamilyEmptyState({ onCreate, onJoin, canCreate = true, canJoin =
   return (
     <View style={styles.wrap}>
       <View style={styles.icon}>
-        <Feather name="users" size={sf(32)} color="#0052DF" />
+        <Feather name="users" size={sf(32)} color="#0A2A43" />
       </View>
       <Text style={styles.title}>You&apos;re not part of a family yet</Text>
       <Text style={styles.text}>
@@ -55,7 +55,7 @@ export function FamilyEmptyState({ onCreate, onJoin, canCreate = true, canJoin =
         ) : null}
         {canJoin ? (
           <Pressable style={styles.secondaryBtn} onPress={onJoin}>
-            <Feather name="log-in" size={sf(16)} color="#0052DF" />
+            <Feather name="log-in" size={sf(16)} color="#0A2A43" />
             <Text style={styles.secondaryText}>Join with family id</Text>
           </Pressable>
         ) : null}
@@ -120,7 +120,7 @@ export function FamilyPendingState({
         <View style={styles.pendingActions}>
           {onRefresh ? (
             <Pressable style={styles.secondaryBtn} onPress={onRefresh} disabled={cancelling}>
-              <Feather name="refresh-cw" size={sf(14)} color="#0052DF" />
+              <Feather name="refresh-cw" size={sf(14)} color="#0A2A43" />
               <Text style={styles.secondaryText}>Refresh status</Text>
             </Pressable>
           ) : null}
@@ -188,7 +188,7 @@ export function FamilyRejectedState({
           ) : null}
           {onSignOut ? (
             <Pressable style={styles.secondaryBtn} onPress={onSignOut}>
-              <Feather name="log-out" size={sf(14)} color="#0052DF" />
+              <Feather name="log-out" size={sf(14)} color="#0A2A43" />
               <Text style={styles.secondaryText}>Sign Out</Text>
             </Pressable>
           ) : null}
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     width: sw(72),
     height: sw(72),
     borderRadius: sw(20),
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: sw(4),
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
     gap: sw(8),
     paddingVertical: sw(14),
     borderRadius: 999,
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
   },
   primaryText: {
     fontFamily: Fonts.semiBold,
@@ -257,15 +257,15 @@ const styles = StyleSheet.create({
     gap: sw(8),
     paddingVertical: sw(13),
     borderRadius: 999,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
     alignSelf: "stretch",
   },
   secondaryText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(14),
-    color: "#0052DF",
+    color: "#0A2A43",
   },
   cancelBtn: {
     flexDirection: "row",

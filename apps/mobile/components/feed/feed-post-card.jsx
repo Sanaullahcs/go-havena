@@ -4,12 +4,13 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import UserAvatar from "../ui/user-avatar";
 import FeedPostContent from "./feed-post-content";
 import FeedPostImage from "./feed-post-image";
+import FeedSensitiveContent from "./feed-sensitive-content";
 import FeedPostOptions from "./feed-post-options";
 import { FeedCardFooter, LIKE_HEART_RED } from "./feed-engagement";
 import { Fonts } from "../../constants/font";
 import { Colors } from "../../constants/tokens";
 import { getFeedTagTheme } from "../../constants/feed-theme";
-import { formatCount, timeAgo } from "../../services/feed-api";
+import { formatCount, isSensitivePost, timeAgo } from "../../services/feed-api";
 import { sw, sf, hp } from "../../utils/responsive";
 
 /**
@@ -32,6 +33,7 @@ export default function FeedPostCard({
   const commentCount = formatCount(post.comments_count ?? post.comments);
   const theme = getFeedTagTheme(post.tag);
   const relativeTime = timeAgo(post.created_at, now) || post.user?.time || "";
+  const isSensitive = isSensitivePost(post);
 
   return (
     <View style={[styles.card, style]}>
@@ -63,50 +65,80 @@ export default function FeedPostCard({
                 <Feather name="clock" size={10} color="#B45309" />
                 <Text style={[styles.tagText, { color: "#B45309" }]}>Pending</Text>
               </View>
+            ) : isSensitive ? (
+              <View style={[styles.tag, { backgroundColor: "#FEF3C7" }]}>
+                <Feather name="alert-triangle" size={10} color="#B45309" />
+                <Text style={[styles.tagText, { color: "#B45309" }]}>Sensitive</Text>
+              </View>
             ) : post.tag ? (
               <View style={[styles.tag, { backgroundColor: theme.bg }]}>
                 <Text style={[styles.tagText, { color: theme.text }]}>{post.tag}</Text>
               </View>
             ) : null}
-            {showOptions ? <FeedPostOptions post={post} /> : null}
+            {showOptions && !isSensitive ? <FeedPostOptions post={post} /> : null}
           </View>
         </View>
 
-        <FeedPostContent
-          post={post}
-          textStyle={contentTextStyle ?? (footerVariant === "engagement" ? styles.contentLarge : undefined)}
-          collapsedLines={footerVariant === "engagement" ? 8 : 6}
-        />
+        {isSensitive ? (
+          <FeedSensitiveContent message={post.sensitive_message} />
+        ) : (
+          <>
+            <FeedPostContent
+              post={post}
+              textStyle={contentTextStyle ?? (footerVariant === "engagement" ? styles.contentLarge : undefined)}
+              collapsedLines={footerVariant === "engagement" ? 8 : 6}
+            />
 
-        {post.image_url ? (
-          <FeedPostImage uri={post.image_url} style={styles.postImageWrap} />
-        ) : null}
+            {post.image_url ? (
+              <FeedPostImage uri={post.image_url} style={styles.postImageWrap} />
+            ) : null}
+          </>
+        )}
 
         {footerVariant === "engagement" ? (
           <FeedCardFooter
             likesCount={post.likes_count}
             commentsCount={post.comments_count}
             liked={isLiked}
-            onLike={() => onLike?.(post.id)}
-            onComment={onComments}
+            onLike={isSensitive ? undefined : () => onLike?.(post.id)}
+            onComment={isSensitive ? undefined : onComments}
             likeLabel={isLiked ? "Liked" : "Like"}
+            disabled={isSensitive}
             style={styles.engagementFooter}
           />
         ) : (
-          <View style={styles.footer}>
+          <View style={[styles.footer, isSensitive && styles.footerDisabled]}>
             <View style={styles.divider} />
             <View style={styles.stats}>
-              <Pressable style={styles.stat} onPress={() => onLike?.(post.id)}>
+              <Pressable
+                style={styles.stat}
+                onPress={() => onLike?.(post.id)}
+                disabled={isSensitive}
+              >
                 <Ionicons
                   name={isLiked ? "heart" : "heart-outline"}
                   size={sf(16)}
-                  color={isLiked ? LIKE_HEART_RED : "#262626"}
+                  color={isSensitive ? "#CBD5E1" : isLiked ? LIKE_HEART_RED : "#262626"}
                 />
-                <Text style={[styles.statText, isLiked && styles.statTextLiked]}>{likeCount}</Text>
+                <Text
+                  style={[
+                    styles.statText,
+                    isLiked && !isSensitive && styles.statTextLiked,
+                    isSensitive && styles.statTextDisabled,
+                  ]}
+                >
+                  {likeCount}
+                </Text>
               </Pressable>
-              <Pressable style={styles.stat} onPress={onComments}>
-                <Feather name="message-circle" size={sf(14)} color="#99A1AF" />
-                <Text style={styles.statText}>{commentCount}</Text>
+              <Pressable style={styles.stat} onPress={onComments} disabled={isSensitive}>
+                <Feather
+                  name="message-circle"
+                  size={sf(14)}
+                  color={isSensitive ? "#CBD5E1" : "#99A1AF"}
+                />
+                <Text style={[styles.statText, isSensitive && styles.statTextDisabled]}>
+                  {commentCount}
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -208,6 +240,9 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: sw(4),
   },
+  footerDisabled: {
+    opacity: 0.55,
+  },
   engagementFooter: {
     marginTop: sw(10),
     marginHorizontal: -sw(14),
@@ -242,5 +277,8 @@ const styles = StyleSheet.create({
   },
   statTextLiked: {
     color: LIKE_HEART_RED,
+  },
+  statTextDisabled: {
+    color: "#CBD5E1",
   },
 });

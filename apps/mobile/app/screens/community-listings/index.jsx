@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import BackButton from "../../../components/ui/back-button";
 import { HeaderShell } from "../../../components/layout/header-chrome";
@@ -92,7 +92,7 @@ function FilterTabs({ active, onChange, counts }) {
             <Ionicons
               name={tab.icon}
               size={15}
-              color={isActive ? "#007BFF" : "#64748B"}
+              color={isActive ? "#14B8A6" : "#64748B"}
             />
             <Text style={[styles.filterTabLabel, isActive && styles.filterTabLabelActive]}>
               {tab.label}
@@ -311,7 +311,7 @@ export default function CommunityListingsScreen() {
   const renderEmpty = () => (
     <View style={styles.emptyWrap}>
       <View style={styles.emptyIconWrap}>
-        <Ionicons name="storefront-outline" size={36} color="#007BFF" />
+        <Ionicons name="storefront-outline" size={36} color="#14B8A6" />
       </View>
       <Text style={styles.emptyTitle}>{emptyTitle}</Text>
       <Text style={styles.emptySubtitle}>{emptySubtitle}</Text>
@@ -386,14 +386,14 @@ export default function CommunityListingsScreen() {
               onPress={() => setViewMode("grid")}
               activeOpacity={0.85}
             >
-              <Ionicons name="grid" size={16} color={isGrid ? "#007BFF" : "#94A3B8"} />
+              <Ionicons name="grid" size={16} color={isGrid ? "#14B8A6" : "#94A3B8"} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.viewBtn, !isGrid && styles.viewBtnActive]}
               onPress={() => setViewMode("list")}
               activeOpacity={0.85}
             >
-              <Ionicons name="list" size={16} color={!isGrid ? "#007BFF" : "#94A3B8"} />
+              <Ionicons name="list" size={16} color={!isGrid ? "#14B8A6" : "#94A3B8"} />
             </TouchableOpacity>
           </View>
         </View>
@@ -421,7 +421,7 @@ export default function CommunityListingsScreen() {
 
       {loading && listings.length === 0 ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#007BFF" />
+          <ActivityIndicator size="large" color="#14B8A6" />
           <Text style={styles.loadingText}>Loading listings…</Text>
         </View>
       ) : (
@@ -436,7 +436,7 @@ export default function CommunityListingsScreen() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              tintColor="#0052DF"
+              tintColor="#0A2A43"
               onRefresh={() => {
                 setRefreshing(true);
                 load();
@@ -464,15 +464,12 @@ export default function CommunityListingsScreen() {
           activeOpacity={0.92}
           onPress={openCreateListing}
         >
-          <LinearGradient
-            colors={["#0052DF", "#007BFF"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+          <View
             style={styles.fabGradient}
           >
             <Ionicons name="add" size={20} color="#FFFFFF" />
             <Text style={styles.fabText}>{fabLabel}</Text>
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
       ) : null}
     </SafeAreaView>
@@ -577,7 +574,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   filterTabLabelActive: {
-    color: "#007BFF",
+    color: "#14B8A6",
   },
   filterTabCount: {
     minWidth: 20,
@@ -589,7 +586,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   filterTabCountActive: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
   },
   filterTabCountText: {
     fontFamily: Fonts.bold,
@@ -598,7 +595,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   filterTabCountTextActive: {
-    color: "#007BFF",
+    color: "#14B8A6",
   },
   filterHint: {
     fontFamily: Fonts.regular,
@@ -641,7 +638,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   typeFilterLabelActive: {
-    color: "#007BFF",
+    color: "#14B8A6",
     fontFamily: Fonts.bold,
     fontWeight: "700",
   },
@@ -681,8 +678,8 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   chipActive: {
-    backgroundColor: "#007BFF",
-    borderColor: "#0052DF",
+    backgroundColor: "#14B8A6",
+    borderColor: "#0A2A43",
   },
   chipText: {
     fontFamily: Fonts.medium,
@@ -761,7 +758,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
@@ -790,7 +787,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 999,
-    backgroundColor: "#0052DF",
+    backgroundColor: "#0A2A43",
   },
   emptyCtaText: {
     fontFamily: Fonts.bold,
@@ -807,7 +804,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
     ...Platform.select({
       ios: {
-        shadowColor: "#007BFF",
+        shadowColor: "#14B8A6",
         shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.2,
         shadowRadius: 8,
@@ -821,6 +818,8 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 20,
     paddingVertical: 14,
+    backgroundColor: "#14B8A6",
+    borderRadius: 999,
   },
   fabText: {
     fontFamily: Fonts.bold,

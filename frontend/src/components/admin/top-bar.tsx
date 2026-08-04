@@ -88,7 +88,7 @@ export function AdminTopBar({
           <button
             type="button"
             onClick={onMenuOpen}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-600 transition hover:bg-white hover:text-[#007BFF] md:hidden"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-600 transition hover:bg-white hover:text-[#14B8A6] md:hidden"
             aria-label="Open menu"
           >
             <Menu className="h-5 w-5" strokeWidth={2} />
@@ -118,7 +118,7 @@ export function AdminTopBar({
                 type="button"
                 onClick={() => setOpen((v) => !v)}
                 aria-label="Account menu"
-                className={`rounded-full transition ${open ? "ring-2 ring-[#007BFF]/40" : "ring-2 ring-transparent"}`}
+                className={`rounded-full transition ${open ? "ring-2 ring-[#14B8A6]/40" : "ring-2 ring-transparent"}`}
               >
                 <UserAvatar
                   name={displayName}
@@ -160,9 +160,9 @@ export function AdminTopBar({
                     <Link
                       href="/admin/profile"
                       onClick={() => setOpen(false)}
-                      className="group flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-[#EFF6FF] hover:text-[#0052DF]"
+                      className="group flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-[#D1FAF5] hover:text-[#0A2A43]"
                     >
-                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition group-hover:bg-[#EFF6FF] group-hover:text-[#007BFF]">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition group-hover:bg-[#D1FAF5] group-hover:text-[#14B8A6]">
                         <UserRound className="h-4 w-4" strokeWidth={2} />
                       </span>
                       My Profile
@@ -171,9 +171,9 @@ export function AdminTopBar({
                     <Link
                       href="/admin/notifications"
                       onClick={() => setOpen(false)}
-                      className="group flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-[#EFF6FF] hover:text-[#0052DF]"
+                      className="group flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-[#D1FAF5] hover:text-[#0A2A43]"
                     >
-                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition group-hover:bg-[#EFF6FF] group-hover:text-[#007BFF]">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition group-hover:bg-[#D1FAF5] group-hover:text-[#14B8A6]">
                         <Bell className="h-4 w-4" strokeWidth={2} />
                       </span>
                       Notifications
@@ -183,9 +183,9 @@ export function AdminTopBar({
                     <Link
                       href="/admin/support"
                       onClick={() => setOpen(false)}
-                      className="group flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-[#EFF6FF] hover:text-[#0052DF]"
+                      className="group flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-[#D1FAF5] hover:text-[#0A2A43]"
                     >
-                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition group-hover:bg-[#EFF6FF] group-hover:text-[#007BFF]">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition group-hover:bg-[#D1FAF5] group-hover:text-[#14B8A6]">
                         <CircleHelp className="h-4 w-4" strokeWidth={2} />
                       </span>
                       Help &amp; Support

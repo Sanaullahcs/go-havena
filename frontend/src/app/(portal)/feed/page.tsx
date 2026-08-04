@@ -12,7 +12,7 @@ import {
 import { apiError } from "@/lib/api/client";
 import { PageLoader } from "@/components/shared/page-states";
 
-const AVATAR_COLORS = ["#2563eb", "#7c3aed", "#059669", "#d97706", "#0891b2", "#db2777", "#dc2626"];
+const AVATAR_COLORS = ["#14B8A6", "#7c3aed", "#059669", "#d97706", "#0891b2", "#db2777", "#dc2626"];
 const ac = (i: number) => AVATAR_COLORS[i % AVATAR_COLORS.length];
 
 const CAT_COLOR: Record<string, string> = {
@@ -20,7 +20,7 @@ const CAT_COLOR: Record<string, string> = {
   event:   "#7c3aed",
   help:    "#059669",
   sale:    "#0891b2",
-  update:  "#2563eb",
+  update:  "#14B8A6",
 };
 const CAT_LABEL: Record<string, string> = {
   general: "General", event: "Event", help: "Help", sale: "For Sale", update: "Update",
@@ -476,7 +476,7 @@ export default function FeedPage() {
                     style={{ paddingLeft: depth > 0 ? depth * 24 : 0 }}
                   >
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                      style={{ background: c.author_avatar ?? "#2563eb" }}>
+                      style={{ background: c.author_avatar ?? "#14B8A6" }}>
                       {c.author_name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -561,7 +561,7 @@ export default function FeedPage() {
 }
 
 /* ─── Sub-components ─── */
-function ReactionBtn({ active, onClick, icon, label, activeColor = "#2563eb" }: {
+function ReactionBtn({ active, onClick, icon, label, activeColor = "#14B8A6" }: {
   active: boolean; onClick: () => void; icon: React.ReactNode; label: string; activeColor?: string;
 }) {
   return (

@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Fonts } from "../../../constants/font";
@@ -111,7 +110,7 @@ function DetailRow({ icon, label, value, isLast = false }) {
     <View style={[styles.detailRow, isLast && styles.detailRowLast]}>
       <View style={styles.detailRowLeft}>
         <View style={styles.detailRowIcon}>
-          <Ionicons name={icon} size={15} color="#2563EB" />
+          <Ionicons name={icon} size={15} color="#14B8A6" />
         </View>
         <Text style={styles.detailRowLabel}>{label}</Text>
       </View>
@@ -120,7 +119,7 @@ function DetailRow({ icon, label, value, isLast = false }) {
   );
 }
 
-function SectionHeader({ title, accent = "#007BFF" }) {
+function SectionHeader({ title, accent = "#14B8A6" }) {
   return (
     <View style={styles.sectionHeader}>
       <View style={[styles.sectionAccent, { backgroundColor: accent }]} />
@@ -327,7 +326,7 @@ export default function ListingDetailScreen() {
   if (loading) {
     return (
       <View style={styles.loadingWrap}>
-        <ActivityIndicator size="large" color="#007BFF" />
+        <ActivityIndicator size="large" color="#14B8A6" />
       </View>
     );
   }
@@ -385,10 +384,8 @@ export default function ListingDetailScreen() {
           </View>
         )}
 
-        <LinearGradient
-          colors={["rgba(0,0,0,0.28)", "transparent", "rgba(0,0,0,0.4)"]}
-          locations={[0, 0.5, 1]}
-          style={StyleSheet.absoluteFill}
+        <View
+          style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(15, 23, 42, 0.45)' }]}
           pointerEvents="none"
         />
 
@@ -518,7 +515,7 @@ export default function ListingDetailScreen() {
               <View style={styles.sellerNameRow}>
                 <Text style={styles.sellerName}>{listing.seller_name ?? "Resident"}</Text>
                 {listing.is_verified ? (
-                  <Ionicons name="checkmark-circle" size={16} color="#007BFF" />
+                  <Ionicons name="checkmark-circle" size={16} color="#14B8A6" />
                 ) : null}
               </View>
               <Text style={styles.sellerMeta}>
@@ -547,7 +544,7 @@ export default function ListingDetailScreen() {
 
           <View style={styles.alertCardBlue}>
             <View style={styles.alertIconBlue}>
-              <Ionicons name="information-circle" size={16} color="#007BFF" />
+              <Ionicons name="information-circle" size={16} color="#14B8A6" />
             </View>
             <Text style={styles.alertText}>
               <Text style={styles.alertBoldBlue}>About reviews · </Text>
@@ -600,7 +597,7 @@ export default function ListingDetailScreen() {
                 onPress={handleEdit}
                 disabled={ownerBusy}
               >
-                <Ionicons name="create-outline" size={16} color="#2563EB" />
+                <Ionicons name="create-outline" size={16} color="#14B8A6" />
                 <Text style={styles.ownerActionText}>Edit</Text>
               </TouchableOpacity>
             ) : null}
@@ -634,10 +631,10 @@ export default function ListingDetailScreen() {
               disabled={isSold || messageBusy}
             >
               {messageBusy ? (
-                <ActivityIndicator size="small" color="#007BFF" />
+                <ActivityIndicator size="small" color="#14B8A6" />
               ) : (
                 <>
-                  <Ionicons name="chatbubble-outline" size={16} color="#007BFF" />
+                  <Ionicons name="chatbubble-outline" size={16} color="#14B8A6" />
                   <Text style={styles.messageBtnText}>Message</Text>
                 </>
               )}
@@ -648,17 +645,17 @@ export default function ListingDetailScreen() {
               onPress={() => setOfferSheetVisible(true)}
               disabled={isSold}
             >
-              <LinearGradient
-                colors={isSold ? ["#9CA3AF", "#6B7280"] : ["#007BFF", "#0052DF"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.offerBtnGradient}
+              <View
+                style={[
+                  styles.offerBtnGradient,
+                  { backgroundColor: isSold ? "#9CA3AF" : "#14B8A6" },
+                ]}
               >
                 <Ionicons name="logo-usd" size={16} color="#FFFFFF" />
                 <Text style={styles.offerBtnText}>
                   {isSold ? "Sold" : isServiceListing ? "Request Quote" : "Make Offer"}
                 </Text>
-              </LinearGradient>
+              </View>
             </TouchableOpacity>
           </>
         )}
@@ -707,7 +704,7 @@ const styles = StyleSheet.create({
   backLinkText: {
     fontFamily: Fonts.medium,
     fontSize: 14,
-    color: "#007BFF",
+    color: "#14B8A6",
   },
   heroFixed: {
     position: "absolute",
@@ -796,7 +793,7 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   thumbActive: {
-    borderColor: "#007BFF",
+    borderColor: "#14B8A6",
   },
   thumbImage: {
     width: "100%",
@@ -867,14 +864,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#DBEAFE",
+    borderColor: "rgba(20, 184, 166, 0.15)",
   },
   categoryChipText: {
     fontFamily: Fonts.medium,
     fontSize: 12,
-    color: "#007BFF",
+    color: "#14B8A6",
   },
   title: {
     marginTop: 4,
@@ -911,7 +908,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 8,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1014,15 +1011,15 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     padding: 14,
     borderRadius: 16,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#DBEAFE",
+    borderColor: "rgba(20, 184, 166, 0.15)",
   },
   alertIconBlue: {
     width: 30,
     height: 30,
     borderRadius: 8,
-    backgroundColor: "#DBEAFE",
+    backgroundColor: "rgba(20, 184, 166, 0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1040,7 +1037,7 @@ const styles = StyleSheet.create({
   },
   alertBoldBlue: {
     fontFamily: Fonts.bold,
-    color: "#007BFF",
+    color: "#14B8A6",
     fontWeight: "700",
   },
   floatingHeader: {
@@ -1121,7 +1118,7 @@ const styles = StyleSheet.create({
   ownerActionText: {
     fontFamily: Fonts.bold,
     fontSize: 13,
-    color: "#2563EB",
+    color: "#14B8A6",
     fontWeight: "700",
   },
   btnDisabled: {
@@ -1136,13 +1133,13 @@ const styles = StyleSheet.create({
     height: LISTING_ACTION_HEIGHT,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: "#007BFF",
+    borderColor: "#14B8A6",
     backgroundColor: "#FFFFFF",
   },
   messageBtnText: {
     fontFamily: Fonts.bold,
     fontSize: 14,
-    color: "#007BFF",
+    color: "#14B8A6",
     fontWeight: "700",
   },
   offerBtn: {

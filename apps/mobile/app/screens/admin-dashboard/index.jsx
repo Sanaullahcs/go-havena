@@ -34,7 +34,7 @@ const STAT_COL_PAD = 5; // ×2 = 10px space between the 4 columns
 const CREATE_CARD_GAP = sw(16);
 
 const ACTION_TYPE_META = {
-  membership: { label: "Member", icon: "user", color: "#2563EB" },
+  membership: { label: "Member", icon: "user", color: "#14B8A6" },
   listing: { label: "Listing", icon: "shopping-bag", color: "#059669" },
   post: { label: "Post", icon: "message-square", color: "#7C3AED" },
   business: { label: "Business", icon: "briefcase", color: "#D97706" },
@@ -452,7 +452,7 @@ export default function AdminDashboardScreen() {
         value: Number(stats?.total_members ?? 0),
         label: "Residents",
         icon: "users",
-        color: "#2563EB",
+        color: "#14B8A6",
         onPress: () => router.push("/screens/admin-members"),
       },
       {
@@ -486,7 +486,7 @@ export default function AdminDashboardScreen() {
   }, [router, stats]);
 
   const manageLinks = [
-    { icon: "users", label: "Residents", badge: stats?.pending_members, color: "#2563EB", route: "/screens/admin-members" },
+    { icon: "users", label: "Residents", badge: stats?.pending_members, color: "#14B8A6", route: "/screens/admin-members" },
     { icon: "user-plus", label: "Invite member", color: "#4F46E5", route: { pathname: "/screens/admin-members", params: { invite: "1" } } },
     { icon: "users", label: "Guest users", color: "#0EA5E9", route: "/screens/admin-guests" },
     { icon: "grid", label: "Amenities", color: "#0891B2", route: "/screens/admin-amenities" },
@@ -627,7 +627,7 @@ export default function AdminDashboardScreen() {
                 icon="clipboard"
                 title="Notice"
                 subtitle="Board updates and reminders"
-                accent="#0052DF"
+                accent="#0A2A43"
                 onPress={() => router.push("/screens/create-notice")}
               />
               <CreateRow
@@ -669,7 +669,7 @@ export default function AdminDashboardScreen() {
                 icon="edit-3"
                 title="Create post"
                 subtitle="Share with the community feed"
-                accent="#2563EB"
+                accent="#14B8A6"
                 onPress={() => router.push("/screens/create-post")}
                 isLast
               />

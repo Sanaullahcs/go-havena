@@ -35,7 +35,7 @@ export function Hero() {
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -left-24 top-16 -z-10 h-[480px] w-[480px] rounded-full bg-[#007BFF]/12 blur-3xl animate-aurora"
+        className="pointer-events-none absolute -left-24 top-16 -z-10 h-[480px] w-[480px] rounded-full bg-[#14B8A6]/12 blur-3xl animate-aurora"
       />
       <div
         aria-hidden="true"
@@ -114,7 +114,7 @@ export function Hero() {
               <div className="absolute -right-3 top-8 hidden rounded-2xl border border-white/90 bg-white/95 px-3 py-2 shadow-card lg:block animate-float-card">
                 <div className="flex items-center gap-2">
                   <span className="flex -space-x-2">
-                    {["#0052df", "#0179ff", "#6366f1"].map((color) => (
+                    {["#14B8A6", "#14B8A6", "#6366f1"].map((color) => (
                       <span
                         key={color}
                         className="inline-flex h-7 w-7 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold text-white"

@@ -97,7 +97,7 @@ class FeedController extends Controller
             ->all();
 
         $pageItems = $this->hydrateEngagementCounts($posts->items());
-        $items = collect($pageItems)->map(fn ($p) => $this->formatPost($p, $likedPostIds, $user->id));
+        $items = collect($pageItems)->map(fn ($p) => $this->formatPost($p, $likedPostIds, $user->id, ['mask_sensitive' => true]));
 
         if (\App\Services\GuestAccessService::isGuest($user)) {
             \App\Services\GuestActivityService::logView($user, 'feed');
@@ -326,7 +326,7 @@ class FeedController extends Controller
         [$post] = $this->hydrateEngagementCounts([$post]);
 
         return response()->json([
-            'data' => $this->formatPost($post, $likedPostIds, $user->id),
+            'data' => $this->formatPost($post, $likedPostIds, $user->id, ['mask_sensitive' => true]),
         ]);
     }
 
@@ -369,6 +369,82 @@ class FeedController extends Controller
             'likes_count' => $likesCount,
             'message'     => $liked ? 'Post liked' : 'Post unliked',
         ]);
+    }
+
+    /** POST /v1/feed/{id}/report — resident reports a community post (does not hide content) */
+    public function reportPost(int $id, Request $request): JsonResponse
+    {
+        $this->assertNotGuestWrite($request, 'report_post');
+
+        $request->validate([
+            'type'        => 'nullable|in:noise,harassment,damage,spam,safety,other',
+            'reason'      => 'required_without:description|string|min:8|max:500',
+            'description' => 'required_without:reason|string|min:8|max:500',
+        ]);
+
+        $post = $this->findApprovedPostForMember($id, $request);
+        if (! $post) {
+            return response()->json(['message' => 'Post not found or not yet approved'], 404);
+        }
+
+        $userId = (int) auth()->id();
+        if ((int) $post->user_id === $userId) {
+            return response()->json(['message' => 'You cannot report your own post'], 422);
+        }
+
+        if ((bool) ($post->is_sensitive ?? false)) {
+            return response()->json(['message' => 'This post is already marked as sensitive content'], 422);
+        }
+
+        $alreadyReported = DB::table('post_reports')
+            ->where('post_id', $id)
+            ->where('reporter_id', $userId)
+            ->where('source', 'resident')
+            ->exists();
+
+        if ($alreadyReported) {
+            return response()->json(['message' => 'You have already reported this post'], 422);
+        }
+
+        $reason = trim((string) ($request->input('reason') ?? $request->input('description')));
+        $type = $request->input('type', 'other');
+
+        DB::table('post_reports')->insert([
+            'post_id'     => $id,
+            'reporter_id' => $userId,
+            'reason'      => $reason,
+            'source'      => 'resident',
+            'type'        => $type,
+            'created_at'  => now(),
+            'updated_at'  => now(),
+        ]);
+
+        ActivityLogService::user(
+            'post_reported_by_resident',
+            'Reported community post #'.$id,
+            'Post',
+            $id,
+            'warning',
+            null,
+            ['reason' => \Illuminate\Support\Str::limit($reason, 120)],
+        );
+
+        $reportsCount = (int) DB::table('post_reports')->where('post_id', $id)->count();
+        $residentReportsCount = (int) DB::table('post_reports')
+            ->where('post_id', $id)
+            ->where('source', 'resident')
+            ->count();
+
+        return response()->json([
+            'message' => 'Report submitted. Community admins will review this post.',
+            'data'    => [
+                'post_id'                => $id,
+                'is_sensitive'           => false,
+                'reports_count'          => $reportsCount,
+                'resident_reports_count' => $residentReportsCount,
+                'report_status'          => 'reported',
+            ],
+        ], 201);
     }
 
     /** GET /v1/feed/{id}/comments */
@@ -597,13 +673,13 @@ class FeedController extends Controller
             ->join('users', 'users.id', '=', 'posts.user_id')
             ->leftJoin('profiles', 'profiles.user_id', '=', 'posts.user_id')
             ->leftJoin('communities', 'communities.id', '=', 'posts.community_id')
-            ->select(
+            ->select(array_merge([
                 'posts.*',
                 DB::raw('COALESCE(profiles.display_name, users.name) as author_name'),
                 'profiles.avatar_url as author_avatar',
                 'profiles.unit_number as author_unit',
                 'communities.name as community_name',
-            )
+            ], $this->postReportSelectExpressions()))
             ->whereNull('posts.deleted_at');
 
         if ($communityScope) {
@@ -614,6 +690,8 @@ class FeedController extends Controller
 
         if ($request->filled('status') && $request->status !== 'all') {
             $query->where('posts.status', $request->status);
+        } else {
+            $query->where('posts.status', 'approved');
         }
 
         if ($request->filled('search')) {
@@ -629,12 +707,7 @@ class FeedController extends Controller
         $posts = $query->orderByDesc('posts.created_at')
             ->paginate(min((int) ($request->per_page ?? 15), 100));
 
-        $stats = [
-            'total'    => (int) DB::table('posts')->whereNull('deleted_at')->count(),
-            'pending'  => (int) DB::table('posts')->whereNull('deleted_at')->where('status', 'pending')->count(),
-            'approved' => (int) DB::table('posts')->whereNull('deleted_at')->where('status', 'approved')->count(),
-            'rejected' => (int) DB::table('posts')->whereNull('deleted_at')->where('status', 'rejected')->count(),
-        ];
+        $stats = $this->adminPostStats($communityScope, $request);
 
         $pageItems = $this->hydrateEngagementCounts($posts->items());
 
@@ -647,6 +720,46 @@ class FeedController extends Controller
                 'per_page'     => $posts->perPage(),
                 'stats'        => $stats,
             ],
+        ]);
+    }
+
+    /** GET /v1/admin/posts/{id} — live engagement + comments for moderation view */
+    public function adminShow(int $id): JsonResponse
+    {
+        $post = DB::table('posts')
+            ->join('users', 'users.id', '=', 'posts.user_id')
+            ->leftJoin('profiles', 'profiles.user_id', '=', 'posts.user_id')
+            ->leftJoin('communities', 'communities.id', '=', 'posts.community_id')
+            ->select(array_merge([
+                'posts.*',
+                DB::raw('COALESCE(profiles.display_name, users.name) as author_name'),
+                'profiles.avatar_url as author_avatar',
+                'profiles.unit_number as author_unit',
+                'communities.name as community_name',
+            ], $this->postReportSelectExpressions()))
+            ->where('posts.id', $id)
+            ->whereNull('posts.deleted_at')
+            ->first();
+
+        if (! $post) {
+            return response()->json(['message' => 'Post not found'], 404);
+        }
+
+        $this->assertCanModeratePost($post);
+
+        [$post] = $this->hydrateEngagementCounts([$post]);
+
+        $comments = $this->commentQuery()
+            ->where('post_comments.post_id', $id)
+            ->whereNull('post_comments.deleted_at')
+            ->orderBy('post_comments.created_at')
+            ->get();
+
+        $userId = (int) auth()->id();
+
+        return response()->json([
+            'data'     => $this->formatPost($post, [], $userId),
+            'comments' => $this->formatCommentsWithDepth($comments, $userId),
         ]);
     }
 
@@ -754,6 +867,228 @@ class FeedController extends Controller
         ]);
     }
 
+    /** DELETE /v1/admin/posts/{id} — remove a live post from the community feed */
+    public function adminDestroy(int $id): JsonResponse
+    {
+        $post = $this->findPostForAdmin($id);
+        if (! $post) {
+            return response()->json(['message' => 'Post not found'], 404);
+        }
+
+        $this->assertCanModeratePost($post);
+
+        DB::table('posts')->where('id', $id)->update([
+            'deleted_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        ActivityLogService::user(
+            'post_deleted',
+            'Deleted community post #'.$id,
+            'Post',
+            $id,
+            'warning',
+        );
+
+        NotificationService::send(
+            $post->user_id,
+            'warning',
+            'Post removed from feed',
+            'Your post was removed from the community feed by a community administrator.',
+            $this->postCommentsActionUrl((int) $id),
+            [
+                'kind'    => 'post_moderation',
+                'post_id' => (int) $id,
+            ],
+        );
+
+        return response()->json(['message' => 'Post deleted from the community feed']);
+    }
+
+    /** POST /v1/admin/posts/{id}/report — mark post sensitive and log admin report */
+    public function adminReportPost(int $id, Request $request): JsonResponse
+    {
+        $request->validate([
+            'reason' => 'required|string|min:8|max:500',
+            'type'   => 'nullable|in:noise,harassment,damage,spam,safety,other',
+        ]);
+
+        $post = $this->findPostForAdmin($id);
+        if (! $post) {
+            return response()->json(['message' => 'Post not found'], 404);
+        }
+
+        $this->assertCanModeratePost($post);
+
+        $reporterId = (int) auth()->id();
+        $reason = trim((string) $request->reason);
+        $type = $request->input('type', 'other');
+
+        DB::table('post_reports')->insert([
+            'post_id'     => $id,
+            'reporter_id' => $reporterId,
+            'reason'      => $reason,
+            'source'      => 'admin',
+            'type'        => $type,
+            'created_at'  => now(),
+            'updated_at'  => now(),
+        ]);
+
+        DB::table('posts')->where('id', $id)->update([
+            'is_sensitive' => true,
+            'updated_at'   => now(),
+        ]);
+
+        ActivityLogService::user(
+            'post_reported',
+            'Marked community post #'.$id.' as sensitive content',
+            'Post',
+            $id,
+            'warning',
+            null,
+            ['reason' => \Illuminate\Support\Str::limit($reason, 120)],
+        );
+
+        $reportsCount = (int) DB::table('post_reports')->where('post_id', $id)->count();
+        $residentReportsCount = (int) DB::table('post_reports')
+            ->where('post_id', $id)
+            ->where('source', 'resident')
+            ->count();
+
+        return response()->json([
+            'message' => 'Post reported and marked as sensitive content',
+            'data'    => [
+                'post_id'                => $id,
+                'is_sensitive'           => true,
+                'reports_count'          => $reportsCount,
+                'resident_reports_count' => $residentReportsCount,
+                'report_status'          => 'sensitive',
+            ],
+        ]);
+    }
+
+    /** GET /v1/admin/posts/{id}/reports — list reports submitted for a post */
+    public function adminPostReports(int $id): JsonResponse
+    {
+        $post = $this->findPostForAdmin($id);
+        if (! $post) {
+            return response()->json(['message' => 'Post not found'], 404);
+        }
+
+        $this->assertCanModeratePost($post);
+
+        $reports = DB::table('post_reports')
+            ->join('users', 'users.id', '=', 'post_reports.reporter_id')
+            ->leftJoin('profiles', 'profiles.user_id', '=', 'post_reports.reporter_id')
+            ->select(
+                'post_reports.id',
+                'post_reports.post_id',
+                'post_reports.reporter_id',
+                'post_reports.reason',
+                'post_reports.source',
+                'post_reports.type',
+                'post_reports.created_at',
+                'users.role as reporter_role',
+                DB::raw('COALESCE(profiles.display_name, users.name) as reporter_name'),
+            )
+            ->where('post_reports.post_id', $id)
+            ->orderByDesc('post_reports.created_at')
+            ->get();
+
+        return response()->json([
+            'data' => $reports->map(fn ($report) => [
+                'id'             => (int) $report->id,
+                'post_id'        => (int) $report->post_id,
+                'reporter_id'    => (int) $report->reporter_id,
+                'reporter_name'  => $report->reporter_name,
+                'reporter_role'  => $report->reporter_role,
+                'source'         => $report->source ?? 'resident',
+                'type'           => $report->type,
+                'reason'         => $report->reason,
+                'created_at'     => $this->formatTimestamp($report->created_at),
+            ])->values(),
+            'meta' => [
+                'total' => $reports->count(),
+            ],
+        ]);
+    }
+
+    /** @return array<int, \Illuminate\Database\Query\Expression|string> */
+    private function postReportSelectExpressions(): array
+    {
+        if (! Schema::hasTable('post_reports')) {
+            return [
+                DB::raw('0 as reports_count'),
+                DB::raw('0 as resident_reports_count'),
+            ];
+        }
+
+        $expressions = [
+            DB::raw('(SELECT COUNT(*) FROM post_reports WHERE post_reports.post_id = posts.id) as reports_count'),
+        ];
+
+        if (Schema::hasColumn('post_reports', 'source')) {
+            $expressions[] = DB::raw("(SELECT COUNT(*) FROM post_reports WHERE post_reports.post_id = posts.id AND post_reports.source = 'resident') as resident_reports_count");
+        } else {
+            // Fallback before source column migration: treat non-sensitive report counts as resident reports.
+            $expressions[] = DB::raw('(SELECT COUNT(*) FROM post_reports WHERE post_reports.post_id = posts.id) as resident_reports_count');
+        }
+
+        return $expressions;
+    }
+
+    private function adminPostStats(?int $communityScope, Request $request): array
+    {
+        $statsQuery = DB::table('posts')->whereNull('deleted_at');
+
+        if ($communityScope) {
+            $statsQuery->where('community_id', $communityScope);
+        } elseif ($request->input('community_id') !== 'all' && $request->filled('community_id')) {
+            $statsQuery->where('community_id', (int) $request->community_id);
+        }
+
+        $publishedQuery = (clone $statsQuery)->where('status', 'approved');
+        $published = (clone $publishedQuery)->count();
+
+        $sensitive = 0;
+        $reported = 0;
+
+        if (Schema::hasColumn('posts', 'is_sensitive')) {
+            $sensitive = (clone $publishedQuery)->where('is_sensitive', true)->count();
+        }
+
+        if (Schema::hasTable('post_reports')) {
+            $reportedQuery = (clone $publishedQuery);
+
+            if (Schema::hasColumn('posts', 'is_sensitive')) {
+                $reportedQuery->where(function ($q) {
+                    $q->where('is_sensitive', false)->orWhereNull('is_sensitive');
+                });
+            }
+
+            $reportedQuery->whereExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('post_reports')
+                    ->whereColumn('post_reports.post_id', 'posts.id');
+
+                if (Schema::hasColumn('post_reports', 'source')) {
+                    $q->where('post_reports.source', 'resident');
+                }
+            });
+
+            $reported = $reportedQuery->count();
+        }
+
+        return [
+            'total'     => (int) $published,
+            'pending'   => 0,
+            'approved'  => (int) $published,
+            'rejected'  => 0,
+            'sensitive' => (int) $sensitive,
+            'reported'  => (int) $reported,
+        ];
+    }
+
     private function resolveAdminCommunityScope($user, Request $request): ?int
     {
         return AdminRoleService::resolveAdminCommunityScope($user, $request);
@@ -817,21 +1152,42 @@ class FeedController extends Controller
             ->whereNull('posts.deleted_at');
     }
 
-    private function formatPost(object $post, array $likedPostIds, int $userId): array
+    private function formatPost(object $post, array $likedPostIds, int $userId, array $options = []): array
     {
         $categoryLabels = collect(self::TOPICS)->pluck('label', 'id');
+        $isSensitive = (bool) ($post->is_sensitive ?? false);
+        $maskSensitive = ($options['mask_sensitive'] ?? false) && $isSensitive;
+        $body = $maskSensitive ? null : $post->body;
+        $reportsCount = isset($post->reports_count) ? (int) $post->reports_count : null;
+        $residentReportsCount = isset($post->resident_reports_count)
+            ? (int) $post->resident_reports_count
+            : null;
+        if ($isSensitive) {
+            $reportStatus = 'sensitive';
+        } elseif (($residentReportsCount ?? 0) > 0) {
+            $reportStatus = 'reported';
+        } else {
+            $reportStatus = 'published';
+        }
 
         return [
             'id'             => (int) $post->id,
             'community_id'   => (int) $post->community_id,
             'community_name' => $post->community_name ?? null,
             'user_id'        => (int) $post->user_id,
-            'body'           => $post->body,
-            'content'        => $post->body,
+            'body'           => $body,
+            'content'        => $body,
             'category'       => $post->category,
             'status'         => $post->status ?? 'approved',
+            'is_sensitive'   => $isSensitive,
+            'sensitive_message' => $maskSensitive
+                ? 'This post has been reported and hidden due to community guidelines.'
+                : null,
+            'reports_count'  => $reportsCount,
+            'resident_reports_count' => $residentReportsCount,
+            'report_status'  => $reportStatus,
             'tag'            => $categoryLabels[$post->category] ?? ucfirst($post->category),
-            'image_url'      => MediaUrl::toPublic($post->image_url, request()),
+            'image_url'      => $maskSensitive ? null : MediaUrl::toPublic($post->image_url, request()),
             'likes_count'    => (int) $post->likes_count,
             'comments_count' => (int) $post->comments_count,
             'likes'          => (int) $post->likes_count,

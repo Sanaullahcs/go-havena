@@ -11,10 +11,10 @@ import {
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { Ionicons } from "@expo/vector-icons";
 import { Fonts } from "../../../constants/font";
-import { Colors, Gradients } from "../../../constants/tokens";
+import { Colors, SolidFills } from "../../../constants/tokens";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
 import { fetchMe } from "../../../services/auth-api";
 import { fetchMyFamily } from "../../../services/family-api";
@@ -103,7 +103,7 @@ function ReviewTimeline({ steps, reviewState }) {
                     step.status === "upcoming"
                       ? "#98A2B3"
                       : step.status === "current"
-                        ? "#0B66E8"
+                        ? "#14B8A6"
                         : "#FFFFFF"
                   }
                 />
@@ -283,8 +283,8 @@ export default function PendingFamilyScreen() {
       ? { label: "Declined", tone: "danger" }
       : { label: "Under review", tone: "pending" };
 
-  const heroGradient =
-    reviewState === "rejected" ? ["#FEF2F2", "#FFFFFF"] : Gradients.authScreen;
+  const heroBg =
+    reviewState === "rejected" ? "#FEF2F2" : SolidFills.authWash;
 
   if (loading) {
     return (
@@ -310,12 +310,7 @@ export default function PendingFamilyScreen() {
           />
         }
       >
-        <LinearGradient
-          colors={heroGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.hero}
-        >
+        <View style={[styles.hero, { backgroundColor: heroBg }]}>
           <View
             style={[
               styles.heroIconWrap,
@@ -355,7 +350,7 @@ export default function PendingFamilyScreen() {
 
           <Text style={styles.title}>{screenTitle}</Text>
           <Text style={styles.subtitle}>{screenSubtitle}</Text>
-        </LinearGradient>
+        </View>
 
         {(familyNumber || communityName) && (
           <View
@@ -390,7 +385,7 @@ export default function PendingFamilyScreen() {
             ) : null}
             {reviewState === "pending" ? (
               <View style={styles.reviewPill}>
-                <Ionicons name="time-outline" size={14} color="#0B66E8" />
+                <Ionicons name="time-outline" size={14} color="#14B8A6" />
                 <Text style={styles.reviewPillText}>Waiting for Family Head approval</Text>
               </View>
             ) : (
@@ -518,9 +513,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   heroIconPending: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
   heroIconRejected: {
     backgroundColor: "#FEE2E2",
@@ -537,9 +532,9 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   statusBadgePending: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: "rgba(20, 184, 166, 0.28)",
   },
   statusBadgeDanger: {
     backgroundColor: "#FEF2F2",
@@ -547,14 +542,14 @@ const styles = StyleSheet.create({
     borderColor: "#FECACA",
   },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusDotPending: { backgroundColor: "#0B66E8" },
+  statusDotPending: { backgroundColor: "#14B8A6" },
   statusDotDanger: { backgroundColor: "#DC2626" },
   statusBadgeText: {
     fontFamily: Fonts.semiBold,
     fontSize: 12,
     letterSpacing: 0.2,
   },
-  statusBadgeTextPending: { color: "#0B66E8" },
+  statusBadgeTextPending: { color: "#14B8A6" },
   statusBadgeTextDanger: { color: "#B91C1C" },
   title: {
     fontFamily: Fonts.bold,
@@ -591,7 +586,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -626,10 +621,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     marginTop: 4,
   },
-  reviewPillText: { fontFamily: Fonts.medium, fontSize: 12, color: "#0B66E8" },
+  reviewPillText: { fontFamily: Fonts.medium, fontSize: 12, color: "#14B8A6" },
   declinedPill: {
     alignSelf: "flex-start",
     flexDirection: "row",
@@ -704,11 +699,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  timelineDotDone: { backgroundColor: "#0B66E8" },
+  timelineDotDone: { backgroundColor: "#14B8A6" },
   timelineDotCurrent: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     borderWidth: 2,
-    borderColor: "#0B66E8",
+    borderColor: "#14B8A6",
   },
   timelineDotFailed: { backgroundColor: "#DC2626" },
   timelineDotUpcoming: {
@@ -726,7 +721,7 @@ const styles = StyleSheet.create({
   timelineContent: { flex: 1, paddingBottom: 16 },
   timelineLabel: { fontFamily: Fonts.medium, fontSize: 13, lineHeight: 18 },
   timelineLabelDone: { color: "#344054" },
-  timelineLabelCurrent: { color: "#0B66E8" },
+  timelineLabelCurrent: { color: "#14B8A6" },
   timelineLabelFailed: { color: "#B91C1C" },
   timelineLabelUpcoming: { color: "#98A2B3" },
   timelineHint: {
@@ -758,7 +753,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#D1FAF5",
     alignItems: "center",
     justifyContent: "center",
   },

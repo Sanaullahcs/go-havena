@@ -141,7 +141,7 @@ export default function RegionScreen() {
             autoCorrect={false}
           />
           {isSearchPending || refreshing ? (
-            <ActivityIndicator size="small" color="#007BFF" />
+            <ActivityIndicator size="small" color="#14B8A6" />
           ) : searchText.length > 0 ? (
             <TouchableOpacity
               onPress={() => setSearchText("")}
@@ -157,7 +157,7 @@ export default function RegionScreen() {
 
       {loading ? (
         <View style={styles.centerState}>
-          <ActivityIndicator size="large" color="#007BFF" />
+          <ActivityIndicator size="large" color="#14B8A6" />
           <Text style={styles.stateText}>Loading regions…</Text>
         </View>
       ) : error ? (
@@ -180,7 +180,7 @@ export default function RegionScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => loadRegions(true)}
-              tintColor="#007BFF"
+              tintColor="#14B8A6"
             />
           }
         >
@@ -222,7 +222,7 @@ export default function RegionScreen() {
                   </View>
 
                   {busy ? (
-                    <ActivityIndicator size="small" color="#007BFF" />
+                    <ActivityIndicator size="small" color="#14B8A6" />
                   ) : (
                     <Ionicons name="chevron-forward" size={20} color="#C6CBD3" />
                   )}
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: "#007BFF",
+    backgroundColor: "#14B8A6",
   },
   retryText: {
     fontFamily: Fonts.medium,

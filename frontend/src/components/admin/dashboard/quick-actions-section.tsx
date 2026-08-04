@@ -57,8 +57,8 @@ export const COMMUNITY_QUICK_ACTIONS = {
     title: "Invite",
     hint: "Send a member invite code",
     icon: UserPlus,
-    accent: "#007BFF",
-    soft: "#EFF6FF",
+    accent: "#14B8A6",
+    soft: "#D1FAF5",
   },
   notice: {
     id: "notice",

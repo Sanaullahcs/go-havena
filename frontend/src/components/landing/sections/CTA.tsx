@@ -224,7 +224,7 @@ export function CTA() {
       <div aria-hidden="true" className="soft-section absolute inset-0 -z-10" />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute right-0 top-1/2 -z-10 h-80 w-80 -translate-y-1/2 rounded-full bg-[#0052df]/6 blur-3xl"
+        className="pointer-events-none absolute right-0 top-1/2 -z-10 h-80 w-80 -translate-y-1/2 rounded-full bg-[#14B8A6]/6 blur-3xl"
       />
 
       <Container size="xl">

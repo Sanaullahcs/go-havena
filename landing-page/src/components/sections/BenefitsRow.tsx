@@ -111,7 +111,7 @@ export function BenefitsRow() {
                                     <span className="text-[11px] font-semibold text-transparent transition-colors duration-500 group-hover:text-indigo-500">
                                         Discover
                                     </span>
-                                    <span className="grid h-6 w-6 place-items-center rounded-full bg-indigo-50 text-indigo-500 transition-all duration-500 group-hover:bg-[#0052DF] group-hover:text-white">
+                                    <span className="grid h-6 w-6 place-items-center rounded-full bg-indigo-50 text-indigo-500 transition-all duration-500 group-hover:bg-[#0A2A43] group-hover:text-white">
                                         <Icon name="arrow-up-right" className="h-3 w-3" />
                                     </span>
                                 </div>

@@ -138,25 +138,9 @@ export default function VerifyRegistrationScreen() {
         </View>
 
         <KeyboardSafeScreen
-          footerBorderless
-          footerStyle={styles.footer}
           contentContainerStyle={styles.scrollBody}
           scrollProps={{ bounces: false }}
-          footer={
-            <View style={styles.footerInner}>
-              <AuthSubmitButton
-                label="Verify & Continue"
-                loadingLabel="Verifying…"
-                enabled={isValid}
-                loading={submitting}
-                onPress={handleVerify}
-              />
-              <Text style={styles.footerText}>
-                This code will expire in 2 minutes
-              </Text>
-              {resendFooter}
-            </View>
-          }
+          keyboardAvoiding={false}
         >
           <View style={styles.formBlock}>
             <View style={styles.logoContainer}>
@@ -182,6 +166,20 @@ export default function VerifyRegistrationScreen() {
                 </Text>
               ) : null}
             </View>
+
+            <View style={styles.actionsBlock}>
+              <AuthSubmitButton
+                label="Verify & Continue"
+                loadingLabel="Verifying…"
+                enabled={isValid}
+                loading={submitting}
+                onPress={handleVerify}
+              />
+              <Text style={styles.footerText}>
+                This code will expire in 2 minutes
+              </Text>
+              {resendFooter}
+            </View>
           </View>
         </KeyboardSafeScreen>
       </SafeAreaView>
@@ -199,15 +197,20 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   scrollBody: {
-    flexGrow: 0,
+    flexGrow: 1,
     paddingTop: 8,
-    paddingBottom: 16,
+    paddingBottom: 24,
   },
   formBlock: {
     width: "100%",
     maxWidth: 360,
     alignSelf: "center",
     gap: 28,
+  },
+  actionsBlock: {
+    marginTop: 8,
+    gap: 12,
+    width: "100%",
   },
   logoContainer: {
     flexDirection: "column",
@@ -251,14 +254,11 @@ const styles = StyleSheet.create({
     color: "#000000",
     lineHeight: 20,
   },
-  footer: {
-    paddingHorizontal: 0,
-  },
-  footerInner: {
-    gap: 12,
-    width: "100%",
-    maxWidth: 360,
-    alignSelf: "center",
+  footerText: {
+    textAlign: "center",
+    fontSize: 12,
+    fontWeight: "400",
+    color: "#6B7280",
   },
   resendText: {
     textAlign: "center",
@@ -268,15 +268,9 @@ const styles = StyleSheet.create({
   },
   resendHighlight: {
     fontWeight: "600",
-    color: "#0179FF",
+    color: "#0D9488",
   },
   resendMuted: {
     opacity: 0.6,
-  },
-  footerText: {
-    textAlign: "center",
-    fontSize: 12,
-    fontWeight: "400",
-    color: "#6B7280",
   },
 });
