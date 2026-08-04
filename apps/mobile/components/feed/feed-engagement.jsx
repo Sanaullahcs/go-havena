@@ -11,14 +11,12 @@ import {
 import { Feather, Ionicons } from "@expo/vector-icons";
 import UserAvatar from "../ui/user-avatar";
 import { Fonts } from "../../constants/font";
-import { Colors } from "../../constants/tokens";
+import { HomeTheme as T } from "../../constants/home-theme";
 import { formatCount, getCommentTimeLabel } from "../../services/feed-api";
 import { sw, sf } from "../../utils/responsive";
 
-/** Instagram-style like red */
 export const LIKE_HEART_RED = "#ED4956";
 
-/** Engagement counts row — likes left, comments right */
 export function FeedEngagementSummary({
   likesCount,
   commentsCount,
@@ -35,9 +33,7 @@ export function FeedEngagementSummary({
       <View style={styles.summaryLeft}>
         {likes > 0 ? (
           <View style={styles.summaryLikeGroup}>
-            <View
-              style={styles.likeBadge}
-            >
+            <View style={styles.likeBadge}>
               <Ionicons name="heart" size={11} color="#FFFFFF" />
             </View>
             <Text style={styles.summaryText}>
@@ -66,7 +62,6 @@ export function FeedEngagementSummary({
   );
 }
 
-/** Like / Comment action row with pill buttons */
 export function FeedActionRow({
   liked,
   onLike,
@@ -103,16 +98,12 @@ export function FeedActionRow({
         disabled={disabled || !onLike}
       >
         <Animated.View
-          style={[
-            styles.actionIconWrap,
-            liked && !disabled && styles.actionIconWrapLiked,
-            { transform: [{ scale }] },
-          ]}
+          style={[styles.actionIconWrap, { transform: [{ scale }] }]}
         >
           <Ionicons
             name={liked ? "heart" : "heart-outline"}
             size={18}
-            color={disabled ? "#CBD5E1" : liked ? LIKE_HEART_RED : "#262626"}
+            color={disabled ? T.border : liked ? LIKE_HEART_RED : T.navy}
           />
         </Animated.View>
         <Text
@@ -140,7 +131,7 @@ export function FeedActionRow({
           <Feather
             name="message-circle"
             size={16}
-            color={disabled ? "#CBD5E1" : Colors.brandPrimaryDeep}
+            color={disabled ? T.border : T.deepTeal}
           />
         </View>
         <Text
@@ -157,7 +148,6 @@ export function FeedActionRow({
   );
 }
 
-/** Combined card footer — summary + actions in one styled block */
 export function FeedCardFooter({
   likesCount,
   commentsCount,
@@ -194,7 +184,6 @@ export function FeedCardFooter({
   );
 }
 
-/** Comment bubble with meta row */
 export function FeedCommentBubble({
   comment,
   onReply,
@@ -259,7 +248,7 @@ export function FeedCommentBubble({
             <Text style={styles.metaAction}>Reply</Text>
           </Pressable>
           {pending ? (
-            <ActivityIndicator size="small" color="#65676B" style={{ marginLeft: 4 }} />
+            <ActivityIndicator size="small" color={T.gray} style={{ marginLeft: 4 }} />
           ) : null}
         </View>
       </View>
@@ -272,9 +261,9 @@ const styles = StyleSheet.create({
     marginTop: sw(10),
     marginHorizontal: -sw(14),
     marginBottom: -sw(14),
-    backgroundColor: "#F8FAFC",
-    borderTopWidth: 1,
-    borderTopColor: "#EEF2F6",
+    backgroundColor: T.canvas,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: T.border,
     borderBottomLeftRadius: sw(16),
     borderBottomRightRadius: sw(16),
     overflow: "hidden",
@@ -304,28 +293,24 @@ const styles = StyleSheet.create({
     width: sw(22),
     height: sw(22),
     borderRadius: sw(11),
+    backgroundColor: LIKE_HEART_RED,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: Colors.brandPrimaryDeep,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 2,
   },
   summaryText: {
     fontFamily: Fonts.medium,
     fontSize: sf(12),
-    color: "#64748B",
+    color: T.gray,
   },
   summaryCount: {
     fontFamily: Fonts.bold,
     fontWeight: "700",
-    color: "#334155",
+    color: T.navy,
   },
   summaryComments: {
     fontFamily: Fonts.medium,
     fontSize: sf(12),
-    color: "#64748B",
+    color: T.gray,
   },
   summaryCommentsPressed: {
     opacity: 0.65,
@@ -350,39 +335,30 @@ const styles = StyleSheet.create({
     paddingVertical: sw(10),
     paddingHorizontal: sw(12),
     borderRadius: sw(12),
-    backgroundColor: "#FFFFFF",
+    backgroundColor: T.white,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    shadowColor: "#64748B",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 1,
+    borderColor: T.border,
   },
   actionBtnLiked: {
     backgroundColor: "#FFF1F2",
     borderColor: "#FECDD3",
   },
   actionBtnPressed: {
-    backgroundColor: "#F1F5F9",
+    backgroundColor: T.canvas,
     transform: [{ scale: 0.98 }],
   },
   actionIconWrap: {
     width: sw(28),
     height: sw(28),
     borderRadius: sw(14),
-    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
-  },
-  actionIconWrapLiked: {
-    backgroundColor: "transparent",
   },
   actionIconWrapComment: {
     width: sw(28),
     height: sw(28),
     borderRadius: sw(14),
-    backgroundColor: "#D1FAF5",
+    backgroundColor: T.mint,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -392,17 +368,17 @@ const styles = StyleSheet.create({
   actionLabel: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(13),
-    color: "#475569",
+    color: T.navy,
     fontWeight: "600",
   },
   actionLabelDisabled: {
-    color: "#CBD5E1",
+    color: T.border,
   },
   actionLabelLiked: {
     color: LIKE_HEART_RED,
   },
   actionLabelComment: {
-    color: Colors.brandPrimaryDeep,
+    color: T.deepTeal,
   },
   commentRow: {
     flexDirection: "row",
@@ -425,7 +401,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   bubble: {
-    backgroundColor: "#F0F2F5",
+    backgroundColor: T.canvas,
     borderRadius: sw(18),
     paddingHorizontal: sw(14),
     paddingVertical: sw(10),
@@ -436,31 +412,31 @@ const styles = StyleSheet.create({
     backgroundColor: "#F5F6F8",
   },
   bubbleMine: {
-    backgroundColor: "#E7F3FF",
+    backgroundColor: T.mint,
   },
   bubbleName: {
     fontFamily: Fonts.bold,
     fontSize: sf(13),
-    color: "#050505",
+    color: T.navy,
     fontWeight: "700",
     marginBottom: sw(3),
   },
   replyHint: {
     fontFamily: Fonts.regular,
     fontSize: sf(11),
-    color: "#65676B",
+    color: T.gray,
     marginBottom: sw(4),
   },
   replyHintName: {
     fontFamily: Fonts.semiBold,
-    color: Colors.brandPrimaryDeep,
+    color: T.deepTeal,
     fontWeight: "600",
   },
   bubbleText: {
     fontFamily: Fonts.regular,
     fontSize: sf(14),
     lineHeight: sf(20),
-    color: "#050505",
+    color: T.navy,
   },
   commentMeta: {
     flexDirection: "row",
@@ -472,16 +448,16 @@ const styles = StyleSheet.create({
   metaTime: {
     fontFamily: Fonts.bold,
     fontSize: sf(11),
-    color: "#65676B",
+    color: T.gray,
     fontWeight: "700",
   },
   metaAction: {
     fontFamily: Fonts.bold,
     fontSize: sf(11),
-    color: "#65676B",
+    color: T.gray,
     fontWeight: "700",
   },
   metaActionLiked: {
-    color: Colors.brandPrimaryDeep,
+    color: T.deepTeal,
   },
 });

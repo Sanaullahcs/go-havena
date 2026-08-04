@@ -30,7 +30,7 @@ const ADMIN_THEME = {
 
 const RESIDENT_THEME = {
   border: "rgba(0, 201, 136, 0.22)",
-  accent: C.primary.vibrantGreen,
+  accent: C.primary.darkTeal,
   chipBg: "rgba(0, 201, 136, 0.12)",
   chipText: "#047857",
   iconBg: "#F0FDF4",

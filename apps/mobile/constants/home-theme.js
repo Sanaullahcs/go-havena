@@ -1,18 +1,24 @@
-/** Ocean Breeze home palette — matches design system */
+/**
+ * Ocean Breeze — the only home palette.
+ *
+ * Five swatches, used everywhere:
+ *   #0F3D5F  Navy          — hero bg, headings, primary text, icon color
+ *   #0D9488  Deep Teal     — secondary accent, success
+ *   #14B8A6  Primary Teal  — CTA buttons, active nav, FAB, accent text
+ *   #D1FAF5  Soft Mint     — icon wells, chips, soft surfaces
+ *   #F4FBFD  Canvas        — page background
+ *
+ * No gradients. Solid fills only.
+ */
 export const HomeTheme = {
-  deepNavy: "#0A2A43",
-  darkTeal: "#0D9488",
-  primaryTeal: "#14B8A6",
-  seaGreen: "#14B8A6",
-  freshGreen: "#0D9488",
-  softMint: "#D1FAF5",
-  darkText: "#0A2A43",
-  mediumGray: "#6B7280",
-  lightBorder: "#E5E7EB",
-  pageBg: "#F4F8FD",
-  cardBg: "#FFFFFF",
-  noticeFill: "#0A2A43",
-  buttonFill: "#14B8A6",
+  navy:       "#0F3D5F",
+  deepTeal:   "#0D9488",
+  teal:       "#14B8A6",
+  mint:       "#D1FAF5",
+  canvas:     "#F4FBFD",
+  white:      "#FFFFFF",
+  gray:       "#6B7280",
+  border:     "#E5E7EB",
 };
 
 export default HomeTheme;

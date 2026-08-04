@@ -599,80 +599,83 @@ export function NeighborhoodHelpSkeleton({ count = 2 }) {
   );
 }
 
-/** Full home tab — matches notices hero, quick actions, and section carousels */
+/** Full home tab — matches hero carousel, quick actions, and section carousels */
 export function HomeScreenSkeleton() {
   const { width } = useWindowDimensions();
   const cardWidth = width - Home.gutter * 2;
   const carouselCardWidth = Math.floor((cardWidth - sw(10) - sw(24)) / 2);
-  const heroHeight = hp(13);
-  const thumbSize = sw(72);
+  const heroHeight = sw(160);
+  const imageW = Math.round(cardWidth * 0.38);
 
   return (
     <View style={styles.homeSkeletonWrap}>
+      {/* Hero card */}
       <View style={[styles.homeHeroShell, { width: cardWidth, height: heroHeight }]}>
         <View style={styles.homeHeroInner}>
           <View style={styles.homeHeroCopy}>
-            <SkeletonLine width={sw(78)} height={sf(18)} tone="hero" style={styles.homeHeroBadge} />
-            <SkeletonLine width="94%" height={sf(15)} tone="hero" style={{ marginTop: hp(0.55) }} />
-            <SkeletonLine width="78%" height={sf(15)} tone="hero" style={{ marginTop: 6 }} />
-            <SkeletonLine width="52%" height={sf(11)} tone="hero" style={{ marginTop: hp(0.45) }} />
+            <SkeletonLine width={sw(56)} height={sf(14)} tone="hero" style={{ borderRadius: 999 }} />
+            <SkeletonLine width="90%" height={sf(16)} tone="hero" style={{ marginTop: sw(8) }} />
+            <SkeletonLine width="70%" height={sf(16)} tone="hero" style={{ marginTop: sw(4) }} />
+            <SkeletonLine width={sw(50)} height={sf(10)} tone="hero" style={{ marginTop: sw(6) }} />
+            <SkeletonLine width={sw(72)} height={sf(11)} tone="hero" style={{ marginTop: sw(8) }} />
           </View>
           <ShimmerBlock
             tone="hero"
-            style={{ width: thumbSize, height: thumbSize, borderRadius: sw(11) }}
+            style={{ width: imageW, height: heroHeight, borderRadius: 0 }}
+            delay={60}
           />
         </View>
       </View>
 
+      {/* Dots */}
       <View style={styles.homeDotsRow}>
-        <ShimmerBlock tone="hero" style={styles.homeDotActive} />
-        <ShimmerBlock tone="hero" style={styles.homeDot} />
-        <ShimmerBlock tone="hero" style={styles.homeDot} />
+        <ShimmerBlock tone="brand" style={styles.homeDotActive} />
+        <ShimmerBlock tone="soft" style={styles.homeDot} />
+        <ShimmerBlock tone="soft" style={styles.homeDot} />
       </View>
 
+      {/* Quick actions */}
       <View style={styles.homeQuickActionsBlock}>
         <SkeletonLine width={sw(96)} height={sf(10)} tone="brand" style={styles.homeSectionLabel} />
-        <View style={styles.homeChipRow}>
-          {[0, 1, 2, 3, 4].map((key) => (
-            <View key={key} style={styles.homeChipSkeleton}>
-              <ShimmerBlock tone="soft" style={styles.homeChipIcon} />
-              <SkeletonLine width={sw(44)} height={sf(10)} tone="soft" />
+        <View style={styles.homeQaRow}>
+          {[0, 1, 2, 3, 4, 5].map((key) => (
+            <View key={key} style={styles.homeQaTile}>
+              <ShimmerBlock tone="soft" style={styles.homeQaCircle} delay={key * 40} />
+              <SkeletonLine width={sw(36)} height={sf(9)} tone="soft" delay={key * 40 + 20} />
             </View>
           ))}
         </View>
       </View>
 
+      {/* Happening Soon */}
       <View style={styles.homeSectionBlock}>
         <HomeSkeletonSectionHeader />
-        <HomeEventCardSkeleton width={cardWidth} />
+        <View style={styles.homeDealRow}>
+          <HomeDealCardSkeleton width={carouselCardWidth} imageRatio={0.65} />
+          <HomeDealCardSkeleton width={carouselCardWidth} imageRatio={0.65} peek />
+        </View>
       </View>
 
+      {/* Community Feed */}
       <View style={styles.homeSectionBlock}>
         <HomeSkeletonSectionHeader labelWidth={sw(118)} />
-        <HomeFeedCardSkeleton width={cardWidth} />
+        <HomeFeedCardSkeleton width={Math.floor(cardWidth - sw(40))} />
       </View>
 
+      {/* Deals */}
       <View style={styles.homeSectionBlock}>
         <HomeSkeletonSectionHeader labelWidth={sw(102)} />
         <View style={styles.homeDealRow}>
-          <HomeDealCardSkeleton width={carouselCardWidth} />
-          <HomeDealCardSkeleton width={carouselCardWidth} peek />
+          <HomeDealCardSkeleton width={carouselCardWidth} imageRatio={1.35} />
+          <HomeDealCardSkeleton width={carouselCardWidth} imageRatio={1.35} peek />
         </View>
       </View>
 
+      {/* Property */}
       <View style={styles.homeSectionBlock}>
-        <HomeSkeletonSectionHeader labelWidth={sw(88)} />
+        <HomeSkeletonSectionHeader labelWidth={sw(140)} />
         <View style={styles.homeDealRow}>
-          <HomeMiniCardSkeleton width={carouselCardWidth} showProgress />
-          <HomeMiniCardSkeleton width={carouselCardWidth} peek showProgress />
-        </View>
-      </View>
-
-      <View style={[styles.homeSectionBlock, styles.homeSectionBlockLast]}>
-        <HomeSkeletonSectionHeader labelWidth={sw(156)} />
-        <View style={styles.homeDealRow}>
-          <HomeMiniCardSkeleton width={carouselCardWidth} />
-          <HomeMiniCardSkeleton width={carouselCardWidth} peek />
+          <HomeMiniCardSkeleton width={Math.floor(cardWidth * 0.72)} />
         </View>
       </View>
     </View>
@@ -701,14 +704,14 @@ function HomeEventCardSkeleton({ width }) {
   );
 }
 
-function HomeDealCardSkeleton({ width, peek = false }) {
+function HomeDealCardSkeleton({ width, peek = false, imageRatio = 0.65 }) {
+  const imgH = Math.round(width * imageRatio);
   return (
     <View style={[styles.homeDealCard, { width }, peek && styles.homeDealCardPeek]}>
-      <ShimmerBlock tone="card" style={styles.homeDealImage} />
+      <ShimmerBlock tone="card" style={{ width: "100%", height: imgH, borderRadius: 0 }} />
       <View style={styles.homeDealBody}>
-        <SkeletonLine width="90%" height={sf(12)} tone="card" />
-        <SkeletonLine width="62%" height={sf(10)} tone="soft" style={{ marginTop: 8 }} />
-        <ShimmerBlock tone="brand" style={styles.homeDealBtn} />
+        <SkeletonLine width="88%" height={sf(12)} tone="card" />
+        <SkeletonLine width="60%" height={sf(10)} tone="soft" style={{ marginTop: 6 }} />
       </View>
     </View>
   );
@@ -1178,89 +1181,72 @@ const styles = StyleSheet.create({
   },
   homeHeroShell: {
     marginHorizontal: Home.gutter,
-    marginTop: hp(0.5),
-    borderRadius: sw(14),
-    backgroundColor: "#0A2A43",
+    marginTop: sw(4),
+    borderRadius: sw(16),
+    backgroundColor: "#0F3D5F",
     overflow: "hidden",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 4,
   },
   homeHeroInner: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     paddingLeft: sw(16),
-    paddingRight: sw(12),
+    paddingRight: 0,
   },
   homeHeroCopy: {
     flex: 1,
     minWidth: 0,
     paddingRight: sw(12),
   },
-  homeHeroBadge: {
+  homeHeroCta: {
+    marginTop: sw(10),
+    width: sw(110),
+    height: sw(30),
     borderRadius: 999,
   },
   homeDotsRow: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    gap: sw(6),
-    marginTop: hp(0.55),
-    marginBottom: hp(0.15),
+    gap: sw(5),
+    marginTop: sw(10),
   },
   homeDot: {
-    width: sw(6),
-    height: sw(6),
-    borderRadius: sw(3),
-    backgroundColor: "rgba(20, 184, 166, 0.18)",
+    width: sw(7),
+    height: sw(7),
+    borderRadius: sw(4),
   },
   homeDotActive: {
-    width: sw(16),
-    height: sw(6),
-    borderRadius: sw(3),
-    backgroundColor: "rgba(20, 184, 166, 0.35)",
+    width: sw(20),
+    height: sw(7),
+    borderRadius: sw(4),
   },
   homeQuickActionsBlock: {
-    marginTop: hp(0.35),
+    marginTop: sw(12),
     paddingHorizontal: Home.gutter,
   },
   homeSectionLabel: {
     borderRadius: sf(5),
-    marginBottom: hp(0.35),
+    marginBottom: sw(8),
   },
-  homeChipRow: {
+  homeQaRow: {
     flexDirection: "row",
-    gap: sw(8),
-    paddingTop: hp(0.15),
+    justifyContent: "space-between",
+    paddingTop: sw(4),
   },
-  homeChipSkeleton: {
-    minWidth: sw(78),
-    paddingHorizontal: sw(10),
-    paddingVertical: hp(0.55),
-    borderRadius: sw(12),
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#FFFFFF",
+  homeQaTile: {
     alignItems: "center",
-    gap: hp(0.35),
+    gap: sw(6),
   },
-  homeChipIcon: {
-    width: sw(28),
-    height: sw(28),
-    borderRadius: sw(8),
+  homeQaCircle: {
+    width: sw(42),
+    height: sw(42),
+    borderRadius: sw(21),
   },
   homeSectionBlock: {
-    marginTop: Home.sectionGap,
+    marginTop: sw(14),
     paddingHorizontal: Home.gutter,
     paddingBottom: Home.sectionCardBottom,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(0,0,0,0.06)",
-  },
-  homeSectionBlockLast: {
-    borderBottomWidth: 0,
   },
   homeSectionHeader: {
     flexDirection: "row",
@@ -1310,7 +1296,7 @@ const styles = StyleSheet.create({
   },
   homeDealImage: {
     width: "100%",
-    height: Home.dealImageH,
+    height: sw(80),
   },
   homeDealBody: {
     padding: sw(12),

@@ -1,11 +1,11 @@
-import { Text, View, StyleSheet, useWindowDimensions } from "react-native";
+import { Text, View, StyleSheet, Pressable, useWindowDimensions, FlatList, Platform } from "react-native";
 import React, { useMemo } from "react";
 import { useRouter } from "expo-router";
+import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { Home, homeStyles } from "../../constants/home-styles";
+import { HomeTheme as T } from "../../constants/home-theme";
 import HomeSectionHeader from "./section-header";
-import SectionCarousel from "./section-carousel";
-import HomeSectionCard from "./home-section-card";
 import HomeSectionEmpty from "./home-section-empty";
 import AmenityIcon from "../property/amenity-icon";
 import {
@@ -15,21 +15,23 @@ import {
 import { getAmenityVisual, getAmenityStatus } from "../../utils/amenity-display";
 import { sw, sf } from "../../utils/responsive";
 
-const CAROUSEL_PEEK = sw(24);
 const CARD_GAP = sw(10);
+const PEEK = sw(24);
+const RADIUS = sw(14);
+const ICON_WELL = sw(42);
 
 function mapAmenityToCard(amenity) {
   const visual = getAmenityVisual(amenity.name, amenity.icon_key);
   const status = getAmenityStatus(amenity.status);
   const subtitle =
-    amenity.hours?.trim() ||
-    amenity.floor?.trim() ||
-    status.label;
+    amenity.hours?.trim() || amenity.floor?.trim() || status.label;
 
   return {
     id: String(amenity.id),
     title: amenity.name ?? "Amenity",
     subTitle: subtitle,
+    statusLabel: status.label,
+    statusOpen: status.open !== false,
     iconKey: amenity.icon_key,
     iconColor: visual.tint,
     iconBg: visual.soft,
@@ -37,45 +39,54 @@ function mapAmenityToCard(amenity) {
   };
 }
 
-function MiniCard({ item, width, onPress }) {
+function AmenityCard({ item, width, onPress }) {
   return (
-    <HomeSectionCard
-      style={{ width }}
-      contentStyle={styles.cardContent}
+    <Pressable
       onPress={onPress}
+      style={({ pressed }) => [
+        styles.card,
+        { width },
+        pressed && styles.cardPressed,
+      ]}
     >
-      <View style={[styles.iconWrap, { backgroundColor: item.iconBg }]}>
-        <AmenityIcon
-          iconKey={item.iconKey}
-          name={item.title}
-          size={sf(18)}
-          color={item.iconColor}
-        />
+      <View style={styles.cardInner}>
+        {/* Icon */}
+        <View style={[styles.iconWell, { backgroundColor: item.iconBg }]}>
+          <AmenityIcon
+            iconKey={item.iconKey}
+            name={item.title}
+            size={sf(20)}
+            color={item.iconColor}
+          />
+        </View>
+
+        {/* Info */}
+        <View style={styles.infoCol}>
+          <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
+          <Text style={styles.sub} numberOfLines={1}>{item.subTitle}</Text>
+        </View>
+
+        {/* Arrow */}
+        <View style={styles.arrowCircle}>
+          <Feather name="chevron-right" size={sf(14)} color={T.teal} />
+        </View>
       </View>
-      <View style={styles.textWrap}>
-        <Text style={styles.title} numberOfLines={1}>
-          {item.title}
-        </Text>
-        <Text style={styles.sub} numberOfLines={1}>
-          {item.subTitle}
-        </Text>
-      </View>
-    </HomeSectionCard>
+    </Pressable>
   );
 }
 
 export default function PropertyNew({ items = [] }) {
   const router = useRouter();
   const { width: screenWidth } = useWindowDimensions();
-  const cardWidth = useMemo(() => {
+
+  const layout = useMemo(() => {
     const contentWidth = screenWidth - Home.gutter * 2;
-    return Math.floor((contentWidth - CARD_GAP - CAROUSEL_PEEK) / 2);
+    const cardWidth = Math.floor(contentWidth * 0.72);
+    const snap = cardWidth + CARD_GAP;
+    return { cardWidth, snap };
   }, [screenWidth]);
 
-  const cards = useMemo(
-    () => (items ?? []).map(mapAmenityToCard),
-    [items],
-  );
+  const cards = useMemo(() => (items ?? []).map(mapAmenityToCard), [items]);
 
   const openAmenity = (amenity) => {
     router.push({
@@ -84,10 +95,20 @@ export default function PropertyNew({ items = [] }) {
     });
   };
 
+  const renderItem = ({ item }) => (
+    <View style={{ width: layout.cardWidth, flexShrink: 0 }}>
+      <AmenityCard
+        item={item}
+        width={layout.cardWidth}
+        onPress={() => openAmenity(item.amenity)}
+      />
+    </View>
+  );
+
   return (
     <View style={homeStyles.sectionLast}>
       <HomeSectionHeader
-        label="Property Management"
+        label="Property & Amenities"
         onPress={() => router.push(PropertyManagementRoutes.HOME)}
       />
       {cards.length === 0 ? (
@@ -96,20 +117,25 @@ export default function PropertyNew({ items = [] }) {
           hint="Community facilities will appear here once published."
         />
       ) : (
-        <SectionCarousel
+        <FlatList
           data={cards}
-          screenWidth={screenWidth}
-          cardWidth={cardWidth}
-          gap={CARD_GAP}
-          peek={CAROUSEL_PEEK}
+          horizontal
+          style={styles.carousel}
+          showsHorizontalScrollIndicator={false}
+          decelerationRate="fast"
+          snapToInterval={layout.snap}
+          snapToAlignment="start"
+          disableIntervalMomentum
+          nestedScrollEnabled
           keyExtractor={(item) => item.id}
-          renderItem={({ item, width }) => (
-            <MiniCard
-              item={item}
-              width={width}
-              onPress={() => openAmenity(item.amenity)}
-            />
-          )}
+          renderItem={renderItem}
+          getItemLayout={(_, index) => ({
+            length: layout.snap,
+            offset: layout.snap * index,
+            index,
+          })}
+          ItemSeparatorComponent={() => <View style={{ width: CARD_GAP }} />}
+          contentContainerStyle={styles.listContent}
         />
       )}
     </View>
@@ -117,32 +143,68 @@ export default function PropertyNew({ items = [] }) {
 }
 
 const styles = StyleSheet.create({
-  cardContent: {
+  carousel: { flexGrow: 0, alignSelf: "stretch" },
+  listContent: { paddingRight: PEEK, alignItems: "flex-start" },
+  card: {
+    borderRadius: RADIUS,
+    ...(Platform.OS === "ios"
+      ? {
+          backgroundColor: T.white,
+          shadowColor: T.navy,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.06,
+          shadowRadius: 8,
+          borderCurve: "continuous",
+        }
+      : { elevation: 2 }),
+  },
+  cardPressed: { opacity: 0.93, transform: [{ scale: 0.98 }] },
+  cardInner: {
+    borderRadius: RADIUS,
+    overflow: "hidden",
+    backgroundColor: T.white,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: T.border,
     flexDirection: "row",
     alignItems: "center",
-    padding: sw(8),
+    paddingHorizontal: sw(14),
+    paddingVertical: sw(14),
+    gap: sw(12),
+    ...(Platform.OS === "ios" ? { borderCurve: "continuous" } : null),
   },
-  iconWrap: {
-    width: sw(36),
-    height: sw(36),
-    borderRadius: sw(10),
+  iconWell: {
+    width: ICON_WELL,
+    height: ICON_WELL,
+    borderRadius: sw(12),
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
   },
-  textWrap: { flex: 1, marginLeft: sw(8), minWidth: 0 },
+  infoCol: {
+    flex: 1,
+    minWidth: 0,
+  },
   title: {
     fontFamily: Fonts.bold,
     fontSize: sf(13),
     lineHeight: sf(17),
-    color: "#101828",
+    color: T.navy,
     fontWeight: "700",
   },
   sub: {
     fontFamily: Fonts.regular,
     fontSize: sf(10.5),
     lineHeight: sf(14),
-    color: "#99A1AF",
-    marginTop: 1,
+    color: T.gray,
+    marginTop: sw(2),
+  },
+  arrowCircle: {
+    width: sw(28),
+    height: sw(28),
+    borderRadius: sw(14),
+    backgroundColor: T.mint,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
 });

@@ -1,20 +1,23 @@
 import { Text, View, StyleSheet, Pressable, useWindowDimensions, FlatList, Platform } from "react-native";
 import React, { useCallback, useMemo } from "react";
 import { useRouter } from "expo-router";
+import { Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { Fonts } from "../../constants/font";
 import { Home, homeStyles } from "../../constants/home-styles";
+import { HomeTheme as T } from "../../constants/home-theme";
 import { Media } from "../../constants/media";
 import CrispImage from "../ui/crisp-image";
 import HomeSectionHeader from "./section-header";
 import { timeAgo } from "../../services/feed-api";
 import HomeSectionEmpty from "./home-section-empty";
-import { sw, sf, hp } from "../../utils/responsive";
+import { sw, sf } from "../../utils/responsive";
 import { getCurrentRole } from "../../constants/role-session";
 import { MarketplaceRoutes, dealDetailsParams } from "../../constants/marketplace-routes";
 
-const CARD_GAP = sw(10);
-const CAROUSEL_PEEK = sw(24);
-const CARD_RADIUS = sw(14);
+const CARD_GAP = sw(12);
+const PEEK = sw(32);
+const CARD_RADIUS = sw(16);
 
 const FALLBACK_IMAGES = [
   Media.heroFood,
@@ -49,47 +52,43 @@ function mapDealToCard(deal, index) {
   };
 }
 
-function DealCard({ item, cardWidth, imageHeight, onPress }) {
+function DealCard({ item, cardWidth, cardHeight, onPress }) {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.cardShell, { width: cardWidth }, pressed && styles.cardPressed]}
+      style={({ pressed }) => [
+        styles.card,
+        { width: cardWidth, height: cardHeight },
+        pressed && styles.cardPressed,
+      ]}
     >
-      <View style={styles.cardSurface}>
-        <View style={[styles.imageWrap, { height: imageHeight }]}>
-          <CrispImage source={item.image} style={styles.image} contentFit="cover" />
-          <View style={styles.badge}>
-            <Text style={styles.badgeText} numberOfLines={1}>
-              {item.badgeText}
-            </Text>
-          </View>
+      <View style={[styles.cardInner, { height: cardHeight }]}>
+        <CrispImage
+          source={item.image}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+        />
+
+        {/* Top badge */}
+        <View style={styles.badge}>
+          <Text style={styles.badgeText} numberOfLines={1}>{item.badgeText}</Text>
         </View>
 
-        <View style={styles.body}>
-          <View style={styles.titleRow}>
-            <Text style={styles.title} numberOfLines={1}>
-              {item.title}
-            </Text>
-            {item.timeLabel ? (
-              <Text style={styles.timeLabel} numberOfLines={1}>
-                {item.timeLabel}
-              </Text>
-            ) : null}
-          </View>
+        {/* Bottom gradient overlay */}
+        <LinearGradient
+          colors={["transparent", "rgba(10,42,67,0.55)", "rgba(10,42,67,0.92)"]}
+          locations={[0, 0.45, 1]}
+          style={styles.overlay}
+        >
+          <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
           {item.businessName ? (
-            <Text style={styles.businessName} numberOfLines={1}>
-              {item.businessName}
-            </Text>
+            <Text style={styles.vendor} numberOfLines={1}>{item.businessName}</Text>
           ) : null}
-          {item.location ? (
-            <Text style={styles.metaLine} numberOfLines={1}>
-              {item.location}
-            </Text>
-          ) : null}
-          <View style={styles.btn}>
-            <Text style={styles.btnText}>Get Deal</Text>
-          </View>
-        </View>
+          <Pressable style={styles.ctaBtn} onPress={onPress}>
+            <Text style={styles.ctaBtnText}>Get Deal</Text>
+            <Feather name="arrow-right" size={sf(12)} color={T.navy} />
+          </Pressable>
+        </LinearGradient>
       </View>
     </Pressable>
   );
@@ -100,36 +99,39 @@ export default function DealsCornor({ items = [] }) {
   const { width: screenWidth } = useWindowDimensions();
   const activeRole = getCurrentRole();
 
-  const cards = useMemo(
-    () => (items ?? []).map(mapDealToCard),
-    [items],
-  );
+  const cards = useMemo(() => (items ?? []).map(mapDealToCard), [items]);
 
   const layout = useMemo(() => {
     const contentWidth = screenWidth - Home.gutter * 2;
-    const cardWidth = Math.floor((contentWidth - CARD_GAP - CAROUSEL_PEEK) / 2);
-    const imageHeight = Math.round(cardWidth * 0.4);
-    const snapInterval = cardWidth + CARD_GAP;
-    return { cardWidth, imageHeight, snapInterval };
+    const cardWidth = Math.floor((contentWidth - CARD_GAP - PEEK) / 2);
+    const cardHeight = Math.round(cardWidth * 1.35);
+    const snap = cardWidth + CARD_GAP;
+    return { cardWidth, cardHeight, snap };
   }, [screenWidth]);
 
-  const openDeal = useCallback((item) => {
-    router.push({
-      pathname: MarketplaceRoutes.DEAL_DETAILS,
-      params: dealDetailsParams(item.deal, activeRole),
-    });
-  }, [router, activeRole]);
+  const openDeal = useCallback(
+    (item) => {
+      router.push({
+        pathname: MarketplaceRoutes.DEAL_DETAILS,
+        params: dealDetailsParams(item.deal, activeRole),
+      });
+    },
+    [router, activeRole],
+  );
 
-  const renderItem = useCallback(({ item }) => (
-    <View style={{ width: layout.cardWidth, flexShrink: 0 }}>
-      <DealCard
-        item={item}
-        cardWidth={layout.cardWidth}
-        imageHeight={layout.imageHeight}
-        onPress={() => openDeal(item)}
-      />
-    </View>
-  ), [layout.cardWidth, layout.imageHeight, openDeal]);
+  const renderItem = useCallback(
+    ({ item }) => (
+      <View style={{ width: layout.cardWidth, flexShrink: 0 }}>
+        <DealCard
+          item={item}
+          cardWidth={layout.cardWidth}
+          cardHeight={layout.cardHeight}
+          onPress={() => openDeal(item)}
+        />
+      </View>
+    ),
+    [layout.cardWidth, layout.cardHeight, openDeal],
+  );
 
   if (!cards.length) {
     return (
@@ -137,7 +139,6 @@ export default function DealsCornor({ items = [] }) {
         <HomeSectionHeader
           label="Deal Corner"
           onPress={() => router.push(MarketplaceRoutes.DEALS)}
-          style={styles.sectionHeader}
         />
         <HomeSectionEmpty
           message="No deals available"
@@ -152,7 +153,6 @@ export default function DealsCornor({ items = [] }) {
       <HomeSectionHeader
         label="Deal Corner"
         onPress={() => router.push(MarketplaceRoutes.DEALS)}
-        style={styles.sectionHeader}
       />
       <FlatList
         data={cards}
@@ -160,13 +160,17 @@ export default function DealsCornor({ items = [] }) {
         style={styles.carousel}
         showsHorizontalScrollIndicator={false}
         decelerationRate="fast"
-        snapToInterval={layout.snapInterval}
+        snapToInterval={layout.snap}
         snapToAlignment="start"
         disableIntervalMomentum
         nestedScrollEnabled
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
-        getItemLayout={(_, index) => ({ length: layout.snapInterval, offset: layout.snapInterval * index, index })}
+        getItemLayout={(_, index) => ({
+          length: layout.snap,
+          offset: layout.snap * index,
+          index,
+        })}
         ItemSeparatorComponent={() => <View style={{ width: CARD_GAP }} />}
         contentContainerStyle={styles.listContent}
       />
@@ -175,109 +179,83 @@ export default function DealsCornor({ items = [] }) {
 }
 
 const styles = StyleSheet.create({
-  sectionHeader: { marginBottom: hp(0.15) },
-  carousel: { marginTop: 0, flexGrow: 0, alignSelf: "stretch" },
-  listContent: { paddingRight: CAROUSEL_PEEK, alignItems: "flex-start" },
-  cardShell: {
+  carousel: { flexGrow: 0, alignSelf: "stretch" },
+  listContent: { paddingRight: PEEK, alignItems: "flex-start" },
+  card: {
     borderRadius: CARD_RADIUS,
-    ...(Platform.OS === "android"
-      ? { backgroundColor: "transparent", elevation: 0 }
-      : {
-          backgroundColor: "#FFFFFF",
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.05,
-          shadowRadius: 6,
-        }),
+    ...(Platform.OS === "ios"
+      ? {
+          backgroundColor: T.navy,
+          shadowColor: T.navy,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.12,
+          shadowRadius: 12,
+          borderCurve: "continuous",
+        }
+      : { elevation: 3 }),
   },
-  cardSurface: {
+  cardPressed: { opacity: 0.93, transform: [{ scale: 0.98 }] },
+  cardInner: {
     borderRadius: CARD_RADIUS,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#E8E8E8",
-    backgroundColor: "#FFFFFF",
     overflow: "hidden",
+    backgroundColor: T.navy,
     ...(Platform.OS === "ios" ? { borderCurve: "continuous" } : null),
   },
-  cardPressed: { opacity: 0.94 },
-  imageWrap: {
-    position: "relative",
-    width: "100%",
-    backgroundColor: "#F3F4F6",
-  },
-  image: { width: "100%", height: "100%" },
   badge: {
     position: "absolute",
-    top: sw(6),
-    left: sw(6),
-    paddingHorizontal: sw(6),
-    paddingVertical: sw(3),
+    top: sw(10),
+    left: sw(10),
+    paddingHorizontal: sw(8),
+    paddingVertical: sw(4),
     borderRadius: 999,
-    backgroundColor: "#EBF5FF",
-    maxWidth: "88%",
+    backgroundColor: T.mint,
+    zIndex: 2,
   },
   badgeText: {
     fontFamily: Fonts.bold,
-    fontSize: sf(8),
+    fontSize: sf(8.5),
     fontWeight: "700",
-    letterSpacing: 0.3,
-    color: "#0A2A43",
+    letterSpacing: 0.4,
+    color: T.navy,
     textTransform: "uppercase",
   },
-  body: {
-    paddingHorizontal: sw(8),
-    paddingTop: sw(6),
-    paddingBottom: sw(6),
-  },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: sw(6),
+  overlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: sw(12),
+    paddingBottom: sw(12),
+    paddingTop: sw(30),
   },
   title: {
-    flex: 1,
-    minWidth: 0,
     fontFamily: Fonts.bold,
-    fontSize: sf(12),
-    lineHeight: sf(16),
-    color: "#101828",
+    fontSize: sf(13),
+    lineHeight: sf(17),
+    color: "#FFFFFF",
     fontWeight: "700",
   },
-  timeLabel: {
-    flexShrink: 0,
+  vendor: {
     fontFamily: Fonts.regular,
-    fontSize: sf(9),
-    lineHeight: sf(12),
-    color: "#99A1AF",
-  },
-  businessName: {
-    fontFamily: Fonts.medium,
-    fontSize: sf(10),
-    lineHeight: sf(13),
-    color: "#6A7282",
-    fontWeight: "600",
+    fontSize: sf(10.5),
+    color: "rgba(255,255,255,0.75)",
     marginTop: sw(2),
   },
-  metaLine: {
-    fontFamily: Fonts.regular,
-    fontSize: sf(9),
-    lineHeight: sf(12),
-    color: "#99A1AF",
-    marginTop: sw(2),
-  },
-  btn: {
-    marginTop: sw(5),
-    paddingVertical: sw(5),
-    borderRadius: 999,
-    borderWidth: 1.5,
-    borderColor: "#0A2A43",
-    backgroundColor: "#FFFFFF",
+  ctaBtn: {
+    marginTop: sw(8),
+    alignSelf: "flex-start",
+    flexDirection: "row",
     alignItems: "center",
+    gap: sw(4),
+    backgroundColor: T.teal,
+    paddingHorizontal: sw(12),
+    paddingVertical: sw(6),
+    borderRadius: 999,
   },
-  btnText: {
+  ctaBtnText: {
     fontFamily: Fonts.bold,
-    fontSize: sf(10),
+    fontSize: sf(10.5),
+    color: T.navy,
     fontWeight: "700",
-    color: "#0A2A43",
   },
 });

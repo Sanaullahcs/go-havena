@@ -1,68 +1,61 @@
 import { sw } from "../utils/responsive";
-import { HavenaColors as H } from "./color-scheme";
-
-/** Primary brand — Ocean Breeze teal (solid only, no gradients). */
-export const PRIMARY = H.primary.main;
 
 /**
  * Havena design tokens — Ocean Breeze
- * #0A2A43 navy · #0D9488 dark teal · #14B8A6 primary · #D1FAF5 mint · #F4F8FD canvas
+ * Five swatches, solid fills only.
+ *
+ *   #0F3D5F  Navy
+ *   #0D9488  Deep Teal
+ *   #14B8A6  Primary Teal
+ *   #D1FAF5  Soft Mint
+ *   #F4F8FD  Canvas
  */
+
+const NAVY = "#0F3D5F";
+const DEEP_TEAL = "#0D9488";
+const TEAL = "#14B8A6";
+const MINT = "#D1FAF5";
+const CANVAS = "#F4F8FD";
+
 export const Colors = {
-  brandPrimary: PRIMARY,
-  brandPrimaryDeep: H.secondary.navy,
-  brandSecondaryTeal: H.secondary.darkTeal,
-  brandSecondaryTurquoise: H.secondary.darkTeal,
-  brandSecondaryGreen: H.secondary.green,
-  brandSeaGreen: PRIMARY,
-  brandFresh: H.secondary.darkTeal,
+  brandPrimary: TEAL,
+  brandPrimaryDeep: NAVY,
+  brandSecondaryTeal: DEEP_TEAL,
+  brandSeaGreen: TEAL,
+  brandFresh: DEEP_TEAL,
 
-  textPrimary: H.neutral.darkText,
-  textSecondary: H.neutral.mediumGray,
-  textMuted: H.neutral.mediumGray,
-  textBody: H.neutral.darkText,
+  textPrimary: NAVY,
+  textSecondary: "#6B7280",
+  textMuted: "#6B7280",
+  textBody: NAVY,
 
-  surface: H.neutral.white,
-  surfaceMuted: H.primary.canvas,
+  surface: "#FFFFFF",
+  surfaceMuted: CANVAS,
 
-  borderSubtle: "rgba(10, 42, 67, 0.06)",
+  borderSubtle: "rgba(15, 61, 95, 0.06)",
   borderInput: "rgba(20, 184, 166, 0.28)",
-  borderSignup: "#E6ECEC",
-  divider: "#E6ECEC",
+  borderSignup: "#E5E7EB",
+  divider: "#E5E7EB",
 
-  link: PRIMARY,
-  footerMuted: H.neutral.mediumGray,
-  disabledBg: "#E6ECEC",
+  link: NAVY,
+  footerMuted: "#6B7280",
+  disabledBg: "#E5E7EB",
   error: "#E11D48",
-  success: H.secondary.darkTeal,
+  success: DEEP_TEAL,
 
-  roleAdminBg: H.primary.softMint,
-  roleAdminText: PRIMARY,
+  roleAdminBg: MINT,
+  roleAdminText: NAVY,
   roleResidentBg: "rgba(13, 148, 136, 0.12)",
-  roleResidentText: H.secondary.darkTeal,
-
-  /** @deprecated Use brandPrimary — solid only */
-  brandGradientStart: PRIMARY,
-  /** @deprecated Use brandPrimary — solid only */
-  brandGradientEnd: PRIMARY,
+  roleResidentText: DEEP_TEAL,
 };
 
-/** Solid screen fills (replaces gradient arrays). */
 export const SolidFills = {
-  splash: H.secondary.navy,
-  notice: PRIMARY,
-  cta: PRIMARY,
-  authScreen: H.neutral.white,
-  authWash: H.primary.canvas,
-  softAqua: H.primary.softMint,
-};
-
-/** @deprecated Use SolidFills — kept for gradual migration */
-export const Gradients = {
-  splash: [SolidFills.splash, SolidFills.splash],
-  notice: [SolidFills.notice, SolidFills.notice],
-  cta: [SolidFills.cta, SolidFills.cta],
-  authScreen: [SolidFills.authWash, SolidFills.authWash],
+  splash: NAVY,
+  notice: NAVY,
+  cta: NAVY,
+  authScreen: "#FFFFFF",
+  authWash: CANVAS,
+  softAqua: MINT,
 };
 
 export const Layout = {
@@ -74,16 +67,16 @@ export const Layout = {
 
 export const Shadows = {
   card: {
-    shadowColor: H.secondary.navy,
+    shadowColor: NAVY,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 10,
     elevation: 3,
   },
   button: {
-    shadowColor: PRIMARY,
+    shadowColor: NAVY,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.28,
+    shadowOpacity: 0.18,
     shadowRadius: 10,
     elevation: 4,
   },

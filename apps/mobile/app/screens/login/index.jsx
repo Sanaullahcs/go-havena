@@ -33,7 +33,8 @@ import { useBiometricCapabilities } from "../../../hooks/use-biometric-capabilit
 import { encodeRoutePhone } from "../../../utils/route-params";
 import { getUser, hasBiometricUnlock } from "../../../services/auth-session";
 import { authLayoutStyles as layout } from "../../../constants/auth-layout";
-import { Colors, Shadows } from "../../../constants/tokens";
+import { Colors } from "../../../constants/tokens";
+import { ScreenBrand } from "../../../constants/screen-brand";
 import { Fonts } from "../../../constants/font";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 
@@ -183,17 +184,22 @@ export default function LoginScreen() {
                 enabled={isValid && !submitting}
                 loading={submitting}
                 onPress={handleSendCode}
-                style={Shadows.button}
+                solidColor={ScreenBrand.cta}
+                loadingColor={ScreenBrand.ctaLoading}
+                style={ScreenBrand.buttonShadow}
               />
               <Text style={layout.footerNote}>
                 {"Don't have an account? "}
-                <Text style={layout.footerLink} onPress={handleSignUp}>
+                <Text style={[layout.footerLink, styles.brandLink]} onPress={handleSignUp}>
                   Sign up
                 </Text>
               </Text>
               <Text style={layout.footerNote}>
                 Have a guest invitation?{" "}
-                <Text style={layout.footerLink} onPress={() => router.push("/screens/guest-login")}>
+                <Text
+                  style={[layout.footerLink, styles.brandLink]}
+                  onPress={() => router.push("/screens/guest-login")}
+                >
                   Login as Guest
                 </Text>
               </Text>
@@ -288,5 +294,10 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     color: Colors.textMuted,
     fontFamily: Fonts.regular,
+  },
+  brandLink: {
+    color: ScreenBrand.link,
+    fontWeight: "600",
+    fontFamily: Fonts.semiBold,
   },
 });

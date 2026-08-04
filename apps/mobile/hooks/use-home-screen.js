@@ -147,6 +147,7 @@ export function useHomeScreen() {
   );
 
   return {
+    notices,
     carouselNotices,
     upcomingEvents,
     posts,

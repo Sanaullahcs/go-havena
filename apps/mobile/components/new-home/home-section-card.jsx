@@ -1,13 +1,10 @@
 import React from "react";
 import { Pressable, View, StyleSheet, Platform } from "react-native";
+import { HomeTheme as T } from "../../constants/home-theme";
 import { sw } from "../../utils/responsive";
 
 const RADIUS = sw(12);
 
-/**
- * Home carousel card shell — iOS gets a light shadow; Android uses border only
- * (elevation + borderRadius causes dark corner smudges on Android).
- */
 export default function HomeSectionCard({
   style,
   contentStyle,
@@ -35,16 +32,16 @@ const styles = StyleSheet.create({
     ...(Platform.OS === "android"
       ? { backgroundColor: "transparent", elevation: 0 }
       : {
-          backgroundColor: "#FFFFFF",
-          shadowColor: "#000",
+          backgroundColor: T.white,
+          shadowColor: T.navy,
           shadowOffset: { width: 0, height: 1 },
         }),
   },
   surface: {
     borderRadius: RADIUS,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#EDEDED",
-    backgroundColor: "#FFFFFF",
+    borderColor: T.border,
+    backgroundColor: T.white,
     overflow: "hidden",
     flex: 1,
     alignSelf: "stretch",

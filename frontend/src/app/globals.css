@@ -1,29 +1,33 @@
 @import "tailwindcss";
 @import "./landing.css";
 
-/* ─── Design tokens (aligned with mobile Havena / Figma) ─── */
+/* ─── Ocean Breeze · Five swatches ─── */
 :root {
-  /* Ocean Breeze */
-  --brand-primary: #14b8a6;
-  --brand-primary-deep: #0a2a43;
-  --brand-dark-teal: #0d9488;
-  --brand-primary-light: #d1faf5;
-  --brand-primary-lighter: #f4f8fd;
-  --brand-gradient-end: #14b8a6;
-  --brand-secondary: #0a2a43;
+  --navy: #0a2a43;
+  --deep-teal: #0d9488;
+  --teal: #14b8a6;
+  --mint: #d1faf5;
+  --canvas: #f4f8fd;
+
+  --brand-primary: var(--teal);
+  --brand-primary-deep: var(--navy);
+  --brand-dark-teal: var(--deep-teal);
+  --brand-primary-light: var(--mint);
+  --brand-primary-lighter: var(--canvas);
+  --brand-secondary: var(--navy);
   --brand-secondary-muted: #6b7280;
-  --brand-accent: #14b8a6;
-  --brand-accent-light: #d1faf5;
-  --brand-canvas: #f4f8fd;
+  --brand-accent: var(--teal);
+  --brand-accent-light: var(--mint);
+  --brand-canvas: var(--canvas);
   --brand-surface: #ffffff;
-  --brand-border: #e6ecec;
-  --brand-success: #0d9488;
+  --brand-border: #e5e7eb;
+  --brand-success: var(--deep-teal);
   --brand-warning: #d97706;
   --brand-danger: #e7000b;
-  --background: #f4f8fd;
-  --foreground: #0a2a43;
-  --nl-gradient-cta: #14b8a6;
-  --nl-gradient-hero: #0a2a43;
+  --background: var(--canvas);
+  --foreground: var(--navy);
+  --nl-gradient-cta: var(--navy);
+  --nl-gradient-hero: var(--navy);
   --nl-shadow-card: 0 2px 8px rgba(10, 42, 67, 0.06);
   --nl-radius-card: 16px;
   --nl-radius-button: 12px;

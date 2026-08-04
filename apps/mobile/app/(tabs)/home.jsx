@@ -8,9 +8,10 @@ import Notices from "../../components/new-home/Notices";
 import HappeningSoon from "../../components/new-home/HappeningSoon";
 import Communities from "../../components/new-home/communities";
 import DealsCornor from "../../components/new-home/deals-cornor";
-import WellnessNew from "../../components/new-home/Wellness";
+
 import PropertyNew from "../../components/new-home/Property";
 import { homeStyles } from "../../constants/home-styles";
+import { HomeTheme as T } from "../../constants/home-theme";
 import { useHomeScreen } from "../../hooks/use-home-screen";
 import { HomeScreenSkeleton } from "../../components/ui/skeleton-loader";
 import GuestFeatureErrorState from "../../components/guest/guest-permission-denied-state";
@@ -19,7 +20,7 @@ import { isFeatureAccessBlockedError } from "../../utils/guest-permission-errors
 export default function Home() {
   const menu = useSideMenu();
   const {
-    carouselNotices,
+    notices,
     upcomingEvents,
     posts,
     setPosts,
@@ -50,8 +51,8 @@ export default function Home() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#0A2A43"
-              colors={["#0A2A43"]}
+              tintColor={T.teal}
+              colors={[T.teal]}
             />
           }
         >
@@ -66,11 +67,11 @@ export default function Home() {
             />
           ) : (
             <>
-              <Notices items={carouselNotices} />
+              <Notices items={notices} />
               <HappeningSoon items={upcomingEvents} />
               <Communities posts={posts} onPostsChange={setPosts} />
               <DealsCornor items={deals} />
-              <WellnessNew items={wellnessCategories} />
+
               <PropertyNew items={amenities} />
             </>
           )}

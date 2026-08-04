@@ -36,14 +36,6 @@ function withTimeout(promise, ms) {
   ]);
 }
 
-function TabMenuOverlay({ onCreatePress, isCommunityAdminUser }) {
-  return (
-    <View style={styles.overlay} pointerEvents="box-none">
-      <FloatingNavMenu onCreatePress={onCreatePress} isCommunityAdmin={isCommunityAdminUser} />
-    </View>
-  );
-}
-
 export default function TabLayout() {
   const router = useRouter();
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -75,17 +67,9 @@ export default function TabLayout() {
       try {
         user = await withTimeout(fetchMe(), 8000);
       } catch (err) {
-        if (await handleGuestAccessTerminationError(err, router)) {
-          return;
-        }
-
-        if (await handleGuestAccessScheduleError(err, router)) {
-          return;
-        }
-
-        if (await handleGuestUnauthorized(err, router)) {
-          return;
-        }
+        if (await handleGuestAccessTerminationError(err, router)) return;
+        if (await handleGuestAccessScheduleError(err, router)) return;
+        if (await handleGuestUnauthorized(err, router)) return;
 
         if (err?.status === 401) {
           await clearSession();
@@ -120,9 +104,7 @@ export default function TabLayout() {
       router.replace({ pathname: route.pathname, params: route.params });
     })();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [router]);
 
   useEffect(() => {
@@ -138,16 +120,12 @@ export default function TabLayout() {
       if (delay == null) return;
 
       if (delay <= 0) {
-        if (!cancelled) {
-          await revokeGuestSessionAndRedirect(router);
-        }
+        if (!cancelled) await revokeGuestSessionAndRedirect(router);
         return;
       }
 
       expiryTimer = setTimeout(async () => {
-        if (!cancelled) {
-          await revokeGuestSessionAndRedirect(router);
-        }
+        if (!cancelled) await revokeGuestSessionAndRedirect(router);
       }, delay);
     })();
 
@@ -173,25 +151,14 @@ export default function TabLayout() {
       <ScreenStatusBar style="dark" />
       <Tabs
         tabBar={() => (
-          <TabMenuOverlay
+          <FloatingNavMenu
             onCreatePress={() => setShowCreateModal(true)}
-            isCommunityAdminUser={communityAdminUser}
+            isCommunityAdmin={communityAdminUser}
           />
         )}
         screenOptions={{
           headerShown: false,
           tabBarHideOnKeyboard: true,
-          tabBarStyle: {
-            position: "absolute",
-            left: 0,
-            right: 0,
-            top: 0,
-            bottom: 0,
-            backgroundColor: "transparent",
-            borderTopWidth: 0,
-            elevation: 0,
-            height: undefined,
-          },
         }}
       >
         <Tabs.Screen name="home" options={{ title: "Home" }} />
@@ -210,11 +177,6 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 999,
-    elevation: 999,
-  },
   guard: {
     flex: 1,
     alignItems: "center",

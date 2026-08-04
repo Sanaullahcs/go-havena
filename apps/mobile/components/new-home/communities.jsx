@@ -1,4 +1,4 @@
-import { Text, View, StyleSheet, Pressable, useWindowDimensions, Animated } from "react-native";
+import { Text, View, StyleSheet, Pressable, useWindowDimensions, Animated, Platform } from "react-native";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "expo-router";
 import { Feather, Ionicons } from "@expo/vector-icons";
@@ -7,9 +7,9 @@ import UserAvatar from "../ui/user-avatar";
 import CrispImage from "../ui/crisp-image";
 import { Fonts } from "../../constants/font";
 import { Home, homeStyles } from "../../constants/home-styles";
+import { HomeTheme as T } from "../../constants/home-theme";
 import HomeSectionHeader from "./section-header";
-import SectionCarousel from "./section-carousel";
-import HomeSectionCard from "./home-section-card";
+import HomeSectionEmpty from "./home-section-empty";
 import {
   likePost,
   applyLikeToPost,
@@ -21,17 +21,20 @@ import FeedSensitiveContent from "../feed/feed-sensitive-content";
 import { openNeighborProfile } from "../../services/profile-api";
 import { mediaImageSource } from "../../utils/profile-display";
 import { useNow } from "../../hooks/use-now";
-import HomeSectionEmpty from "./home-section-empty";
-import { sw, sf, hp } from "../../utils/responsive";
+import { sw, sf } from "../../utils/responsive";
+import { FlatList } from "react-native";
 
 function formatCount(value) {
   const num = Number(value ?? 0);
   return Number.isFinite(num) ? num.toLocaleString() : "0";
 }
 
-const CARD_HEIGHT = Home.feedCardHeight;
+const CARD_GAP = sw(12);
+const PEEK = sw(40);
+const IMAGE_RATIO = 0.48;
+const BOTTOM_AREA_H = sw(100);
 
-function FeedCard({ post, width, onPress, onComments, onLike, onProfile, now }) {
+function FeedCard({ post, width, height, imageH, onPress, onComments, onLike, onProfile, now }) {
   const authorName = post.user?.display_name ?? post.user?.name ?? "Neighbor";
   const likeCount = formatCount(post.likes_count ?? post.likes);
   const commentCount = formatCount(post.comments_count ?? post.comments);
@@ -39,16 +42,10 @@ function FeedCard({ post, width, onPress, onComments, onLike, onProfile, now }) 
   const likeScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (!isLiked) {
-      likeScale.setValue(1);
-      return;
-    }
+    if (!isLiked) { likeScale.setValue(1); return; }
     likeScale.setValue(0.7);
     Animated.spring(likeScale, {
-      toValue: 1,
-      friction: 3,
-      tension: 200,
-      useNativeDriver: true,
+      toValue: 1, friction: 3, tension: 200, useNativeDriver: true,
     }).start();
   }, [isLiked, likeScale]);
 
@@ -57,107 +54,106 @@ function FeedCard({ post, width, onPress, onComments, onLike, onProfile, now }) 
   const sensitive = isSensitivePost(post);
   const bodyText = sensitive
     ? null
-    : display.mainText || (display.hasImage ? "Shared a photo with the community" : "");
+    : display.mainText || (display.hasImage ? "Shared a photo" : "");
+  const hasImage = !sensitive && display.hasImage;
+  const isTextOnly = !hasImage && !sensitive;
 
   return (
-    <HomeSectionCard
-      style={{
-        width,
-        maxWidth: width,
-        height: CARD_HEIGHT,
-        minHeight: CARD_HEIGHT,
-        maxHeight: CARD_HEIGHT,
-      }}
-      contentStyle={styles.cardContent}
+    <Pressable
       onPress={onPress}
+      style={({ pressed }) => [
+        styles.card,
+        { width },
+        pressed && styles.cardPressed,
+      ]}
     >
-      <View style={styles.headerRow}>
-        <Pressable style={styles.userRow} onPress={onProfile} hitSlop={6}>
-          <UserAvatar
-            source={post.user?.avatar}
-            name={authorName}
-            size={sw(32)}
-            style={styles.avatar}
-          />
-          <View style={styles.userText}>
-            <Text style={styles.userName} numberOfLines={1}>
-              {authorName}
-            </Text>
-            <Text style={styles.userMeta} numberOfLines={1}>
-              {relativeTime}
-              {post.user?.location ? ` · ${post.user.location}` : ""}
-            </Text>
-          </View>
-        </Pressable>
-        {sensitive ? (
-          <View style={[styles.tag, styles.sensitiveTag]}>
-            <Text style={[styles.tagText, styles.sensitiveTagText]}>Sensitive</Text>
-          </View>
-        ) : post.tag ? (
-          <View style={styles.tag}>
-            <Text style={styles.tagText}>{post.tag}</Text>
+      <View style={[styles.cardInner, { height }, isTextOnly && styles.cardInnerTextOnly]}>
+        {/* Image block — only for image posts */}
+        {hasImage ? (
+          <View style={[styles.imageWrap, { height: imageH }]}>
+            <CrispImage
+              source={mediaImageSource(post.image_url)}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              contentPosition="center"
+            />
           </View>
         ) : null}
-      </View>
 
-      {sensitive ? (
-        <View style={styles.sensitiveWrap}>
-          <FeedSensitiveContent compact />
-        </View>
-      ) : (
-        <View style={styles.bodyRow}>
-          {display.hasImage ? (
-            <View style={styles.thumbWrap}>
-              <CrispImage
-                source={mediaImageSource(post.image_url)}
-                style={styles.thumb}
-                contentFit="cover"
-                contentPosition="center"
-              />
+        {/* Text-only: quote-style body on navy bg */}
+        {isTextOnly && bodyText ? (
+          <View style={styles.quoteBlock}>
+            <Ionicons name="chatbox-ellipses-outline" size={sf(18)} color="rgba(20,184,166,0.5)" style={{ marginBottom: sw(6) }} />
+            <Text style={styles.quoteText} numberOfLines={4}>{bodyText}</Text>
+          </View>
+        ) : null}
+
+        {/* Content area */}
+        <View style={styles.contentArea}>
+          {/* Author row */}
+          <Pressable style={styles.authorRow} onPress={onProfile} hitSlop={6}>
+            <UserAvatar
+              source={post.user?.avatar}
+              name={authorName}
+              size={sw(30)}
+              style={styles.avatar}
+            />
+            <View style={styles.authorCopy}>
+              <Text style={[styles.authorName, isTextOnly && styles.authorNameLight]} numberOfLines={1}>{authorName}</Text>
+              <Text style={[styles.authorMeta, isTextOnly && styles.authorMetaLight]} numberOfLines={1}>
+                {relativeTime}
+                {post.user?.location ? ` · ${post.user.location}` : ""}
+              </Text>
+            </View>
+            {sensitive ? (
+              <View style={[styles.chip, styles.chipWarn]}>
+                <Text style={[styles.chipText, styles.chipWarnText]}>Sensitive</Text>
+              </View>
+            ) : post.tag ? (
+              <View style={[styles.chip, isTextOnly && styles.chipDark]}>
+                <Text style={[styles.chipText, isTextOnly && styles.chipTextDark]}>{post.tag}</Text>
+              </View>
+            ) : null}
+          </Pressable>
+
+          {/* Sensitive content */}
+          {sensitive ? (
+            <View style={styles.sensitiveWrap}>
+              <FeedSensitiveContent compact />
             </View>
           ) : null}
-          <View style={styles.textCol}>
-            <Text style={styles.content} numberOfLines={2}>
-              {bodyText}
-            </Text>
+
+          {/* Body text — only for image posts (text-only uses quoteBlock above) */}
+          {hasImage && bodyText ? (
+            <Text style={styles.bodyText} numberOfLines={2}>{bodyText}</Text>
+          ) : null}
+
+          {/* Engagement bar */}
+          <View style={[styles.engagementBar, isTextOnly && styles.engagementBarDark]}>
+            <Pressable style={styles.engBtn} onPress={onLike} disabled={sensitive}>
+              <Animated.View style={{ transform: [{ scale: likeScale }] }}>
+                <Ionicons
+                  name={isLiked ? "heart" : "heart-outline"}
+                  size={sf(16)}
+                  color={sensitive ? T.border : isLiked ? LIKE_HEART_RED : isTextOnly ? "rgba(255,255,255,0.8)" : T.navy}
+                />
+              </Animated.View>
+              <Text style={[styles.engCount, isTextOnly && styles.engCountLight, isLiked && !sensitive && { color: LIKE_HEART_RED }]}>
+                {likeCount}
+              </Text>
+            </Pressable>
+            <Pressable style={styles.engBtn} onPress={onComments} disabled={sensitive}>
+              <Ionicons name="chatbubble-outline" size={sf(14)} color={sensitive ? T.border : isTextOnly ? "rgba(255,255,255,0.6)" : T.gray} />
+              <Text style={[styles.engCount, isTextOnly && styles.engCountLight]}>{commentCount}</Text>
+            </Pressable>
+            <View style={{ flex: 1 }} />
+            <Pressable style={styles.engBtn} hitSlop={8}>
+              <Ionicons name="share-outline" size={sf(16)} color={isTextOnly ? "rgba(255,255,255,0.6)" : T.gray} />
+            </Pressable>
           </View>
         </View>
-      )}
-
-      <View style={[styles.footer, sensitive && styles.footerDisabled]}>
-        <View style={styles.divider} />
-        <View style={styles.stats}>
-          <Pressable style={styles.stat} onPress={onLike} disabled={sensitive}>
-            <Animated.View style={{ transform: [{ scale: likeScale }] }}>
-              <Ionicons
-                name={isLiked ? "heart" : "heart-outline"}
-                size={sf(16)}
-                color={sensitive ? "#CBD5E1" : isLiked ? LIKE_HEART_RED : "#262626"}
-              />
-            </Animated.View>
-            <Text
-              style={[
-                styles.statText,
-                isLiked && !sensitive && styles.statTextLiked,
-                sensitive && styles.statTextDisabled,
-              ]}
-            >
-              {likeCount}
-            </Text>
-          </Pressable>
-          <Pressable style={styles.stat} onPress={onComments} disabled={sensitive}>
-            <Feather
-              name="message-circle"
-              size={sf(16)}
-              color={sensitive ? "#CBD5E1" : "#99A1AF"}
-            />
-            <Text style={[styles.statText, sensitive && styles.statTextDisabled]}>
-              {commentCount}
-            </Text>
-          </Pressable>
-        </View>
       </View>
-    </HomeSectionCard>
+    </Pressable>
   );
 }
 
@@ -165,7 +161,15 @@ export default function Communities({ posts = [], onPostsChange }) {
   const router = useRouter();
   const now = useNow(30000);
   const { width: screenWidth } = useWindowDimensions();
-  const cardWidth = useMemo(() => screenWidth - Home.gutter * 2, [screenWidth]);
+
+  const layout = useMemo(() => {
+    const contentWidth = screenWidth - Home.gutter * 2;
+    const cardWidth = Math.floor(contentWidth - PEEK);
+    const imageH = Math.round(cardWidth * IMAGE_RATIO);
+    const cardHeight = imageH + BOTTOM_AREA_H;
+    const snap = cardWidth + CARD_GAP;
+    return { cardWidth, cardHeight, imageH, snap };
+  }, [screenWidth]);
 
   const handleLike = useCallback(
     async (postId) => {
@@ -192,6 +196,35 @@ export default function Communities({ posts = [], onPostsChange }) {
     [posts, onPostsChange],
   );
 
+  const renderItem = useCallback(
+    ({ item }) => (
+      <View style={{ width: layout.cardWidth, height: layout.cardHeight, flexShrink: 0 }}>
+        <FeedCard
+          post={item}
+          width={layout.cardWidth}
+          height={layout.cardHeight}
+          imageH={layout.imageH}
+          now={now}
+          onPress={() => router.push("/screens/community-feed")}
+          onLike={() => handleLike(item.id)}
+          onProfile={() =>
+            openNeighborProfile(router, {
+              userId: item.user_id ?? item.user?.id,
+              isMine: item.is_mine,
+            })
+          }
+          onComments={() =>
+            router.push({
+              pathname: "/screens/community-feed/comments",
+              params: { postId: String(item.id) },
+            })
+          }
+        />
+      </View>
+    ),
+    [layout.cardWidth, now, router, handleLike],
+  );
+
   if (posts.length === 0) {
     return (
       <View style={homeStyles.section}>
@@ -213,159 +246,172 @@ export default function Communities({ posts = [], onPostsChange }) {
         label="Community Feed"
         onPress={() => router.push("/screens/community-feed")}
       />
-
-      <SectionCarousel
-        style={styles.feedCarousel}
+      <FlatList
         data={posts}
-        screenWidth={screenWidth}
-        cardWidth={cardWidth}
-        itemHeight={CARD_HEIGHT}
-        fullPageSnap
+        horizontal
+        style={styles.carousel}
+        showsHorizontalScrollIndicator={false}
+        decelerationRate="fast"
+        snapToInterval={layout.snap}
+        snapToAlignment="start"
+        disableIntervalMomentum
+        nestedScrollEnabled
         keyExtractor={(item) => String(item.id)}
-        renderItem={({ item, width }) => (
-          <FeedCard
-            post={item}
-            width={width}
-            now={now}
-            onPress={() => router.push("/screens/community-feed")}
-            onLike={() => handleLike(item.id)}
-            onProfile={() =>
-              openNeighborProfile(router, {
-                userId: item.user_id ?? item.user?.id,
-                isMine: item.is_mine,
-              })
-            }
-            onComments={() =>
-              router.push({
-                pathname: "/screens/community-feed/comments",
-                params: { postId: String(item.id) },
-              })
-            }
-          />
-        )}
+        renderItem={renderItem}
+        getItemLayout={(_, index) => ({
+          length: layout.snap,
+          offset: layout.snap * index,
+          index,
+        })}
+        ItemSeparatorComponent={() => <View style={{ width: CARD_GAP }} />}
+        contentContainerStyle={styles.listContent}
       />
     </View>
   );
 }
 
-const THUMB_SIZE = sw(48);
+const RADIUS = sw(16);
 
 const styles = StyleSheet.create({
-  feedCarousel: {
-    alignSelf: "stretch",
+  carousel: { flexGrow: 0, alignSelf: "stretch" },
+  listContent: { paddingRight: PEEK, alignItems: "flex-start" },
+  card: {
+    borderRadius: RADIUS,
+    ...(Platform.OS === "ios"
+      ? {
+          backgroundColor: T.white,
+          shadowColor: T.navy,
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity: 0.08,
+          shadowRadius: 10,
+          borderCurve: "continuous",
+        }
+      : { elevation: 3 }),
   },
-  cardContent: {
+  cardPressed: { opacity: 0.95, transform: [{ scale: 0.98 }] },
+  cardInner: {
+    borderRadius: RADIUS,
+    overflow: "hidden",
+    backgroundColor: T.white,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: T.border,
+    ...(Platform.OS === "ios" ? { borderCurve: "continuous" } : null),
+  },
+  cardInnerTextOnly: {
+    backgroundColor: T.navy,
+    borderColor: "rgba(20,184,166,0.15)",
+  },
+  imageWrap: {
     width: "100%",
+    backgroundColor: T.canvas,
+  },
+  quoteBlock: {
     flex: 1,
-    paddingHorizontal: sw(12),
+    paddingHorizontal: sw(18),
+    paddingTop: sw(18),
+    paddingBottom: sw(10),
+    justifyContent: "center",
+  },
+  quoteText: {
+    fontFamily: Fonts.medium,
+    fontSize: sf(14.5),
+    lineHeight: sf(21),
+    color: "#FFFFFF",
+    fontWeight: "500",
+  },
+  contentArea: {
+    paddingHorizontal: sw(14),
     paddingTop: sw(12),
     paddingBottom: sw(10),
-    overflow: "hidden",
   },
-  headerRow: {
+  authorRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: sw(8),
-    marginBottom: sw(10),
-    width: "100%",
+    marginBottom: sw(8),
   },
-  userRow: { flexGrow: 1, flexShrink: 1, flexDirection: "row", alignItems: "center", minWidth: 0 },
-  avatar: { width: sw(32), height: sw(32), borderRadius: sw(16), marginRight: sw(8) },
-  userText: { flex: 1, minWidth: 0 },
-  userName: {
+  avatar: {
+    width: sw(30),
+    height: sw(30),
+    borderRadius: sw(15),
+    marginRight: sw(8),
+  },
+  authorCopy: { flex: 1, minWidth: 0 },
+  authorName: {
     fontFamily: Fonts.bold,
-    fontSize: sf(13),
-    lineHeight: sf(17),
-    color: "#101828",
+    fontSize: sf(12.5),
+    lineHeight: sf(16),
+    color: T.navy,
     fontWeight: "700",
   },
-  userMeta: {
+  authorNameLight: {
+    color: "#FFFFFF",
+  },
+  authorMeta: {
     fontFamily: Fonts.regular,
-    fontSize: sf(11),
-    lineHeight: sf(14),
-    color: "#99A1AF",
-    marginTop: 1,
-  },
-  bodyRow: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: sw(12),
-    width: "100%",
-    minHeight: 0,
-  },
-  sensitiveWrap: {
-    flex: 1,
-    width: "100%",
-    minWidth: 0,
-    minHeight: 0,
-    maxHeight: sw(56),
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  sensitiveTag: {
-    backgroundColor: "#FEF3C7",
-  },
-  sensitiveTagText: {
-    color: "#B45309",
-  },
-  thumbWrap: {
-    width: THUMB_SIZE,
-    height: THUMB_SIZE,
-    borderRadius: sw(10),
-    overflow: "hidden",
-    backgroundColor: "#F1F5F9",
-    flexShrink: 0,
-  },
-  thumb: {
-    width: THUMB_SIZE,
-    height: THUMB_SIZE,
-  },
-  textCol: {
-    flex: 1,
-    flexShrink: 1,
-    minWidth: 0,
-  },
-  content: {
-    fontFamily: Fonts.regular,
-    fontSize: sf(13),
-    lineHeight: sf(18),
-    color: "#334155",
-  },
-  tag: {
-    flexShrink: 0,
-    alignSelf: "center",
-    backgroundColor: "#F3E8FF",
-    borderRadius: 999,
-    paddingHorizontal: sw(8),
-    paddingVertical: hp(0.2),
-  },
-  tagText: {
-    fontFamily: Fonts.semiBold,
     fontSize: sf(10),
     lineHeight: sf(13),
-    color: "#7C3AED",
-    fontWeight: "600",
+    color: T.gray,
+    marginTop: 1,
   },
-  footer: {
-    marginTop: sw(10),
-    width: "100%",
+  authorMetaLight: {
+    color: "rgba(255,255,255,0.55)",
   },
-  footerDisabled: {
-    opacity: 0.55,
+  chip: {
+    flexShrink: 0,
+    backgroundColor: T.mint,
+    borderRadius: 999,
+    paddingHorizontal: sw(7),
+    paddingVertical: sw(2),
   },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: "#E5E7EB", marginBottom: sw(8) },
-  stats: { flexDirection: "row", gap: sw(14), alignItems: "center" },
-  stat: { flexDirection: "row", alignItems: "center", gap: sw(5), minWidth: sw(36) },
-  statText: {
+  chipDark: {
+    backgroundColor: "rgba(20,184,166,0.2)",
+  },
+  chipText: {
     fontFamily: Fonts.semiBold,
-    fontSize: sf(12),
-    lineHeight: sf(16),
-    color: "#4A5565",
+    fontSize: sf(9),
+    color: T.deepTeal,
     fontWeight: "600",
-    minWidth: sw(12),
   },
-  statTextLiked: { color: LIKE_HEART_RED },
-  statTextDisabled: { color: "#CBD5E1" },
+  chipTextDark: {
+    color: T.teal,
+  },
+  chipWarn: { backgroundColor: "rgba(217, 119, 6, 0.12)" },
+  chipWarnText: { color: "#D97706" },
+  sensitiveWrap: {
+    paddingVertical: sw(4),
+    overflow: "hidden",
+  },
+  bodyText: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(12.5),
+    lineHeight: sf(17),
+    color: T.navy,
+    marginBottom: sw(4),
+  },
+  engagementBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(14),
+    marginTop: sw(6),
+    paddingTop: sw(8),
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: T.border,
+  },
+  engagementBarDark: {
+    borderTopColor: "rgba(255,255,255,0.12)",
+  },
+  engBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(4),
+  },
+  engCount: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(11),
+    color: T.gray,
+    fontWeight: "600",
+  },
+  engCountLight: {
+    color: "rgba(255,255,255,0.6)",
+  },
 });

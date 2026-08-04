@@ -1,47 +1,38 @@
 import { StyleSheet } from "react-native";
 import { Fonts } from "./font";
+import { HomeTheme as T } from "./home-theme";
 import { sw, sf, hp } from "../utils/responsive";
 
-/** Havena home palette — teal brand on light canvas. */
-const HomeColors = {
-  brandPrimary: "#14B8A6",
-  brandPrimaryDeep: "#0A2A43",
-  pageBg: "#F3F4F6",
-  textPrimary: "#0A2A43",
-  textSecondary: "#6B7280",
-  textMuted: "#6B7280",
-  surfaceMuted: "#F4F8FD",
-};
-
-/** Modest scroll bottom pad — breathing room above floating nav, not a large void. */
-export const HOME_SCROLL_BOTTOM_PAD = sw(32);
+export const HOME_SCROLL_BOTTOM_PAD = sw(12);
 
 export const Home = {
-  gutter: sw(18),
-  sectionGap: hp(0.45),
-  sectionCardBottom: hp(0.25),
-  heroHeight: hp(11.5),
-  heroTitle: sf(14),
-  heroLine: sf(18),
+  gutter: sw(16),
+  sectionGap: sw(14),
+  sectionCardBottom: sw(2),
+  radius: sw(16),
+  radiusLg: sw(20),
   sectionLabel: sf(12),
   cardTitle: sf(14),
   cardBody: sf(12),
-  dealImageH: hp(10),
-  /** Fixed home feed carousel card: header + body row + like/comment footer. */
-  feedCardHeight: sw(148),
-  feedCardMinHeight: sw(148),
+  feedCardHeight: sw(158),
+  feedCardMinHeight: sw(158),
 };
 
+export function homeContentWidth(screenWidth) {
+  return screenWidth - Home.gutter * 2;
+}
+
+export function homeThreeColWidth(screenWidth, gap = sw(10)) {
+  return Math.floor((homeContentWidth(screenWidth) - gap * 2) / 3);
+}
+
 export const homeStyles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: HomeColors.pageBg },
-  /** Modest bottom pad on tab home feed scroll content. */
+  screen: { flex: 1, backgroundColor: T.canvas },
   scrollContent: { paddingBottom: HOME_SCROLL_BOTTOM_PAD },
   section: {
     marginHorizontal: Home.gutter,
     paddingTop: Home.sectionGap,
     paddingBottom: Home.sectionCardBottom,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(0,0,0,0.06)",
   },
   sectionLast: {
     marginHorizontal: Home.gutter,
@@ -54,20 +45,27 @@ export const homeStyles = StyleSheet.create({
     lineHeight: sf(16),
     letterSpacing: 0.7,
     textTransform: "uppercase",
-    color: HomeColors.brandPrimary,
+    color: T.navy,
     fontWeight: "700",
   },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: hp(0.25),
+    marginBottom: sw(8),
+  },
+  viewAll: {
+    fontFamily: Fonts.medium,
+    fontSize: sf(12),
+    lineHeight: sf(16),
+    color: T.gray,
+    fontWeight: "500",
   },
   sectionArrow: {
     width: sw(28),
     height: sw(28),
     borderRadius: sw(14),
-    backgroundColor: "#D1FAF5",
+    backgroundColor: T.mint,
     alignItems: "center",
     justifyContent: "center",
   },

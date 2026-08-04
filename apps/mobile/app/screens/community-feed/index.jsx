@@ -7,6 +7,8 @@ import {
   Pressable,
   TouchableOpacity,
   RefreshControl,
+  Share,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -18,7 +20,7 @@ import { CommunityFeedSkeleton } from "../../../components/ui/skeleton-loader";
 import FeedPostCard from "../../../components/feed/feed-post-card";
 import { HeaderIconSlot } from "../../../components/layout/header-chrome";
 import { Fonts } from "../../../constants/font";
-import { Colors } from "../../../constants/tokens";
+import { HomeTheme as T } from "../../../constants/home-theme";
 import {
   fetchFeed,
   likePost,
@@ -122,6 +124,16 @@ export default function CommunityFeedScreen() {
     [showFailure],
   );
 
+  const handleShare = useCallback(async (post) => {
+    try {
+      const text = post.content || post.body || "";
+      const preview = text.length > 80 ? text.slice(0, 80) + "..." : text;
+      await Share.share({
+        message: preview || "Check out this post on Havena!",
+      });
+    } catch (_) {}
+  }, []);
+
   const filtered = useMemo(() => {
     if (!activeTopic) return posts;
     return posts.filter((post) => post.tag === activeTopic);
@@ -138,20 +150,16 @@ export default function CommunityFeedScreen() {
         title="Community Feed"
         right={
           accessBlocked ? null : (
-          <Pressable
-            onPress={() => router.push("/screens/community-feed/search")}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel="Search community feed"
-          >
-            <HeaderIconSlot>
-              <Feather
-                name="search"
-                size={18}
-                color={Colors.brandPrimaryDeep}
-              />
-            </HeaderIconSlot>
-          </Pressable>
+            <Pressable
+              onPress={() => router.push("/screens/community-feed/search")}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Search community feed"
+            >
+              <HeaderIconSlot>
+                <Feather name="search" size={18} color={T.navy} />
+              </HeaderIconSlot>
+            </Pressable>
           )
         }
       />
@@ -164,12 +172,14 @@ export default function CommunityFeedScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={Colors.brandPrimary}
+            tintColor={T.teal}
+            colors={[T.teal]}
           />
         }
       >
         {!accessBlocked ? (
           <>
+            {/* Composer */}
             <TouchableOpacity
               style={styles.composerCard}
               activeOpacity={0.88}
@@ -178,18 +188,17 @@ export default function CommunityFeedScreen() {
               <UserAvatar
                 source={currentUser?.profile?.avatar_url ?? currentUser?.avatar_url}
                 name={displayName}
-                size={sw(40)}
+                size={sw(38)}
               />
               <View style={styles.composerInput}>
                 <Text style={styles.composerPlaceholder}>What's on your mind?</Text>
               </View>
-              <View
-                style={styles.composerBtn}
-              >
-                <Feather name="edit-3" size={16} color="#FFFFFF" />
+              <View style={styles.composerBtn}>
+                <Feather name="edit-3" size={sf(16)} color={T.white} />
               </View>
             </TouchableOpacity>
 
+            {/* Topic chips — text only, no icons */}
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -200,9 +209,7 @@ export default function CommunityFeedScreen() {
                 style={[styles.chip, !activeTopic && styles.chipActive]}
                 onPress={() => setActiveTopic(null)}
               >
-                <Text
-                  style={[styles.chipText, !activeTopic && styles.chipTextActive]}
-                >
+                <Text style={[styles.chipText, !activeTopic && styles.chipTextActive]}>
                   All
                 </Text>
               </Pressable>
@@ -216,22 +223,18 @@ export default function CommunityFeedScreen() {
                       styles.chip,
                       isActive && {
                         backgroundColor: theme.bg,
-                        borderColor: theme.border,
+                        borderColor: theme.border || theme.text,
                       },
                     ]}
                     onPress={() => setActiveTopic(isActive ? null : topic)}
                   >
-                    <Feather
-                      name={theme.icon}
-                      size={12}
-                      color={isActive ? theme.text : "#6B7280"}
-                    />
                     <Text
                       style={[
                         styles.chipText,
                         isActive && {
                           color: theme.text,
                           fontFamily: Fonts.semiBold,
+                          fontWeight: "600",
                         },
                       ]}
                     >
@@ -244,6 +247,7 @@ export default function CommunityFeedScreen() {
           </>
         ) : null}
 
+        {/* Section title */}
         {!loading && !accessBlocked && filtered.length > 0 ? (
           <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle}>Recent Posts</Text>
@@ -253,6 +257,7 @@ export default function CommunityFeedScreen() {
           </View>
         ) : null}
 
+        {/* Content */}
         {loading ? (
           <CommunityFeedSkeleton count={4} />
         ) : error ? (
@@ -264,14 +269,8 @@ export default function CommunityFeedScreen() {
           />
         ) : filtered.length === 0 ? (
           <View style={styles.empty}>
-            <View
-              style={styles.emptyIcon}
-            >
-              <Feather
-                name={emptyReason === "no_approved_membership" ? "users" : "message-square"}
-                size={32}
-                color={Colors.brandPrimaryDeep}
-              />
+            <View style={styles.emptyCircle}>
+              <Feather name="message-square" size={sf(28)} color={T.teal} />
             </View>
             <Text style={styles.emptyTitle}>
               {emptyReason === "no_approved_membership" ? "Join your community" : "No posts yet"}
@@ -279,9 +278,8 @@ export default function CommunityFeedScreen() {
             <Text style={styles.emptyText}>
               {getFeedEmptyMessage(emptyReason)}
             </Text>
-            <TouchableOpacity
+            <Pressable
               style={styles.emptyBtn}
-              activeOpacity={0.9}
               onPress={() =>
                 router.push(
                   emptyReason === "no_approved_membership"
@@ -290,15 +288,10 @@ export default function CommunityFeedScreen() {
                 )
               }
             >
-              <View
-                style={styles.emptyBtnGradient}
-              >
-                <Feather name="plus" size={16} color="#FFFFFF" />
-                <Text style={styles.emptyBtnText}>
-                  {emptyReason === "no_approved_membership" ? "Select region" : "Create Post"}
-                </Text>
-              </View>
-            </TouchableOpacity>
+              <Text style={styles.emptyBtnText}>
+                {emptyReason === "no_approved_membership" ? "Select region" : "Create Post"}
+              </Text>
+            </Pressable>
           </View>
         ) : (
           filtered.map((post) => (
@@ -319,6 +312,7 @@ export default function CommunityFeedScreen() {
                   params: { postId: String(post.id) },
                 })
               }
+              onShare={() => handleShare(post)}
             />
           ))
         )}
@@ -328,46 +322,57 @@ export default function CommunityFeedScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#F7F8FC" },
-  scroll: { paddingHorizontal: sw(18), paddingTop: sw(12), paddingBottom: sw(32) },
+  screen: { flex: 1, backgroundColor: T.canvas },
+  scroll: {
+    paddingHorizontal: sw(18),
+    paddingTop: sw(10),
+    paddingBottom: sw(32),
+  },
   composerCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: sw(12),
-    backgroundColor: "#FFFFFF",
+    gap: sw(10),
+    backgroundColor: T.white,
     borderRadius: sw(16),
     padding: sw(12),
     marginBottom: sw(14),
-    borderWidth: 1,
-    borderColor: Colors.borderSubtle,
-    shadowColor: "#0A2A43",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: T.border,
+    ...(Platform.OS === "ios"
+      ? {
+          shadowColor: T.navy,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.06,
+          shadowRadius: 8,
+        }
+      : { elevation: 2 }),
   },
   composerInput: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: T.canvas,
     borderRadius: sw(12),
     paddingVertical: sw(10),
     paddingHorizontal: sw(14),
-    borderWidth: 1,
-    borderColor: "#F3F4F6",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: T.border,
   },
   composerPlaceholder: {
     fontFamily: Fonts.regular,
     fontSize: sf(13),
-    color: "#9CA3AF",
+    color: T.gray,
   },
   composerBtn: {
-    width: sw(40),
-    height: sw(40),
+    width: sw(38),
+    height: sw(38),
     borderRadius: sw(12),
+    backgroundColor: T.teal,
     alignItems: "center",
     justifyContent: "center",
   },
-  chipsScroll: { marginBottom: sw(16), marginHorizontal: -sw(18) },
+  chipsScroll: {
+    marginBottom: sw(16),
+    marginHorizontal: -sw(18),
+  },
   chipsRow: {
     paddingHorizontal: sw(18),
     gap: sw(8),
@@ -376,28 +381,29 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: sw(5),
-    paddingHorizontal: sw(12),
-    paddingVertical: sw(8),
+    paddingHorizontal: sw(14),
+    paddingVertical: sw(7),
     borderRadius: 999,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: T.white,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: T.border,
     flexShrink: 0,
   },
   chipActive: {
-    backgroundColor: "#D1FAF5",
-    borderColor: Colors.brandPrimaryDeep,
+    backgroundColor: T.mint,
+    borderColor: T.teal,
   },
   chipText: {
     fontFamily: Fonts.medium,
     fontSize: sf(12),
-    color: "#6B7280",
+    color: T.gray,
     flexShrink: 0,
+    fontWeight: "500",
   },
   chipTextActive: {
-    color: Colors.brandPrimaryDeep,
+    color: T.navy,
     fontFamily: Fonts.semiBold,
+    fontWeight: "600",
   },
   sectionHead: {
     flexDirection: "row",
@@ -408,11 +414,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontFamily: Fonts.bold,
     fontSize: sf(14),
-    color: "#101828",
+    color: T.navy,
     fontWeight: "700",
   },
   countBadge: {
-    backgroundColor: "#D1FAF5",
+    backgroundColor: T.mint,
     paddingHorizontal: sw(8),
     paddingVertical: sw(2),
     borderRadius: 999,
@@ -420,51 +426,48 @@ const styles = StyleSheet.create({
   countText: {
     fontFamily: Fonts.bold,
     fontSize: sf(11),
-    color: Colors.brandPrimaryDeep,
+    color: T.deepTeal,
+    fontWeight: "700",
   },
   empty: {
     alignItems: "center",
-    paddingTop: hp(4),
+    paddingTop: hp(6),
     paddingHorizontal: sw(24),
   },
-  emptyIcon: {
+  emptyCircle: {
     width: sw(72),
     height: sw(72),
     borderRadius: sw(36),
+    backgroundColor: T.mint,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: sw(16),
   },
   emptyTitle: {
     fontFamily: Fonts.bold,
-    fontSize: sf(16),
-    color: "#101828",
+    fontSize: sf(17),
+    color: T.navy,
     fontWeight: "700",
     marginBottom: sw(6),
   },
   emptyText: {
     fontFamily: Fonts.regular,
     fontSize: sf(13),
-    color: "#9CA3AF",
+    color: T.gray,
     textAlign: "center",
     lineHeight: sf(19),
     marginBottom: sw(20),
   },
   emptyBtn: {
-    borderRadius: sw(14),
-    overflow: "hidden",
-  },
-  emptyBtnGradient: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: sw(8),
-    paddingHorizontal: sw(24),
+    backgroundColor: T.teal,
+    paddingHorizontal: sw(28),
     paddingVertical: sw(12),
+    borderRadius: 999,
   },
   emptyBtnText: {
     fontFamily: Fonts.bold,
     fontSize: sf(14),
-    color: "#FFFFFF",
+    color: T.navy,
     fontWeight: "700",
   },
 });

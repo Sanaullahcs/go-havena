@@ -22,24 +22,24 @@ import { encodeRoutePhone, paramString } from "../../../utils/route-params";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
-import { HavenaColors as C } from "../../../constants/color-scheme";
+import { ScreenBrand } from "../../../constants/screen-brand";
 
 const ROLE_BADGE = {
   admin: {
-    bg: "#D1FAF5",
-    text: C.primary.darkNavy,
-    border: "rgba(20, 184, 166, 0.28)",
+    bg: ScreenBrand.softMint,
+    text: ScreenBrand.primary,
+    border: "rgba(10, 42, 67, 0.12)",
   },
   resident: {
-    bg: "rgba(0, 201, 136, 0.12)",
-    text: "#047857",
-    border: "rgba(0, 201, 136, 0.28)",
+    bg: "rgba(13, 148, 136, 0.12)",
+    text: ScreenBrand.deepTeal,
+    border: "rgba(13, 148, 136, 0.28)",
   },
 };
 
 const ROLE_BUTTON = {
-  solid: C.primary.teal,
-  loading: "rgba(20, 184, 166, 0.88)",
+  solid: ScreenBrand.cta,
+  loading: ScreenBrand.ctaLoading,
 };
 
 export default function SignupScreen() {
@@ -145,7 +145,7 @@ export default function SignupScreen() {
         }
       >
         <View style={styles.logoContainer}>
-          <AuthLogo compact size={56} />
+          <AuthLogo compact size={56} tileColor={ScreenBrand.primary} />
           <Text style={styles.title}>Create your account</Text>
           <Text style={styles.subtitle}>
             Enter your phone number to get started
@@ -174,7 +174,7 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: C.neutral.white,
+    backgroundColor: ScreenBrand.white,
     paddingHorizontal: 24,
   },
   header: {
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: 22,
     fontWeight: "700",
-    color: C.primary.darkNavy,
+    color: ScreenBrand.navy,
     lineHeight: 28,
     marginTop: 4,
   },
@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     lineHeight: 20,
     textAlign: "center",
-    color: C.neutral.mediumGray,
+    color: ScreenBrand.textSecondary,
   },
   formSection: {
     marginTop: 14,
@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.medium,
     fontSize: 14,
     fontWeight: "500",
-    color: C.neutral.darkText,
+    color: ScreenBrand.navy,
     lineHeight: 20,
   },
   phoneInput: {
@@ -255,6 +255,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 12,
     fontWeight: "400",
-    color: C.neutral.mediumGray,
+    color: ScreenBrand.textSecondary,
   },
 });

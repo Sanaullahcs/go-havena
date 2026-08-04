@@ -9,7 +9,7 @@ export const ROLE_ICON_THEME = {
   },
   resident: {
     iconBg: "#F0FDF4",
-    iconColor: C.primary.vibrantGreen,
+    iconColor: C.primary.darkTeal,
   },
 };
 

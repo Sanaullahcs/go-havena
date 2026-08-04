@@ -1,24 +1,33 @@
 import { StyleSheet, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { Colors, Shadows } from "../../constants/tokens";
+import { ScreenBrand } from "../../constants/screen-brand";
 
-/** Havena mark — auth screens use solid teal tile; splash uses white tile for contrast. */
-export default function AuthLogo({ size = 62, style, compact = false, variant = "auth" }) {
+/** Havena mark — pass tileColor={ScreenBrand.primary} on login/signup. */
+export default function AuthLogo({
+  size = 62,
+  style,
+  compact = false,
+  variant = "auth",
+  tileColor,
+}) {
   const radius = Math.round(size * (12 / 36));
   const inset = Math.round(size * 0.14);
   const iconSize = Math.round(size * 0.42);
+  const authTile = tileColor ?? Colors.brandPrimary;
+  const houseStroke = variant === "splash" ? Colors.brandPrimaryDeep : "#FFFFFF";
 
   const houseIcon = (
     <Svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none">
       <Path
         d="M3 9l9-6 9 6v11a1 1 0 01-1 1H4a1 1 0 01-1-1V9z"
-        stroke={variant === "splash" ? Colors.brandPrimaryDeep : "#FFFFFF"}
+        stroke={houseStroke}
         strokeWidth={1.8}
         strokeLinejoin="round"
       />
       <Path
         d="M9 21V12h6v9"
-        stroke={variant === "splash" ? Colors.brandPrimaryDeep : "#FFFFFF"}
+        stroke={houseStroke}
         strokeWidth={1.8}
         strokeLinejoin="round"
       />
@@ -58,8 +67,8 @@ export default function AuthLogo({ size = 62, style, compact = false, variant = 
     <View
       style={[
         compact ? styles.markCompact : styles.mark,
-        styles.authMark,
-        Shadows.button,
+        { backgroundColor: authTile },
+        tileColor ? ScreenBrand.buttonShadow : Shadows.button,
         tileStyle,
         style,
       ]}
@@ -83,11 +92,6 @@ const styles = StyleSheet.create({
   },
   splashMark: {
     backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  authMark: {
-    backgroundColor: Colors.brandPrimary,
     alignItems: "center",
     justifyContent: "center",
   },

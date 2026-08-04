@@ -3,6 +3,7 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import BurgerButton from "./burger-button";
 import { Fonts } from "../../constants/font";
+import { HomeTheme as T } from "../../constants/home-theme";
 import React, { useCallback, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import { getProfileFields, getRoleLabel } from "../../utils/profile-display";
@@ -14,10 +15,6 @@ import { sw, sf } from "../../utils/responsive";
 import { useNotificationUnread } from "../../hooks/use-notification-unread";
 import { useMessageUnread } from "../../hooks/use-message-unread";
 import NotificationCountBadge from "./notification-count-badge";
-import { HavenaColors } from "../../constants/color-scheme";
-
-const navy = HavenaColors.primary.darkNavy;
-const lightBorder = HavenaColors.neutral.lightGray;
 
 export default function TopBar({ onMenuPress }) {
   const router = useRouter();
@@ -34,7 +31,6 @@ export default function TopBar({ onMenuPress }) {
   );
 
   const guestUser = isGuestUser(user);
-
   const { communityName, regionTitle, unitNumber } = getProfileFields(user);
   const roleLabel = getRoleLabel(user);
   const hasCommunity = Boolean(user?.memberships?.some((m) => m?.community?.name));
@@ -50,14 +46,14 @@ export default function TopBar({ onMenuPress }) {
     <HeaderShell padded dense>
       <View style={styles.row}>
         <View style={styles.left}>
-          <BurgerButton onPress={onMenuPress} compact plain iconColor={navy} />
+          <BurgerButton onPress={onMenuPress} compact plain iconColor={T.navy} />
           <Pressable
             style={styles.location}
             accessibilityLabel={`Community location: ${title}`}
             onPress={() => router.push("/screens/profile")}
           >
             <View style={styles.pinWrap}>
-              <Feather name="map-pin" size={sf(14)} color={HavenaColors.neutral.white} />
+              <Feather name="map-pin" size={sf(13)} color={T.white} />
             </View>
             <View style={styles.locationCopy}>
               <View style={styles.titleRow}>
@@ -74,7 +70,7 @@ export default function TopBar({ onMenuPress }) {
                 {subtitle}
               </Text>
             </View>
-            <Feather name="chevron-down" size={sf(14)} color={navy} />
+            <Feather name="chevron-down" size={sf(14)} color={T.gray} />
           </Pressable>
         </View>
 
@@ -84,7 +80,7 @@ export default function TopBar({ onMenuPress }) {
             onPress={() => router.push("/screens/messages")}
             accessibilityLabel="Messages"
           >
-            <Feather name="message-circle" size={sf(17)} color={navy} />
+            <Feather name="message-circle" size={sf(17)} color={T.navy} />
             <NotificationCountBadge count={messageUnread} size="sm" label="messages" />
           </Pressable>
 
@@ -93,7 +89,7 @@ export default function TopBar({ onMenuPress }) {
             onPress={() => router.push("/screens/notification")}
             accessibilityLabel="Notifications"
           >
-            <Feather name="bell" size={sf(17)} color={navy} />
+            <Feather name="bell" size={sf(17)} color={T.navy} />
             <NotificationCountBadge count={unread} size="sm" label="notifications" />
           </Pressable>
         </View>
@@ -121,7 +117,7 @@ const styles = StyleSheet.create({
     width: sw(32),
     height: sw(32),
     borderRadius: sw(10),
-    backgroundColor: navy,
+    backgroundColor: T.navy,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -132,10 +128,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: sw(8),
     minWidth: 0,
-    backgroundColor: HavenaColors.neutral.white,
+    backgroundColor: T.white,
     borderRadius: sw(12),
     borderWidth: 1,
-    borderColor: lightBorder,
+    borderColor: T.border,
     paddingHorizontal: sw(8),
     paddingVertical: sw(6),
   },
@@ -154,16 +150,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(6),
     paddingVertical: sw(2),
     borderRadius: 999,
-    backgroundColor: "#ECFDF5",
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
+    backgroundColor: T.mint,
     flexShrink: 0,
   },
   rolePillText: {
     fontFamily: Fonts.bold,
     fontSize: sf(9),
     lineHeight: sf(12),
-    color: "#047857",
+    color: T.deepTeal,
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
@@ -172,7 +166,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: sf(13),
     lineHeight: sf(17),
-    color: navy,
+    color: T.navy,
     fontWeight: "700",
   },
   locationSub: {
@@ -180,7 +174,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: sf(10),
     lineHeight: sf(13),
-    color: navy,
+    color: T.gray,
     fontWeight: "400",
   },
   right: {
@@ -193,9 +187,9 @@ const styles = StyleSheet.create({
     width: sw(38),
     height: sw(38),
     borderRadius: sw(11),
-    backgroundColor: HavenaColors.neutral.white,
+    backgroundColor: T.white,
     borderWidth: 1,
-    borderColor: lightBorder,
+    borderColor: T.border,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",

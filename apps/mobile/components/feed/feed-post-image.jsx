@@ -7,6 +7,7 @@ import {
   FEED_IMAGE_MAX_HEIGHT,
   FEED_IMAGE_MIN_HEIGHT,
 } from "../../constants/feed-layout";
+import { HomeTheme as T } from "../../constants/home-theme";
 import { sw } from "../../utils/responsive";
 
 export default function FeedPostImage({ uri, style, imageStyle, borderRadius = sw(14) }) {
@@ -58,7 +59,7 @@ const styles = StyleSheet.create({
   wrap: {
     width: "100%",
     overflow: "hidden",
-    backgroundColor: "#EEF2F7",
+    backgroundColor: T.canvas,
   },
   image: {
     width: "100%",

@@ -1,0 +1,75 @@
+{
+  "id": "ocean-breeze",
+  "name": "Ocean Breeze",
+  "tagline": "Calm & Refreshing",
+  "status": "partial",
+  "applied": true,
+  "appliedScope": ["login", "signup", "home"],
+  "screenPrimary": "#0A2A43",
+  "allowGradients": false,
+  "swatches": {
+    "deepNavy": "#0A2A43",
+    "deepTeal": "#0D9488",
+    "primaryTeal": "#14B8A6",
+    "softMint": "#D1FAF5",
+    "canvas": "#F4F8FD"
+  },
+  "neutrals": {
+    "white": "#FFFFFF",
+    "darkText": "#0A2A43",
+    "mediumGray": "#6B7280",
+    "border": "#E5E7EB"
+  },
+  "semantic": {
+    "textPrimary": "#0A2A43",
+    "textSecondary": "#6B7280",
+    "textOnDark": "#FFFFFF",
+    "pageBackground": "#F4F8FD",
+    "cardBackground": "#FFFFFF",
+    "softSurface": "#D1FAF5",
+    "heroFill": "#0A2A43",
+    "ctaFill": "#14B8A6",
+    "navActive": "#14B8A6",
+    "navInactive": "#6B7280",
+    "fab": "#14B8A6",
+    "success": "#0D9488",
+    "warning": "#D97706",
+    "danger": "#E11D48"
+  },
+  "usageRatio": {
+    "canvasAndWhite": 0.7,
+    "deepNavy": 0.12,
+    "primaryAndDeepTeal": 0.13,
+    "softMint": 0.05
+  },
+  "components": {
+    "heroCard": {
+      "background": "#0A2A43",
+      "title": "#FFFFFF",
+      "accentWord": "#14B8A6",
+      "ctaBackground": "#14B8A6",
+      "ctaText": "#FFFFFF"
+    },
+    "primaryButton": {
+      "background": "#14B8A6",
+      "text": "#FFFFFF"
+    },
+    "secondaryButton": {
+      "background": "#FFFFFF",
+      "border": "#0D9488",
+      "text": "#0D9488"
+    },
+    "iconTile": {
+      "background": "#FFFFFF",
+      "border": "#E5E7EB",
+      "icon": "#0A2A43",
+      "iconWell": "#D1FAF5"
+    }
+  },
+  "rules": [
+    "Solid fills only — no linear-gradient brand treatments.",
+    "No glow, purple accents, or multi-layer decorative shadows.",
+    "Primary teal is the loudest accent; soft mint is wash only.",
+    "Deep navy owns text and dark hero surfaces."
+  ]
+}

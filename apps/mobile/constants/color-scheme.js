@@ -1,6 +1,6 @@
 /**
  * Havena official color scheme (mobile) — Ocean Breeze
- * Canonical spec: ../../design/color-scheme.js
+ * Five swatches + neutrals. No gradients.
  */
 
 /** @type {const} */
@@ -12,15 +12,11 @@ export const HavenaColors = {
     darkTeal: "#0D9488",
     softMint: "#D1FAF5",
     canvas: "#F4F8FD",
-    /** aliases for older screens */
-    brightTurquoise: "#0D9488",
-    vibrantGreen: "#0D9488",
   },
 
   secondary: {
     navy: "#0A2A43",
     darkTeal: "#0D9488",
-    turquoise: "#0D9488",
     green: "#0D9488",
   },
 
@@ -31,12 +27,6 @@ export const HavenaColors = {
     background: "#F4F8FD",
     white: "#FFFFFF",
   },
-};
-
-export const HavenaColorFlat = {
-  ...HavenaColors.primary,
-  ...HavenaColors.secondary,
-  ...HavenaColors.neutral,
 };
 
 export default HavenaColors;

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Fonts } from "../../constants/font";
-import { Colors } from "../../constants/tokens";
+import { HomeTheme as T } from "../../constants/home-theme";
 import { parsePostDisplayContent } from "../../services/feed-api";
 import { FEED_TEXT_COLLAPSED_LINES } from "../../constants/feed-layout";
 import { sw, sf } from "../../utils/responsive";
@@ -87,15 +87,15 @@ const styles = StyleSheet.create({
   },
   text: {
     fontFamily: Fonts.regular,
-    fontSize: sf(12),
-    lineHeight: sf(17),
-    color: "#364153",
+    fontSize: sf(13),
+    lineHeight: sf(19),
+    color: T.navy,
   },
   toggle: {
     marginTop: sw(4),
     fontFamily: Fonts.semiBold,
     fontSize: sf(12),
-    color: Colors.brandPrimaryDeep,
+    color: T.teal,
     fontWeight: "600",
   },
   photoOnlyRow: {
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
   photoOnlyText: {
     fontFamily: Fonts.regular,
     fontSize: sf(12),
-    color: "#64748B",
+    color: T.gray,
   },
   metaRow: {
     flexDirection: "row",
@@ -113,17 +113,17 @@ const styles = StyleSheet.create({
     marginTop: sw(6),
   },
   metaChip: {
-    backgroundColor: "#F8FAFC",
+    backgroundColor: T.mint,
     borderRadius: 999,
     paddingHorizontal: sw(10),
     paddingVertical: sw(4),
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: T.border,
     maxWidth: "100%",
   },
   metaChipText: {
     fontFamily: Fonts.medium,
     fontSize: sf(11),
-    color: "#475569",
+    color: T.navy,
   },
 });

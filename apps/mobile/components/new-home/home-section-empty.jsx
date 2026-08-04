@@ -1,8 +1,8 @@
 import { View, Text, StyleSheet } from "react-native";
 import { Fonts } from "../../constants/font";
+import { HomeTheme as T } from "../../constants/home-theme";
 import { sf, sw, hp } from "../../utils/responsive";
 
-/** Compact empty state — keep home scroll short. */
 export default function HomeSectionEmpty({ message, hint }) {
   return (
     <View style={styles.box}>
@@ -15,9 +15,9 @@ export default function HomeSectionEmpty({ message, hint }) {
 const styles = StyleSheet.create({
   box: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#E8EEF5",
+    borderColor: T.border,
     borderRadius: sw(12),
-    backgroundColor: "#FFFFFF",
+    backgroundColor: T.white,
     paddingVertical: hp(1.6),
     paddingHorizontal: sw(14),
     alignItems: "center",
@@ -26,7 +26,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semiBold,
     fontSize: sf(13),
     lineHeight: sf(18),
-    color: "#0F172A",
+    color: T.navy,
     fontWeight: "600",
     textAlign: "center",
   },
@@ -34,7 +34,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: sf(11),
     lineHeight: sf(15),
-    color: "#64748B",
+    color: T.gray,
     marginTop: hp(0.3),
     textAlign: "center",
   },
