@@ -37,8 +37,7 @@ const QUICK_ACTIONS = [
   { id: "6", title: "More", icon: "more-horizontal", route: PropertyManagementRoutes.HOME },
 ];
 
-const HERO_HEIGHT = sw(160);
-const PHOTO_SIZE = sw(130);
+const HERO_HEIGHT = sw(175);
 
 function mapNoticeToHero(notice) {
   const theme = notice.theme ?? getCategoryTheme(notice.category);
@@ -61,21 +60,18 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
   const hasRemoteImage = Boolean(item.imageUrl);
   const hasSchedule = item.dateLabel || item.timeStart;
 
+  const circleD = cardWidth * 1.5;
+  const curveRight = cardWidth * 0.40;
+
   return (
     <View style={[styles.heroShell, { width: cardWidth, height: HERO_HEIGHT }]}>
-      {/* Image on the right — tapping opens full-screen preview */}
-      <Pressable
-        onPress={() => hasRemoteImage && onImagePress?.()}
-        style={styles.heroImageWrap}
-        accessibilityRole="imagebutton"
-        accessibilityLabel="View notice image"
-      >
+      {/* Layer 1 — image positioned on the right side only */}
+      <View style={styles.imageArea}>
         {hasRemoteImage ? (
           <CrispImage
             source={{ uri: item.imageUrl }}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
-            contentPosition="center"
           />
         ) : (
           <Image
@@ -84,42 +80,83 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
             contentFit="cover"
           />
         )}
-      </Pressable>
+      </View>
 
-      {/* Left text block — tapping opens notice detail */}
-      <Pressable
-        onPress={onPress}
-        style={({ pressed }) => [styles.heroCopy, pressed && { opacity: 0.85 }]}
-      >
-        <View style={styles.badge}>
-          <Feather name={item.badgeIcon} size={sf(10)} color={T.teal} />
-          <Text style={styles.badgeText}>{item.badge}</Text>
-        </View>
+      {/* Layer 2 — curved navy panel (oversized circle, clipped) */}
+      <View
+        style={[
+          styles.curveShape,
+          {
+            width: circleD,
+            height: circleD,
+            borderRadius: circleD / 2,
+            right: curveRight,
+            top: (HERO_HEIGHT - circleD) / 2,
+          },
+        ]}
+        pointerEvents="none"
+      />
 
-        <Text style={styles.heroTitle} numberOfLines={2}>
-          {item.title}
-        </Text>
+      {/* Layer 3 — teal arc border between navy curve and image */}
+      <View
+        style={[
+          styles.curveAccent,
+          {
+            width: circleD + sw(5),
+            height: circleD + sw(5),
+            borderRadius: (circleD + sw(5)) / 2,
+            right: curveRight - sw(2.5),
+            top: (HERO_HEIGHT - circleD - sw(5)) / 2,
+          },
+        ]}
+        pointerEvents="none"
+      />
 
-        {hasSchedule ? (
-          <View style={styles.dateLine}>
-            <Feather name="calendar" size={sf(11)} color="rgba(255,255,255,0.55)" />
-            <Text style={styles.dateText}>
-              {item.dateLabel}
-              {item.dateLabel && item.timeStart ? " · " : ""}
-              {item.timeStart}
-              {item.timeEnd ? ` – ${item.timeEnd}` : ""}
-            </Text>
-          </View>
-        ) : null}
+      {/* Layer 4 — text content (rendered last = always on top) */}
+      <View style={styles.heroCopy} pointerEvents="box-none">
+        <View style={styles.accentBar} />
 
         <Pressable
           onPress={onPress}
-          style={({ pressed }) => [styles.ctaBtn, pressed && { opacity: 0.8 }]}
+          style={({ pressed }) => [styles.heroCopyInner, pressed && { opacity: 0.85 }]}
         >
-          <Text style={styles.ctaText}>View Details</Text>
-          <Feather name="arrow-right" size={sf(12)} color={T.navy} />
+          <View style={styles.badge}>
+            <Feather name={item.badgeIcon} size={sf(10)} color={T.teal} />
+            <Text style={styles.badgeText}>{item.badge}</Text>
+          </View>
+
+          <Text style={styles.heroTitle} numberOfLines={2}>
+            {item.title}
+          </Text>
+
+          {hasSchedule ? (
+            <View style={styles.dateLine}>
+              <Feather name="calendar" size={sf(12)} color="rgba(209,250,245,0.6)" />
+              <Text style={styles.dateText}>
+                {item.dateLabel}
+                {item.dateLabel && item.timeStart ? "  ·  " : ""}
+                {item.timeStart}
+                {item.timeEnd ? ` – ${item.timeEnd}` : ""}
+              </Text>
+            </View>
+          ) : null}
+
+          <View style={styles.ctaBtn}>
+            <Text style={styles.ctaText}>View Details</Text>
+            <Feather name="arrow-right" size={sf(12)} color="#fff" />
+          </View>
         </Pressable>
-      </Pressable>
+      </View>
+
+      {/* Layer 5 — image tap zone */}
+      {hasRemoteImage ? (
+        <Pressable
+          onPress={() => onImagePress?.()}
+          style={styles.imageTap}
+          accessibilityRole="imagebutton"
+          accessibilityLabel="View full image"
+        />
+      ) : null}
     </View>
   );
 }
@@ -326,32 +363,67 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   heroShell: {
-    borderRadius: sw(18),
+    borderRadius: sw(16),
     overflow: "hidden",
     backgroundColor: T.navy,
     ...(Platform.OS === "ios"
       ? {
           shadowColor: T.navy,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.15,
-          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.2,
+          shadowRadius: 16,
+          borderCurve: "continuous",
         }
-      : { elevation: 4 }),
+      : { elevation: 6 }),
   },
-  heroImageWrap: {
+  imageArea: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: "48%",
+  },
+  curveShape: {
+    position: "absolute",
+    backgroundColor: T.navy,
+  },
+  curveAccent: {
+    position: "absolute",
+    backgroundColor: "transparent",
+    borderWidth: sw(2.5),
+    borderColor: T.teal,
+  },
+  heroCopy: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: "55%",
+    paddingLeft: sw(18),
+    paddingTop: sw(14),
+    paddingBottom: sw(16),
+    justifyContent: "center",
+  },
+  heroCopyInner: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  accentBar: {
+    position: "absolute",
+    top: 0,
+    left: sw(18),
+    width: sw(28),
+    height: sw(3),
+    borderRadius: sw(2),
+    backgroundColor: T.teal,
+    opacity: 0.7,
+  },
+  imageTap: {
     position: "absolute",
     right: 0,
     top: 0,
     bottom: 0,
     width: "45%",
-    overflow: "hidden",
-  },
-  heroCopy: {
-    width: "58%",
-    height: "100%",
-    paddingLeft: sw(16),
-    justifyContent: "center",
-    zIndex: 2,
   },
   badge: {
     flexDirection: "row",
@@ -361,49 +433,49 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(8),
     paddingVertical: sw(3),
     borderRadius: 999,
-    backgroundColor: "rgba(20,184,166,0.15)",
-    marginBottom: sw(6),
+    backgroundColor: "rgba(20,184,166,0.18)",
+    marginBottom: sw(8),
   },
   badgeText: {
     fontFamily: Fonts.bold,
     fontSize: sf(8.5),
     color: T.teal,
-    letterSpacing: 0.6,
+    letterSpacing: 0.8,
     fontWeight: "700",
   },
   heroTitle: {
     fontFamily: Fonts.bold,
-    fontSize: sf(15),
-    lineHeight: sf(20),
+    fontSize: sf(15.5),
+    lineHeight: sf(21),
     color: "#FFFFFF",
     fontWeight: "700",
-    marginBottom: sw(4),
+    marginBottom: sw(6),
   },
   dateLine: {
     flexDirection: "row",
     alignItems: "center",
     gap: sw(5),
-    marginBottom: sw(8),
+    marginBottom: sw(10),
   },
   dateText: {
     fontFamily: Fonts.regular,
-    fontSize: sf(10.5),
-    color: "rgba(255,255,255,0.6)",
+    fontSize: sf(11),
+    color: "rgba(209,250,245,0.7)",
   },
   ctaBtn: {
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    gap: sw(5),
+    gap: sw(6),
     backgroundColor: T.teal,
-    paddingHorizontal: sw(12),
-    paddingVertical: sw(6),
+    paddingHorizontal: sw(14),
+    paddingVertical: sw(7),
     borderRadius: 999,
   },
   ctaText: {
     fontFamily: Fonts.bold,
     fontSize: sf(11),
-    color: T.navy,
+    color: "#fff",
     fontWeight: "700",
   },
 
@@ -411,19 +483,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    gap: sw(5),
-    marginTop: sw(8),
+    gap: sw(6),
+    marginTop: sw(10),
   },
   dot: {
-    width: sw(6),
-    height: sw(6),
-    borderRadius: sw(3),
+    width: sw(7),
+    height: sw(7),
+    borderRadius: sw(4),
     backgroundColor: T.mint,
   },
   dotActive: {
-    width: sw(18),
-    backgroundColor: T.navy,
-    borderRadius: sw(3),
+    width: sw(22),
+    height: sw(7),
+    backgroundColor: T.teal,
+    borderRadius: sw(4),
   },
 
   qaWrap: {

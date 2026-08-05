@@ -604,7 +604,7 @@ export function HomeScreenSkeleton() {
   const { width } = useWindowDimensions();
   const cardWidth = width - Home.gutter * 2;
   const carouselCardWidth = Math.floor((cardWidth - sw(10) - sw(24)) / 2);
-  const heroHeight = sw(160);
+  const heroHeight = sw(175);
   const imageW = Math.round(cardWidth * 0.38);
 
   return (
