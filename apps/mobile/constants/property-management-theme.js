@@ -1,16 +1,21 @@
-/** Property Management hub — soft tint pairs aligned with app tokens. */
+import { HomeTheme as T } from "./home-theme";
+
+/** Services hub — Ocean Breeze aligned. */
 export const PropertyHubTheme = {
-  screenBg: "#F7F8FC",
-  surface: "#FFFFFF",
-  text: "#101828",
-  textMuted: "#667085",
-  caption: "#98A2B3",
-  border: "#E8ECF2",
-  heroBorder: "#E8ECF2",
-  successBg: "#F0FDF4",
-  successBorder: "#BBF7D0",
-  successText: "#15803D",
-  successBadgeBg: "#DCFCE7",
+  screenBg: T.canvas,
+  surface: T.white,
+  text: T.navy,
+  textMuted: T.gray,
+  caption: "#94A3B8",
+  border: T.border,
+  heroBorder: T.border,
+  teal: T.teal,
+  mint: T.mint,
+  deepTeal: T.deepTeal,
+  successBg: "#ECFDF5",
+  successBorder: "#A7F3D0",
+  successText: T.deepTeal,
+  successBadgeBg: T.mint,
   pendingBg: "#FFFBEB",
   pendingBorder: "#FDE68A",
   pendingText: "#B45309",
@@ -24,9 +29,9 @@ export const PropertyHubTheme = {
   alertTitle: "#92400E",
   alertText: "#B45309",
   alertLink: "#D97706",
-  approvalBg: "#D1FAF5",
+  approvalBg: T.mint,
   approvalBorder: "rgba(20, 184, 166, 0.28)",
-  approvalText: "#0A2A43",
+  approvalText: T.navy,
   approvalBadgeBg: "rgba(20, 184, 166, 0.15)",
   cardRadius: 16,
   cardPad: 16,
@@ -36,96 +41,139 @@ export const PROPERTY_SERVICE_META = {
   amenity: {
     lucide: "CalendarDays",
     icon: "calendar",
-    color: "#0A2A43",
-    bg: "#D1FAF5",
+    color: T.navy,
+    bg: T.mint,
     border: "rgba(20, 184, 166, 0.28)",
   },
   rules: {
     lucide: "ShieldCheck",
     icon: "shield",
-    color: "#7C3AED",
-    bg: "#F5F3FF",
-    border: "#DDD6FE",
+    color: T.navy,
+    bg: T.mint,
+    border: "rgba(20, 184, 166, 0.28)",
   },
   documents: {
     lucide: "FileStack",
     icon: "file-text",
-    color: "#D97706",
-    bg: "#FFFBEB",
-    border: "#FDE68A",
+    color: T.navy,
+    bg: T.mint,
+    border: "rgba(20, 184, 166, 0.28)",
   },
   bookings: {
     lucide: "BookmarkCheck",
     icon: "bookmark",
-    color: "#059669",
-    bg: "#ECFDF5",
-    border: "#A7F3D0",
+    color: T.navy,
+    bg: T.mint,
+    border: "rgba(20, 184, 166, 0.28)",
   },
   community: {
     lucide: "Building2",
     icon: "home",
-    color: "#0EA5E9",
-    bg: "#F0F9FF",
-    border: "#BAE6FD",
+    color: T.navy,
+    bg: T.mint,
+    border: "rgba(20, 184, 166, 0.28)",
   },
   approvals: {
     lucide: "BookmarkCheck",
     icon: "check-circle",
-    color: "#0A2A43",
-    bg: "#D1FAF5",
+    color: T.navy,
+    bg: T.mint,
+    border: "rgba(20, 184, 166, 0.28)",
+  },
+  help: {
+    lucide: "LifeBuoy",
+    icon: "life-buoy",
+    color: T.navy,
+    bg: T.mint,
+    border: "rgba(20, 184, 166, 0.28)",
+  },
+  notices: {
+    lucide: "Bell",
+    icon: "bell",
+    color: T.navy,
+    bg: T.mint,
+    border: "rgba(20, 184, 166, 0.28)",
+  },
+  marketplace: {
+    lucide: "Store",
+    icon: "shopping-bag",
+    color: T.navy,
+    bg: T.mint,
+    border: "rgba(20, 184, 166, 0.28)",
+  },
+  listings: {
+    lucide: "Tag",
+    icon: "tag",
+    color: T.navy,
+    bg: T.mint,
     border: "rgba(20, 184, 166, 0.28)",
   },
 };
 
-/** Shared “Add Amenity” shortcut for residents and admins. */
-const ADD_AMENITY_ACTION = {
-  id: "add-amenity",
-  key: "amenity",
-  title: "Add Amenity",
-  subtitle: "Create a facility",
-  routeKey: "AMENITY_FORM",
-  primary: true,
-};
-
-/** Always-available community resources under the hub. */
-export const PROPERTY_COMMUNITY_SERVICES = [
+/** Services hub — book, shop, and community resources (6-tile grid). */
+export const PROPERTY_RESIDENT_SERVICES = [
   {
-    id: "rules",
-    key: "rules",
-    title: "Community Rules",
-    subtitle: "Guidelines and acknowledgments",
-    routeKey: "COMMUNITY_RULES",
+    id: "amenity",
+    key: "amenity",
+    title: "Amenities",
+    subtitle: "Pool, gym, clubhouse",
+    routeKey: "AMENITY",
+    primary: true,
+  },
+  {
+    id: "my-booking",
+    key: "bookings",
+    title: "My Bookings",
+    subtitle: "Your reservations",
+    routeKey: "MY_BOOKING",
+    badgeKey: "myReservationCount",
+  },
+  {
+    id: "marketplace",
+    key: "marketplace",
+    title: "Marketplace",
+    subtitle: "Deals & local shops",
+    routeKey: "MARKETPLACE",
+  },
+  {
+    id: "listings",
+    key: "listings",
+    title: "Listings",
+    subtitle: "Buy & sell nearby",
+    routeKey: "COMMUNITY_LISTINGS",
   },
   {
     id: "documents",
     key: "documents",
     title: "Documents",
-    subtitle: "HOA files and resources",
+    subtitle: "Bylaws & forms",
     routeKey: "DOCUMENTS",
   },
-];
-
-/** Resident shortcuts — browse & create amenities (bookings live in dedicated section). */
-export const PROPERTY_RESIDENT_QUICK_ACTIONS = [
-  ADD_AMENITY_ACTION,
   {
-    id: "amenity",
-    key: "bookings",
-    title: "Browse Amenities",
-    subtitle: "Find facilities to book",
-    routeKey: "AMENITY",
+    id: "rules",
+    key: "rules",
+    title: "Community Rules",
+    subtitle: "Living guidelines",
+    routeKey: "COMMUNITY_RULES",
   },
 ];
 
-/** Admin shortcuts — amenity management (approvals live in dedicated section). */
-export const PROPERTY_ADMIN_QUICK_ACTIONS = [
-  ADD_AMENITY_ACTION,
+export const PROPERTY_ADMIN_SERVICES = [
   {
     id: "amenities",
     key: "amenity",
     title: "Manage Amenities",
     subtitle: "Hours & capacity",
     routeKey: "ADMIN_AMENITIES",
+    primary: true,
+  },
+  {
+    id: "approvals",
+    key: "approvals",
+    title: "Approvals",
+    subtitle: "Booking requests",
+    routeKey: "ADMIN_BOOKINGS",
+    badgeKey: "approveRequestCount",
   },
   {
     id: "book",
@@ -134,26 +182,88 @@ export const PROPERTY_ADMIN_QUICK_ACTIONS = [
     subtitle: "Book as a resident",
     routeKey: "AMENITY",
   },
+  {
+    id: "marketplace",
+    key: "marketplace",
+    title: "Marketplace",
+    subtitle: "Deals & businesses",
+    routeKey: "MARKETPLACE",
+  },
+  {
+    id: "documents",
+    key: "documents",
+    title: "Documents",
+    subtitle: "Bylaws & forms",
+    routeKey: "DOCUMENTS",
+  },
+  {
+    id: "rules",
+    key: "rules",
+    title: "Community Rules",
+    subtitle: "Living guidelines",
+    routeKey: "COMMUNITY_RULES",
+  },
 ];
 
-/** @deprecated Use role helpers below */
-export const PROPERTY_QUICK_ACTIONS = PROPERTY_RESIDENT_QUICK_ACTIONS;
+/** @deprecated Use PROPERTY_RESIDENT_SERVICES */
+export const PROPERTY_RESIDENT_BOOK_ACTIONS = PROPERTY_RESIDENT_SERVICES.slice(0, 2);
+
+/** @deprecated Use PROPERTY_ADMIN_SERVICES */
+export const PROPERTY_ADMIN_BOOK_ACTIONS = PROPERTY_ADMIN_SERVICES.slice(0, 2);
+
+export const PROPERTY_COMMUNITY_SERVICES = [
+  {
+    id: "documents",
+    key: "documents",
+    title: "Documents",
+    subtitle: "Bylaws, forms, and guides",
+    routeKey: "DOCUMENTS",
+  },
+  {
+    id: "rules",
+    key: "rules",
+    title: "Community Rules",
+    subtitle: "Guidelines for residents",
+    routeKey: "COMMUNITY_RULES",
+  },
+];
+
+export const PROPERTY_HELP_SERVICES = [
+  {
+    id: "help",
+    key: "help",
+    title: "Help & Support",
+    subtitle: "Get assistance from your community",
+    routeKey: "HELP",
+  },
+];
+
+export const PROPERTY_RESIDENT_QUICK_ACTIONS = PROPERTY_RESIDENT_SERVICES;
+export const PROPERTY_ADMIN_QUICK_ACTIONS = PROPERTY_ADMIN_SERVICES;
+export const PROPERTY_QUICK_ACTIONS = PROPERTY_RESIDENT_SERVICES;
+
+export function getPropertyHubServices(isAdmin) {
+  return isAdmin ? PROPERTY_ADMIN_SERVICES : PROPERTY_RESIDENT_SERVICES;
+}
 
 export function getPropertyQuickActions(isAdmin) {
-  return isAdmin ? PROPERTY_ADMIN_QUICK_ACTIONS : PROPERTY_RESIDENT_QUICK_ACTIONS;
+  return getPropertyHubServices(isAdmin);
+}
+
+export function getPropertyBookActions(isAdmin) {
+  return getPropertyHubServices(isAdmin);
 }
 
 export function getPropertyHubHeroCopy(isAdmin) {
   if (isAdmin) {
     return {
       title: "Manage your community",
-      subtitle: "Review amenities, approve bookings, and keep community resources up to date.",
+      subtitle: "Reviews, bookings, and resources at a glance.",
     };
   }
   return {
-    title: "Everything in one place",
-    subtitle:
-      "Book amenities, track reservations, and approve requests for facilities you manage.",
+    title: "Your community hub",
+    subtitle: "Book amenities, find documents, and get help.",
   };
 }
 

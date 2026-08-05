@@ -228,7 +228,7 @@ function SideMenuPanel({ visible, onClose }) {
   };
 
   const openProfile = () => {
-    navigateAndClose("/screens/profile");
+    navigateAndClose("/(tabs)/profile");
   };
 
   const [wellnessHub, setWellnessHub] = useState([]);
@@ -239,7 +239,7 @@ function SideMenuPanel({ visible, onClose }) {
     {
       iconName: "message-circle",
       title: "Community Feed",
-      route: "/screens/community-feed",
+      route: "/(tabs)/marketplace",
     },
     {
       iconName: "bell",
@@ -273,13 +273,13 @@ function SideMenuPanel({ visible, onClose }) {
       : []),
     {
       iconName: "home",
-      title: "Property Management",
+      title: "Services",
       route: PropertyManagementRoutes.HOME,
     },
     {
       iconName: "user",
       title: "Profile",
-      route: "/screens/profile",
+      route: "/(tabs)/profile",
     },
   ];
 

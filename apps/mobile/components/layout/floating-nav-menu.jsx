@@ -13,7 +13,6 @@ import * as Haptics from "expo-haptics";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { sw, sf } from "../../utils/responsive";
-import { PropertyManagementRoutes } from "../../constants/property-management-routes";
 import { getUser } from "../../services/auth-session";
 import { isGuestUser } from "../../services/community-access";
 import { guestCanAccessFeature } from "../../constants/guest-permissions";
@@ -41,15 +40,15 @@ const LEFT_TABS = [
 
 const RIGHT_TABS = [
   {
-    name: "wellness",
+    name: "manage",
     label: "Services",
-    href: "/(tabs)/wellness",
+    href: "/(tabs)/services",
     icon: { set: "ion", active: "grid", inactive: "grid-outline" },
   },
   {
-    name: "notices",
+    name: "profile",
     label: "Profile",
-    href: "/(tabs)/notices",
+    href: "/(tabs)/profile",
     icon: { set: "ion", active: "person", inactive: "person-outline" },
   },
 ];
@@ -64,8 +63,6 @@ const ADMIN_TAB = {
 const GUEST_TAB_PERMISSIONS = {
   home: "feed",
   marketplace: "marketplace",
-  wellness: "wellness",
-  notices: "notices",
 };
 
 function NavIcon({ item, focused }) {
@@ -81,13 +78,28 @@ function NavIcon({ item, focused }) {
 
 function getActiveTab(segments, pathname) {
   if (pathname?.includes("admin-dashboard") || pathname?.includes("admin-members")) return "admin";
-  if (pathname?.includes("property-management")) return "manage";
+  if (
+    segments.includes("services") ||
+    pathname?.includes("property-management") ||
+    pathname?.includes("admin-bookings") ||
+    pathname?.includes("admin-amenities")
+  ) {
+    return "manage";
+  }
   const tabIndex = segments[0] === "(tabs)" ? 1 : 0;
   const tab = segments[tabIndex];
   if (!tab || tab === "home") return "home";
   if (tab === "marketplace") return "marketplace";
-  if (tab === "wellness") return "wellness";
-  if (tab === "notices") return "notices";
+  if (tab === "services") return "manage";
+  if (tab === "profile") return "profile";
+  if (tab === "notices") return "home";
+  if (
+    pathname === "/profile" ||
+    pathname === "/(tabs)/profile" ||
+    pathname?.startsWith("/screens/profile")
+  ) {
+    return "profile";
+  }
   return "home";
 }
 
@@ -123,7 +135,7 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
   const rightTabs = useMemo(() => {
     let tabs = [...RIGHT_TABS];
     if (isCommunityAdmin) {
-      tabs = [ADMIN_TAB, ...tabs.slice(1)];
+      tabs = [ADMIN_TAB, ...tabs];
     }
     return filterTabs(tabs);
   }, [isCommunityAdmin, filterTabs]);
@@ -140,7 +152,14 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
   const onTabPress = useCallback(
     (item) => {
       haptic();
-      if (item.href) router.push(item.href);
+      if (!item.href) return;
+      if (item.name === "marketplace" || item.name === "profile" || item.name === "home") {
+        if (typeof router.dismissTo === "function") {
+          router.dismissTo(item.href);
+          return;
+        }
+      }
+      router.navigate(item.href);
     },
     [haptic, router],
   );

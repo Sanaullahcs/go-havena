@@ -27,7 +27,7 @@ const ALLOWED_SCREEN_PREFIXES = [
   "/screens/notification",
   "/screens/pending-community",
   "/screens/pending-community-admin",
-  "/screens/property-management",
+  "/(tabs)/services",
   "/screens/profile",
 ];
 
@@ -37,6 +37,7 @@ const ALLOWED_TAB_PATHS = new Set([
   "/(tabs)/marketplace",
   "/(tabs)/wellness",
   "/(tabs)/profile",
+  "/(tabs)/services",
 ]);
 
 function parseQueryString(queryString) {
@@ -119,7 +120,7 @@ function resolveNotificationRouteFallback(notification) {
 
   if (haystack.includes("amenity") || haystack.includes("reservation") || haystack.includes("booking request")) {
     if (haystack.includes("approved") || haystack.includes("declined")) {
-      return { pathname: "/screens/property-management/my-booking" };
+      return { pathname: "/(tabs)/services/my-booking" };
     }
     if (haystack.includes("needs approval") || haystack.includes("new amenity")) {
       return { pathname: "/screens/admin-amenities" };

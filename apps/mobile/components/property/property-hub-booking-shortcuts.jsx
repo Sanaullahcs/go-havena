@@ -2,20 +2,10 @@ import React from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
-import { Colors } from "../../constants/tokens";
 import { PropertyHubTheme } from "../../constants/property-management-theme";
 import { sf, sw } from "../../utils/responsive";
 
-function BookingTile({
-  icon,
-  iconBg,
-  iconColor,
-  title,
-  hint,
-  count,
-  showCount = true,
-  onPress,
-}) {
+function BookingTile({ icon, title, hint, count, showCount = true, onPress }) {
   return (
     <Pressable
       onPress={onPress}
@@ -25,18 +15,18 @@ function BookingTile({
     >
       <View style={styles.card}>
         <View style={styles.top}>
-          <View style={[styles.iconWrap, { backgroundColor: iconBg }]}>
-            <Feather name={icon} size={sf(16)} color={iconColor} />
+          <View style={styles.iconWrap}>
+            <Feather name={icon} size={sf(16)} color={PropertyHubTheme.text} />
           </View>
           {showCount && Number(count) > 0 ? (
-            <View style={[styles.countBubble, { backgroundColor: iconColor }]}>
+            <View style={styles.countBubble}>
               <Text style={styles.countText}>{count}</Text>
             </View>
           ) : (
-            <Feather name="chevron-right" size={sf(15)} color="#CBD5E1" />
+            <Feather name="chevron-right" size={sf(14)} color={PropertyHubTheme.caption} />
           )}
         </View>
-        <Text style={styles.title} numberOfLines={2}>
+        <Text style={styles.title} numberOfLines={1}>
           {title}
         </Text>
         <Text style={styles.hint} numberOfLines={2}>
@@ -47,8 +37,8 @@ function BookingTile({
   );
 }
 
-/** Side-by-side booking cards — same card chrome as Quick actions. */
 export default function PropertyHubBookingShortcuts({
+  myReservationCount = 0,
   approveRequestCount = 0,
   onAction,
 }) {
@@ -57,10 +47,12 @@ export default function PropertyHubBookingShortcuts({
       <View style={[styles.col, styles.colGap]}>
         <BookingTile
           icon="calendar"
-          iconBg="#D1FAF5"
-          iconColor={Colors.brandPrimaryDeep}
-          title="My Reservations"
-          hint="Places you booked"
+          title="My Bookings"
+          hint={
+            myReservationCount > 0
+              ? `${myReservationCount} active`
+              : "Upcoming reservations"
+          }
           showCount={false}
           onPress={() => onAction("MY_BOOKING")}
         />
@@ -68,10 +60,8 @@ export default function PropertyHubBookingShortcuts({
       <View style={styles.col}>
         <BookingTile
           icon="inbox"
-          iconBg="#ECFDF5"
-          iconColor="#059669"
-          title="Approve Requests"
-          hint="For your amenities"
+          title="Approvals"
+          hint="Requests for your amenities"
           count={approveRequestCount}
           onPress={() => onAction("ADMIN_BOOKINGS")}
         />
@@ -90,31 +80,30 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   colGap: {
-    marginRight: sw(12),
+    marginRight: sw(10),
   },
   pressable: {
     width: "100%",
   },
   pressed: {
-    opacity: 0.9,
+    opacity: 0.85,
   },
   card: {
     width: "100%",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: PropertyHubTheme.surface,
     borderRadius: sw(14),
-    borderWidth: 1,
-    borderColor: "#E8ECF2",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: PropertyHubTheme.border,
     padding: sw(12),
-    minHeight: sw(112),
-    ...Platform.select({
-      ios: {
-        shadowColor: "#101828",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 3,
-      },
-      android: { elevation: 1 },
-    }),
+    minHeight: sw(100),
+    ...(Platform.OS === "ios"
+      ? {
+          shadowColor: PropertyHubTheme.text,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.04,
+          shadowRadius: 6,
+        }
+      : { elevation: 1 }),
   },
   top: {
     flexDirection: "row",
@@ -126,19 +115,20 @@ const styles = StyleSheet.create({
     width: sw(36),
     height: sw(36),
     borderRadius: sw(10),
+    backgroundColor: PropertyHubTheme.mint,
     alignItems: "center",
     justifyContent: "center",
   },
   title: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(12),
-    lineHeight: sf(16),
-    fontWeight: "700",
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(13),
+    lineHeight: sf(17),
+    fontWeight: "600",
     color: PropertyHubTheme.text,
   },
   hint: {
     fontFamily: Fonts.regular,
-    fontSize: sf(10),
+    fontSize: sf(11),
     lineHeight: sf(14),
     color: PropertyHubTheme.textMuted,
     marginTop: sw(3),
@@ -148,13 +138,14 @@ const styles = StyleSheet.create({
     height: sw(22),
     paddingHorizontal: sw(6),
     borderRadius: sw(11),
+    backgroundColor: PropertyHubTheme.teal,
     alignItems: "center",
     justifyContent: "center",
   },
   countText: {
-    fontFamily: Fonts.bold,
+    fontFamily: Fonts.semiBold,
     fontSize: sf(11),
     color: "#FFFFFF",
-    fontWeight: "700",
+    fontWeight: "600",
   },
 });

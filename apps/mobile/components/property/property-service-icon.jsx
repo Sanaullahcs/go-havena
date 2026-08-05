@@ -6,6 +6,10 @@ import {
   ShieldCheck,
   FileStack,
   BookmarkCheck,
+  LifeBuoy,
+  Bell,
+  Store,
+  Tag,
 } from "lucide-react-native";
 import { getPropertyServiceMeta } from "../../constants/property-management-theme";
 import { sf, sw } from "../../utils/responsive";
@@ -16,6 +20,10 @@ const LUCIDE = {
   ShieldCheck,
   FileStack,
   BookmarkCheck,
+  LifeBuoy,
+  Bell,
+  Store,
+  Tag,
 };
 
 /** Soft-tint Lucide icon tile — fixed box, centered glyph (matches ListRow sizing). */

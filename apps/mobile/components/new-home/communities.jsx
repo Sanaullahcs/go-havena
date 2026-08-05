@@ -205,7 +205,12 @@ export default function Communities({ posts = [], onPostsChange }) {
           height={layout.cardHeight}
           imageH={layout.imageH}
           now={now}
-          onPress={() => router.push("/screens/community-feed")}
+          onPress={() =>
+            router.push({
+              pathname: "/screens/community-feed/comments",
+              params: { postId: String(item.id) },
+            })
+          }
           onLike={() => handleLike(item.id)}
           onProfile={() =>
             openNeighborProfile(router, {
@@ -230,7 +235,7 @@ export default function Communities({ posts = [], onPostsChange }) {
       <View style={homeStyles.section}>
         <HomeSectionHeader
           label="Community Feed"
-          onPress={() => router.push("/screens/community-feed")}
+          onPress={() => router.push("/(tabs)/marketplace")}
         />
         <HomeSectionEmpty
           message="No posts yet"
@@ -244,7 +249,7 @@ export default function Communities({ posts = [], onPostsChange }) {
     <View style={homeStyles.section}>
       <HomeSectionHeader
         label="Community Feed"
-        onPress={() => router.push("/screens/community-feed")}
+        onPress={() => router.push("/(tabs)/marketplace")}
       />
       <FlatList
         data={posts}

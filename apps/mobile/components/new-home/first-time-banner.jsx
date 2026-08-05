@@ -8,9 +8,9 @@ import { HomeTheme as T } from "../../constants/home-theme";
 import { sw, sf, hp } from "../../utils/responsive";
 
 const STEPS = [
-  { id: "feed", label: "Explore the feed", route: "/screens/community-feed" },
+  { id: "feed", label: "Explore the feed", route: "/(tabs)/marketplace" },
   { id: "wellness", label: "Browse wellness", route: "/wellness" },
-  { id: "profile", label: "Complete profile", route: "/screens/profile" },
+  { id: "profile", label: "Complete profile", route: "/(tabs)/profile" },
 ];
 
 export default function FirstTimeBanner({ onDismiss }) {

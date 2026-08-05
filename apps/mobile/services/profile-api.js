@@ -39,7 +39,7 @@ export async function fetchNeighbor(userId) {
 export function openNeighborProfile(router, { userId, isMine } = {}) {
   if (!userId || !router) return;
   if (isMine) {
-    router.push("/screens/profile");
+    router.push("/(tabs)/profile");
     return;
   }
   router.push({

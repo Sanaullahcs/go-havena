@@ -28,7 +28,9 @@ import {
   MarketplaceRoutes,
   withMarketplaceRole,
 } from "../../../constants/marketplace-routes";
+import { MarketplaceTheme } from "../../../constants/marketplace-theme";
 
+const M = MarketplaceTheme;
 const H_PADDING = 20;
 const CARD_GAP = 12;
 const SCREEN_W = Dimensions.get("window").width;
@@ -92,7 +94,7 @@ function FilterTabs({ active, onChange, counts }) {
             <Ionicons
               name={tab.icon}
               size={15}
-              color={isActive ? "#14B8A6" : "#64748B"}
+              color={isActive ? M.teal : M.textMuted}
             />
             <Text style={[styles.filterTabLabel, isActive && styles.filterTabLabelActive]}>
               {tab.label}
@@ -311,7 +313,7 @@ export default function CommunityListingsScreen() {
   const renderEmpty = () => (
     <View style={styles.emptyWrap}>
       <View style={styles.emptyIconWrap}>
-        <Ionicons name="storefront-outline" size={36} color="#14B8A6" />
+        <Ionicons name="storefront-outline" size={36} color={M.teal} />
       </View>
       <Text style={styles.emptyTitle}>{emptyTitle}</Text>
       <Text style={styles.emptySubtitle}>{emptySubtitle}</Text>
@@ -340,12 +342,12 @@ export default function CommunityListingsScreen() {
         </HeaderShell>
 
         <View style={styles.searchWrap}>
-          <Ionicons name="search-outline" size={18} color="#94A3B8" style={styles.searchIcon} />
+          <Ionicons name="search-outline" size={18} color={M.caption} style={styles.searchIcon} />
           <TextInput
             value={searchDraft}
             onChangeText={setSearchDraft}
             placeholder="Search by title or category..."
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={M.caption}
             style={styles.searchInput}
             returnKeyType="search"
             onSubmitEditing={submitSearch}
@@ -386,14 +388,14 @@ export default function CommunityListingsScreen() {
               onPress={() => setViewMode("grid")}
               activeOpacity={0.85}
             >
-              <Ionicons name="grid" size={16} color={isGrid ? "#14B8A6" : "#94A3B8"} />
+              <Ionicons name="grid" size={16} color={isGrid ? M.teal : M.caption} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.viewBtn, !isGrid && styles.viewBtnActive]}
               onPress={() => setViewMode("list")}
               activeOpacity={0.85}
             >
-              <Ionicons name="list" size={16} color={!isGrid ? "#14B8A6" : "#94A3B8"} />
+              <Ionicons name="list" size={16} color={!isGrid ? M.teal : M.caption} />
             </TouchableOpacity>
           </View>
         </View>
@@ -421,7 +423,7 @@ export default function CommunityListingsScreen() {
 
       {loading && listings.length === 0 ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#14B8A6" />
+          <ActivityIndicator size="large" color={M.teal} />
           <Text style={styles.loadingText}>Loading listings…</Text>
         </View>
       ) : (
@@ -436,7 +438,7 @@ export default function CommunityListingsScreen() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              tintColor="#0A2A43"
+              tintColor={M.teal}
               onRefresh={() => {
                 setRefreshing(true);
                 load();
@@ -477,11 +479,11 @@ export default function CommunityListingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1, backgroundColor: M.screenBg },
   topSection: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: M.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: M.border,
     paddingBottom: 10,
   },
   headerShell: {
@@ -504,7 +506,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: MarketplaceType.title,
     lineHeight: MarketplaceType.titleLine,
-    color: "#0F172A",
+    color: M.text,
     fontWeight: "700",
   },
   headerSubtitle: {
@@ -512,7 +514,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: MarketplaceType.caption,
     lineHeight: MarketplaceType.captionLine,
-    color: "#64748B",
+    color: M.textMuted,
   },
   searchWrap: {
     flexDirection: "row",
@@ -522,9 +524,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     height: 44,
     borderRadius: 12,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    backgroundColor: M.screenBg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: M.border,
     gap: 8,
   },
   searchIcon: {
@@ -534,7 +536,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: Fonts.regular,
     fontSize: MarketplaceType.bodyMd,
-    color: "#111827",
+    color: M.text,
     paddingVertical: 0,
   },
   filterTabsWrap: {
@@ -547,8 +549,8 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#F8FAFC",
+    borderColor: M.border,
+    backgroundColor: M.screenBg,
     overflow: "hidden",
   },
   filterTab: {
@@ -562,45 +564,45 @@ const styles = StyleSheet.create({
   },
   filterTabDivider: {
     borderLeftWidth: 1,
-    borderLeftColor: "#E2E8F0",
+    borderLeftColor: M.border,
   },
   filterTabActive: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: M.surface,
   },
   filterTabLabel: {
     fontFamily: Fonts.medium,
     fontSize: 13,
-    color: "#64748B",
+    color: M.textMuted,
     fontWeight: "600",
   },
   filterTabLabelActive: {
-    color: "#14B8A6",
+    color: M.teal,
   },
   filterTabCount: {
     minWidth: 20,
     height: 20,
     borderRadius: 10,
     paddingHorizontal: 5,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: M.border,
     alignItems: "center",
     justifyContent: "center",
   },
   filterTabCountActive: {
-    backgroundColor: "#D1FAF5",
+    backgroundColor: M.mint,
   },
   filterTabCountText: {
     fontFamily: Fonts.bold,
     fontSize: 10,
-    color: "#64748B",
+    color: M.textMuted,
     fontWeight: "700",
   },
   filterTabCountTextActive: {
-    color: "#14B8A6",
+    color: M.teal,
   },
   filterHint: {
     fontFamily: Fonts.regular,
     fontSize: 12,
-    color: "#94A3B8",
+    color: M.caption,
     paddingHorizontal: 2,
   },
   typeFilterWrap: {
@@ -612,8 +614,8 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#F8FAFC",
+    borderColor: M.border,
+    backgroundColor: M.screenBg,
     overflow: "hidden",
   },
   typeFilterTab: {
@@ -625,27 +627,27 @@ const styles = StyleSheet.create({
   },
   typeFilterDivider: {
     borderLeftWidth: 1,
-    borderLeftColor: "#E2E8F0",
+    borderLeftColor: M.border,
   },
   typeFilterTabActive: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: M.surface,
   },
   typeFilterLabel: {
     fontFamily: Fonts.medium,
     fontSize: 12,
-    color: "#64748B",
+    color: M.textMuted,
     fontWeight: "600",
     textAlign: "center",
   },
   typeFilterLabelActive: {
-    color: "#14B8A6",
+    color: M.teal,
     fontFamily: Fonts.bold,
     fontWeight: "700",
   },
   filtersPanel: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: M.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: M.border,
     paddingTop: 8,
     paddingBottom: 10,
   },
@@ -659,7 +661,7 @@ const styles = StyleSheet.create({
   categoryLabel: {
     fontFamily: Fonts.medium,
     fontSize: MarketplaceType.body,
-    color: "#475569",
+    color: M.textMuted,
     fontWeight: "600",
   },
   chipsList: {
@@ -673,18 +675,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "#F1F5F9",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    backgroundColor: M.mint,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: M.border,
   },
   chipActive: {
-    backgroundColor: "#14B8A6",
-    borderColor: "#0A2A43",
+    backgroundColor: M.teal,
+    borderColor: M.navy,
   },
   chipText: {
     fontFamily: Fonts.medium,
     fontSize: MarketplaceType.body,
-    color: "#64748B",
+    color: M.textMuted,
     fontWeight: "600",
   },
   chipTextActive: {
@@ -696,7 +698,7 @@ const styles = StyleSheet.create({
   resultsText: {
     fontFamily: Fonts.medium,
     fontSize: MarketplaceType.body,
-    color: "#64748B",
+    color: M.textMuted,
     fontWeight: "600",
   },
   viewToggle: {
@@ -705,9 +707,9 @@ const styles = StyleSheet.create({
     gap: 4,
     padding: 3,
     borderRadius: 10,
-    backgroundColor: "#F1F5F9",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    backgroundColor: M.mint,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: M.border,
   },
   viewBtn: {
     width: 32,
@@ -717,10 +719,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   viewBtnActive: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: M.surface,
     ...Platform.select({
       ios: {
-        shadowColor: "#0F172A",
+        shadowColor: M.navy,
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.06,
         shadowRadius: 2,
@@ -737,7 +739,7 @@ const styles = StyleSheet.create({
   loadingText: {
     fontFamily: Fonts.medium,
     fontSize: MarketplaceType.body,
-    color: "#94A3B8",
+    color: M.caption,
   },
   listContent: {
     paddingHorizontal: H_PADDING,
@@ -758,7 +760,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#D1FAF5",
+    backgroundColor: M.mint,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
@@ -767,7 +769,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: MarketplaceType.heading,
     lineHeight: MarketplaceType.stat,
-    color: "#111827",
+    color: M.text,
     fontWeight: "700",
     textAlign: "center",
   },
@@ -776,7 +778,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: MarketplaceType.bodyMd,
     lineHeight: MarketplaceType.bodyMdLine,
-    color: "#64748B",
+    color: M.textMuted,
     textAlign: "center",
   },
   emptyCta: {
@@ -787,7 +789,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 999,
-    backgroundColor: "#0A2A43",
+    backgroundColor: M.navy,
   },
   emptyCtaText: {
     fontFamily: Fonts.bold,
@@ -804,7 +806,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
     ...Platform.select({
       ios: {
-        shadowColor: "#14B8A6",
+        shadowColor: M.teal,
         shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.2,
         shadowRadius: 8,
@@ -818,7 +820,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 20,
     paddingVertical: 14,
-    backgroundColor: "#14B8A6",
+    backgroundColor: M.teal,
     borderRadius: 999,
   },
   fabText: {

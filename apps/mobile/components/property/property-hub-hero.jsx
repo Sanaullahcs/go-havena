@@ -1,31 +1,21 @@
 import React from "react";
 import { View, Text, StyleSheet, Platform } from "react-native";
-import { Building2 } from "lucide-react-native";
+import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
-import { Colors } from "../../constants/tokens";
-import {
-  PropertyHubTheme,
-  getPropertyHubHeroCopy,
-} from "../../constants/property-management-theme";
+import { PropertyHubTheme, getPropertyHubHeroCopy } from "../../constants/property-management-theme";
 import { sf, sw } from "../../utils/responsive";
 
-/** Intro banner with role-aware copy. */
 export default function PropertyHubHero({ isAdmin = false }) {
   const copy = getPropertyHubHeroCopy(isAdmin);
 
   return (
     <View style={styles.card}>
-      <View style={styles.accent} />
-      <View style={styles.body}>
-        <View style={styles.iconRing}>
-          <View style={styles.iconWrap}>
-            <Building2 size={sf(20)} color={Colors.brandPrimaryDeep} strokeWidth={1.8} />
-          </View>
-        </View>
-        <View style={styles.copy}>
-          <Text style={styles.title}>{copy.title}</Text>
-          <Text style={styles.subtitle}>{copy.subtitle}</Text>
-        </View>
+      <View style={styles.iconWrap}>
+        <Feather name="grid" size={sf(18)} color={PropertyHubTheme.teal} />
+      </View>
+      <View style={styles.copy}>
+        <Text style={styles.title}>{copy.title}</Text>
+        <Text style={styles.subtitle}>{copy.subtitle}</Text>
       </View>
     </View>
   );
@@ -34,72 +24,48 @@ export default function PropertyHubHero({ isAdmin = false }) {
 const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
-    alignItems: "stretch",
-    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    backgroundColor: PropertyHubTheme.surface,
     borderRadius: sw(16),
-    borderWidth: 1,
-    borderColor: "#E8ECF2",
-    marginBottom: sw(20),
-    overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#101828",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 3,
-      },
-      android: { elevation: 1 },
-    }),
-  },
-  accent: {
-    width: sw(4),
-    alignSelf: "stretch",
-    backgroundColor: Colors.brandPrimaryDeep,
-  },
-  body: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "flex-start",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: PropertyHubTheme.border,
     paddingVertical: sw(14),
     paddingHorizontal: sw(14),
+    marginBottom: sw(16),
+    ...(Platform.OS === "ios"
+      ? {
+          shadowColor: PropertyHubTheme.text,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.04,
+          shadowRadius: 8,
+        }
+      : { elevation: 1 }),
   },
-  iconRing: {
-    width: sw(46),
-    height: sw(46),
-    borderRadius: sw(14),
-    backgroundColor: "#F0F6FF",
+  iconWrap: {
+    width: sw(42),
+    height: sw(42),
+    borderRadius: sw(12),
+    backgroundColor: PropertyHubTheme.mint,
     alignItems: "center",
     justifyContent: "center",
     marginRight: sw(12),
   },
-  iconWrap: {
-    width: sw(36),
-    height: sw(36),
-    borderRadius: sw(11),
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "rgba(20, 184, 166, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
   copy: {
     flex: 1,
     minWidth: 0,
-    paddingTop: sw(1),
   },
   title: {
-    fontFamily: Fonts.bold,
+    fontFamily: Fonts.semiBold,
     fontSize: sf(15),
     lineHeight: sf(20),
-    fontWeight: "700",
+    fontWeight: "600",
     color: PropertyHubTheme.text,
-    letterSpacing: -0.2,
   },
   subtitle: {
     fontFamily: Fonts.regular,
-    fontSize: sf(11),
+    fontSize: sf(12),
     lineHeight: sf(16),
     color: PropertyHubTheme.textMuted,
-    marginTop: sw(4),
+    marginTop: sw(2),
   },
 });

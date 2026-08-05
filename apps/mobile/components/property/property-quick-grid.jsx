@@ -6,8 +6,7 @@ import { PropertyHubTheme } from "../../constants/property-management-theme";
 import PropertyServiceIcon from "./property-service-icon";
 import { sf, sw } from "../../utils/responsive";
 
-/** Fixed height so every quick-action card matches, even with 1-line vs 2-line copy. */
-const CARD_HEIGHT = sw(128);
+const CARD_HEIGHT = sw(112);
 
 function chunkPairs(items) {
   const rows = [];
@@ -17,8 +16,7 @@ function chunkPairs(items) {
   return rows;
 }
 
-/** Two-column quick action cards — explicit rows so layout never wraps to 3 columns. */
-export default function PropertyQuickGrid({ actions, onAction }) {
+export default function PropertyQuickGrid({ actions, onAction, badges = {} }) {
   const rows = chunkPairs(actions);
 
   return (
@@ -28,7 +26,11 @@ export default function PropertyQuickGrid({ actions, onAction }) {
           key={`row-${rowIndex}`}
           style={[styles.row, rowIndex < rows.length - 1 && styles.rowSpacing]}
         >
-          {pair.map((item, columnIndex) => (
+          {pair.map((item, columnIndex) => {
+            const badgeCount = item.badgeKey ? badges[item.badgeKey] : item.badge;
+            const showBadge = Number(badgeCount) > 0;
+
+            return (
             <View
               key={item.id}
               style={[styles.col, columnIndex === 0 && pair.length > 1 && styles.colGap]}
@@ -39,18 +41,32 @@ export default function PropertyQuickGrid({ actions, onAction }) {
                 accessibilityRole="button"
                 accessibilityLabel={item.title}
               >
-                <View style={styles.card}>
-                  <PropertyServiceIcon serviceKey={item.key} size={sw(36)} iconSize={sf(16)} />
-                  <Text style={styles.title} numberOfLines={2}>
+                <View style={[styles.card, item.primary && styles.cardPrimary]}>
+                  <View style={styles.cardTop}>
+                    <PropertyServiceIcon serviceKey={item.key} size={sw(36)} iconSize={sf(16)} />
+                    {showBadge ? (
+                      <View style={styles.countBubble}>
+                        <Text style={styles.countText}>{badgeCount}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text
+                    style={[styles.title, item.primary && styles.titlePrimary]}
+                    numberOfLines={2}
+                  >
                     {item.title}
                   </Text>
-                  <Text style={styles.subtitle} numberOfLines={2}>
+                  <Text
+                    style={[styles.subtitle, item.primary && styles.subtitlePrimary]}
+                    numberOfLines={2}
+                  >
                     {item.subtitle}
                   </Text>
                 </View>
               </Pressable>
             </View>
-          ))}
+            );
+          })}
           {pair.length === 1 ? <View style={[styles.col, styles.colPlaceholder]} /> : null}
         </View>
       ))}
@@ -83,39 +99,68 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   pressed: {
-    opacity: 0.9,
+    opacity: 0.88,
   },
   card: {
     width: "100%",
     height: CARD_HEIGHT,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: PropertyHubTheme.surface,
     borderRadius: sw(14),
-    borderWidth: 1,
-    borderColor: "#E8ECF2",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: PropertyHubTheme.border,
     padding: sw(12),
-    ...Platform.select({
-      ios: {
-        shadowColor: "#101828",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 3,
-      },
-      android: { elevation: 1 },
-    }),
+    ...(Platform.OS === "ios"
+      ? {
+          shadowColor: PropertyHubTheme.text,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.04,
+          shadowRadius: 6,
+        }
+      : { elevation: 1 }),
+  },
+  cardPrimary: {
+    backgroundColor: PropertyHubTheme.text,
+    borderColor: PropertyHubTheme.text,
+  },
+  cardTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+  },
+  countBubble: {
+    minWidth: sw(20),
+    height: sw(20),
+    paddingHorizontal: sw(5),
+    borderRadius: sw(10),
+    backgroundColor: PropertyHubTheme.teal,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  countText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(10),
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
   title: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(12),
-    lineHeight: sf(16),
-    fontWeight: "700",
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(13),
+    lineHeight: sf(17),
+    fontWeight: "600",
     color: PropertyHubTheme.text,
     marginTop: sw(10),
   },
+  titlePrimary: {
+    color: "#FFFFFF",
+  },
   subtitle: {
     fontFamily: Fonts.regular,
-    fontSize: sf(10),
+    fontSize: sf(11),
     lineHeight: sf(14),
     color: PropertyHubTheme.textMuted,
     marginTop: sw(3),
+  },
+  subtitlePrimary: {
+    color: "rgba(255,255,255,0.7)",
   },
 });

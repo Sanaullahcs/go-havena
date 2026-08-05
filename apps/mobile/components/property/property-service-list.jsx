@@ -24,13 +24,12 @@ function ServiceRow({ item, onPress }) {
             {item.subtitle}
           </Text>
         </View>
-        <Feather name="chevron-right" size={sf(15)} color="#CBD5E1" />
+        <Feather name="chevron-right" size={sf(15)} color={PropertyHubTheme.caption} />
       </View>
     </Pressable>
   );
 }
 
-/** Full-width service rows as separate cards. */
 export default function PropertyServiceList({ services, onAction }) {
   return (
     <View style={styles.list}>
@@ -51,33 +50,32 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   itemWrap: {
-    marginBottom: sw(16),
+    marginBottom: sw(10),
   },
   pressable: {
     width: "100%",
   },
   pressed: {
-    opacity: 0.9,
+    opacity: 0.85,
   },
   card: {
     flexDirection: "row",
     alignItems: "center",
     width: "100%",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: PropertyHubTheme.surface,
     borderRadius: sw(14),
-    borderWidth: 1,
-    borderColor: "#E8ECF2",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: PropertyHubTheme.border,
     paddingVertical: sw(12),
     paddingHorizontal: sw(12),
-    ...Platform.select({
-      ios: {
-        shadowColor: "#101828",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 3,
-      },
-      android: { elevation: 1 },
-    }),
+    ...(Platform.OS === "ios"
+      ? {
+          shadowColor: PropertyHubTheme.text,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.04,
+          shadowRadius: 6,
+        }
+      : { elevation: 1 }),
   },
   copy: {
     flex: 1,
@@ -86,16 +84,16 @@ const styles = StyleSheet.create({
     marginRight: sw(6),
   },
   title: {
-    fontFamily: Fonts.bold,
+    fontFamily: Fonts.semiBold,
     fontSize: sf(13),
     lineHeight: sf(18),
-    fontWeight: "700",
+    fontWeight: "600",
     color: PropertyHubTheme.text,
   },
   subtitle: {
     fontFamily: Fonts.regular,
-    fontSize: sf(10),
-    lineHeight: sf(14),
+    fontSize: sf(11),
+    lineHeight: sf(15),
     color: PropertyHubTheme.textMuted,
     marginTop: sw(2),
   },

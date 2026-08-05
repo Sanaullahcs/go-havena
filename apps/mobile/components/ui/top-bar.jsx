@@ -50,7 +50,7 @@ export default function TopBar({ onMenuPress }) {
           <Pressable
             style={styles.location}
             accessibilityLabel={`Community location: ${title}`}
-            onPress={() => router.push("/screens/profile")}
+            onPress={() => router.push("/(tabs)/profile")}
           >
             <View style={styles.pinWrap}>
               <Feather name="map-pin" size={sf(13)} color={T.white} />

@@ -1,43 +1,50 @@
 import { StyleSheet } from "react-native";
-import { Colors, Layout } from "./tokens";
+import { HomeTheme as T } from "./home-theme";
+import { Layout } from "./tokens";
 import { Fonts } from "./font";
 import { sf, sw } from "../utils/responsive";
 
+/** Community / marketplace hub — Ocean Breeze aligned. */
 export const MarketplaceTheme = {
-  screenBg: "#F4F8FD",
-  surface: Colors.surface,
-  accent: Colors.brandPrimaryDeep,
-  accentSoft: "#D1FAF5",
+  screenBg: T.canvas,
+  surface: T.white,
+  navy: T.navy,
+  teal: T.teal,
+  deepTeal: T.deepTeal,
+  mint: T.mint,
+  border: T.border,
+  accent: T.teal,
+  accentSoft: T.mint,
   accentBorder: "rgba(20, 184, 166, 0.28)",
-  text: Colors.textPrimary,
-  textMuted: Colors.textSecondary,
-  caption: Colors.textMuted,
-  gradient: Colors.brandPrimary,
-  wash: "#D1FAF5",
-  dealMint: { bg: "#F0FDF9", border: "#CCFBEF", accent: "#059669" },
-  dealAmber: { bg: "#FFFBEB", border: "#FEF3C7", accent: "#D97706" },
-  bizBlue: { bg: "#D1FAF5", border: "rgba(20, 184, 166, 0.28)", accent: Colors.brandPrimaryDeep },
-  couponViolet: { bg: "#F5F3FF", border: "#EDE9FE", accent: "#7C3AED" },
+  text: T.navy,
+  textMuted: T.gray,
+  caption: "#94A3B8",
+  gradient: T.navy,
+  wash: T.mint,
+  dealMint: { bg: T.white, border: T.border, accent: T.teal, tagBg: T.mint, tagColor: T.deepTeal },
+  dealAmber: { bg: T.white, border: T.border, accent: T.teal, tagBg: T.mint, tagColor: T.navy },
+  bizBlue: { bg: T.white, border: T.border, accent: T.navy },
+  couponViolet: { bg: T.white, border: T.border, accent: T.navy },
 };
 
 export const exploreCategoryTheme = {
-  "Deals & Offers": { soft: "#ECFDF5", border: "#A7F3D0", icon: "#059669", feather: "tag" },
-  "Local Businesses": { soft: "#D1FAF5", border: "rgba(20, 184, 166, 0.28)", icon: "#0A2A43", feather: "map-pin" },
-  "My Coupons": { soft: "#FFFBEB", border: "#FDE68A", icon: "#D97706", feather: "bookmark" },
-  Recommendation: { soft: "#F5F3FF", border: "#DDD6FE", icon: "#7C3AED", feather: "star" },
+  "Deals & Offers": { soft: T.mint, border: T.border, icon: T.navy, feather: "tag" },
+  "Local Businesses": { soft: T.mint, border: T.border, icon: T.navy, feather: "map-pin" },
+  "My Coupons": { soft: T.mint, border: T.border, icon: T.navy, feather: "bookmark" },
+  Recommendation: { soft: T.mint, border: T.border, icon: T.navy, feather: "star" },
 };
 
-/** Item vs service — shared marketplace blue when selected. */
+/** Item vs service — shared mint wells. */
 export const listingTypeTheme = {
   item: {
     id: "item",
     label: "Item for Sale",
     shortLabel: "For Sale",
     subtitle: "Furniture, electronics & more",
-    soft: "#D1FAF5",
-    border: "rgba(20, 184, 166, 0.28)",
-    accent: "#0A2A43",
-    accentDeep: "#0A2A43",
+    soft: T.mint,
+    border: T.border,
+    accent: T.navy,
+    accentDeep: T.navy,
     feather: "shopping-bag",
     placeholderIcon: "bag-handle-outline",
   },
@@ -46,10 +53,10 @@ export const listingTypeTheme = {
     label: "Offer Service",
     shortLabel: "Service",
     subtitle: "Tutoring, repairs, cleaning & more",
-    soft: "#D1FAF5",
-    border: "rgba(20, 184, 166, 0.28)",
-    accent: "#0A2A43",
-    accentDeep: "#0A2A43",
+    soft: T.mint,
+    border: T.border,
+    accent: T.navy,
+    accentDeep: T.navy,
     feather: "tool",
     placeholderIcon: "construct-outline",
   },
@@ -77,30 +84,31 @@ export const marketplaceSharedStyles = StyleSheet.create({
     marginBottom: sw(10),
   },
   sectionTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(15),
-    lineHeight: sf(20),
-    fontWeight: "700",
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(13),
+    lineHeight: sf(18),
+    fontWeight: "600",
     color: MarketplaceTheme.text,
-    letterSpacing: -0.2,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
   },
   sectionLink: {
-    fontFamily: Fonts.semiBold,
+    fontFamily: Fonts.medium,
     fontSize: sf(12),
-    color: MarketplaceTheme.accent,
-    fontWeight: "600",
+    color: MarketplaceTheme.teal,
+    fontWeight: "500",
   },
   chip: {
     paddingHorizontal: sw(14),
     paddingVertical: sw(8),
     borderRadius: Layout.pillRadius,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#FFFFFF",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: MarketplaceTheme.border,
+    backgroundColor: MarketplaceTheme.surface,
   },
   chipActive: {
-    borderColor: MarketplaceTheme.accent,
-    backgroundColor: MarketplaceTheme.accentSoft,
+    borderColor: MarketplaceTheme.teal,
+    backgroundColor: MarketplaceTheme.mint,
   },
   chipText: {
     fontFamily: Fonts.medium,
@@ -110,7 +118,7 @@ export const marketplaceSharedStyles = StyleSheet.create({
   },
   chipTextActive: {
     fontFamily: Fonts.semiBold,
-    color: MarketplaceTheme.accent,
+    color: MarketplaceTheme.teal,
     fontWeight: "600",
   },
   emptyHint: {

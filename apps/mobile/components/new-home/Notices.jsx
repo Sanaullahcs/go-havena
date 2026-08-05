@@ -29,13 +29,20 @@ import HomeSectionEmpty from "./home-section-empty";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
 
 const QUICK_ACTIONS = [
-  { id: "1", title: "New Post", icon: "edit-3", route: "/screens/create-post" },
-  { id: "2", title: "Book", icon: "calendar", route: PropertyManagementRoutes.AMENITY },
-  { id: "3", title: "Sell", icon: "tag", route: "/screens/createListing" },
-  { id: "4", title: "Help", icon: "heart", route: "/screens/help" },
-  { id: "5", title: "Documents", icon: "file-text", route: PropertyManagementRoutes.DOCUMENTS },
-  { id: "6", title: "More", icon: "more-horizontal", route: PropertyManagementRoutes.HOME },
+  { id: "post", title: "Post", icon: "edit-3", route: "/screens/create-post" },
+  { id: "book", title: "Book", icon: "calendar", route: PropertyManagementRoutes.AMENITY },
+  { id: "sell", title: "Sell", icon: "shopping-bag", route: "/screens/createListing" },
+  { id: "notices", title: "Notices", icon: "bell", route: "/(tabs)/notices" },
+  { id: "feed", title: "Feed", icon: "message-circle", route: "/(tabs)/marketplace" },
+  { id: "deals", title: "Deals", icon: "percent", route: "/(tabs)/marketplace" },
+  { id: "wellness", title: "Wellness", icon: "heart", route: "/(tabs)/wellness" },
+  { id: "docs", title: "Docs", icon: "file-text", route: PropertyManagementRoutes.DOCUMENTS },
+  { id: "bookings", title: "Bookings", icon: "clipboard", route: PropertyManagementRoutes.MY_BOOKING },
+  { id: "chat", title: "Chat", icon: "mail", route: "/screens/messages" },
 ];
+
+const QA_TILE_W = sw(64);
+const QA_GAP = sw(6);
 
 const HERO_HEIGHT = sw(175);
 
@@ -161,45 +168,48 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
   );
 }
 
-function QuickActionsRow({ screenWidth }) {
+function QuickActionsRow() {
   const router = useRouter();
-  const contentWidth = screenWidth - Home.gutter * 2;
-  const tileCount = QUICK_ACTIONS.length;
-  const tileWidth = Math.floor(contentWidth / tileCount);
 
   return (
     <View style={styles.qaWrap}>
-      <View style={styles.qaHeader}>
-        <Text style={homeStyles.sectionLabel}>Quick Actions</Text>
-        <Pressable
-          style={styles.qaCustomize}
-          onPress={() => router.push("/screens/settings")}
-          hitSlop={8}
-        >
-          <Text style={styles.qaCustomizeText}>Customize</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.qaRow}>
-        {QUICK_ACTIONS.map((item) => (
+      <Text style={[homeStyles.sectionLabel, styles.qaHeader]}>Quick Actions</Text>
+      <FlatList
+        data={QUICK_ACTIONS}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(item) => item.id}
+        nestedScrollEnabled
+        decelerationRate="fast"
+        snapToInterval={QA_TILE_W + QA_GAP}
+        snapToAlignment="start"
+        disableIntervalMomentum
+        ItemSeparatorComponent={() => <View style={{ width: QA_GAP }} />}
+        contentContainerStyle={styles.qaListContent}
+        getItemLayout={(_, index) => ({
+          length: QA_TILE_W + QA_GAP,
+          offset: (QA_TILE_W + QA_GAP) * index,
+          index,
+        })}
+        renderItem={({ item }) => (
           <Pressable
-            key={item.id}
+            onPress={() => router.push(item.route)}
             style={({ pressed }) => [
               styles.qaTile,
-              { width: tileWidth },
               pressed && styles.qaTilePressed,
             ]}
-            onPress={() => router.push(item.route)}
+            accessibilityRole="button"
+            accessibilityLabel={item.title}
           >
-            <View style={styles.qaIconCircle}>
-              <Feather name={item.icon} size={sf(20)} color={T.navy} />
+            <View style={styles.qaIcon}>
+              <Feather name={item.icon} size={sf(18)} color={T.navy} />
             </View>
             <Text style={styles.qaLabel} numberOfLines={1}>
               {item.title}
             </Text>
           </Pressable>
-        ))}
-      </View>
+        )}
+      />
     </View>
   );
 }
@@ -314,7 +324,7 @@ export default function Notices({ items = [] }) {
         </View>
       )}
 
-      <QuickActionsRow screenWidth={screenWidth} />
+      <QuickActionsRow />
 
       {/* Full-screen image preview */}
       <Modal
@@ -501,41 +511,27 @@ const styles = StyleSheet.create({
 
   qaWrap: {
     marginTop: sw(12),
-    paddingHorizontal: Home.gutter,
-    paddingBottom: sw(6),
+    paddingBottom: sw(2),
   },
   qaHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    paddingHorizontal: Home.gutter,
     marginBottom: sw(10),
   },
-  qaCustomize: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  qaCustomizeText: {
-    fontFamily: Fonts.medium,
-    fontSize: sf(12),
-    color: T.gray,
-    fontWeight: "500",
-  },
-  qaRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
+  qaListContent: {
+    paddingHorizontal: Home.gutter,
+    paddingRight: Home.gutter + sw(8),
   },
   qaTile: {
+    width: QA_TILE_W,
     alignItems: "center",
-    paddingVertical: sw(4),
   },
   qaTilePressed: {
-    opacity: 0.65,
+    opacity: 0.7,
   },
-  qaIconCircle: {
-    width: sw(42),
-    height: sw(42),
-    borderRadius: sw(21),
+  qaIcon: {
+    width: sw(44),
+    height: sw(44),
+    borderRadius: sw(22),
     backgroundColor: T.mint,
     alignItems: "center",
     justifyContent: "center",
@@ -544,7 +540,7 @@ const styles = StyleSheet.create({
   qaLabel: {
     fontFamily: Fonts.medium,
     fontSize: sf(10.5),
-    lineHeight: sf(14),
+    lineHeight: sf(13),
     color: T.navy,
     fontWeight: "500",
     textAlign: "center",

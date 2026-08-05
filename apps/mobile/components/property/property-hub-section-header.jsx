@@ -2,11 +2,9 @@ import React from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
-import { Colors } from "../../constants/tokens";
 import { PropertyHubTheme } from "../../constants/property-management-theme";
 import { sf, sw } from "../../utils/responsive";
 
-/** Section title row with optional count badge and "See all" action. */
 export default function PropertyHubSectionHeader({
   title,
   subtitle,
@@ -34,15 +32,13 @@ export default function PropertyHubSectionHeader({
           <Pressable
             onPress={onAction}
             hitSlop={8}
-            style={({ pressed }) => [styles.actionPress, pressed && styles.pressed]}
+            style={({ pressed }) => pressed && styles.pressed}
             accessibilityRole="button"
             accessibilityLabel={actionLabel}
           >
             <View style={styles.actionRow}>
               <Text style={styles.actionText}>{actionLabel}</Text>
-              <View style={styles.iconWrap}>
-                <Feather name="chevron-right" size={sf(14)} color={Colors.brandPrimaryDeep} />
-              </View>
+              <Feather name="chevron-right" size={sf(14)} color={PropertyHubTheme.teal} />
             </View>
           </Pressable>
         ) : null}
@@ -73,11 +69,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   title: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(14),
-    lineHeight: sf(19),
-    fontWeight: "700",
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(13),
+    lineHeight: sf(18),
+    fontWeight: "600",
     color: PropertyHubTheme.text,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
     flexShrink: 1,
   },
   countBadge: {
@@ -86,47 +84,36 @@ const styles = StyleSheet.create({
     height: sw(18),
     paddingHorizontal: sw(5),
     borderRadius: sw(9),
-    backgroundColor: "#D1FAF5",
+    backgroundColor: PropertyHubTheme.mint,
     alignItems: "center",
     justifyContent: "center",
   },
   countText: {
-    fontFamily: Fonts.bold,
+    fontFamily: Fonts.semiBold,
     fontSize: sf(10),
-    fontWeight: "700",
-    color: Colors.brandPrimaryDeep,
+    fontWeight: "600",
+    color: PropertyHubTheme.teal,
   },
   subtitle: {
     fontFamily: Fonts.regular,
-    fontSize: sf(10),
-    lineHeight: sf(14),
+    fontSize: sf(11),
+    lineHeight: sf(15),
     color: PropertyHubTheme.textMuted,
-    marginTop: sw(2),
-  },
-  actionPress: {
-    flexGrow: 0,
-    flexShrink: 0,
+    marginTop: sw(3),
   },
   actionRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: sw(2),
   },
   actionText: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(11),
-    lineHeight: sf(15),
-    fontWeight: "700",
-    color: Colors.brandPrimaryDeep,
-    includeFontPadding: false,
-  },
-  iconWrap: {
-    width: sw(14),
-    height: sw(14),
-    marginLeft: sw(1),
-    alignItems: "center",
-    justifyContent: "center",
+    fontFamily: Fonts.medium,
+    fontSize: sf(12),
+    lineHeight: sf(16),
+    fontWeight: "500",
+    color: PropertyHubTheme.teal,
   },
   pressed: {
-    opacity: 0.75,
+    opacity: 0.7,
   },
 });

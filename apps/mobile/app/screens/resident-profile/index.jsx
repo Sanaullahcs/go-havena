@@ -56,7 +56,7 @@ export default function ResidentProfileScreen() {
       setError(null);
       const data = await fetchNeighbor(userId);
       if (data?.is_mine) {
-        router.replace("/screens/profile");
+        router.replace("/(tabs)/profile");
         return;
       }
       setNeighbor(data);

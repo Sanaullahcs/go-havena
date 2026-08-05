@@ -2,7 +2,6 @@ import React from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
-import { Colors } from "../../constants/tokens";
 import { PropertyHubTheme } from "../../constants/property-management-theme";
 import { sf, sw } from "../../utils/responsive";
 
@@ -28,9 +27,9 @@ function StatCard({ label, value, tone = "default", icon, onPress }) {
             iconColor: "#15803D",
           }
         : {
-            value: Colors.brandPrimaryDeep,
-            iconBg: "#D1FAF5",
-            iconColor: Colors.brandPrimaryDeep,
+            value: PropertyHubTheme.text,
+            iconBg: PropertyHubTheme.mint,
+            iconColor: PropertyHubTheme.teal,
           };
 
   const card = (
@@ -108,10 +107,10 @@ const styles = StyleSheet.create({
   },
   card: {
     width: "100%",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: PropertyHubTheme.surface,
     borderRadius: sw(14),
-    borderWidth: 1,
-    borderColor: "#E8ECF2",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: PropertyHubTheme.border,
     padding: sw(12),
     minHeight: sw(104),
     ...Platform.select({
