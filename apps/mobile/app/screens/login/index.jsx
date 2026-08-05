@@ -166,8 +166,8 @@ export default function LoginScreen() {
 
   return (
     <>
-      <ScreenStatusBar style="dark" opaque />
-      <SafeAreaView style={layout.container} edges={["top", "left", "right"]}>
+      <ScreenStatusBar style="dark" opaque androidBackgroundColor={ScreenBrand.canvas} />
+      <SafeAreaView style={layout.container} edges={["top", "left", "right", "bottom"]}>
         <AuthFlowTopBar current={1} total={2} />
 
         <KeyboardSafeScreen
@@ -266,6 +266,7 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 0,
     paddingTop: 16,
+    backgroundColor: ScreenBrand.canvas,
   },
   biometricSection: {
     gap: 12,

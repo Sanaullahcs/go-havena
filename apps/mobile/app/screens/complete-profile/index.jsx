@@ -37,6 +37,8 @@ import { hasFieldErrors, LIMITS, validateCompleteProfileForm } from "../../../ut
 import { getProfileFields, isPlaceholderDisplayName } from "../../../utils/profile-display";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
+import { HomeTheme as T } from "../../../constants/home-theme";
+import { ScreenBrand as B } from "../../../constants/screen-brand";
 
 function isPdfAsset(asset) {
   const mime = String(asset?.mimeType ?? "").toLowerCase();
@@ -514,7 +516,7 @@ export default function CompleteProfile() {
 
   return (
     <>
-      <ScreenStatusBar style="dark" opaque />
+      <ScreenStatusBar style="dark" opaque androidBackgroundColor={T.canvas} />
       <AuthSuccessOverlay
         visible={showSuccess}
         title={
@@ -562,9 +564,12 @@ export default function CompleteProfile() {
           finishOnboarding(router, { role, user: savedUser });
         }}
       />
-    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-      <View style={styles.topBar}>
-        <BackButton />
+    <SafeAreaView style={styles.container} edges={["top", "left", "right", "bottom"]}>
+      <View style={styles.headerRow}>
+        <BackButton iconOnly compact />
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {isEditMode ? "Edit Profile" : "Complete Your Profile"}
+        </Text>
       </View>
 
       <KeyboardSafeScreen
@@ -591,6 +596,7 @@ export default function CompleteProfile() {
                   style={[
                     styles.button,
                     isValid && !submitting ? styles.buttonActive : styles.buttonDisabled,
+                    isValid && !submitting ? B.buttonShadow : null,
                   ]}
                 >
                   {submitting ? (
@@ -618,9 +624,6 @@ export default function CompleteProfile() {
       >
         <View style={styles.content}>
           <View>
-            <Text style={styles.heading}>
-              {isEditMode ? "Edit Profile" : "Complete Your Profile"}
-            </Text>
             <Text style={styles.subHeading}>
               {isEditMode
                 ? isGuestProfile
@@ -688,7 +691,7 @@ export default function CompleteProfile() {
 
           {isResidentJoin && !isEditMode ? (
             <View style={styles.infoBanner}>
-              <Ionicons name="information-circle-outline" size={18} color="#14B8A6" />
+              <Ionicons name="information-circle-outline" size={18} color={T.deepTeal} />
               <Text style={styles.infoBannerText}>
                 Your details help the community admin verify you live in {communityName}.
               </Text>
@@ -696,7 +699,7 @@ export default function CompleteProfile() {
           ) : null}
 
           {profileLoading ? (
-            <ActivityIndicator size="large" color="#0A2A43" style={{ marginVertical: 24 }} />
+            <ActivityIndicator size="large" color={T.teal} style={{ marginVertical: 24 }} />
           ) : null}
 
           {!profileLoading ? (
@@ -709,7 +712,7 @@ export default function CompleteProfile() {
               <TextInput
                 style={[styles.input, showError("name", liveErrors) && styles.inputError]}
                 placeholder="e.g. Alex Turner"
-                placeholderTextColor="#98A2B3"
+                placeholderTextColor={T.gray}
                 value={name}
                 onChangeText={(text) => {
                   setName(text);
@@ -728,7 +731,7 @@ export default function CompleteProfile() {
               <TextInput
                 style={[styles.input, showError("email", liveErrors) && styles.inputError]}
                 placeholder="you@example.com"
-                placeholderTextColor="#98A2B3"
+                placeholderTextColor={T.gray}
                 value={email}
                 onChangeText={(text) => {
                   setEmail(text);
@@ -750,7 +753,7 @@ export default function CompleteProfile() {
               <TextInput
                 style={[styles.input, styles.textArea, showError("bio", liveErrors) && styles.inputError]}
                 placeholder="Tell neighbors a little about yourself (optional)"
-                placeholderTextColor="#98A2B3"
+                placeholderTextColor={T.gray}
                 value={bio}
                 onChangeText={(text) => {
                   setBio(text);
@@ -773,7 +776,7 @@ export default function CompleteProfile() {
               <TextInput
                 style={[styles.input, showError("unitNumber", liveErrors) && styles.inputError]}
                 placeholder="e.g. Unit 204 or 2345 Oak Valley Dr"
-                placeholderTextColor="#98A2B3"
+                placeholderTextColor={T.gray}
                 value={unitNumber}
                 onChangeText={(text) => {
                   setUnitNumber(text);
@@ -811,7 +814,7 @@ export default function CompleteProfile() {
                         >
                           <Users
                             size={20}
-                            color={familyMode === "create" ? "#14B8A6" : "#667085"}
+                            color={familyMode === "create" ? T.teal : T.gray}
                             strokeWidth={2}
                           />
                         </View>
@@ -835,7 +838,7 @@ export default function CompleteProfile() {
                         >
                           <UserPlus
                             size={20}
-                            color={familyMode === "join" ? "#14B8A6" : "#667085"}
+                            color={familyMode === "join" ? T.teal : T.gray}
                             strokeWidth={2}
                           />
                         </View>
@@ -861,7 +864,7 @@ export default function CompleteProfile() {
                         <Ionicons
                           name="time-outline"
                           size={20}
-                          color={familyMode === "skip" ? "#14B8A6" : "#667085"}
+                          color={familyMode === "skip" ? T.teal : T.gray}
                         />
                       </View>
                       <View style={styles.familySkipCopy}>
@@ -927,7 +930,7 @@ export default function CompleteProfile() {
                       familyNumberLocked && styles.inputReadOnly,
                     ]}
                     placeholder={familyMode === "join" ? "Enter Family Number" : "FAM-XXXXXX"}
-                    placeholderTextColor="#98A2B3"
+                    placeholderTextColor={T.gray}
                     value={familyNumber}
                     onChangeText={(text) => {
                       if (familyNumberLocked) return;
@@ -942,7 +945,7 @@ export default function CompleteProfile() {
                     editable={!familyNumberLocked}
                   />
                   {familyNumberLoading || familyNumberChecking ? (
-                    <ActivityIndicator size="small" color="#0A2A43" style={styles.familyInputSpinner} />
+                    <ActivityIndicator size="small" color={T.navy} style={styles.familyInputSpinner} />
                   ) : null}
                 </View>
                 <Text style={styles.helperText}>
@@ -964,7 +967,7 @@ export default function CompleteProfile() {
                 ) : (
                   <View style={styles.familySkipSelectedBanner}>
                     <View style={styles.familySkipBannerIconWrap}>
-                      <Ionicons name="checkmark-circle" size={22} color="#14B8A6" />
+                      <Ionicons name="checkmark-circle" size={22} color={T.teal} />
                     </View>
                     <View style={styles.familySkipBannerCopy}>
                       <Text style={styles.familySkipBannerTitle}>Family setup skipped</Text>
@@ -1001,7 +1004,7 @@ export default function CompleteProfile() {
                 <Ionicons
                   name="home-outline"
                   size={26}
-                  color={residenceType === "homeowner" ? "#0A2A43" : "#667085"}
+                  color={residenceType === "homeowner" ? T.navy : T.gray}
                   style={styles.roleIcon}
                 />
                 <Text style={styles.typeTitle}>Homeowner</Text>
@@ -1023,7 +1026,7 @@ export default function CompleteProfile() {
                 <Ionicons
                   name="person-outline"
                   size={26}
-                  color={residenceType === "tenant" ? "#0A2A43" : "#667085"}
+                  color={residenceType === "tenant" ? T.navy : T.gray}
                   style={styles.roleIcon}
                 />
                 <Text style={styles.typeTitle}>Tenant</Text>
@@ -1072,7 +1075,7 @@ export default function CompleteProfile() {
               {selectedFile ? (
                 isPdfAsset(selectedFile) ? (
                   <View style={styles.uploadPdfPreview}>
-                    <Ionicons name="document-text-outline" size={40} color="#0A2A43" />
+                    <Ionicons name="document-text-outline" size={40} color={T.navy} />
                     <Text style={styles.uploadText}>
                       {selectedFile.fileName || "Document.pdf"}
                     </Text>
@@ -1087,7 +1090,7 @@ export default function CompleteProfile() {
               ) : existingUtilityBillUrl ? (
                 isPdfAsset({ uri: existingUtilityBillUrl }) ? (
                   <View style={styles.uploadPdfPreview}>
-                    <Ionicons name="document-text-outline" size={40} color="#0A2A43" />
+                    <Ionicons name="document-text-outline" size={40} color={T.navy} />
                     <Text style={styles.uploadText}>Uploaded document</Text>
                   </View>
                 ) : (
@@ -1134,14 +1137,24 @@ export default function CompleteProfile() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#ffffff",
+    backgroundColor: T.canvas,
   },
-  topBar: {
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
     paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(243, 244, 246, 1)",
+    paddingTop: 2,
+    paddingBottom: 12,
+  },
+  headerTitle: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: Fonts.bold,
+    fontWeight: "700",
+    fontSize: 17,
+    lineHeight: 22,
+    color: T.navy,
   },
   backRow: {
     flexDirection: "row",
@@ -1153,38 +1166,30 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.medium,
     fontSize: 16,
     lineHeight: 22,
-    color: "#667085",
+    color: T.gray,
   },
   content: {
-    paddingTop: 8,
+    paddingTop: 4,
     paddingBottom: 8,
     flexDirection: "column",
     gap: 20,
   },
   scrollContainer: {
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
   },
   footer: {
-    paddingHorizontal: 14,
-  },
-  heading: {
-    fontFamily: Fonts.bold,
-    fontWeight: "700",
-    fontSize: 17,
-    lineHeight: 24,
-    color: "rgba(0, 0, 0, 1)",
+    paddingHorizontal: 0,
   },
   subHeading: {
     fontFamily: Fonts.regular,
     fontWeight: "400",
     fontSize: 13,
     lineHeight: 18,
-    color: "rgba(106, 114, 130, 1)",
-    marginTop: 3,
+    color: T.gray,
   },
   subHeadingBold: {
     fontFamily: Fonts.semiBold,
-    color: "rgba(16, 24, 40, 1)",
+    color: T.navy,
     fontWeight: "600",
   },
   stepHint: {
@@ -1192,7 +1197,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: 12,
     lineHeight: 17,
-    color: "rgba(106, 114, 130, 1)",
+    color: T.gray,
   },
   upcomingDot: {
     width: 24,
@@ -1215,16 +1220,16 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 14,
     borderRadius: 14,
-    backgroundColor: "#D1FAF5",
+    backgroundColor: T.mint,
     borderWidth: 1,
-    borderColor: "rgba(20, 184, 166, 0.28)",
+    borderColor: "rgba(20, 184, 166, 0.22)",
   },
   infoBannerText: {
     flex: 1,
     fontFamily: Fonts.regular,
     fontSize: 12,
     lineHeight: 18,
-    color: "#364155",
+    color: T.navy,
   },
   progressRow: {
     flexDirection: "row",
@@ -1242,7 +1247,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#14B8A6",
+    backgroundColor: T.teal,
   },
   currentDot: {
     width: 24,
@@ -1250,7 +1255,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(254, 154, 0, 1)",
+    backgroundColor: T.navy,
   },
   currentDotText: {
     color: "rgba(255, 255, 255, 1)",
@@ -1262,20 +1267,20 @@ const styles = StyleSheet.create({
   progressLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "rgba(229, 231, 235, 1)",
+    backgroundColor: T.border,
     marginHorizontal: 8,
   },
   progressTextMuted: {
     fontFamily: Fonts.medium,
     fontSize: 11,
-    color: "rgba(106, 114, 130, 1)",
+    color: T.gray,
     lineHeight: 15,
     fontWeight: "400",
   },
   progressTextActive: {
     fontFamily: Fonts.semiBold,
     fontSize: 11,
-    color: "rgba(0, 0, 0, 1)",
+    color: T.navy,
     fontWeight: "600",
   },
   form: {
@@ -1290,28 +1295,28 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: 12,
     lineHeight: 17,
-    color: "rgba(106, 114, 130, 1)",
+    color: T.gray,
   },
   inputText: {
     fontFamily: Fonts.semiBold,
     fontSize: 13,
     lineHeight: 18,
     fontWeight: "600",
-    color: "rgba(0, 0, 0, 1)",
+    color: T.navy,
   },
   requiredMark: {
-    color: "#E7000B",
+    color: "#E11D48",
   },
   input: {
     borderWidth: 1,
-    borderColor: "rgba(229, 231, 235, 1)",
+    borderColor: T.border,
     borderRadius: 12,
-    backgroundColor: "rgba(249, 250, 251, 1)",
-    height: 54,
+    backgroundColor: T.white,
+    height: 52,
     paddingHorizontal: 16,
     fontFamily: Fonts.regular,
     fontSize: 14,
-    color: "#000000",
+    color: T.navy,
   },
   familyNumberSection: {
     marginTop: 14,
@@ -1329,17 +1334,17 @@ const styles = StyleSheet.create({
   },
   familyModeCard: {
     flex: 1,
-    borderWidth: 2,
-    borderColor: "rgba(243, 244, 246, 1)",
+    borderWidth: 1,
+    borderColor: T.border,
     borderRadius: 14,
-    backgroundColor: "rgba(255, 255, 255, 1)",
+    backgroundColor: T.white,
     padding: 14,
   },
   familyModeIconWrap: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: "#F4F8FD",
+    backgroundColor: T.canvas,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 8,
@@ -1347,12 +1352,12 @@ const styles = StyleSheet.create({
     borderColor: "rgba(20, 184, 166, 0.15)",
   },
   familyModeIconWrapActive: {
-    backgroundColor: "#D1FAF5",
+    backgroundColor: T.mint,
     borderColor: "rgba(20, 184, 166, 0.35)",
   },
   familyModeCardActive: {
-    borderColor: "#14B8A6",
-    backgroundColor: "#D1FAF5",
+    borderColor: T.teal,
+    backgroundColor: T.mint,
   },
   familySkipCard: {
     flexDirection: "row",
@@ -1362,38 +1367,38 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
     borderColor: "rgba(20, 184, 166, 0.4)",
     borderRadius: 14,
-    backgroundColor: "#F4F8FD",
+    backgroundColor: T.canvas,
     paddingHorizontal: 14,
     paddingVertical: 14,
   },
   familySkipCardActive: {
     borderStyle: "solid",
-    borderColor: "#14B8A6",
-    backgroundColor: "#D1FAF5",
+    borderColor: T.teal,
+    backgroundColor: T.mint,
   },
   familySkipIconWrap: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: T.white,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
     borderColor: "rgba(20, 184, 166, 0.22)",
   },
   familySkipIconWrapActive: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: T.white,
     borderColor: "rgba(20, 184, 166, 0.45)",
   },
   familySkipTitle: {
     fontFamily: Fonts.bold,
     fontSize: 14,
     lineHeight: 19,
-    color: "#0A2A43",
+    color: T.navy,
     fontWeight: "700",
   },
   familySkipTitleActive: {
-    color: "#0A2A43",
+    color: T.navy,
   },
   familySkipCopy: {
     flex: 1,
@@ -1405,15 +1410,15 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 14,
     borderRadius: 14,
-    backgroundColor: "#F4F8FD",
+    backgroundColor: T.canvas,
     borderWidth: 1,
-    borderColor: "rgba(20, 184, 166, 0.28)",
+    borderColor: "rgba(20, 184, 166, 0.22)",
   },
   familySkipBannerIconWrap: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: "#D1FAF5",
+    backgroundColor: T.mint,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -1427,7 +1432,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semiBold,
     fontSize: 13,
     lineHeight: 18,
-    color: "#0A2A43",
+    color: T.navy,
     fontWeight: "600",
   },
   familySkipBannerText: {
@@ -1435,7 +1440,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: 12,
     lineHeight: 17,
-    color: "#6B7280",
+    color: T.gray,
   },
   familyPendingBanner: {
     flexDirection: "row",
@@ -1466,7 +1471,7 @@ const styles = StyleSheet.create({
   familyRegenerateText: {
     fontFamily: Fonts.semiBold,
     fontSize: 12,
-    color: "#14B8A6",
+    color: T.teal,
   },
   familyInputWrap: {
     position: "relative",
@@ -1496,15 +1501,15 @@ const styles = StyleSheet.create({
   },
   typeCard: {
     flex: 1,
-    borderWidth: 2,
-    borderColor: "rgba(243, 244, 246, 1)",
+    borderWidth: 1,
+    borderColor: T.border,
     borderRadius: 14,
-    backgroundColor: "rgba(255, 255, 255, 1)",
-    padding: 18,
+    backgroundColor: T.white,
+    padding: 16,
   },
   typeCardActive: {
-    borderColor: "#14B8A6",
-    backgroundColor: "#D1FAF5",
+    borderColor: T.teal,
+    backgroundColor: T.mint,
   },
   typeEmoji: {
     fontSize: 24,
@@ -1517,7 +1522,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: 13,
     lineHeight: 18,
-    color: "rgba(0, 0, 0, 1)",
+    color: T.navy,
     fontWeight: "700",
   },
   typeSubTitle: {
@@ -1525,15 +1530,15 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.medium,
     fontSize: 11,
     lineHeight: 15,
-    color: "rgba(106, 114, 130, 1)",
+    color: T.gray,
   },
   uploadBox: {
     minHeight: 140,
-    borderWidth: 2,
+    borderWidth: 1,
     borderStyle: "dashed",
-    borderColor: "rgba(209, 213, 220, 1)",
+    borderColor: T.border,
     borderRadius: 12,
-    backgroundColor: "rgba(212, 236, 245, 0.2)",
+    backgroundColor: T.white,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 24,
@@ -1563,11 +1568,11 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: "rgba(106, 114, 130, 1)",
+    color: T.gray,
     textAlign: "center",
   },
   uploadLink: {
-    color: "rgba(20, 184, 166, 1)",
+    color: T.teal,
     fontFamily: Fonts.semiBold,
     fontWeight: "600",
   },
@@ -1575,29 +1580,29 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: 11,
     lineHeight: 15,
-    color: "rgba(153, 161, 175, 1)",
+    color: T.gray,
   },
   buttonContainer: {
     flexDirection: "column",
     gap: 14,
   },
   button: {
-    height: 56,
+    height: 48,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   buttonActive: {
-    backgroundColor: "#14B8A6",
+    backgroundColor: B.cta,
   },
   buttonDisabled: {
-    backgroundColor: "rgba(225, 227, 227, 1)",
+    backgroundColor: T.border,
   },
   buttonText: {
     fontSize: 14,
     fontWeight: "700",
     lineHeight: 20,
-    color: "#FFFFFF",
+    color: T.white,
     fontFamily: Fonts.bold,
   },
   secondaryButton: {
@@ -1621,7 +1626,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: 11,
     lineHeight: 15,
-    color: "rgba(153, 161, 175, 1)",
+    color: T.gray,
     textAlign: "center",
   },
   inputError: {

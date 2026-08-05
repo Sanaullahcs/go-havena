@@ -121,7 +121,10 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen
           name="screens/roles/index"
-          options={{ headerShown: false, contentStyle: styles.screen }}
+          options={{
+            headerShown: false,
+            contentStyle: { flex: 1, backgroundColor: "#F4FBFD" },
+          }}
         />
         <Stack.Screen
           name="screens/invite-code/index"
@@ -181,15 +184,24 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="screens/request-for-community/index"
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+            contentStyle: { flex: 1, backgroundColor: "#F4FBFD" },
+          }}
         />
         <Stack.Screen
           name="screens/region/index"
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+            contentStyle: { flex: 1, backgroundColor: "#F4FBFD" },
+          }}
         />
         <Stack.Screen
           name="screens/region/communities/index"
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+            contentStyle: { flex: 1, backgroundColor: "#F4FBFD" },
+          }}
         />
         <Stack.Screen
           name="screens/signup/index"
@@ -213,19 +225,25 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="screens/complete-profile/index"
-          options={{ headerShown: false, contentStyle: styles.screen }}
+          options={{
+            headerShown: false,
+            contentStyle: { flex: 1, backgroundColor: "#F4FBFD" },
+          }}
         />
         <Stack.Screen
           name="screens/login/index"
           options={{
             headerShown: false,
-            contentStyle: styles.screen,
+            contentStyle: { flex: 1, backgroundColor: "#F4FBFD" },
             animation: "fade",
           }}
         />
         <Stack.Screen
           name="screens/login/verify-phone/index"
-          options={{ headerShown: false, contentStyle: styles.screen }}
+          options={{
+            headerShown: false,
+            contentStyle: { flex: 1, backgroundColor: "#F4FBFD" },
+          }}
         />
         <Stack.Screen
           name="screens/event-detail/index"

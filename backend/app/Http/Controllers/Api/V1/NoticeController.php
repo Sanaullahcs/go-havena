@@ -16,7 +16,6 @@ use App\Support\NoticeSchedule;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Database\QueryException;
 
 class NoticeController extends Controller
@@ -1654,7 +1653,7 @@ SQL;
     {
         $path = $file->store('notices', 'public');
 
-        return Storage::url($path);
+        return MediaUrl::normalize('/storage/'.$path) ?? '/storage/'.$path;
     }
 
     private function notifyOrganizerEventRsvp(object $notice, $member, string $change, int $totalGoing): void

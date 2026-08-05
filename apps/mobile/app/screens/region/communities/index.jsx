@@ -12,9 +12,9 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Fonts } from "../../../../constants/font";
 import { Ionicons } from "@expo/vector-icons";
+import { Building2, MapPin } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import BackButton from "../../../../components/ui/back-button";
-import SafeTop from "../../../../components/layout/safe-top";
 import { getCurrentRole } from "../../../../constants/role-session";
 import { saveRegionSelection, joinCommunity } from "../../../../services/auth-api";
 import { fetchCommunitiesInRegion } from "../../../../services/regions-api";
@@ -22,6 +22,7 @@ import { getApiErrorMessage } from "../../../../utils/auth-errors";
 import { goToCompleteProfile } from "../../../../constants/onboarding-routes";
 import { useApiAction } from "../../../../hooks/use-api-action";
 import ScreenStatusBar from "../../../../components/layout/screen-status-bar";
+import { HomeTheme as T } from "../../../../constants/home-theme";
 
 const SEARCH_DEBOUNCE_MS = 400;
 
@@ -124,26 +125,36 @@ export default function RegionCommunitiesScreen() {
     });
   };
 
+  const goRequestCommunity = () => {
+    router.push({
+      pathname: "/screens/request-for-community",
+      params: {
+        role: activeRole,
+        regionId: String(numericRegionId),
+        regionTitle: String(regionTitle),
+      },
+    });
+  };
+
   const isSearchPending = searchText.trim() !== debouncedSearch;
   const showEmpty = !loading && !error && communities.length === 0;
 
   return (
-    <SafeAreaView style={styles.container} edges={["left", "right"]}>
-      <ScreenStatusBar style="dark" />
-      <SafeTop color="#FFFFFF">
-      <View style={styles.headerBar}>
-        <BackButton iconOnly compact />
-      </View>
-      </SafeTop>
+    <SafeAreaView style={styles.container} edges={["top", "left", "right", "bottom"]}>
+      <ScreenStatusBar style="dark" opaque androidBackgroundColor={T.canvas} />
 
       <View style={styles.topSection}>
-        <View style={styles.regionBadge}>
-          <Ionicons name="location" size={14} color="#14B8A6" />
-          <Text style={styles.regionBadgeText}>{regionTitle}</Text>
+        <View style={styles.headerRow}>
+          <BackButton iconOnly compact />
+          <View style={styles.regionBadge}>
+            <MapPin size={12} color={T.teal} strokeWidth={2} />
+            <Text style={styles.regionBadgeText} numberOfLines={1}>
+              {regionTitle}
+            </Text>
+          </View>
         </View>
-        <Text style={styles.title}>
-          {isAdminOnboarding ? "Select Your Community" : "Select Your Community"}
-        </Text>
+
+        <Text style={styles.title}>Select Your Community</Text>
         <Text style={styles.subtitle}>
           {isAdminOnboarding
             ? `Communities in ${regionTitle}. Select one without an admin, or request to add a new community.`
@@ -153,24 +164,24 @@ export default function RegionCommunitiesScreen() {
         </Text>
 
         <View style={styles.searchWrap}>
-          <Ionicons name="search-outline" size={20} color="#9CA3AF" />
+          <Ionicons name="search-outline" size={18} color={T.gray} />
           <TextInput
             value={searchText}
             onChangeText={setSearchText}
             placeholder="Search communities…"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={T.gray}
             style={styles.searchInput}
             returnKeyType="search"
             autoCorrect={false}
           />
           {isSearchPending || refreshing ? (
-            <ActivityIndicator size="small" color="#14B8A6" />
+            <ActivityIndicator size="small" color={T.teal} />
           ) : searchText.length > 0 ? (
             <TouchableOpacity
               onPress={() => setSearchText("")}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+              <Ionicons name="close-circle" size={18} color={T.gray} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -178,12 +189,12 @@ export default function RegionCommunitiesScreen() {
 
       {loading ? (
         <View style={styles.centerState}>
-          <ActivityIndicator size="large" color="#14B8A6" />
+          <ActivityIndicator size="large" color={T.teal} />
           <Text style={styles.stateText}>Loading communities…</Text>
         </View>
       ) : error ? (
         <View style={styles.centerState}>
-          <Ionicons name="cloud-offline-outline" size={40} color="#9CA3AF" />
+          <Ionicons name="cloud-offline-outline" size={40} color={T.gray} />
           <Text style={styles.stateTitle}>Could not load communities</Text>
           <Text style={styles.stateText}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={() => loadCommunities()}>
@@ -201,14 +212,14 @@ export default function RegionCommunitiesScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => loadCommunities(true)}
-              tintColor="#14B8A6"
+              tintColor={T.teal}
             />
           }
         >
           {showEmpty ? (
             <View style={styles.emptyWrap}>
               <View style={styles.emptyIconWrap}>
-                <Ionicons name="business-outline" size={32} color="#94A3B8" />
+                <Building2 size={22} color={T.teal} strokeWidth={1.75} />
               </View>
               <Text style={styles.stateTitle}>
                 {isAdminOnboarding ? "No communities in this region" : "No communities yet"}
@@ -221,18 +232,8 @@ export default function RegionCommunitiesScreen() {
                     : `There are no communities listed in ${regionTitle} yet. Contact your community admin if you need help.`}
               </Text>
               {isAdminOnboarding ? (
-                <TouchableOpacity
-                  style={styles.requestBtn}
-                  onPress={() => router.push({
-                    pathname: "/screens/request-for-community",
-                    params: {
-                      role: activeRole,
-                      regionId: String(numericRegionId),
-                      regionTitle: String(regionTitle),
-                    },
-                  })}
-                >
-                  <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" />
+                <TouchableOpacity style={styles.requestBtn} onPress={goRequestCommunity}>
+                  <Ionicons name="add-circle-outline" size={18} color={T.white} />
                   <Text style={styles.requestBtnText}>Request to add community</Text>
                 </TouchableOpacity>
               ) : null}
@@ -241,57 +242,59 @@ export default function RegionCommunitiesScreen() {
             <>
               {isAdminOnboarding ? (
                 <View style={styles.adminBanner}>
-                  <Ionicons name="information-circle-outline" size={18} color="#14B8A6" />
+                  <Ionicons name="information-circle-outline" size={18} color={T.deepTeal} />
                   <Text style={styles.adminBannerText}>
                     Communities with an admin are shown but cannot be selected. Choose an available community or request a new one.
                   </Text>
                 </View>
               ) : null}
               {communities.map((community) => {
-              const busy = selectingId === community.id;
-              const isDisabled = isAdminOnboarding && community.hasAdmin;
+                const busy = selectingId === community.id;
+                const isDisabled = isAdminOnboarding && community.hasAdmin;
 
-              return (
-                <TouchableOpacity
-                  key={community.id}
-                  style={[
-                    styles.card,
-                    busy && styles.cardBusy,
-                    isDisabled && styles.cardDisabled,
-                  ]}
-                  activeOpacity={isDisabled ? 1 : 0.85}
-                  disabled={Boolean(selectingId) || isDisabled}
-                  onPress={() => handleCommunitySelect(community)}
-                >
-                  <View style={styles.communityIconWrap}>
-                    <Ionicons
-                      name="business-outline"
-                      size={24}
-                      color={isDisabled ? "#94A3B8" : "#14B8A6"}
-                    />
-                  </View>
+                return (
+                  <TouchableOpacity
+                    key={community.id}
+                    style={[
+                      styles.card,
+                      busy && styles.cardBusy,
+                      isDisabled && styles.cardDisabled,
+                    ]}
+                    activeOpacity={isDisabled ? 1 : 0.88}
+                    disabled={Boolean(selectingId) || isDisabled}
+                    onPress={() => handleCommunitySelect(community)}
+                  >
+                    <View style={[styles.communityIconWrap, isDisabled && styles.communityIconWrapDisabled]}>
+                      <Building2
+                        size={16}
+                        color={isDisabled ? T.gray : T.teal}
+                        strokeWidth={1.75}
+                      />
+                    </View>
 
-                  <View style={styles.cardTextWrap}>
-                    <Text style={[styles.cardTitle, isDisabled && styles.cardTitleDisabled]}>
-                      {community.title}
-                    </Text>
-                    {community.area ? (
-                      <Text style={styles.cardArea}>{community.area}</Text>
-                    ) : null}
-                    {isDisabled ? (
-                      <Text style={styles.cardBadge}>Community admin assigned</Text>
-                    ) : null}
-                  </View>
+                    <View style={styles.cardTextWrap}>
+                      <Text style={[styles.cardTitle, isDisabled && styles.cardTitleDisabled]}>
+                        {community.title}
+                      </Text>
+                      {community.area ? (
+                        <Text style={styles.cardArea}>{community.area}</Text>
+                      ) : null}
+                      {isDisabled ? (
+                        <Text style={styles.cardBadge}>Community admin assigned</Text>
+                      ) : null}
+                    </View>
 
-                  {busy ? (
-                    <ActivityIndicator size="small" color="#14B8A6" />
-                  ) : isDisabled ? (
-                    <Ionicons name="lock-closed-outline" size={18} color="#94A3B8" />
-                  ) : (
-                    <Ionicons name="chevron-forward" size={20} color="#C6CBD3" />
-                  )}
-                </TouchableOpacity>
-              );
+                    {busy ? (
+                      <ActivityIndicator size="small" color={T.teal} />
+                    ) : isDisabled ? (
+                      <Ionicons name="lock-closed-outline" size={16} color={T.gray} />
+                    ) : (
+                      <View style={styles.chevronWrap}>
+                        <Ionicons name="chevron-forward" size={16} color={T.teal} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
               })}
             </>
           )}
@@ -301,18 +304,8 @@ export default function RegionCommunitiesScreen() {
       {isAdminOnboarding && !loading && !error ? (
         <View style={styles.bottomSection}>
           <Text style={styles.mutedText}>Don't see your community?</Text>
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => router.push({
-              pathname: "/screens/request-for-community",
-              params: {
-                role: activeRole,
-                regionId: String(numericRegionId),
-                regionTitle: String(regionTitle),
-              },
-            })}
-          >
-            <Text style={styles.blueLink}>Request to add it in {regionTitle}</Text>
+          <TouchableOpacity activeOpacity={0.8} onPress={goRequestCommunity}>
+            <Text style={styles.tealLink}>Request to add it in {regionTitle}</Text>
           </TouchableOpacity>
         </View>
       ) : null}
@@ -323,53 +316,59 @@ export default function RegionCommunitiesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  headerBar: {
-    paddingHorizontal: 24,
-    paddingVertical: 8,
+    backgroundColor: T.canvas,
   },
   topSection: {
     paddingHorizontal: 24,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#EEF1F5",
+    paddingTop: 2,
+    paddingBottom: 12,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 12,
   },
   regionBadge: {
-    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "#D1FAF5",
-    marginBottom: 10,
+    backgroundColor: T.mint,
+    borderWidth: 1,
+    borderColor: "rgba(20, 184, 166, 0.22)",
+    flexShrink: 1,
+    maxWidth: "100%",
   },
   regionBadgeText: {
-    fontFamily: Fonts.medium,
+    fontFamily: Fonts.semiBold,
     fontSize: 12,
-    color: "#14B8A6",
+    color: T.navy,
     fontWeight: "600",
+    flexShrink: 1,
   },
   title: {
     fontFamily: Fonts.bold,
     fontSize: 17,
     lineHeight: 22,
-    color: "#000000",
+    color: T.navy,
     fontWeight: "700",
   },
   subtitle: {
-    marginTop: 8,
+    marginTop: 6,
     fontFamily: Fonts.regular,
     fontSize: 12,
     lineHeight: 15,
-    color: "#6A7282",
+    color: T.gray,
   },
   searchWrap: {
-    marginTop: 16,
+    marginTop: 12,
     borderRadius: 16,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: T.white,
+    borderWidth: 1,
+    borderColor: T.border,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
@@ -380,7 +379,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: Fonts.regular,
     fontSize: 13,
-    color: "rgba(10, 10, 10, 0.85)",
+    color: T.navy,
   },
   centerState: {
     flex: 1,
@@ -396,10 +395,10 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   emptyIconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
-    backgroundColor: "#F1F5F9",
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: T.mint,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
@@ -407,27 +406,27 @@ const styles = StyleSheet.create({
   stateTitle: {
     fontFamily: Fonts.bold,
     fontSize: 15,
-    color: "#000000",
+    color: T.navy,
     textAlign: "center",
   },
   stateText: {
     fontFamily: Fonts.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: "#6A7282",
+    color: T.gray,
     textAlign: "center",
   },
   retryBtn: {
     marginTop: 8,
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: "#14B8A6",
+    backgroundColor: T.navy,
   },
   retryText: {
-    fontFamily: Fonts.medium,
+    fontFamily: Fonts.semiBold,
     fontSize: 13,
-    color: "#FFFFFF",
+    color: T.white,
     fontWeight: "600",
   },
   requestBtn: {
@@ -438,73 +437,89 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 12,
     borderRadius: 14,
-    backgroundColor: "#14B8A6",
+    backgroundColor: T.navy,
   },
   requestBtnText: {
     fontFamily: Fonts.semiBold,
     fontSize: 13,
-    color: "#FFFFFF",
+    color: T.white,
     fontWeight: "600",
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 18,
-    gap: 14,
+    paddingTop: 0,
+    paddingBottom: 12,
+    gap: 12,
   },
   scrollContentEmpty: {
     flexGrow: 1,
   },
   card: {
-    borderWidth: 2,
-    borderColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "rgba(15, 61, 95, 0.12)",
     borderRadius: 16,
-    padding: 22,
+    padding: 18,
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: T.white,
   },
   cardBusy: {
     opacity: 0.7,
   },
   communityIconWrap: {
-    width: 48,
-    height: 48,
+    width: 40,
+    height: 40,
     borderRadius: 12,
-    backgroundColor: "#D1FAF5",
+    backgroundColor: T.mint,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
+  },
+  communityIconWrapDisabled: {
+    backgroundColor: "rgba(107, 114, 128, 0.1)",
   },
   cardTextWrap: {
     flex: 1,
+    minWidth: 0,
+    paddingTop: 2,
   },
   cardTitle: {
     fontFamily: Fonts.bold,
     fontSize: 14,
     lineHeight: 20,
-    color: "#000000",
+    color: T.navy,
     fontWeight: "700",
   },
   cardTitleDisabled: {
-    color: "#94A3B8",
+    color: T.gray,
   },
   cardArea: {
     marginTop: 4,
     fontFamily: Fonts.regular,
     fontSize: 11,
     lineHeight: 17,
-    color: "#4A5565",
+    color: T.gray,
   },
   cardBadge: {
     marginTop: 6,
     fontFamily: Fonts.medium,
     fontSize: 10,
     lineHeight: 14,
-    color: "#94A3B8",
+    color: T.gray,
   },
   cardDisabled: {
     opacity: 0.55,
+  },
+  chevronWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: T.mint,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    marginTop: 8,
   },
   adminBanner: {
     flexDirection: "row",
@@ -512,9 +527,9 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 14,
     borderRadius: 14,
-    backgroundColor: "#D1FAF5",
+    backgroundColor: T.mint,
     borderWidth: 1,
-    borderColor: "rgba(20, 184, 166, 0.28)",
+    borderColor: "rgba(20, 184, 166, 0.22)",
     marginBottom: 4,
   },
   adminBannerText: {
@@ -522,25 +537,27 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: 12,
     lineHeight: 18,
-    color: "#364155",
+    color: T.navy,
   },
   bottomSection: {
     borderTopWidth: 1,
-    borderTopColor: "#EEF1F5",
-    paddingTop: 18,
-    paddingBottom: 14,
+    borderTopColor: T.border,
+    paddingTop: 14,
+    paddingBottom: 12,
+    paddingHorizontal: 24,
     alignItems: "center",
+    backgroundColor: T.canvas,
   },
   mutedText: {
     fontFamily: Fonts.regular,
     fontSize: 13,
-    color: "#6A7282",
+    color: T.gray,
   },
-  blueLink: {
+  tealLink: {
     marginTop: 6,
-    fontFamily: Fonts.medium,
+    fontFamily: Fonts.semiBold,
     fontSize: 13,
-    color: "#007CFA",
+    color: T.teal,
     fontWeight: "600",
   },
 });

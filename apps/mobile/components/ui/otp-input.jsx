@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
   },
   inputFilled: {
     borderColor: Colors.brandPrimaryDeep,
-    backgroundColor: "rgba(239, 246, 255, 0.75)",
+    backgroundColor: "rgba(209, 250, 245, 0.85)",
     color: Colors.brandPrimaryDeep,
   },
   inputError: {

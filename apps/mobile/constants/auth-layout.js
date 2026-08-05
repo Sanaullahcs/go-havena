@@ -1,12 +1,13 @@
 import { StyleSheet } from "react-native";
 import { Fonts } from "./font";
 import { Colors } from "./tokens";
+import { ScreenBrand as B } from "./screen-brand";
 
 /** Shared layout for phone login + OTP verify */
 export const authLayoutStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: B.canvas,
     paddingHorizontal: 24,
   },
   scrollBody: {
@@ -34,7 +35,7 @@ export const authLayoutStyles = StyleSheet.create({
     lineHeight: 16,
     letterSpacing: 0.6,
     textTransform: "uppercase",
-    color: Colors.brandPrimaryDeep,
+    color: B.teal,
   },
   title: {
     fontFamily: Fonts.bold,
@@ -87,15 +88,15 @@ export const authLayoutStyles = StyleSheet.create({
   phoneHighlight: {
     fontFamily: Fonts.semiBold,
     fontWeight: "600",
-    color: Colors.textPrimary,
+    color: B.teal,
   },
   resendHighlight: {
     fontWeight: "600",
-    color: Colors.link,
+    color: B.teal,
     fontFamily: Fonts.semiBold,
   },
   resendSuccess: {
-    color: Colors.success,
+    color: B.success,
     fontFamily: Fonts.medium,
   },
   devHint: {

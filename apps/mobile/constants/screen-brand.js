@@ -7,7 +7,7 @@ export const ScreenBrand = {
   deepTeal:   "#0D9488",
   teal:       "#14B8A6",
   softMint:   "#D1FAF5",
-  canvas:     "#F4F8FD",
+  canvas:     "#F4FBFD",
 
   primary:    "#0F3D5F",
   accent:     "#14B8A6",

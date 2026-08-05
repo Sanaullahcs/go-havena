@@ -9,123 +9,121 @@ import {
 import { useRouter } from "expo-router";
 import { Fonts } from "../../../constants/font";
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Image } from "expo-image";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { ShieldCheck, Ticket } from "lucide-react-native";
 import HavenaLogo from "../../../components/ui/havena-logo";
 import BackButton from "../../../components/ui/back-button";
 import { Routes } from "../../../constants/onboarding-routes";
 import { setCurrentRole } from "../../../constants/role-session";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import { prepareAuthScreenChrome } from "../../../components/layout/chrome-manager";
-import { HavenaColors as C } from "../../../constants/color-scheme";
+import { HomeTheme as T } from "../../../constants/home-theme";
+import { ScreenBrand as B } from "../../../constants/screen-brand";
 import RoleIcon from "../../../components/ui/role-icon";
 
-const ADMIN_THEME = {
-  border: "rgba(10, 42, 67, 0.14)",
-  accent: C.primary.teal,
-  chipBg: "#D1FAF5",
-  chipText: C.primary.darkNavy,
-  iconBg: "#D1FAF5",
+const CARD_ACCENT = {
+  accent: T.navy,
+  iconBg: T.mint,
+  iconColor: T.teal,
+  border: "rgba(15, 61, 95, 0.12)",
 };
 
-const RESIDENT_THEME = {
-  border: "rgba(0, 201, 136, 0.22)",
-  accent: C.primary.darkTeal,
-  chipBg: "rgba(0, 201, 136, 0.12)",
-  chipText: "#047857",
-  iconBg: "#F0FDF4",
-};
+const ROLE_CARDS = [
+  {
+    key: "admin",
+    title: "Community Admin",
+    subTitle: "Property Owner · Manager · HOA",
+    description: "Create your community, verify residents, and manage announcements.",
+    chips: ["Create Community", "Verify Residents", "Manage Events"],
+    ...CARD_ACCENT,
+  },
+  {
+    key: "resident",
+    title: "Resident",
+    subTitle: "Homeowner · Tenant",
+    description: "Join your community for wellness, notices, and local deals.",
+    chips: ["Join Community", "Wellness Programs", "Community Feed"],
+    ...CARD_ACCENT,
+  },
+  {
+    key: "guest",
+    title: "Guest",
+    subTitle: "Invited visitor",
+    description: "Sign in with your invitation to visit a community for a limited time.",
+    chips: ["Limited access", "Host invitation", "Timed visit"],
+    ...CARD_ACCENT,
+  },
+];
 
 export default function Roles() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
-  const roleCards = [
-    {
-      key: "admin",
-      title: "Community Admin",
-      subTitle: "Property Owner • Manager • HOA",
-      description:
-        "Create and manage your building or neighborhood, verify residents, and control announcements.",
-      chips: ["Create Community", "Verify Residents", "Manage Events"],
-      theme: ADMIN_THEME,
-    },
-    {
-      key: "resident",
-      title: "Resident",
-      subTitle: "Homeowner • Tenant",
-      description:
-        "Join your verified community to access wellness programs, notices, and local marketplace.",
-      chips: ["Join Community", "Wellness Programs", "Community Feed"],
-      theme: RESIDENT_THEME,
-    },
-  ];
+  const goLogin = () => {
+    prepareAuthScreenChrome();
+    router.replace(Routes.LOGIN);
+  };
 
   const handleRoleSelect = (role) => {
+    if (role === "guest") {
+      router.push("/screens/guest-login");
+      return;
+    }
     setCurrentRole(role);
     router.push({ pathname: "/screens/signup", params: { role } });
   };
 
   return (
     <>
-      <ScreenStatusBar style="dark" opaque />
+      <ScreenStatusBar style="dark" opaque androidBackgroundColor={T.canvas} />
       <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#F4F8FD" }]} />
-      <View style={styles.headerColumn}>
-        <BackButton onPress={() => {
-          prepareAuthScreenChrome();
-          router.replace(Routes.LOGIN);
-        }} />
-        <View style={styles.brandRow}>
-          <View style={styles.logoBox}>
-            <HavenaLogo size={40} compact />
-          </View>
-          <View style={styles.brandCopy}>
-            <Text style={styles.brandTitle}>Havena</Text>
-            <Text style={styles.brandSubTitle}>
-              Community & Wellness Platform
+        <View style={styles.headerRow}>
+          <BackButton onPress={goLogin} />
+        </View>
+
+        <View style={styles.body}>
+          <View style={styles.hero}>
+            <HavenaLogo size={40} compact tileColor={T.navy} />
+            <Text style={styles.pageTitle}>Join Havena</Text>
+            <Text style={styles.pageSubTitle}>
+              Choose your role to get the right experience for your community.
             </Text>
           </View>
-        </View>
-      </View>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.headingWrap}>
-          <Text style={styles.pageTitle}>Join Havena</Text>
-          <Text style={styles.pageSubTitle}>
-            Select your role to get started with the right experience for you.
-          </Text>
-        </View>
 
-        <View style={styles.cardsWrap}>
-          {roleCards.map((role) => (
-            <TouchableOpacity
-              key={role.key}
-              style={[
-                styles.card,
-                {
-                  borderColor: role.theme.border,
-                  backgroundColor: C.neutral.white,
-                },
-              ]}
-              activeOpacity={0.88}
-              onPress={() => handleRoleSelect(role.key)}
-            >
-              <View style={styles.cardTopRow}>
-                <RoleIcon role={role.key} size="md" />
+          <ScrollView
+            style={styles.cardsScroll}
+            contentContainerStyle={styles.cardsScrollContent}
+            showsVerticalScrollIndicator={false}
+            bounces
+          >
+            {ROLE_CARDS.map((role) => (
+              <TouchableOpacity
+                key={role.key}
+                style={[styles.card, { borderColor: role.border }]}
+                activeOpacity={0.88}
+                onPress={() => handleRoleSelect(role.key)}
+              >
+                <View style={[styles.iconWell, { backgroundColor: role.iconBg }]}>
+                  {role.key === "guest" ? (
+                    <Ticket size={16} color={role.iconColor} strokeWidth={1.75} />
+                  ) : (
+                    <RoleIcon role={role.key} size="md" bare color={role.iconColor} />
+                  )}
+                </View>
 
-                <View style={styles.cardHeaderTextWrap}>
+                <View style={styles.cardCopy}>
                   <Text style={styles.cardTitle}>{role.title}</Text>
-                  <Text style={[styles.cardSubTitle, { color: role.theme.accent }]}>
+                  <Text style={[styles.cardSubTitle, { color: role.accent }]}>
                     {role.subTitle}
                   </Text>
                   <Text style={styles.cardDescription}>{role.description}</Text>
-
                   <View style={styles.chipsRow}>
                     {role.chips.map((chip) => (
                       <View
                         key={chip}
-                        style={[styles.chip, { backgroundColor: role.theme.chipBg }]}
+                        style={[styles.chip, { backgroundColor: role.iconBg }]}
                       >
-                        <Text style={[styles.chipText, { color: role.theme.chipText }]}>
+                        <Text style={[styles.chipText, { color: role.accent }]}>
                           {chip}
                         </Text>
                       </View>
@@ -133,40 +131,32 @@ export default function Roles() {
                   </View>
                 </View>
 
-                <View style={[styles.chevronWrap, { backgroundColor: role.theme.iconBg }]}>
-                  <Ionicons name="chevron-forward" size={18} color={role.theme.accent} />
+                <View style={[styles.chevronWrap, { backgroundColor: role.iconBg }]}>
+                  <Ionicons name="chevron-forward" size={16} color={role.accent} />
                 </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          <View style={[styles.bottomBlock, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+            <View style={styles.trustCard}>
+              <View style={styles.trustIconWrap}>
+                <ShieldCheck size={16} color={T.deepTeal} strokeWidth={2} />
               </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+              <Text style={styles.trustText}>
+                All accounts are verified by phone number for community safety.
+              </Text>
+            </View>
 
-        <View style={styles.noteRow}>
-          <View style={styles.noteIconWrap}>
-            <Image
-              source={require("../../../assets/images/sheild-check.png")}
-              style={{ width: 16, height: 16 }}
-            />
+            <View style={styles.footerRow}>
+              <Text style={styles.footerText}>Already have an account? </Text>
+              <TouchableOpacity onPress={goLogin} hitSlop={8}>
+                <Text style={styles.signInText}>Sign in</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <Text style={styles.noteText}>
-            All accounts are verified by phone number for community safety.
-          </Text>
         </View>
-
-        <View style={styles.footerRow}>
-          <Text style={styles.footerText}>Already have an account? </Text>
-          <TouchableOpacity onPress={() => {
-            prepareAuthScreenChrome();
-            router.replace(Routes.LOGIN);
-          }}>
-            <Text style={styles.signInText}>Sign in with phone</Text>
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.signInHint}>
-          Same sign-in for residents and community admins
-        </Text>
-      </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
     </>
   );
 }
@@ -174,99 +164,77 @@ export default function Roles() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: C.neutral.background,
+    backgroundColor: T.canvas,
   },
-  scrollContent: {
-    paddingBottom: 12,
-  },
-  headerColumn: {
-    flexDirection: "column",
-    alignItems: "flex-start",
-    gap: 12,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 8,
-  },
-  brandRow: {
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    width: "100%",
-  },
-  brandCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  logoBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#D1FAF5",
-    borderWidth: 1,
-    borderColor: "rgba(0, 217, 184, 0.18)",
-    flexShrink: 0,
-  },
-  brandTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: 16,
-    lineHeight: 20,
-    color: C.primary.darkNavy,
-    fontWeight: "700",
-  },
-  brandSubTitle: {
-    marginTop: 1,
-    fontFamily: Fonts.regular,
-    fontSize: 11,
-    lineHeight: 15,
-    color: C.neutral.mediumGray,
-  },
-  headingWrap: {
     paddingHorizontal: 24,
-    paddingTop: 4,
-    paddingBottom: 20,
+    paddingTop: 0,
+    paddingBottom: 4,
+  },
+  body: {
+    flex: 1,
+    paddingHorizontal: 24,
+  },
+  hero: {
+    alignItems: "center",
+    paddingBottom: 12,
+    gap: 4,
   },
   pageTitle: {
+    marginTop: 4,
     fontFamily: Fonts.bold,
     fontSize: 22,
     lineHeight: 28,
-    color: C.primary.darkNavy,
+    color: T.navy,
     fontWeight: "700",
     letterSpacing: -0.3,
+    textAlign: "center",
   },
   pageSubTitle: {
-    marginTop: 6,
-    maxWidth: 300,
+    maxWidth: 280,
     fontFamily: Fonts.regular,
     fontSize: 13,
     lineHeight: 19,
-    color: C.neutral.mediumGray,
+    color: T.gray,
+    textAlign: "center",
   },
-  cardsWrap: {
-    paddingHorizontal: 24,
-    gap: 14,
+  cardsScroll: {
+    flex: 1,
+  },
+  cardsScrollContent: {
+    gap: 10,
+    paddingBottom: 8,
   },
   card: {
-    borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 16,
-  },
-  cardTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
+    backgroundColor: T.white,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
-  cardHeaderTextWrap: {
+  iconWell: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  cardCopy: {
     flex: 1,
+    minWidth: 0,
     gap: 2,
   },
   cardTitle: {
     fontFamily: Fonts.bold,
-    fontSize: 16,
-    lineHeight: 22,
-    color: C.neutral.darkText,
+    fontSize: 14,
+    lineHeight: 20,
+    color: T.navy,
     fontWeight: "700",
   },
   cardSubTitle: {
@@ -276,22 +244,22 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   cardDescription: {
-    marginTop: 8,
+    marginTop: 2,
     fontFamily: Fonts.regular,
-    fontSize: 12,
-    lineHeight: 18,
-    color: C.neutral.mediumGray,
+    fontSize: 11,
+    lineHeight: 16,
+    color: T.gray,
   },
   chipsRow: {
-    marginTop: 12,
+    marginTop: 8,
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 6,
+    gap: 5,
   },
   chip: {
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   chipText: {
     fontFamily: Fonts.semiBold,
@@ -300,44 +268,46 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   chevronWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 2,
     flexShrink: 0,
+    marginTop: 8,
   },
-  noteRow: {
-    marginTop: 14,
+  bottomBlock: {
+    gap: 12,
+    paddingTop: 8,
+  },
+  trustCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingHorizontal: 24,
+    paddingHorizontal: 14,
     paddingVertical: 12,
-    marginHorizontal: 24,
     borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.72)",
+    backgroundColor: T.white,
     borderWidth: 1,
-    borderColor: C.neutral.lightGray,
+    borderColor: T.border,
   },
-  noteIconWrap: {
+  trustIconWrap: {
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: "#D1FAF5",
+    backgroundColor: T.mint,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
-  noteText: {
+  trustText: {
     flex: 1,
     fontFamily: Fonts.regular,
     fontSize: 11,
     lineHeight: 16,
-    color: C.neutral.mediumGray,
+    color: T.gray,
   },
   footerRow: {
-    marginTop: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -346,23 +316,13 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: C.neutral.mediumGray,
+    color: T.gray,
   },
   signInText: {
     fontFamily: Fonts.bold,
     fontSize: 13,
     lineHeight: 18,
-    color: C.primary.teal,
+    color: B.link,
     fontWeight: "700",
-  },
-  signInHint: {
-    marginTop: 6,
-    marginBottom: 8,
-    fontFamily: Fonts.regular,
-    fontSize: 11,
-    lineHeight: 16,
-    color: C.neutral.mediumGray,
-    textAlign: "center",
-    paddingHorizontal: 24,
   },
 });

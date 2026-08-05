@@ -26,7 +26,7 @@ import { useSubmitLock } from "../../../../hooks/use-submit-lock";
 import AuthSuccessOverlay from "../../../../components/ui/auth-success-overlay";
 import { navigateAfterAuth } from "../../../../constants/onboarding-routes";
 import { decodeRoutePhone, paramString } from "../../../../utils/route-params";
-import { Shadows } from "../../../../constants/tokens";
+import { ScreenBrand as B } from "../../../../constants/screen-brand";
 import { DEV_OTP_HINT } from "../../../../constants/api-config";
 
 export default function VerifyPhoneScreen() {
@@ -179,8 +179,8 @@ export default function VerifyPhoneScreen() {
         }}
       />
 
-      <ScreenStatusBar style="dark" opaque />
-      <SafeAreaView style={layout.container} edges={["top", "left", "right"]}>
+      <ScreenStatusBar style="dark" opaque androidBackgroundColor={B.canvas} />
+      <SafeAreaView style={[layout.container, styles.container]} edges={["top", "left", "right", "bottom"]}>
         <AuthFlowTopBar current={2} total={2} showBack />
 
         <KeyboardSafeScreen
@@ -197,7 +197,9 @@ export default function VerifyPhoneScreen() {
                 enabled={isValid && !otpSending}
                 loading={submitting}
                 onPress={handleVerify}
-                style={Shadows.button}
+                solidColor={B.cta}
+                loadingColor={B.ctaLoading}
+                style={B.buttonShadow}
               />
               {resendFooter}
             </View>
@@ -254,9 +256,13 @@ export default function VerifyPhoneScreen() {
 }
 
 const styles = StyleSheet.create({
+  container: {
+    backgroundColor: B.canvas,
+  },
   footer: {
     paddingHorizontal: 0,
     paddingTop: 16,
+    backgroundColor: B.canvas,
   },
   resendMuted: {
     opacity: 0.6,

@@ -16,6 +16,7 @@
     "frontend:build": "npm --prefix frontend run build",
     "frontend:lint": "npm --prefix frontend run lint",
     "backend": "php backend/artisan serve --host=0.0.0.0 --port=8000",
+    "backend:setup": "php backend/artisan storage:link",
     "dashboards": "bash scripts/dev-dashboards.sh",
     "backend:migrate": "php backend/artisan migrate"
   },

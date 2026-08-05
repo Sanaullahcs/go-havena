@@ -12,16 +12,16 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Fonts } from "../../../constants/font";
 import { Ionicons } from "@expo/vector-icons";
+import { MapPin } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Location from "expo-location";
-import { Image } from "expo-image";
 import { getCurrentRole } from "../../../constants/role-session";
 import { saveRegionSelection } from "../../../services/auth-api";
 import { fetchRegionsOnly } from "../../../services/regions-api";
 import { getApiErrorMessage } from "../../../utils/auth-errors";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
-import SafeTop from "../../../components/layout/safe-top";
+import { HomeTheme as T } from "../../../constants/home-theme";
 
 const SEARCH_DEBOUNCE_MS = 400;
 
@@ -90,7 +90,7 @@ export default function RegionScreen() {
     };
 
     requestLocationPermission();
-  }, []);
+  }, [showError]);
 
   const handleRegionSelect = async (region) => {
     if (selectingId) return;
@@ -118,51 +118,49 @@ export default function RegionScreen() {
   const showEmpty = !loading && !error && regions.length === 0;
 
   return (
-    <SafeAreaView style={styles.container} edges={["left", "right"]}>
-      <ScreenStatusBar style="dark" />
-      <SafeTop color="#FFFFFF">
+    <SafeAreaView style={styles.container} edges={["top", "left", "right", "bottom"]}>
+      <ScreenStatusBar style="dark" opaque androidBackgroundColor={T.canvas} />
       <View style={styles.topSection}>
         <Text style={styles.title}>Choose Your Region</Text>
         <Text style={styles.subtitle}>
           {activeRole === "admin"
-            ? "Select your region, then register your community for system admin approval"
+            ? "Select your region, then register your community for approval"
             : "Select your area first, then pick your community"}
         </Text>
 
         <View style={styles.searchWrap}>
-          <Ionicons name="search-outline" size={20} color="#9CA3AF" />
+          <Ionicons name="search-outline" size={18} color={T.gray} />
           <TextInput
             value={searchText}
             onChangeText={setSearchText}
             placeholder="Search regions…"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={T.gray}
             style={styles.searchInput}
             returnKeyType="search"
             autoCorrect={false}
           />
           {isSearchPending || refreshing ? (
-            <ActivityIndicator size="small" color="#14B8A6" />
+            <ActivityIndicator size="small" color={T.teal} />
           ) : searchText.length > 0 ? (
             <TouchableOpacity
               onPress={() => setSearchText("")}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityLabel="Clear search"
             >
-              <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+              <Ionicons name="close-circle" size={18} color={T.gray} />
             </TouchableOpacity>
           ) : null}
         </View>
       </View>
-      </SafeTop>
 
       {loading ? (
         <View style={styles.centerState}>
-          <ActivityIndicator size="large" color="#14B8A6" />
+          <ActivityIndicator size="large" color={T.teal} />
           <Text style={styles.stateText}>Loading regions…</Text>
         </View>
       ) : error ? (
         <View style={styles.centerState}>
-          <Ionicons name="cloud-offline-outline" size={40} color="#9CA3AF" />
+          <Ionicons name="cloud-offline-outline" size={40} color={T.gray} />
           <Text style={styles.stateTitle}>Could not load regions</Text>
           <Text style={styles.stateText}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={() => loadRegions()}>
@@ -180,13 +178,15 @@ export default function RegionScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => loadRegions(true)}
-              tintColor="#14B8A6"
+              tintColor={T.teal}
             />
           }
         >
           {showEmpty ? (
             <View style={styles.emptyWrap}>
-              <Ionicons name="map-outline" size={36} color="#C6CBD3" />
+              <View style={styles.emptyIconWrap}>
+                <MapPin size={22} color={T.teal} strokeWidth={1.75} />
+              </View>
               <Text style={styles.stateTitle}>No regions found</Text>
               <Text style={styles.stateText}>
                 {debouncedSearch
@@ -204,27 +204,30 @@ export default function RegionScreen() {
                 <TouchableOpacity
                   key={region.id}
                   style={[styles.card, busy && styles.cardBusy]}
-                  activeOpacity={0.85}
+                  activeOpacity={0.88}
                   disabled={Boolean(selectingId)}
                   onPress={() => handleRegionSelect(region)}
                 >
-                  <Image
-                    source={require("../../../assets/images/region-card.png")}
-                    style={{ width: 48, height: 48 }}
-                  />
+                  <View style={styles.iconWell}>
+                    <MapPin size={16} color={T.teal} strokeWidth={1.75} />
+                  </View>
 
                   <View style={styles.cardTextWrap}>
                     <Text style={styles.cardTitle}>{region.title}</Text>
                     <Text style={styles.cardArea}>
                       {[region.area, region.state].filter(Boolean).join(" · ")}
                     </Text>
-                    <Text style={styles.cardUsers}>{region.users}</Text>
+                    {region.users ? (
+                      <Text style={styles.cardUsers}>{region.users}</Text>
+                    ) : null}
                   </View>
 
                   {busy ? (
-                    <ActivityIndicator size="small" color="#14B8A6" />
+                    <ActivityIndicator size="small" color={T.teal} />
                   ) : (
-                    <Ionicons name="chevron-forward" size={20} color="#C6CBD3" />
+                    <View style={styles.chevronWrap}>
+                      <Ionicons name="chevron-forward" size={16} color={T.teal} />
+                    </View>
                   )}
                 </TouchableOpacity>
               );
@@ -245,11 +248,8 @@ export default function RegionScreen() {
                 params: { role: activeRole },
               })}
             >
-              <Text style={styles.blueLink}>Request to add it</Text>
-              <Image
-                source={require("../../../assets/images/next-arrow.png")}
-                style={{ width: 16, height: 16 }}
-              />
+              <Text style={styles.tealLink}>Request to add it</Text>
+              <Ionicons name="arrow-forward" size={14} color={T.teal} />
             </TouchableOpacity>
           </>
         ) : null}
@@ -257,14 +257,12 @@ export default function RegionScreen() {
         <View style={styles.inviteRow}>
           {activeRole !== "admin" ? (
             <>
-              <Text style={[styles.mutedText, { color: "rgba(74, 85, 101, 1)" }]}>
-                Have an invite code?{" "}
-              </Text>
+              <Text style={styles.mutedText}>Have an invite code? </Text>
               <TouchableOpacity
                 activeOpacity={0.8}
                 onPress={() => router.push("/screens/invite-code")}
               >
-                <Text style={styles.orangeLink}>Enter here</Text>
+                <Text style={styles.tealLink}>Enter here</Text>
               </TouchableOpacity>
             </>
           ) : null}
@@ -277,33 +275,34 @@ export default function RegionScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: T.canvas,
   },
   topSection: {
     paddingHorizontal: 24,
-    paddingTop: 14,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#EEF1F5",
+    paddingTop: 2,
+    paddingBottom: 12,
   },
   title: {
     fontFamily: Fonts.bold,
     fontSize: 17,
     lineHeight: 22,
-    color: "rgba(0, 0, 0, 1)",
+    color: T.navy,
     fontWeight: "700",
   },
   subtitle: {
-    marginTop: 8,
+    marginTop: 6,
     fontFamily: Fonts.regular,
     fontSize: 12,
     lineHeight: 15,
-    color: "rgba(106, 114, 130, 1)",
+    color: T.gray,
+    maxWidth: 320,
   },
   searchWrap: {
-    marginTop: 16,
+    marginTop: 12,
     borderRadius: 16,
-    backgroundColor: "rgba(249, 250, 251, 1)",
+    backgroundColor: T.white,
+    borderWidth: 1,
+    borderColor: T.border,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
@@ -314,7 +313,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: Fonts.regular,
     fontSize: 13,
-    color: "rgba(10, 10, 10, 0.85)",
+    color: T.navy,
   },
   centerState: {
     flex: 1,
@@ -329,62 +328,82 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     gap: 10,
   },
+  emptyIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: T.mint,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
   stateTitle: {
     fontFamily: Fonts.bold,
     fontSize: 15,
-    color: "rgba(0, 0, 0, 1)",
+    color: T.navy,
     textAlign: "center",
   },
   stateText: {
     fontFamily: Fonts.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: "rgba(106, 114, 130, 1)",
+    color: T.gray,
     textAlign: "center",
   },
   retryBtn: {
     marginTop: 8,
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: "#14B8A6",
+    backgroundColor: T.navy,
   },
   retryText: {
-    fontFamily: Fonts.medium,
+    fontFamily: Fonts.semiBold,
     fontSize: 13,
-    color: "#FFFFFF",
+    color: T.white,
     fontWeight: "600",
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 18,
-    gap: 14,
+    paddingTop: 0,
+    paddingBottom: 12,
+    gap: 12,
   },
   scrollContentEmpty: {
     flexGrow: 1,
   },
   card: {
-    borderWidth: 2,
-    borderColor: "rgba(243, 244, 246, 1)",
+    borderWidth: 1,
+    borderColor: "rgba(15, 61, 95, 0.12)",
     borderRadius: 16,
-    padding: 22,
+    padding: 18,
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: T.white,
   },
   cardBusy: {
     opacity: 0.7,
   },
+  iconWell: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: T.mint,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
   cardTextWrap: {
     flex: 1,
+    minWidth: 0,
+    paddingTop: 2,
   },
   cardTitle: {
     fontFamily: Fonts.bold,
     fontSize: 14,
     lineHeight: 20,
-    color: "rgba(0, 0, 0, 1)",
+    color: T.navy,
     fontWeight: "700",
   },
   cardArea: {
@@ -392,51 +411,56 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: 11,
     lineHeight: 17,
-    color: "rgba(74, 85, 101, 1)",
+    color: T.gray,
   },
   cardUsers: {
     marginTop: 4,
     fontFamily: Fonts.medium,
     fontSize: 11,
     lineHeight: 15,
-    color: "rgba(106, 114, 130, 1)",
+    color: T.deepTeal,
+  },
+  chevronWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: T.mint,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    marginTop: 8,
   },
   bottomSection: {
     borderTopWidth: 1,
-    borderTopColor: "#EEF1F5",
-    paddingTop: 22,
-    paddingBottom: 14,
+    borderTopColor: T.border,
+    paddingTop: 16,
+    paddingBottom: 12,
+    paddingHorizontal: 24,
     alignItems: "center",
+    backgroundColor: T.canvas,
   },
   linkRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
+    gap: 4,
     marginTop: 6,
   },
   mutedText: {
     fontFamily: Fonts.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: "rgba(106, 114, 130, 1)",
+    color: T.gray,
   },
-  blueLink: {
-    fontFamily: Fonts.medium,
+  tealLink: {
+    fontFamily: Fonts.semiBold,
     fontSize: 13,
     lineHeight: 18,
-    color: "rgba(0, 124, 250, 1)",
+    color: T.teal,
     fontWeight: "600",
   },
   inviteRow: {
-    marginTop: 15,
+    marginTop: 12,
     flexDirection: "row",
     alignItems: "center",
-  },
-  orangeLink: {
-    fontFamily: Fonts.bold,
-    fontSize: 13,
-    lineHeight: 18,
-    color: "rgba(254, 154, 0, 1)",
-    fontWeight: "700",
   },
 });

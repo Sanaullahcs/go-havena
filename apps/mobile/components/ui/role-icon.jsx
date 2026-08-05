@@ -1,15 +1,15 @@
 import { View, StyleSheet } from "react-native";
 import { Building, UserRound } from "lucide-react-native";
-import { HavenaColors as C } from "../../constants/color-scheme";
+import { HomeTheme as T } from "../../constants/home-theme";
 
 export const ROLE_ICON_THEME = {
   admin: {
-    iconBg: "#D1FAF5",
-    iconColor: C.primary.teal,
+    iconBg: T.mint,
+    iconColor: T.teal,
   },
   resident: {
-    iconBg: "#F0FDF4",
-    iconColor: C.primary.darkTeal,
+    iconBg: T.mint,
+    iconColor: T.teal,
   },
 };
 
@@ -19,7 +19,7 @@ const SIZES = {
 };
 
 /** Havena-themed Lucide icon for admin / resident roles. */
-export default function RoleIcon({ role = "resident", size = "md", bare = false, style }) {
+export default function RoleIcon({ role = "resident", size = "md", bare = false, style, color }) {
   const variant = role === "admin" ? "admin" : "resident";
   const theme = ROLE_ICON_THEME[variant];
   const Icon = variant === "admin" ? Building : UserRound;
@@ -39,7 +39,7 @@ export default function RoleIcon({ role = "resident", size = "md", bare = false,
         style,
       ]}
     >
-      <Icon size={dim.icon} color={theme.iconColor} strokeWidth={1.75} />
+      <Icon size={dim.icon} color={color ?? theme.iconColor} strokeWidth={1.75} />
     </View>
   );
 }

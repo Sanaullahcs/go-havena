@@ -386,6 +386,7 @@ export default function KeyboardSafeScreen({
           collapsable={false}
           style={[
             styles.footerMeasure,
+            footerBorderless && styles.footerMeasureBorderless,
             // Keyboard covers the home indicator — don't stack large bottom inset on top of it
             {
               paddingBottom: keyboardVisible
@@ -432,6 +433,9 @@ const styles = StyleSheet.create({
   footerMeasure: {
     backgroundColor: "#FFFFFF",
   },
+  footerMeasureBorderless: {
+    backgroundColor: "transparent",
+  },
   footer: {
     paddingHorizontal: 18,
     paddingTop: 10,
@@ -443,5 +447,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 0,
     // Keep a real gap above Send Code / primary CTA (was 0 → button sat on the field)
     paddingTop: 16,
+    backgroundColor: "transparent",
   },
 });

@@ -33,6 +33,7 @@ import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import AuthSuccessOverlay from "../../../components/ui/auth-success-overlay";
 import { navigateAfterAuth } from "../../../constants/onboarding-routes";
 import { decodeRoutePhone, paramString } from "../../../utils/route-params";
+import { ScreenBrand as B } from "../../../constants/screen-brand";
 
 export default function VerifyRegistrationScreen() {
   const router = useRouter();
@@ -144,7 +145,7 @@ export default function VerifyRegistrationScreen() {
         >
           <View style={styles.formBlock}>
             <View style={styles.logoContainer}>
-              <AuthLogo compact size={68} />
+              <AuthLogo compact size={68} tileColor={B.primary} />
               <Text style={styles.title}>Verify Your Number</Text>
               <Text style={styles.subtitle}>Enter the 6-digit code sent to</Text>
               <Text style={styles.numberDisplay}>{phoneDisplay}</Text>
@@ -174,6 +175,9 @@ export default function VerifyRegistrationScreen() {
                 enabled={isValid}
                 loading={submitting}
                 onPress={handleVerify}
+                solidColor={B.cta}
+                loadingColor={B.ctaLoading}
+                style={B.buttonShadow}
               />
               <Text style={styles.footerText}>
                 This code will expire in 2 minutes
@@ -190,7 +194,7 @@ export default function VerifyRegistrationScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: B.canvas,
     paddingHorizontal: 24,
   },
   header: {
@@ -222,7 +226,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: 22,
     fontWeight: "700",
-    color: "#000000",
+    color: B.text,
     lineHeight: 32,
     marginTop: 4,
   },
@@ -232,13 +236,13 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     lineHeight: 20,
     textAlign: "center",
-    color: "#364153",
+    color: B.textSecondary,
   },
   numberDisplay: {
     fontFamily: Fonts.bold,
     fontSize: 16,
     fontWeight: "600",
-    color: "#000000",
+    color: B.teal,
     lineHeight: 24,
     marginTop: 4,
   },
@@ -251,24 +255,24 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.medium,
     fontSize: 14,
     fontWeight: "500",
-    color: "#000000",
+    color: B.text,
     lineHeight: 20,
   },
   footerText: {
     textAlign: "center",
     fontSize: 12,
     fontWeight: "400",
-    color: "#6B7280",
+    color: B.textSecondary,
   },
   resendText: {
     textAlign: "center",
     fontSize: 12,
     fontWeight: "400",
-    color: "#6B7280",
+    color: B.textSecondary,
   },
   resendHighlight: {
     fontWeight: "600",
-    color: "#0D9488",
+    color: B.teal,
   },
   resendMuted: {
     opacity: 0.6,
