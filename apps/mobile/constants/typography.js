@@ -98,5 +98,5 @@ export const NativeShadow = {
 export const imageProps = {
   cachePolicy: "memory-disk",
   transition: 150,
-  allowDownscaling: false,
+  allowDownscaling: true,
 };

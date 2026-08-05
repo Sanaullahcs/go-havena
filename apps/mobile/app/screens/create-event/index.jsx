@@ -77,6 +77,13 @@ export default function CreateEventScreen() {
     setDate(next);
     touch("event_date");
     clearError("event_date");
+    // Same-day quick pick should land on a still-upcoming window.
+    if (daysFromToday === 0 && !time) {
+      const start = new Date();
+      start.setMinutes(0, 0, 0);
+      start.setHours(start.getHours() + 1);
+      applyStartTime(start);
+    }
   };
 
   const applyQuickStartInHours = (hoursFromNow) => {

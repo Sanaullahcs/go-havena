@@ -214,7 +214,7 @@ export default function PropertyManagment() {
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
-      <ScreenHeader layout="inline" title="Services" iconOnly />
+      <ScreenHeader layout="inline" title="Properties" showBack={false} iconOnly />
 
       <ScrollView
         showsVerticalScrollIndicator={false}

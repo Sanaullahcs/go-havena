@@ -37,14 +37,7 @@ export function navigatePropertyHubRoute(router, routeKey, routes = PropertyMana
   if (!route || !router) return;
 
   if (HUB_TAB_ROUTE_KEYS.has(routeKey)) {
-    const params = routeKey === "MARKETPLACE" ? { tab: "marketplace" } : undefined;
-    const target = params ? { pathname: route, params } : route;
-
-    if (typeof router.dismissTo === "function") {
-      router.dismissTo(target);
-      return;
-    }
-    router.navigate(target);
+    router.navigate(route);
     return;
   }
 

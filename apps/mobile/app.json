@@ -15,7 +15,11 @@
         "NSFaceIDUsageDescription": "Havena uses Face ID to sign you in quickly and securely.",
         "NSPhotoLibraryUsageDescription": "Allow Havena to save photos from the community feed to your gallery.",
         "NSPhotoLibraryAddUsageDescription": "Allow Havena to save photos from the community feed to your gallery.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true,
+          "NSAllowsArbitraryLoads": true
+        }
       }
     },
     "android": {
@@ -23,6 +27,7 @@
         "backgroundColor": "#0A2A43",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
+      "usesCleartextTraffic": true,
       "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
       "permissions": [

@@ -574,7 +574,7 @@ class MessageController extends Controller
             return null;
         }
 
-        return is_string($images[0]) ? $images[0] : null;
+        return MediaUrl::toPublic(is_string($images[0]) ? $images[0] : null, request());
     }
 
     private function conversationActionUrl(int $conversationId, ?int $listingId = null, ?string $peerName = null): string

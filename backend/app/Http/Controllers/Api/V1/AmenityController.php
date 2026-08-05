@@ -7,6 +7,7 @@ use App\Services\ActivityLogService;
 use App\Services\AdminRoleService;
 use App\Services\NotificationService;
 use App\Support\AmenitySlots;
+use App\Support\MediaUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -779,7 +780,7 @@ class AmenityController extends Controller
             'slots' => $row->status === 'bookable'
                 ? AmenitySlots::generate($start, $end, $duration !== null ? (int) $duration : null, $row->hours ?? null)
                 : [],
-            'image_url' => $row->image_url,
+            'image_url' => MediaUrl::toPublic($row->image_url ?? null, request()),
             'icon_key' => $row->icon_key ?? null,
             'is_mine' => $viewerId !== null && (int) ($row->created_by ?? 0) === $viewerId,
             'created_at' => $row->created_at,

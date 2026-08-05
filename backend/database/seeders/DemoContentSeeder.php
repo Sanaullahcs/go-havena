@@ -57,6 +57,7 @@ class DemoContentSeeder extends Seeder
         // Demo amenities for admin dashboard (idempotent).
         $this->call(AmenitySeeder::class);
         $this->seedNotices($cid, $adminId);
+        $this->archiveLegacyUnscheduledNotices($cid);
         $this->seedEvents($cid, $adminId, $residents);
         $this->seedAlerts($cid, $adminId);
         $this->seedFeed($cid, $residents);
@@ -195,12 +196,17 @@ class DemoContentSeeder extends Seeder
             ['Pet Registration Reminder', 'general', "Please register pets at the management office if you have not already. Include a recent photo and vaccination records. Registered pets help us reunite lost animals quickly.", "{$this->img}/feed-dog.jpg", 10, false],
         ];
 
-        foreach ($rows as [$title, $category, $body, $image, $daysAgo, $pinned]) {
+        foreach ($rows as $index => [$title, $category, $body, $image, $daysAgo, $pinned]) {
+            // Stagger dummy board dates into the coming weeks so home/expiry stay valid.
+            $eventDate = now()->startOfDay()->addDays(2 + ($index * 2));
             $payload = [
                 'author_id' => $adminId,
                 'category' => $category,
                 'body' => $body,
                 'image_url' => $image,
+                'event_date' => $eventDate->toDateString(),
+                'event_time' => '09:00',
+                'event_time_end' => '17:00',
                 'status' => 'published',
                 'review_status' => 'approved',
                 'is_global' => false,
@@ -218,6 +224,70 @@ class DemoContentSeeder extends Seeder
                 $payload
             );
         }
+
+        // Leftover published notices (old uploads) — keep them visible with seed covers + future dates.
+        $this->refreshOrphanNoticeDemoMedia($cid);
+    }
+
+    private function refreshOrphanNoticeDemoMedia(int $cid): void
+    {
+        $demoTitles = [
+            'Welcome to Florida Main Street',
+            'Pool Deck Resurfacing Schedule',
+            'Q3 Community Budget Summary',
+            'Updated Gate Access Codes',
+            'Elevator Modernization Update',
+            'Landscaping Refresh This Month',
+            'Saturday Farmers Market Shuttle',
+            'New Resident Welcome Packets',
+            'Clubhouse Hours Extended',
+            'Pet Registration Reminder',
+            'Summer Community BBQ',
+            'Quarterly Residents Town Hall',
+            'Poolside Movie Night',
+            'Holiday Cookie Exchange',
+            'Sunrise Yoga by the Pool',
+            'Fitness Bootcamp Saturday',
+            'Neighborhood Coffee Meetup',
+            'Kids Arts & Crafts Afternoon',
+            'Tropical Storm Watch: Secure Balconies',
+        ];
+
+        $orphans = DB::table('notices')
+            ->where('community_id', $cid)
+            ->where('status', 'published')
+            ->where('category', '!=', 'emergency')
+            ->whereNotIn('title', $demoTitles)
+            ->orderBy('id')
+            ->get(['id', 'image_url']);
+
+        foreach ($orphans as $i => $row) {
+            $image = $row->image_url;
+            if (! is_string($image) || ! str_starts_with($image, '/storage/seed/')) {
+                $image = "{$this->img}/community-cover.jpg";
+            }
+            DB::table('notices')->where('id', $row->id)->update([
+                'image_url' => $image,
+                'event_date' => now()->startOfDay()->addDays(3 + $i)->toDateString(),
+                'event_time' => '10:00',
+                'event_time_end' => '16:00',
+                'updated_at' => now(),
+            ]);
+        }
+    }
+
+    /** Legacy rows without a schedule no longer belong on the resident board. */
+    private function archiveLegacyUnscheduledNotices(int $cid): void
+    {
+        DB::table('notices')
+            ->where('community_id', $cid)
+            ->whereNull('event_date')
+            ->where('status', 'published')
+            ->where('category', '!=', 'emergency')
+            ->update([
+                'status' => 'archived',
+                'updated_at' => now(),
+            ]);
     }
 
     private function seedEvents(int $cid, int $adminId, array $residents): void

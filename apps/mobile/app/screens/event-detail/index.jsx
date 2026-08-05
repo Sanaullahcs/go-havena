@@ -19,6 +19,7 @@ import ScreenHeader from "../../../components/layout/screen-header";
 import { HeaderIconSlot } from "../../../components/layout/header-chrome";
 import CrispImage from "../../../components/ui/crisp-image";
 import UserAvatar from "../../../components/ui/user-avatar";
+import { NoticeCoverMedia } from "../../../components/notices/notice-cover-thumbnail";
 import { Fonts } from "../../../constants/font";
 import { sf, sw } from "../../../utils/responsive";
 import {
@@ -183,6 +184,7 @@ export default function EventDetailScreen() {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [error, setError] = useState(null);
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
+  const [heroImageFailed, setHeroImageFailed] = useState(false);
 
   const load = useCallback(async () => {
     if (!noticeId) {
@@ -213,6 +215,10 @@ export default function EventDetailScreen() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    setHeroImageFailed(false);
+  }, [event?.imageUrl]);
 
   const scheduleItems = useMemo(() => {
     if (!event) return [];
@@ -441,27 +447,28 @@ export default function EventDetailScreen() {
         onShare={handleShare}
       />
       <ScrollView showsVerticalScrollIndicator={false} bounces>
-        {hasHeroImage ? (
-          <Pressable
-            style={styles.heroBlock}
-            onPress={() => setImagePreviewOpen(true)}
-            accessibilityRole="imagebutton"
-            accessibilityLabel="View event photo"
-          >
-            <CrispImage
-              source={{ uri: event.imageUrl }}
-              style={styles.heroImage}
-              contentFit="cover"
-              contentPosition="center"
-              transition={280}
-              allowDownscaling
-              recyclingKey={event.imageUrl}
-            />
+        <Pressable
+          style={styles.heroBlock}
+          onPress={
+            hasHeroImage && !heroImageFailed ? () => setImagePreviewOpen(true) : undefined
+          }
+          disabled={!hasHeroImage || heroImageFailed}
+          accessibilityRole={hasHeroImage && !heroImageFailed ? "imagebutton" : undefined}
+          accessibilityLabel={
+            hasHeroImage && !heroImageFailed ? "View event photo" : undefined
+          }
+        >
+          <NoticeCoverMedia
+            fill
+            imageUrl={event.imageUrl}
+            onImageError={() => setHeroImageFailed(true)}
+          />
+          {hasHeroImage && !heroImageFailed ? (
             <View style={styles.heroHint} pointerEvents="none">
               <Feather name="maximize-2" size={sf(14)} color="#FFFFFF" />
             </View>
-          </Pressable>
-        ) : null}
+          ) : null}
+        </Pressable>
 
         <View style={styles.upcomingEvent}>
           <Text style={styles.eventTitle}>{event.title}</Text>
@@ -796,7 +803,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: HERO_HEIGHT,
     overflow: "hidden",
-    backgroundColor: "#E2E8F0",
+    backgroundColor: "#D1FAF5",
   },
   heroImage: {
     width: "100%",

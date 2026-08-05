@@ -21,6 +21,7 @@ export default function ScreenHeader({
   layout = "stacked",
   backLabel = "Back",
   showBackLabel = false,
+  showBack = true,
   iconOnly = true,
   compact = false,
   style,
@@ -33,17 +34,21 @@ export default function ScreenHeader({
   const titleStyle = [styles.title, compact && styles.titleCompact];
   const subtitleStyle = [styles.subtitle, compact && styles.subtitleCompact];
 
+  const backControl = showBack ? (
+    <BackButton
+      onPress={handleBack}
+      label={backLabel}
+      showLabel={showBackLabel}
+      iconOnly={iconOnly}
+      compact
+    />
+  ) : null;
+
   if (layout === "back-only") {
     return (
       <HeaderShell style={style} padded={padded}>
         <View style={headerChromeStyles.navRow}>
-          <BackButton
-            onPress={handleBack}
-            label={backLabel}
-            showLabel={showBackLabel}
-            iconOnly={iconOnly}
-            compact
-          />
+          {backControl}
           <View style={headerChromeStyles.right}>{right ?? null}</View>
         </View>
       </HeaderShell>
@@ -54,15 +59,7 @@ export default function ScreenHeader({
     return (
       <HeaderShell style={style} padded={padded}>
         <View style={headerChromeStyles.navRow}>
-          <View style={headerChromeStyles.sideSlot}>
-            <BackButton
-              onPress={handleBack}
-              label={backLabel}
-              showLabel={showBackLabel}
-              iconOnly={iconOnly}
-              compact
-            />
-          </View>
+          <View style={headerChromeStyles.sideSlot}>{backControl}</View>
           <View style={headerChromeStyles.centerSlot}>
             {title ? (
               <Text style={[titleStyle, headerChromeStyles.centerText]}>{title}</Text>
@@ -83,15 +80,7 @@ export default function ScreenHeader({
   return (
     <HeaderShell style={style} padded={padded}>
       <View style={headerChromeStyles.navRow}>
-        <View style={styles.leadSlot}>
-          <BackButton
-            onPress={handleBack}
-            label={backLabel}
-            showLabel={showBackLabel}
-            iconOnly={iconOnly}
-            compact
-          />
-        </View>
+        {showBack ? <View style={styles.leadSlot}>{backControl}</View> : null}
 
         {showStackedText ? (
           <View style={headerChromeStyles.textBlock}>

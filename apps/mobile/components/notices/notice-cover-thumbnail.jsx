@@ -1,11 +1,16 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
-import CrispImage from "../ui/crisp-image";
-import { Fonts } from "../../constants/font";
+import React, { useEffect, useMemo, useState } from "react";
+import { View, StyleSheet } from "react-native";
+import { Image } from "expo-image";
+import { HomeTheme as T } from "../../constants/home-theme";
+import { resolveSeedMediaSource } from "../../constants/seed-media";
 import { mediaImageSource, resolveMediaUrl } from "../../utils/profile-display";
-import { sf, sw } from "../../utils/responsive";
+import { imageProps } from "../../constants/typography";
+import { sw } from "../../utils/responsive";
 
 export function resolveNoticeCoverUrl(imageUrl) {
+  if (resolveSeedMediaSource(imageUrl) != null) {
+    return String(imageUrl).trim();
+  }
   const resolved = resolveMediaUrl(imageUrl);
   if (!resolved) return null;
   const trimmed = String(resolved).trim();
@@ -13,85 +18,114 @@ export function resolveNoticeCoverUrl(imageUrl) {
   return trimmed;
 }
 
-function noticeInitials(label) {
-  const words = String(label ?? "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (words.length === 0) return "?";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return `${words[0].charAt(0)}${words[1].charAt(0)}`.toUpperCase();
+function resolveCoverSource(imageUrl) {
+  if (!imageUrl && imageUrl !== 0) return null;
+  const seed = resolveSeedMediaSource(imageUrl);
+  if (seed != null) return seed;
+  return mediaImageSource(imageUrl);
 }
 
-function NoticeCoverPlaceholder({ size, borderRadius, label, style }) {
-  const initials = noticeInitials(label);
-  const fontSize = Math.max(sf(14), sf(size * (initials.length > 1 ? 0.32 : 0.38)));
-
-  return (
-    <View
-      style={[styles.placeholder, { width: size, height: size, borderRadius }, style]}
-      accessibilityLabel="Notice image placeholder"
-    >
-      <Text style={[styles.initials, { fontSize }]} numberOfLines={1}>
-        {initials}
-      </Text>
-    </View>
-  );
-}
-
-/**
- * Notice list/cover thumbnail — remote image when available, title initials otherwise.
- */
-export default function NoticeCoverThumbnail({
-  imageUrl,
-  title = "",
+/** Blank surface when no cover image is available. */
+export function NoticeCoverPlaceholder({
   size = sw(52),
   borderRadius = sw(10),
   style,
+  fill = false,
+  backgroundColor,
 }) {
-  const [failed, setFailed] = useState(false);
-  const uri = resolveNoticeCoverUrl(imageUrl);
-
-  useEffect(() => {
-    setFailed(false);
-  }, [uri]);
-
-  if (uri && !failed) {
-    return (
-      <CrispImage
-        source={mediaImageSource(uri)}
-        style={[styles.image, { width: size, height: size, borderRadius }, style]}
-        contentFit="cover"
-        onError={() => setFailed(true)}
-      />
-    );
-  }
+  const frameStyle = fill
+    ? StyleSheet.absoluteFillObject
+    : { width: size, height: size, borderRadius };
 
   return (
-    <NoticeCoverPlaceholder
-      size={size}
-      borderRadius={borderRadius}
-      label={title}
-      style={style}
+    <View
+      style={[
+        styles.placeholder,
+        {
+          backgroundColor: backgroundColor ?? T.white,
+          borderRadius: fill ? 0 : borderRadius,
+        },
+        frameStyle,
+        style,
+      ]}
+      accessibilityLabel="Notice cover placeholder"
     />
   );
 }
 
+/** Cover image when available; blank surface otherwise. */
+export function NoticeCoverMedia({
+  imageUrl,
+  size = sw(52),
+  borderRadius = sw(10),
+  style,
+  fill = false,
+  placeholderStyle,
+  backgroundColor,
+  onImageError,
+}) {
+  const [failed, setFailed] = useState(false);
+  const source = useMemo(() => resolveCoverSource(imageUrl), [imageUrl]);
+  const showImage = Boolean(source != null && !failed);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [imageUrl]);
+
+  const frameStyle = fill
+    ? [styles.fillFrame, style]
+    : [styles.frame, { width: size, height: size, borderRadius }, style];
+
+  const imageStyle = fill
+    ? styles.fillImage
+    : { width: size, height: size };
+
+  return (
+    <View style={frameStyle}>
+      <NoticeCoverPlaceholder
+        fill
+        size={size}
+        borderRadius={borderRadius}
+        style={placeholderStyle}
+        backgroundColor={backgroundColor}
+      />
+      {showImage ? (
+        <Image
+          {...imageProps}
+          source={source}
+          style={imageStyle}
+          contentFit="cover"
+          onError={() => {
+            setFailed(true);
+            onImageError?.();
+          }}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+export default function NoticeCoverThumbnail(props) {
+  return <NoticeCoverMedia {...props} />;
+}
+
 const styles = StyleSheet.create({
-  image: {
-    backgroundColor: "#D1FAF5",
+  frame: {
     flexShrink: 0,
+    backgroundColor: T.white,
+    overflow: "hidden",
+  },
+  fillFrame: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: T.white,
+    overflow: "hidden",
+  },
+  fillImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: "100%",
+    height: "100%",
   },
   placeholder: {
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  initials: {
-    fontFamily: Fonts.bold,
-    color: "#0039A6",
-    fontWeight: "800",
+    overflow: "hidden",
   },
 });

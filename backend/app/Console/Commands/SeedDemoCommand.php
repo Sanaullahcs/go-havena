@@ -16,25 +16,21 @@ class SeedDemoCommand extends Command
     public function handle(): int
     {
         $this->info('Linking public storage…');
-        $this->call('storage:link', ['--force' => true]);
+        $publicStorage = public_path('storage');
+        // Windows junctions are often not reported as is_link()/is_dir() by PHP.
+        if (file_exists($publicStorage)) {
+            $this->line('  Storage link already present.');
+        } else {
+            $this->call('storage:link');
+        }
 
         $this->info('Generating demo seed images…');
-        $script = base_path('scripts/generate-seed-images.php');
-        if (! is_file($script)) {
-            $this->error('Missing scripts/generate-seed-images.php');
-
-            return self::FAILURE;
-        }
-
-        $args = escapeshellarg($script);
-        if ($this->option('force-images')) {
-            $args .= ' --force';
-        }
-
-        passthru(PHP_BINARY.' '.$args, $code);
+        $code = $this->generateSeedImages();
         if ($code !== 0) {
             return self::FAILURE;
         }
+
+        $this->syncSeedImagesToMobile();
 
         $this->info('Seeding demo content…');
         $this->call('db:seed', ['--class' => DemoContentSeeder::class, '--force' => true]);
@@ -49,5 +45,74 @@ class SeedDemoCommand extends Command
         $this->line('  Legacy resident:       (555) 555-5555  ·  OTP 123456');
 
         return self::SUCCESS;
+    }
+
+    private function generateSeedImages(): int
+    {
+        $force = $this->option('force-images');
+
+        if (PHP_OS_FAMILY === 'Windows') {
+            $psScript = base_path('scripts/generate-seed-images.ps1');
+            if (! is_file($psScript)) {
+                $this->error('Missing scripts/generate-seed-images.ps1');
+
+                return self::FAILURE;
+            }
+
+            $forceArg = $force ? ' -Force' : '';
+            passthru(
+                'powershell -NoProfile -ExecutionPolicy Bypass -File '
+                .escapeshellarg($psScript)
+                .$forceArg,
+                $code,
+            );
+
+            return $code;
+        }
+
+        $script = base_path('scripts/generate-seed-images.php');
+        if (! is_file($script)) {
+            $this->error('Missing scripts/generate-seed-images.php');
+
+            return self::FAILURE;
+        }
+
+        $args = escapeshellarg($script);
+        if ($force) {
+            $args .= ' --force';
+        }
+
+        passthru(PHP_BINARY.' '.$args, $code);
+
+        return $code;
+    }
+
+    /** Keep Expo bundled seed art in sync with backend/public disk demo JPEGs. */
+    private function syncSeedImagesToMobile(): void
+    {
+        $from = storage_path('app/public/seed');
+        $to = dirname(base_path()).DIRECTORY_SEPARATOR.'apps'.DIRECTORY_SEPARATOR.'mobile'.DIRECTORY_SEPARATOR.'assets'.DIRECTORY_SEPARATOR.'images'.DIRECTORY_SEPARATOR.'seed';
+
+        if (! is_dir($from)) {
+            $this->warn('  No seed image directory to sync.');
+
+            return;
+        }
+
+        if (! is_dir($to) && ! mkdir($to, 0755, true) && ! is_dir($to)) {
+            $this->warn('  Could not create mobile seed assets folder.');
+
+            return;
+        }
+
+        $copied = 0;
+        foreach (glob($from.DIRECTORY_SEPARATOR.'*.jpg') ?: [] as $file) {
+            $name = basename($file);
+            if (@copy($file, $to.DIRECTORY_SEPARATOR.$name)) {
+                $copied++;
+            }
+        }
+
+        $this->line("  Synced {$copied} seed images → apps/mobile/assets/images/seed");
     }
 }

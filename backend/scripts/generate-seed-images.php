@@ -38,8 +38,12 @@ foreach ($whitelist as $name) {
 
     if ($useGd) {
         writeGradientPlaceholder($outPath, $name);
+    } elseif (PHP_OS_FAMILY === 'Windows' && is_file(__DIR__.'/generate-seed-images.ps1')) {
+        fwrite(STDERR, "GD unavailable — run scripts/generate-seed-images.ps1 on Windows.\n");
+        exit(1);
     } else {
-        file_put_contents($outPath, minimalDemoJpeg());
+        fwrite(STDERR, "PHP GD extension is required to generate seed images on this platform.\n");
+        exit(1);
     }
 
     $created++;
@@ -84,20 +88,4 @@ function writeGradientPlaceholder(string $outPath, string $name): void
 
     imagejpeg($img, $outPath, 78);
     imagedestroy($img);
-}
-
-/** Small valid JPEG used when PHP GD is unavailable (e.g. default XAMPP). */
-function minimalDemoJpeg(): string
-{
-    return base64_decode(
-        '/9j/4AAQSkZJRgABAQEASABIAAD/2wCEAAkGBxISEhUQEhIVFhUVFRUVFRUVFRUWFhUV' .
-        'FRUYHSggGBolGxUVITEhJSkrLi4uFx8zODMsNygtLisBCgoKDg0OGxAQGy0lHyUtLS0t' .
-        'LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLf/AABEIAKgBLAMB' .
-        'IQMBIgACEQEDEQH/xAAXAAEBAQEAAAAAAAAAAAAAAAAAAQID/8QAFhEBAQEAAAAAAAAA' .
-        'AAAAAAAAAAAB/9oADAMBAAIQAxAAAAG6P//EABYQAQEBAAAAAAAAAAAAAAAAAAABEf/aAA' .
-        'gBAQABBQL/AP/EABYRAQEBAAAAAAAAAAAAAAAAAAARAf/aAAgBAwEBPwFyP//EABYRAQEB' .
-        'AAAAAAAAAAAAAAAAAAARAf/aAAgBAgEBPwFyP//EABgQAAIDAAAAAAAAAAAAAAAAAAAA' .
-        'AVFx/9oACAEBAAE/AI7/AP/EABYQAQEBAAAAAAAAAAAAAAAAAAARAf/aAAgBAQABPxAyn//Z',
-        true
-    ) ?: '';
 }

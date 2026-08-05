@@ -12,10 +12,11 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
-import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 
 import { Fonts } from "../../constants/font";
+import CrispImage from "../ui/crisp-image";
+import { mediaImageSource } from "../../utils/profile-display";
 import { formatListingPrice } from "./listing-grid-card";
 
 const QUICK_NOTES = [
@@ -140,7 +141,11 @@ export default function ListingOfferSheet({
           >
             <View style={styles.listingCard}>
               {listing.image_url ? (
-                <Image source={{ uri: listing.image_url }} style={styles.listingThumb} contentFit="cover" />
+                <CrispImage
+                  source={mediaImageSource(listing.image_url)}
+                  style={styles.listingThumb}
+                  contentFit="cover"
+                />
               ) : (
                 <View style={[styles.listingThumb, styles.listingThumbPlaceholder]}>
                   <Ionicons name="image-outline" size={18} color="#9CA3AF" />

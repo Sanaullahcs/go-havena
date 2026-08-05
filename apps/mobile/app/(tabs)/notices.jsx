@@ -186,7 +186,6 @@ export default function Notifications() {
           <View style={styles.cardData}>
             <NoticeCoverThumbnail
               imageUrl={notice.imageUrl}
-              title={notice.title}
               size={sw(52)}
               borderRadius={sw(10)}
             />

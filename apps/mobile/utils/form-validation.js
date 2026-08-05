@@ -192,6 +192,24 @@ export function validateNoticeForm(form, opts = {}) {
     }
   }
 
+  // Prevent publishing a same-day event/notice that already ended.
+  if (
+    (kind === "event" || kind === "notice") &&
+    String(form.event_date ?? "").trim() &&
+    String(form.event_time_end ?? "").trim()
+  ) {
+    const day = String(form.event_date).trim().slice(0, 10);
+    const endMin = parseTimeMinutes(form.event_time_end);
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    if (day === today && endMin != null) {
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      if (endMin <= nowMin) {
+        errors.event_time_end = "End time must be later than now for today's date.";
+      }
+    }
+  }
+
   if (kind === "notice" && form.audience_type === "selected" && (form.recipient_user_ids?.length ?? 0) === 0) {
     errors.recipient_user_ids = "Select at least one resident.";
   }

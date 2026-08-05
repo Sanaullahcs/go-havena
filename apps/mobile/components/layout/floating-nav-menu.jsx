@@ -16,42 +16,40 @@ import { sw, sf } from "../../utils/responsive";
 import { getUser } from "../../services/auth-session";
 import { isGuestUser } from "../../services/community-access";
 import { guestCanAccessFeature } from "../../constants/guest-permissions";
+import { navigateAppRoute } from "../../utils/app-navigation";
 
 const ACTIVE = T.teal;
 const INACTIVE = T.gray;
-const FAB_SIZE = sw(50);
 const ICON_SIZE = sf(22);
 const LABEL_SIZE = sf(9);
 
-const LEFT_TABS = [
-  {
-    name: "home",
-    label: "Home",
-    href: "/(tabs)/home",
-    icon: { set: "ion", active: "home", inactive: "home-outline" },
-  },
-  {
-    name: "marketplace",
-    label: "Community",
-    href: "/(tabs)/marketplace",
-    icon: { set: "ion", active: "people", inactive: "people-outline" },
-  },
-];
+const HOME_TAB = {
+  name: "home",
+  label: "Home",
+  href: "/home",
+  icon: { set: "ion", active: "home", inactive: "home-outline" },
+};
 
-const RIGHT_TABS = [
-  {
-    name: "manage",
-    label: "Services",
-    href: "/(tabs)/services",
-    icon: { set: "ion", active: "grid", inactive: "grid-outline" },
-  },
-  {
-    name: "profile",
-    label: "Profile",
-    href: "/(tabs)/profile",
-    icon: { set: "ion", active: "person", inactive: "person-outline" },
-  },
-];
+const MARKETPLACE_TAB = {
+  name: "marketplace",
+  label: "Marketplace",
+  href: "/marketplace",
+  icon: { set: "ion", active: "storefront", inactive: "storefront-outline" },
+};
+
+const PROPERTIES_TAB = {
+  name: "properties",
+  label: "Properties",
+  href: "/services",
+  icon: { set: "ion", active: "business", inactive: "business-outline" },
+};
+
+const PROFILE_TAB = {
+  name: "profile",
+  label: "Profile",
+  href: "/profile",
+  icon: { set: "ion", active: "person", inactive: "person-outline" },
+};
 
 const ADMIN_TAB = {
   name: "admin",
@@ -77,22 +75,27 @@ function NavIcon({ item, focused }) {
 }
 
 function getActiveTab(segments, pathname) {
-  if (pathname?.includes("admin-dashboard") || pathname?.includes("admin-members")) return "admin";
+  if (pathname?.includes("admin-dashboard") || pathname?.includes("admin-members")) {
+    return "admin";
+  }
   if (
     segments.includes("services") ||
     pathname?.includes("property-management") ||
     pathname?.includes("admin-bookings") ||
     pathname?.includes("admin-amenities")
   ) {
-    return "manage";
+    return "properties";
   }
+
   const tabIndex = segments[0] === "(tabs)" ? 1 : 0;
   const tab = segments[tabIndex];
+
   if (!tab || tab === "home") return "home";
   if (tab === "marketplace") return "marketplace";
-  if (tab === "services") return "manage";
+  if (tab === "services") return "properties";
   if (tab === "profile") return "profile";
-  if (tab === "notices") return "home";
+  if (tab === "notices" || tab === "wellness") return "home";
+
   if (
     pathname === "/profile" ||
     pathname === "/(tabs)/profile" ||
@@ -100,9 +103,15 @@ function getActiveTab(segments, pathname) {
   ) {
     return "profile";
   }
+
   return "home";
 }
 
+/**
+ * Bottom tabs by role:
+ * Resident — Home | Marketplace | Create | Properties | Profile
+ * Admin    — Home | Marketplace | Create | Admin | Properties
+ */
 export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = false }) {
   const [guestUser, setGuestUser] = useState(null);
   const insets = useSafeAreaInsets();
@@ -116,7 +125,9 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
       const user = await getUser();
       if (!cancelled) setGuestUser(user);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [pathname]);
 
   const filterTabs = useCallback(
@@ -131,16 +142,22 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
     [guestUser],
   );
 
-  const leftTabs = useMemo(() => filterTabs(LEFT_TABS), [filterTabs]);
+  const leftTabs = useMemo(
+    () => filterTabs([HOME_TAB, MARKETPLACE_TAB]),
+    [filterTabs],
+  );
+
   const rightTabs = useMemo(() => {
-    let tabs = [...RIGHT_TABS];
-    if (isCommunityAdmin) {
-      tabs = [ADMIN_TAB, ...tabs];
-    }
+    const tabs = isCommunityAdmin
+      ? [ADMIN_TAB, PROPERTIES_TAB]
+      : [PROPERTIES_TAB, PROFILE_TAB];
     return filterTabs(tabs);
   }, [isCommunityAdmin, filterTabs]);
 
-  const activeTab = useMemo(() => getActiveTab(segments, pathname), [segments, pathname]);
+  const activeTab = useMemo(
+    () => getActiveTab(segments, pathname),
+    [segments, pathname],
+  );
   const bottomPad = Math.max(insets.bottom, Platform.OS === "android" ? 8 : 4);
 
   const haptic = useCallback(() => {
@@ -153,11 +170,10 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
     (item) => {
       haptic();
       if (!item.href) return;
-      if (item.name === "marketplace" || item.name === "profile" || item.name === "home") {
-        if (typeof router.dismissTo === "function") {
-          router.dismissTo(item.href);
-          return;
-        }
+      // Always navigate for tab switches — dismissTo fails across sibling tabs.
+      if (item.name === "admin") {
+        navigateAppRoute(router, item.href);
+        return;
       }
       router.navigate(item.href);
     },
@@ -192,7 +208,6 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
       <View style={styles.barContent}>
         {leftTabs.map(renderTab)}
 
-        {/* Center create button */}
         <Pressable
           style={styles.fabTab}
           onPress={onCenterPress}

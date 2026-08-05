@@ -20,7 +20,7 @@ import { isFeatureAccessBlockedError } from "../../utils/guest-permission-errors
 export default function Home() {
   const menu = useSideMenu();
   const {
-    notices,
+    carouselNotices,
     upcomingEvents,
     posts,
     setPosts,
@@ -67,7 +67,7 @@ export default function Home() {
             />
           ) : (
             <>
-              <Notices items={notices} />
+              <Notices items={carouselNotices} />
               <HappeningSoon items={upcomingEvents} />
               <Communities posts={posts} onPostsChange={setPosts} />
               <DealsCornor items={deals} />

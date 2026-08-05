@@ -328,10 +328,16 @@ export function pickNeighborhoodCarousel(notices, limit = HOME_SECTION_CARD_LIMI
 }
 
 /** Home "Happening Soon" — upcoming events sorted by date (past dates hidden). */
+export function isUpcomingEventForHome(notice) {
+  if (!notice?.isEvent && !isEventNotice(notice)) return false;
+  const dayKey = notice?.eventDate ?? notice?.event_date;
+  if (!dayKey) return true;
+  return !isNoticeExpiredForHome(notice);
+}
+
 export function pickUpcomingEvents(notices, limit = HOME_SECTION_CARD_LIMIT) {
   return notices
-    .filter((n) => n.isEvent)
-    .filter((n) => !isNoticeExpiredForHome(n))
+    .filter(isUpcomingEventForHome)
     .sort((a, b) => {
       const aPin = a.isPinned ? 1 : 0;
       const bPin = b.isPinned ? 1 : 0;
@@ -354,7 +360,10 @@ export async function fetchNotices({ category, categoryGroup, search, perPage = 
 
   try {
     const res = await apiRequest(`/notices${qs}`);
-    const items = (res.data ?? []).map(normalizeNotice).filter(Boolean);
+    const items = (res.data ?? [])
+      .map(normalizeNotice)
+      .filter(Boolean)
+      .filter((n) => !isNoticeExpiredForHome(n));
     return {
       notices: sortNotices(items),
       meta: res.meta ?? {},

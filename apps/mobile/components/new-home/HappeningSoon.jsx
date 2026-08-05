@@ -5,16 +5,18 @@ import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { Home, homeStyles } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
-import CrispImage from "../ui/crisp-image";
+import { NoticeCoverMedia } from "../notices/notice-cover-thumbnail";
 import HomeSectionHeader from "./section-header";
 import HomeSectionEmpty from "./home-section-empty";
 import { formatEventTimeRange, formatLongDate, getNoticeDetailRoute } from "../../services/notices-api";
-import { getProfileInitial } from "../../utils/profile-display";
-import { sw, sf, hp } from "../../utils/responsive";
+import { PropertyManagementRoutes } from "../../constants/property-management-routes";
+import { navigateAppRoute } from "../../utils/app-navigation";
+import { sw, sf } from "../../utils/responsive";
 
 const CARD_GAP = sw(12);
 const PEEK = sw(32);
 const CARD_RADIUS = sw(16);
+const BODY_MIN_H = sw(98);
 
 function mapEventToCard(notice) {
   return {
@@ -30,31 +32,22 @@ function mapEventToCard(notice) {
   };
 }
 
-function EventCard({ item, width, imageH, onPress }) {
-  const initial = getProfileInitial(item.title ?? "E");
-
+function EventCard({ item, width, imageH, cardHeight, onPress }) {
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
-        { width },
+        { width, height: cardHeight },
         pressed && styles.cardPressed,
       ]}
     >
-      <View style={styles.cardInner}>
+      <View style={[styles.cardInner, { height: cardHeight }]}>
         <View style={[styles.imageWrap, { height: imageH }]}>
-          {item.imageUrl ? (
-            <CrispImage
-              source={{ uri: item.imageUrl }}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-            />
-          ) : (
-            <View style={styles.imagePlaceholder}>
-              <Text style={styles.imageInitial}>{initial}</Text>
-            </View>
-          )}
+          <NoticeCoverMedia
+            fill
+            imageUrl={item.imageUrl}
+          />
           {item.date ? (
             <View style={styles.dateBadge}>
               <Feather name="calendar" size={sf(10)} color={T.navy} />
@@ -63,20 +56,28 @@ function EventCard({ item, width, imageH, onPress }) {
           ) : null}
         </View>
 
-        <View style={styles.body}>
-          <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
-          {item.time ? (
-            <View style={styles.metaRow}>
-              <Feather name="clock" size={sf(11)} color={T.teal} />
-              <Text style={styles.metaText}>{item.time}</Text>
-            </View>
-          ) : null}
-          {item.location ? (
-            <View style={styles.metaRow}>
-              <Feather name="map-pin" size={sf(11)} color={T.teal} />
-              <Text style={styles.metaText} numberOfLines={1}>{item.location}</Text>
-            </View>
-          ) : null}
+        <View style={[styles.body, { height: cardHeight - imageH }]}>
+          <Text style={styles.title} numberOfLines={2}>
+            {item.title}
+          </Text>
+          <View style={styles.metaBlock}>
+            {item.time ? (
+              <View style={styles.metaRow}>
+                <Feather name="clock" size={sf(11)} color={T.teal} />
+                <Text style={styles.metaText} numberOfLines={1}>
+                  {item.time}
+                </Text>
+              </View>
+            ) : null}
+            {item.location ? (
+              <View style={styles.metaRow}>
+                <Feather name="map-pin" size={sf(11)} color={T.teal} />
+                <Text style={styles.metaText} numberOfLines={1}>
+                  {item.location}
+                </Text>
+              </View>
+            ) : null}
+          </View>
         </View>
       </View>
     </Pressable>
@@ -93,8 +94,9 @@ export default function HappeningSoon({ items = [] }) {
     const contentWidth = screenWidth - Home.gutter * 2;
     const cardWidth = Math.floor((contentWidth - CARD_GAP - PEEK) / 2);
     const imageH = Math.round(cardWidth * 0.65);
+    const cardHeight = imageH + BODY_MIN_H;
     const snap = cardWidth + CARD_GAP;
-    return { cardWidth, imageH, snap };
+    return { cardWidth, imageH, cardHeight, snap };
   }, [screenWidth]);
 
   const openEvent = useCallback(
@@ -106,22 +108,26 @@ export default function HappeningSoon({ items = [] }) {
 
   const renderItem = useCallback(
     ({ item }) => (
-      <View style={{ width: layout.cardWidth, flexShrink: 0 }}>
+      <View style={{ width: layout.cardWidth, height: layout.cardHeight, flexShrink: 0 }}>
         <EventCard
           item={item}
           width={layout.cardWidth}
           imageH={layout.imageH}
+          cardHeight={layout.cardHeight}
           onPress={() => openEvent(item)}
         />
       </View>
     ),
-    [layout.cardWidth, layout.imageH, openEvent],
+    [layout.cardWidth, layout.imageH, layout.cardHeight, openEvent],
   );
 
   if (!events.length) {
     return (
       <View style={homeStyles.section}>
-        <HomeSectionHeader label="Happening Soon" onPress={() => router.push("/(tabs)/notices")} />
+        <HomeSectionHeader
+          label="Happening Soon"
+          onPress={() => navigateAppRoute(router, PropertyManagementRoutes.NOTICES)}
+        />
         <HomeSectionEmpty message="No upcoming events" hint="Community events will appear here." />
       </View>
     );
@@ -129,11 +135,14 @@ export default function HappeningSoon({ items = [] }) {
 
   return (
     <View style={homeStyles.section}>
-      <HomeSectionHeader label="Happening Soon" onPress={() => router.push("/(tabs)/notices")} />
+      <HomeSectionHeader
+        label="Happening Soon"
+        onPress={() => navigateAppRoute(router, PropertyManagementRoutes.NOTICES)}
+      />
       <FlatList
         data={events}
         horizontal
-        style={styles.carousel}
+        style={[styles.carousel, { height: layout.cardHeight }]}
         showsHorizontalScrollIndicator={false}
         decelerationRate="fast"
         snapToInterval={layout.snap}
@@ -177,20 +186,9 @@ const styles = StyleSheet.create({
   },
   imageWrap: {
     width: "100%",
-    backgroundColor: T.mint,
+    backgroundColor: T.white,
     position: "relative",
-  },
-  imagePlaceholder: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: T.mint,
-  },
-  imageInitial: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(24),
-    color: T.navy,
-    fontWeight: "700",
+    overflow: "hidden",
   },
   dateBadge: {
     position: "absolute",
@@ -213,7 +211,8 @@ const styles = StyleSheet.create({
   body: {
     paddingHorizontal: sw(10),
     paddingTop: sw(10),
-    paddingBottom: sw(12),
+    paddingBottom: sw(10),
+    justifyContent: "space-between",
   },
   title: {
     fontFamily: Fonts.bold,
@@ -221,13 +220,14 @@ const styles = StyleSheet.create({
     lineHeight: sf(17),
     color: T.navy,
     fontWeight: "700",
-    marginBottom: sw(6),
+  },
+  metaBlock: {
+    gap: sw(3),
   },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: sw(5),
-    marginTop: sw(3),
   },
   metaText: {
     fontFamily: Fonts.regular,

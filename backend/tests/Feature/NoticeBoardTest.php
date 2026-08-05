@@ -194,6 +194,36 @@ class NoticeBoardTest extends TestCase
             ->assertJsonCount(0, 'data');
     }
 
+    public function test_resident_list_excludes_expired_scheduled_notices(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        Sanctum::actingAs($admin);
+
+        $active = $this->postJson('/api/v1/admin/notices', array_merge([
+            'title'    => 'Upcoming maintenance',
+            'body'     => 'Still relevant.',
+            'category' => 'maintenance',
+        ], $this->scheduleFields(now()->addDay()->toDateString())))->assertCreated();
+
+        $expired = $this->postJson('/api/v1/admin/notices', array_merge([
+            'title'    => 'Past maintenance',
+            'body'     => 'Should be hidden.',
+            'category' => 'maintenance',
+        ], $this->scheduleFields(now()->subDay()->toDateString())))->assertCreated();
+
+        Sanctum::actingAs($resident);
+
+        $response = $this->getJson('/api/v1/notices')->assertOk();
+        $ids = collect($response->json('data'))->pluck('id')->all();
+
+        $this->assertContains($active->json('data.id'), $ids);
+        $this->assertNotContains($expired->json('data.id'), $ids);
+
+        $this->getJson('/api/v1/notices/'.$expired->json('data.id'))
+            ->assertNotFound();
+    }
+
     public function test_resident_can_submit_event_pending_until_admin_approves(): void
     {
         ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();

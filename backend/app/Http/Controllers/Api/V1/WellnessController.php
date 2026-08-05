@@ -137,7 +137,7 @@ class WellnessController extends Controller
                 'category_color'   => $course->category_color,
                 'title'            => $course->title,
                 'description'      => $course->description,
-                'image_url'        => $course->image_url,
+                'image_url'        => MediaUrl::toPublic($course->image_url, $request),
                 'lessons'          => $lessons->values(),
                 'completed_count'  => $completed,
                 'total_count'      => $total,
@@ -318,7 +318,7 @@ class WellnessController extends Controller
                         ?: ('From '.$lesson->course_title),
                     'duration_min' => (int) $lesson->duration_min,
                     // Lessons have no image_url column; reuse the parent course image.
-                    'image_url'    => $lesson->course_image_url,
+                    'image_url'    => MediaUrl::toPublic($lesson->course_image_url, request()),
                     'completed'    => in_array((int) $lesson->id, array_map('intval', $completedLessonIds), true),
                 ];
             })->values();
@@ -469,7 +469,7 @@ class WellnessController extends Controller
             'id'               => $course->id,
             'title'            => $course->title,
             'description'      => $course->description,
-            'image_url'        => $course->image_url,
+            'image_url'        => MediaUrl::toPublic($course->image_url, request()),
             'lesson_count'     => $totalLessons,
             'duration_min'     => $duration,
             'lessons_label'    => "{$totalLessons} lessons • {$duration} min",

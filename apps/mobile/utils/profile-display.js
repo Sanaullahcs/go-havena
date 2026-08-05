@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "../constants/api-config";
+import { resolveSeedMediaSource } from "../constants/seed-media";
 import { formatDisplayEmail } from "./form-validation";
 import { isGuestUser } from "../services/community-access";
 
@@ -69,7 +70,13 @@ export function resolveMediaUrl(path) {
 
 /** expo-image source with localtunnel bypass header when needed. */
 export function mediaImageSource(uriOrSource) {
-  if (!uriOrSource) return null;
+  if (!uriOrSource && uriOrSource !== 0) return null;
+
+  // Metro asset module from require(...)
+  if (typeof uriOrSource === "number") return uriOrSource;
+
+  const seedLocal = resolveSeedMediaSource(uriOrSource);
+  if (seedLocal != null) return seedLocal;
 
   if (typeof uriOrSource === "object" && !uriOrSource.uri) {
     return uriOrSource;
@@ -78,6 +85,10 @@ export function mediaImageSource(uriOrSource) {
   const uri = typeof uriOrSource === "string" ? uriOrSource : uriOrSource.uri;
   const resolved = resolveMediaUrl(uri);
   if (!resolved) return null;
+
+  // Prefer bundled demo art whenever the path is a seed file (also covers rewritten hosts).
+  const seedFromResolved = resolveSeedMediaSource(resolved);
+  if (seedFromResolved != null) return seedFromResolved;
 
   const needsBypass =
     resolved.includes("loca.lt") || API_BASE_URL.includes("loca.lt");
@@ -161,4 +172,16 @@ export function getProfileFields(user) {
 export function getProfileInitial(name) {
   const trimmed = String(name ?? "").trim();
   return trimmed.charAt(0).toUpperCase() || "?";
+}
+
+/** Up to two initials from a display name (e.g. "Jane Doe" → "JD"). */
+export function getDisplayInitials(name) {
+  const words = String(name ?? "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (words.length === 0) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return `${words[0].charAt(0)}${words[1].charAt(0)}`.toUpperCase();
 }

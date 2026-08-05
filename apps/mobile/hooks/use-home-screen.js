@@ -20,6 +20,7 @@ import {
 
 export function useHomeScreen() {
   const [notices, setNotices] = useState([]);
+  const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [posts, setPosts] = useState([]);
   const [deals, setDeals] = useState([]);
   const [wellnessCategories, setWellnessCategories] = useState([]);
@@ -31,6 +32,7 @@ export function useHomeScreen() {
 
   const clearHomeData = useCallback(() => {
     setNotices([]);
+    setUpcomingEvents([]);
     setPosts([]);
     setDeals([]);
     setWellnessCategories([]);
@@ -94,6 +96,7 @@ export function useHomeScreen() {
         eventsResult.status === "fulfilled" ? eventsResult.value.notices ?? [] : [];
 
       setNotices([...carouselItems, ...eventItems]);
+      setUpcomingEvents(pickUpcomingEvents(eventItems));
 
       if (feedResult.status === "fulfilled") {
         setPosts(pickHomeFeedPosts(feedResult.value.posts ?? []));
@@ -138,11 +141,6 @@ export function useHomeScreen() {
 
   const carouselNotices = useMemo(
     () => pickNeighborhoodCarousel(notices),
-    [notices],
-  );
-
-  const upcomingEvents = useMemo(
-    () => pickUpcomingEvents(notices),
     [notices],
   );
 

@@ -9,7 +9,7 @@ import {
   Platform,
   StatusBar,
 } from "react-native";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -21,20 +21,22 @@ import {
   formatShortDate,
   getCategoryTheme,
 } from "../../services/notices-api";
-import { Image } from "expo-image";
 import CrispImage from "../ui/crisp-image";
-import { Media } from "../../constants/media";
+import { NoticeCoverMedia } from "../notices/notice-cover-thumbnail";
+import { mediaImageSource } from "../../utils/profile-display";
 import { sw, sf } from "../../utils/responsive";
 import HomeSectionEmpty from "./home-section-empty";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
+import { MarketplaceRoutes } from "../../constants/marketplace-routes";
+import { navigateAppRoute } from "../../utils/app-navigation";
 
 const QUICK_ACTIONS = [
   { id: "post", title: "Post", icon: "edit-3", route: "/screens/create-post" },
   { id: "book", title: "Book", icon: "calendar", route: PropertyManagementRoutes.AMENITY },
-  { id: "sell", title: "Sell", icon: "shopping-bag", route: "/screens/createListing" },
-  { id: "notices", title: "Notices", icon: "bell", route: "/(tabs)/notices" },
-  { id: "feed", title: "Feed", icon: "message-circle", route: "/(tabs)/marketplace" },
-  { id: "deals", title: "Deals", icon: "percent", route: "/(tabs)/marketplace" },
+  { id: "sell", title: "Sell", icon: "shopping-bag", route: MarketplaceRoutes.CREATE_LISTING },
+  { id: "notices", title: "Notices", icon: "bell", route: PropertyManagementRoutes.NOTICES },
+  { id: "feed", title: "Feed", icon: "message-circle", route: "/screens/community-feed" },
+  { id: "deals", title: "Deals", icon: "percent", route: MarketplaceRoutes.DEALS },
   { id: "wellness", title: "Wellness", icon: "heart", route: "/(tabs)/wellness" },
   { id: "docs", title: "Docs", icon: "file-text", route: PropertyManagementRoutes.DOCUMENTS },
   { id: "bookings", title: "Bookings", icon: "clipboard", route: PropertyManagementRoutes.MY_BOOKING },
@@ -42,7 +44,7 @@ const QUICK_ACTIONS = [
 ];
 
 const QA_TILE_W = sw(64);
-const QA_GAP = sw(6);
+const QA_GAP = sw(20);
 
 const HERO_HEIGHT = sw(175);
 
@@ -64,8 +66,13 @@ function mapNoticeToHero(notice) {
 }
 
 function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
+  const [imageFailed, setImageFailed] = useState(false);
   const hasRemoteImage = Boolean(item.imageUrl);
   const hasSchedule = item.dateLabel || item.timeStart;
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [item.imageUrl]);
 
   const circleD = cardWidth * 1.5;
   const curveRight = cardWidth * 0.40;
@@ -74,19 +81,11 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
     <View style={[styles.heroShell, { width: cardWidth, height: HERO_HEIGHT }]}>
       {/* Layer 1 — image positioned on the right side only */}
       <View style={styles.imageArea}>
-        {hasRemoteImage ? (
-          <CrispImage
-            source={{ uri: item.imageUrl }}
-            style={StyleSheet.absoluteFill}
-            contentFit="cover"
-          />
-        ) : (
-          <Image
-            source={Media.heroEvent}
-            style={StyleSheet.absoluteFill}
-            contentFit="cover"
-          />
-        )}
+        <NoticeCoverMedia
+          fill
+          imageUrl={item.imageUrl}
+          onImageError={() => setImageFailed(true)}
+        />
       </View>
 
       {/* Layer 2 — curved navy panel (oversized circle, clipped) */}
@@ -156,7 +155,7 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
       </View>
 
       {/* Layer 5 — image tap zone */}
-      {hasRemoteImage ? (
+      {hasRemoteImage && !imageFailed ? (
         <Pressable
           onPress={() => onImagePress?.()}
           style={styles.imageTap}
@@ -170,6 +169,13 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
 
 function QuickActionsRow() {
   const router = useRouter();
+
+  const openAction = useCallback(
+    (route) => {
+      navigateAppRoute(router, route);
+    },
+    [router],
+  );
 
   return (
     <View style={styles.qaWrap}>
@@ -193,7 +199,7 @@ function QuickActionsRow() {
         })}
         renderItem={({ item }) => (
           <Pressable
-            onPress={() => router.push(item.route)}
+            onPress={() => openAction(item.route)}
             style={({ pressed }) => [
               styles.qaTile,
               pressed && styles.qaTilePressed,
@@ -252,7 +258,7 @@ export default function Notices({ items = [] }) {
           params: { id: String(item.notice.id) },
         });
       } else {
-        router.push("/(tabs)/notices");
+        navigateAppRoute(router, PropertyManagementRoutes.NOTICES);
       }
     },
     [router],
@@ -341,7 +347,7 @@ export default function Notices({ items = [] }) {
             onPress={() => setPreviewImage(null)}
           />
           <CrispImage
-            source={{ uri: previewImage }}
+            source={mediaImageSource(previewImage) ?? { uri: previewImage }}
             style={styles.previewImage}
             contentFit="contain"
           />
@@ -435,6 +441,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: "45%",
   },
+
   badge: {
     flexDirection: "row",
     alignItems: "center",

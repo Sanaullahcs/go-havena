@@ -13,6 +13,7 @@ import { Feather } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import UserAvatar from "../../../components/ui/user-avatar";
 import CrispImage from "../../../components/ui/crisp-image";
+import { NoticeCoverMedia } from "../../../components/notices/notice-cover-thumbnail";
 import { Fonts } from "../../../constants/font";
 import { Colors, Layout, Shadows } from "../../../constants/tokens";
 import { fetchNotice, getCategoryTheme, formatDisplayTime12h } from "../../../services/notices-api";
@@ -82,6 +83,7 @@ export default function NoticeDetailScreen() {
   const [notice, setNotice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [heroImageFailed, setHeroImageFailed] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) {
@@ -104,6 +106,10 @@ export default function NoticeDetailScreen() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    setHeroImageFailed(false);
+  }, [notice?.imageUrl]);
 
   const theme = useMemo(
     () => (notice ? getCategoryTheme(notice.category) : getCategoryTheme("general")),
@@ -163,10 +169,17 @@ export default function NoticeDetailScreen() {
       >
         {/* Hero */}
         <View style={[styles.hero, { height: HERO_HEIGHT }]}>
-          {notice?.imageUrl ? (
+          {notice ? (
             <>
-              <CrispImage source={{ uri: notice.imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(15,23,42,0.55)" }]} />
+              <NoticeCoverMedia
+                fill
+                imageUrl={notice.imageUrl}
+                backgroundColor={heroBg}
+                onImageError={() => setHeroImageFailed(true)}
+              />
+              {notice.imageUrl && !heroImageFailed ? (
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(15,23,42,0.55)" }]} />
+              ) : null}
             </>
           ) : (
             <View style={[StyleSheet.absoluteFill, { backgroundColor: heroBg }]} />

@@ -12,6 +12,7 @@ use App\Services\NoticeAudienceService;
 use App\Services\NotificationService;
 use App\Services\ScheduledNoticeService;
 use App\Support\MediaUrl;
+use App\Support\NoticeExpiry;
 use App\Support\NoticeSchedule;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -76,6 +77,8 @@ class NoticeController extends Controller
         $query->where('notices.status', 'published')
             ->where('notices.review_status', 'approved');
 
+        NoticeExpiry::applyVisibleScheduleFilter($query, 'notices', $communityId);
+
         if (! $this->isPlatformAdmin($user)) {
             NoticeAudienceService::applyResidentVisibilityFilter($query, (int) $user->id);
         }
@@ -100,7 +103,7 @@ class NoticeController extends Controller
             });
         }
 
-        $notices = $this->applyNoticeOrdering($query)
+        $notices = $this->applyNoticeOrdering($query, $communityId)
                          ->paginate($request->per_page ?? 15);
 
         $items     = $notices->items();
@@ -223,6 +226,10 @@ class NoticeController extends Controller
         }
 
         if (! $this->isPlatformAdmin($user) && ! NoticeAudienceService::canUserViewNotice($notice, (int) $user->id)) {
+            return response()->json(['message' => 'Notice not found'], 404);
+        }
+
+        if (! $this->isPlatformAdmin($user) && NoticeExpiry::isExpired($notice, null, (int) $notice->community_id)) {
             return response()->json(['message' => 'Notice not found'], 404);
         }
 
@@ -1381,33 +1388,15 @@ class NoticeController extends Controller
         return max(1, (int) $notice->event_capacity);
     }
 
-    private function applyNoticeOrdering($query)
+    private function applyNoticeOrdering($query, ?int $communityId = null)
     {
-        return $query
-            ->orderByRaw($this->activePinOrderSql())
-            ->orderByDesc('notices.created_at');
-    }
+        $now = NoticeExpiry::nowInTimezone($communityId);
+        $today = $now->toDateString();
+        $time = $now->format('H:i');
 
-    /** Pinned items first while the event has not expired. */
-    private function activePinOrderSql(): string
-    {
-        return <<<'SQL'
-CASE
-    WHEN notices.is_pinned = 1 AND (
-        notices.event_date IS NULL
-        OR notices.event_date > CURDATE()
-        OR (
-            notices.event_date = CURDATE()
-            AND (
-                notices.event_time_end IS NULL
-                OR notices.event_time_end = ''
-                OR STR_TO_DATE(notices.event_time_end, '%H:%i') >= CURTIME()
-            )
-        )
-    ) THEN 0
-    ELSE 1
-END
-SQL;
+        return $query
+            ->orderByRaw(NoticeExpiry::activePinOrderSql('notices', $today, $time))
+            ->orderByDesc('notices.created_at');
     }
 
     private function isPinActive(object $notice): bool
@@ -1416,31 +1405,7 @@ SQL;
             return false;
         }
 
-        if (empty($notice->event_date)) {
-            return true;
-        }
-
-        $eventDay = strtotime((string) $notice->event_date);
-        $today    = strtotime(date('Y-m-d'));
-
-        if ($eventDay < $today) {
-            return false;
-        }
-
-        if ($eventDay > $today) {
-            return true;
-        }
-
-        $endTime = trim((string) ($notice->event_time_end ?? ''));
-        if ($endTime === '') {
-            return true;
-        }
-
-        $parts = explode(':', $endTime);
-        $hour  = (int) ($parts[0] ?? 0);
-        $min   = (int) ($parts[1] ?? 0);
-
-        return (int) date('H') < $hour || ((int) date('H') === $hour && (int) date('i') <= $min);
+        return ! NoticeExpiry::isExpired($notice, null, (int) ($notice->community_id ?? 0));
     }
 
     private function communityStats(int $communityId, $user): array

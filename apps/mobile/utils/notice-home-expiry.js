@@ -20,20 +20,26 @@ function parseClockTime(timeStr) {
 
 /** True when a notice should be hidden from home sections after its schedule window ends. */
 export function isNoticeExpiredForHome(notice, now = new Date()) {
+  const category = String(notice?.category ?? "").trim().toLowerCase();
+  const isEvent = category === "event" || notice?.isEvent === true;
   const dayKey = noticeDayKey(notice?.eventDate ?? notice?.event_date);
-  if (!dayKey) return false;
+  if (!dayKey) {
+    return category !== "emergency" && !isAlertNotice(notice);
+  }
 
   const todayKey = todayDayKey(now);
   if (dayKey < todayKey) return true;
+  if (dayKey > todayKey) return false;
 
-  if (dayKey === todayKey) {
-    const endTime = notice.eventTimeEnd ?? notice.event_time_end;
-    const clock = parseClockTime(endTime);
-    if (clock) {
-      const end = new Date(now);
-      end.setHours(clock.hour, clock.minute, 0, 0);
-      return now > end;
-    }
+  // Events stay on Happening Soon for the full calendar day.
+  if (isEvent) return false;
+
+  const endTime = notice.eventTimeEnd ?? notice.event_time_end;
+  const clock = parseClockTime(endTime);
+  if (clock) {
+    const end = new Date(now);
+    end.setHours(clock.hour, clock.minute, 0, 0);
+    return now > end;
   }
 
   return false;

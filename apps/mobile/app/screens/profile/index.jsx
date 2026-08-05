@@ -65,6 +65,7 @@ export default function Profile() {
       <ScreenHeader
         layout="inline"
         title="Profile"
+        showBack={false}
         iconOnly
         right={
           <Pressable

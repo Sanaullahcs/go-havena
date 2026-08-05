@@ -69,8 +69,18 @@ function futureTime24h() {
 console.log("\n=== isNoticeExpiredForHome ===");
 
 assert(
-  "legacy general notice without schedule stays visible",
-  !isNoticeExpiredForHome({ category: "general", title: "Welcome" }),
+  "legacy alert without schedule stays visible",
+  !isNoticeExpiredForHome({ category: "emergency", title: "Storm watch", isAlert: true }),
+);
+
+assert(
+  "legacy general notice without schedule is expired",
+  isNoticeExpiredForHome({ category: "general", title: "Welcome" }),
+);
+
+assert(
+  "legacy event without schedule is expired",
+  isNoticeExpiredForHome({ category: "event", title: "Old BBQ", isEvent: true }),
 );
 
 assert(
@@ -85,12 +95,15 @@ assert(
 
 assert(
   "general notice with past end time today is expired",
-  isNoticeExpiredForHome({
-    category: "general",
-    event_date: todayKey(),
-    event_time: "09:00",
-    event_time_end: pastTime24h(),
-  }),
+  isNoticeExpiredForHome(
+    {
+      category: "general",
+      event_date: todayKey(),
+      event_time: "00:00",
+      event_time_end: "00:01",
+    },
+    new Date(`${todayKey()}T12:00:00`),
+  ),
 );
 
 assert(
@@ -104,8 +117,8 @@ assert(
 );
 
 assert(
-  "event with past end time today is expired",
-  isNoticeExpiredForHome({
+  "event with past end time today stays visible for the day",
+  !isNoticeExpiredForHome({
     category: "event",
     event_date: todayKey(),
     event_time: "09:00",
@@ -125,7 +138,7 @@ assert(
 
 console.log("\n=== pickNeighborhoodCarousel filters expired ===");
 const carousel = pickNeighborhoodCarousel([
-  { id: 1, category: "general", title: "Active" },
+  { id: 1, category: "general", title: "Active", event_date: tomorrowKey() },
   {
     id: 2,
     category: "maintenance",
@@ -162,9 +175,19 @@ const events = pickUpcomingEvents([
     event_date: tomorrowKey(),
     event_time_end: "20:00",
   },
+  {
+    id: 12,
+    category: "event",
+    isEvent: true,
+    event_date: yesterdayKey(),
+    event_time_end: "20:00",
+  },
 ]);
 
-assert("happening soon hides expired event", events.length === 1 && events[0].id === 11);
+assert(
+  "happening soon keeps today's event and tomorrow, hides yesterday",
+  events.length === 2 && events.some((e) => e.id === 10) && events.some((e) => e.id === 11),
+);
 
 console.log("");
 if (failed > 0) {

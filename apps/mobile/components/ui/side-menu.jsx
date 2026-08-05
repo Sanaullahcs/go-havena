@@ -23,6 +23,7 @@ import { Fonts } from "../../constants/font";
 
 import { useRouter } from "expo-router";
 import { sw } from "../../utils/responsive";
+import { navigateAppRoute } from "../../utils/app-navigation";
 import { confirmSignOut } from "../../services/sign-out";
 import { useAppDialog } from "../../providers/app-dialog-provider";
 import { getUser, getCachedUser } from "../../services/auth-session";
@@ -220,7 +221,7 @@ function SideMenuPanel({ visible, onClose }) {
     onClose();
 
     requestAnimationFrame(() => {
-      router.push(route);
+      navigateAppRoute(router, route);
       setTimeout(() => {
         navigatingRef.current = false;
       }, 400);
@@ -239,7 +240,7 @@ function SideMenuPanel({ visible, onClose }) {
     {
       iconName: "message-circle",
       title: "Community Feed",
-      route: "/(tabs)/marketplace",
+      route: "/screens/community-feed",
     },
     {
       iconName: "bell",
@@ -273,7 +274,7 @@ function SideMenuPanel({ visible, onClose }) {
       : []),
     {
       iconName: "home",
-      title: "Services",
+      title: "Properties",
       route: PropertyManagementRoutes.HOME,
     },
     {

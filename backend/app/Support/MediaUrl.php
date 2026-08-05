@@ -62,6 +62,17 @@ class MediaUrl
             $basePath = rtrim($requestBase, '/');
         }
 
+        $host = $request->getHost();
+        $isLoopback = in_array($host, ['127.0.0.1', 'localhost', '::1'], true);
+        $appHost = is_string($appParts['host'] ?? null) ? $appParts['host'] : null;
+        $appIsLoopback = $appHost !== null && in_array($appHost, ['127.0.0.1', 'localhost', '::1'], true);
+
+        // Prefer APP_URL when the request came in on loopback but APP_URL is a LAN/public host.
+        // Stops mobile clients receiving http://127.0.0.1/... image URLs they cannot open.
+        if ($isLoopback && $appHost && ! $appIsLoopback) {
+            return rtrim((string) config('app.url'), '/');
+        }
+
         return rtrim($request->getSchemeAndHttpHost().$basePath, '/');
     }
 }
