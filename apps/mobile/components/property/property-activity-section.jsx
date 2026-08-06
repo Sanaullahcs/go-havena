@@ -3,39 +3,125 @@ import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { PropertyHubTheme } from "../../constants/property-management-theme";
+import ApprovalQueueIcon from "./approval-queue-icon";
 import PropertyServiceIcon from "./property-service-icon";
 import { sf, sw } from "../../utils/responsive";
 
 const TONE = {
   success: {
-    badgeBg: "#ECFDF5",
-    badgeColor: "#047857",
-    accent: "#10B981",
-    noteBg: "#F0FDF4",
+    badgeBg: PropertyHubTheme.successBg,
+    badgeColor: PropertyHubTheme.successText,
+    accent: PropertyHubTheme.teal,
+    noteBg: PropertyHubTheme.successBg,
     icon: "check-circle",
   },
   pending: {
-    badgeBg: "#FFFBEB",
-    badgeColor: "#B45309",
+    badgeBg: PropertyHubTheme.pendingBg,
+    badgeColor: PropertyHubTheme.pendingText,
     accent: "#F59E0B",
-    noteBg: "#FFFBEB",
+    noteBg: PropertyHubTheme.pendingBg,
     icon: "clock",
   },
   danger: {
-    badgeBg: "#FEF2F2",
-    badgeColor: "#B91C1C",
+    badgeBg: PropertyHubTheme.dangerBg,
+    badgeColor: PropertyHubTheme.dangerText,
     accent: "#EF4444",
-    noteBg: "#FEF2F2",
+    noteBg: PropertyHubTheme.dangerBg,
     icon: "x-circle",
   },
   approval: {
-    badgeBg: "#D1FAF5",
-    badgeColor: "#0A2A43",
-    accent: "#0A2A43",
-    noteBg: "#D1FAF5",
-    icon: "inbox",
+    badgeBg: PropertyHubTheme.pendingBg,
+    badgeColor: PropertyHubTheme.pendingText,
+    accent: PropertyHubTheme.teal,
+    noteBg: PropertyHubTheme.mint,
+    noteColor: PropertyHubTheme.deepTeal,
+    icon: "clock",
+    ctaBg: PropertyHubTheme.teal,
   },
 };
+
+function ApprovalActivityCard({ item, onPress, isLast }) {
+  const tone = TONE.approval;
+  const isReview = item.badge === "Review";
+  const isScheduleNote = item.key === "bookings";
+
+  return (
+    <View style={!isLast ? styles.itemWrap : undefined}>
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [styles.pressable, pressed && styles.pressed]}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.title}, ${item.badge}`}
+      >
+        <View style={styles.approvalCard}>
+          <View style={[styles.accentWide, { backgroundColor: tone.accent }]} />
+
+          <View style={styles.approvalBody}>
+            <View style={styles.approvalHeader}>
+              <ApprovalQueueIcon
+                iconKey={
+                  item.iconKey ?? (isReview ? "amenityReview" : "bookingRequest")
+                }
+                size={sw(44)}
+                iconSize={sf(18)}
+              />
+              <View style={styles.approvalLead}>
+                <Text style={styles.approvalTitle} numberOfLines={1}>
+                  {item.title}
+                </Text>
+                <View style={styles.requesterRow}>
+                  <Feather name="user" size={sf(10)} color={PropertyHubTheme.textMuted} />
+                  <Text style={styles.requesterText} numberOfLines={1}>
+                    {item.meta}
+                  </Text>
+                </View>
+              </View>
+              <View style={[styles.approvalBadge, { backgroundColor: tone.badgeBg }]}>
+                <Feather
+                  name={isReview ? "eye" : "clock"}
+                  size={sf(10)}
+                  color={tone.badgeColor}
+                />
+                <Text style={[styles.approvalBadgeText, { color: tone.badgeColor }]}>
+                  {item.badge}
+                </Text>
+              </View>
+            </View>
+
+            {item.note ? (
+              isScheduleNote ? (
+                <View style={[styles.scheduleChip, { backgroundColor: tone.noteBg }]}>
+                  <Feather
+                    name="calendar"
+                    size={sf(11)}
+                    color={tone.noteColor ?? tone.badgeColor}
+                  />
+                  <Text
+                    style={[styles.scheduleText, { color: tone.noteColor ?? tone.badgeColor }]}
+                    numberOfLines={1}
+                  >
+                    {item.note}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.approvalMessage} numberOfLines={2}>
+                  {item.note}
+                </Text>
+              )
+            ) : null}
+
+            {item.linkLabel ? (
+              <View style={[styles.approvalCta, { backgroundColor: tone.ctaBg }]}>
+                <Text style={styles.approvalCtaText}>{item.linkLabel}</Text>
+                <Feather name="arrow-right" size={sf(12)} color="#FFFFFF" />
+              </View>
+            ) : null}
+          </View>
+        </View>
+      </Pressable>
+    </View>
+  );
+}
 
 function StatusActivityCard({ item, onPress, isLast }) {
   const tone = TONE[item.type] ?? TONE.success;
@@ -44,12 +130,12 @@ function StatusActivityCard({ item, onPress, isLast }) {
     <View style={!isLast ? styles.itemWrap : undefined}>
       <Pressable
         onPress={onPress}
-        style={({ pressed }) => [pressed && styles.pressed]}
+        style={({ pressed }) => [styles.pressable, pressed && styles.pressed]}
         accessibilityRole="button"
         accessibilityLabel={item.title}
       >
         <View style={styles.card}>
-          <View style={[styles.accent, { backgroundColor: tone.accent }]} />
+          <View style={[styles.accentWide, { backgroundColor: tone.accent }]} />
           <View style={styles.cardBody}>
             <View style={styles.statusHeader}>
               <PropertyServiceIcon serviceKey={item.key} size={sw(36)} iconSize={sf(15)} />
@@ -102,7 +188,7 @@ function AlertActivityCard({ item, onPress, isLast }) {
     <View style={!isLast ? styles.itemWrap : undefined}>
       <Pressable
         onPress={onPress}
-        style={({ pressed }) => [pressed && styles.pressed]}
+        style={({ pressed }) => [styles.pressable, pressed && styles.pressed]}
         accessibilityRole="button"
         accessibilityLabel={item.title}
       >
@@ -147,6 +233,17 @@ export default function PropertyActivitySection({ items, onAction }) {
           );
         }
 
+        if (item.type === "approval") {
+          return (
+            <ApprovalActivityCard
+              key={item.id}
+              item={item}
+              onPress={handlePress}
+              isLast={isLast}
+            />
+          );
+        }
+
         return (
           <StatusActivityCard
             key={item.id}
@@ -160,6 +257,16 @@ export default function PropertyActivitySection({ items, onAction }) {
   );
 }
 
+const cardShadow = Platform.select({
+  ios: {
+    shadowColor: PropertyHubTheme.text,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+  },
+  android: { elevation: 2 },
+});
+
 const styles = StyleSheet.create({
   list: {
     width: "100%",
@@ -167,31 +274,136 @@ const styles = StyleSheet.create({
   itemWrap: {
     marginBottom: sw(12),
   },
+  pressable: {
+    width: "100%",
+  },
   pressed: {
     opacity: 0.92,
+  },
+  accentWide: {
+    width: sw(4),
+    alignSelf: "stretch",
+  },
+  approvalCard: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    width: "100%",
+    backgroundColor: PropertyHubTheme.surface,
+    borderRadius: sw(16),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: PropertyHubTheme.border,
+    overflow: "hidden",
+    ...cardShadow,
+  },
+  approvalBody: {
+    flex: 1,
+    paddingVertical: sw(14),
+    paddingHorizontal: sw(14),
+  },
+  approvalHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  approvalLead: {
+    flex: 1,
+    minWidth: 0,
+    marginLeft: sw(10),
+    marginRight: sw(8),
+  },
+  approvalTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(14),
+    lineHeight: sf(18),
+    fontWeight: "700",
+    color: PropertyHubTheme.text,
+  },
+  requesterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: sw(4),
+  },
+  requesterText: {
+    fontFamily: Fonts.medium,
+    fontSize: sf(11),
+    lineHeight: sf(15),
+    fontWeight: "500",
+    color: PropertyHubTheme.textMuted,
+    marginLeft: sw(5),
+    flex: 1,
+  },
+  approvalBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: sw(5),
+    paddingHorizontal: sw(8),
+    borderRadius: sw(999),
+    flexShrink: 0,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: PropertyHubTheme.pendingBorder,
+  },
+  approvalBadgeText: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(10),
+    lineHeight: sf(13),
+    fontWeight: "700",
+    marginLeft: sw(4),
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  scheduleChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    marginTop: sw(12),
+    paddingVertical: sw(7),
+    paddingHorizontal: sw(10),
+    borderRadius: sw(10),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: PropertyHubTheme.iconBorder,
+    gap: sw(6),
+  },
+  scheduleText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(11),
+    lineHeight: sf(15),
+    fontWeight: "600",
+    flexShrink: 1,
+  },
+  approvalMessage: {
+    fontFamily: Fonts.medium,
+    fontSize: sf(11),
+    lineHeight: sf(16),
+    fontWeight: "500",
+    color: PropertyHubTheme.textMuted,
+    marginTop: sw(10),
+  },
+  approvalCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    marginTop: sw(12),
+    paddingVertical: sw(9),
+    paddingHorizontal: sw(14),
+    borderRadius: sw(10),
+    gap: sw(6),
+  },
+  approvalCtaText: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(12),
+    lineHeight: sf(16),
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   card: {
     flexDirection: "row",
     alignItems: "stretch",
     width: "100%",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: PropertyHubTheme.surface,
     borderRadius: sw(14),
-    borderWidth: 1,
-    borderColor: "#E8ECF2",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: PropertyHubTheme.border,
     overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#101828",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 3,
-      },
-      android: { elevation: 1 },
-    }),
-  },
-  accent: {
-    width: sw(3),
-    alignSelf: "stretch",
+    ...cardShadow,
   },
   cardBody: {
     flex: 1,
@@ -259,9 +471,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     width: "100%",
-    backgroundColor: "#FFFBEB",
-    borderWidth: 1,
-    borderColor: "#FDE68A",
+    backgroundColor: PropertyHubTheme.alertBg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: PropertyHubTheme.alertBorder,
     borderRadius: sw(14),
     padding: sw(12),
   },
@@ -269,7 +481,7 @@ const styles = StyleSheet.create({
     width: sw(34),
     height: sw(34),
     borderRadius: sw(10),
-    backgroundColor: "#FEF3C7",
+    backgroundColor: PropertyHubTheme.pendingBadgeBg,
     alignItems: "center",
     justifyContent: "center",
     marginRight: sw(10),

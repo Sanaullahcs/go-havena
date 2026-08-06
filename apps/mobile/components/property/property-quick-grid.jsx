@@ -43,7 +43,12 @@ export default function PropertyQuickGrid({ actions, onAction, badges = {} }) {
               >
                 <View style={[styles.card, item.primary && styles.cardPrimary]}>
                   <View style={styles.cardTop}>
-                    <PropertyServiceIcon serviceKey={item.key} size={sw(36)} iconSize={sf(16)} />
+                    <PropertyServiceIcon
+                      serviceKey={item.key}
+                      size={sw(36)}
+                      iconSize={sf(16)}
+                      inverted={Boolean(item.primary)}
+                    />
                     {showBadge ? (
                       <View style={styles.countBubble}>
                         <Text style={styles.countText}>{badgeCount}</Text>

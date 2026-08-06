@@ -274,7 +274,7 @@ function SideMenuPanel({ visible, onClose }) {
       : []),
     {
       iconName: "home",
-      title: "Properties",
+      title: "Services",
       route: PropertyManagementRoutes.HOME,
     },
     {

@@ -8,10 +8,20 @@ export const PropertyHubTheme = {
   textMuted: T.gray,
   caption: "#94A3B8",
   border: T.border,
+  heroBg: T.white,
+  heroText: T.navy,
+  heroSubtext: T.gray,
   heroBorder: T.border,
+  heroAccent: T.teal,
+  iconColor: T.teal,
+  iconWell: T.mint,
+  iconBorder: "rgba(20, 184, 166, 0.32)",
   teal: T.teal,
   mint: T.mint,
   deepTeal: T.deepTeal,
+  accentSoft: "#E6FFFA",
+  accentBlue: "#E0F2FE",
+  accentLilac: "#EEF2FF",
   successBg: "#ECFDF5",
   successBorder: "#A7F3D0",
   successText: T.deepTeal,
@@ -41,76 +51,106 @@ export const PROPERTY_SERVICE_META = {
   amenity: {
     lucide: "CalendarDays",
     icon: "calendar",
-    color: T.navy,
+    color: T.teal,
     bg: T.mint,
-    border: "rgba(20, 184, 166, 0.28)",
+    border: "rgba(20, 184, 166, 0.32)",
   },
   rules: {
     lucide: "ShieldCheck",
     icon: "shield",
-    color: T.navy,
+    color: T.teal,
     bg: T.mint,
-    border: "rgba(20, 184, 166, 0.28)",
+    border: "rgba(20, 184, 166, 0.32)",
   },
   documents: {
     lucide: "FileStack",
     icon: "file-text",
-    color: T.navy,
+    color: T.teal,
     bg: T.mint,
-    border: "rgba(20, 184, 166, 0.28)",
+    border: "rgba(20, 184, 166, 0.32)",
   },
   bookings: {
     lucide: "BookmarkCheck",
     icon: "bookmark",
-    color: T.navy,
+    color: T.teal,
     bg: T.mint,
-    border: "rgba(20, 184, 166, 0.28)",
+    border: "rgba(20, 184, 166, 0.32)",
   },
   community: {
     lucide: "Building2",
     icon: "home",
-    color: T.navy,
+    color: T.teal,
     bg: T.mint,
-    border: "rgba(20, 184, 166, 0.28)",
+    border: "rgba(20, 184, 166, 0.32)",
   },
   approvals: {
     lucide: "BookmarkCheck",
     icon: "check-circle",
-    color: T.navy,
-    bg: T.mint,
-    border: "rgba(20, 184, 166, 0.28)",
+    color: "#B45309",
+    bg: "#FFFBEB",
+    border: "rgba(245, 158, 11, 0.28)",
   },
   help: {
     lucide: "LifeBuoy",
     icon: "life-buoy",
-    color: T.navy,
+    color: T.teal,
     bg: T.mint,
-    border: "rgba(20, 184, 166, 0.28)",
+    border: "rgba(20, 184, 166, 0.32)",
   },
   notices: {
     lucide: "Bell",
     icon: "bell",
-    color: T.navy,
+    color: T.teal,
     bg: T.mint,
-    border: "rgba(20, 184, 166, 0.28)",
+    border: "rgba(20, 184, 166, 0.32)",
   },
   marketplace: {
     lucide: "Store",
     icon: "shopping-bag",
-    color: T.navy,
+    color: T.teal,
     bg: T.mint,
-    border: "rgba(20, 184, 166, 0.28)",
+    border: "rgba(20, 184, 166, 0.32)",
   },
   listings: {
     lucide: "Tag",
     icon: "tag",
-    color: T.navy,
+    color: T.teal,
     bg: T.mint,
-    border: "rgba(20, 184, 166, 0.28)",
+    border: "rgba(20, 184, 166, 0.32)",
+  },
+  addAmenity: {
+    lucide: "CirclePlus",
+    icon: "plus-circle",
+    color: T.teal,
+    bg: T.mint,
+    border: "rgba(20, 184, 166, 0.32)",
   },
 };
 
-/** Services hub — book, shop, and community resources (6-tile grid). */
+/** Themed icons for admin stats and approval queue cards. */
+export const APPROVAL_QUEUE_ICON_META = {
+  bookingRequest: {
+    lucide: "CalendarClock",
+    color: "#B45309",
+    bg: "#FFFBEB",
+    ring: "#FEF3C7",
+    border: "rgba(245, 158, 11, 0.35)",
+  },
+  amenityReview: {
+    lucide: "ClipboardCheck",
+    color: T.deepTeal,
+    bg: T.mint,
+    ring: "#E6FFFA",
+    border: "rgba(20, 184, 166, 0.38)",
+  },
+};
+
+export function getApprovalQueueIconMeta(iconKey) {
+  if (iconKey === "amenityReview") return APPROVAL_QUEUE_ICON_META.amenityReview;
+  return APPROVAL_QUEUE_ICON_META.bookingRequest;
+}
+
+/** Services hub — amenities and community resources (5-tile grid). */
 export const PROPERTY_RESIDENT_SERVICES = [
   {
     id: "amenity",
@@ -129,18 +169,11 @@ export const PROPERTY_RESIDENT_SERVICES = [
     badgeKey: "myReservationCount",
   },
   {
-    id: "marketplace",
-    key: "marketplace",
-    title: "Marketplace",
-    subtitle: "Deals & local shops",
-    routeKey: "MARKETPLACE",
-  },
-  {
-    id: "listings",
-    key: "listings",
-    title: "Listings",
-    subtitle: "Buy & sell nearby",
-    routeKey: "COMMUNITY_LISTINGS",
+    id: "add-amenity",
+    key: "addAmenity",
+    title: "Add Amenity",
+    subtitle: "Suggest for community",
+    routeKey: "AMENITY_FORM",
   },
   {
     id: "documents",
@@ -181,13 +214,6 @@ export const PROPERTY_ADMIN_SERVICES = [
     title: "Browse Amenities",
     subtitle: "Book as a resident",
     routeKey: "AMENITY",
-  },
-  {
-    id: "marketplace",
-    key: "marketplace",
-    title: "Marketplace",
-    subtitle: "Deals & businesses",
-    routeKey: "MARKETPLACE",
   },
   {
     id: "documents",
@@ -257,13 +283,13 @@ export function getPropertyBookActions(isAdmin) {
 export function getPropertyHubHeroCopy(isAdmin) {
   if (isAdmin) {
     return {
-      title: "Manage your community",
-      subtitle: "Reviews, bookings, and resources at a glance.",
+      title: "Services dashboard",
+      subtitle: "Manage amenities, bookings, and community resources in one place.",
     };
   }
   return {
-    title: "Your community hub",
-    subtitle: "Book amenities, find documents, and get help.",
+    title: "Your services hub",
+    subtitle: "Book amenities, add new spaces, and access community resources.",
   };
 }
 

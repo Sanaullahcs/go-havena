@@ -1,43 +1,27 @@
 import React from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
-import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { PropertyHubTheme } from "../../constants/property-management-theme";
+import ApprovalQueueIcon from "./approval-queue-icon";
 import { sf, sw } from "../../utils/responsive";
 
-const ICONS = {
-  "pending-reviews": "layers",
-  "pending-bookings": "inbox",
-  "approve-requests": "inbox",
-  "my-reservations": "calendar",
+const STAT_ICON_KEYS = {
+  "pending-reviews": "amenityReview",
+  "pending-bookings": "bookingRequest",
 };
 
-function StatCard({ label, value, tone = "default", icon, onPress }) {
-  const palette =
+function StatCard({ label, value, tone = "default", iconKey, onPress }) {
+  const valueColor =
     tone === "pending"
-      ? {
-          value: PropertyHubTheme.pendingText,
-          iconBg: "#FEF3C7",
-          iconColor: "#B45309",
-        }
+      ? PropertyHubTheme.pendingText
       : tone === "success"
-        ? {
-            value: PropertyHubTheme.successText,
-            iconBg: "#DCFCE7",
-            iconColor: "#15803D",
-          }
-        : {
-            value: PropertyHubTheme.text,
-            iconBg: PropertyHubTheme.mint,
-            iconColor: PropertyHubTheme.teal,
-          };
+        ? PropertyHubTheme.successText
+        : PropertyHubTheme.text;
 
   const card = (
     <View style={styles.card}>
-      <View style={[styles.iconWrap, { backgroundColor: palette.iconBg }]}>
-        <Feather name={icon} size={sf(15)} color={palette.iconColor} />
-      </View>
-      <Text style={[styles.value, { color: palette.value }]}>{value}</Text>
+      <ApprovalQueueIcon iconKey={iconKey} size={sw(40)} iconSize={sf(17)} />
+      <Text style={[styles.value, { color: valueColor }]}>{value}</Text>
       <Text style={styles.label} numberOfLines={2}>
         {label}
       </Text>
@@ -75,7 +59,7 @@ export default function PropertyHubStats({ items = [], onAction }) {
             label={item.label}
             value={item.value}
             tone={item.tone}
-            icon={ICONS[item.id] ?? "activity"}
+            iconKey={item.iconKey ?? STAT_ICON_KEYS[item.id] ?? "bookingRequest"}
             onPress={
               item.routeKey && onAction ? () => onAction(item.routeKey) : undefined
             }
@@ -115,27 +99,20 @@ const styles = StyleSheet.create({
     minHeight: sw(104),
     ...Platform.select({
       ios: {
-        shadowColor: "#101828",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 3,
+        shadowColor: PropertyHubTheme.text,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
       },
       android: { elevation: 1 },
     }),
-  },
-  iconWrap: {
-    width: sw(34),
-    height: sw(34),
-    borderRadius: sw(10),
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: sw(10),
   },
   value: {
     fontFamily: Fonts.bold,
     fontSize: sf(22),
     lineHeight: sf(26),
     fontWeight: "700",
+    marginTop: sw(10),
   },
   label: {
     fontFamily: Fonts.medium,

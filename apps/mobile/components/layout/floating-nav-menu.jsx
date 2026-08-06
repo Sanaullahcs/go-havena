@@ -37,11 +37,11 @@ const COMMUNITY_TAB = {
   icon: { set: "ion", active: "people", inactive: "people-outline" },
 };
 
-const PROPERTIES_TAB = {
-  name: "properties",
-  label: "Properties",
+const SERVICES_TAB = {
+  name: "services",
+  label: "Services",
   href: "/services",
-  icon: { set: "ion", active: "business", inactive: "business-outline" },
+  icon: { set: "ion", active: "grid", inactive: "grid-outline" },
 };
 
 const PROFILE_TAB = {
@@ -84,7 +84,7 @@ function getActiveTab(segments, pathname) {
     pathname?.includes("admin-bookings") ||
     pathname?.includes("admin-amenities")
   ) {
-    return "properties";
+    return "services";
   }
 
   const tabIndex = segments[0] === "(tabs)" ? 1 : 0;
@@ -93,7 +93,7 @@ function getActiveTab(segments, pathname) {
   if (!tab || tab === "home") return "home";
   if (tab === "community") return "community";
   if (tab === "marketplace") return "community";
-  if (tab === "services") return "properties";
+  if (tab === "services") return "services";
   if (tab === "profile") return "profile";
   if (tab === "notices" || tab === "wellness") return "home";
 
@@ -110,8 +110,8 @@ function getActiveTab(segments, pathname) {
 
 /**
  * Bottom tabs by role:
- * Resident — Home | Community | Create | Properties | Profile
- * Admin    — Home | Community | Create | Admin | Properties
+ * Resident — Home | Community | Create | Services | Profile
+ * Admin    — Home | Community | Create | Admin | Services
  */
 export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = false }) {
   const [guestUser, setGuestUser] = useState(null);
@@ -156,8 +156,8 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
 
   const rightTabs = useMemo(() => {
     const tabs = isCommunityAdmin
-      ? [ADMIN_TAB, PROPERTIES_TAB]
-      : [PROPERTIES_TAB, PROFILE_TAB];
+      ? [ADMIN_TAB, SERVICES_TAB]
+      : [SERVICES_TAB, PROFILE_TAB];
     return filterTabs(tabs);
   }, [isCommunityAdmin, filterTabs]);
 
