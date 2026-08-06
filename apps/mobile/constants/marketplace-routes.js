@@ -2,6 +2,7 @@
 
 export const MarketplaceRoutes = {
   HOME: "/(tabs)/marketplace",
+  COMMUNITY: "/(tabs)/community",
   DEALS: "/(tabs)/marketplace/deals-offer",
   DEAL_DETAILS: "/(tabs)/marketplace/deal-details",
   MY_COUPONS: "/(tabs)/marketplace/my-coupons",

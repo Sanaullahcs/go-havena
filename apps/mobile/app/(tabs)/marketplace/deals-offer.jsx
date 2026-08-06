@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   RefreshControl,
   Alert,
 } from "react-native";
@@ -27,6 +26,7 @@ import {
 } from "../../../constants/marketplace-routes";
 import { MARKETPLACE_FEATURES } from "../../../constants/marketplace-features";
 import { MarketplaceTheme, marketplaceSharedStyles } from "../../../constants/marketplace-theme";
+import { DealsOfferSkeleton } from "../../../components/ui/skeleton-loader";
 
 const DEAL_PLACEHOLDER = require("../../../assets/images/food-bowl.png");
 
@@ -41,7 +41,7 @@ function sortFavoritesFirst(list) {
   });
 }
 
-export default function DealsOffer() {
+export default function DealsOffer({ embedded = false }) {
   const router = useRouter();
   const { role: roleParam } = useLocalSearchParams();
   const activeRole =
@@ -126,146 +126,158 @@ export default function DealsOffer() {
     return sortFavoritesFirst(list);
   }, [deals, selectedCategory]);
 
+  const Root = embedded ? View : SafeAreaView;
+  const rootProps = embedded
+    ? { style: [styles.container, styles.containerEmbedded] }
+    : { style: styles.container, edges: ["left", "right"] };
+
   return (
-    <SafeAreaView style={styles.container} edges={["left", "right"]}>
-      <ScreenHeader
-        layout="inline"
-        title="Deals & Offers"
-        iconOnly
-        compact
-        right={
-          isAdmin ? (
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={styles.createDealBtn}
-              onPress={() => {
-                if (!myBusiness) {
-                  Alert.alert(
-                    "Add a Business First",
-                    "Register your business before creating a deal.",
-                    [
-                      { text: "Cancel", style: "cancel" },
-                      {
-                        text: "Add Business",
-                        onPress: () =>
-                          router.push({
-                            pathname: MarketplaceRoutes.ADD_BUSINESS,
-                            params: withMarketplaceRole(activeRole),
-                          }),
-                      },
-                    ],
-                  );
-                  return;
-                }
-                router.push({
-                  pathname: MarketplaceRoutes.CREATE_DEAL,
-                  params: withMarketplaceRole(activeRole),
-                });
-              }}
-            >
-              <Text style={styles.createDealBtnText}>Create Deal</Text>
-            </TouchableOpacity>
-          ) : null
-        }
-      />
+    <Root {...rootProps}>
+      {!embedded ? (
+        <ScreenHeader
+          layout="inline"
+          title="Deals & Offers"
+          iconOnly
+          compact
+          right={
+            isAdmin ? (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={styles.createDealBtn}
+                onPress={() => {
+                  if (!myBusiness) {
+                    Alert.alert(
+                      "Add a Business First",
+                      "Register your business before creating a deal.",
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Add Business",
+                          onPress: () =>
+                            router.push({
+                              pathname: MarketplaceRoutes.ADD_BUSINESS,
+                              params: withMarketplaceRole(activeRole),
+                            }),
+                        },
+                      ],
+                    );
+                    return;
+                  }
+                  router.push({
+                    pathname: MarketplaceRoutes.CREATE_DEAL,
+                    params: withMarketplaceRole(activeRole),
+                  });
+                }}
+              >
+                <Text style={styles.createDealBtnText}>Create Deal</Text>
+              </TouchableOpacity>
+            ) : null
+          }
+        />
+      ) : null}
 
       <ScrollView
+        style={embedded ? styles.scrollEmbedded : undefined}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {MARKETPLACE_FEATURES.coupons ? (
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() =>
-              router.push({
-                pathname: MarketplaceRoutes.MY_COUPONS,
-                params: withMarketplaceRole(activeRole),
-              })
-            }
-            style={styles.savedCouponsCard}
-          >
-            <View style={styles.savedLeft}>
-              <ThemedIconBox
-                name="bookmark"
-                size="md"
-                color={MarketplaceTheme.accent}
-                backgroundColor={MarketplaceTheme.accentSoft}
-              />
-              <View>
-                <Text style={styles.savedTitle}>My Saved Coupons</Text>
-                <Text style={styles.savedSubTitle}>View your active offers</Text>
-              </View>
-            </View>
-
-            <Image
-              source={require("../../../assets/images/next-icon.png")}
-              style={{ width: 20, height: 20, tintColor: MarketplaceTheme.accent }}
-            />
-          </TouchableOpacity>
-        ) : null}
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryContent}
-        >
-          {categories.map((category) => {
-            const isSelected = selectedCategory === category;
-
-            return (
+        {loading ? (
+          <DealsOfferSkeleton
+            count={3}
+            showCouponsCard={MARKETPLACE_FEATURES.coupons}
+          />
+        ) : (
+          <>
+            {MARKETPLACE_FEATURES.coupons ? (
               <TouchableOpacity
-                key={category}
-                onPress={() => setSelectedCategory(category)}
-                style={[
-                  marketplaceSharedStyles.chip,
-                  isSelected && marketplaceSharedStyles.chipActive,
-                ]}
+                activeOpacity={0.85}
+                onPress={() =>
+                  router.push({
+                    pathname: MarketplaceRoutes.MY_COUPONS,
+                    params: withMarketplaceRole(activeRole),
+                  })
+                }
+                style={styles.savedCouponsCard}
               >
-                <Text
-                  style={[
-                    marketplaceSharedStyles.chipText,
-                    isSelected && marketplaceSharedStyles.chipTextActive,
-                  ]}
-                >
-                  {category}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+                <View style={styles.savedLeft}>
+                  <ThemedIconBox
+                    name="bookmark"
+                    size="md"
+                    color={MarketplaceTheme.accent}
+                    backgroundColor={MarketplaceTheme.accentSoft}
+                  />
+                  <View>
+                    <Text style={styles.savedTitle}>My Saved Coupons</Text>
+                    <Text style={styles.savedSubTitle}>View your active offers</Text>
+                  </View>
+                </View>
 
-        <View style={styles.listWrap}>
-          {loading ? (
-            <View style={styles.emptyState}>
-              <ActivityIndicator color="#14B8A6" />
-            </View>
-          ) : error ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>Couldn't load deals</Text>
-              <Text style={styles.emptySubTitle}>{error}</Text>
-              <TouchableOpacity onPress={load} style={{ marginTop: 10 }}>
-                <Text style={[styles.emptySubTitle, { color: "#14B8A6" }]}>
-                  Tap to retry
-                </Text>
+                <Image
+                  source={require("../../../assets/images/next-icon.png")}
+                  style={{ width: 20, height: 20, tintColor: MarketplaceTheme.accent }}
+                />
               </TouchableOpacity>
-            </View>
-          ) : null}
+            ) : null}
 
-          {!loading && !error && filteredDeals.map((deal) => (
-            <TouchableOpacity
-              key={deal.id}
-              style={styles.dealCard}
-              activeOpacity={0.8}
-              onPress={() =>
-                router.push({
-                  pathname: MarketplaceRoutes.DEAL_DETAILS,
-                  params: dealDetailsParams(deal, activeRole),
-                })
-              }
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryContent}
             >
+              {categories.map((category) => {
+                const isSelected = selectedCategory === category;
+
+                return (
+                  <TouchableOpacity
+                    key={category}
+                    onPress={() => setSelectedCategory(category)}
+                    style={[
+                      marketplaceSharedStyles.chip,
+                      isSelected && marketplaceSharedStyles.chipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        marketplaceSharedStyles.chipText,
+                        isSelected && marketplaceSharedStyles.chipTextActive,
+                      ]}
+                    >
+                      {category}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.listWrap}>
+              {error ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyTitle}>Couldn't load deals</Text>
+                  <Text style={styles.emptySubTitle}>{error}</Text>
+                  <TouchableOpacity onPress={load} style={{ marginTop: 10 }}>
+                    <Text style={[styles.emptySubTitle, { color: "#14B8A6" }]}>
+                      Tap to retry
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
+              {!error &&
+                filteredDeals.map((deal) => (
+                  <TouchableOpacity
+                    key={deal.id}
+                    style={styles.dealCard}
+                    activeOpacity={0.8}
+                    onPress={() =>
+                      router.push({
+                        pathname: MarketplaceRoutes.DEAL_DETAILS,
+                        params: dealDetailsParams(deal, activeRole),
+                      })
+                    }
+                  >
               <View style={styles.imageWrap}>
                 <CrispImage
                   source={deal.imageUrl || DEAL_PLACEHOLDER}
@@ -356,21 +368,23 @@ export default function DealsOffer() {
                 </View>
               </View>
             </TouchableOpacity>
-          ))}
+                ))}
 
-          {!loading && !error && filteredDeals.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No deals found</Text>
-              <Text style={styles.emptySubTitle}>
-                {selectedCategory === "All"
-                  ? "Check back soon for new local deals"
-                  : "Try another category"}
-              </Text>
+              {!error && filteredDeals.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyTitle}>No deals found</Text>
+                  <Text style={styles.emptySubTitle}>
+                    {selectedCategory === "All"
+                      ? "Check back soon for new local deals"
+                      : "Try another category"}
+                  </Text>
+                </View>
+              ) : null}
             </View>
-          ) : null}
-        </View>
+          </>
+        )}
       </ScrollView>
-    </SafeAreaView>
+    </Root>
   );
 }
 
@@ -378,6 +392,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F8FAFC",
+  },
+  containerEmbedded: {
+    minHeight: 0,
+  },
+  scrollEmbedded: {
+    flex: 1,
+    minHeight: 0,
   },
   createDealBtn: {
     backgroundColor: "rgba(20, 184, 166, 1)",

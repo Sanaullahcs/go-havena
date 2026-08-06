@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -8,8 +8,12 @@ import {
   ActivityIndicator,
   RefreshControl,
   TextInput,
-  Dimensions,
   Platform,
+  Animated,
+  Easing,
+  useWindowDimensions,
+  Keyboard,
+  KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,8 +26,10 @@ import { MarketplaceType } from "../../../constants/marketplace-type";
 import { getCurrentRole } from "../../../constants/role-session";
 import { getUser } from "../../../services/auth-session";
 import { fetchListings, toggleSaveListing } from "../../../services/listings-api";
-import { getProfileFields } from "../../../utils/profile-display";
 import ListingGridCard from "../../../components/marketplace/listing-grid-card";
+import CommunityListingsFilterSheet, {
+  countActiveListingFilters,
+} from "../../../components/marketplace/community-listings-filter-sheet";
 import {
   MarketplaceRoutes,
   withMarketplaceRole,
@@ -33,85 +39,9 @@ import { MarketplaceTheme } from "../../../constants/marketplace-theme";
 const M = MarketplaceTheme;
 const H_PADDING = 20;
 const CARD_GAP = 12;
-const SCREEN_W = Dimensions.get("window").width;
-const CARD_W = Math.floor((SCREEN_W - H_PADDING * 2 - CARD_GAP) / 2);
+const SCROLL_COLLAPSE_THRESHOLD = 14;
 
-const FILTER_TABS = [
-  { id: "all", icon: "layers-outline", label: "Active" },
-  { id: "mine", icon: "person-outline", label: "Mine" },
-  { id: "saved", icon: "heart-outline", label: "Saved" },
-];
-
-const TYPE_FILTERS = [
-  { id: "all", label: "All" },
-  { id: "item", label: "Items for Sale" },
-  { id: "service", label: "Services" },
-];
-
-function TypeFilterRow({ active, onChange }) {
-  return (
-    <View style={styles.typeFilters}>
-      {TYPE_FILTERS.map((tab, index) => {
-        const isActive = active === tab.id;
-        return (
-          <TouchableOpacity
-            key={tab.id}
-            style={[
-              styles.typeFilterTab,
-              isActive && styles.typeFilterTabActive,
-              index > 0 && styles.typeFilterDivider,
-            ]}
-            onPress={() => onChange(tab.id)}
-            activeOpacity={0.85}
-          >
-            <Text style={[styles.typeFilterLabel, isActive && styles.typeFilterLabelActive]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
-}
-
-function FilterTabs({ active, onChange, counts }) {
-  return (
-    <View style={styles.filterTabs}>
-      {FILTER_TABS.map((tab, index) => {
-        const isActive = active === tab.id;
-        const count = counts[tab.id] ?? 0;
-        return (
-          <TouchableOpacity
-            key={tab.id}
-            style={[
-              styles.filterTab,
-              isActive && styles.filterTabActive,
-              index > 0 && styles.filterTabDivider,
-            ]}
-            onPress={() => onChange(tab.id)}
-            activeOpacity={0.85}
-          >
-            <Ionicons
-              name={tab.icon}
-              size={15}
-              color={isActive ? M.teal : M.textMuted}
-            />
-            <Text style={[styles.filterTabLabel, isActive && styles.filterTabLabelActive]}>
-              {tab.label}
-            </Text>
-            <View style={[styles.filterTabCount, isActive && styles.filterTabCountActive]}>
-              <Text style={[styles.filterTabCountText, isActive && styles.filterTabCountTextActive]}>
-                {count}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
-}
-
-export default function CommunityListingsScreen() {
+export default function CommunityListingsScreen({ embedded = false }) {
   const router = useRouter();
   const { role: roleParam } = useLocalSearchParams();
   const activeRole =
@@ -126,17 +56,39 @@ export default function CommunityListingsScreen() {
   const [searchDraft, setSearchDraft] = useState("");
   const [filterMode, setFilterMode] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
-  const [communityName, setCommunityName] = useState("My Community");
   const [userId, setUserId] = useState(null);
   const [myCount, setMyCount] = useState(0);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterSession, setFilterSession] = useState(0);
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [searchBodyHeight, setSearchBodyHeight] = useState(null);
+  const searchExpandAnim = useRef(new Animated.Value(0)).current;
+  const searchBodyHeightRef = useRef(0);
+  const searchExpandedRef = useRef(false);
+  const searchInputRef = useRef(null);
+  const listRef = useRef(null);
+  const lastScrollYRef = useRef(0);
+  const keyboardOpenRef = useRef(false);
+  const listViewportHeightRef = useRef(0);
+  const listContentHeightRef = useRef(0);
+  const searchCollapseHeightRef = useRef(52);
 
-  const loadWithTerm = useCallback(async (term, mode = filterMode, type = typeFilter) => {
-    setLoading(true);
+  const { width: windowWidth } = useWindowDimensions();
+  const isWide = windowWidth >= 768;
+  const contentMaxWidth = Math.min(windowWidth, isWide ? 720 : windowWidth);
+  const cardWidth = Math.floor((Math.min(windowWidth, contentMaxWidth) - H_PADDING * 2 - CARD_GAP) / 2);
+
+  const loadWithTerm = useCallback(async (term, mode = filterMode, type = typeFilter, { background = false } = {}) => {
+    if (background) {
+      setSearching(true);
+    } else {
+      setLoading(true);
+    }
     try {
       const user = await getUser();
       if (user) {
         setUserId(user.id);
-        setCommunityName(getProfileFields(user).communityName);
       }
       const res = await fetchListings({
         ...(term ? { search: term } : {}),
@@ -152,6 +104,7 @@ export default function CommunityListingsScreen() {
       setListings([]);
     } finally {
       setLoading(false);
+      setSearching(false);
       setRefreshing(false);
     }
   }, [filterMode, typeFilter]);
@@ -196,15 +149,36 @@ export default function CommunityListingsScreen() {
     return rows;
   }, [listings, filterMode, selectedCategory]);
 
-  const handleFilterChange = (mode) => {
-    setFilterMode(mode);
-    loadWithTerm(search.trim(), mode, typeFilter);
+  const handleApplyFilters = (next) => {
+    const modeChanged = next.filterMode !== filterMode;
+    const typeChanged = next.typeFilter !== typeFilter;
+    setFilterMode(next.filterMode);
+    setTypeFilter(next.typeFilter);
+    setSelectedCategory(next.selectedCategory);
+    setViewMode(next.viewMode);
+    if (modeChanged || typeChanged) {
+      loadWithTerm(search.trim(), next.filterMode, next.typeFilter);
+    }
   };
 
-  const handleTypeFilterChange = (type) => {
-    setTypeFilter(type);
-    loadWithTerm(search.trim(), filterMode, type);
-  };
+  const activeFilterCount = useMemo(
+    () =>
+      countActiveListingFilters({
+        filterMode,
+        typeFilter,
+        selectedCategory,
+        viewMode,
+      }),
+    [filterMode, typeFilter, selectedCategory, viewMode],
+  );
+
+  const listingCountHint = useMemo(() => {
+    if (search.trim()) return "Matching your search";
+    if (activeFilterCount > 0) return "With filters applied";
+    return "Available now";
+  }, [search, activeFilterCount]);
+
+  const isGrid = viewMode === "grid";
 
   const filterCounts = useMemo(
     () => ({
@@ -214,28 +188,6 @@ export default function CommunityListingsScreen() {
     }),
     [listings, myCountDisplay, savedCount],
   );
-
-  const filterHint = useMemo(() => {
-    if (filterMode === "mine") {
-      return typeFilter === "service"
-        ? "Services you offer in this community"
-        : typeFilter === "item"
-          ? "Items you listed for sale"
-          : "Listings you posted in this community";
-    }
-    if (filterMode === "saved") {
-      return typeFilter === "service"
-        ? "Services you saved for later"
-        : typeFilter === "item"
-          ? "Items you saved for later"
-          : "Listings you saved for later";
-    }
-    if (typeFilter === "service") return "Browse services neighbors are offering";
-    if (typeFilter === "item") return "Browse items neighbors are selling";
-    return "Browse items for sale and services from neighbors";
-  }, [filterMode, typeFilter]);
-
-  const isGrid = viewMode === "grid";
 
   const goTo = (pathname, params = {}) => {
     router.push({
@@ -266,21 +218,157 @@ export default function CommunityListingsScreen() {
     }
   };
 
-  const submitSearch = () => {
+  const submitSearch = useCallback(() => {
     const term = searchDraft.trim();
     setSearch(term);
-    loadWithTerm(term, filterMode, typeFilter);
+    loadWithTerm(term, filterMode, typeFilter, { background: listings.length > 0 });
+  }, [searchDraft, filterMode, typeFilter, loadWithTerm, listings.length]);
+
+  const clearSearch = useCallback(() => {
+    setSearchDraft("");
+    setSearch("");
+    loadWithTerm("", filterMode, typeFilter, { background: listings.length > 0 });
+  }, [filterMode, typeFilter, loadWithTerm, listings.length]);
+
+  const clampListScroll = useCallback(() => {
+    const viewportHeight = listViewportHeightRef.current;
+    const contentHeight = listContentHeightRef.current;
+    if (!listRef.current || viewportHeight <= 0 || contentHeight <= 0) return;
+
+    const maxOffset = Math.max(0, contentHeight - viewportHeight);
+    const nextOffset = Math.min(lastScrollYRef.current, maxOffset);
+    if (nextOffset !== lastScrollYRef.current) {
+      listRef.current.scrollToOffset({ offset: nextOffset, animated: false });
+      lastScrollYRef.current = nextOffset;
+    }
+  }, []);
+
+  const setSearchExpandedAnimated = useCallback(
+    (expanded, { animated = true } = {}) => {
+      if (searchExpandedRef.current === expanded) return;
+      searchExpandedRef.current = expanded;
+      setSearchExpanded(expanded);
+      if (animated) {
+        Animated.timing(searchExpandAnim, {
+          toValue: expanded ? 1 : 0,
+          duration: 280,
+          easing: Easing.bezier(0.4, 0, 0.2, 1),
+          useNativeDriver: false,
+        }).start(({ finished }) => {
+          if (finished && !expanded) {
+            requestAnimationFrame(clampListScroll);
+          }
+        });
+      } else {
+        searchExpandAnim.setValue(expanded ? 1 : 0);
+        if (!expanded) clampListScroll();
+      }
+    },
+    [searchExpandAnim, clampListScroll],
+  );
+
+  const openSearch = useCallback(() => {
+    setSearchExpandedAnimated(true);
+    requestAnimationFrame(() => {
+      setTimeout(() => searchInputRef.current?.focus(), 120);
+    });
+  }, [setSearchExpandedAnimated]);
+
+  const closeSearch = useCallback(() => {
+    Keyboard.dismiss();
+    setSearchExpandedAnimated(false);
+  }, [setSearchExpandedAnimated]);
+
+  const toggleSearch = useCallback(() => {
+    if (searchExpandedRef.current) {
+      closeSearch();
+    } else {
+      openSearch();
+    }
+  }, [closeSearch, openSearch]);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, () => {
+      keyboardOpenRef.current = true;
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      keyboardOpenRef.current = false;
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!searchExpanded) return undefined;
+
+    const timer = setTimeout(() => {
+      const term = searchDraft.trim();
+      if (term === search.trim()) return;
+      setSearch(term);
+      loadWithTerm(term, filterMode, typeFilter, { background: true });
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [searchDraft, searchExpanded, search, filterMode, typeFilter, loadWithTerm]);
+
+  const handleListScroll = useCallback(
+    (event) => {
+      const y = event.nativeEvent.contentOffset.y;
+      const diff = y - lastScrollYRef.current;
+
+      if (
+        diff > SCROLL_COLLAPSE_THRESHOLD &&
+        searchExpandedRef.current &&
+        !keyboardOpenRef.current
+      ) {
+        closeSearch();
+      }
+
+      lastScrollYRef.current = y;
+    },
+    [closeSearch],
+  );
+
+  const onSearchBodyLayout = useCallback((event) => {
+    const height = event.nativeEvent.layout.height;
+    if (height > 0 && height !== searchBodyHeightRef.current) {
+      searchBodyHeightRef.current = height;
+      searchCollapseHeightRef.current = height;
+      setSearchBodyHeight(height);
+    }
+  }, []);
+
+  const onListLayout = useCallback((event) => {
+    const height = event.nativeEvent.layout.height;
+    const previousHeight = listViewportHeightRef.current;
+    listViewportHeightRef.current = height;
+    if (previousHeight > 0 && height > previousHeight) {
+      requestAnimationFrame(clampListScroll);
+    }
+  }, [clampListScroll]);
+
+  const onListContentSizeChange = useCallback((_width, height) => {
+    listContentHeightRef.current = height;
+  }, []);
+
+  const searchCollapseStyle = {
+    height: searchExpandAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, searchBodyHeight ?? searchCollapseHeightRef.current],
+    }),
+    opacity: searchExpandAnim.interpolate({
+      inputRange: [0, 0.35, 1],
+      outputRange: [0, 0.5, 1],
+    }),
   };
 
-  const renderHeader = () => (
-    <View style={styles.listHeader}>
-      <Text style={styles.resultsText}>
-        {visible.length} {visible.length === 1 ? "listing" : "listings"}
-        {typeFilter === "item" ? " · Items" : typeFilter === "service" ? " · Services" : ""}
-        {selectedCategory !== "All" ? ` · ${selectedCategory}` : ""}
-      </Text>
-    </View>
-  );
+  const listBottomInset = 72;
 
   const emptyTitle = useMemo(() => {
     if (filterMode === "saved") return "No saved listings yet";
@@ -305,10 +393,65 @@ export default function CommunityListingsScreen() {
     return "Try another filter or check back soon for new posts.";
   }, [filterMode, typeFilter]);
 
-  const fabLabel =
-    typeFilter === "service" ? "Offer Service" : typeFilter === "item" ? "List Item" : "Post Listing";
   const emptyCtaLabel =
     typeFilter === "service" ? "Offer a service" : typeFilter === "item" ? "List an item" : "Post listing";
+
+  const openFilters = useCallback(() => {
+    setFilterSession((count) => count + 1);
+    setFilterOpen(true);
+  }, []);
+
+  const renderListingCount = () => (
+    <View style={styles.listingCountRow}>
+      <View style={styles.listingCountBadge}>
+        <Text style={styles.listingCountNumber}>{visible.length}</Text>
+      </View>
+      <View style={styles.listingCountTextWrap}>
+        <Text style={styles.listingCountLabel}>
+          {visible.length === 1 ? "Listing" : "Listings"}
+        </Text>
+        <Text style={styles.listingCountHint} numberOfLines={1}>
+          {listingCountHint}
+        </Text>
+      </View>
+      {searching ? (
+        <ActivityIndicator size="small" color={M.teal} style={styles.listingCountSpinner} />
+      ) : null}
+    </View>
+  );
+
+  const renderSearchIconButton = () => (
+    <TouchableOpacity
+      style={[styles.headerIconButton, searchExpanded && styles.headerIconButtonActive]}
+      onPress={toggleSearch}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={searchExpanded ? "Close search" : "Search listings"}
+      accessibilityState={{ expanded: searchExpanded }}
+    >
+      <Ionicons name="search-outline" size={20} color={searchExpanded ? M.teal : M.navy} />
+    </TouchableOpacity>
+  );
+
+  const renderFloatingFilterButton = () => (
+    <TouchableOpacity
+      style={styles.floatingFilter}
+      onPress={openFilters}
+      activeOpacity={0.92}
+      accessibilityRole="button"
+      accessibilityLabel="Open listing filters"
+    >
+      <View style={styles.floatingFilterInner}>
+        <Ionicons name="options-outline" size={20} color={M.navy} />
+        <Text style={styles.floatingFilterText}>Filters</Text>
+        {activeFilterCount > 0 ? (
+          <View style={styles.filterBadge}>
+            <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+          </View>
+        ) : null}
+      </View>
+    </TouchableOpacity>
+  );
 
   const renderEmpty = () => (
     <View style={styles.emptyWrap}>
@@ -324,167 +467,176 @@ export default function CommunityListingsScreen() {
     </View>
   );
 
+  const Root = embedded ? View : SafeAreaView;
+  const rootProps = embedded
+    ? { style: [styles.container, styles.containerEmbedded] }
+    : { style: styles.container, edges: ["left", "right"] };
+
   return (
-    <SafeAreaView style={styles.container} edges={["left", "right"]}>
-      <View style={styles.topSection}>
-        <HeaderShell padded dense style={styles.headerShell}>
-          <View style={styles.headerRow}>
-            <BackButton iconOnly compact />
-            <View style={styles.headerTitleWrap}>
-              <Text style={styles.headerTitle} numberOfLines={1}>
-                Community Listings
-              </Text>
-              <Text style={styles.headerSubtitle} numberOfLines={1}>
-                {communityName}
-              </Text>
+    <Root {...rootProps}>
+      <KeyboardAvoidingView
+        style={styles.searchKeyboardAvoid}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        enabled={searchExpanded}
+      >
+        <View style={[styles.topSection, isWide && styles.topSectionWide]}>
+          <View style={[styles.topSectionInner, { maxWidth: contentMaxWidth }]}>
+          {!embedded ? (
+            <HeaderShell padded dense style={styles.headerShell}>
+              <View style={styles.headerRow}>
+                <BackButton iconOnly compact />
+                <View style={styles.headerTitleWrap}>
+                  <Text style={styles.headerTitle} numberOfLines={1}>
+                    Community Listings
+                  </Text>
+                  <View style={styles.headerSubtitleWrap}>
+                    {renderListingCount()}
+                  </View>
+                </View>
+                {renderSearchIconButton()}
+              </View>
+            </HeaderShell>
+          ) : (
+            <View style={styles.embeddedHeader}>
+              {renderListingCount()}
+              {renderSearchIconButton()}
             </View>
-          </View>
-        </HeaderShell>
+          )}
 
-        <View style={styles.searchWrap}>
-          <Ionicons name="search-outline" size={18} color={M.caption} style={styles.searchIcon} />
-          <TextInput
-            value={searchDraft}
-            onChangeText={setSearchDraft}
-            placeholder="Search by title or category..."
-            placeholderTextColor={M.caption}
-            style={styles.searchInput}
-            returnKeyType="search"
-            onSubmitEditing={submitSearch}
-          />
-          {searchDraft.length > 0 ? (
-            <TouchableOpacity
-              onPress={() => {
-                setSearchDraft("");
-                setSearch("");
-                loadWithTerm("", filterMode, typeFilter);
-              }}
-              hitSlop={8}
-            >
-              <Ionicons name="close-circle" size={18} color="#CBD5E1" />
-            </TouchableOpacity>
-          ) : null}
-        </View>
-
-        <View style={styles.filterTabsWrap}>
-          <FilterTabs
-            active={filterMode}
-            onChange={handleFilterChange}
-            counts={filterCounts}
-          />
-          <Text style={styles.filterHint}>{filterHint}</Text>
-        </View>
-      </View>
-
-      <View style={styles.filtersPanel}>
-        <View style={styles.typeFilterWrap}>
-          <TypeFilterRow active={typeFilter} onChange={handleTypeFilterChange} />
-        </View>
-        <View style={styles.categoryHeader}>
-          <Text style={styles.categoryLabel}>Categories</Text>
-          <View style={styles.viewToggle}>
-            <TouchableOpacity
-              style={[styles.viewBtn, isGrid && styles.viewBtnActive]}
-              onPress={() => setViewMode("grid")}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="grid" size={16} color={isGrid ? M.teal : M.caption} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.viewBtn, !isGrid && styles.viewBtnActive]}
-              onPress={() => setViewMode("list")}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="list" size={16} color={!isGrid ? M.teal : M.caption} />
-            </TouchableOpacity>
+          <Animated.View
+            style={[styles.searchCollapseBody, searchCollapseStyle]}
+            pointerEvents={searchExpanded ? "auto" : "none"}
+          >
+            <View onLayout={onSearchBodyLayout}>
+              <View style={styles.searchWrap}>
+                <Ionicons name="search-outline" size={18} color={M.caption} style={styles.searchIcon} />
+                <TextInput
+                  ref={searchInputRef}
+                  value={searchDraft}
+                  onChangeText={setSearchDraft}
+                  placeholder="Search by title or category..."
+                  placeholderTextColor={M.caption}
+                  style={styles.searchInput}
+                  returnKeyType="search"
+                  onSubmitEditing={submitSearch}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  clearButtonMode="never"
+                />
+                {searchDraft.length > 0 ? (
+                  <TouchableOpacity
+                    onPress={clearSearch}
+                    hitSlop={8}
+                    accessibilityLabel="Clear search"
+                  >
+                    <Ionicons name="close-circle" size={18} color="#CBD5E1" />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </View>
+          </Animated.View>
           </View>
         </View>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={categories}
-          keyExtractor={(item) => item}
-          contentContainerStyle={styles.chipsContent}
-          style={styles.chipsList}
-          renderItem={({ item }) => {
-            const active = selectedCategory === item;
-            return (
-              <TouchableOpacity
-                style={[styles.chip, active && styles.chipActive]}
-                onPress={() => setSelectedCategory(item)}
-                activeOpacity={0.85}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{item}</Text>
-              </TouchableOpacity>
-            );
-          }}
-        />
-      </View>
+      </KeyboardAvoidingView>
 
-      {loading && listings.length === 0 ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={M.teal} />
-          <Text style={styles.loadingText}>Loading listings…</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={visible}
-          key={viewMode}
-          numColumns={isGrid ? 2 : 1}
-          keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={styles.listContent}
-          columnWrapperStyle={isGrid ? styles.gridRow : undefined}
-          ListHeaderComponent={renderHeader}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              tintColor={M.teal}
-              onRefresh={() => {
-                setRefreshing(true);
-                load();
-              }}
-            />
-          }
-          ListEmptyComponent={renderEmpty}
-          renderItem={({ item }) => (
-            <ListingGridCard
-              item={item}
-              width={isGrid ? CARD_W : undefined}
-              variant={isGrid ? "grid" : "list"}
-              onPress={() =>
-                goTo(MarketplaceRoutes.LISTING_DETAIL, { id: String(item.id) })
+      <View style={styles.listHost} onLayout={onListLayout}>
+          {loading && listings.length === 0 ? (
+            <View style={styles.centered}>
+              <ActivityIndicator size="large" color={M.teal} />
+              <Text style={styles.loadingText}>Loading listings…</Text>
+            </View>
+          ) : (
+            <FlatList
+              ref={listRef}
+              data={visible}
+              key={viewMode}
+              style={styles.listFlex}
+              numColumns={isGrid ? 2 : 1}
+              keyExtractor={(item) => String(item.id)}
+              contentContainerStyle={[
+                styles.listContent,
+                { paddingBottom: listBottomInset },
+                visible.length === 0 && styles.listContentEmpty,
+              ]}
+              columnWrapperStyle={isGrid ? styles.gridRow : undefined}
+              scrollEventThrottle={16}
+              onScroll={handleListScroll}
+              onContentSizeChange={onListContentSizeChange}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  tintColor={M.teal}
+                  onRefresh={() => {
+                    setRefreshing(true);
+                    load();
+                  }}
+                />
               }
-              onToggleSave={handleToggleSave}
+              ListEmptyComponent={renderEmpty}
+              renderItem={({ item }) => (
+                <ListingGridCard
+                  item={item}
+                  width={isGrid ? cardWidth : undefined}
+                  variant={isGrid ? "grid" : "list"}
+                  onPress={() =>
+                    goTo(MarketplaceRoutes.LISTING_DETAIL, { id: String(item.id) })
+                  }
+                  onToggleSave={handleToggleSave}
+                />
+              )}
             />
           )}
-        />
-      )}
+        </View>
 
-      {visible.length > 0 ? (
-        <TouchableOpacity
-          style={styles.floatingListItem}
-          activeOpacity={0.92}
-          onPress={openCreateListing}
-        >
-          <View
-            style={styles.fabGradient}
-          >
-            <Ionicons name="add" size={20} color="#FFFFFF" />
-            <Text style={styles.fabText}>{fabLabel}</Text>
-          </View>
-        </TouchableOpacity>
-      ) : null}
-    </SafeAreaView>
+      {!loading ? renderFloatingFilterButton() : null}
+
+      <CommunityListingsFilterSheet
+        visible={filterOpen}
+        remountKey={filterSession}
+        onClose={() => setFilterOpen(false)}
+        filterMode={filterMode}
+        typeFilter={typeFilter}
+        selectedCategory={selectedCategory}
+        viewMode={viewMode}
+        categories={categories}
+        filterCounts={filterCounts}
+        onApply={handleApplyFilters}
+      />
+    </Root>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: M.screenBg },
+  containerEmbedded: {
+    minHeight: 0,
+  },
+  searchKeyboardAvoid: {
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  listHost: {
+    flex: 1,
+    minHeight: 0,
+  },
+  listFlex: {
+    flex: 1,
+  },
   topSection: {
     backgroundColor: M.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: M.border,
-    paddingBottom: 10,
+  },
+  topSectionWide: {
+    alignItems: "center",
+  },
+  topSectionInner: {
+    width: "100%",
+  },
+  searchCollapseBody: {
+    overflow: "hidden",
   },
   headerShell: {
     backgroundColor: "transparent",
@@ -509,18 +661,70 @@ const styles = StyleSheet.create({
     color: M.text,
     fontWeight: "700",
   },
-  headerSubtitle: {
-    marginTop: 2,
+  headerSubtitleWrap: {
+    marginTop: 4,
+  },
+  listingCountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+    minWidth: 0,
+  },
+  listingCountBadge: {
+    minWidth: 36,
+    height: 36,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    backgroundColor: M.mint,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(20, 184, 166, 0.25)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  listingCountNumber: {
+    fontFamily: Fonts.bold,
+    fontSize: 18,
+    lineHeight: 22,
+    color: M.teal,
+    fontWeight: "800",
+  },
+  listingCountTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  listingCountLabel: {
+    fontFamily: Fonts.semiBold,
+    fontSize: MarketplaceType.body,
+    lineHeight: MarketplaceType.bodyLine,
+    color: M.text,
+    fontWeight: "700",
+  },
+  listingCountHint: {
+    marginTop: 1,
     fontFamily: Fonts.regular,
     fontSize: MarketplaceType.caption,
     lineHeight: MarketplaceType.captionLine,
     color: M.textMuted,
+  },
+  listingCountSpinner: {
+    marginLeft: 4,
+  },
+  embeddedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingHorizontal: H_PADDING,
+    paddingTop: 8,
+    paddingBottom: 2,
   },
   searchWrap: {
     flexDirection: "row",
     alignItems: "center",
     marginHorizontal: H_PADDING,
     marginTop: 2,
+    marginBottom: 6,
     paddingHorizontal: 14,
     height: 44,
     borderRadius: 12,
@@ -539,196 +743,35 @@ const styles = StyleSheet.create({
     color: M.text,
     paddingVertical: 0,
   },
-  filterTabsWrap: {
-    marginHorizontal: H_PADDING,
-    marginTop: 8,
-    gap: 6,
-  },
-  filterTabs: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: M.border,
+  headerIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: M.screenBg,
-    overflow: "hidden",
-  },
-  filterTab: {
-    flex: 1,
-    flexDirection: "row",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: M.border,
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingVertical: 11,
-    paddingHorizontal: 8,
+    flexShrink: 0,
   },
-  filterTabDivider: {
-    borderLeftWidth: 1,
-    borderLeftColor: M.border,
+  headerIconButtonActive: {
+    borderColor: M.teal,
+    backgroundColor: M.mint,
   },
-  filterTabActive: {
-    backgroundColor: M.surface,
-  },
-  filterTabLabel: {
-    fontFamily: Fonts.medium,
-    fontSize: 13,
-    color: M.textMuted,
-    fontWeight: "600",
-  },
-  filterTabLabelActive: {
-    color: M.teal,
-  },
-  filterTabCount: {
+  filterBadge: {
     minWidth: 20,
     height: 20,
     borderRadius: 10,
-    paddingHorizontal: 5,
-    backgroundColor: M.border,
+    paddingHorizontal: 6,
+    backgroundColor: M.teal,
     alignItems: "center",
     justifyContent: "center",
   },
-  filterTabCountActive: {
-    backgroundColor: M.mint,
-  },
-  filterTabCountText: {
+  filterBadgeText: {
     fontFamily: Fonts.bold,
     fontSize: 10,
-    color: M.textMuted,
-    fontWeight: "700",
-  },
-  filterTabCountTextActive: {
-    color: M.teal,
-  },
-  filterHint: {
-    fontFamily: Fonts.regular,
-    fontSize: 12,
-    color: M.caption,
-    paddingHorizontal: 2,
-  },
-  typeFilterWrap: {
-    paddingHorizontal: H_PADDING,
-    marginBottom: 10,
-  },
-  typeFilters: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: M.border,
-    backgroundColor: M.screenBg,
-    overflow: "hidden",
-  },
-  typeFilterTab: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-  },
-  typeFilterDivider: {
-    borderLeftWidth: 1,
-    borderLeftColor: M.border,
-  },
-  typeFilterTabActive: {
-    backgroundColor: M.surface,
-  },
-  typeFilterLabel: {
-    fontFamily: Fonts.medium,
-    fontSize: 12,
-    color: M.textMuted,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  typeFilterLabelActive: {
-    color: M.teal,
-    fontFamily: Fonts.bold,
-    fontWeight: "700",
-  },
-  filtersPanel: {
-    backgroundColor: M.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: M.border,
-    paddingTop: 8,
-    paddingBottom: 10,
-  },
-  categoryHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: H_PADDING,
-    marginBottom: 8,
-  },
-  categoryLabel: {
-    fontFamily: Fonts.medium,
-    fontSize: MarketplaceType.body,
-    color: M.textMuted,
-    fontWeight: "600",
-  },
-  chipsList: {
-    flexGrow: 0,
-  },
-  chipsContent: {
-    paddingHorizontal: H_PADDING,
-    gap: 8,
-  },
-  chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: M.mint,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: M.border,
-  },
-  chipActive: {
-    backgroundColor: M.teal,
-    borderColor: M.navy,
-  },
-  chipText: {
-    fontFamily: Fonts.medium,
-    fontSize: MarketplaceType.body,
-    color: M.textMuted,
-    fontWeight: "600",
-  },
-  chipTextActive: {
     color: "#FFFFFF",
-  },
-  listHeader: {
-    marginBottom: 8,
-  },
-  resultsText: {
-    fontFamily: Fonts.medium,
-    fontSize: MarketplaceType.body,
-    color: M.textMuted,
-    fontWeight: "600",
-  },
-  viewToggle: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    padding: 3,
-    borderRadius: 10,
-    backgroundColor: M.mint,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: M.border,
-  },
-  viewBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  viewBtnActive: {
-    backgroundColor: M.surface,
-    ...Platform.select({
-      ios: {
-        shadowColor: M.navy,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.06,
-        shadowRadius: 2,
-      },
-      android: { elevation: 1 },
-    }),
+    fontWeight: "700",
   },
   centered: {
     flex: 1,
@@ -744,7 +787,8 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: H_PADDING,
     paddingTop: 10,
-    paddingBottom: 100,
+  },
+  listContentEmpty: {
     flexGrow: 1,
   },
   gridRow: {
@@ -797,7 +841,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "700",
   },
-  floatingListItem: {
+  floatingFilter: {
     position: "absolute",
     bottom: 24,
     right: H_PADDING,
@@ -806,27 +850,29 @@ const styles = StyleSheet.create({
     zIndex: 10,
     ...Platform.select({
       ios: {
-        shadowColor: M.teal,
+        shadowColor: "#0F172A",
         shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.2,
+        shadowOpacity: 0.12,
         shadowRadius: 8,
       },
       android: { elevation: 4 },
     }),
   },
-  fabGradient: {
+  floatingFilterInner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
     paddingVertical: 14,
-    backgroundColor: M.teal,
+    backgroundColor: M.surface,
     borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: M.border,
   },
-  fabText: {
+  floatingFilterText: {
     fontFamily: Fonts.bold,
     fontSize: MarketplaceType.bodyMd,
-    color: "#FFFFFF",
+    color: M.navy,
     fontWeight: "700",
   },
 });

@@ -150,19 +150,23 @@ export default function TabLayout() {
     <>
       <ScreenStatusBar style="dark" />
       <Tabs
-        tabBar={() => (
-          <FloatingNavMenu
-            onCreatePress={() => setShowCreateModal(true)}
-            isCommunityAdmin={communityAdminUser}
-          />
-        )}
+        tabBar={(props) => {
+          if (props.style?.display === "none") return null;
+          return (
+            <FloatingNavMenu
+              onCreatePress={() => setShowCreateModal(true)}
+              isCommunityAdmin={communityAdminUser}
+            />
+          );
+        }}
         screenOptions={{
           headerShown: false,
           tabBarHideOnKeyboard: true,
         }}
       >
         <Tabs.Screen name="home" options={{ title: "Home" }} />
-        <Tabs.Screen name="marketplace" options={{ title: "Marketplace" }} />
+        <Tabs.Screen name="community" options={{ title: "Community" }} />
+        <Tabs.Screen name="marketplace" options={{ href: null, title: "Marketplace" }} />
         <Tabs.Screen name="services" options={{ title: "Properties" }} />
         <Tabs.Screen name="profile" options={{ title: "Profile" }} />
         <Tabs.Screen name="create-post" options={{ href: null }} />

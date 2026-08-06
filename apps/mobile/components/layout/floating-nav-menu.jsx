@@ -30,11 +30,11 @@ const HOME_TAB = {
   icon: { set: "ion", active: "home", inactive: "home-outline" },
 };
 
-const MARKETPLACE_TAB = {
-  name: "marketplace",
-  label: "Marketplace",
-  href: "/marketplace",
-  icon: { set: "ion", active: "storefront", inactive: "storefront-outline" },
+const COMMUNITY_TAB = {
+  name: "community",
+  label: "Community",
+  href: "/community",
+  icon: { set: "ion", active: "people", inactive: "people-outline" },
 };
 
 const PROPERTIES_TAB = {
@@ -60,7 +60,7 @@ const ADMIN_TAB = {
 
 const GUEST_TAB_PERMISSIONS = {
   home: "feed",
-  marketplace: "marketplace",
+  community: "feed",
 };
 
 function NavIcon({ item, focused }) {
@@ -91,7 +91,8 @@ function getActiveTab(segments, pathname) {
   const tab = segments[tabIndex];
 
   if (!tab || tab === "home") return "home";
-  if (tab === "marketplace") return "marketplace";
+  if (tab === "community") return "community";
+  if (tab === "marketplace") return "community";
   if (tab === "services") return "properties";
   if (tab === "profile") return "profile";
   if (tab === "notices" || tab === "wellness") return "home";
@@ -109,8 +110,8 @@ function getActiveTab(segments, pathname) {
 
 /**
  * Bottom tabs by role:
- * Resident — Home | Marketplace | Create | Properties | Profile
- * Admin    — Home | Marketplace | Create | Admin | Properties
+ * Resident — Home | Community | Create | Properties | Profile
+ * Admin    — Home | Community | Create | Admin | Properties
  */
 export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = false }) {
   const [guestUser, setGuestUser] = useState(null);
@@ -134,6 +135,12 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
     (tabs) => {
       if (!guestUser || !isGuestUser(guestUser)) return tabs;
       return tabs.filter((item) => {
+        if (item.name === "community") {
+          return (
+            guestCanAccessFeature(guestUser, "feed") ||
+            guestCanAccessFeature(guestUser, "marketplace")
+          );
+        }
         const permissionKey = GUEST_TAB_PERMISSIONS[item.name];
         if (!permissionKey) return true;
         return guestCanAccessFeature(guestUser, permissionKey);
@@ -143,7 +150,7 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
   );
 
   const leftTabs = useMemo(
-    () => filterTabs([HOME_TAB, MARKETPLACE_TAB]),
+    () => filterTabs([HOME_TAB, COMMUNITY_TAB]),
     [filterTabs],
   );
 

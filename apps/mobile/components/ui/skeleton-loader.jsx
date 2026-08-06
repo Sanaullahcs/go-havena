@@ -260,6 +260,68 @@ export function PopularNearbySkeleton({ count = 4, style }) {
   );
 }
 
+function DealsOfferCardSkeleton({ index }) {
+  const stagger = index * 120;
+
+  return (
+    <View style={[styles.dealsOfferCard, MP_CARD_SHADOW]}>
+      <View style={styles.dealsOfferImageWrap}>
+        <ShimmerBlock tone="photo" style={styles.dealsOfferImageFill} delay={stagger} />
+        <ShimmerBlock tone="soft" style={styles.dealsOfferHeart} delay={stagger + 40} />
+        <ShimmerBlock tone="brand" style={styles.dealsOfferTag} delay={stagger + 60} />
+      </View>
+
+      <View style={styles.dealsOfferBody}>
+        <SkeletonLine width="72%" height={18} tone="card" delay={stagger + 30} />
+        <SkeletonLine width="48%" height={12} tone="soft" style={{ marginTop: 8 }} delay={stagger + 50} />
+        <SkeletonLine width="100%" height={10} tone="soft" style={{ marginTop: 14 }} delay={stagger + 70} />
+        <SkeletonLine width="86%" height={10} tone="soft" style={{ marginTop: 6 }} delay={stagger + 90} />
+        <View style={styles.dealsOfferMetaRow}>
+          <SkeletonLine width={100} height={10} tone="soft" delay={stagger + 110} />
+          <SkeletonLine width={120} height={10} tone="soft" delay={stagger + 130} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/** Deals & Offers screen — full-width cards with hero image + body */
+export function DealsOfferSkeleton({ count = 3, showCouponsCard = false }) {
+  const chipWidths = [72, 84, 64, 92];
+
+  return (
+    <View style={styles.dealsOfferWrap}>
+      {showCouponsCard ? (
+        <View style={[styles.dealsOfferCouponsCard, MP_CARD_SHADOW]}>
+          <ShimmerBlock tone="brand" style={styles.dealsOfferCouponsIcon} delay={0} />
+          <View style={styles.dealsOfferCouponsCopy}>
+            <SkeletonLine width="56%" height={14} tone="card" delay={20} />
+            <SkeletonLine width="42%" height={10} tone="soft" style={{ marginTop: 6 }} delay={40} />
+          </View>
+          <ShimmerBlock tone="soft" style={styles.dealsOfferCouponsChevron} delay={60} />
+        </View>
+      ) : null}
+
+      <View style={styles.dealsOfferChipRow}>
+        {chipWidths.map((width, index) => (
+          <ShimmerBlock
+            key={width}
+            tone="soft"
+            style={{ width, height: 36, borderRadius: 999 }}
+            delay={index * 40}
+          />
+        ))}
+      </View>
+
+      <View style={styles.dealsOfferList}>
+        {Array.from({ length: count }).map((_, index) => (
+          <DealsOfferCardSkeleton key={index} index={index} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
 /** Home section placeholder */
 export function HomeSectionSkeleton({ cardHeight = 118 }) {
   const { width } = useWindowDimensions();
@@ -1603,5 +1665,84 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     backgroundColor: "#D1D5DB",
+  },
+  dealsOfferWrap: {
+    gap: 8,
+  },
+  dealsOfferCouponsCard: {
+    borderRadius: 14,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "rgba(20, 184, 166, 0.28)",
+    gap: 12,
+  },
+  dealsOfferCouponsIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+  },
+  dealsOfferCouponsCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  dealsOfferCouponsChevron: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+  },
+  dealsOfferChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
+  dealsOfferList: {
+    gap: 14,
+    paddingTop: 2,
+  },
+  dealsOfferCard: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+  },
+  dealsOfferImageWrap: {
+    position: "relative",
+    height: 160,
+    backgroundColor: "#F1F5F9",
+  },
+  dealsOfferImageFill: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  dealsOfferHeart: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  dealsOfferTag: {
+    position: "absolute",
+    right: 12,
+    bottom: 12,
+    width: 72,
+    height: 32,
+    borderRadius: 10,
+  },
+  dealsOfferBody: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  dealsOfferMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 14,
   },
 });

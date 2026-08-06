@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Platform,
 } from "react-native";
 import { Image } from "expo-image";
 import { Fonts } from "../../../constants/font";
@@ -23,6 +24,7 @@ import {
 } from "../../../constants/marketplace-routes";
 import { fetchBusinesses, fetchMyBusiness } from "../../../services/businesses-api";
 import { fetchManageDeals } from "../../../services/deals-api";
+import { MarketplaceTheme as MT } from "../../../constants/marketplace-theme";
 
 export default function ManageMarketplace() {
   const router = useRouter();
@@ -215,7 +217,13 @@ export default function ManageMarketplace() {
                     }}
                   >
                     <View
-                      style={styles.overViewGradient}
+                      style={[
+                        styles.overViewGradient,
+                        {
+                          backgroundColor: item.gradient[0],
+                          borderColor: item.gradient[1],
+                        },
+                      ]}
                     >
                       <View style={styles.overViewHeader}>
                         <Image source={item.source} style={styles.overViewIcon} />
@@ -239,9 +247,7 @@ export default function ManageMarketplace() {
               <Text style={styles.listTitle}>Quick Actions</Text>
               <View style={styles.quickActions}>
                 <TouchableOpacity activeOpacity={0.9} onPress={goToAddOrEditBusiness}>
-                  <View
-                    style={styles.businessBtn}
-                  >
+                  <View style={styles.businessBtnPrimary}>
                     <View style={styles.quickRow}>
                       <Image
                         source={require("../../../assets/images/add-business.png")}
@@ -251,7 +257,7 @@ export default function ManageMarketplace() {
                         <Text style={styles.quickTitle}>
                           {myBusiness ? "Edit My Business" : "Add New Business"}
                         </Text>
-                        <Text style={styles.quickSubtitle}>
+                        <Text style={styles.quickSubtitlePrimary}>
                           {myBusiness ? "Update your registered business" : "Register a local business"}
                         </Text>
                       </View>
@@ -264,21 +270,15 @@ export default function ManageMarketplace() {
                 </TouchableOpacity>
 
                 <TouchableOpacity activeOpacity={0.9} onPress={handleCreateDeal}>
-                  <View
-                    style={styles.businessBtn}
-                  >
+                  <View style={styles.businessBtnSurface}>
                     <View style={styles.quickRow}>
                       <Image
                         source={require("../../../assets/images/create-deal.png")}
                         style={styles.quickIcon}
                       />
                       <View style={styles.quickCopy}>
-                        <Text style={[styles.quickTitle, styles.quickTitleDark]}>
-                          Create New Deal
-                        </Text>
-                        <Text style={[styles.quickSubtitle, styles.quickTitleDark]}>
-                          Add promotional offer
-                        </Text>
+                        <Text style={styles.quickTitleDark}>Create New Deal</Text>
+                        <Text style={styles.quickSubtitleDark}>Add promotional offer</Text>
                       </View>
                       <Image
                         source={require("../../../assets/images/black-arrow-right.png")}
@@ -357,11 +357,22 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginBottom: 12,
     width: "48%",
+    overflow: "hidden",
+    ...Platform.select({
+      ios: { borderCurve: "continuous" },
+      default: {},
+    }),
   },
   overViewGradient: {
     width: "100%",
     padding: 16,
     borderRadius: 14,
+    borderWidth: 1,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: { borderCurve: "continuous" },
+      default: {},
+    }),
   },
   overViewHeader: {
     flexDirection: "row",
@@ -395,9 +406,29 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     gap: 12,
   },
-  businessBtn: {
+  businessBtnPrimary: {
     padding: 16,
     borderRadius: 14,
+    backgroundColor: MT.navy,
+    borderWidth: 1,
+    borderColor: MT.accentBorder,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: { borderCurve: "continuous" },
+      default: {},
+    }),
+  },
+  businessBtnSurface: {
+    padding: 16,
+    borderRadius: 14,
+    backgroundColor: MT.surface,
+    borderWidth: 1,
+    borderColor: MT.border,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: { borderCurve: "continuous" },
+      default: {},
+    }),
   },
   quickRow: {
     flexDirection: "row",
@@ -419,17 +450,29 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: MarketplaceType.body,
     lineHeight: MarketplaceType.headingLine,
-    color: "#FFFFFF",
+    color: MT.surface,
     fontWeight: "700",
   },
   quickTitleDark: {
-    color: "rgba(54, 65, 83, 1)",
-  },
-  quickSubtitle: {
     fontFamily: Fonts.bold,
+    fontSize: MarketplaceType.body,
+    lineHeight: MarketplaceType.headingLine,
+    color: MT.navy,
+    fontWeight: "700",
+  },
+  quickSubtitlePrimary: {
+    marginTop: 2,
+    fontFamily: Fonts.regular,
     fontSize: MarketplaceType.caption,
     lineHeight: MarketplaceType.captionLine,
-    color: "#FFFFFF",
+    color: "rgba(255,255,255,0.72)",
+  },
+  quickSubtitleDark: {
+    marginTop: 2,
+    fontFamily: Fonts.regular,
+    fontSize: MarketplaceType.caption,
+    lineHeight: MarketplaceType.captionLine,
+    color: MT.textMuted,
   },
   toolsList: {
     paddingTop: 12,
