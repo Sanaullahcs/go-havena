@@ -11,6 +11,7 @@ import {
 import DateTimePicker, {
   DateTimePickerAndroid,
 } from "@react-native-community/datetimepicker";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { formatDisplayDate, formatDisplayTime } from "../../utils/form-datetime";
 
@@ -41,6 +42,7 @@ export default function SchedulePickerField({
   inputStyle,
   placeholderTextColor = "#98A2B3",
 }) {
+  const { t } = useTranslation();
   const [showAndroid, setShowAndroid] = useState(false);
   const [showIos, setShowIos] = useState(false);
   const [draft, setDraft] = useState(() => toDate(value) ?? new Date());
@@ -151,10 +153,10 @@ export default function SchedulePickerField({
             <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
               <View style={styles.modalHeader}>
                 <TouchableOpacity onPress={() => setShowIos(false)} hitSlop={8}>
-                  <Text style={styles.modalActionMuted}>Cancel</Text>
+                  <Text style={styles.modalActionMuted}>{t("common.cancel")}</Text>
                 </TouchableOpacity>
                 <Text style={styles.modalTitle}>
-                  {mode === "date" ? "Select date" : "Select time"}
+                  {mode === "date" ? t("common.selectDate") : t("common.selectTime")}
                 </Text>
                 <TouchableOpacity
                   onPress={() => {
@@ -163,7 +165,7 @@ export default function SchedulePickerField({
                   }}
                   hitSlop={8}
                 >
-                  <Text style={styles.modalActionPrimary}>Done</Text>
+                  <Text style={styles.modalActionPrimary}>{t("common.done")}</Text>
                 </TouchableOpacity>
               </View>
               <View style={styles.iosPickerWrap}>
@@ -205,8 +207,8 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopStartRadius: 16,
+    borderTopEndRadius: 16,
     paddingBottom: 24,
   },
   modalHeader: {

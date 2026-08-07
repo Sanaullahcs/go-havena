@@ -174,6 +174,8 @@ class AmenityController extends Controller
             ->select(
                 'bookings.*',
                 'amenities.name as amenity_name',
+                'amenities.name_es as amenity_name_es',
+                'amenities.name_ar as amenity_name_ar',
                 'amenities.image_url as amenity_image',
                 'amenities.icon_key as amenity_icon_key',
                 'amenities.status as amenity_status',
@@ -198,11 +200,15 @@ class AmenityController extends Controller
             ->select(
                 'bookings.*',
                 'amenities.name as amenity_name',
+                'amenities.name_es as amenity_name_es',
+                'amenities.name_ar as amenity_name_ar',
                 'amenities.community_id',
                 'amenities.icon_key as amenity_icon_key',
                 'amenities.created_by as amenity_created_by',
                 'amenities.status as amenity_status',
                 'amenities.description as amenity_description',
+                'amenities.description_es as amenity_description_es',
+                'amenities.description_ar as amenity_description_ar',
                 'amenities.capacity as amenity_capacity',
                 'amenities.floor as amenity_floor',
                 'amenities.hours as amenity_hours',
@@ -350,7 +356,7 @@ class AmenityController extends Controller
 
         $booking = DB::table('bookings')
             ->join('amenities', 'amenities.id', '=', 'bookings.amenity_id')
-            ->select('bookings.*', 'amenities.name as amenity_name')
+            ->select('bookings.*', 'amenities.name as amenity_name', 'amenities.name_es as amenity_name_es', 'amenities.name_ar as amenity_name_ar')
             ->where('bookings.id', $id)
             ->first();
 
@@ -359,6 +365,8 @@ class AmenityController extends Controller
                 'id' => $id,
                 'amenity_id' => (int) $request->amenity_id,
                 'amenity_name' => $booking->amenity_name ?? $amenity->name,
+                'amenity_name_es' => $booking->amenity_name_es ?? null,
+                'amenity_name_ar' => $booking->amenity_name_ar ?? null,
                 'date' => $date,
                 'time_slot' => $timeSlot,
                 'guests' => $guests,
@@ -661,7 +669,11 @@ class AmenityController extends Controller
     {
         $rules = [
             'name' => ($creating ? 'required' : 'sometimes').'|string|max:100',
+            'name_es' => 'nullable|string|max:100',
+            'name_ar' => 'nullable|string|max:100',
             'description' => 'nullable|string|max:2000',
+            'description_es' => 'nullable|string|max:2000',
+            'description_ar' => 'nullable|string|max:2000',
             'status' => ($creating ? 'required' : 'sometimes').'|in:'.implode(',', self::STATUSES),
             'capacity' => 'nullable|integer|min:0|max:1000',
             'floor' => 'nullable|string|max:40',
@@ -699,7 +711,11 @@ class AmenityController extends Controller
             'community_id' => $communityId,
             'created_by' => $userId,
             'name' => $data['name'],
+            'name_es' => $data['name_es'] ?? null,
+            'name_ar' => $data['name_ar'] ?? null,
             'description' => $data['description'] ?? null,
+            'description_es' => $data['description_es'] ?? null,
+            'description_ar' => $data['description_ar'] ?? null,
             'status' => $status,
             'review_status' => $isAdmin ? 'approved' : 'pending',
             'capacity' => $data['capacity'] ?? 10,
@@ -721,7 +737,7 @@ class AmenityController extends Controller
     private function mapAmenityUpdatePayload(array $data): array
     {
         $payload = [];
-        foreach (['name', 'description', 'status', 'capacity', 'floor', 'icon_key', 'weekends_available', 'slot_duration_minutes'] as $field) {
+        foreach (['name', 'name_es', 'name_ar', 'description', 'description_es', 'description_ar', 'status', 'capacity', 'floor', 'icon_key', 'weekends_available', 'slot_duration_minutes'] as $field) {
             if (array_key_exists($field, $data)) {
                 $payload[$field] = $data[$field];
             }
@@ -767,7 +783,11 @@ class AmenityController extends Controller
             'created_by' => $row->created_by !== null ? (int) $row->created_by : null,
             'creator_name' => $row->creator_name ?? null,
             'name' => $row->name,
+            'name_es' => $row->name_es ?? null,
+            'name_ar' => $row->name_ar ?? null,
             'description' => $row->description,
+            'description_es' => $row->description_es ?? null,
+            'description_ar' => $row->description_ar ?? null,
             'status' => $row->status,
             'review_status' => $row->review_status ?? 'approved',
             'capacity' => (int) ($row->capacity ?? 0),
@@ -858,6 +878,8 @@ class AmenityController extends Controller
             ->select(
                 'bookings.*',
                 'amenities.name as amenity_name',
+                'amenities.name_es as amenity_name_es',
+                'amenities.name_ar as amenity_name_ar',
                 'amenities.community_id',
                 'amenities.created_by as amenity_created_by',
             )

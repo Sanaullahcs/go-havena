@@ -1,9 +1,11 @@
 import { View, Text, StyleSheet } from "react-native";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import RoleIcon from "./role-icon";
 import { HavenaColors as C } from "../../constants/color-scheme";
 
 export default function RoleBadge({ role = "resident" }) {
+  const { t } = useTranslation();
   const isAdmin = role === "admin";
 
   return (
@@ -24,7 +26,7 @@ export default function RoleBadge({ role = "resident" }) {
           { color: isAdmin ? C.primary.darkNavy : "#047857" },
         ]}
       >
-        {isAdmin ? "Community Admin" : "Resident"}
+        {isAdmin ? t("roles.communityAdmin") : t("roles.resident")}
       </Text>
     </View>
   );

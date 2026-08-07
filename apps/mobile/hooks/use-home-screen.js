@@ -54,30 +54,22 @@ export function useHomeScreen() {
         return;
       }
 
-      const [
-        carouselResult,
-        eventsResult,
-        feedResult,
-        dealsResult,
-        wellnessResult,
-        amenitiesResult,
-      ] = await Promise.allSettled([
+      const criticalPromise = Promise.allSettled([
         fetchNotices({ categoryGroup: "notices", perPage: 30 }),
+        fetchNotices({ categoryGroup: "alerts", perPage: 10 }),
         fetchNotices({ category: "event", perPage: 30 }),
         fetchFeed({ perPage: HOME_SECTION_CARD_LIMIT }),
+      ]);
+
+      const secondaryPromise = Promise.allSettled([
         fetchDeals({ perPage: HOME_SECTION_CARD_LIMIT * 3 }),
         fetchWellnessHub(),
         fetchAmenities(),
       ]);
 
-      for (const result of [
-        carouselResult,
-        eventsResult,
-        feedResult,
-        dealsResult,
-        wellnessResult,
-        amenitiesResult,
-      ]) {
+      const [carouselResult, alertsResult, eventsResult, feedResult] = await criticalPromise;
+
+      for (const result of [carouselResult, alertsResult, eventsResult, feedResult]) {
         if (result.status === "rejected" && isAccountRestrictedError(result.reason)) {
           const restricted = await resolveLoadRestriction("feed", result.reason);
           if (restricted) {
@@ -92,16 +84,25 @@ export function useHomeScreen() {
 
       const carouselItems =
         carouselResult.status === "fulfilled" ? carouselResult.value.notices ?? [] : [];
+      const alertItems =
+        alertsResult.status === "fulfilled" ? alertsResult.value.notices ?? [] : [];
       const eventItems =
         eventsResult.status === "fulfilled" ? eventsResult.value.notices ?? [] : [];
 
-      setNotices([...carouselItems, ...eventItems]);
+      setNotices([...alertItems, ...carouselItems, ...eventItems]);
       setUpcomingEvents(pickUpcomingEvents(eventItems));
 
       if (feedResult.status === "fulfilled") {
         setPosts(pickHomeFeedPosts(feedResult.value.posts ?? []));
       }
 
+      if (!silent && !refresh) {
+        setLoading(false);
+      }
+
+      const [dealsResult, wellnessResult, amenitiesResult] = await secondaryPromise;
+
+      // Secondary sections are best-effort — never wipe notices/feed if they fail.
       if (dealsResult.status === "fulfilled") {
         setDeals(pickActiveDealsForHome(dealsResult.value.deals ?? []));
       }

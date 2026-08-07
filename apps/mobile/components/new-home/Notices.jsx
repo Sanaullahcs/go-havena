@@ -9,7 +9,7 @@ import {
   Platform,
   StatusBar,
 } from "react-native";
-import React, { useCallback, useMemo, useState, useEffect } from "react";
+import React, { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -21,6 +21,7 @@ import {
   formatShortDate,
   getCategoryTheme,
 } from "../../services/notices-api";
+import { useTranslation } from "react-i18next";
 import CrispImage from "../ui/crisp-image";
 import { NoticeCoverMedia } from "../notices/notice-cover-thumbnail";
 import { mediaImageSource } from "../../utils/profile-display";
@@ -29,32 +30,37 @@ import HomeSectionEmpty from "./home-section-empty";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
 import { MarketplaceRoutes } from "../../constants/marketplace-routes";
 import { navigateAppRoute } from "../../utils/app-navigation";
+import { arrowForward } from "../../utils/rtl";
+import { localizedField } from "../../i18n";
 
 const QUICK_ACTIONS = [
-  { id: "post", title: "Post", icon: "edit-3", route: "/screens/create-post" },
-  { id: "book", title: "Book", icon: "calendar", route: PropertyManagementRoutes.AMENITY },
-  { id: "sell", title: "Sell", icon: "shopping-bag", route: MarketplaceRoutes.CREATE_LISTING },
-  { id: "notices", title: "Notices", icon: "bell", route: PropertyManagementRoutes.NOTICES },
-  { id: "feed", title: "Feed", icon: "message-circle", route: "/screens/community-feed" },
-  { id: "deals", title: "Deals", icon: "percent", route: MarketplaceRoutes.DEALS },
-  { id: "wellness", title: "Wellness", icon: "heart", route: "/(tabs)/wellness" },
-  { id: "docs", title: "Docs", icon: "file-text", route: PropertyManagementRoutes.DOCUMENTS },
-  { id: "bookings", title: "Bookings", icon: "clipboard", route: PropertyManagementRoutes.MY_BOOKING },
-  { id: "chat", title: "Chat", icon: "mail", route: "/screens/messages" },
+  { id: "post", titleKey: "home.qa.post", icon: "edit-3", route: "/screens/create-post" },
+  { id: "book", titleKey: "home.qa.book", icon: "calendar", route: PropertyManagementRoutes.AMENITY },
+  { id: "sell", titleKey: "home.qa.sell", icon: "shopping-bag", route: MarketplaceRoutes.CREATE_LISTING },
+  { id: "notices", titleKey: "home.qa.notices", icon: "bell", route: PropertyManagementRoutes.NOTICES },
+  { id: "feed", titleKey: "home.qa.feed", icon: "message-circle", route: "/screens/community-feed" },
+  { id: "deals", titleKey: "home.qa.deals", icon: "percent", route: MarketplaceRoutes.DEALS },
+  { id: "wellness", titleKey: "home.qa.wellness", icon: "heart", route: "/(tabs)/wellness" },
+  { id: "docs", titleKey: "home.qa.docs", icon: "file-text", route: PropertyManagementRoutes.DOCUMENTS },
+  { id: "bookings", titleKey: "home.qa.bookings", icon: "clipboard", route: PropertyManagementRoutes.MY_BOOKING },
+  { id: "chat", titleKey: "home.qa.chat", icon: "mail", route: "/screens/messages" },
 ];
 
 const QA_TILE_W = sw(64);
 const QA_GAP = sw(20);
 
 const HERO_HEIGHT = sw(175);
+/** Auto-advance interval for the home notices carousel. */
+const AUTO_SCROLL_INTERVAL_MS = 5 * 60 * 1000;
 
-function mapNoticeToHero(notice) {
+function mapNoticeToHero(notice, t) {
   const theme = notice.theme ?? getCategoryTheme(notice.category);
+  const cat = notice.category ?? "general";
   return {
     id: String(notice.id),
-    badge: theme.label.toUpperCase(),
+    badge: t(`categories.${cat}`, { defaultValue: theme.label }).toUpperCase(),
     badgeIcon: theme.icon ?? "bell",
-    title: notice.title ?? "",
+    title: localizedField(notice, "title") || notice.title || "",
     dateLabel: notice.eventDate
       ? formatShortDate(notice.eventDate)
       : notice.timeLabel ?? "",
@@ -66,6 +72,7 @@ function mapNoticeToHero(notice) {
 }
 
 function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
+  const { t, i18n } = useTranslation();
   const [imageFailed, setImageFailed] = useState(false);
   const hasRemoteImage = Boolean(item.imageUrl);
   const hasSchedule = item.dateLabel || item.timeStart;
@@ -96,7 +103,7 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
             width: circleD,
             height: circleD,
             borderRadius: circleD / 2,
-            right: curveRight,
+            end: curveRight,
             top: (HERO_HEIGHT - circleD) / 2,
           },
         ]}
@@ -111,7 +118,7 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
             width: circleD + sw(5),
             height: circleD + sw(5),
             borderRadius: (circleD + sw(5)) / 2,
-            right: curveRight - sw(2.5),
+            end: curveRight - sw(2.5),
             top: (HERO_HEIGHT - circleD - sw(5)) / 2,
           },
         ]}
@@ -120,8 +127,6 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
 
       {/* Layer 4 — text content (rendered last = always on top) */}
       <View style={styles.heroCopy} pointerEvents="box-none">
-        <View style={styles.accentBar} />
-
         <Pressable
           onPress={onPress}
           style={({ pressed }) => [styles.heroCopyInner, pressed && { opacity: 0.85 }]}
@@ -134,8 +139,7 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
           <Text style={styles.heroTitle} numberOfLines={2}>
             {item.title}
           </Text>
-
-          {hasSchedule ? (
+{hasSchedule ? (
             <View style={styles.dateLine}>
               <Feather name="calendar" size={sf(12)} color="rgba(209,250,245,0.6)" />
               <Text style={styles.dateText}>
@@ -148,8 +152,8 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
           ) : null}
 
           <View style={styles.ctaBtn}>
-            <Text style={styles.ctaText}>View Details</Text>
-            <Feather name="arrow-right" size={sf(12)} color="#fff" />
+            <Text style={styles.ctaText}>{t("notices.viewDetails")}</Text>
+            <Feather name={arrowForward()} size={sf(12)} color="#fff" />
           </View>
         </Pressable>
       </View>
@@ -160,7 +164,7 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
           onPress={() => onImagePress?.()}
           style={styles.imageTap}
           accessibilityRole="imagebutton"
-          accessibilityLabel="View full image"
+          accessibilityLabel={t("notices.viewFullImage")}
         />
       ) : null}
     </View>
@@ -169,6 +173,7 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
 
 function QuickActionsRow() {
   const router = useRouter();
+  const { t } = useTranslation();
 
   const openAction = useCallback(
     (route) => {
@@ -179,7 +184,7 @@ function QuickActionsRow() {
 
   return (
     <View style={styles.qaWrap}>
-      <Text style={[homeStyles.sectionLabel, styles.qaHeader]}>Quick Actions</Text>
+      <Text style={[homeStyles.sectionLabel, styles.qaHeader]}>{t("home.notices")}</Text>
       <FlatList
         data={QUICK_ACTIONS}
         horizontal
@@ -205,13 +210,13 @@ function QuickActionsRow() {
               pressed && styles.qaTilePressed,
             ]}
             accessibilityRole="button"
-            accessibilityLabel={item.title}
+            accessibilityLabel={t(item.titleKey)}
           >
             <View style={styles.qaIcon}>
               <Feather name={item.icon} size={sf(18)} color={T.navy} />
             </View>
-            <Text style={styles.qaLabel} numberOfLines={1}>
-              {item.title}
+            <Text style={styles.qaLabel} numberOfLines={2}>
+              {t(item.titleKey)}
             </Text>
           </Pressable>
         )}
@@ -221,21 +226,57 @@ function QuickActionsRow() {
 }
 
 export default function Notices({ items = [] }) {
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [activeIndex, setActiveIndex] = useState(0);
   const [previewImage, setPreviewImage] = useState(null);
   const cardWidth = useMemo(() => screenWidth - Home.gutter * 2, [screenWidth]);
+  const listRef = useRef(null);
+  const activeIndexRef = useRef(0);
+  const userScrollingRef = useRef(false);
 
   const carouselItems = useMemo(
     () =>
       items
         .filter((n) => n && n.id)
         .slice(0, 6)
-        .map(mapNoticeToHero),
-    [items],
+        .map((n) => mapNoticeToHero(n, t)),
+    [items, t, i18n.language],
   );
+
+  useEffect(() => {
+    activeIndexRef.current = activeIndex;
+  }, [activeIndex]);
+
+  useEffect(() => {
+    setActiveIndex(0);
+    activeIndexRef.current = 0;
+    if (carouselItems.length > 0) {
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToOffset({ offset: 0, animated: false });
+      });
+    }
+  }, [carouselItems.length, screenWidth]);
+
+  useEffect(() => {
+    if (carouselItems.length < 2 || previewImage) return undefined;
+
+    const timer = setInterval(() => {
+      if (userScrollingRef.current) return;
+      const next = (activeIndexRef.current + 1) % carouselItems.length;
+      activeIndexRef.current = next;
+      setActiveIndex(next);
+      listRef.current?.scrollToIndex({
+        index: next,
+        animated: true,
+        viewPosition: 0,
+      });
+    }, AUTO_SCROLL_INTERVAL_MS);
+
+    return () => clearInterval(timer);
+  }, [carouselItems.length, previewImage, screenWidth]);
 
   const onHeroScroll = useCallback(
     (event) => {
@@ -243,12 +284,20 @@ export default function Notices({ items = [] }) {
       const index = Math.round(
         event.nativeEvent.contentOffset.x / screenWidth,
       );
-      setActiveIndex(
-        Math.min(Math.max(index, 0), carouselItems.length - 1),
-      );
+      const next = Math.min(Math.max(index, 0), carouselItems.length - 1);
+      activeIndexRef.current = next;
+      setActiveIndex(next);
     },
     [screenWidth, carouselItems.length],
   );
+
+  const onScrollBeginDrag = useCallback(() => {
+    userScrollingRef.current = true;
+  }, []);
+
+  const onScrollEndDrag = useCallback(() => {
+    userScrollingRef.current = false;
+  }, []);
 
   const openNotice = useCallback(
     (item) => {
@@ -288,6 +337,7 @@ export default function Notices({ items = [] }) {
       {carouselItems.length > 0 ? (
         <View style={styles.heroWrap}>
           <FlatList
+            ref={listRef}
             data={carouselItems}
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -299,9 +349,21 @@ export default function Notices({ items = [] }) {
             pagingEnabled
             scrollEventThrottle={16}
             onScroll={onHeroScroll}
+            onScrollBeginDrag={onScrollBeginDrag}
+            onScrollEndDrag={onScrollEndDrag}
+            onMomentumScrollEnd={onScrollEndDrag}
+            onScrollToIndexFailed={({ index }) => {
+              requestAnimationFrame(() => {
+                listRef.current?.scrollToOffset({
+                  offset: Math.max(0, index) * screenWidth,
+                  animated: true,
+                });
+              });
+            }}
             keyExtractor={(item) => item.id}
             renderItem={renderHero}
             style={styles.heroFlatList}
+            contentContainerStyle={styles.heroFlatListContent}
             getItemLayout={(_, index) => ({
               length: screenWidth,
               offset: screenWidth * index,
@@ -323,8 +385,7 @@ export default function Notices({ items = [] }) {
         <View style={styles.heroEmptyWrap}>
           <View style={{ paddingHorizontal: Home.gutter }}>
             <HomeSectionEmpty
-              message="No announcements yet"
-              hint="Community notices and updates will appear here."
+              message={t("home.noNotices")}
             />
           </View>
         </View>
@@ -356,7 +417,7 @@ export default function Notices({ items = [] }) {
             style={[styles.previewClose, { top: Math.max(insets.top, 12) + 8 }]}
             hitSlop={12}
             accessibilityRole="button"
-            accessibilityLabel="Close photo"
+            accessibilityLabel={t("common.close")}
           >
             <Feather name="x" size={sf(22)} color="#fff" />
           </Pressable>
@@ -378,6 +439,10 @@ const styles = StyleSheet.create({
     height: HERO_HEIGHT,
     flexGrow: 0,
   },
+  heroFlatListContent: {
+    height: HERO_HEIGHT,
+    alignItems: "stretch",
+  },
   heroShell: {
     borderRadius: sw(16),
     overflow: "hidden",
@@ -394,7 +459,7 @@ const styles = StyleSheet.create({
   },
   imageArea: {
     position: "absolute",
-    right: 0,
+    end: 0,
     top: 0,
     bottom: 0,
     width: "48%",
@@ -411,11 +476,11 @@ const styles = StyleSheet.create({
   },
   heroCopy: {
     position: "absolute",
-    left: 0,
+    start: 0,
     top: 0,
     bottom: 0,
     width: "55%",
-    paddingLeft: sw(18),
+    paddingStart: sw(18),
     paddingTop: sw(14),
     paddingBottom: sw(16),
     justifyContent: "center",
@@ -424,19 +489,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
   },
-  accentBar: {
-    position: "absolute",
-    top: 0,
-    left: sw(18),
-    width: sw(28),
-    height: sw(3),
-    borderRadius: sw(2),
-    backgroundColor: T.teal,
-    opacity: 0.7,
-  },
   imageTap: {
     position: "absolute",
-    right: 0,
+    end: 0,
     top: 0,
     bottom: 0,
     width: "45%",
@@ -459,14 +514,17 @@ const styles = StyleSheet.create({
     color: T.teal,
     letterSpacing: 0.8,
     fontWeight: "700",
+    writingDirection: "auto",
   },
   heroTitle: {
     fontFamily: Fonts.bold,
-    fontSize: sf(15.5),
-    lineHeight: sf(21),
+    fontSize: sf(14.5),
+    lineHeight: sf(20),
     color: "#FFFFFF",
     fontWeight: "700",
     marginBottom: sw(6),
+    flexShrink: 1,
+    writingDirection: "auto",
   },
   dateLine: {
     flexDirection: "row",
@@ -476,8 +534,10 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontFamily: Fonts.regular,
-    fontSize: sf(11),
+    fontSize: sf(10.5),
     color: "rgba(209,250,245,0.7)",
+    flexShrink: 1,
+    writingDirection: "auto",
   },
   ctaBtn: {
     alignSelf: "flex-start",
@@ -491,9 +551,10 @@ const styles = StyleSheet.create({
   },
   ctaText: {
     fontFamily: Fonts.bold,
-    fontSize: sf(11),
+    fontSize: sf(10.5),
     color: "#fff",
     fontWeight: "700",
+    writingDirection: "auto",
   },
 
   dots: {
@@ -526,7 +587,7 @@ const styles = StyleSheet.create({
   },
   qaListContent: {
     paddingHorizontal: Home.gutter,
-    paddingRight: Home.gutter + sw(8),
+    paddingEnd: Home.gutter + sw(8),
   },
   qaTile: {
     width: QA_TILE_W,
@@ -551,6 +612,7 @@ const styles = StyleSheet.create({
     color: T.navy,
     fontWeight: "500",
     textAlign: "center",
+    flexShrink: 1,
   },
   previewRoot: {
     flex: 1,
@@ -564,7 +626,7 @@ const styles = StyleSheet.create({
   },
   previewClose: {
     position: "absolute",
-    right: sw(16),
+    end: sw(16),
     width: sw(36),
     height: sw(36),
     borderRadius: sw(18),

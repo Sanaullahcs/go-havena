@@ -1,9 +1,11 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
+import { useTranslation } from "react-i18next";
 import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { getWellnessCategoryMeta } from "../../constants/wellness-theme";
 import { sf, sw } from "../../utils/responsive";
+import { chevronForward } from "../../utils/rtl";
 
 /** Lesson row — icon, title/subtitle, trailing action. */
 export default function WellnessLessonRow({
@@ -15,6 +17,7 @@ export default function WellnessLessonRow({
   isWatching = false,
   onPress,
 }) {
+  const { t } = useTranslation();
   const meta = getWellnessCategoryMeta(categoryKey);
 
   return (
@@ -46,17 +49,17 @@ export default function WellnessLessonRow({
           </Text>
           <Text style={styles.subtitle} numberOfLines={1}>
             {timeLabel}
-            {isWatching ? " · Up next" : completed ? " · Done" : ""}
+            {isWatching ? ` · ${t("wellness.upNext")}` : completed ? ` · ${t("wellness.lessonDone")}` : ""}
           </Text>
         </View>
 
         {isWatching ? (
           <View style={[styles.startPill, { backgroundColor: meta.color }]}>
-            <Text style={styles.startText}>Start</Text>
+            <Text style={styles.startText}>{t("wellness.start")}</Text>
           </View>
         ) : (
           <View style={styles.chevronWrap}>
-            <Feather name="chevron-right" size={sf(16)} color="#CBD5E1" />
+            <Feather name={chevronForward()} size={sf(16)} color="#CBD5E1" />
           </View>
         )}
       </View>
@@ -86,7 +89,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-    marginRight: sw(12),
+    marginEnd: sw(12),
   },
   indexText: {
     fontFamily: Fonts.bold,
@@ -99,7 +102,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     justifyContent: "center",
-    marginRight: sw(8),
+    marginEnd: sw(8),
   },
   title: {
     fontFamily: Fonts.bold,

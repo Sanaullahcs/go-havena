@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Pressable,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import AppModal from "../layout/app-modal";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
@@ -20,6 +21,7 @@ import { PropertyManagementRoutes } from "../../constants/property-management-ro
 import NoticeDrawer from "./noticeDrawer";
 
 export default function CreateNewModal({ visible, onClose, onOpen }) {
+  const { t } = useTranslation();
   const router = useRouter();
   const [canManageCommunity, setCanManageCommunity] = useState(false);
   const [canCreateResidentEvent, setCanCreateResidentEvent] = useState(false);
@@ -87,8 +89,8 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
               <View style={styles.handle} />
             </TouchableOpacity>
 
-            <Text style={styles.title}>Create New</Text>
-            <Text style={styles.subtitle}>Choose what you want to create</Text>
+            <Text style={styles.title}>{t("nav.createNew")}</Text>
+            <Text style={styles.subtitle}>{t("nav.createNewSub")}</Text>
 
             <TouchableOpacity
               style={[styles.option, { marginBottom: 10 }]}
@@ -105,9 +107,9 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
               </View>
 
               <View>
-                <Text style={styles.optionTitleBlue}>Create Post</Text>
+                <Text style={styles.optionTitleBlue}>{t("nav.createPost")}</Text>
                 <Text style={styles.optionSubtitle}>
-                  Share with your community
+                  {t("nav.createPostSub")}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -128,11 +130,11 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
                 </View>
 
                 <View>
-                  <Text style={styles.optionTitleBlue}>Create Event</Text>
+                  <Text style={styles.optionTitleBlue}>{t("nav.createEvent")}</Text>
                   <Text style={styles.optionSubtitle}>
                     {canManageCommunity
-                      ? "Publish a community event"
-                      : "Submit an event for admin approval"}
+                      ? t("nav.createEventSub")
+                      : t("nav.createEventSubAdmin")}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -153,8 +155,8 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
               </View>
 
               <View>
-                <Text style={styles.optionTitleGreen}>Sell Item</Text>
-                <Text style={styles.optionSubtitle}>List something for sale</Text>
+                <Text style={styles.optionTitleGreen}>{t("nav.sellItem")}</Text>
+                <Text style={styles.optionSubtitle}>{t("nav.sellItemSub")}</Text>
               </View>
             </TouchableOpacity>
 
@@ -176,9 +178,9 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
               </View>
 
               <View>
-                <Text style={styles.optionTitleGreen}>Offer Service</Text>
+                <Text style={styles.optionTitleGreen}>{t("nav.offerService")}</Text>
                 <Text style={styles.optionSubtitle}>
-                  Tutoring, repairs, cleaning, and more
+                  {t("nav.offerServiceSub")}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -195,9 +197,9 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
                     <Feather name="book-open" size={18} color="#0F766E" />
                   </View>
                   <View>
-                    <Text style={styles.optionTitleTeal}>Add Rule</Text>
+                    <Text style={styles.optionTitleTeal}>{t("nav.addRule")}</Text>
                     <Text style={styles.optionSubtitle}>
-                      Publish a community guideline
+                      {t("nav.addRuleSub")}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -213,9 +215,9 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
                     <Feather name="file-text" size={18} color="#C2410C" />
                   </View>
                   <View>
-                    <Text style={styles.optionTitleOrange}>Add Document</Text>
+                    <Text style={styles.optionTitleOrange}>{t("nav.addDocument")}</Text>
                     <Text style={styles.optionSubtitle}>
-                      Upload a file for residents
+                      {t("nav.addDocumentSub")}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -242,9 +244,9 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
                     </View>
 
                     <View>
-                      <Text style={styles.optionTitleBlue}>Notice</Text>
+                      <Text style={styles.optionTitleBlue}>{t("nav.notice")}</Text>
                       <Text style={styles.optionSubtitle}>
-                        Community notices & alerts
+                        {t("nav.noticeSub")}
                       </Text>
                     </View>
                   </View>
@@ -277,8 +279,8 @@ const styles = StyleSheet.create({
 
   container: {
     backgroundColor: "rgba(255, 255, 255, 1)",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopStartRadius: 24,
+    borderTopEndRadius: 24,
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 20,

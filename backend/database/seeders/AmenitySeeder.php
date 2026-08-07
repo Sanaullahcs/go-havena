@@ -59,7 +59,11 @@ class AmenitySeeder extends Seeder
         $rows = [
             [
                 'name' => 'Swimming Pool',
+                'name_es' => 'Piscina',
+                'name_ar' => 'المسبح',
                 'description' => 'Heated outdoor pool with loungers and a shallow end for families.',
+                'description_es' => 'Piscina exterior climatizada con tumbonas y zona poco profunda para familias.',
+                'description_ar' => 'مسبح خارجي مُدفّأ مع كراسي استلقاء ومنطقة ضحلة مخصصة للعائلات.',
                 'status' => 'bookable',
                 'review_status' => 'approved',
                 'capacity' => 30,
@@ -73,7 +77,11 @@ class AmenitySeeder extends Seeder
             ],
             [
                 'name' => 'Fitness Center',
+                'name_es' => 'Centro de Fitness',
+                'name_ar' => 'مركز اللياقة البدنية',
                 'description' => 'Cardio machines, free weights, and a stretching area.',
+                'description_es' => 'Máquinas de cardio, pesas libres y zona de estiramientos.',
+                'description_ar' => 'أجهزة كارديو وأوزان حرة ومنطقة تمارين إطالة.',
                 'status' => 'open',
                 'review_status' => 'approved',
                 'capacity' => 20,
@@ -87,7 +95,11 @@ class AmenitySeeder extends Seeder
             ],
             [
                 'name' => 'Community Hall',
+                'name_es' => 'Salón Comunitario',
+                'name_ar' => 'القاعة المجتمعية',
                 'description' => 'Indoor space for meetings, parties, and resident events.',
+                'description_es' => 'Espacio interior para reuniones, fiestas y eventos de los residentes.',
+                'description_ar' => 'مساحة داخلية للاجتماعات والحفلات وفعاليات السكان.',
                 'status' => 'bookable',
                 'review_status' => 'approved',
                 'capacity' => 80,
@@ -101,7 +113,11 @@ class AmenitySeeder extends Seeder
             ],
             [
                 'name' => 'Tennis Court',
+                'name_es' => 'Cancha de Tenis',
+                'name_ar' => 'ملعب التنس',
                 'description' => 'Lighted hard court available for singles and doubles play.',
+                'description_es' => 'Cancha de superficie dura iluminada para partidos individuales y dobles.',
+                'description_ar' => 'ملعب صلب مُضاء متاح للعب الفردي والزوجي.',
                 'status' => 'bookable',
                 'review_status' => 'approved',
                 'capacity' => 4,
@@ -115,7 +131,11 @@ class AmenitySeeder extends Seeder
             ],
             [
                 'name' => 'BBQ Terrace',
+                'name_es' => 'Terraza de Parrillada',
+                'name_ar' => 'شرفة الشواء',
                 'description' => 'Rooftop grilling stations with seating for small gatherings.',
+                'description_es' => 'Estaciones de parrilla en la azotea con asientos para reuniones pequeñas.',
+                'description_ar' => 'محطات شواء على السطح مع مقاعد للتجمعات الصغيرة.',
                 'status' => 'bookable',
                 'review_status' => 'approved',
                 'capacity' => 15,
@@ -129,7 +149,11 @@ class AmenitySeeder extends Seeder
             ],
             [
                 'name' => 'Kids Playground',
+                'name_es' => 'Área de Juegos Infantiles',
+                'name_ar' => 'ملعب الأطفال',
                 'description' => 'Shaded play area with swings, slides, and soft flooring.',
+                'description_es' => 'Zona de juegos con sombra, columpios, toboganes y piso acolchado.',
+                'description_ar' => 'منطقة لعب مظللة مع أراجيح وزحاليق وأرضية ناعمة.',
                 'status' => 'open',
                 'review_status' => 'approved',
                 'capacity' => 25,
@@ -143,7 +167,11 @@ class AmenitySeeder extends Seeder
             ],
             [
                 'name' => 'Meeting Room',
+                'name_es' => 'Sala de Reuniones',
+                'name_ar' => 'غرفة الاجتماعات',
                 'description' => 'Quiet room with Wi‑Fi, whiteboard, and seating for 12.',
+                'description_es' => 'Sala tranquila con Wi‑Fi, pizarra y capacidad para 12 personas.',
+                'description_ar' => 'غرفة هادئة مع واي فاي ولوحة بيضاء وتتسع لـ 12 شخصاً.',
                 'status' => 'bookable',
                 'review_status' => 'approved',
                 'capacity' => 12,
@@ -157,7 +185,11 @@ class AmenitySeeder extends Seeder
             ],
             [
                 'name' => 'Residents Lounge',
+                'name_es' => 'Salón de Residentes',
+                'name_ar' => 'صالة السكان',
                 'description' => 'Comfortable lounge with reading nook and coffee station.',
+                'description_es' => 'Salón acogedor con rincón de lectura y estación de café.',
+                'description_ar' => 'صالة مريحة مع ركن قراءة ومحطة قهوة.',
                 'status' => 'closed',
                 'review_status' => 'approved',
                 'capacity' => 18,
@@ -169,10 +201,13 @@ class AmenitySeeder extends Seeder
                 'slot_duration_minutes' => null,
                 'icon_key' => 'building',
             ],
-            // Pending amenity submissions for admin Approval queue testing
             [
                 'name' => 'Yoga Studio (Pending)',
+                'name_es' => 'Estudio de Yoga (Pendiente)',
+                'name_ar' => 'استوديو اليوغا (قيد المراجعة)',
                 'description' => 'Mirrored studio with mats and sound system. Awaiting admin review.',
+                'description_es' => 'Estudio con espejos, colchonetas y sistema de sonido. Pendiente de aprobación.',
+                'description_ar' => 'استوديو مزوّد بمرايا وحصائر ونظام صوتي. بانتظار مراجعة المسؤول.',
                 'status' => 'bookable',
                 'review_status' => 'pending',
                 'capacity' => 16,
@@ -186,7 +221,11 @@ class AmenitySeeder extends Seeder
             ],
             [
                 'name' => 'Guest Parking Bay (Pending)',
+                'name_es' => 'Estacionamiento de Visitantes (Pendiente)',
+                'name_ar' => 'موقف سيارات الضيوف (قيد المراجعة)',
                 'description' => 'Reserved overnight guest parking spots near the lobby.',
+                'description_es' => 'Plazas de estacionamiento nocturno reservadas para visitantes cerca del vestíbulo.',
+                'description_ar' => 'أماكن وقوف سيارات ليلية محجوزة للضيوف بالقرب من الاستقبال.',
                 'status' => 'bookable',
                 'review_status' => 'pending',
                 'capacity' => 6,
@@ -210,6 +249,13 @@ class AmenitySeeder extends Seeder
                 ->value('id');
 
             if ($existingId) {
+                DB::table('amenities')->where('id', $existingId)->update([
+                    'name_es' => $row['name_es'] ?? null,
+                    'name_ar' => $row['name_ar'] ?? null,
+                    'description_es' => $row['description_es'] ?? null,
+                    'description_ar' => $row['description_ar'] ?? null,
+                    'updated_at' => $now,
+                ]);
                 $amenityIdsByName[$row['name']] = (int) $existingId;
                 continue;
             }
@@ -222,7 +268,11 @@ class AmenitySeeder extends Seeder
 
             if ($fuzzyId) {
                 DB::table('amenities')->where('id', $fuzzyId)->update([
+                    'name_es' => $row['name_es'] ?? null,
+                    'name_ar' => $row['name_ar'] ?? null,
                     'description' => $row['description'],
+                    'description_es' => $row['description_es'] ?? null,
+                    'description_ar' => $row['description_ar'] ?? null,
                     'status' => $row['status'],
                     'review_status' => $row['review_status'],
                     'capacity' => $row['capacity'],
@@ -243,7 +293,11 @@ class AmenitySeeder extends Seeder
                 'community_id' => $communityId,
                 'created_by' => $creatorId,
                 'name' => $row['name'],
+                'name_es' => $row['name_es'] ?? null,
+                'name_ar' => $row['name_ar'] ?? null,
                 'description' => $row['description'],
+                'description_es' => $row['description_es'] ?? null,
+                'description_ar' => $row['description_ar'] ?? null,
                 'status' => $row['status'],
                 'review_status' => $row['review_status'],
                 'capacity' => $row['capacity'],

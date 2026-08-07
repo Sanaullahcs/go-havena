@@ -10,6 +10,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
 import { Ionicons } from "@expo/vector-icons";
 import { MapPin } from "lucide-react-native";
@@ -17,6 +18,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { getCurrentRole } from "../../../constants/role-session";
 import { saveRegionSelection } from "../../../services/auth-api";
+import { chevronForward, arrowForward } from "../../../utils/rtl";
 import { fetchRegionsOnly } from "../../../services/regions-api";
 import { getApiErrorMessage } from "../../../utils/auth-errors";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
@@ -26,6 +28,7 @@ import { HomeTheme as T } from "../../../constants/home-theme";
 const SEARCH_DEBOUNCE_MS = 400;
 
 export default function RegionScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { role: roleParam } = useLocalSearchParams();
   const activeRole =
@@ -83,8 +86,8 @@ export default function RegionScreen() {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         await showError(
-          "Location Permission",
-          "Location access helps us suggest your nearest region.",
+          t("region.locationPermission"),
+          t("region.locationHelps"),
         );
       }
     };
@@ -121,11 +124,11 @@ export default function RegionScreen() {
     <SafeAreaView style={styles.container} edges={["top", "left", "right", "bottom"]}>
       <ScreenStatusBar style="dark" opaque androidBackgroundColor={T.canvas} />
       <View style={styles.topSection}>
-        <Text style={styles.title}>Choose Your Region</Text>
+        <Text style={styles.title}>{t("region.chooseRegion")}</Text>
         <Text style={styles.subtitle}>
           {activeRole === "admin"
-            ? "Select your region, then register your community for approval"
-            : "Select your area first, then pick your community"}
+            ? t("region.adminRegionHint")
+            : t("region.residentRegionHint")}
         </Text>
 
         <View style={styles.searchWrap}>
@@ -133,7 +136,7 @@ export default function RegionScreen() {
           <TextInput
             value={searchText}
             onChangeText={setSearchText}
-            placeholder="Search regions…"
+            placeholder={t("region.searchRegions")}
             placeholderTextColor={T.gray}
             style={styles.searchInput}
             returnKeyType="search"
@@ -145,7 +148,7 @@ export default function RegionScreen() {
             <TouchableOpacity
               onPress={() => setSearchText("")}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              accessibilityLabel="Clear search"
+              accessibilityLabel={t("region.clearSearch")}
             >
               <Ionicons name="close-circle" size={18} color={T.gray} />
             </TouchableOpacity>
@@ -156,15 +159,15 @@ export default function RegionScreen() {
       {loading ? (
         <View style={styles.centerState}>
           <ActivityIndicator size="large" color={T.teal} />
-          <Text style={styles.stateText}>Loading regions…</Text>
+          <Text style={styles.stateText}>{t("region.loadingRegions")}</Text>
         </View>
       ) : error ? (
         <View style={styles.centerState}>
           <Ionicons name="cloud-offline-outline" size={40} color={T.gray} />
-          <Text style={styles.stateTitle}>Could not load regions</Text>
+          <Text style={styles.stateTitle}>{t("region.couldNotLoadRegions")}</Text>
           <Text style={styles.stateText}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={() => loadRegions()}>
-            <Text style={styles.retryText}>Try again</Text>
+            <Text style={styles.retryText}>{t("region.tryAgain")}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -187,13 +190,13 @@ export default function RegionScreen() {
               <View style={styles.emptyIconWrap}>
                 <MapPin size={22} color={T.teal} strokeWidth={1.75} />
               </View>
-              <Text style={styles.stateTitle}>No regions found</Text>
+              <Text style={styles.stateTitle}>{t("region.noRegionsFound")}</Text>
               <Text style={styles.stateText}>
                 {debouncedSearch
-                  ? "Try a different search term."
+                  ? t("region.tryDifferentSearch")
                   : activeRole === "admin"
-                    ? "No regions are available yet. You can request to add your community below."
-                    : "No regions are available yet. Please contact your community admin or try again later."}
+                    ? t("region.noRegionsAdmin")
+                    : t("region.noRegionsResident")}
               </Text>
             </View>
           ) : (
@@ -226,7 +229,7 @@ export default function RegionScreen() {
                     <ActivityIndicator size="small" color={T.teal} />
                   ) : (
                     <View style={styles.chevronWrap}>
-                      <Ionicons name="chevron-forward" size={16} color={T.teal} />
+                      <Ionicons name={chevronForward()} size={16} color={T.teal} />
                     </View>
                   )}
                 </TouchableOpacity>
@@ -239,7 +242,7 @@ export default function RegionScreen() {
       <View style={styles.bottomSection}>
         {activeRole === "admin" ? (
           <>
-            <Text style={styles.mutedText}>Don't see your community?</Text>
+            <Text style={styles.mutedText}>{t("region.dontSeeCommunity")}</Text>
             <TouchableOpacity
               activeOpacity={0.8}
               style={styles.linkRow}
@@ -248,8 +251,8 @@ export default function RegionScreen() {
                 params: { role: activeRole },
               })}
             >
-              <Text style={styles.tealLink}>Request to add it</Text>
-              <Ionicons name="arrow-forward" size={14} color={T.teal} />
+              <Text style={styles.tealLink}>{t("region.requestToAdd")}</Text>
+              <Ionicons name={arrowForward()} size={14} color={T.teal} />
             </TouchableOpacity>
           </>
         ) : null}
@@ -257,12 +260,12 @@ export default function RegionScreen() {
         <View style={styles.inviteRow}>
           {activeRole !== "admin" ? (
             <>
-              <Text style={styles.mutedText}>Have an invite code? </Text>
+              <Text style={styles.mutedText}>{t("region.haveInviteCode") + " "}</Text>
               <TouchableOpacity
                 activeOpacity={0.8}
                 onPress={() => router.push("/screens/invite-code")}
               >
-                <Text style={styles.tealLink}>Enter here</Text>
+                <Text style={styles.tealLink}>{t("region.enterHere")}</Text>
               </TouchableOpacity>
             </>
           ) : null}

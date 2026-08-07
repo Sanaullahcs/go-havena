@@ -2,6 +2,8 @@ import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import i18n from "../../i18n";
 import { Fonts } from "../../constants/font";
 import { Colors, Layout } from "../../constants/tokens";
 import { GUEST_PERMISSION_OPTIONS } from "../../constants/guest-permissions";
@@ -35,8 +37,8 @@ const HERO_THEMES = {
 function featureMeta(feature) {
   const option = GUEST_PERMISSION_OPTIONS.find((item) => item.key === feature);
   return {
-    label: option?.label ?? "This feature",
-    description: option?.description ?? "Community content shared with guests",
+    label: option?.label ?? i18n.t("guests.thisFeature"),
+    description: option?.description ?? i18n.t("guests.communityContentShared"),
     icon: option?.icon ?? "lock",
   };
 }
@@ -88,6 +90,7 @@ export function FeatureBlockedHero({
 
 /** Empty state when a guest lacks permission for a feature. */
 export function GuestPermissionDeniedState({ feature, message, compact = false }) {
+  const { t } = useTranslation();
   const meta = featureMeta(feature);
 
   return (
@@ -95,8 +98,8 @@ export function GuestPermissionDeniedState({ feature, message, compact = false }
       <FeatureBlockedHero
         icon={meta.icon}
         title={meta.label}
-        subtitle="Not shared with your guest account"
-        badgeLabel="Restricted"
+        subtitle={t('guests.notSharedWithGuest')}
+        badgeLabel={t('guests.restricted')}
         compact={compact}
       />
 
@@ -106,24 +109,24 @@ export function GuestPermissionDeniedState({ feature, message, compact = false }
             <Feather name="lock" size={sf(14)} color={Colors.brandPrimaryDeep} />
           </View>
           <View style={styles.lockCopy}>
-            <Text style={styles.lockTitle}>Access not granted</Text>
+            <Text style={styles.lockTitle}>{t('guests.accessNotGranted')}</Text>
             <Text style={styles.lockMessage}>
               {message ||
-                `The resident or community admin who invited you did not enable ${meta.label.toLowerCase()} for this visit.`}
+                t('guests.accessNotGrantedMessage', { feature: meta.label.toLowerCase() })}
             </Text>
           </View>
         </View>
 
         <View style={styles.infoCard}>
-          <Text style={styles.infoLabel}>What this would include</Text>
+          <Text style={styles.infoLabel}>{t('guests.whatThisIncludes')}</Text>
           <Text style={styles.infoText}>{meta.description}</Text>
         </View>
 
         <View style={styles.stepsCard}>
-          <Text style={styles.stepsTitle}>Need access?</Text>
-          <StepRow index={1} text="Contact the person who invited you as a guest." />
-          <StepRow index={2} text="They can update guest permissions and send a new invitation if needed." />
-          <StepRow index={3} text="You can still use the other areas enabled on your invite." last />
+          <Text style={styles.stepsTitle}>{t('guests.needAccess')}</Text>
+          <StepRow index={1} text={t('guests.contactInviter')} />
+          <StepRow index={2} text={t('guests.updatePermissions')} />
+          <StepRow index={3} text={t('guests.useOtherAreas')} last />
         </View>
       </View>
     </View>
@@ -132,27 +135,36 @@ export function GuestPermissionDeniedState({ feature, message, compact = false }
 
 /** Empty state when a suspended or blocked resident cannot access community content. */
 export function AccountRestrictedState({
-  featureLabel = "Community content",
+  featureLabel: featureLabelProp,
   featureDescription,
   featureIcon = "lock",
-  title,
-  message,
-  statusLabel = "Suspended",
+  title: titleProp,
+  message: messageProp,
+  statusLabel: statusLabelProp,
   statusIcon = "shield-off",
-  subtitle = "Not available while your account is restricted",
+  subtitle: subtitleProp,
   lockIcon = "lock",
   variant = "red",
   meta = [],
   highlight,
   restrictedSince,
-  stepsTitle = "Need access restored?",
-  steps = [
-    "Contact your community administrator about this suspension.",
-    "After access is restored, pull down to refresh or reopen this screen.",
-  ],
+  stepsTitle: stepsTitleProp,
+  steps: stepsProp,
   actions = null,
   compact = false,
 }) {
+  const { t } = useTranslation();
+  const featureLabel = featureLabelProp ?? t('guests.communityContent');
+  const statusLabel = statusLabelProp ?? t('guests.suspended');
+  const subtitle = subtitleProp ?? t('guests.accountRestrictedSubtitle');
+  const title = titleProp ?? t('guests.accountSuspendedTitle');
+  const message = messageProp ?? t('guests.accountSuspendedMessage');
+  const stepsTitle = stepsTitleProp ?? t('guests.needAccessRestored');
+  const steps = stepsProp ?? [
+    t('guests.contactAdminAboutSuspension'),
+    t('guests.afterAccessRestored'),
+  ];
+
   return (
     <View style={[styles.wrap, compact && styles.wrapCompact]}>
       <FeatureBlockedHero
@@ -171,17 +183,14 @@ export function AccountRestrictedState({
             <Feather name={lockIcon} size={sf(14)} color={Colors.brandPrimaryDeep} />
           </View>
           <View style={styles.lockCopy}>
-            <Text style={styles.lockTitle}>{title || "Your account is suspended"}</Text>
-            <Text style={styles.lockMessage}>
-              {message ||
-                "Your community administrator suspended your account. Community features stay hidden until access is restored."}
-            </Text>
+            <Text style={styles.lockTitle}>{title}</Text>
+            <Text style={styles.lockMessage}>{message}</Text>
           </View>
         </View>
 
         {restrictedSince ? (
           <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>Restricted since</Text>
+            <Text style={styles.infoLabel}>{t('guests.restrictedSince')}</Text>
             <Text style={styles.infoText}>{restrictedSince}</Text>
           </View>
         ) : null}
@@ -201,7 +210,7 @@ export function AccountRestrictedState({
 
         {featureDescription ? (
           <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>What you cannot access</Text>
+            <Text style={styles.infoLabel}>{t('guests.whatYouCannotAccess')}</Text>
             <Text style={styles.infoText}>{featureDescription}</Text>
           </View>
         ) : null}
@@ -248,11 +257,13 @@ export function StepRow({ index, text, last = false }) {
 export default function GuestFeatureErrorState({
   error,
   fallbackFeature,
-  defaultTitle = "Could not load content",
+  defaultTitle,
   onRetry,
   compact = false,
 }) {
-  const resolved = resolveGuestFeatureError(error, fallbackFeature, defaultTitle);
+  const { t } = useTranslation();
+  const resolvedDefaultTitle = defaultTitle ?? t('guests.couldNotLoadContent');
+  const resolved = resolveGuestFeatureError(error, fallbackFeature, resolvedDefaultTitle);
 
   if (resolved.isAccountRestricted) {
     return (
@@ -291,7 +302,7 @@ export default function GuestFeatureErrorState({
       {!resolved.hideRetry && onRetry ? (
         <TouchableOpacity style={styles.retryBtn} activeOpacity={0.9} onPress={onRetry}>
           <Feather name="refresh-cw" size={sf(14)} color={Colors.brandPrimaryDeep} />
-          <Text style={styles.retryBtnText}>Try again</Text>
+          <Text style={styles.retryBtnText}>{t('guests.tryAgain')}</Text>
         </TouchableOpacity>
       ) : null}
     </View>

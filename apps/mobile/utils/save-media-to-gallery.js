@@ -1,3 +1,4 @@
+import i18n from "../i18n";
 import { File, Paths } from "expo-file-system";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import { Platform, Share } from "react-native";
@@ -39,9 +40,9 @@ async function saveViaShare(uri, { showSuccess } = {}) {
   await Share.share(
     Platform.OS === "ios"
       ? { url: uri }
-      : { title: "Save photo", message: uri, url: uri },
+      : { title: i18n.t("gallery.savePhoto"), message: uri, url: uri },
   );
-  await showSuccess?.("Photo ready", "Choose Save image or Photos from the share menu.");
+  await showSuccess?.(i18n.t("gallery.photoReady"), i18n.t("gallery.shareMenuHint"));
   return true;
 }
 
@@ -53,7 +54,7 @@ async function saveViaShare(uri, { showSuccess } = {}) {
 export async function saveImageToGallery(url, { showError, showSuccess } = {}) {
   const remoteUrl = resolveMediaUrl(url) ?? String(url ?? "").trim();
   if (!remoteUrl) {
-    await showError?.("Nothing to save", new Error("This post does not include a downloadable image."));
+    await showError?.(i18n.t("gallery.nothingToSave"), new Error(i18n.t("gallery.noDownloadableImage")));
     return false;
   }
 
@@ -72,19 +73,19 @@ export async function saveImageToGallery(url, { showError, showSuccess } = {}) {
     const { status } = await requestPermissionsAsync(true);
     if (status !== "granted") {
       await showError?.(
-        "Permission required",
-        "Allow Havena to save photos to your gallery.",
+        i18n.t("gallery.permissionRequired"),
+        i18n.t("gallery.allowPhotoAccess"),
       );
       return false;
     }
 
     await Asset.create(downloaded.uri);
-    await showSuccess?.("Saved", "Photo saved to your gallery.");
+    await showSuccess?.(i18n.t("gallery.saved"), i18n.t("gallery.savedToGallery"));
     return true;
   } catch (err) {
     await showError?.(
-      "Download failed",
-      err instanceof Error ? err : new Error(String(err?.message ?? "Could not save this photo. Please try again.")),
+      i18n.t("gallery.downloadFailed"),
+      err instanceof Error ? err : new Error(String(err?.message ?? i18n.t("gallery.couldNotSave"))),
     );
     return false;
   }

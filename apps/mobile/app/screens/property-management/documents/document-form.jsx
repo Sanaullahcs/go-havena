@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
+import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../../components/layout/internal-screen-header";
 import { propertyStyles } from "../../../../constants/property-styles";
 import { Fonts } from "../../../../constants/font";
@@ -42,6 +43,7 @@ const DEFAULT_FORM = {
 };
 
 export default function DocumentForm() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { documentId } = useLocalSearchParams();
   const isEdit = Boolean(documentId);
@@ -122,7 +124,7 @@ export default function DocumentForm() {
         clearError("file");
       }
     } catch (err) {
-      await showFailure("Could not pick file", err);
+      await showFailure(t("propertyMgmt.couldNotPickFile"), err);
     }
   };
 
@@ -140,14 +142,14 @@ export default function DocumentForm() {
       }
       router.back();
     }).catch(async (err) => {
-      await showFailure(isEdit ? "Could not update document" : "Could not upload document", err);
+      await showFailure(isEdit ? t("propertyMgmt.couldNotUpdateDoc") : t("propertyMgmt.couldNotUploadDoc"), err);
     });
   }, [liveErrors, validateOnSubmit, form, resolvedCategory, fileAsset, isEdit, documentId, run, router, showFailure]);
 
   if (loading) {
     return (
       <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
-        <InternalScreenHeader title={isEdit ? "Edit Document" : "Add Document"} />
+        <InternalScreenHeader title={isEdit ? t("propertyMgmt.editDocument") : t("propertyMgmt.addDocument")} />
         <View style={styles.centered}><ActivityIndicator size="large" color="#0A2A43" /></View>
       </SafeAreaView>
     );
@@ -155,20 +157,20 @@ export default function DocumentForm() {
 
   return (
     <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
-      <InternalScreenHeader title={isEdit ? "Edit Document" : "Add Document"} />
+      <InternalScreenHeader title={isEdit ? t("propertyMgmt.editDocument") : t("propertyMgmt.addDocument")} />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.field}>
-          <Text style={styles.label}>Title *</Text>
-          <TextInput style={[styles.input, showError("title", liveErrors) && styles.inputError]} placeholder="e.g. Community Rules & Bylaws" placeholderTextColor="#9CA3AF" value={form.title} onChangeText={(v) => setF("title", v)} maxLength={LIMITS.documentTitle} />
+          <Text style={styles.label}>{t("propertyMgmt.docTitleLabel")}</Text>
+          <TextInput style={[styles.input, showError("title", liveErrors) && styles.inputError]} placeholder={t("propertyMgmt.docTitlePlaceholder")} placeholderTextColor="#9CA3AF" value={form.title} onChangeText={(v) => setF("title", v)} maxLength={LIMITS.documentTitle} />
           {showError("title", liveErrors) ? <Text style={styles.errorText}>{showError("title", liveErrors)}</Text> : null}
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.label}>Category *</Text>
+          <Text style={styles.label}>{t("propertyMgmt.docCategoryRequired")}</Text>
           {categoryOptions.length <= 1 ? (
             <Text style={[styles.hint, { marginBottom: sw(8) }]}>
-              No categories yet — choose Other and type a name, or add categories from the dashboard.
+              {t("propertyMgmt.noCategoriesHint")}
             </Text>
           ) : null}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
@@ -195,7 +197,7 @@ export default function DocumentForm() {
           {categorySelect === DOCUMENT_OTHER_CATEGORY ? (
             <TextInput
               style={[styles.input, { marginTop: sw(8) }, showError("category", liveErrors) && styles.inputError]}
-              placeholder="Enter custom category name"
+              placeholder={t("propertyMgmt.enterCustomCategory")}
               placeholderTextColor="#9CA3AF"
               value={customCategoryInput}
               onChangeText={(v) => {
@@ -210,16 +212,16 @@ export default function DocumentForm() {
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.label}>Description</Text>
-          <TextInput style={[styles.input, styles.textArea]} placeholder="Optional notes…" placeholderTextColor="#9CA3AF" multiline value={form.description} onChangeText={(v) => setF("description", v)} textAlignVertical="top" />
+          <Text style={styles.label}>{t("propertyMgmt.docDescriptionLabel")}</Text>
+          <TextInput style={[styles.input, styles.textArea]} placeholder={t("propertyMgmt.docDescPlaceholder")} placeholderTextColor="#9CA3AF" multiline value={form.description} onChangeText={(v) => setF("description", v)} textAlignVertical="top" />
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.label}>{isEdit ? "Replace File (optional)" : "File *"}</Text>
+          <Text style={styles.label}>{isEdit ? t("propertyMgmt.replaceFile") : t("propertyMgmt.fileRequired")}</Text>
           <Pressable style={[styles.filePicker, showError("file", liveErrors) && styles.inputError]} onPress={pickFile}>
             <Feather name="upload" size={sf(18)} color="#0A2A43" />
             <Text style={styles.filePickerText} numberOfLines={2}>
-              {fileAsset?.name ?? (isEdit ? "Tap to choose a new file" : "Tap to choose PDF, Word, or image")}
+              {fileAsset?.name ?? (isEdit ? t("propertyMgmt.tapNewFile") : t("propertyMgmt.tapChooseFile"))}
             </Text>
           </Pressable>
           {showError("file", liveErrors) ? <Text style={styles.errorText}>{showError("file", liveErrors)}</Text> : null}
@@ -227,8 +229,8 @@ export default function DocumentForm() {
 
         <View style={[styles.field, styles.toggleRow]}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.label}>Active</Text>
-            <Text style={styles.hint}>Active documents are visible to residents.</Text>
+            <Text style={styles.label}>{t("propertyMgmt.activeDocLabel")}</Text>
+            <Text style={styles.hint}>{t("propertyMgmt.activeDocsHint")}</Text>
           </View>
           <Switch
             value={form.status === "active"}
@@ -242,7 +244,7 @@ export default function DocumentForm() {
       <View style={styles.footer}>
         <Pressable style={[styles.submitBtn, (!canSubmit || submitting) && styles.submitBtnDisabled]} disabled={!canSubmit || submitting} onPress={handleSubmit}>
           {submitting ? <ActivityIndicator color="#FFFFFF" size="small" /> : (
-            <Text style={styles.submitBtnText}>{isEdit ? "Save Changes" : "Upload Document"}</Text>
+            <Text style={styles.submitBtnText}>{isEdit ? t("propertyMgmt.saveChanges") : t("propertyMgmt.uploadDocument")}</Text>
           )}
         </Pressable>
       </View>

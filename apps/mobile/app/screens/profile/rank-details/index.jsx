@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import InternalPageShell, { SectionLabel } from "../../../../components/layout/internal-page-shell";
 import { Fonts } from "../../../../constants/font";
 import { pageStyles } from "../../../../constants/page-styles";
@@ -11,6 +12,7 @@ import {
   formatPoints,
   formatRank,
 } from "../../../../services/points-api";
+import { chevronForward } from "../../../../utils/rtl";
 
 function getInitials(name) {
   if (!name) return "?";
@@ -23,6 +25,7 @@ function getInitials(name) {
 
 export default function RankDetails() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -46,20 +49,20 @@ export default function RankDetails() {
   const peopleBelow = data?.people_below ?? 0;
 
   return (
-    <InternalPageShell title="Rank Details" subtitle="Your community standing" contentStyle={pageStyles.scrollBottom}>
+    <InternalPageShell title={t("rank.title")} subtitle={t("rank.subtitle")} contentStyle={pageStyles.scrollBottom}>
       {loading ? (
         <PointsHistorySkeleton />
       ) : (
         <>
           <View style={styles.summaryRow}>
             <View style={[styles.summaryCard, styles.rankCard]}>
-              <Text style={styles.summaryLabel}>Current Rank</Text>
+              <Text style={styles.summaryLabel}>{t("rank.currentRank")}</Text>
               <Text style={styles.rankValue}>{formatRank(data?.rank)}</Text>
             </View>
             <View style={[styles.summaryCard, styles.pointsCard]}>
               <View style={styles.weekHeader}>
                 <Feather name="award" size={14} color="#059669" />
-                <Text style={styles.summaryLabel}>Total Points</Text>
+                <Text style={styles.summaryLabel}>{t("points.totalPoints")}</Text>
               </View>
               <Text style={styles.pointsValue}>{formatPoints(data?.total_points ?? 0)}</Text>
             </View>
@@ -67,30 +70,30 @@ export default function RankDetails() {
 
           <View style={styles.metaCard}>
             <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>This week</Text>
-              <Text style={styles.metaValue}>+{formatPoints(weekPoints)} pts</Text>
+              <Text style={styles.metaLabel}>{t("points.thisWeek")}</Text>
+              <Text style={styles.metaValue}>+{formatPoints(weekPoints)} {t("points.ptsLabel")}</Text>
             </View>
             <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Community members</Text>
+              <Text style={styles.metaLabel}>{t("rank.communityMembers")}</Text>
               <Text style={styles.metaValue}>{data?.community_members ?? 0}</Text>
             </View>
             <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>People below you</Text>
+              <Text style={styles.metaLabel}>{t("rank.peopleBelowYou")}</Text>
               <Text style={styles.metaValue}>
-                {peopleBelow === 1 ? "1 person" : `${peopleBelow} people`}
+                {peopleBelow === 1 ? t("rank.personBelow") : t("rank.peopleBelow", { count: peopleBelow })}
               </Text>
             </View>
             {data?.points_to_next_rank != null && data?.next_rank != null ? (
               <View style={[styles.metaRow, styles.metaRowLast]}>
-                <Text style={styles.metaLabel}>Points to rank #{data.next_rank}</Text>
+                <Text style={styles.metaLabel}>{t("rank.pointsToRank", { rank: data.next_rank })}</Text>
                 <Text style={styles.metaValue}>{formatPoints(data.points_to_next_rank)}</Text>
               </View>
             ) : null}
           </View>
 
-          <SectionLabel>Community Rankings</SectionLabel>
+          <SectionLabel>{t("rank.communityRankings")}</SectionLabel>
           {(data?.entries ?? []).length === 0 ? (
-            <Text style={styles.emptyText}>No community rankings yet.</Text>
+            <Text style={styles.emptyText}>{t("rank.noRankingsYet")}</Text>
           ) : (
             (data?.entries ?? []).map((entry) => (
               <View
@@ -107,9 +110,9 @@ export default function RankDetails() {
                     <Text style={styles.avatarText}>{getInitials(entry.name)}</Text>
                   </View>
                   <View style={styles.entryBody}>
-                    <Text style={styles.entryName}>{entry.name}{entry.is_me ? " (You)" : ""}</Text>
+                    <Text style={styles.entryName}>{entry.name}{entry.is_me ? ` (${t("common.you")})` : ""}</Text>
                     <Text style={styles.entryUnit}>
-                      {entry.unit_number ? `Unit ${entry.unit_number}` : "Community member"}
+                      {entry.unit_number ? t("nav.unit", { number: entry.unit_number }) : t("common.communityMember")}
                     </Text>
                   </View>
                 </View>
@@ -123,8 +126,8 @@ export default function RankDetails() {
             onPress={() => router.push("/screens/leaderboard")}
             activeOpacity={0.85}
           >
-            <Text style={styles.leaderboardLinkText}>View full leaderboard</Text>
-            <Feather name="chevron-right" size={16} color="#0A2A43" />
+            <Text style={styles.leaderboardLinkText}>{t("rank.viewFullLeaderboard")}</Text>
+            <Feather name={chevronForward()} size={16} color="#0A2A43" />
           </TouchableOpacity>
         </>
       )}

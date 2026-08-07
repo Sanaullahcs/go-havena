@@ -11,6 +11,7 @@ import {
   Platform,
   StatusBar,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import AppModal from "../layout/app-modal";
 import { getTopInset } from "../layout/system-chrome";
 import {
@@ -23,13 +24,14 @@ import { Fonts } from "../../constants/font";
 
 import { useRouter } from "expo-router";
 import { sw } from "../../utils/responsive";
+import { chevronForward, arrowForward } from "../../utils/rtl";
 import { navigateAppRoute } from "../../utils/app-navigation";
 import { confirmSignOut } from "../../services/sign-out";
 import { useAppDialog } from "../../providers/app-dialog-provider";
 import { getUser, getCachedUser } from "../../services/auth-session";
 import { isGuestUser } from "../../services/community-access";
 import { fetchMe } from "../../services/profile-api";
-import { getProfileFields, getRoleLabel } from "../../utils/profile-display";
+import { getProfileFields } from "../../utils/profile-display";
 import ProfilePhotoAvatar from "../profile/profile-photo-avatar";
 import { useProfilePhoto } from "../../hooks/use-profile-photo";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
@@ -96,18 +98,19 @@ const MenuItem = ({
 };
 
 function WellnessEmpty({ onExplore }) {
+  const { t } = useTranslation();
   return (
     <View style={styles.wellnessEmpty}>
       <View style={styles.wellnessEmptyIcon}>
         <Feather name="heart" size={18} color="#0A2A43" />
       </View>
-      <Text style={styles.wellnessEmptyTitle}>Wellness coming soon</Text>
+      <Text style={styles.wellnessEmptyTitle}>{t("nav.wellnessComingSoon")}</Text>
       <Text style={styles.wellnessEmptyHint}>
-        Programs from your community will show up here once they go live.
+        {t("nav.wellnessComingSoonMsg")}
       </Text>
       <Pressable style={styles.wellnessEmptyCta} onPress={onExplore}>
-        <Text style={styles.wellnessEmptyCtaText}>Browse wellness</Text>
-        <Feather name="arrow-right" size={14} color="#0A2A43" />
+        <Text style={styles.wellnessEmptyCtaText}>{t("nav.browseWellness")}</Text>
+        <Feather name={arrowForward()} size={14} color="#0A2A43" />
       </Pressable>
     </View>
   );
@@ -140,7 +143,15 @@ export default function SideMenu({ visible, onClose }) {
   );
 }
 
+function getRoleLabelKey(user) {
+  if (!user) return "roles.resident";
+  if (isGuestUser(user)) return "roles.guest";
+  if (user.role === "community_admin" || user.role === "admin") return "roles.admin";
+  return "roles.resident";
+}
+
 function SideMenuPanel({ visible, onClose }) {
+  const { t } = useTranslation();
   const dialog = useAppDialog();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -178,7 +189,7 @@ function SideMenuPanel({ visible, onClose }) {
   }, [visible]);
 
   const profile = getProfileFields(user);
-  const roleLabel = getRoleLabel(user);
+  const roleLabelKey = getRoleLabelKey(user);
   const isNewProfile =
     !profile.avatarUrl ||
     profile.displayName === "My Profile" ||
@@ -239,47 +250,47 @@ function SideMenuPanel({ visible, onClose }) {
   const menuItems = [
     {
       iconName: "message-circle",
-      title: "Community Feed",
+      titleKey: "nav.communityFeed",
       route: "/screens/community-feed",
     },
     {
       iconName: "bell",
-      title: "Community Updates",
+      titleKey: "nav.communityUpdates",
       route: "/(tabs)/notices",
     },
     {
       iconName: "shopping-bag",
-      title: "Marketplace",
+      titleKey: "nav.marketplace",
       route: "/(tabs)/marketplace",
     },
     ...(user && !isGuestUser(user)
       ? [
           {
             iconName: "users",
-            title: "My Family",
+            titleKey: "nav.myFamily",
             route: "/screens/my-family",
             badgeCount: familyPendingCount,
           },
           {
             iconName: "user-plus",
-            title: "Invite Guest",
+            titleKey: "nav.inviteGuest",
             route: "/screens/invite-guest",
           },
           {
             iconName: "user-check",
-            title: "Guest approvals",
+            titleKey: "nav.guestApprovals",
             route: "/screens/guest-approvals",
           },
         ]
       : []),
     {
       iconName: "home",
-      title: "Services",
+      titleKey: "nav.services",
       route: PropertyManagementRoutes.HOME,
     },
     {
       iconName: "user",
-      title: "Profile",
+      titleKey: "nav.profile",
       route: "/(tabs)/profile",
     },
   ];
@@ -337,7 +348,7 @@ function SideMenuPanel({ visible, onClose }) {
           style={styles.backdrop}
           onPress={handleClose}
           accessibilityRole="button"
-          accessibilityLabel="Close menu"
+          accessibilityLabel={t("nav.closeMenu")}
         />
 
         {/* White band behind status bar so icons stay readable on the drawer */}
@@ -358,7 +369,7 @@ function SideMenuPanel({ visible, onClose }) {
                   </View>
                   <View style={styles.brandCopy}>
                     <Text style={styles.brandTitle}>Havena</Text>
-                    <Text style={styles.brandSubtitle}>Community & Wellness</Text>
+                    <Text style={styles.brandSubtitle}>{t("nav.tagline")}</Text>
                   </View>
                 </View>
                 <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
@@ -398,38 +409,38 @@ function SideMenuPanel({ visible, onClose }) {
                   onPress={openProfile}
                 >
                   <Text style={styles.profileName} numberOfLines={1}>
-                    {isNewProfile ? "Welcome" : profile.displayName}
+                    {isNewProfile ? t("nav.welcome") : profile.displayName}
                   </Text>
                   <Text style={styles.profileAddress} numberOfLines={1}>
                     {profile.unitNumber
-                      ? `${profile.communityName} · Unit ${profile.unitNumber}`
+                      ? `${profile.communityName} · ${t("nav.unit", { number: profile.unitNumber })}`
                       : profile.communityName}
                   </Text>
                   {!isNewProfile ? (
                     <Text style={styles.profileRole} numberOfLines={1}>
-                      {roleLabel}
+                      {t(roleLabelKey)}
                     </Text>
                   ) : null}
                   {isNewProfile ? (
-                    <Text style={styles.addPhotoHint}>Complete your profile</Text>
+                    <Text style={styles.addPhotoHint}>{t("nav.completeProfile")}</Text>
                   ) : !profile.avatarUrl ? (
-                    <Text style={styles.addPhotoHint}>Add profile photo</Text>
+                    <Text style={styles.addPhotoHint}>{t("nav.addProfilePhoto")}</Text>
                   ) : null}
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={openProfile} activeOpacity={0.8} hitSlop={8}>
-                  <Feather name="chevron-right" size={20} color="#94A3B8" />
+                  <Feather name={chevronForward()} size={20} color="#94A3B8" />
                 </TouchableOpacity>
               </View>
             </View>
 
-            <Text style={styles.sectionTitle}>MAIN MENU</Text>
+            <Text style={styles.sectionTitle}>{t("nav.mainMenu")}</Text>
             <View style={styles.menuGroup}>
               {menuItems.map((item, index) => (
                 <MenuItem
-                  key={item.title}
+                  key={item.titleKey}
                   iconName={item.iconName}
-                  title={item.title}
+                  title={t(item.titleKey)}
                   badgeCount={item.badgeCount ?? 0}
                   isActive={selectedMenu === `main-${index}`}
                   onPress={() => {
@@ -442,7 +453,7 @@ function SideMenuPanel({ visible, onClose }) {
               ))}
             </View>
 
-            <Text style={styles.sectionTitle}>WELLNESS PROGRAMS</Text>
+            <Text style={styles.sectionTitle}>{t("nav.wellnessPrograms")}</Text>
             <View style={styles.wellnessGroup}>
               {wellnessHubLoading ? (
                 <SidebarWellnessHubSkeleton count={5} />
@@ -455,7 +466,7 @@ function SideMenuPanel({ visible, onClose }) {
                     <MenuItem
                       key={item.key ?? index}
                       iconName={sidebarIconForKey(item.key)}
-                      title={item.title}
+                      title={meta.titleKey ? t(meta.titleKey) : item.title}
                       iconColor={meta.color}
                       iconBg={meta.bg}
                       isActive={selectedMenu === `wellness-${index}`}
@@ -484,7 +495,7 @@ function SideMenuPanel({ visible, onClose }) {
                   <View style={styles.actionIcon}>
                     <Feather name="settings" size={16} color="#475569" />
                   </View>
-                  <Text style={styles.actionText}>Settings</Text>
+                  <Text style={styles.actionText}>{t("settings.title")}</Text>
                 </View>
               </TouchableOpacity>
 
@@ -506,7 +517,7 @@ function SideMenuPanel({ visible, onClose }) {
                     <Feather name="log-out" size={16} color="#DC2626" />
                   </View>
                   <Text style={[styles.actionText, styles.actionTextDanger]}>
-                    Logout
+                    {t("settings.logOut")}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -526,9 +537,9 @@ const styles = StyleSheet.create({
   backdrop: {
     position: "absolute",
     top: 0,
-    right: 0,
+    end: 0,
     bottom: 0,
-    left: MENU_WIDTH,
+    start: MENU_WIDTH,
     zIndex: 3,
     ...Platform.select({
       android: { elevation: 3 },
@@ -538,8 +549,8 @@ const styles = StyleSheet.create({
   statusBarBand: {
     position: "absolute",
     top: 0,
-    left: 0,
-    right: 0,
+    start: 0,
+    end: 0,
     backgroundColor: "#FFFFFF",
     zIndex: 4,
     ...Platform.select({
@@ -551,12 +562,12 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     bottom: 0,
-    left: 0,
+    start: 0,
     width: MENU_WIDTH,
     backgroundColor: "#FFFFFF",
     zIndex: 5,
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: "#E2E8F0",
+    borderEndWidth: StyleSheet.hairlineWidth,
+    borderEndColor: "#E2E8F0",
     ...Platform.select({
       ios: {
         shadowColor: "#0F172A",
@@ -648,7 +659,7 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   profileAvatarWrapper: {
-    marginRight: 12,
+    marginEnd: 12,
   },
   profileInfo: {
     flex: 1,
@@ -774,7 +785,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    marginEnd: 12,
     flexShrink: 0,
   },
   iconBoxInactive: {

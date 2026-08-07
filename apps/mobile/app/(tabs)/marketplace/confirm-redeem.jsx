@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { MarketplaceType } from "../../../constants/marketplace-type";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Fonts } from "../../../constants/font";
@@ -13,6 +14,7 @@ import SafeTop from "../../../components/layout/safe-top";
 
 export default function ConfirmRedeem() {
   const router = useRouter();
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (!MARKETPLACE_FEATURES.coupons) {
@@ -47,13 +49,13 @@ export default function ConfirmRedeem() {
           </View>
         </View>
 
-        <Text style={styles.title}>Coupon Redeemed!</Text>
+        <Text style={styles.title}>{t("deals.couponRedeemed")}</Text>
         <Text style={styles.subtitle}>
-          Show this screen to the staff to confirm your redemption
+          {t("deals.showScreenToStaff")}
         </Text>
 
         <View style={styles.codeCard}>
-          <Text style={styles.codeLabel}>Redemption Code</Text>
+          <Text style={styles.codeLabel}>{t("deals.redemptionCode")}</Text>
           <Text style={styles.codeText}>BURGER20</Text>
         </View>
 
@@ -63,7 +65,7 @@ export default function ConfirmRedeem() {
             activeOpacity={0.85}
             onPress={() => router.push(MarketplaceRoutes.MY_COUPONS)}
           >
-            <Text style={styles.primaryButtonText}>View My Coupons</Text>
+            <Text style={styles.primaryButtonText}>{t("deals.viewMyCoupons")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -71,7 +73,7 @@ export default function ConfirmRedeem() {
             activeOpacity={0.85}
             onPress={() => router.back()}
           >
-            <Text style={styles.secondaryButtonText}>Done</Text>
+            <Text style={styles.secondaryButtonText}>{t("common.done")}</Text>
           </TouchableOpacity>
         </View>
       </View>

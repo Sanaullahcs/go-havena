@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { MarketplaceType } from "../../../constants/marketplace-type";
 import {
   View,
@@ -31,6 +32,7 @@ import { MarketplaceTheme } from "../../../constants/marketplace-theme";
 import { MARKETPLACE_FEATURES } from "../../../constants/marketplace-features";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { sw, sf } from "../../../utils/responsive";
+import { chevronForward } from "../../../utils/rtl";
 
 const IMAGE_MAP = {
   "food-bowl": require("../../../assets/images/food-bowl.png"),
@@ -39,25 +41,24 @@ const IMAGE_MAP = {
   "ok-resturant": require("../../../assets/images/ok-resturant.png"),
 };
 
-function buildInterestMessage({ title, offerTag, vendor }) {
-  const offer = offerTag ? ` (${offerTag})` : "";
-  const from = vendor ? ` from ${vendor}` : "";
-  return `Hi! I'm interested in "${title}"${offer}${from}. Could you tell me how I can claim or use this offer?`;
+function buildInterestMessage({ title, offerTag, vendor }, t) {
+  return t("deals.interestMessage", { title, offerTag: offerTag || "", vendor: vendor || "" });
 }
 
-function buildContactDraft({ title }) {
-  return `Hi! I have a question about your deal "${title}".`;
+function buildContactDraft({ title }, t) {
+  return t("deals.contactDraft", { title });
 }
 
 export default function DealDetails() {
   const router = useRouter();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const { showError } = useAppDialog();
   const params = useLocalSearchParams();
   const {
     id,
     businessId: businessIdParam,
-    title: titleParam = "Deal Details",
+    title: titleParam = "",
     vendor: vendorParam = "",
     description: descriptionParam = "",
     distance: distanceParam = "",
@@ -121,7 +122,7 @@ export default function DealDetails() {
   const businessId = deal?.businessId ?? (businessIdParam ? String(businessIdParam) : null);
   const phone = business?.phone?.trim() || "";
   const recipientId = business?.ownerId ?? deal?.createdBy ?? null;
-  const recipientName = business?.ownerName || vendor || "Business";
+  const recipientName = business?.ownerName || vendor || t("marketplace.business");
 
   const isOwner =
     currentUserId != null &&
@@ -138,14 +139,14 @@ export default function DealDetails() {
 
   const TERMS = useMemo(
     () => [
-      "Offer availability is confirmed by the business",
-      "Cannot be combined with other offers unless stated",
+      t("deals.termAvailability"),
+      t("deals.termNoCombine"),
       MARKETPLACE_FEATURES.coupons
-        ? "One coupon per customer per visit"
-        : "One offer claim per customer unless the business says otherwise",
-      `Valid until ${validUntil || "—"}`,
+        ? t("deals.termOneCoupon")
+        : t("deals.termOneOffer"),
+      t("deals.termValidUntil", { date: validUntil || "—" }),
     ],
-    [validUntil],
+    [validUntil, t],
   );
 
   const openChat = (conversationId, extra = {}) => {
@@ -165,12 +166,12 @@ export default function DealDetails() {
     try {
       const supported = await Linking.canOpenURL(url);
       if (!supported) {
-        await showError("Unable to call", "Calling is not supported on this device.");
+        await showError(t("deals.unableToCall"), t("deals.callingNotSupported"));
         return;
       }
       await Linking.openURL(url);
     } catch (err) {
-      await showError("Unable to call", err?.message ?? "Please try again.");
+      await showError(t("deals.unableToCall"), err?.message ?? t("common.tryAgain"));
     }
   };
 
@@ -179,11 +180,11 @@ export default function DealDetails() {
     setContactBusy(true);
     try {
       const data = await startConversation(recipientId, {
-        message: buildContactDraft({ title }),
+        message: buildContactDraft({ title }, t),
       });
       openChat(data.conversation_id);
     } catch (err) {
-      await showError("Could not start chat", err?.message ?? "Please try again in a moment.");
+      await showError(t("deals.couldNotStartChat"), err?.message ?? t("common.tryAgain"));
     } finally {
       setContactBusy(false);
     }
@@ -194,11 +195,11 @@ export default function DealDetails() {
     setInterestBusy(true);
     try {
       const data = await startConversation(recipientId, {
-        message: buildInterestMessage({ title, offerTag, vendor }),
+        message: buildInterestMessage({ title, offerTag, vendor }, t),
       });
       openChat(data.conversation_id);
     } catch (err) {
-      await showError("Could not reach business", err?.message ?? "Please try again in a moment.");
+      await showError(t("deals.couldNotReachBusiness"), err?.message ?? t("common.tryAgain"));
     } finally {
       setInterestBusy(false);
     }
@@ -219,7 +220,7 @@ export default function DealDetails() {
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
-      <ScreenHeader layout="inline" title="Deal Details" iconOnly />
+      <ScreenHeader layout="inline" title={t("deals.dealDetails")} iconOnly />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -248,7 +249,7 @@ export default function DealDetails() {
 
         <View style={styles.section}>
           <Text style={styles.dealTitle}>{title}</Text>
-          {description ? <Text style={styles.dealDesc}>{description}</Text> : null}
+{description ? <Text style={styles.dealDesc}>{description}</Text> : null}
         </View>
 
         <View style={{ paddingHorizontal: 20, paddingBottom: 1 }}>
@@ -271,7 +272,7 @@ export default function DealDetails() {
               <View style={styles.vendorLeft}>
                 <Text style={styles.vendorName}>{vendor}</Text>
                 <Text style={styles.vendorHint}>
-                  {businessId ? "View business profile" : "Local business offer"}
+                  {businessId ? t("deals.viewBusinessProfile") : t("deals.localBusinessOffer")}
                 </Text>
                 {distance ? (
                   <View style={styles.vendorDistRow}>
@@ -286,7 +287,7 @@ export default function DealDetails() {
                   </View>
                 ) : null}
               </View>
-              {businessId ? <Feather name="chevron-right" size={18} color="#CBD5E1" /> : null}
+              {businessId ? <Feather name={chevronForward()} size={18} color="#CBD5E1" /> : null}
             </TouchableOpacity>
           ) : null}
         </View>
@@ -300,34 +301,34 @@ export default function DealDetails() {
                 color="#D97706"
                 backgroundColor="#FEF3C7"
               />
-              <Text style={styles.validLabel}>Valid Until</Text>
+              <Text style={styles.validLabel}>{t("deals.validUntil")}</Text>
             </View>
             <Text style={styles.validDate}>{validUntil}</Text>
           </View>
         ) : null}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>How to use this offer</Text>
+          <Text style={styles.sectionTitle}>{t("deals.howToUse")}</Text>
           <View style={styles.howCard}>
             <View style={styles.howRow}>
               <View style={styles.howStep}>
                 <Text style={styles.howStepNum}>1</Text>
               </View>
-              <Text style={styles.howText}>Message the business or call them about this deal.</Text>
+              <Text style={styles.howText}>{t("deals.howStep1")}</Text>
             </View>
             <View style={styles.howRow}>
               <View style={styles.howStep}>
                 <Text style={styles.howStepNum}>2</Text>
               </View>
               <Text style={styles.howText}>
-                Ask how to claim it — pickup, booking, dine-in, or delivery depends on the business.
+                {t("deals.howStep2")}
               </Text>
             </View>
             <View style={styles.howRow}>
               <View style={styles.howStep}>
                 <Text style={styles.howStepNum}>3</Text>
               </View>
-              <Text style={styles.howText}>Mention this offer when you visit or place your request.</Text>
+              <Text style={styles.howText}>{t("deals.howStep3")}</Text>
             </View>
           </View>
         </View>
@@ -339,18 +340,18 @@ export default function DealDetails() {
                 source={require("../../../assets/images/redeem.svg")}
                 style={{ width: 20, height: 20 }}
               />
-              <Text style={styles.sectionTitle}>How to Redeem</Text>
+              <Text style={styles.sectionTitle}>{t("deals.howToRedeem")}</Text>
             </View>
             <View style={styles.redeemInfo}>
               <Text style={styles.redeemText}>
-                Show this coupon to your server or cashier before ordering
+                {t("deals.showCouponToStaff")}
               </Text>
             </View>
           </View>
         ) : null}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Terms &amp; Conditions</Text>
+          <Text style={styles.sectionTitle}>{t("deals.termsAndConditions")}</Text>
           <View style={styles.termsList}>
             {TERMS.map((term, i) => (
               <View key={`term-${i}`} style={styles.termRow}>
@@ -369,7 +370,7 @@ export default function DealDetails() {
         >
           <View style={styles.ownerNote}>
             <Ionicons name="storefront-outline" size={16} color="#64748B" />
-            <Text style={styles.ownerNoteText}>This is your deal. Residents can contact you from here.</Text>
+            <Text style={styles.ownerNoteText}>{t("deals.ownerNote")}</Text>
           </View>
         </View>
       ) : showResidentActions || loadingMeta ? (
@@ -388,10 +389,10 @@ export default function DealDetails() {
                       style={styles.callBtn}
                       activeOpacity={0.85}
                       onPress={handleCall}
-                      accessibilityLabel="Call business"
+                      accessibilityLabel={t("deals.callBusiness")}
                     >
                       <Ionicons name="call-outline" size={18} color={MarketplaceTheme.accent} />
-                      <Text style={styles.callBtnText}>Call</Text>
+                      <Text style={styles.callBtnText}>{t("deals.call")}</Text>
                     </TouchableOpacity>
                   ) : null}
                   {canContact ? (
@@ -406,7 +407,7 @@ export default function DealDetails() {
                       ) : (
                         <>
                           <Ionicons name="chatbubble-outline" size={17} color={MarketplaceTheme.accent} />
-                          <Text style={styles.messageBtnText}>Message</Text>
+                          <Text style={styles.messageBtnText}>{t("marketplace.message")}</Text>
                         </>
                       )}
                     </TouchableOpacity>
@@ -426,7 +427,7 @@ export default function DealDetails() {
                   ) : (
                     <>
                       <Ionicons name="pricetag-outline" size={18} color="#FFFFFF" />
-                      <Text style={styles.primaryBtnText}>I'm interested</Text>
+                      <Text style={styles.primaryBtnText}>{t("deals.imInterested")}</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -443,13 +444,13 @@ export default function DealDetails() {
                     })
                   }
                 >
-                  <Text style={styles.redeemBtnText}>Redeem This Coupon</Text>
+                  <Text style={styles.redeemBtnText}>{t("deals.redeemThisCoupon")}</Text>
                 </TouchableOpacity>
               ) : null}
 
               {!canContact && !canCall && !MARKETPLACE_FEATURES.coupons ? (
                 <Text style={styles.unavailableText}>
-                  Contact details for this business are not available yet.
+                  {t("deals.contactUnavailable")}
                 </Text>
               ) : null}
             </>
@@ -484,7 +485,7 @@ const styles = StyleSheet.create({
   offerBadge: {
     position: "absolute",
     bottom: 12,
-    right: 12,
+    end: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,

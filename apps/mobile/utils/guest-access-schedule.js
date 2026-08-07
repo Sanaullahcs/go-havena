@@ -1,14 +1,14 @@
+import i18n from "../i18n";
 import { clearSession, getUser } from "../services/auth-session";
 import { logout } from "../services/auth-api";
 import { isGuestUser } from "../services/community-access";
 import { Routes } from "../constants/onboarding-routes";
 
-export const GUEST_ACCESS_NOT_STARTED_MESSAGE =
-  "Your guest access has not started yet. Please try again at the scheduled time.";
+export const GUEST_ACCESS_NOT_STARTED_MESSAGE = i18n.t("guest.accessNotStartedMsg");
 
-export const GUEST_ACCESS_EXPIRED_MESSAGE = "Your guest access has expired.";
+export const GUEST_ACCESS_EXPIRED_MESSAGE = i18n.t("guest.accessExpiredMsg");
 
-export const GUEST_ACCESS_REVOKED_MESSAGE = "Your guest access has been revoked.";
+export const GUEST_ACCESS_REVOKED_MESSAGE = i18n.t("guest.accessRevokedMsg");
 
 export function isGuestAccessExpiredError(error) {
   return error?.code === "GUEST_ACCESS_EXPIRED";

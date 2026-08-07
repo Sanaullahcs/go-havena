@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import { FormPhoneInput } from "../../../components/ui/phone-input";
 import { propertyStyles } from "../../../constants/property-styles";
@@ -33,28 +34,28 @@ const EMPTY_FORM = {
   unit_number: "",
 };
 
-function validateForm(form, phoneCountry) {
+function validateForm(form, phoneCountry, t) {
   const errors = {};
-  if (!form.first_name.trim()) errors.first_name = "First name is required";
-  if (!form.last_name.trim()) errors.last_name = "Last name is required";
+  if (!form.first_name.trim()) errors.first_name = t("family.addMemberForm.firstNameRequired");
+  if (!form.last_name.trim()) errors.last_name = t("family.addMemberForm.lastNameRequired");
   if (!form.phone.trim()) {
-    errors.phone = "Phone number is required";
+    errors.phone = t("family.addMemberForm.phoneRequired");
   } else if (!toE164(form.phone, phoneCountry)) {
-    errors.phone = "Enter a valid phone number";
+    errors.phone = t("family.addMemberForm.invalidPhone");
   }
   if (!form.email.trim()) {
-    errors.email = "Email is required";
+    errors.email = t("family.addMemberForm.emailRequired");
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-    errors.email = "Enter a valid email address";
+    errors.email = t("family.addMemberForm.invalidEmail");
   }
   const age = Number(form.age);
   if (!form.age.trim()) {
-    errors.age = "Age is required";
+    errors.age = t("family.addMemberForm.ageRequired");
   } else if (!Number.isInteger(age) || age < 1 || age > 120) {
-    errors.age = "Enter a valid age (1–120)";
+    errors.age = t("family.addMemberForm.invalidAge");
   }
   if (!form.unit_number.trim()) {
-    errors.unit_number = "Unit number is required";
+    errors.unit_number = t("family.addMemberForm.unitNumberRequired");
   }
   return errors;
 }
@@ -71,6 +72,7 @@ function Field({ label, error, children, onLayout }) {
 
 export default function AddFamilyMemberScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { showFailure, showSuccess } = useApiAction();
   const scrollRef = useRef(null);
   const fieldOffsets = useRef({});
@@ -100,7 +102,7 @@ export default function AddFamilyMemberScreen() {
 
   const handleSubmit = async () => {
     Keyboard.dismiss();
-    const nextErrors = validateForm(form, phoneCountry);
+    const nextErrors = validateForm(form, phoneCountry, t);
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       focusField(Object.keys(nextErrors)[0]);
@@ -109,7 +111,7 @@ export default function AddFamilyMemberScreen() {
 
     const phone = toE164(form.phone, phoneCountry);
     if (!phone) {
-      setErrors((prev) => ({ ...prev, phone: "Enter a valid phone number" }));
+      setErrors((prev) => ({ ...prev, phone: t("family.addMemberForm.invalidPhone") }));
       focusField("phone");
       return;
     }
@@ -125,12 +127,12 @@ export default function AddFamilyMemberScreen() {
         unit_number: form.unit_number.trim(),
       });
       await showSuccess(
-        "Request submitted",
-        "Your community admin will review first. After they approve, confirm the member in Family requests.",
+        t("family.addMemberForm.requestSubmitted"),
+        t("family.addMemberForm.requestSubmittedMessage"),
       );
       router.replace("/screens/my-family");
     } catch (err) {
-      await showFailure("Could not submit request", err);
+      await showFailure(t("family.addMemberForm.couldNotSubmit"), err);
     } finally {
       setSubmitting(false);
     }
@@ -139,8 +141,8 @@ export default function AddFamilyMemberScreen() {
   return (
     <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
       <InternalScreenHeader
-        title="Add family member"
-        subtitle="All fields are required"
+        title={t("family.addMemberForm.title")}
+        subtitle={t("family.addMemberForm.subtitle")}
         onBack={() => {
           if (!submitting) router.back();
         }}
@@ -162,13 +164,12 @@ export default function AddFamilyMemberScreen() {
           <View style={styles.infoBanner}>
             <Feather name="info" size={sf(14)} color="#0A2A43" />
             <Text style={styles.infoText}>
-              Your community admin reviews this first. After they approve, you will confirm the
-              member in Family requests.
+              {t("family.addMemberForm.infoBanner")}
             </Text>
           </View>
 
           <Field
-            label="First name"
+            label={t("family.addMemberForm.firstName")}
             error={errors.first_name}
             onLayout={rememberFieldOffset("first_name")}
           >
@@ -176,7 +177,7 @@ export default function AddFamilyMemberScreen() {
               value={form.first_name}
               onChangeText={(value) => update("first_name", value)}
               onFocus={() => focusField("first_name")}
-              placeholder="First name"
+              placeholder={t("family.addMemberForm.firstName")}
               placeholderTextColor="#94A3B8"
               style={[styles.input, errors.first_name && styles.inputError]}
               editable={!submitting}
@@ -188,7 +189,7 @@ export default function AddFamilyMemberScreen() {
           </Field>
 
           <Field
-            label="Last name"
+            label={t("family.addMemberForm.lastName")}
             error={errors.last_name}
             onLayout={rememberFieldOffset("last_name")}
           >
@@ -196,7 +197,7 @@ export default function AddFamilyMemberScreen() {
               value={form.last_name}
               onChangeText={(value) => update("last_name", value)}
               onFocus={() => focusField("last_name")}
-              placeholder="Last name"
+              placeholder={t("family.addMemberForm.lastName")}
               placeholderTextColor="#94A3B8"
               style={[styles.input, errors.last_name && styles.inputError]}
               editable={!submitting}
@@ -207,7 +208,7 @@ export default function AddFamilyMemberScreen() {
             />
           </Field>
 
-          <Field label="Phone number" error={errors.phone} onLayout={rememberFieldOffset("phone")}>
+          <Field label={t("family.addMemberForm.phoneNumber")} error={errors.phone} onLayout={rememberFieldOffset("phone")}>
             <FormPhoneInput
               digits={form.phone}
               onChangeDigits={(value) => update("phone", value)}
@@ -218,12 +219,12 @@ export default function AddFamilyMemberScreen() {
             />
           </Field>
 
-          <Field label="Email" error={errors.email} onLayout={rememberFieldOffset("email")}>
+          <Field label={t("family.addMemberForm.email")} error={errors.email} onLayout={rememberFieldOffset("email")}>
             <TextInput
               value={form.email}
               onChangeText={(value) => update("email", value)}
               onFocus={() => focusField("email")}
-              placeholder="email@example.com"
+              placeholder={t("family.addMemberForm.emailPlaceholder")}
               placeholderTextColor="#94A3B8"
               style={[styles.input, errors.email && styles.inputError]}
               editable={!submitting}
@@ -235,12 +236,12 @@ export default function AddFamilyMemberScreen() {
             />
           </Field>
 
-          <Field label="Age" error={errors.age} onLayout={rememberFieldOffset("age")}>
+          <Field label={t("family.addMemberForm.age")} error={errors.age} onLayout={rememberFieldOffset("age")}>
             <TextInput
               value={form.age}
               onChangeText={(value) => update("age", value.replace(/[^0-9]/g, ""))}
               onFocus={() => focusField("age")}
-              placeholder="Age in years"
+              placeholder={t("family.addMemberForm.agePlaceholder")}
               placeholderTextColor="#94A3B8"
               style={[styles.input, errors.age && styles.inputError]}
               editable={!submitting}
@@ -251,7 +252,7 @@ export default function AddFamilyMemberScreen() {
           </Field>
 
           <Field
-            label="Unit number"
+            label={t("family.addMemberForm.unitNumber")}
             error={errors.unit_number}
             onLayout={rememberFieldOffset("unit_number")}
           >
@@ -259,7 +260,7 @@ export default function AddFamilyMemberScreen() {
               value={form.unit_number}
               onChangeText={(value) => update("unit_number", value)}
               onFocus={() => focusField("unit_number")}
-              placeholder="e.g. A-12"
+              placeholder={t("family.addMemberForm.unitPlaceholder")}
               placeholderTextColor="#94A3B8"
               style={[styles.input, errors.unit_number && styles.inputError]}
               editable={!submitting}
@@ -277,7 +278,7 @@ export default function AddFamilyMemberScreen() {
             disabled={submitting}
             onPress={() => router.back()}
           >
-            <Text style={styles.cancelText}>Cancel</Text>
+            <Text style={styles.cancelText}>{t("family.cancel")}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.submitBtn} disabled={submitting} onPress={handleSubmit}>
             {submitting ? (
@@ -285,7 +286,7 @@ export default function AddFamilyMemberScreen() {
             ) : (
               <>
                 <Feather name="send" size={sf(15)} color="#FFFFFF" />
-                <Text style={styles.submitText}>Submit request</Text>
+                <Text style={styles.submitText}>{t("family.addMemberForm.submitRequest")}</Text>
               </>
             )}
           </TouchableOpacity>

@@ -16,6 +16,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Fonts } from "../constants/font";
 import AppModal from "../components/layout/app-modal";
+import i18n from "../i18n";
 
 const AppDialogContext = createContext(null);
 
@@ -207,7 +208,7 @@ export function AppDialogProvider({ children }) {
         meta: options.meta ?? null,
         highlight: options.highlight ?? null,
         footerNote: options.footerNote ?? null,
-        actions: (options.actions ?? [{ label: "OK", variant: "primary" }]).map((action) => ({
+        actions: (options.actions ?? [{ label: i18n.t("common.ok"), variant: "primary" }]).map((action) => ({
           ...action,
           onPress: () => {
             closeDialog(action.key ?? action.label);
@@ -224,7 +225,7 @@ export function AppDialogProvider({ children }) {
         type: "success",
         title,
         message,
-        actions: actions ?? [{ label: "Continue", variant: "primary" }],
+        actions: actions ?? [{ label: i18n.t("common.continue"), variant: "primary" }],
       }),
     [showDialog],
   );
@@ -235,13 +236,13 @@ export function AppDialogProvider({ children }) {
         type: "error",
         title,
         message,
-        actions: actions ?? [{ label: "OK", variant: "primary" }],
+        actions: actions ?? [{ label: i18n.t("common.ok"), variant: "primary" }],
       }),
     [showDialog],
   );
 
   const showConfirm = useCallback(
-    (title, message, { confirmLabel = "Confirm", cancelLabel = "Cancel", destructive = false } = {}) =>
+    (title, message, { confirmLabel = i18n.t("common.confirm"), cancelLabel = i18n.t("common.cancel"), destructive = false } = {}) =>
       showDialog({
         type: destructive ? "warning" : "confirm",
         title,

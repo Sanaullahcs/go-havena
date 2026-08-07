@@ -73,6 +73,20 @@ class MediaUrl
             return rtrim((string) config('app.url'), '/');
         }
 
-        return rtrim($request->getSchemeAndHttpHost().$basePath, '/');
+        $root = rtrim($request->getSchemeAndHttpHost().$basePath, '/');
+
+        // Some clients send Host without port — keep :8000 for php artisan serve.
+        if (! parse_url($root, PHP_URL_PORT)) {
+            $port = (int) $request->getPort();
+            if ($port > 0 && ! in_array($port, [80, 443], true)) {
+                $scheme = $request->getScheme();
+                $root = "{$scheme}://{$host}:{$port}";
+                if ($basePath) {
+                    $root .= $basePath;
+                }
+            }
+        }
+
+        return $root;
     }
 }

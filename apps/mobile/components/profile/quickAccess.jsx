@@ -1,7 +1,9 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
+import { chevronForward } from "../../utils/rtl";
 import { Colors, Layout } from "../../constants/tokens";
 import { useRouter } from "expo-router";
 import {
@@ -12,38 +14,39 @@ import NotificationCountBadge from "../ui/notification-count-badge";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
 import { sw, sf } from "../../utils/responsive";
 
-const ITEMS = [
-  {
-    id: "notifications",
-    icon: "bell",
-    title: "Notifications",
-    getSubtitle: (unread) => formatUnreadNotificationLabel(unread),
-    route: "/screens/notification",
-    showBadge: true,
-  },
-  {
-    id: "property",
-    icon: "home",
-    title: "Property management",
-    getSubtitle: () => "Rules, documents & reservations",
-    route: PropertyManagementRoutes.HOME,
-  },
-  {
-    id: "settings",
-    icon: "settings",
-    title: "Settings",
-    getSubtitle: () => "Account & preferences",
-    route: "/screens/settings",
-  },
-];
-
 export default function QuickAccess() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { unread } = useNotificationUnread();
+
+  const ITEMS = [
+    {
+      id: "notifications",
+      icon: "bell",
+      title: t("profile.notificationsAccess"),
+      getSubtitle: () => formatUnreadNotificationLabel(unread),
+      route: "/screens/notification",
+      showBadge: true,
+    },
+    {
+      id: "property",
+      icon: "home",
+      title: t("profile.propertyManagement"),
+      getSubtitle: () => t("settings.helpCenterSub"),
+      route: PropertyManagementRoutes.HOME,
+    },
+    {
+      id: "settings",
+      icon: "settings",
+      title: t("profile.settingsAccess"),
+      getSubtitle: () => t("settings.subtitle"),
+      route: "/screens/settings",
+    },
+  ];
 
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionLabel}>Quick access</Text>
+      <Text style={styles.sectionLabel}>{t("profile.quickAccess")}</Text>
 
       <View style={styles.card}>
         {ITEMS.map((item, index) => (
@@ -65,7 +68,7 @@ export default function QuickAccess() {
               </Text>
             </View>
 
-            <Feather name="chevron-right" size={sf(15)} color="#C5CDD8" />
+            <Feather name={chevronForward()} size={sf(15)} color="#C5CDD8" />
           </Pressable>
         ))}
       </View>

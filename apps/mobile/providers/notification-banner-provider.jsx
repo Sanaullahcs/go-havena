@@ -21,6 +21,7 @@ import { Image } from "expo-image";
 import { Fonts } from "../constants/font";
 import { subscribeNotificationBanner } from "../services/notification-events";
 import { resolveNotificationVisual } from "../utils/notification-visual";
+import i18n from "../i18n";
 
 const NotificationBannerContext = createContext(null);
 const AUTO_DISMISS_MS = 4500;
@@ -168,7 +169,7 @@ function ForegroundNotificationBanner({
           style={styles.dismissBtn}
           onPress={() => runDismiss("up")}
           hitSlop={8}
-          accessibilityLabel="Dismiss notification"
+          accessibilityLabel={i18n.t("notifications.dismissNotification")}
         >
           <Ionicons name="close" size={16} color="#9CA3AF" />
         </Pressable>
@@ -222,7 +223,7 @@ export function NotificationBannerProvider({ children }) {
       const nextItem = {
         id: itemId,
         sourceId: id ?? null,
-        title: String(title ?? "Notification"),
+        title: String(title ?? i18n.t("notifications.defaultTitle")),
         body: String(body ?? ""),
         kind: kind ?? null,
         type: type ?? null,
@@ -325,7 +326,7 @@ const styles = StyleSheet.create({
   },
   dismissBtn: {
     paddingTop: 2,
-    paddingLeft: 4,
+    paddingStart: 4,
   },
   title: {
     fontFamily: Fonts.semibold,

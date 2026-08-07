@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { sw, sf } from "../../utils/responsive";
 
 export default function BurgerButton({
@@ -8,11 +9,12 @@ export default function BurgerButton({
   plain = false,
   iconColor = "#000000",
 }) {
+  const { t } = useTranslation();
   return (
     <Pressable
       onPress={onPress}
       hitSlop={8}
-      accessibilityLabel="Open menu"
+      accessibilityLabel={t("nav.openMenu")}
       style={({ pressed }) => [
         compact ? styles.compact : styles.normal,
         !plain && styles.bg,

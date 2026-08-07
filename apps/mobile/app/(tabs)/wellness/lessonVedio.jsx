@@ -17,9 +17,11 @@ import { fetchLesson, completeWellnessLesson } from "../../../services/wellness-
 import { getWellnessCategoryMeta, WellnessTheme } from "../../../constants/wellness-theme";
 import { useApiAction } from "../../../hooks/use-api-action";
 import { sf, sw } from "../../../utils/responsive";
+import { useTranslation } from 'react-i18next';
 
 export default function LessonVedio() {
   const router = useRouter();
+  const { t, i18n } = useTranslation();
   const { title, subTitle, lessonId, categoryKey: categoryKeyParam } = useLocalSearchParams();
   const { showFailure } = useApiAction();
   const [lesson, setLesson] = useState(null);
@@ -36,7 +38,7 @@ export default function LessonVedio() {
       const data = await fetchLesson(Number(lessonId));
       setLesson(data);
     } catch (err) {
-      await showFailure("Could not load lesson", err);
+      await showFailure(t('wellness.couldNotLoadLesson'), err);
     } finally {
       setLoading(false);
     }
@@ -55,7 +57,7 @@ export default function LessonVedio() {
       await completeWellnessLesson(lesson.id);
       setLesson((prev) => (prev ? { ...prev, completed: true } : prev));
     } catch (err) {
-      await showFailure("Could not save progress", err);
+      await showFailure(t('wellness.couldNotSaveProgress'), err);
     } finally {
       setMarking(false);
     }
@@ -71,7 +73,7 @@ export default function LessonVedio() {
   const description =
     lessonDescription ||
     courseDescription ||
-    "In this lesson, you'll learn practical techniques you can apply right away.";
+    t('wellness.defaultLessonDescription');
 
   // Key takeaways → else lesson description → else course description.
   const structuredTakeaways = Array.isArray(lesson?.keyTakeaways)
@@ -112,7 +114,7 @@ export default function LessonVedio() {
                   <View style={[styles.badge, { backgroundColor: meta.bg }]}>
                     <Feather name="clock" size={sf(11)} color={meta.color} />
                     <Text style={[styles.badgeText, { color: meta.color }]}>
-                      {lesson.durationMin} min
+                      {t('wellness.minDuration', { minutes: lesson.durationMin })}
                     </Text>
                   </View>
                 ) : null}
@@ -123,22 +125,22 @@ export default function LessonVedio() {
                     color={meta.color}
                   />
                   <Text style={[styles.badgeText, { color: meta.color }]}>
-                    {lesson?.completed ? "Completed" : "In progress"}
+                    {lesson?.completed ? t('wellness.completed') : t('wellness.inProgress')}
                   </Text>
                 </View>
               </View>
 
               <Text style={styles.title}>{displayTitle}</Text>
-              {displaySubtitle ? (
+{displaySubtitle ? (
                 <Text style={styles.courseLabel} numberOfLines={1}>
                   {displaySubtitle}
                 </Text>
               ) : null}
               <Text style={styles.description}>{description}</Text>
-            </View>
+</View>
 
             <View style={styles.topicsCard}>
-              <Text style={styles.topicsTitle}>Key takeaways</Text>
+              <Text style={styles.topicsTitle}>{t('wellness.keyTakeaways')}</Text>
               {(coveredTopics.length ? coveredTopics : [description]).map((item, index) => (
                 <View
                   key={`${index}-${item.slice(0, 12)}`}
@@ -181,10 +183,10 @@ export default function LessonVedio() {
                   ]}
                 >
                   {marking
-                    ? "Saving..."
+                    ? t('wellness.saving')
                     : lesson?.completed
-                      ? "Lesson completed"
-                      : "Mark lesson complete"}
+                      ? t('wellness.lessonCompleted')
+                      : t('wellness.markLessonComplete')}
                 </Text>
               </View>
             </Pressable>
@@ -233,7 +235,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingVertical: sw(5),
     paddingHorizontal: sw(10),
-    marginRight: sw(6),
+    marginEnd: sw(6),
     marginBottom: sw(4),
   },
   badgeText: {
@@ -241,7 +243,7 @@ const styles = StyleSheet.create({
     fontSize: sf(10),
     lineHeight: sf(14),
     fontWeight: "600",
-    marginLeft: sw(4),
+    marginStart: sw(4),
     includeFontPadding: false,
   },
   title: {
@@ -300,7 +302,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-    marginRight: sw(10),
+    marginEnd: sw(10),
     marginTop: 1,
   },
   topicText: {
@@ -329,7 +331,7 @@ const styles = StyleSheet.create({
     fontSize: sf(13),
     lineHeight: sf(18),
     fontWeight: "700",
-    marginLeft: sw(8),
+    marginStart: sw(8),
     includeFontPadding: false,
   },
 });

@@ -34,8 +34,11 @@ import {
 import { startConversation } from "../../../services/messages-api";
 import { getUser, getToken } from "../../../services/auth-session";
 import { getApiErrorMessage, getApiErrorCode } from "../../../utils/auth-errors";
+import { useTranslation } from 'react-i18next';
+import i18n from "../../../i18n";
+import { getLocaleForLang } from "../../../hooks/use-app-locale";
 
-function formatEventDateLabel(dateStr) {
+function formatEventDateLabel(dateStr, t) {
   if (!dateStr) return null;
 
   try {
@@ -45,7 +48,7 @@ function formatEventDateLabel(dateStr) {
     const compareDate = new Date(eventDate);
     compareDate.setHours(0, 0, 0, 0);
 
-    const formatted = eventDate.toLocaleDateString("en-US", {
+    const formatted = eventDate.toLocaleDateString(getLocaleForLang(i18n.language), {
       weekday: "long",
       month: "long",
       day: "numeric",
@@ -53,13 +56,13 @@ function formatEventDateLabel(dateStr) {
     });
 
     if (compareDate.getTime() === today.getTime()) {
-      return `Today, ${formatLongDate(dateStr)}`;
+      return `${t('events.today')}, ${formatLongDate(dateStr)}`;
     }
 
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
     if (compareDate.getTime() === tomorrow.getTime()) {
-      return `Tomorrow, ${formatLongDate(dateStr)}`;
+      return `${t('events.tomorrow')}, ${formatLongDate(dateStr)}`;
     }
 
     return formatted;
@@ -68,20 +71,19 @@ function formatEventDateLabel(dateStr) {
   }
 }
 
-function attendeeLabel(count, capacity) {
+function attendeeLabel(count, capacity, t) {
   if (capacity != null && capacity > 0) {
-    if (count <= 0) return `0 / ${capacity} spots filled`;
-    return `${count} / ${capacity} spots filled`;
+    return t('events.spotsFilled', { count: count ?? 0, capacity });
   }
-  if (count <= 0) return "Be the first to join";
-  if (count === 1) return "1 person is going";
-  return `${count} people are going`;
+  if (count <= 0) return t('events.beFirstToJoin');
+  if (count === 1) return t('events.onePersonGoing');
+  return t('events.peopleGoing', { count });
 }
 
 function formatWaitlistJoined(value) {
   if (!value) return "";
   try {
-    return new Date(value).toLocaleString("en-US", {
+    return new Date(value).toLocaleString(getLocaleForLang(i18n.language), {
       month: "short",
       day: "numeric",
       hour: "numeric",
@@ -92,30 +94,30 @@ function formatWaitlistJoined(value) {
   }
 }
 
-function joinErrorMessage(err) {
+function joinErrorMessage(err, t) {
   const code = getApiErrorCode(err);
   const message = getApiErrorMessage(err);
 
   if (code === "event_full") {
-    return "This event is full. You can join the waiting list.";
+    return t('events.eventFullJoinWaitlist');
   }
   if (code === "RSVP_INVALID_RESPONSE") {
-    return "We couldn't confirm your RSVP. Please try again.";
+    return t('events.rsvpError');
   }
   if (err?.status === 401) {
-    return "Please sign in to join this event.";
+    return t('events.signInToJoin');
   }
   if (err?.status === 403) {
-    return "Approved community membership is required to join events.";
+    return t('events.membershipRequired');
   }
   if (err?.status === 404) {
-    return "This event is no longer available.";
+    return t('events.eventNoLongerAvailable');
   }
   if (message?.toLowerCase().includes("organizer")) {
-    return "Event organizers cannot join their own event.";
+    return t('events.organizerCannotJoin');
   }
 
-  return message || "Could not update your RSVP. Please try again.";
+  return message || t('events.couldNotUpdateRsvp');
 }
 
 const HERO_ASPECT = 16 / 10;
@@ -145,6 +147,7 @@ function ScheduleRow({ itemKey, title, detail }) {
 }
 
 function EventDetailHeader({ title, onBack, onShare, shareDisabled }) {
+  const { t } = useTranslation();
   return (
     <ScreenHeader
       layout="inline"
@@ -158,7 +161,7 @@ function EventDetailHeader({ title, onBack, onShare, shareDisabled }) {
           onPress={onShare}
           disabled={shareDisabled}
           accessibilityRole="button"
-          accessibilityLabel="Share event"
+          accessibilityLabel={t('events.shareEventAccessibility')}
           style={({ pressed }) => [pressed && shareDisabled !== true && { opacity: 0.85 }]}
         >
           <HeaderIconSlot style={shareDisabled && { opacity: 0.35 }}>
@@ -172,6 +175,7 @@ function EventDetailHeader({ title, onBack, onShare, shareDisabled }) {
 
 export default function EventDetailScreen() {
   const router = useRouter();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const { id: rawId } = useLocalSearchParams();
   const noticeId = resolveNoticeId(rawId);
@@ -188,7 +192,7 @@ export default function EventDetailScreen() {
 
   const load = useCallback(async () => {
     if (!noticeId) {
-      setError("Event not found.");
+      setError(t('events.eventNotFound'));
       setLoading(false);
       return;
     }
@@ -206,7 +210,7 @@ export default function EventDetailScreen() {
       }
       setEvent(data);
     } catch {
-      setError("Unable to load this event. Please try again.");
+      setError(t('events.unableToLoadEvent'));
     } finally {
       setLoading(false);
     }
@@ -224,28 +228,28 @@ export default function EventDetailScreen() {
     if (!event) return [];
 
     const items = [];
-    const dateLabel = event.eventDate ? formatEventDateLabel(event.eventDate) : null;
+    const dateLabel = event.eventDate ? formatEventDateLabel(event.eventDate, t) : null;
     const timeRange = formatEventTimeRange(event);
     const location = event.location?.trim();
 
     if (dateLabel) {
       items.push({
         id: "date",
-        title: "Date",
+        title: t('events.date'),
         detail: dateLabel,
       });
     }
     if (timeRange) {
       items.push({
         id: "time",
-        title: "Time",
+        title: t('events.time'),
         detail: timeRange,
       });
     }
     if (location) {
       items.push({
         id: "location",
-        title: "Location",
+        title: t('events.location'),
         detail: location,
       });
     }
@@ -275,7 +279,7 @@ export default function EventDetailScreen() {
 
     const token = await getToken();
     if (!token) {
-      setJoinError("Please sign in to join this event.");
+      setJoinError(t('events.signInToJoin'));
       return;
     }
 
@@ -289,7 +293,7 @@ export default function EventDetailScreen() {
       if (getApiErrorCode(err) === "event_full" || err?.status === 422) {
         await load();
       }
-      setJoinError(joinErrorMessage(err));
+      setJoinError(joinErrorMessage(err, t));
     } finally {
       setJoining(false);
     }
@@ -305,7 +309,7 @@ export default function EventDetailScreen() {
       setEvent(result.event);
       setLeavePending(false);
     } catch (err) {
-      setJoinError(joinErrorMessage(err));
+      setJoinError(joinErrorMessage(err, t));
     } finally {
       setJoining(false);
     }
@@ -343,7 +347,7 @@ export default function EventDetailScreen() {
         pathname: "/screens/messages/chat",
         params: {
           conversationId: String(data.conversation_id),
-          recipientName: event.authorName ?? "Organizer",
+          recipientName: event.authorName ?? t('events.organizer'),
         },
       });
     } catch (err) {
@@ -356,13 +360,13 @@ export default function EventDetailScreen() {
   const handleShare = useCallback(async () => {
     if (!event) return;
 
-    const dateLabel = formatEventDateLabel(event.eventDate);
+    const dateLabel = formatEventDateLabel(event.eventDate, t);
     const timeRange = formatEventTimeRange(event);
     const schedule = [dateLabel, timeRange].filter(Boolean).join(" · ");
     const lines = [
       event.title,
       schedule || null,
-      event.location?.trim() ? `Location: ${event.location.trim()}` : null,
+      event.location?.trim() ? `${t('events.location')}: ${event.location.trim()}` : null,
       event.body?.trim() || null,
     ].filter(Boolean);
 
@@ -377,38 +381,36 @@ export default function EventDetailScreen() {
   }, [event]);
 
   const joinButtonLabel = useMemo(() => {
-    if (isWaitlisted) return "Leave Waitlist";
-    if (isJoined) return "Leave Event";
-    if (isAtCapacity) return "Join Waitlist";
-    return "Join Event";
-  }, [isAtCapacity, isJoined, isWaitlisted]);
+    if (isWaitlisted) return t('events.leaveWaitlist');
+    if (isJoined) return t('events.leaveEvent');
+    if (isAtCapacity) return t('events.joinWaitlist');
+    return t('events.joinEvent');
+  }, [isAtCapacity, isJoined, isWaitlisted, t]);
 
   const footerHint = useMemo(() => {
     if (isOrganizer || isJoined || leavePending) return null;
     if (isWaitlisted) {
       return event?.waitlistPosition
-        ? `You're #${event.waitlistPosition} on the waiting list`
-        : "You're on the waiting list";
+        ? t('events.waitlistPositionLabel', { position: event.waitlistPosition })
+        : t('events.onWaitingList');
     }
     if (isAtCapacity) {
-      return "Event is full — join the waiting list for the next open seat";
+      return t('events.eventFullHint');
     }
     if (hasCapacityLimit && event?.spotsRemaining != null) {
-      return event.spotsRemaining === 1
-        ? "1 spot remaining"
-        : `${event.spotsRemaining} spots remaining`;
+      return t('events.spotsRemaining', { count: event.spotsRemaining });
     }
     if ((event?.rsvpCount ?? 0) > 0) {
-      return `${event.rsvpCount} ${event.rsvpCount === 1 ? "neighbor is" : "neighbors are"} going`;
+      return t('events.neighborsGoing', { count: event.rsvpCount });
     }
     return null;
-  }, [event, hasCapacityLimit, isAtCapacity, isJoined, isOrganizer, isWaitlisted, leavePending]);
+  }, [event, hasCapacityLimit, isAtCapacity, isJoined, isOrganizer, isWaitlisted, leavePending, t]);
 
   if (loading) {
     return (
       <View style={styles.screen}>
         <EventDetailHeader
-          title="Event Detail"
+          title={t('events.eventDetail')}
           onBack={() => router.back()}
           onShare={() => {}}
           shareDisabled
@@ -424,15 +426,15 @@ export default function EventDetailScreen() {
     return (
       <View style={styles.screen}>
         <EventDetailHeader
-          title="Event Detail"
+          title={t('events.eventDetail')}
           onBack={() => router.back()}
           onShare={() => {}}
           shareDisabled
         />
         <View style={styles.centered}>
-          <Text style={styles.errorText}>{error ?? "Event not found."}</Text>
+          <Text style={styles.errorText}>{error ?? t('events.eventNotFound')}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={load}>
-            <Text style={styles.retryText}>Try again</Text>
+            <Text style={styles.retryText}>{t('events.tryAgain')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -442,7 +444,7 @@ export default function EventDetailScreen() {
   return (
     <View style={styles.screen}>
       <EventDetailHeader
-        title="Event Detail"
+        title={t('events.eventDetail')}
         onBack={() => router.back()}
         onShare={handleShare}
       />
@@ -455,7 +457,7 @@ export default function EventDetailScreen() {
           disabled={!hasHeroImage || heroImageFailed}
           accessibilityRole={hasHeroImage && !heroImageFailed ? "imagebutton" : undefined}
           accessibilityLabel={
-            hasHeroImage && !heroImageFailed ? "View event photo" : undefined
+            hasHeroImage && !heroImageFailed ? t('events.viewEventPhoto') : undefined
           }
         >
           <NoticeCoverMedia
@@ -472,7 +474,7 @@ export default function EventDetailScreen() {
 
         <View style={styles.upcomingEvent}>
           <Text style={styles.eventTitle}>{event.title}</Text>
-        </View>
+</View>
 
         {scheduleItems.length > 0 ? (
           <View style={styles.eventDetailContainer}>
@@ -490,7 +492,7 @@ export default function EventDetailScreen() {
         {requiresRsvp ? (
           <View style={styles.section}>
             <View style={styles.attendeeHeader}>
-              <Text style={styles.attendeeTitle}>Who's Going</Text>
+              <Text style={styles.attendeeTitle}>{t('events.whosGoing')}</Text>
               <View style={styles.attendeeCountBadge}>
                 <Text style={styles.attendeeCountBadgeText}>
                   {event.rsvpCount ?? 0}
@@ -516,12 +518,12 @@ export default function EventDetailScreen() {
                     />
                   </View>
                   <Text style={styles.capacityLabel}>
-                    {attendeeLabel(event.rsvpCount, event.eventCapacity)}
+                    {attendeeLabel(event.rsvpCount, event.eventCapacity, t)}
                   </Text>
                 </View>
               ) : (
                 <Text style={styles.capacityLabel}>
-                  {attendeeLabel(event.rsvpCount, event.eventCapacity)}
+                  {attendeeLabel(event.rsvpCount, event.eventCapacity, t)}
                 </Text>
               )}
 
@@ -550,9 +552,9 @@ export default function EventDetailScreen() {
                         />
                         <View style={styles.attendeeCopy}>
                           <Text style={styles.attendeeName} numberOfLines={1}>
-                            {person.name || "Neighbor"}
+                            {person.name || t('events.neighbor')}
                           </Text>
-                          <Text style={styles.attendeeMeta}>Going</Text>
+                          <Text style={styles.attendeeMeta}>{t('events.going')}</Text>
                         </View>
                         <View style={styles.goingDot} />
                       </View>
@@ -563,9 +565,7 @@ export default function EventDetailScreen() {
                           <Text style={styles.moreAttendeesText}>+{extraCount}</Text>
                         </View>
                         <Text style={styles.moreRowText}>
-                          {extraCount === 1
-                            ? "1 more neighbor is going"
-                            : `${extraCount} more neighbors are going`}
+                          {t('events.moreNeighborsGoing', { count: extraCount })}
                         </Text>
                       </View>
                     ) : null}
@@ -577,7 +577,7 @@ export default function EventDetailScreen() {
                     <Feather name="users" size={sf(16)} color="#64748B" />
                   </View>
                   <Text style={styles.emptyAttendees}>
-                    {attendeeLabel(0, event.eventCapacity)}
+                    {attendeeLabel(0, event.eventCapacity, t)}
                   </Text>
                 </View>
               )}
@@ -588,7 +588,7 @@ export default function EventDetailScreen() {
         {requiresRsvp && isOrganizer && hasCapacityLimit ? (
           <View style={styles.section}>
             <Text style={styles.attendeeTitle}>
-              Waiting List{waitlist.length > 0 ? ` (${waitlist.length})` : ""}
+              {t('events.waitingList')}{waitlist.length > 0 ? ` (${waitlist.length})` : ""}
             </Text>
             {waitlist.length > 0 ? (
               waitlist.map((person) => (
@@ -604,30 +604,30 @@ export default function EventDetailScreen() {
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={styles.waitlistName}>{person.name}</Text>
                     <Text style={styles.waitlistMeta}>
-                      Joined {formatWaitlistJoined(person.joinedAt)}
+                      {t('events.joinedDate', { date: formatWaitlistJoined(person.joinedAt) })}
                     </Text>
                   </View>
                 </View>
               ))
             ) : (
-              <Text style={styles.emptyAttendees}>No one is on the waiting list yet.</Text>
+              <Text style={styles.emptyAttendees}>{t('events.noWaitlistYet')}</Text>
             )}
           </View>
         ) : null}
 
         <View style={styles.section}>
-          <Text style={styles.attendeeTitle}>Organized By</Text>
+          <Text style={styles.attendeeTitle}>{t('events.organizedBy')}</Text>
 
           <View style={styles.organizerCard}>
             <UserAvatar
               source={event.authorAvatar}
-              name={event.authorName ?? "Community Admin"}
+              name={event.authorName ?? t('events.communityAdmin')}
               size={sw(44)}
             />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.organizerName}>{event.authorName ?? "Community Admin"}</Text>
+              <Text style={styles.organizerName}>{event.authorName ?? t('events.communityAdmin')}</Text>
               <Text style={styles.organizerRole}>
-                {isOrganizer ? "You created this event" : "Community Organizer"}
+                {isOrganizer ? t('events.youCreatedEvent') : t('events.communityOrganizer')}
               </Text>
             </View>
             {!isOrganizer && event.authorId ? (
@@ -640,7 +640,7 @@ export default function EventDetailScreen() {
                 {messaging ? (
                   <ActivityIndicator size="small" color="#101828" />
                 ) : (
-                  <Text style={styles.messageBtnText}>Message</Text>
+                  <Text style={styles.messageBtnText}>{t('events.message')}</Text>
                 )}
               </TouchableOpacity>
             ) : null}
@@ -649,7 +649,7 @@ export default function EventDetailScreen() {
 
         {event.body ? (
           <View style={styles.section}>
-            <Text style={styles.attendeeTitle}>About This Event</Text>
+            <Text style={styles.attendeeTitle}>{t('events.aboutThisEvent')}</Text>
             <Text style={styles.eventDescription}>{event.body}</Text>
           </View>
         ) : null}
@@ -662,17 +662,17 @@ export default function EventDetailScreen() {
               onPress={handleShare}
             >
               <Feather name="share-2" size={sf(20)} color="#FFFFFF" />
-              <Text style={styles.shareEventBtnText}>Share Event</Text>
+              <Text style={styles.shareEventBtnText}>{t('events.shareEvent')}</Text>
             </TouchableOpacity>
           ) : requiresRsvp && leavePending ? (
             <View style={styles.leaveConfirmBox}>
               <Text style={styles.leaveConfirmText}>
-                {isWaitlisted ? "Leave the waiting list?" : "Leave this event?"}
+                {isWaitlisted ? t('events.leaveWaitlistConfirm') : t('events.leaveEventConfirm')}
               </Text>
               <Text style={styles.leaveConfirmHint}>
                 {isWaitlisted
-                  ? "You will lose your place in the queue."
-                  : "You will be removed from the guest list."}
+                  ? t('events.loseQueuePlace')
+                  : t('events.removedFromGuestList')}
               </Text>
               <View style={styles.leaveConfirmActions}>
                 <TouchableOpacity
@@ -681,7 +681,7 @@ export default function EventDetailScreen() {
                   onPress={handleCancelLeave}
                   disabled={joining}
                 >
-                  <Text style={styles.leaveCancelText}>Cancel</Text>
+                  <Text style={styles.leaveCancelText}>{t('events.cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.leaveConfirmBtn, joining && styles.joinBtnDisabled]}
@@ -692,7 +692,7 @@ export default function EventDetailScreen() {
                   {joining ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.leaveConfirmBtnText}>Leave event</Text>
+                    <Text style={styles.leaveConfirmBtnText}>{t('events.leaveEventBtn')}</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -702,7 +702,7 @@ export default function EventDetailScreen() {
               {isJoined ? (
                 <View style={styles.goingBadge}>
                   <Feather name="check-circle" size={sf(18)} color="#059669" />
-                  <Text style={styles.goingBadgeText}>You're going to this event</Text>
+                  <Text style={styles.goingBadgeText}>{t('events.youreGoing')}</Text>
                 </View>
               ) : null}
               {isWaitlisted ? (
@@ -710,8 +710,8 @@ export default function EventDetailScreen() {
                   <Feather name="clock" size={sf(18)} color="#7C3AED" />
                   <Text style={styles.waitlistBadgeText}>
                     {event.waitlistPosition
-                      ? `You're #${event.waitlistPosition} on the waiting list`
-                      : "You're on the waiting list"}
+                      ? t('events.waitlistPositionLabel', { position: event.waitlistPosition })
+                      : t('events.onWaitingList')}
                   </Text>
                 </View>
               ) : null}
@@ -768,7 +768,7 @@ export default function EventDetailScreen() {
           <Pressable
             style={StyleSheet.absoluteFill}
             onPress={() => setImagePreviewOpen(false)}
-            accessibilityLabel="Close photo"
+            accessibilityLabel={t('events.closePhoto')}
           />
           <CrispImage
             source={{ uri: event.imageUrl }}
@@ -784,7 +784,7 @@ export default function EventDetailScreen() {
             style={[styles.previewClose, { top: Math.max(insets.top, 12) + 8 }]}
             hitSlop={12}
             accessibilityRole="button"
-            accessibilityLabel="Close"
+            accessibilityLabel={t('events.close')}
           >
             <Feather name="x" size={sf(20)} color="#FFFFFF" />
           </Pressable>
@@ -811,7 +811,7 @@ const styles = StyleSheet.create({
   },
   heroHint: {
     position: "absolute",
-    right: sw(12),
+    end: sw(12),
     bottom: sw(12),
     width: sw(32),
     height: sw(32),
@@ -832,7 +832,7 @@ const styles = StyleSheet.create({
   },
   previewClose: {
     position: "absolute",
-    right: sw(16),
+    end: sw(16),
     width: sw(40),
     height: sw(40),
     borderRadius: sw(20),

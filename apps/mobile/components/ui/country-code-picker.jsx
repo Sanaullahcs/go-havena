@@ -9,6 +9,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import {
   PHONE_COUNTRIES,
@@ -23,6 +24,7 @@ export default function CountryCodePicker({
   onSelect,
   onClose,
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -59,13 +61,13 @@ export default function CountryCodePicker({
       <Pressable style={styles.overlay} onPress={handleClose}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.handle} />
-          <Text style={styles.title}>Select country code</Text>
+          <Text style={styles.title}>{t("countryCode.selectCountryCode")}</Text>
 
           <View style={styles.searchRow}>
             <Ionicons name="search" size={18} color="#9CA3AF" />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search country or code"
+              placeholder={t("countryCode.searchCountryOrCode")}
               placeholderTextColor="#9CA3AF"
               value={query}
               onChangeText={setQuery}
@@ -103,7 +105,7 @@ export default function CountryCodePicker({
               );
             }}
             ListEmptyComponent={
-              <Text style={styles.empty}>No countries match your search</Text>
+              <Text style={styles.empty}>{t("countryCode.noCountriesMatch")}</Text>
             }
           />
         </Pressable>
@@ -120,8 +122,8 @@ const styles = StyleSheet.create({
   },
   sheet: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopStartRadius: 20,
+    borderTopEndRadius: 20,
     paddingHorizontal: 20,
     paddingBottom: 24,
     maxHeight: "78%",

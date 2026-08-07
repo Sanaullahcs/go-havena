@@ -4,6 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { PropertyHubTheme } from "../../constants/property-management-theme";
 import { sf, sw } from "../../utils/responsive";
+import { chevronForward } from "../../utils/rtl";
 
 export default function PropertyHubSectionHeader({
   title,
@@ -17,6 +18,7 @@ export default function PropertyHubSectionHeader({
       <View style={styles.topRow}>
         <View style={styles.titleBlock}>
           <View style={styles.titleRow}>
+            <View style={styles.titleDot} />
             <Text style={styles.title} numberOfLines={1}>
               {title}
             </Text>
@@ -38,7 +40,7 @@ export default function PropertyHubSectionHeader({
           >
             <View style={styles.actionRow}>
               <Text style={styles.actionText}>{actionLabel}</Text>
-              <Feather name="chevron-right" size={sf(14)} color={PropertyHubTheme.teal} />
+              <Feather name={chevronForward()} size={sf(14)} color={PropertyHubTheme.teal} />
             </View>
           </Pressable>
         ) : null}
@@ -50,7 +52,7 @@ export default function PropertyHubSectionHeader({
 
 const styles = StyleSheet.create({
   wrap: {
-    marginBottom: sw(10),
+    marginBottom: sw(12),
   },
   topRow: {
     flexDirection: "row",
@@ -62,24 +64,31 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexShrink: 1,
     minWidth: 0,
-    marginRight: sw(10),
+    marginEnd: sw(10),
   },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
   },
+  titleDot: {
+    width: sw(4),
+    height: sw(4),
+    borderRadius: sw(2),
+    backgroundColor: PropertyHubTheme.teal,
+    marginEnd: sw(6),
+  },
   title: {
-    fontFamily: Fonts.semiBold,
+    fontFamily: Fonts.bold,
     fontSize: sf(13),
     lineHeight: sf(18),
-    fontWeight: "600",
+    fontWeight: "700",
     color: PropertyHubTheme.text,
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
     textTransform: "uppercase",
     flexShrink: 1,
   },
   countBadge: {
-    marginLeft: sw(6),
+    marginStart: sw(6),
     minWidth: sw(18),
     height: sw(18),
     paddingHorizontal: sw(5),
@@ -89,17 +98,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   countText: {
-    fontFamily: Fonts.semiBold,
+    fontFamily: Fonts.bold,
     fontSize: sf(10),
-    fontWeight: "600",
-    color: PropertyHubTheme.teal,
+    fontWeight: "700",
+    color: PropertyHubTheme.deepTeal,
   },
   subtitle: {
     fontFamily: Fonts.regular,
-    fontSize: sf(11),
-    lineHeight: sf(15),
+    fontSize: sf(12),
+    lineHeight: sf(16),
     color: PropertyHubTheme.textMuted,
-    marginTop: sw(3),
+    marginTop: sw(4),
   },
   actionRow: {
     flexDirection: "row",

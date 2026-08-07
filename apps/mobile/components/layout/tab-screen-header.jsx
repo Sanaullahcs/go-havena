@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-    marginRight: sw(-4),
+    marginEnd: sw(-4),
   },
   title: {
     fontFamily: Fonts.bold,

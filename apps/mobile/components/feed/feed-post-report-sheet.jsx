@@ -11,6 +11,7 @@ import {
   ScrollView,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { Colors } from "../../constants/tokens";
 import { REPORT_TYPES } from "../../services/reports-api";
@@ -23,10 +24,11 @@ export default function FeedPostReportSheet({
   onClose,
   onSubmit,
 }) {
+  const { t } = useTranslation();
   const [type, setType] = useState("spam");
   const [description, setDescription] = useState("");
 
-  const authorName = post?.user?.display_name ?? post?.user?.name ?? "this neighbor";
+  const authorName = post?.user?.display_name ?? post?.user?.name ?? t("feed.report.thisNeighbor");
 
   useEffect(() => {
     if (!visible) return;
@@ -41,7 +43,7 @@ export default function FeedPostReportSheet({
     onSubmit?.({
       type,
       description: description.trim(),
-      title: `Reported community post by ${authorName}`,
+      title: t("feed.report.reportedPostTitle", { name: authorName }),
       reportedUserId: post?.user_id ?? post?.user?.id ?? null,
     });
   };
@@ -60,9 +62,9 @@ export default function FeedPostReportSheet({
               <Feather name="flag" size={22} color="#DC2626" />
             </View>
             <View style={styles.headerCopy}>
-              <Text style={styles.title}>Report post</Text>
+              <Text style={styles.title}>{t("feed.report.title")}</Text>
               <Text style={styles.subtitle}>
-                Tell community admins why this post from {authorName} should be reviewed.
+                {t("feed.report.subtitle", { name: authorName })}
               </Text>
             </View>
           </View>
@@ -72,7 +74,7 @@ export default function FeedPostReportSheet({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.formScroll}
           >
-            <Text style={styles.label}>Reason</Text>
+            <Text style={styles.label}>{t("feed.report.reason")}</Text>
             <View style={styles.typeGrid}>
               {REPORT_TYPES.map((option) => {
                 const active = type === option.value;
@@ -91,11 +93,11 @@ export default function FeedPostReportSheet({
               })}
             </View>
 
-            <Text style={styles.label}>Details</Text>
+            <Text style={styles.label}>{t("feed.report.details")}</Text>
             <TextInput
               value={description}
               onChangeText={setDescription}
-              placeholder="Describe what happened or why this post is inappropriate..."
+              placeholder={t("feed.report.placeholder")}
               placeholderTextColor="#9CA3AF"
               style={styles.input}
               multiline
@@ -103,7 +105,7 @@ export default function FeedPostReportSheet({
               editable={!submitting}
             />
             <Text style={styles.helper}>
-              {description.trim().length}/1000 · minimum 8 characters
+              {t("feed.report.helper", { count: description.trim().length })}
             </Text>
           </ScrollView>
 
@@ -113,7 +115,7 @@ export default function FeedPostReportSheet({
               onPress={onClose}
               disabled={submitting}
             >
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText}>{t("common.cancel")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.submitBtn, (!canSubmit || submitting) && styles.submitBtnDisabled]}
@@ -125,7 +127,7 @@ export default function FeedPostReportSheet({
               ) : (
                 <>
                   <Feather name="send" size={16} color="#FFFFFF" />
-                  <Text style={styles.submitText}>Submit report</Text>
+                  <Text style={styles.submitText}>{t("feed.report.submit")}</Text>
                 </>
               )}
             </TouchableOpacity>

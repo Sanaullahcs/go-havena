@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from "react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import InternalPageShell, { SectionLabel } from "../../../../components/layout/internal-page-shell";
 import { Fonts } from "../../../../constants/font";
 import { pageStyles } from "../../../../constants/page-styles";
@@ -12,6 +13,7 @@ import {
 } from "../../../../services/points-api";
 
 export default function PointsHistory() {
+  const { t } = useTranslation();
   const [stats, setStats] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,20 +42,20 @@ export default function PointsHistory() {
   const weekPoints = stats?.points_this_week ?? 0;
 
   return (
-    <InternalPageShell title="Points History" subtitle="Track your wellness rewards" contentStyle={pageStyles.scrollBottom}>
+    <InternalPageShell title={t("points.title")} subtitle={t("points.subtitle")} contentStyle={pageStyles.scrollBottom}>
       {loading ? (
         <PointsHistorySkeleton />
       ) : (
         <>
           <View style={styles.summaryRow}>
             <View style={[styles.summaryCard, styles.totalCard]}>
-              <Text style={styles.summaryLabel}>Total Points</Text>
+              <Text style={styles.summaryLabel}>{t("points.totalPoints")}</Text>
               <Text style={styles.totalValue}>{formatPoints(stats?.total_points ?? 0)}</Text>
             </View>
             <View style={[styles.summaryCard, styles.weekCard]}>
               <View style={styles.weekHeader}>
                 <Feather name="trending-up" size={14} color="#0EA5E9" />
-                <Text style={styles.summaryLabel}>This Week</Text>
+                <Text style={styles.summaryLabel}>{t("points.thisWeek")}</Text>
               </View>
               <Text style={styles.weekValue}>
                 {weekPoints >= 0 ? `+${formatPoints(weekPoints)}` : formatPoints(weekPoints)}
@@ -61,9 +63,9 @@ export default function PointsHistory() {
             </View>
           </View>
 
-          <SectionLabel>Recent Activity</SectionLabel>
+          <SectionLabel>{t("points.recentActivity")}</SectionLabel>
           {items.length === 0 ? (
-            <Text style={styles.emptyText}>No point activity yet.</Text>
+            <Text style={styles.emptyText}>{t("points.noActivityYet")}</Text>
           ) : (
             items.map((item) => (
               <View key={item.id} style={styles.activityRow}>
@@ -77,7 +79,7 @@ export default function PointsHistory() {
                 </View>
                 <View style={styles.pointsCol}>
                   <Text style={styles.points}>{item.points}</Text>
-                  <Text style={styles.pointsLabel}>pts</Text>
+                  <Text style={styles.pointsLabel}>{t("points.ptsLabel")}</Text>
                 </View>
               </View>
             ))
@@ -85,7 +87,7 @@ export default function PointsHistory() {
 
           <View style={styles.tip}>
             <Text style={styles.tipText}>
-              Earn points by completing courses, engaging with community, and maintaining wellness streaks.
+              {t("points.earnTip")}
             </Text>
           </View>
         </>

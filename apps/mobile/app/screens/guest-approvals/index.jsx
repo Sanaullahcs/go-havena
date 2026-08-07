@@ -30,17 +30,24 @@ import {
 import { useApiAction } from "../../../hooks/use-api-action";
 import { formatDisplayTime, formatAccessDay, formatDisplayDateTime } from "../../../utils/form-datetime";
 import { GUEST_PERMISSION_OPTIONS, normalizeGuestPermissions } from "../../../constants/guest-permissions";
+import { useTranslation } from "react-i18next";
+import { arrowForward } from "../../../utils/rtl";
 
-function formatDurationLabel(start, end) {
+function formatDurationLabel(start, end, t) {
   if (!start || !end) return null;
   const ms = end.getTime() - start.getTime();
   if (ms <= 0) return null;
   const totalMinutes = Math.round(ms / 60000);
-  if (totalMinutes < 60) return `${totalMinutes} min`;
+  if (totalMinutes < 60) return t("guests.durationMinutes", { count: totalMinutes });
   const hours = Math.round(totalMinutes / 60);
-  if (hours < 48) return `${hours} hr${hours === 1 ? "" : "s"}`;
+  if (hours < 48)
+    return hours === 1
+      ? t("guests.durationOneHour")
+      : t("guests.durationHours", { count: hours });
   const days = Math.round(hours / 24);
-  return `${days} day${days === 1 ? "" : "s"}`;
+  return days === 1
+    ? t("guests.durationOneDay")
+    : t("guests.durationDays", { count: days });
 }
 
 function formatSubmittedAt(iso) {
@@ -57,12 +64,13 @@ function initials(name) {
   return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase();
 }
 
-function invitationTypeLabel(type) {
-  return type === "admin" ? "Community admin invite" : "Resident invite";
+function invitationTypeLabel(type, t) {
+  return type === "admin" ? t("guests.communityAdminInvite") : t("guests.residentInvite");
 }
 
-function DetailRow({ icon, label, value, mono = false, last = false }) {
-  const display = value && value !== "—" ? value : "Not provided";
+function DetailRow({ icon, label, value, mono = false, last = false, t }) {
+  const notProvided = t("guests.notProvided");
+  const display = value && value !== "—" ? value : notProvided;
   return (
     <View style={[styles.detailRow, last && styles.detailRowLast]}>
       <View style={styles.detailLabelWrap}>
@@ -72,10 +80,10 @@ function DetailRow({ icon, label, value, mono = false, last = false }) {
       <Text
         style={[
           styles.detailValue,
-          mono && display !== "Not provided" && styles.detailMono,
-          display === "Not provided" && styles.detailMuted,
+          mono && display !== notProvided && styles.detailMono,
+          display === notProvided && styles.detailMuted,
         ]}
-        selectable={mono && display !== "Not provided"}
+        selectable={mono && display !== notProvided}
       >
         {display}
       </Text>
@@ -83,18 +91,18 @@ function DetailRow({ icon, label, value, mono = false, last = false }) {
   );
 }
 
-function AccessWindowCard({ startsAt, endsAt }) {
+function AccessWindowCard({ startsAt, endsAt, t }) {
   const start = startsAt ? new Date(startsAt) : null;
   const end = endsAt ? new Date(endsAt) : null;
   const valid =
     start && end && !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end > start;
-  const duration = valid ? formatDurationLabel(start, end) : null;
+  const duration = valid ? formatDurationLabel(start, end, t) : null;
 
   if (!valid) {
     return (
       <View style={styles.accessCard}>
-        <Text style={styles.accessCardTitle}>Access window</Text>
-        <Text style={styles.accessMissing}>Access window not set</Text>
+        <Text style={styles.accessCardTitle}>{t("guests.accessWindowTitle")}</Text>
+        <Text style={styles.accessMissing}>{t("guests.accessWindowNotSet")}</Text>
       </View>
     );
   }
@@ -108,8 +116,8 @@ function AccessWindowCard({ startsAt, endsAt }) {
           <Feather name="calendar" size={sf(14)} color="#0A2A43" />
         </View>
         <View style={styles.accessCardHeaderCopy}>
-          <Text style={styles.accessCardTitle}>Access window</Text>
-          <Text style={styles.accessCardSub}>Guest can sign in during this period</Text>
+          <Text style={styles.accessCardTitle}>{t("guests.accessWindowTitle")}</Text>
+          <Text style={styles.accessCardSub}>{t("guests.guestCanSignIn")}</Text>
         </View>
         {duration ? (
           <View style={styles.durationBadge}>
@@ -121,7 +129,7 @@ function AccessWindowCard({ startsAt, endsAt }) {
       <View style={styles.accessTimeline}>
         <View style={styles.accessPoint}>
           <View style={[styles.accessDot, styles.accessDotStart]} />
-          <Text style={styles.accessPointLabel}>Starts</Text>
+          <Text style={styles.accessPointLabel}>{t("guests.starts")}</Text>
           <Text style={styles.accessPointDate}>{formatAccessDay(start)}</Text>
           <View style={styles.accessTimeRow}>
             <Feather name="clock" size={sf(11)} color="#64748B" />
@@ -132,14 +140,14 @@ function AccessWindowCard({ startsAt, endsAt }) {
         <View style={styles.accessBridge}>
           <View style={styles.accessBridgeLine} />
           <View style={styles.accessBridgeIcon}>
-            <Feather name="arrow-right" size={sf(12)} color="#0A2A43" />
+            <Feather name={arrowForward()} size={sf(12)} color="#0A2A43" />
           </View>
           <View style={styles.accessBridgeLine} />
         </View>
 
         <View style={styles.accessPoint}>
           <View style={[styles.accessDot, styles.accessDotEnd]} />
-          <Text style={styles.accessPointLabel}>Ends</Text>
+          <Text style={styles.accessPointLabel}>{t("guests.ends")}</Text>
           <Text style={styles.accessPointDate}>{formatAccessDay(end)}</Text>
           <View style={styles.accessTimeRow}>
             <Feather name="clock" size={sf(11)} color="#64748B" />
@@ -151,17 +159,19 @@ function AccessWindowCard({ startsAt, endsAt }) {
   );
 }
 
-function formatPermissionSummary(permissions) {
+function formatPermissionSummary(permissions, t) {
   const normalized = normalizeGuestPermissions(permissions);
   const enabled = GUEST_PERMISSION_OPTIONS.filter((option) => normalized[option.key]);
-  if (enabled.length === GUEST_PERMISSION_OPTIONS.length) return "All features enabled";
-  if (enabled.length === 0) return "No features enabled";
+  if (enabled.length === GUEST_PERMISSION_OPTIONS.length) return t("guests.allFeaturesEnabled");
+  if (enabled.length === 0) return t("guests.noFeaturesEnabled");
   return enabled.map((option) => option.label).join(", ");
 }
 
-function PendingGuestCard({ item, busy, onApprove, onReject }) {
+function PendingGuestCard({ item, busy, onApprove, onReject, t }) {
   const communityName = item.community_name || item.community?.name || null;
-  const verifiedLabel = item.guest_user_id ? "Phone & invite code verified" : "Awaiting verification";
+  const verifiedLabel = item.guest_user_id
+    ? t("guests.phoneInviteVerified")
+    : t("guests.awaitingVerification");
 
   return (
     <View style={styles.card}>
@@ -174,42 +184,43 @@ function PendingGuestCard({ item, busy, onApprove, onReject }) {
           <Text style={styles.cardSubtitle}>{verifiedLabel}</Text>
         </View>
         <View style={styles.statusBadge}>
-          <Text style={styles.statusBadgeText}>Pending</Text>
+          <Text style={styles.statusBadgeText}>{t("guests.pendingBadge")}</Text>
         </View>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Guest details</Text>
-        <DetailRow icon="phone" label="Phone" value={item.guest_phone} />
-        <DetailRow icon="mail" label="Email" value={item.guest_email} />
-        <DetailRow icon="home" label="Community" value={communityName} />
+        <Text style={styles.sectionTitle}>{t("guests.guestDetails")}</Text>
+        <DetailRow icon="phone" label={t("guests.phone")} value={item.guest_phone} t={t} />
+        <DetailRow icon="mail" label={t("guests.email")} value={item.guest_email} t={t} />
+        <DetailRow icon="home" label={t("guests.community")} value={communityName} t={t} />
         <DetailRow
           icon="tag"
-          label="Invite type"
-          value={invitationTypeLabel(item.invitation_type)}
+          label={t("guests.inviteType")}
+          value={invitationTypeLabel(item.invitation_type, t)}
+          t={t}
         />
-        <DetailRow icon="shield" label="Access" value={formatPermissionSummary(item.permissions)} last />
+        <DetailRow icon="shield" label={t("guests.access")} value={formatPermissionSummary(item.permissions, t)} last t={t} />
       </View>
 
-      <AccessWindowCard startsAt={item.starts_at} endsAt={item.ends_at} />
+      <AccessWindowCard startsAt={item.starts_at} endsAt={item.ends_at} t={t} />
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Invitation info</Text>
-        <DetailRow icon="hash" label="Invite code" value={item.invite_code} mono />
-        <DetailRow icon="clock" label="Requested on" value={formatSubmittedAt(item.created_at)} />
+        <Text style={styles.sectionTitle}>{t("guests.invitationInfo")}</Text>
+        <DetailRow icon="hash" label={t("guests.inviteCodeLabel")} value={item.invite_code} mono t={t} />
+        <DetailRow icon="clock" label={t("guests.requestedOn")} value={formatSubmittedAt(item.created_at)} t={t} />
         <DetailRow
           icon="check-circle"
-          label="Status"
-          value="Pending your approval"
+          label={t("guests.statusLabel")}
+          value={t("guests.pendingYourApproval")}
           last
+          t={t}
         />
       </View>
 
       <View style={styles.noteCard}>
         <Feather name="info" size={sf(14)} color="#14B8A6" />
         <Text style={styles.noteText}>
-          This guest completed verification. Approve to grant community access, or reject to decline
-          their request.
+          {t("guests.verificationNote")}
         </Text>
       </View>
 
@@ -224,7 +235,7 @@ function PendingGuestCard({ item, busy, onApprove, onReject }) {
           ) : (
             <>
               <Feather name="x" size={sf(15)} color="#DC2626" />
-              <Text style={styles.rejectText}>Reject</Text>
+              <Text style={styles.rejectText}>{t("guests.reject")}</Text>
             </>
           )}
         </Pressable>
@@ -238,7 +249,7 @@ function PendingGuestCard({ item, busy, onApprove, onReject }) {
           ) : (
             <>
               <Feather name="check" size={sf(15)} color="#FFFFFF" />
-              <Text style={styles.approveText}>Approve access</Text>
+              <Text style={styles.approveText}>{t("guests.approveAccess")}</Text>
             </>
           )}
         </Pressable>
@@ -249,6 +260,7 @@ function PendingGuestCard({ item, busy, onApprove, onReject }) {
 
 export default function GuestApprovalsScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { dialog, showFailure, showSuccess } = useApiAction();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -262,12 +274,12 @@ export default function GuestApprovalsScreen() {
       const pending = await fetchPendingGuestApprovals();
       setItems(pending);
     } catch (err) {
-      await showFailure("Could not load guest approvals", err);
+      await showFailure(t("guests.couldNotLoadApprovals"), err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [showFailure]);
+  }, [showFailure, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -277,19 +289,22 @@ export default function GuestApprovalsScreen() {
 
   const handleApprove = async (guest) => {
     const result = await dialog.showConfirm(
-      `Approve ${guest.guest_name}?`,
-      "They will get guest access to the community immediately.",
-      { confirmLabel: "Approve" },
+      t("guests.approveGuestConfirm", { name: guest.guest_name }),
+      t("guests.approveGuestMessage"),
+      { confirmLabel: t("guests.approve") },
     );
     if (result !== "confirm") return;
 
     setActionId(guest.id);
     try {
       await approveGuestInvitation(guest.id);
-      await showSuccess("Guest approved", `${guest.guest_name} can now access the community.`);
+      await showSuccess(
+        t("guests.guestApprovedTitle"),
+        t("guests.guestApprovedMessage", { name: guest.guest_name }),
+      );
       load();
     } catch (err) {
-      await showFailure("Approval failed", err);
+      await showFailure(t("guests.approvalFailed"), err);
     } finally {
       setActionId(null);
     }
@@ -310,8 +325,8 @@ export default function GuestApprovalsScreen() {
     const reason = rejectReason.trim();
     if (!reason) {
       await dialog.showError(
-        "Reason required",
-        "Tell the guest why their access request was rejected.",
+        t("guests.reasonRequired"),
+        t("guests.reasonRequiredMessage"),
       );
       return;
     }
@@ -320,12 +335,15 @@ export default function GuestApprovalsScreen() {
     setActionId(rejectTarget.id);
     try {
       await rejectGuestInvitation(rejectTarget.id, reason);
-      await showSuccess("Guest rejected", `${rejectTarget.guest_name}'s access request was declined.`);
+      await showSuccess(
+        t("guests.guestRejectedTitle"),
+        t("guests.guestRejectedMessage", { name: rejectTarget.guest_name }),
+      );
       setRejectTarget(null);
       setRejectReason("");
       load();
     } catch (err) {
-      await showFailure("Rejection failed", err);
+      await showFailure(t("guests.rejectionFailed"), err);
     } finally {
       setActionId(null);
     }
@@ -333,13 +351,13 @@ export default function GuestApprovalsScreen() {
 
   const headerSubtitle =
     items.length === 0
-      ? "No guests waiting"
-      : `${items.length} guest${items.length === 1 ? "" : "s"} awaiting approval`;
+      ? t("guests.noGuestsWaiting")
+      : t("guests.guestsAwaitingApproval", { count: items.length });
 
   if (loading) {
     return (
       <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
-        <InternalScreenHeader title="Guest approvals" />
+        <InternalScreenHeader title={t("guests.guestApprovalsTitle")} />
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#0A2A43" />
         </View>
@@ -349,7 +367,7 @@ export default function GuestApprovalsScreen() {
 
   return (
     <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
-      <InternalScreenHeader title="Guest approvals" subtitle={headerSubtitle} />
+      <InternalScreenHeader title={t("guests.guestApprovalsTitle")} subtitle={headerSubtitle} />
 
       <FlatList
         data={items}
@@ -372,14 +390,13 @@ export default function GuestApprovalsScreen() {
               <View style={styles.emptyIcon}>
                 <Feather name="check-circle" size={sf(28)} color="#059669" />
               </View>
-              <Text style={styles.emptyTitle}>No pending approvals</Text>
+              <Text style={styles.emptyTitle}>{t("guests.noPendingApprovals")}</Text>
               <Text style={styles.emptyText}>
-                When a guest you invited verifies their phone and invite code, they will appear here
-                for your decision.
+                {t("guests.noPendingApprovalsText")}
               </Text>
               <Pressable style={styles.emptyCta} onPress={() => router.push("/screens/invite-guest")}>
                 <Feather name="user-plus" size={sf(14)} color="#FFFFFF" />
-                <Text style={styles.emptyCtaText}>Invite a guest</Text>
+                <Text style={styles.emptyCtaText}>{t("guests.inviteAGuest")}</Text>
               </Pressable>
             </View>
           </ScrollView>
@@ -390,6 +407,7 @@ export default function GuestApprovalsScreen() {
             busy={actionId === item.id}
             onApprove={handleApprove}
             onReject={handleReject}
+            t={t}
           />
         )}
       />
@@ -401,16 +419,16 @@ export default function GuestApprovalsScreen() {
             style={styles.modalKeyboard}
           >
             <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
-              <Text style={styles.modalTitle}>Reject guest access</Text>
+              <Text style={styles.modalTitle}>{t("guests.rejectGuestAccess")}</Text>
               <Text style={styles.rejectHint}>
-                {rejectTarget?.guest_name || "This guest"} will see your reason in the app.
+                {t("guests.guestWillSeeReason", { name: rejectTarget?.guest_name || t("guests.thisGuest") })}
               </Text>
-              <Text style={styles.rejectLabel}>Reason for rejection *</Text>
+              <Text style={styles.rejectLabel}>{t("guests.reasonForRejection")}</Text>
               <TextInput
                 value={rejectReason}
                 onChangeText={setRejectReason}
                 style={styles.rejectInput}
-                placeholder="Explain why access is being declined"
+                placeholder={t("guests.explainDecline")}
                 placeholderTextColor="#94A3B8"
                 multiline
                 textAlignVertical="top"
@@ -424,7 +442,7 @@ export default function GuestApprovalsScreen() {
                   disabled={Boolean(actionId)}
                   onPress={closeReject}
                 >
-                  <Text style={styles.modalCancelText}>Cancel</Text>
+                  <Text style={styles.modalCancelText}>{t("guests.cancel")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.modalRejectBtn, actionId && styles.btnDisabled]}
@@ -434,7 +452,7 @@ export default function GuestApprovalsScreen() {
                   {actionId ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.modalRejectText}>Confirm reject</Text>
+                    <Text style={styles.modalRejectText}>{t("guests.confirmReject")}</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -550,7 +568,7 @@ const styles = StyleSheet.create({
     fontSize: sf(14),
     color: "#0F172A",
     lineHeight: sf(20),
-    paddingLeft: sw(19),
+    paddingStart: sw(19),
   },
   detailMono: {
     fontFamily: Fonts.bold,

@@ -1,4 +1,5 @@
 import { InputAccessoryView, Keyboard, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { Colors } from "../../constants/tokens";
 
@@ -10,6 +11,7 @@ export const PHONE_KEYBOARD_ACCESSORY_ID = "havenaPhoneKeyboardAccessory";
  * gray accessory with “Done”. Replace it with a compact dismiss row (or hide).
  */
 export default function PhoneKeyboardAccessory({ mode = "compact" }) {
+  const { t } = useTranslation();
   if (Platform.OS !== "ios") return null;
 
   if (mode === "hidden") {
@@ -28,9 +30,9 @@ export default function PhoneKeyboardAccessory({ mode = "compact" }) {
           onPress={() => Keyboard.dismiss()}
           hitSlop={10}
           accessibilityRole="button"
-          accessibilityLabel="Dismiss keyboard"
+          accessibilityLabel={t("common.dismiss")}
         >
-          <Text style={styles.dismiss}>Dismiss</Text>
+          <Text style={styles.dismiss}>{t("common.dismiss")}</Text>
         </Pressable>
       </View>
     </InputAccessoryView>

@@ -11,6 +11,7 @@ import {
   Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import SchedulePickerField from "../forms/schedule-picker-field";
 import { FormPhoneInput } from "../ui/phone-input";
 import ThemedIconBox from "../ui/themed-icon-box";
@@ -27,76 +28,86 @@ import { toE164 } from "../../utils/phone";
 import { useSubmitLock } from "../../hooks/use-submit-lock";
 import { useApiAction } from "../../hooks/use-api-action";
 import { useTouchedFieldErrors } from "../../hooks/use-touched-field-errors";
+import { arrowForward } from "../../utils/rtl";
 
-const DURATION_PRESETS = [
-  { label: "1 hour", hours: 1 },
-  { label: "6 hours", hours: 6 },
-  { label: "1 day", hours: 24 },
-  { label: "3 days", hours: 72 },
-  { label: "1 week", hours: 168 },
-];
+function getDurationPresets(t) {
+  return [
+    { label: t("guests.oneHour"), hours: 1 },
+    { label: t("guests.sixHours"), hours: 6 },
+    { label: t("guests.oneDayDuration"), hours: 24 },
+    { label: t("guests.threeDays"), hours: 72 },
+    { label: t("guests.oneWeek"), hours: 168 },
+  ];
+}
 
-const FLOW_STEPS = {
-  resident: [
-    {
-      icon: "send",
-      title: "Send invite",
-      desc: "Fill in guest details and how long they can access the app.",
-    },
-    {
-      icon: "smartphone",
-      title: "Guest verifies",
-      desc: "They log in with their phone, OTP, and the invite code you share.",
-    },
-    {
-      icon: "check-circle",
-      title: "You approve",
-      desc: "Approve the request from Guest approvals after they verify their invite.",
-    },
-  ],
-  admin: [
-    {
-      icon: "send",
-      title: "Send invite",
-      desc: "Fill in guest details and the access window for community features.",
-    },
-    {
-      icon: "smartphone",
-      title: "Guest verifies",
-      desc: "They sign in with phone OTP and the invite code you provide.",
-    },
-    {
-      icon: "unlock",
-      title: "Host approval",
-      desc: "You approve guest access after they verify their phone and invite code.",
-    },
-  ],
-};
+function getFlowSteps(t) {
+  return {
+    resident: [
+      {
+        icon: "send",
+        title: t("guests.sendInvite"),
+        desc: t("guests.sendInviteDescResident"),
+      },
+      {
+        icon: "smartphone",
+        title: t("guests.guestVerifies"),
+        desc: t("guests.guestVerifiesDescResident"),
+      },
+      {
+        icon: "check-circle",
+        title: t("guests.youApprove"),
+        desc: t("guests.youApproveDesc"),
+      },
+    ],
+    admin: [
+      {
+        icon: "send",
+        title: t("guests.sendInvite"),
+        desc: t("guests.sendInviteDescAdmin"),
+      },
+      {
+        icon: "smartphone",
+        title: t("guests.guestVerifies"),
+        desc: t("guests.guestVerifiesDescAdmin"),
+      },
+      {
+        icon: "unlock",
+        title: t("guests.hostApprovalStep"),
+        desc: t("guests.hostApprovalStepDesc"),
+      },
+    ],
+  };
+}
 
 function defaultFormDates() {
   return buildAccessWindowFromDuration(roundToNextHour(new Date()), 24);
 }
 
-function formatDurationLabel(start, end) {
+function formatDurationLabel(start, end, t) {
   if (!start || !end) return null;
   const ms = end.getTime() - start.getTime();
   if (ms <= 0) return null;
   const totalMinutes = Math.round(ms / 60000);
   if (totalMinutes < 60) {
-    return `${totalMinutes} min access`;
+    return t("guests.durationMinAccess", { count: totalMinutes });
   }
   const hours = Math.round(totalMinutes / 60);
   if (hours < 48) {
-    return `${hours} hour${hours === 1 ? "" : "s"} access`;
+    return hours === 1
+      ? t("guests.durationOneHourAccess")
+      : t("guests.durationHoursAccess", { count: hours });
   }
   const days = Math.round(hours / 24);
-  return `${days} day${days === 1 ? "" : "s"} access`;
+  return days === 1
+    ? t("guests.durationOneDayAccess")
+    : t("guests.durationDaysAccess", { count: days });
 }
 
 function AccessWindowSummary({ start, end }) {
+  const { t } = useTranslation();
   if (!start || !end) return null;
 
-  const duration = formatDurationLabel(start, end);
+  const duration = formatDurationLabel(start, end, t);
   const invalid = end.getTime() <= start.getTime();
 
   return (
@@ -108,9 +119,9 @@ function AccessWindowSummary({ start, end }) {
           <Feather name="calendar" size={sf(14)} color="#0A2A43" />
         </View>
         <View style={styles.accessSummaryHeaderCopy}>
-          <Text style={styles.accessSummaryTitle}>Access window</Text>
+          <Text style={styles.accessSummaryTitle}>{t("guests.accessWindow")}</Text>
           <Text style={styles.accessSummarySub}>
-            {invalid ? "End time must be after start" : "Guest can sign in during this period"}
+            {invalid ? t("guests.endTimeAfterStart") : t("guests.guestCanSignIn")}
           </Text>
         </View>
         {duration && !invalid ? (
@@ -123,7 +134,7 @@ function AccessWindowSummary({ start, end }) {
       <View style={[styles.accessTimeline, invalid && styles.accessTimelineInvalid]}>
         <View style={styles.accessPoint}>
           <View style={[styles.accessPointDot, styles.accessPointDotStart]} />
-          <Text style={styles.accessPointLabel}>Starts</Text>
+          <Text style={styles.accessPointLabel}>{t("guests.starts")}</Text>
           <Text style={styles.accessPointDate}>{formatAccessDay(start)}</Text>
           <View style={styles.accessTimeRow}>
             <Feather name="clock" size={sf(11)} color="#64748B" />
@@ -134,14 +145,14 @@ function AccessWindowSummary({ start, end }) {
         <View style={styles.accessBridge}>
           <View style={styles.accessBridgeLine} />
           <View style={styles.accessBridgeIcon}>
-            <Feather name="arrow-right" size={sf(12)} color="#0A2A43" />
+            <Feather name={arrowForward()} size={sf(12)} color="#0A2A43" />
           </View>
           <View style={styles.accessBridgeLine} />
         </View>
 
         <View style={styles.accessPoint}>
           <View style={[styles.accessPointDot, styles.accessPointDotEnd]} />
-          <Text style={styles.accessPointLabel}>Ends</Text>
+          <Text style={styles.accessPointLabel}>{t("guests.ends")}</Text>
           <Text style={styles.accessPointDate}>{formatAccessDay(end)}</Text>
           <View style={styles.accessTimeRow}>
             <Feather name="clock" size={sf(11)} color="#64748B" />
@@ -185,16 +196,17 @@ function IconField({ icon, label, required, error, children }) {
 }
 
 function InviteHeroCard({ title, subtitle, variant }) {
+  const { t } = useTranslation();
   const chips =
     variant === "admin"
       ? [
-          { icon: "shield", label: "Admin approval" },
-          { icon: "clock", label: "Scheduled window" },
+          { icon: "shield", label: t("guests.adminApprovalChip") },
+          { icon: "clock", label: t("guests.scheduledWindow") },
         ]
       : [
-          { icon: "user-check", label: "You approve" },
-          { icon: "clock", label: "Time-limited" },
-          { icon: "lock", label: "Secure login" },
+          { icon: "user-check", label: t("guests.youApproveChip") },
+          { icon: "clock", label: t("guests.timeLimited") },
+          { icon: "lock", label: t("guests.secureLogin") },
         ];
 
   return (
@@ -204,7 +216,7 @@ function InviteHeroCard({ title, subtitle, variant }) {
       >
         <View style={styles.heroBadge}>
           <Feather name="users" size={sf(10)} color={Colors.brandPrimaryDeep} />
-          <Text style={styles.heroBadgeText}>Guest invitation</Text>
+          <Text style={styles.heroBadgeText}>{t("guests.guestInvitationBadge")}</Text>
         </View>
 
         <View style={styles.heroMainRow}>
@@ -238,7 +250,9 @@ function InviteHeroCard({ title, subtitle, variant }) {
 }
 
 function FlowSteps({ variant }) {
-  const steps = FLOW_STEPS[variant] ?? FLOW_STEPS.resident;
+  const { t } = useTranslation();
+  const flowSteps = getFlowSteps(t);
+  const steps = flowSteps[variant] ?? flowSteps.resident;
   return (
     <View style={styles.flowTimeline}>
       {steps.map((step, index) => {
@@ -268,17 +282,18 @@ function FlowSteps({ variant }) {
 }
 
 function InviteSuccessCard({ result, variant, accessWindow, onShare, onInviteAnother, onDone }) {
+  const { t } = useTranslation();
   const guestSteps =
     variant === "admin"
       ? [
-          "Open Havena and tap Login as Guest",
-          "Enter the phone number from this invite",
-          "Verify OTP, then enter the invite code below",
+          t("guests.openHavenaLogin"),
+          t("guests.enterPhoneFromInvite"),
+          t("guests.verifyOtpEnterCode"),
         ]
       : [
-          "Open Havena and tap Login as Guest",
-          "Enter the phone number from this invite",
-          "Verify OTP and invite code, then wait for your approval",
+          t("guests.openHavenaLogin"),
+          t("guests.enterPhoneFromInvite"),
+          t("guests.verifyOtpWaitApproval"),
         ];
 
   return (
@@ -287,14 +302,14 @@ function InviteSuccessCard({ result, variant, accessWindow, onShare, onInviteAno
         <View style={styles.successIconRing}>
           <Feather name="check" size={sf(28)} color="#059669" />
         </View>
-        <Text style={styles.successTitle}>Invitation ready</Text>
+        <Text style={styles.successTitle}>{t("guests.invitationReady")}</Text>
         <Text style={styles.successSub}>
-          Share the code below so your guest can sign in during the access window.
+          {t("guests.shareCodeMessage")}
         </Text>
       </View>
 
       <View style={styles.codeCard}>
-        <Text style={styles.codeLabel}>Invite code</Text>
+        <Text style={styles.codeLabel}>{t("guests.inviteCodeLabel")}</Text>
         <Text style={styles.codeValue} selectable>
           {result.invite_code}
         </Text>
@@ -303,14 +318,14 @@ function InviteSuccessCard({ result, variant, accessWindow, onShare, onInviteAno
           <View style={styles.qrHint}>
             <Feather name="maximize" size={sf(12)} color="#64748B" />
             <Text style={styles.qrHintText} numberOfLines={2}>
-              QR deep link: {result.invite_qr_value}
+              {t("guests.qrDeepLink", { url: result.invite_qr_value })}
             </Text>
           </View>
         ) : null}
       </View>
 
       <View style={styles.guestStepsCard}>
-        <Text style={styles.guestStepsTitle}>What your guest does next</Text>
+        <Text style={styles.guestStepsTitle}>{t("guests.whatGuestDoesNext")}</Text>
         {guestSteps.map((step, i) => (
           <View key={step} style={styles.guestStepRow}>
             <View style={styles.guestStepBadge}>
@@ -323,17 +338,17 @@ function InviteSuccessCard({ result, variant, accessWindow, onShare, onInviteAno
 
       <Pressable style={styles.shareBtn} onPress={onShare}>
         <Feather name="share-2" size={sf(16)} color="#0A2A43" />
-        <Text style={styles.shareBtnText}>Share invitation</Text>
+        <Text style={styles.shareBtnText}>{t("guests.shareInvitation")}</Text>
       </Pressable>
 
       <View style={styles.successActions}>
         <Pressable style={styles.secondaryBtn} onPress={onInviteAnother}>
           <Feather name="plus" size={sf(15)} color="#0A2A43" />
-          <Text style={styles.secondaryBtnText}>Invite another</Text>
+          <Text style={styles.secondaryBtnText}>{t("guests.inviteAnother")}</Text>
         </Pressable>
         {onDone ? (
           <Pressable style={styles.primaryBtn} onPress={onDone}>
-            <Text style={styles.primaryBtnText}>Done</Text>
+            <Text style={styles.primaryBtnText}>{t("guests.done")}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -342,6 +357,7 @@ function InviteSuccessCard({ result, variant, accessWindow, onShare, onInviteAno
 }
 
 export default function GuestInviteForm({ variant = "resident", createInvitation, onDone }) {
+  const { t } = useTranslation();
   const scrollRef = useRef(null);
   const { submitting, run } = useSubmitLock();
   const { showFailure, showSuccess } = useApiAction();
@@ -422,13 +438,13 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
 
   const handleSubmit = () => {
     if (!validateOnSubmit(fieldErrorsLive)) {
-      showFailure("Check the form", new Error("Fix the highlighted fields before sending the invite."));
+      showFailure(t("guests.checkTheForm"), new Error(t("guests.fixHighlightedFields")));
       return;
     }
 
     const phoneE164 = toE164(phoneDigits, phoneCountry);
     if (!phoneE164) {
-      showFailure("Invalid phone", new Error("Enter a valid phone number for your guest."));
+      showFailure(t("guests.invalidPhone"), new Error(t("guests.enterValidPhone")));
       return;
     }
 
@@ -443,22 +459,22 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
       };
       const created = await createInvitation(payload);
       setResult(created);
-      await showSuccess("Invitation created", `Share code ${created.invite_code} with your guest.`);
-    }).catch((err) => showFailure("Could not create invitation", err));
+      await showSuccess(t("guests.invitationCreated"), t("guests.shareCodeWithGuest", { code: created.invite_code }));
+    }).catch((err) => showFailure(t("guests.couldNotCreateInvitation"), err));
   };
 
   const handleShare = async () => {
     if (!result?.invite_code) return;
     const lines = [
-      "You're invited to Havena as a guest!",
-      `Invite code: ${result.invite_code}`,
-      accessWindow ? `Access window: ${accessWindow}` : null,
-      result.invite_qr_value ? `Or open: ${result.invite_qr_value}` : null,
+      t("guests.youreInvited"),
+      t("guests.inviteCodeShare", { code: result.invite_code }),
+      accessWindow ? t("guests.accessWindowShare", { window: accessWindow }) : null,
+      result.invite_qr_value ? t("guests.orOpenLink", { url: result.invite_qr_value }) : null,
     ].filter(Boolean);
 
     try {
       await Share.share({
-        title: "Guest invitation",
+        title: t("guests.guestInvitationTitle"),
         message: lines.join("\n\n"),
       });
     } catch {
@@ -469,12 +485,12 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
   const heroCopy =
     variant === "admin"
       ? {
-          title: "Invite a guest user",
-          subtitle: "You will approve guest access after they verify their phone and invite code.",
+          title: t("guests.inviteGuestUser"),
+          subtitle: t("guests.inviteGuestUserSubtitle"),
         }
       : {
-          title: "Invite someone to visit",
-          subtitle: "They'll verify their phone and code, then you'll approve before they get access.",
+          title: t("guests.inviteSomeoneToVisit"),
+          subtitle: t("guests.inviteSomeoneSubtitle"),
         };
 
   if (result) {
@@ -516,7 +532,7 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
           ) : (
             <>
               <Feather name="send" size={sf(16)} color="#FFFFFF" />
-              <Text style={styles.submitBtnText}>Create invitation</Text>
+              <Text style={styles.submitBtnText}>{t("guests.createInvitation")}</Text>
             </>
           )}
         </Pressable>
@@ -525,14 +541,14 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
       <InviteHeroCard title={heroCopy.title} subtitle={heroCopy.subtitle} variant={variant} />
 
         <View style={styles.flowCard}>
-          <Text style={styles.flowCardTitle}>How it works</Text>
-          <FlowSteps variant={variant} />
+          <Text style={styles.flowCardTitle}>{t("guests.howItWorks")}</Text>
+          <FlowSteps variant={variant} t={t} />
         </View>
 
-        <SectionCard icon="user" title="Guest details" subtitle="Who are you inviting?">
+        <SectionCard icon="user" title={t("guests.guestDetails")} subtitle={t("guests.whoAreYouInviting")}>
           <IconField
             icon="user"
-            label="Full name"
+            label={t("guests.fullName")}
             required
             error={showError("guest_name", fieldErrorsLive)}
           >
@@ -543,7 +559,7 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
                 touch("guest_name");
                 clearError("guest_name");
               }}
-              placeholder="e.g., Alex Johnson"
+              placeholder={t("guests.namePlaceholder")}
               placeholderTextColor="#98A2B3"
               style={[
                 styles.input,
@@ -555,7 +571,7 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
 
           <IconField
             icon="phone"
-            label="Phone number"
+            label={t("guests.phoneNumber")}
             required
             error={showError("guest_phone", fieldErrorsLive)}
           >
@@ -574,7 +590,7 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
 
           <IconField
             icon="mail"
-            label="Email"
+            label={t("guests.emailLabel")}
             required
             error={showError("guest_email", fieldErrorsLive)}
           >
@@ -585,7 +601,7 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
                 touch("guest_email");
                 clearError("guest_email");
               }}
-              placeholder="guest@email.com"
+              placeholder={t("guests.emailPlaceholder")}
               placeholderTextColor="#98A2B3"
               style={[
                 styles.input,
@@ -597,10 +613,10 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
           </IconField>
         </SectionCard>
 
-        <SectionCard icon="clock" title="Access window" subtitle="When can they use the app as a guest?">
-          <Text style={styles.presetLabel}>Quick duration</Text>
+        <SectionCard icon="clock" title={t("guests.accessWindow")} subtitle={t("guests.accessWindowSubtitle")}>
+          <Text style={styles.presetLabel}>{t("guests.quickDuration")}</Text>
           <View style={styles.chipRow}>
-            {DURATION_PRESETS.map((preset) => {
+            {getDurationPresets(t).map((preset) => {
               const active = activePreset === preset.hours;
               return (
                 <Pressable
@@ -615,7 +631,7 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
           </View>
 
           <Text style={styles.scheduleGroupLabel}>
-            Starts<Text style={styles.required}> *</Text>
+            {t("guests.starts")}<Text style={styles.required}> *</Text>
           </Text>
           <View style={styles.dateTimeRow}>
             <View style={styles.dateTimeCell}>
@@ -628,7 +644,7 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
                   touch("starts_at");
                   clearError("starts_at");
                 }}
-                placeholder="Start date"
+                placeholder={t("guests.startDate")}
                 inputStyle={[
                   styles.input,
                   showError("starts_at", fieldErrorsLive) && styles.inputError,
@@ -645,7 +661,7 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
                   touch("starts_at");
                   clearError("starts_at");
                 }}
-                placeholder="Start time"
+                placeholder={t("guests.startTime")}
                 inputStyle={[
                   styles.input,
                   showError("starts_at", fieldErrorsLive) && styles.inputError,
@@ -658,7 +674,7 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
           ) : null}
 
           <Text style={styles.scheduleGroupLabel}>
-            Ends<Text style={styles.required}> *</Text>
+            {t("guests.ends")}<Text style={styles.required}> *</Text>
           </Text>
           <View style={styles.dateTimeRow}>
             <View style={styles.dateTimeCell}>
@@ -671,7 +687,7 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
                   touch("ends_at");
                   clearError("ends_at");
                 }}
-                placeholder="End date"
+                placeholder={t("guests.endDate")}
                 inputStyle={[
                   styles.input,
                   showError("ends_at", fieldErrorsLive) && styles.inputError,
@@ -688,7 +704,7 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
                   touch("ends_at");
                   clearError("ends_at");
                 }}
-                placeholder="End time"
+                placeholder={t("guests.endTime")}
                 inputStyle={[
                   styles.input,
                   showError("ends_at", fieldErrorsLive) && styles.inputError,
@@ -707,8 +723,8 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
 
         <SectionCard
           icon="shield"
-          title="Guest permissions"
-          subtitle="Control what your guest can view after approval"
+          title={t("guests.guestPermissionsTitle")}
+          subtitle={t("guests.controlGuestView")}
         >
           <GuestPermissionsSection
             permissions={permissions}
@@ -873,7 +889,7 @@ const styles = StyleSheet.create({
   flowContent: {
     flex: 1,
     paddingTop: sw(4),
-    paddingLeft: sw(10),
+    paddingStart: sw(10),
   },
   flowContentSpaced: {
     paddingBottom: sw(18),

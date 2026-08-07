@@ -35,9 +35,11 @@ import NoticeCoverImageField from "../../../components/forms/notice-cover-image-
 import { fetchMe } from "../../../services/profile-api";
 import { getUser } from "../../../services/auth-session";
 import { isCommunityAdmin } from "../../../services/community-access";
+import { useTranslation } from 'react-i18next';
 
 export default function CreateEventScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { submitting, run } = useSubmitLock();
   const { runAction } = useApiAction();
   const [isAdmin, setIsAdmin] = useState(false);
@@ -157,7 +159,7 @@ export default function CreateEventScreen() {
         delete next.event_time_end;
         return next;
       }
-      return { ...prev, event_time_end: "End time must be after start time." };
+      return { ...prev, event_time_end: t('events.endTimeAfterStart') };
     });
   }, [time, timeEnd, setErrors]);
 
@@ -199,13 +201,13 @@ export default function CreateEventScreen() {
               { uploadImage },
             );
           },
-          successTitle: isAdmin ? (scheduleLater ? "Scheduled" : "Published") : "Submitted",
+          successTitle: isAdmin ? (scheduleLater ? t('events.scheduled') : t('events.published')) : t('events.submitted'),
           successMessage: isAdmin
             ? scheduleLater
-              ? "Your event was saved and will publish at the scheduled time."
-              : "Your event was published."
-            : "Your event was submitted for admin approval.",
-          errorTitle: "Could not publish",
+              ? t('events.eventScheduledMessage')
+              : t('events.eventPublishedMessage')
+            : t('events.eventSubmittedMessage'),
+          errorTitle: t('events.couldNotPublish'),
           onSuccess: () => router.back(),
         });
       } finally {
@@ -252,12 +254,12 @@ export default function CreateEventScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
-      <ScreenHeader layout="inline" title="Create Event" iconOnly />
+      <ScreenHeader layout="inline" title={t('events.createEvent')} iconOnly />
 
       <ScrollView showsVerticalScrollIndicator={false} style={styles.contentWrap}>
         <View style={styles.formWrap}>
           <Text style={styles.formLabel}>
-            Title <Text style={styles.required}>*</Text>
+            {t('events.title')} <Text style={styles.required}>*</Text>
           </Text>
           <TextInput
             value={title}
@@ -266,7 +268,7 @@ export default function CreateEventScreen() {
               touch("title");
               clearError("title");
             }}
-            placeholder="e.g., Community Yoga Session"
+            placeholder={t('events.eventTitlePlaceholder')}
             placeholderTextColor="rgba(10, 10, 10, 0.5)"
             style={[styles.input, showError("title", fieldErrorsLive) && styles.inputError]}
             maxLength={LIMITS.noticeTitle}
@@ -274,7 +276,7 @@ export default function CreateEventScreen() {
           {showError("title", fieldErrorsLive) ? <Text style={styles.errorText}>{showError("title", fieldErrorsLive)}</Text> : null}
 
           <Text style={[styles.formLabel, styles.sectionGap]}>
-            Description <Text style={styles.required}>*</Text>
+            {t('events.description')} <Text style={styles.required}>*</Text>
           </Text>
           <TextInput
             value={description}
@@ -283,7 +285,7 @@ export default function CreateEventScreen() {
               touch("body");
               clearError("body");
             }}
-            placeholder="Add details about this notice..."
+            placeholder={t('events.eventDescriptionPlaceholder')}
             placeholderTextColor="rgba(10, 10, 10, 0.5)"
             style={[styles.textArea, showError("body", fieldErrorsLive) && styles.inputError]}
             multiline
@@ -299,14 +301,14 @@ export default function CreateEventScreen() {
           />
 
           <View style={styles.sectionGap}>
-            {renderFieldLabel("calendar-outline", "Date", true)}
+            {renderFieldLabel("calendar-outline", t('events.date'), true)}
           </View>
           <View style={styles.chipRow}>
             <TouchableOpacity style={styles.chip} onPress={() => applyQuickDate(0)} activeOpacity={0.85}>
-              <Text style={styles.chipText}>Today</Text>
+              <Text style={styles.chipText}>{t('events.today')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.chip} onPress={() => applyQuickDate(1)} activeOpacity={0.85}>
-              <Text style={styles.chipText}>Tomorrow</Text>
+              <Text style={styles.chipText}>{t('events.tomorrow')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.chip}
@@ -316,7 +318,7 @@ export default function CreateEventScreen() {
               }}
               activeOpacity={0.85}
             >
-              <Text style={styles.chipText}>Fill schedule</Text>
+              <Text style={styles.chipText}>{t('events.fillSchedule')}</Text>
             </TouchableOpacity>
           </View>
           <SchedulePickerField
@@ -333,27 +335,27 @@ export default function CreateEventScreen() {
           {showError("event_date", fieldErrorsLive) ? <Text style={styles.errorText}>{showError("event_date", fieldErrorsLive)}</Text> : null}
 
           <View style={styles.sectionGap}>
-            {renderFieldLabel("time-outline", "Time from", true)}
+            {renderFieldLabel("time-outline", t('events.timeFrom'), true)}
           </View>
           <View style={styles.chipRow}>
             <TouchableOpacity style={styles.chip} onPress={() => applyQuickStartInHours(0)} activeOpacity={0.85}>
-              <Text style={styles.chipText}>Now</Text>
+              <Text style={styles.chipText}>{t('events.now')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.chip} onPress={() => applyQuickStartInHours(1)} activeOpacity={0.85}>
-              <Text style={styles.chipText}>In 1 hour</Text>
+              <Text style={styles.chipText}>{t('events.inOneHour')}</Text>
             </TouchableOpacity>
           </View>
           <SchedulePickerField
             mode="time"
             value={time}
             onChange={(v) => applyStartTime(v)}
-            placeholder="Start time"
+            placeholder={t('events.startTimePlaceholder')}
             inputStyle={[styles.input, showError("event_time", fieldErrorsLive) && styles.inputError]}
           />
           {showError("event_time", fieldErrorsLive) ? <Text style={styles.errorText}>{showError("event_time", fieldErrorsLive)}</Text> : null}
 
           <View style={styles.sectionGap}>
-            {renderFieldLabel("time-outline", "Time to", true)}
+            {renderFieldLabel("time-outline", t('events.timeTo'), true)}
           </View>
           <SchedulePickerField
             mode="time"
@@ -363,7 +365,7 @@ export default function CreateEventScreen() {
               touch("event_time_end");
               clearError("event_time_end");
             }}
-            placeholder="End time (after start)"
+            placeholder={t('events.endTimePlaceholder')}
             inputStyle={[styles.input, showError("event_time_end", fieldErrorsLive) && styles.inputError]}
           />
           {showError("event_time_end", fieldErrorsLive) ? (
@@ -371,7 +373,7 @@ export default function CreateEventScreen() {
           ) : null}
 
           <View style={styles.sectionGap}>
-            {renderFieldLabel("location-outline", "Location", true)}
+            {renderFieldLabel("location-outline", t('events.location'), true)}
           </View>
           <TextInput
             value={location}
@@ -380,7 +382,7 @@ export default function CreateEventScreen() {
               touch("location");
               clearError("location");
             }}
-            placeholder="e.g., Community Center"
+            placeholder={t('events.locationPlaceholder')}
             placeholderTextColor="rgba(10, 10, 10, 0.5)"
             style={[styles.input, showError("location", fieldErrorsLive) && styles.inputError]}
             maxLength={LIMITS.location}
@@ -388,18 +390,18 @@ export default function CreateEventScreen() {
           {showError("location", fieldErrorsLive) ? <Text style={styles.errorText}>{showError("location", fieldErrorsLive)}</Text> : null}
 
           <View style={styles.sectionGap}>
-            {renderFieldLabel("people-outline", "Capacity", false)}
+            {renderFieldLabel("people-outline", t('events.capacity'), false)}
           </View>
           <TextInput
             value={capacity}
             onChangeText={(t) => setCapacity(t.replace(/[^\d]/g, ""))}
-            placeholder="Unlimited if empty"
+            placeholder={t('events.unlimitedIfEmpty')}
             placeholderTextColor="rgba(10, 10, 10, 0.5)"
             style={styles.input}
             keyboardType="number-pad"
             maxLength={6}
           />
-          <Text style={styles.optionSubtitle}>Maximum attendees who can join this event.</Text>
+          <Text style={styles.optionSubtitle}>{t('events.maxAttendeesHint')}</Text>
 
           <View style={[styles.optionRow, styles.sectionGap]}>
             <View style={styles.optionLeft}>
@@ -409,8 +411,8 @@ export default function CreateEventScreen() {
                   style={{ width: 20, height: 20 }}
                 />
                 <View>
-                  <Text style={styles.optionTitle}>Require RSVP</Text>
-                  <Text style={styles.optionSubtitle}>Track attendance</Text>
+                  <Text style={styles.optionTitle}>{t('events.requireRsvp')}</Text>
+                  <Text style={styles.optionSubtitle}>{t('events.trackAttendance')}</Text>
                 </View>
               </View>
             </View>
@@ -419,13 +421,13 @@ export default function CreateEventScreen() {
 
           {isAdmin ? (
             <>
-              <Text style={styles.adminOptionsTitle}>ADMIN OPTIONS</Text>
+              <Text style={styles.adminOptionsTitle}>{t('events.adminOptions')}</Text>
 
               <View style={[styles.optionRow, styles.adminOptionSpacing]}>
                 <View style={styles.optionLeft}>
-                  <Text style={styles.optionTitle}>Pin to Top</Text>
+                  <Text style={styles.optionTitle}>{t('events.pinToTop')}</Text>
                   <Text style={styles.optionSubtitle}>
-                    Keep this notice at the top
+                    {t('events.pinToTopDescription')}
                   </Text>
                 </View>
                 <CustomToggle value={pinToTop} onValueChange={setPinToTop} />
@@ -433,9 +435,9 @@ export default function CreateEventScreen() {
 
               <View style={styles.optionRow}>
                 <View style={styles.optionLeft}>
-                  <Text style={styles.optionTitle}>Schedule for Later</Text>
+                  <Text style={styles.optionTitle}>{t('events.scheduleForLater')}</Text>
                   <Text style={styles.optionSubtitle}>
-                    Publish at a specific time
+                    {t('events.publishAtSpecificTime')}
                   </Text>
                 </View>
                 <CustomToggle
@@ -462,7 +464,7 @@ export default function CreateEventScreen() {
                       touch("scheduled_date");
                       clearError("scheduled_date");
                     }}
-                    placeholder="Publish date"
+                    placeholder={t('events.publishDate')}
                     inputStyle={[styles.input, showError("scheduled_date", fieldErrorsLive) && styles.inputError]}
                   />
                   {showError("scheduled_date", fieldErrorsLive) ? (
@@ -476,7 +478,7 @@ export default function CreateEventScreen() {
                       touch("scheduled_time");
                       clearError("scheduled_time");
                     }}
-                    placeholder="Publish time"
+                    placeholder={t('events.publishTime')}
                     inputStyle={[styles.input, styles.scheduleTimeInput, showError("scheduled_time", fieldErrorsLive) && styles.inputError]}
                   />
                   {showError("scheduled_time", fieldErrorsLive) ? (
@@ -503,7 +505,7 @@ export default function CreateEventScreen() {
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Text style={styles.publishButtonText}>
-              {isAdmin ? (scheduleLater ? "Schedule" : "Publish") : "Submit for Approval"}
+              {isAdmin ? (scheduleLater ? t('events.schedule') : t('events.publish')) : t('events.submitForApproval')}
             </Text>
           )}
         </TouchableOpacity>
@@ -600,7 +602,7 @@ const styles = StyleSheet.create({
   },
   optionLeft: {
     flex: 1,
-    paddingRight: 12,
+    paddingEnd: 12,
   },
   adminOptionsTitle: {
     marginTop: 18,
@@ -672,7 +674,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#D1FAF5",
     borderWidth: 1,
     borderColor: "rgba(20, 184, 166, 0.28)",
-    marginRight: 10,
+    marginEnd: 10,
     marginBottom: 8,
   },
   chipText: {

@@ -1,16 +1,18 @@
 import React, { useState } from "react";
 import { View, TextInput, StyleSheet, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { PageType } from "../../constants/page-styles";
 import { sw, sf } from "../../utils/responsive";
 
 export default function SearchInput({
-  placeholder = "Search...",
+  placeholder,
   value: valueProp,
   onChangeText,
   autoFocus = false,
 }) {
+  const { t } = useTranslation();
   const [internal, setInternal] = useState("");
   const isControlled = valueProp !== undefined;
   const value = isControlled ? valueProp : internal;
@@ -25,7 +27,7 @@ export default function SearchInput({
       <Ionicons name="search-outline" size={sf(16)} color="#99A1AF" style={styles.icon} />
       <TextInput
         style={styles.input}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t("common.search")}
         placeholderTextColor="rgba(10, 10, 10, 0.45)"
         value={value}
         onChangeText={handleChange}
@@ -36,7 +38,7 @@ export default function SearchInput({
         clearButtonMode="never"
       />
       {value?.length > 0 ? (
-        <Pressable onPress={clear} hitSlop={8} accessibilityLabel="Clear search" style={styles.clearBtn}>
+        <Pressable onPress={clear} hitSlop={8} accessibilityLabel={t("common.clearSearch")} style={styles.clearBtn}>
           <Ionicons name="close-circle" size={sf(18)} color="#99A1AF" />
         </Pressable>
       ) : null}
@@ -55,7 +57,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#F3F4F6",
   },
-  icon: { marginRight: sw(8) },
+  icon: { marginEnd: sw(8) },
   input: {
     flex: 1,
     fontSize: PageType.bodyMd,
@@ -65,7 +67,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   clearBtn: {
-    marginLeft: sw(4),
+    marginStart: sw(4),
     padding: sw(2),
   },
 });

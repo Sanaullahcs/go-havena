@@ -12,18 +12,12 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 
 import { Fonts } from "../../constants/font";
 import CrispImage from "../ui/crisp-image";
-import { mediaImageSource } from "../../utils/profile-display";
 import { formatListingPrice } from "./listing-grid-card";
-
-const QUICK_NOTES = [
-  "Can pick up today",
-  "Is this still available?",
-  "Would you accept this offer?",
-];
 
 function parseAmount(value) {
   const parsed = parseFloat(String(value).replace(/[^0-9.]/g, ""));
@@ -50,9 +44,16 @@ export default function ListingOfferSheet({
   onClose,
   onSubmit,
 }) {
+  const { t } = useTranslation();
   const [amount, setAmount] = useState("");
   const [message, setMessage] = useState("");
   const [selectedPreset, setSelectedPreset] = useState("list");
+
+  const quickNotes = useMemo(() => [
+    t("marketplace.canPickUpToday"),
+    t("marketplace.isStillAvailable"),
+    t("marketplace.wouldYouAccept"),
+  ], [t]);
 
   const listPrice = listing?.price != null ? Number(listing.price) : null;
 
@@ -76,15 +77,15 @@ export default function ListingOfferSheet({
 
   const presets = useMemo(() => {
     if (listPrice == null || listPrice <= 0) {
-      return [{ key: "list", label: "List price", value: listPrice ?? 0 }];
+      return [{ key: "list", label: t("marketplace.listPrice"), value: listPrice ?? 0 }];
     }
     return [
-      { key: "10", label: "10% off", value: Math.max(0, Math.round(listPrice * 0.9)) },
-      { key: "15", label: "15% off", value: Math.max(0, Math.round(listPrice * 0.85)) },
-      { key: "20", label: "20% off", value: Math.max(0, Math.round(listPrice * 0.8)) },
-      { key: "list", label: "List price", value: listPrice },
+      { key: "10", label: t("marketplace.tenPercentOff"), value: Math.max(0, Math.round(listPrice * 0.9)) },
+      { key: "15", label: t("marketplace.fifteenPercentOff"), value: Math.max(0, Math.round(listPrice * 0.85)) },
+      { key: "20", label: t("marketplace.twentyPercentOff"), value: Math.max(0, Math.round(listPrice * 0.8)) },
+      { key: "list", label: t("marketplace.listPrice"), value: listPrice },
     ];
-  }, [listPrice]);
+  }, [listPrice, t]);
 
   const applyPreset = (preset) => {
     setSelectedPreset(preset.key);
@@ -128,9 +129,9 @@ export default function ListingOfferSheet({
                 <Ionicons name="close" size={20} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
-            <Text style={styles.heroTitle}>Make an offer</Text>
+            <Text style={styles.heroTitle}>{t("marketplace.makeAnOffer")}</Text>
             <Text style={styles.heroSubtitle}>
-              Your offer goes straight to the seller in chat — just like Marketplace.
+              {t("marketplace.offerGoesToSeller")}
             </Text>
           </View>
 
@@ -140,9 +141,9 @@ export default function ListingOfferSheet({
             contentContainerStyle={styles.scrollContent}
           >
             <View style={styles.listingCard}>
-              {listing.image_url ? (
+              {listing.image_url || listing.images?.[0] ? (
                 <CrispImage
-                  source={mediaImageSource(listing.image_url)}
+                  source={listing.image_url || listing.images?.[0]}
                   style={styles.listingThumb}
                   contentFit="cover"
                 />
@@ -156,13 +157,13 @@ export default function ListingOfferSheet({
                   {listing.title}
                 </Text>
                 <View style={styles.listingMetaRow}>
-                  <Text style={styles.listingPriceLabel}>Listed at</Text>
+                  <Text style={styles.listingPriceLabel}>{t("marketplace.listedAt")}</Text>
                   <Text style={styles.listingPrice}>{formatListingPrice(listing.price)}</Text>
                 </View>
               </View>
             </View>
 
-            <Text style={styles.fieldLabel}>Quick offers</Text>
+            <Text style={styles.fieldLabel}>{t("marketplace.quickOffers")}</Text>
             <View style={styles.chipRow}>
               {presets.map((preset) => (
                 <OfferChip
@@ -175,7 +176,7 @@ export default function ListingOfferSheet({
               ))}
             </View>
 
-            <Text style={styles.fieldLabel}>Your offer amount</Text>
+            <Text style={styles.fieldLabel}>{t("marketplace.yourOfferAmount")}</Text>
             <View style={styles.amountRow}>
               <Text style={styles.currency}>$</Text>
               <TextInput
@@ -196,14 +197,14 @@ export default function ListingOfferSheet({
               <View style={styles.savingsPill}>
                 <Ionicons name="trending-down" size={14} color="#059669" />
                 <Text style={styles.savingsText}>
-                  {formatListingPrice(savings.diff)} below list ({savings.pct}% off)
+                  {t("marketplace.belowList", { amount: formatListingPrice(savings.diff), pct: savings.pct })}
                 </Text>
               </View>
             ) : null}
 
-            <Text style={styles.fieldLabel}>Add a note (optional)</Text>
+            <Text style={styles.fieldLabel}>{t("marketplace.addNoteOptional")}</Text>
             <View style={styles.noteChipRow}>
-              {QUICK_NOTES.map((note) => (
+              {quickNotes.map((note) => (
                 <OfferChip
                   key={note}
                   label={note}
@@ -216,7 +217,7 @@ export default function ListingOfferSheet({
             <TextInput
               value={message}
               onChangeText={setMessage}
-              placeholder="Tell the seller why you're interested..."
+              placeholder={t("marketplace.tellSellerInterest")}
               placeholderTextColor="#9CA3AF"
               style={styles.messageInput}
               multiline
@@ -236,14 +237,14 @@ export default function ListingOfferSheet({
                 <>
                   <Ionicons name="paper-plane" size={16} color="#FFFFFF" />
                   <Text style={styles.submitText}>
-                    Send offer{parsedAmount != null ? ` · ${formatListingPrice(parsedAmount)}` : ""}
+                    {parsedAmount != null ? t("marketplace.sendOfferWithPrice", { price: formatListingPrice(parsedAmount) }) : t("marketplace.sendOffer")}
                   </Text>
                 </>
               )}
             </TouchableOpacity>
 
             <Text style={styles.disclaimer}>
-              Offers are not binding. Continue the conversation in chat to finalize details.
+              {t("marketplace.offersDisclaimer")}
             </Text>
           </ScrollView>
         </View>
@@ -427,7 +428,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: 24,
     color: "#111827",
-    marginRight: 4,
+    marginEnd: 4,
   },
   amountInput: {
     flex: 1,

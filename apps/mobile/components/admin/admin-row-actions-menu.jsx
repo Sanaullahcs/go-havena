@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import AppModal from "../layout/app-modal";
 import { Fonts } from "../../constants/font";
 import { Colors, Layout } from "../../constants/tokens";
@@ -45,10 +46,12 @@ export default function AdminRowActionsMenu({
   actions,
   disabled = false,
   compact = false,
-  title = "Options",
+  title,
   message,
   headerIcon = "options-outline",
 }) {
+  const { t } = useTranslation();
+  const resolvedTitle = title ?? t("admin.options");
   const [open, setOpen] = useState(false);
   const [busyId, setBusyId] = useState(null);
 
@@ -76,7 +79,7 @@ export default function AdminRowActionsMenu({
       <TouchableOpacity
         style={[styles.trigger, compact && styles.triggerCompact]}
         disabled={disabled}
-        accessibilityLabel="Post options"
+        accessibilityLabel={t("admin.postOptions")}
         onPress={() => setOpen(true)}
       >
         <Ionicons
@@ -94,7 +97,7 @@ export default function AdminRowActionsMenu({
                 <Ionicons name={headerIcon} size={sf(32)} color={Colors.brandPrimaryDeep} />
               </View>
 
-              <Text style={styles.title}>{title}</Text>
+              <Text style={styles.title}>{resolvedTitle}</Text>
               {message ? <Text style={styles.message}>{message}</Text> : null}
 
               <View style={styles.actions}>
@@ -132,7 +135,7 @@ export default function AdminRowActionsMenu({
                   activeOpacity={0.88}
                   onPress={() => setOpen(false)}
                 >
-                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                  <Text style={styles.cancelBtnText}>{t("admin.cancel")}</Text>
                 </TouchableOpacity>
               </View>
             </View>

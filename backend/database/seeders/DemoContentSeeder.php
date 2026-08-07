@@ -64,6 +64,7 @@ class DemoContentSeeder extends Seeder
         $this->seedListings($cid, $residents);
         $this->seedBusinessesAndDeals($cid, $residents, $adminId);
         $this->seedWellnessImages();
+        $this->call(NoticeAndDealTranslationSeeder::class);
         $this->seedRules($cid, $adminId, $residents);
         $this->seedDocuments($cid, $adminId);
         $this->seedMessages($residents, $adminId);

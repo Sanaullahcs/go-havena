@@ -15,12 +15,14 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useTranslation } from "react-i18next";
 import ScreenHeader from "../../../components/layout/screen-header";
 import { HeaderIconSlot } from "../../../components/layout/header-chrome";
 import { AdminTheme } from "../../../constants/admin-theme";
 import { Fonts } from "../../../constants/font";
 import { Colors } from "../../../constants/tokens";
 import { sf, sw } from "../../../utils/responsive";
+import { chevronForward } from "../../../utils/rtl";
 import { fetchAdminStats, approveMember } from "../../../services/admin-api";
 import { MarketplaceRoutes, withMarketplaceRole } from "../../../constants/marketplace-routes";
 import { PropertyManagementRoutes } from "../../../constants/property-management-routes";
@@ -30,38 +32,38 @@ import { AdminDashboardSkeleton } from "../../../components/ui/skeleton-loader";
 let dashboardCache = null;
 
 const PAD = sw(20);
-const STAT_COL_PAD = 5; // ×2 = 10px space between the 4 columns
+const STAT_COL_PAD = 5;
 const CREATE_CARD_GAP = sw(16);
 
 const ACTION_TYPE_META = {
-  membership: { label: "Member", icon: "user", color: "#14B8A6" },
-  listing: { label: "Listing", icon: "shopping-bag", color: "#059669" },
-  post: { label: "Post", icon: "message-square", color: "#7C3AED" },
-  business: { label: "Business", icon: "briefcase", color: "#D97706" },
-  booking: { label: "Booking", icon: "calendar", color: "#7C3AED" },
-  event: { label: "Event", icon: "calendar", color: "#7C3AED" },
-  notice: { label: "Notice", icon: "bell", color: "#0891B2" },
-  alert: { label: "Alert", icon: "alert-triangle", color: "#DC2626" },
-  community_request: { label: "Community", icon: "home", color: "#4F46E5" },
-  community_admin: { label: "Admin app", icon: "shield", color: "#4F46E5" },
+  membership: { label: "admin.actionTypeMember", icon: "user", color: "#14B8A6" },
+  listing: { label: "admin.actionTypeListing", icon: "shopping-bag", color: "#059669" },
+  post: { label: "admin.actionTypePost", icon: "message-square", color: "#7C3AED" },
+  business: { label: "admin.actionTypeBusiness", icon: "briefcase", color: "#D97706" },
+  booking: { label: "admin.actionTypeBooking", icon: "calendar", color: "#7C3AED" },
+  event: { label: "admin.actionTypeEvent", icon: "calendar", color: "#7C3AED" },
+  notice: { label: "admin.actionTypeNotice", icon: "bell", color: "#0891B2" },
+  alert: { label: "admin.actionTypeAlert", icon: "alert-triangle", color: "#DC2626" },
+  community_request: { label: "admin.actionTypeCommunity", icon: "home", color: "#4F46E5" },
+  community_admin: { label: "admin.actionTypeAdminApp", icon: "shield", color: "#4F46E5" },
 };
 
-const DEFAULT_ACTION_META = { label: "Review", icon: "inbox", color: "#64748B" };
+const DEFAULT_ACTION_META = { label: "admin.actionTypeReview", icon: "inbox", color: "#64748B" };
 
 function haptic() {
   if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 }
 
-function relTime(ts) {
+function relTime(ts, t) {
   if (!ts) return "";
   const diff = Date.now() - new Date(ts).getTime();
-  if (diff < 60000) return "Just now";
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-  return `${Math.floor(diff / 86400000)}d ago`;
+  if (diff < 60000) return t("admin.justNow");
+  if (diff < 3600000) return t("admin.minutesAgo", { count: Math.floor(diff / 60000) });
+  if (diff < 86400000) return t("admin.hoursAgo", { count: Math.floor(diff / 3600000) });
+  return t("admin.daysAgo", { count: Math.floor(diff / 86400000) });
 }
 
-function StatusBanner({ communityName, generatedAt, pendingTotal }) {
+function StatusBanner({ communityName, generatedAt, pendingTotal, t }) {
   const { width } = useWindowDimensions();
   const compact = width < 360;
   const hasPending = pendingTotal > 0;
@@ -82,7 +84,7 @@ function StatusBanner({ communityName, generatedAt, pendingTotal }) {
       </View>
       <View style={styles.statusCopy}>
         <Text style={[styles.communityName, compact && styles.communityNameCompact]} numberOfLines={2}>
-          {communityName || "Your community"}
+          {communityName || t("admin.yourCommunity")}
         </Text>
         <View style={styles.statusMetaRow}>
           <View
@@ -104,12 +106,12 @@ function StatusBanner({ communityName, generatedAt, pendingTotal }) {
               ]}
               numberOfLines={1}
             >
-              {hasPending ? `${pendingTotal} waiting for review` : "All clear"}
+              {hasPending ? t("admin.waitingForReview", { count: pendingTotal }) : t("admin.allClear")}
             </Text>
           </View>
           {generatedAt ? (
             <Text style={styles.statusUpdated} numberOfLines={1}>
-              {relTime(generatedAt)}
+              {relTime(generatedAt, t)}
             </Text>
           ) : null}
         </View>
@@ -158,11 +160,11 @@ function SectionLabel({ title, hint }) {
   );
 }
 
-function ReviewSectionHeader({ pendingTotal }) {
+function ReviewSectionHeader({ pendingTotal, t }) {
   const hasPending = pendingTotal > 0;
   return (
     <View style={styles.reviewSectionHead}>
-      <Text style={styles.reviewSectionTitle}>Review</Text>
+      <Text style={styles.reviewSectionTitle}>{t("admin.review")}</Text>
       <View
         style={[
           styles.reviewCountPill,
@@ -182,19 +184,19 @@ function ReviewSectionHeader({ pendingTotal }) {
           ]}
           numberOfLines={1}
         >
-          {hasPending ? `${pendingTotal} open` : "All clear"}
+          {hasPending ? t("admin.pendingOpen", { count: pendingTotal }) : t("admin.allClear")}
         </Text>
       </View>
     </View>
   );
 }
 
-function QueueRow({ action, approving, onApprove, onReview, showDivider }) {
+function QueueRow({ action, approving, onApprove, onReview, showDivider, t }) {
   const meta = ACTION_TYPE_META[action.type] ?? DEFAULT_ACTION_META;
   const isMember = action.type === "membership";
   const detail = (action.detail || action.subtitle || "").trim();
-  const metaLine = detail ? `${meta.label} · ${detail}` : meta.label;
-  const timeLabel = action.created_at ? relTime(action.created_at) : "";
+  const metaLine = detail ? `${t(meta.label)} · ${detail}` : t(meta.label);
+  const timeLabel = action.created_at ? relTime(action.created_at, t) : "";
 
   return (
     <View style={styles.reviewItem}>
@@ -212,7 +214,7 @@ function QueueRow({ action, approving, onApprove, onReview, showDivider }) {
             style={({ pressed }) => pressed && styles.pressedSoft}
           >
             <Text style={styles.reviewTitle} numberOfLines={1} ellipsizeMode="tail">
-              {action.title || "Untitled"}
+              {action.title || t("admin.untitled")}
             </Text>
             <Text style={styles.reviewMeta} numberOfLines={1} ellipsizeMode="tail">
               {metaLine}
@@ -246,7 +248,7 @@ function QueueRow({ action, approving, onApprove, onReview, showDivider }) {
               ) : (
                 <>
                   <Feather name="check" size={sf(12)} color="#FFFFFF" />
-                  <Text style={styles.reviewApproveBtnText}>Approve</Text>
+                  <Text style={styles.reviewApproveBtnText}>{t("admin.approve")}</Text>
                 </>
               )}
             </Pressable>
@@ -259,7 +261,7 @@ function QueueRow({ action, approving, onApprove, onReview, showDivider }) {
               }}
               hitSlop={8}
             >
-              <Feather name="chevron-right" size={sf(16)} color="#CBD5E1" />
+              <Feather name={chevronForward()} size={sf(16)} color="#CBD5E1" />
             </Pressable>
           )}
         </View>
@@ -292,7 +294,7 @@ function NavRow({ icon, label, badge, color = Colors.brandPrimaryDeep, onPress }
               <Text style={styles.navBadgeText}>{badge > 99 ? "99+" : badge}</Text>
             </View>
           ) : null}
-          <Feather name="chevron-right" size={sf(16)} color="#CBD5E1" />
+          <Feather name={chevronForward()} size={sf(16)} color="#CBD5E1" />
         </View>
       </View>
     </Pressable>
@@ -328,6 +330,7 @@ function CreateRow({ icon, title, subtitle, accent, onPress, isLast = false }) {
 }
 
 export default function AdminDashboardScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const spinAnim = useRef(new Animated.Value(0)).current;
@@ -348,7 +351,7 @@ export default function AdminDashboardScreen() {
     setLoadError(null);
     try {
       const dashboard = await fetchAdminStats();
-      const nextCommunityName = dashboard?.scope?.label ?? "Your community";
+      const nextCommunityName = dashboard?.scope?.label ?? t("admin.yourCommunity");
       const nextStats = dashboard?.stats ?? {};
       const nextPendingActions = dashboard?.pending_actions ?? [];
       const nextGeneratedAt = dashboard?.generated_at ?? null;
@@ -370,13 +373,13 @@ export default function AdminDashboardScreen() {
         setStats(null);
         setPendingActions([]);
       }
-      setLoadError(err?.message || "Could not load dashboard.");
-      if (!silent && !hasStatsRef.current) await showFailure("Could not load dashboard", err);
+      setLoadError(err?.message || t("admin.couldNotLoadDashboard"));
+      if (!silent && !hasStatsRef.current) await showFailure(t("admin.couldNotLoadDashboard"), err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [showFailure]);
+  }, [showFailure, t]);
 
   useFocusEffect(useCallback(() => { load(true); }, [load]));
 
@@ -409,9 +412,9 @@ export default function AdminDashboardScreen() {
     try {
       await runAction({
         action: () => approveMember(action.user_id),
-        successTitle: "Approved",
-        successMessage: `${action.title} can now access the community.`,
-        errorTitle: "Approval failed",
+        successTitle: t("admin.approved"),
+        successMessage: t("admin.canAccessCommunity", { name: action.title }),
+        errorTitle: t("admin.approvalFailed"),
         onSuccess: () => load(true),
       });
     } finally {
@@ -450,7 +453,7 @@ export default function AdminDashboardScreen() {
       {
         key: "members",
         value: Number(stats?.total_members ?? 0),
-        label: "Residents",
+        label: t("admin.residents"),
         icon: "users",
         color: "#14B8A6",
         onPress: () => router.push("/screens/admin-members"),
@@ -458,7 +461,7 @@ export default function AdminDashboardScreen() {
       {
         key: "pending",
         value: pendingMembers,
-        label: "Pending",
+        label: t("admin.pending"),
         icon: "clock",
         color: "#D97706",
         highlight: pendingMembers > 0,
@@ -467,7 +470,7 @@ export default function AdminDashboardScreen() {
       {
         key: "listings",
         value: Number(stats?.active_listings ?? stats?.pending_listings ?? 0),
-        label: "Listings",
+        label: t("admin.listings"),
         icon: "shopping-bag",
         color: "#059669",
         highlight: Number(stats?.pending_listings ?? 0) > 0,
@@ -476,24 +479,24 @@ export default function AdminDashboardScreen() {
       {
         key: "bookings",
         value: Number(stats?.pending_bookings ?? 0),
-        label: "Bookings",
+        label: t("admin.bookings"),
         icon: "calendar",
         color: "#7C3AED",
         highlight: Number(stats?.pending_bookings ?? 0) > 0,
         onPress: () => router.push("/screens/admin-bookings"),
       },
     ];
-  }, [router, stats]);
+  }, [router, stats, t]);
 
   const manageLinks = [
-    { icon: "users", label: "Residents", badge: stats?.pending_members, color: "#14B8A6", route: "/screens/admin-members" },
-    { icon: "user-plus", label: "Invite member", color: "#4F46E5", route: { pathname: "/screens/admin-members", params: { invite: "1" } } },
-    { icon: "users", label: "Guest users", color: "#0EA5E9", route: "/screens/admin-guests" },
-    { icon: "grid", label: "Amenities", color: "#0891B2", route: "/screens/admin-amenities" },
-    { icon: "calendar", label: "Amenity bookings", badge: stats?.pending_bookings, color: "#7C3AED", route: "/screens/admin-bookings" },
-    { icon: "shopping-bag", label: "Marketplace listings", badge: stats?.pending_listings, color: "#059669", route: "/screens/admin-listings" },
-    { icon: "briefcase", label: "Businesses", badge: stats?.pending_businesses, color: "#D97706", route: { pathname: MarketplaceRoutes.ALL_BUSINESSES, params: withMarketplaceRole("admin", { tab: "businesses" }) } },
-    { icon: "tag", label: "Deals", color: "#E11D48", route: { pathname: MarketplaceRoutes.ALL_BUSINESSES, params: withMarketplaceRole("admin", { tab: "deals" }) } },
+    { icon: "users", label: t("admin.residents"), badge: stats?.pending_members, color: "#14B8A6", route: "/screens/admin-members" },
+    { icon: "user-plus", label: t("admin.inviteMember"), color: "#4F46E5", route: { pathname: "/screens/admin-members", params: { invite: "1" } } },
+    { icon: "users", label: t("admin.guestUsers"), color: "#0EA5E9", route: "/screens/admin-guests" },
+    { icon: "grid", label: t("admin.amenities"), color: "#0891B2", route: "/screens/admin-amenities" },
+    { icon: "calendar", label: t("admin.amenityBookings"), badge: stats?.pending_bookings, color: "#7C3AED", route: "/screens/admin-bookings" },
+    { icon: "shopping-bag", label: t("admin.marketplaceListings"), badge: stats?.pending_listings, color: "#059669", route: "/screens/admin-listings" },
+    { icon: "briefcase", label: t("admin.businesses"), badge: stats?.pending_businesses, color: "#D97706", route: { pathname: MarketplaceRoutes.ALL_BUSINESSES, params: withMarketplaceRole("admin", { tab: "businesses" }) } },
+    { icon: "tag", label: t("admin.deals"), color: "#E11D48", route: { pathname: MarketplaceRoutes.ALL_BUSINESSES, params: withMarketplaceRole("admin", { tab: "deals" }) } },
   ];
 
   const reviewItems = useMemo(() => {
@@ -518,8 +521,8 @@ export default function AdminDashboardScreen() {
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <ScreenHeader
         layout="stacked"
-        title="Community Admin"
-        subtitle={communityName || "Manage your community"}
+        title={t("admin.communityAdmin")}
+        subtitle={communityName || t("admin.manageYourCommunity")}
         iconOnly
         right={
           <HeaderIconSlot>
@@ -550,7 +553,7 @@ export default function AdminDashboardScreen() {
           <Feather name="wifi-off" size={sf(28)} color={AdminTheme.textMuted} />
           <Text style={styles.errorText}>{loadError}</Text>
           <Pressable style={styles.retryBtn} onPress={() => load()}>
-            <Text style={styles.retryText}>Try again</Text>
+            <Text style={styles.retryText}>{t("admin.tryAgain")}</Text>
           </Pressable>
         </View>
       ) : (
@@ -564,6 +567,7 @@ export default function AdminDashboardScreen() {
             communityName={communityName}
             generatedAt={generatedAt}
             pendingTotal={pendingTotal}
+            t={t}
           />
 
           <View style={styles.statGrid}>
@@ -573,7 +577,7 @@ export default function AdminDashboardScreen() {
           </View>
 
           <View style={styles.block}>
-            <ReviewSectionHeader pendingTotal={pendingTotal} />
+            <ReviewSectionHeader pendingTotal={pendingTotal} t={t} />
             <View style={styles.reviewPanel}>
               {reviewItems.length > 0 ? (
                 reviewItems.map((action, index) => (
@@ -584,6 +588,7 @@ export default function AdminDashboardScreen() {
                     onApprove={() => handleApprove(action)}
                     onReview={() => router.push(routeFor(action))}
                     showDivider={index < reviewItems.length - 1}
+                    t={t}
                   />
                 ))
               ) : (
@@ -592,9 +597,9 @@ export default function AdminDashboardScreen() {
                     <Feather name="check-circle" size={sf(18)} color="#059669" />
                   </View>
                   <View style={styles.reviewEmptyCopy}>
-                    <Text style={styles.reviewEmptyTitle}>You're all caught up</Text>
+                    <Text style={styles.reviewEmptyTitle}>{t("admin.allCaughtUp")}</Text>
                     <Text style={styles.reviewEmptyText} numberOfLines={2}>
-                      New member requests and posts will show up here
+                      {t("admin.newRequestsWillAppear")}
                     </Text>
                   </View>
                 </View>
@@ -603,7 +608,7 @@ export default function AdminDashboardScreen() {
           </View>
 
           <View style={styles.block}>
-            <SectionLabel title="Manage" hint="Community tools" />
+            <SectionLabel title={t("admin.manage")} hint={t("admin.communityTools")} />
             <View style={styles.navList}>
               {manageLinks.map((link, index) => (
                 <View key={link.label}>
@@ -621,54 +626,54 @@ export default function AdminDashboardScreen() {
           </View>
 
           <View style={[styles.block, styles.blockLast]}>
-            <SectionLabel title="Create" hint="Publish to residents" />
+            <SectionLabel title={t("admin.create")} hint={t("admin.publishToResidents")} />
             <View style={styles.createList}>
               <CreateRow
                 icon="clipboard"
-                title="Notice"
-                subtitle="Board updates and reminders"
+                title={t("admin.notice")}
+                subtitle={t("admin.boardUpdatesAndReminders")}
                 accent="#0A2A43"
                 onPress={() => router.push("/screens/create-notice")}
               />
               <CreateRow
                 icon="calendar"
-                title="Event"
-                subtitle="Workshops and gatherings"
+                title={t("admin.event")}
+                subtitle={t("admin.workshopsAndGatherings")}
                 accent="#7C3AED"
                 onPress={() => router.push("/screens/create-event")}
               />
               <CreateRow
                 icon="alert-triangle"
-                title="Alert"
-                subtitle="Urgent community updates"
+                title={t("admin.alert")}
+                subtitle={t("admin.urgentCommunityUpdates")}
                 accent="#DC2626"
                 onPress={() => router.push("/screens/create-alert")}
               />
               <CreateRow
                 icon="book-open"
-                title="Add rule"
-                subtitle="Community guidelines for residents"
+                title={t("admin.addRule")}
+                subtitle={t("admin.communityGuidelinesForResidents")}
                 accent="#0F766E"
                 onPress={() => router.push(PropertyManagementRoutes.RULE_FORM)}
               />
               <CreateRow
                 icon="file-text"
-                title="Add document"
-                subtitle="Upload files for residents"
+                title={t("admin.addDocument")}
+                subtitle={t("admin.uploadFilesForResidents")}
                 accent="#C2410C"
                 onPress={() => router.push(PropertyManagementRoutes.DOCUMENT_FORM)}
               />
               <CreateRow
                 icon="shopping-bag"
-                title="Add listing"
-                subtitle="Sell or offer services"
+                title={t("admin.addListing")}
+                subtitle={t("admin.sellOrOfferServices")}
                 accent="#059669"
                 onPress={() => router.push(MarketplaceRoutes.CREATE_LISTING)}
               />
               <CreateRow
                 icon="edit-3"
-                title="Create post"
-                subtitle="Share with the community feed"
+                title={t("admin.createPost")}
+                subtitle={t("admin.shareWithCommunityFeed")}
                 accent="#14B8A6"
                 onPress={() => router.push("/screens/create-post")}
                 isLast
@@ -872,7 +877,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: sf(11),
     color: "#94A3B8",
-    marginLeft: sw(8),
+    marginStart: sw(8),
   },
   reviewSectionHead: {
     flexDirection: "row",
@@ -935,8 +940,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     width: "100%",
-    paddingLeft: sw(14),
-    paddingRight: sw(12),
+    paddingStart: sw(14),
+    paddingEnd: sw(12),
     paddingVertical: sw(12),
   },
   reviewIcon: {
@@ -945,13 +950,13 @@ const styles = StyleSheet.create({
     borderRadius: sw(10),
     alignItems: "center",
     justifyContent: "center",
-    marginRight: sw(12),
+    marginEnd: sw(12),
     flexShrink: 0,
   },
   reviewCopy: {
     flex: 1,
     minWidth: 0,
-    marginRight: sw(10),
+    marginEnd: sw(10),
   },
   reviewTitle: {
     fontFamily: Fonts.semiBold,
@@ -997,12 +1002,12 @@ const styles = StyleSheet.create({
   },
   reviewChevronHit: {
     paddingVertical: sw(4),
-    paddingLeft: sw(4),
+    paddingStart: sw(4),
   },
   reviewDivider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: "#EEF2F7",
-    marginLeft: sw(62),
+    marginStart: sw(62),
   },
   reviewEmpty: {
     flexDirection: "row",
@@ -1041,7 +1046,7 @@ const styles = StyleSheet.create({
   divider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: "#EEF2F7",
-    marginLeft: sw(17),
+    marginStart: sw(17),
   },
   emptyState: {
     paddingVertical: sw(18),
@@ -1080,7 +1085,7 @@ const styles = StyleSheet.create({
     borderRadius: sw(10),
     alignItems: "center",
     justifyContent: "center",
-    marginRight: sw(12),
+    marginEnd: sw(12),
     flexShrink: 0,
   },
   navLabel: {
@@ -1089,7 +1094,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.medium,
     fontSize: sf(14),
     color: AdminTheme.text,
-    marginRight: sw(8),
+    marginEnd: sw(8),
   },
   navTrailing: {
     flexDirection: "row",
@@ -1104,7 +1109,7 @@ const styles = StyleSheet.create({
     backgroundColor: AdminTheme.amber.bg,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: sw(8),
+    marginEnd: sw(8),
   },
   navBadgeText: {
     fontFamily: Fonts.bold,
@@ -1125,8 +1130,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
     paddingVertical: sw(13),
-    paddingRight: sw(14),
-    paddingLeft: sw(12),
+    paddingEnd: sw(14),
+    paddingStart: sw(12),
     borderRadius: sw(16),
     backgroundColor: AdminTheme.surface,
     borderWidth: 1,
@@ -1135,7 +1140,7 @@ const styles = StyleSheet.create({
   },
   createAccent: {
     position: "absolute",
-    left: 0,
+    start: 0,
     top: 0,
     bottom: 0,
     width: sw(3),
@@ -1146,7 +1151,7 @@ const styles = StyleSheet.create({
     borderRadius: sw(10),
     alignItems: "center",
     justifyContent: "center",
-    marginRight: sw(12),
+    marginEnd: sw(12),
   },
   createCopy: {
     flex: 1,

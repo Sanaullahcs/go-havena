@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import i18n from "../i18n";
 import { useAppDialog } from "../providers/app-dialog-provider";
 import { showApiFailure, showApiSuccess } from "../utils/auth-errors";
 
@@ -11,9 +12,9 @@ export function useApiAction() {
   const runAction = useCallback(
     async ({
       action,
-      successTitle = "Success",
-      successMessage = "Done successfully.",
-      errorTitle = "Action failed",
+      successTitle = i18n.t("apiAction.success"),
+      successMessage = i18n.t("apiAction.doneSuccessfully"),
+      errorTitle = i18n.t("apiAction.actionFailed"),
       silentSuccess = false,
       onSuccess,
     }) => {

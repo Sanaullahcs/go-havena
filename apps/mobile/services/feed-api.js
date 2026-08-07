@@ -5,6 +5,8 @@ import { API_BASE_URL } from "../constants/api-config";
 import { getCommunityId, getToken } from "./auth-session";
 import { guessImageMeta, uploadMultipartFile } from "../utils/upload-form-data";
 import { HOME_SECTION_CARD_LIMIT } from "../constants/home-sections";
+import i18n, { localizedField } from "../i18n";
+import { getLocaleForLang } from "../hooks/use-app-locale";
 
 export const FEED_TOPICS = [
   "Recommendations",
@@ -30,9 +32,18 @@ export const POST_TYPE_THEMES = {
   Announcements: { bg: "#FEF3C7", text: "#B45309", border: "#FDE68A" },
 };
 
-/** Post type options for create-post (label + API category + chip colors). */
+export const TOPIC_LABEL_KEY = {
+  Recommendations: "feed.topics.recommendations",
+  Events: "feed.topics.events",
+  Help: "feed.topics.help",
+  Neighborhood: "feed.topics.neighborhood",
+  Announcements: "feed.topics.announcements",
+};
+
+/** Post type options for create-post (labelKey + API category + chip colors). */
 export const POST_TYPE_OPTIONS = FEED_TOPICS.map((label) => ({
   label,
+  labelKey: TOPIC_LABEL_KEY[label] ?? label,
   category: TOPIC_TO_CATEGORY[label],
   ...(POST_TYPE_THEMES[label] ?? {
     bg: "#F3F4F6",
@@ -84,39 +95,39 @@ export function timeAgo(dateStr, now = Date.now()) {
   if (!date) return "";
 
   let diff = Math.floor((now - date.getTime()) / 1000);
-  if (!Number.isFinite(diff) || diff < 0) return "Just now";
-  if (diff < 60) return "Just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-  if (diff < 604800) return `${Math.floor(diff / 86400)}d`;
+  if (!Number.isFinite(diff) || diff < 0) return i18n.t("time.justNow");
+  if (diff < 60) return i18n.t("time.justNow");
+  if (diff < 3600) return i18n.t("time.minutesShort", { count: Math.floor(diff / 60) });
+  if (diff < 86400) return i18n.t("time.hoursShort", { count: Math.floor(diff / 3600) });
+  if (diff < 604800) return i18n.t("time.daysShort", { count: Math.floor(diff / 86400) });
 
-  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+  return date.toLocaleDateString(getLocaleForLang(i18n.language), { month: "short", day: "numeric" });
 }
 
 /** Live relative time for comments / messages. */
 export function formatCommentTime(dateStr, { optimistic = false, now = Date.now() } = {}) {
-  if (optimistic) return "Just now";
+  if (optimistic) return i18n.t("time.justNow");
 
   const date = parseApiDate(dateStr);
   if (!date) return "";
 
+  const locale = getLocaleForLang(i18n.language);
   let diff = Math.floor((now - date.getTime()) / 1000);
-  if (!Number.isFinite(diff) || diff < 0) return "Just now";
-  if (diff < 60) return "Just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-  if (diff < 604800) return `${Math.floor(diff / 86400)}d`;
+  if (!Number.isFinite(diff) || diff < 0) return i18n.t("time.justNow");
+  if (diff < 60) return i18n.t("time.justNow");
+  if (diff < 3600) return i18n.t("time.minutesShort", { count: Math.floor(diff / 60) });
+  if (diff < 86400) return i18n.t("time.hoursShort", { count: Math.floor(diff / 3600) });
+  if (diff < 604800) return i18n.t("time.daysShort", { count: Math.floor(diff / 86400) });
 
-  // Older than a week: show date + clock for clearer context.
-  const day = date.toLocaleDateString([], { month: "short", day: "numeric" });
-  const clock = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const day = date.toLocaleDateString(locale, { month: "short", day: "numeric" });
+  const clock = date.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
   return `${day} · ${clock}`;
 }
 
-/** Resolve label for a comment row — pending posts always show "Just now". */
+/** Resolve label for a comment row — pending posts show localized "just now". */
 export function getCommentTimeLabel(comment, now = Date.now()) {
   if (!comment) return "";
-  if (comment.pending) return "Just now";
+  if (comment.pending) return i18n.t("time.justNow");
   return formatCommentTime(comment.created_at, { now }) || comment.time_ago || "";
 }
 
@@ -131,10 +142,10 @@ export function formatEngagementSummary(likesCount, commentsCount) {
   const parts = [];
 
   if (likes > 0) {
-    parts.push(`${formatCount(likes)} ${likes === 1 ? "Like" : "Likes"}`);
+    parts.push(`${formatCount(likes)} ${i18n.t("feed.likeCount", { count: likes })}`);
   }
   if (comments > 0) {
-    parts.push(`${formatCount(comments)} ${comments === 1 ? "Comment" : "Comments"}`);
+    parts.push(`${formatCount(comments)} ${i18n.t("feed.commentCount", { count: comments })}`);
   }
 
   return parts.join(" · ");
@@ -152,7 +163,7 @@ const SENSITIVE_POST_MESSAGE =
 export function normalizePost(raw) {
   if (!raw) return null;
 
-  const authorName = raw.author_name ?? raw.user?.display_name ?? raw.user?.name ?? "Neighbor";
+  const authorName = raw.author_name ?? raw.user?.display_name ?? raw.user?.name ?? i18n.t("feed.neighbor");
   const avatarUrl = resolveMediaUrl(raw.author_avatar ?? raw.user?.avatar);
   const sensitive = isSensitivePost(raw);
   const text = sensitive ? "" : (raw.body ?? raw.content ?? "");
@@ -162,7 +173,7 @@ export function normalizePost(raw) {
     id: raw.id,
     content: text,
     body: text,
-    image_url: sensitive ? null : resolveMediaUrl(raw.image_url),
+    image_url: sensitive ? null : raw.image_url,
     tag: raw.tag ?? null,
     likes_count: raw.likes_count ?? raw.likes ?? 0,
     comments_count: raw.comments_count ?? raw.comments ?? 0,
@@ -199,7 +210,7 @@ export function pickHomeFeedPosts(posts, limit = HOME_SECTION_CARD_LIMIT) {
 export function normalizeComment(raw) {
   if (!raw) return null;
 
-  const authorName = raw.author_name ?? raw.user?.display_name ?? raw.user?.name ?? "Neighbor";
+  const authorName = raw.author_name ?? raw.user?.display_name ?? raw.user?.name ?? i18n.t("feed.neighbor");
   const parentId = raw.parent_id != null ? Number(raw.parent_id) : null;
 
   return {
@@ -255,7 +266,8 @@ const PHOTO_ONLY_BODY = /^shared a photo\.?$/i;
 
 /** Split stored post body into display text, feeling, and location metadata. */
 export function parsePostDisplayContent(post) {
-  const raw = String(post?.content ?? post?.body ?? "").trim();
+  const locBody = localizedField(post, "body");
+  const raw = String(locBody || (post?.content ?? post?.body ?? "")).trim();
   const lines = raw.split("\n").map((line) => line.trim()).filter(Boolean);
 
   const mainLines = [];

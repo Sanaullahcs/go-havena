@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import ProfilePhotoAvatar from "../../../components/profile/profile-photo-avatar";
 import { propertyStyles } from "../../../constants/property-styles";
@@ -36,15 +37,15 @@ function requestKey(item) {
   return `${item?.type ?? "join"}-${item?.id}`;
 }
 
-function requestDisplayName(item) {
-  if (!item) return "Resident";
+function requestDisplayName(item, t) {
+  if (!item) return t("family.requests.resident");
   if (item.type === "add_member") {
-    return [item.first_name, item.last_name].filter(Boolean).join(" ") || "Family member";
+    return [item.first_name, item.last_name].filter(Boolean).join(" ") || t("family.familyMember");
   }
-  return item.requester?.name ?? "Resident";
+  return item.requester?.name ?? t("family.requests.resident");
 }
 
-function ActionButtons({ item, busyAction, disabled = false, onApprove, onReject }) {
+function ActionButtons({ item, busyAction, disabled = false, onApprove, onReject, t }) {
   const isDisabled = disabled || Boolean(busyAction);
   const rejecting = busyAction === "reject";
   const approving = busyAction === "approve";
@@ -61,7 +62,7 @@ function ActionButtons({ item, busyAction, disabled = false, onApprove, onReject
         ) : (
           <>
             <Feather name="x" size={sf(15)} color="#DC2626" />
-            <Text style={styles.rejectText}>Reject</Text>
+            <Text style={styles.rejectText}>{t("family.requests.reject")}</Text>
           </>
         )}
       </Pressable>
@@ -75,7 +76,7 @@ function ActionButtons({ item, busyAction, disabled = false, onApprove, onReject
         ) : (
           <>
             <Feather name="check" size={sf(15)} color="#FFFFFF" />
-            <Text style={styles.approveText}>Approve</Text>
+            <Text style={styles.approveText}>{t("family.requests.approve")}</Text>
           </>
         )}
       </Pressable>
@@ -83,41 +84,41 @@ function ActionButtons({ item, busyAction, disabled = false, onApprove, onReject
   );
 }
 
-function PendingJoinRequestCard({ item, busyAction, disabled, onApprove, onReject }) {
+function PendingJoinRequestCard({ item, busyAction, disabled, onApprove, onReject, t }) {
   const requester = item.requester ?? {};
   const fromFamilyAdd = /family head invited/i.test(item.message ?? "");
 
   return (
     <View style={styles.card}>
       <View style={styles.typePill}>
-        <Text style={styles.typePillText}>{fromFamilyAdd ? "Add member" : "Join request"}</Text>
+        <Text style={styles.typePillText}>{fromFamilyAdd ? t("family.requests.addMember") : t("family.requests.joinRequest")}</Text>
       </View>
       <View style={styles.cardHeader}>
         <ProfilePhotoAvatar avatarUrl={requester.avatar_url} size={sw(48)} />
         <View style={styles.cardCopy}>
-          <Text style={styles.name}>{requester.name ?? "Resident"}</Text>
+          <Text style={styles.name}>{requester.name ?? t("family.requests.resident")}</Text>
           {requester.unit_number ? (
-            <Text style={styles.subtitle}>Unit {requester.unit_number}</Text>
+            <Text style={styles.subtitle}>{t("family.requests.unit", { number: requester.unit_number })}</Text>
           ) : null}
           {item.family?.community_name ? (
             <Text style={styles.subtitle}>{item.family.community_name}</Text>
           ) : null}
         </View>
         <View style={styles.badge}>
-          <Text style={styles.badgeText}>Pending</Text>
+          <Text style={styles.badgeText}>{t("family.requests.pending")}</Text>
         </View>
       </View>
 
       <View style={styles.metaBlock}>
-        <MetaLine icon="clock" label="Requested" value={formatDisplayDateTime(item.created_at)} />
+        <MetaLine icon="clock" label={t("family.requests.requested")} value={formatDisplayDateTime(item.created_at)} />
         {item.message ? <Text style={styles.message}>"{item.message}"</Text> : null}
         {fromFamilyAdd ? (
           <Text style={styles.helperText}>
-            Community admin approved this resident. Confirm to add them to your family.
+            {t("family.requests.adminApprovedHelper")}
           </Text>
         ) : (
           <Text style={styles.helperText}>
-            Approving may send them to community admin next if their membership is still pending.
+            {t("family.requests.approveHelper")}
           </Text>
         )}
       </View>
@@ -128,18 +129,19 @@ function PendingJoinRequestCard({ item, busyAction, disabled, onApprove, onRejec
         disabled={disabled}
         onApprove={onApprove}
         onReject={onReject}
+        t={t}
       />
     </View>
   );
 }
 
-function PendingAddMemberRequestCard({ item, busyAction, disabled, onApprove, onReject }) {
-  const fullName = [item.first_name, item.last_name].filter(Boolean).join(" ") || "Family member";
+function PendingAddMemberRequestCard({ item, busyAction, disabled, onApprove, onReject, t }) {
+  const fullName = [item.first_name, item.last_name].filter(Boolean).join(" ") || t("family.familyMember");
 
   return (
     <View style={styles.card}>
       <View style={[styles.typePill, styles.typePillAdd]}>
-        <Text style={[styles.typePillText, styles.typePillTextAdd]}>Add member</Text>
+        <Text style={[styles.typePillText, styles.typePillTextAdd]}>{t("family.requests.addMember")}</Text>
       </View>
       <View style={styles.cardHeader}>
         <View style={styles.initialsAvatar}>
@@ -150,20 +152,20 @@ function PendingAddMemberRequestCard({ item, busyAction, disabled, onApprove, on
         </View>
         <View style={styles.cardCopy}>
           <Text style={styles.name}>{fullName}</Text>
-          <Text style={styles.subtitle}>Age {item.age}</Text>
+          <Text style={styles.subtitle}>{t("family.requests.age", { age: item.age })}</Text>
         </View>
         <View style={styles.badge}>
-          <Text style={styles.badgeText}>Pending</Text>
+          <Text style={styles.badgeText}>{t("family.requests.pending")}</Text>
         </View>
       </View>
 
       <View style={styles.metaBlock}>
-        <MetaLine icon="mail" label="Email" value={item.email} />
-        <MetaLine icon="phone" label="Phone" value={item.phone} />
-        {item.unit_number ? <MetaLine icon="home" label="Unit" value={item.unit_number} /> : null}
-        <MetaLine icon="clock" label="Requested" value={formatDisplayDateTime(item.created_at)} />
+        <MetaLine icon="mail" label={t("family.requests.emailLabel")} value={item.email} />
+        <MetaLine icon="phone" label={t("family.requests.phoneLabel")} value={item.phone} />
+        {item.unit_number ? <MetaLine icon="home" label={t("family.requests.unitLabel")} value={item.unit_number} /> : null}
+        <MetaLine icon="clock" label={t("family.requests.requested")} value={formatDisplayDateTime(item.created_at)} />
         {item.requested_by?.name ? (
-          <MetaLine icon="user" label="Submitted by" value={item.requested_by.name} />
+          <MetaLine icon="user" label={t("family.requests.submittedBy")} value={item.requested_by.name} />
         ) : null}
       </View>
 
@@ -173,12 +175,13 @@ function PendingAddMemberRequestCard({ item, busyAction, disabled, onApprove, on
         disabled={disabled}
         onApprove={onApprove}
         onReject={onReject}
+        t={t}
       />
     </View>
   );
 }
 
-function PendingRequestCard({ item, busyAction, disabled, onApprove, onReject }) {
+function PendingRequestCard({ item, busyAction, disabled, onApprove, onReject, t }) {
   if (item.type === "add_member") {
     return (
       <PendingAddMemberRequestCard
@@ -187,6 +190,7 @@ function PendingRequestCard({ item, busyAction, disabled, onApprove, onReject })
         disabled={disabled}
         onApprove={onApprove}
         onReject={onReject}
+        t={t}
       />
     );
   }
@@ -198,6 +202,7 @@ function PendingRequestCard({ item, busyAction, disabled, onApprove, onReject })
       disabled={disabled}
       onApprove={onApprove}
       onReject={onReject}
+      t={t}
     />
   );
 }
@@ -214,6 +219,7 @@ function MetaLine({ icon, label, value }) {
 
 export default function FamilyRequestsScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { dialog, showFailure, showSuccess } = useApiAction();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -232,7 +238,7 @@ export default function FamilyRequestsScreen() {
         router.replace("/screens/my-family");
         return;
       }
-      await showFailure("Could not load requests", err);
+      await showFailure(t("family.requests.couldNotLoad"), err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -250,17 +256,17 @@ export default function FamilyRequestsScreen() {
 
     const isAddMember = request.type === "add_member";
     const fromFamilyAddConfirm = /family head invited/i.test(request.message ?? "");
-    const name = requestDisplayName(request);
+    const name = requestDisplayName(request, t);
     const key = requestKey(request);
 
     const result = await dialog.showConfirm(
-      `Approve ${name}?`,
+      t("family.requests.approveName", { name }),
       isAddMember
-        ? "They will be added to your family if a matching community account exists for this email."
+        ? t("family.requests.approveAddMessage")
         : fromFamilyAddConfirm
-          ? "They will become an active member of your family."
-          : "If they still need community approval, they will go to your community admin next. Otherwise they join your family now.",
-      { confirmLabel: "Approve" },
+          ? t("family.requests.approveConfirmMessage")
+          : t("family.requests.approveJoinMessage"),
+      { confirmLabel: t("family.requests.approve") },
     );
     if (result !== "confirm") return;
 
@@ -269,22 +275,22 @@ export default function FamilyRequestsScreen() {
       if (isAddMember) {
         await approveFamilyAddMemberRequest(request.id);
         setActionBusy(null);
-        await showSuccess("Request approved", `${name} joined your family.`);
+        await showSuccess(t("family.requests.requestApproved"), t("family.requests.joinedFamily", { name }));
       } else {
         const approved = await approveFamilyJoinRequest(request.id);
         setActionBusy(null);
         const awaitingAdmin = approved?.status === "awaiting_admin";
         await showSuccess(
-          awaitingAdmin ? "Sent to community admin" : "Request approved",
+          awaitingAdmin ? t("family.requests.sentToCommunityAdmin") : t("family.requests.requestApproved"),
           awaitingAdmin
-            ? `${name} was approved by you. They now need community admin approval.`
-            : `${name} joined your family.`,
+            ? t("family.requests.approvedNeedsCommunity", { name })
+            : t("family.requests.joinedFamily", { name }),
         );
       }
       load();
     } catch (err) {
       setActionBusy(null);
-      await showFailure("Approval failed", err);
+      await showFailure(t("family.requests.approvalFailed"), err);
     }
   };
 
@@ -299,7 +305,7 @@ export default function FamilyRequestsScreen() {
 
     const target = rejectTarget;
     const reason = rejectReason.trim() || undefined;
-    const name = requestDisplayName(target);
+    const name = requestDisplayName(target, t);
     const key = requestKey(target);
 
     setActionBusy({ key, action: "reject" });
@@ -309,17 +315,15 @@ export default function FamilyRequestsScreen() {
       } else {
         await rejectFamilyJoinRequest(target.id, reason);
       }
-      // Close the sheet before the success dialog — nested RN Modals block taps.
       setRejectTarget(null);
       setRejectReason("");
       setActionBusy(null);
-      await showSuccess("Request rejected", `${name}'s request was declined.`);
+      await showSuccess(t("family.requests.requestRejected"), t("family.requests.requestDeclined", { name }));
       load();
     } catch (err) {
       setActionBusy(null);
-      // Dismiss sheet so the error dialog is tappable, then restore for retry.
       setRejectTarget(null);
-      await showFailure("Rejection failed", err);
+      await showFailure(t("family.requests.rejectionFailed"), err);
       setRejectTarget(target);
       setRejectReason(reason ?? "");
     }
@@ -327,13 +331,13 @@ export default function FamilyRequestsScreen() {
 
   const headerSubtitle =
     items.length === 0
-      ? "No requests waiting"
-      : `${items.length} request${items.length === 1 ? "" : "s"} awaiting approval`;
+      ? t("family.requests.noRequestsWaiting")
+      : t("family.requests.requestsAwaiting", { count: items.length });
 
   if (loading) {
     return (
       <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
-        <InternalScreenHeader title="Family requests" />
+        <InternalScreenHeader title={t("family.requests.title")} />
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#0A2A43" />
         </View>
@@ -343,7 +347,7 @@ export default function FamilyRequestsScreen() {
 
   return (
     <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
-      <InternalScreenHeader title="Family requests" subtitle={headerSubtitle} />
+      <InternalScreenHeader title={t("family.requests.title")} subtitle={headerSubtitle} />
 
       <FlatList
         data={items}
@@ -365,13 +369,13 @@ export default function FamilyRequestsScreen() {
               <View style={styles.emptyIcon}>
                 <Feather name="check-circle" size={sf(28)} color="#059669" />
               </View>
-              <Text style={styles.emptyTitle}>No pending requests</Text>
+              <Text style={styles.emptyTitle}>{t("family.requests.noPendingRequests")}</Text>
               <Text style={styles.emptyText}>
-                When a neighbor requests to join your family or you submit an add member request, it will appear here.
+                {t("family.requests.emptyHint")}
               </Text>
               <Pressable style={styles.emptyCta} onPress={() => router.push("/screens/my-family")}>
                 <Feather name="users" size={sf(14)} color="#FFFFFF" />
-                <Text style={styles.emptyCtaText}>Back to My Family</Text>
+                <Text style={styles.emptyCtaText}>{t("family.requests.backToMyFamily")}</Text>
               </Pressable>
             </View>
           </ScrollView>
@@ -394,6 +398,7 @@ export default function FamilyRequestsScreen() {
                 setRejectTarget(request);
                 setRejectReason("");
               }}
+              t={t}
             />
           );
         }}
@@ -409,16 +414,16 @@ export default function FamilyRequestsScreen() {
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalKeyboard}>
             <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
               <Text style={styles.modalTitle}>
-                {rejectTarget?.type === "add_member" ? "Reject add member request" : "Reject join request"}
+                {rejectTarget?.type === "add_member" ? t("family.requests.rejectAddMember") : t("family.requests.rejectJoinRequest")}
               </Text>
               <Text style={styles.modalHint}>
-                {requestDisplayName(rejectTarget)} will be declined.
+                {t("family.requests.willBeDeclined", { name: requestDisplayName(rejectTarget, t) })}
               </Text>
               <TextInput
                 value={rejectReason}
                 onChangeText={setRejectReason}
                 style={styles.rejectInput}
-                placeholder="Optional reason"
+                placeholder={t("family.requests.optionalReason")}
                 placeholderTextColor="#94A3B8"
                 multiline
                 textAlignVertical="top"
@@ -431,7 +436,7 @@ export default function FamilyRequestsScreen() {
                   disabled={rejectSubmitting}
                   onPress={closeRejectModal}
                 >
-                  <Text style={styles.modalCancelText}>Cancel</Text>
+                  <Text style={styles.modalCancelText}>{t("family.cancel")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.modalReject, rejectSubmitting && styles.btnDisabled]}
@@ -441,7 +446,7 @@ export default function FamilyRequestsScreen() {
                   {rejectSubmitting ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.modalRejectText}>Confirm reject</Text>
+                    <Text style={styles.modalRejectText}>{t("family.requests.confirmReject")}</Text>
                   )}
                 </TouchableOpacity>
               </View>

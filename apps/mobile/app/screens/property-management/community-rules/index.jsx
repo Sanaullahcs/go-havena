@@ -7,73 +7,125 @@ import {
   ScrollView,
   RefreshControl,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import i18n from "../../../../i18n";
+import { getLocaleForLang } from "../../../../hooks/use-app-locale";
 import InternalScreenHeader from "../../../../components/layout/internal-screen-header";
-import { pageStyles } from "../../../../constants/page-styles";
-import { PropertyType } from "../../../../constants/property-management-type";
-import { propertyStyles } from "../../../../constants/property-styles";
 import { Fonts } from "../../../../constants/font";
+import { HomeTheme as T } from "../../../../constants/home-theme";
 import { sw, sf } from "../../../../utils/responsive";
 import { PropertyManagementRoutes } from "../../../../constants/property-management-routes";
 import { fetchCommunityRules } from "../../../../services/community-rules-api";
 import { getCurrentRole } from "../../../../constants/role-session";
+import { chevronForward, arrowForward } from "../../../../utils/rtl";
 
-const TYPE_STYLES = {
-  important: { bg: "#FEF2F2", color: "#E7000B", label: "Important" },
-  standard:  { bg: "#FFFBEB", color: "#E17100", label: "Standard" },
-  info:      { bg: "#F9FAFB", color: "#4A5565", label: "Info" },
+const SEV = {
+  important: { accent: "#DC2626", bg: "#FEF2F2", label: "propertyMgmt.importantLabel", icon: "alert-circle" },
+  standard: { accent: "#D97706", bg: "#FFFBEB", label: "propertyMgmt.standardLabel", icon: "alert-triangle" },
+  info: { accent: T.deepTeal, bg: T.mint, label: "propertyMgmt.infoLabel", icon: "info" },
 };
 
-const CATEGORY_PALETTE = [
-  { icon: "volume-x", color: "#7C3AED", bg: "#F5F3FF" },
-  { icon: "heart", color: "#EC4899", bg: "#FDF2F8" },
-  { icon: "home", color: "#14B8A6", bg: "#D1FAF5" },
-  { icon: "truck", color: "#0891B2", bg: "#ECFEFF" },
-  { icon: "trash-2", color: "#059669", bg: "#ECFDF5" },
-  { icon: "shield", color: "#DC2626", bg: "#FEF2F2" },
-  { icon: "sun", color: "#D97706", bg: "#FFFBEB" },
-  { icon: "tool", color: "#4F46E5", bg: "#D1FAF5" },
-  { icon: "users", color: "#F97316", bg: "#FFEDD5" },
-  { icon: "folder", color: "#64748B", bg: "#F8FAFC" },
-];
+const CAT = {
+  "Noise & Quiet Hours": { icon: "moon", accent: "#7C3AED" },
+  "Pet Regulations": { icon: "heart", accent: "#DB2777" },
+  "Common Areas": { icon: "home", accent: T.deepTeal },
+  Parking: { icon: "truck", accent: "#0891B2" },
+  "Waste Management": { icon: "trash-2", accent: "#059669" },
+  "Safety & Security": { icon: "shield", accent: "#DC2626" },
+  "Balcony & Exterior": { icon: "sun", accent: "#D97706" },
+  Renovations: { icon: "tool", accent: "#4F46E5" },
+  "Guests & Visitors": { icon: "users", accent: "#EA580C" },
+  Other: { icon: "folder", accent: "#64748B" },
+};
 
-function getCategoryMeta(name, index = 0) {
-  const preset = {
-    "Noise & Quiet Hours": CATEGORY_PALETTE[0],
-    "Pet Regulations": CATEGORY_PALETTE[1],
-    "Common Areas": CATEGORY_PALETTE[2],
-    "Parking": CATEGORY_PALETTE[3],
-    "Waste Management": CATEGORY_PALETTE[4],
-    "Safety & Security": CATEGORY_PALETTE[5],
-    "Balcony & Exterior": CATEGORY_PALETTE[6],
-    "Renovations": CATEGORY_PALETTE[7],
-    "Guests & Visitors": CATEGORY_PALETTE[8],
-    Other: CATEGORY_PALETTE[9],
-  };
-  return preset[name] ?? CATEGORY_PALETTE[index % CATEGORY_PALETTE.length];
+function catMeta(name) {
+  return CAT[name] ?? { icon: "bookmark", accent: T.navy };
 }
 
-function SeverityIcon({ severity }) {
-  const color = severity === "important" ? "#E7000B" : severity === "standard" ? "#E17100" : "#6A7282";
-  const name  = severity === "important" ? "alert-circle" : severity === "standard" ? "alert-triangle" : "info";
-  return <Feather name={name} size={sf(16)} color={color} />;
+function RuleCard({ rule, isAdmin, onPress, isLast }) {
+  const { t, i18n } = useTranslation();
+  const sev = SEV[rule.severity] ?? SEV.info;
+  const cat = catMeta(rule.category);
+  const needsAck = !isAdmin && rule.needs_action;
+  const acked = !isAdmin && rule.requires_acknowledgment && rule.acknowledged;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.card,
+        !isLast && styles.cardGap,
+        pressed && styles.cardPressed,
+      ]}
+      accessibilityRole="button"
+      accessibilityLabel={rule.title}
+    >
+      <View style={[styles.cardAccent, { backgroundColor: cat.accent }]} />
+      <View style={styles.cardInner}>
+        <View style={styles.cardTop}>
+          <View style={[styles.cardIcon, { backgroundColor: `${cat.accent}14` }]}>
+            <Feather name={cat.icon} size={sf(16)} color={cat.accent} />
+          </View>
+          <View style={styles.cardTopText}>
+            <Text style={styles.cardCategory} numberOfLines={1}>
+              {rule.category}
+            </Text>
+          </View>
+          {rule.severity === "important" ? (
+            <View style={[styles.sevChip, { backgroundColor: sev.bg, borderColor: `${sev.accent}30` }]}>
+              <Feather name={sev.icon} size={sf(10)} color={sev.accent} />
+              <Text style={[styles.sevChipText, { color: sev.accent }]}>{t(sev.label)}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        <Text style={styles.cardTitle} numberOfLines={2}>{rule.title}</Text>
+{rule.description ? (
+          <Text style={styles.cardDesc} numberOfLines={2}>{rule.description}</Text>
+        ) : null}
+
+        <View style={styles.cardFooter}>
+          <Text style={styles.cardDate} numberOfLines={1}>
+            {rule.updated_at
+              ? new Date(rule.updated_at).toLocaleDateString(getLocaleForLang(i18n.language), { month: "short", day: "numeric" })
+              : ""}
+          </Text>
+          {needsAck ? (
+            <View style={styles.ackBadge}>
+              <Feather name="alert-circle" size={sf(10)} color="#DC2626" />
+              <Text style={styles.ackBadgeText}>{t("propertyMgmt.reviewBadge")}</Text>
+            </View>
+          ) : acked ? (
+            <View style={styles.doneBadge}>
+              <Feather name="check-circle" size={sf(10)} color={T.deepTeal} />
+              <Text style={styles.doneBadgeText}>{t("propertyMgmt.doneBadge")}</Text>
+            </View>
+          ) : (
+            <Feather name={chevronForward()} size={sf(16)} color="#CBD5E1" />
+          )}
+        </View>
+      </View>
+    </Pressable>
+  );
 }
 
 export default function CommunityRules() {
-  const router     = useRouter();
-  const activeRole = getCurrentRole();
-  const isAdmin    = activeRole === "admin";
+  const router = useRouter();
+  const { t } = useTranslation();
+  const isAdmin = getCurrentRole() === "admin";
 
-  const [rules,          setRules]          = useState([]);
-  const [categories,     setCategories]     = useState([]);
+  const [rules, setRules] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [unacknowledged, setUnacknowledged] = useState(0);
-  const [loading,        setLoading]        = useState(true);
-  const [refreshing,     setRefreshing]     = useState(false);
-  const [error,          setError]          = useState(null);
-  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
+  const [activeFilter, setActiveFilter] = useState("all");
   const hasLoadedOnce = useRef(false);
 
   const load = useCallback(async (silent = false) => {
@@ -81,11 +133,11 @@ export default function CommunityRules() {
     setError(null);
     try {
       const data = await fetchCommunityRules();
-      setRules(data.rules);
-      setCategories(data.categories);
-      setUnacknowledged(data.unacknowledged);
+      setRules(data.rules ?? []);
+      setCategories(data.categories ?? []);
+      setUnacknowledged(data.unacknowledged ?? 0);
     } catch (err) {
-      setError(err?.message ?? "Could not load community rules.");
+      setError(err?.message ?? t("propertyMgmt.couldNotLoadRules"));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -93,65 +145,50 @@ export default function CommunityRules() {
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      load(hasLoadedOnce.current);
-    }, [load]),
+  useFocusEffect(useCallback(() => { load(hasLoadedOnce.current); }, [load]));
+
+  const onRefresh = useCallback(() => { setRefreshing(true); load(true); }, [load]);
+
+  const filtered = useMemo(() => {
+    if (activeFilter === "all") return rules;
+    return rules.filter((r) => r.category === activeFilter);
+  }, [rules, activeFilter]);
+
+  const ackedCount = useMemo(
+    () => rules.filter((r) => r.requires_acknowledgment && r.acknowledged).length,
+    [rules],
   );
 
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    load(true);
-  }, [load]);
+  const importantCount = useMemo(
+    () => rules.filter((r) => r.severity === "important").length,
+    [rules],
+  );
 
-  const filteredRules = useMemo(() => {
-    if (selectedCategory === "all") return rules;
-    return rules.filter((r) => r.category === selectedCategory);
-  }, [rules, selectedCategory]);
+  const openRule = (rule) =>
+    router.push({ pathname: PropertyManagementRoutes.RULE_DETAIL, params: { ruleId: String(rule.id) } });
 
-  const filterOptions = useMemo(() => [
-    { key: "all", label: "All", count: rules.length },
-    ...categories.map((cat) => ({ key: cat.name, label: cat.name, count: cat.count })),
-  ], [categories, rules.length]);
+  const openAddRule = () => router.push(PropertyManagementRoutes.RULE_FORM);
 
-  const openRule = (rule) => {
-    router.push({
-      pathname: PropertyManagementRoutes.RULE_DETAIL,
-      params: { ruleId: String(rule.id) },
-    });
-  };
-
-  const openAddRule = () => {
-    router.push(PropertyManagementRoutes.RULE_FORM);
-  };
-
-  const selectCategory = (key) => {
-    setSelectedCategory((prev) => (prev === key ? "all" : key));
-  };
-
-  if (loading) {
+  if (loading && !hasLoadedOnce.current) {
     return (
-      <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
-        <InternalScreenHeader title="Community Rules" subtitle="Loading…" />
+      <SafeAreaView style={styles.screen} edges={["left", "right"]}>
+        <InternalScreenHeader title={t("propertyMgmt.rulesTitle")} />
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#0A2A43" />
+          <ActivityIndicator size="large" color={T.navy} />
         </View>
       </SafeAreaView>
     );
   }
 
-  const subtitle = `${rules.length} rule${rules.length !== 1 ? "s" : ""} & guidelines`;
-
   return (
-    <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
+    <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <InternalScreenHeader
-        title="Community Rules"
-        subtitle={subtitle}
+        title={t("propertyMgmt.rulesTitle")}
         right={
           isAdmin ? (
-            <Pressable onPress={openAddRule} style={styles.addBtn}>
-              <Feather name="plus" size={sf(16)} color="#0A2A43" />
-              <Text style={styles.addBtnText}>Add Rule</Text>
+            <Pressable onPress={openAddRule} style={styles.addBtn} hitSlop={6}>
+              <Feather name="plus" size={sf(16)} color={T.navy} />
+              <Text style={styles.addBtnText}>{t("propertyMgmt.addBtn")}</Text>
             </Pressable>
           ) : null
         }
@@ -159,516 +196,360 @@ export default function CommunityRules() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={pageStyles.scrollBottom}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0A2A43" colors={["#0A2A43"]} />}
+        contentContainerStyle={styles.scroll}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={T.teal} colors={[T.teal]} />
+        }
       >
-        {!isAdmin && unacknowledged > 0 && (
-          <View style={propertyStyles.sectionBlock}>
-            <Pressable
-              style={styles.alertBanner}
-              onPress={() => {
-                const first = rules.find((r) => r.needs_action);
-                if (first) openRule(first);
-              }}
-            >
-              <Feather name="alert-circle" size={sf(18)} color="#E7000B" style={{ marginTop: 2 }} />
-              <View style={styles.alertBody}>
-                <Text style={styles.alertTitle}>Action Required</Text>
-                <Text style={styles.alertText}>
-                  {unacknowledged} rule{unacknowledged !== 1 ? "s" : ""} require{unacknowledged === 1 ? "s" : ""} your acknowledgment
-                </Text>
-                <View style={styles.alertLink}>
-                  <Text style={styles.alertLinkText}>Review Now</Text>
-                  <Feather name="arrow-right" size={sf(11)} color="#E7000B" />
-                </View>
-              </View>
-            </Pressable>
+        {/* ── Stats strip ── */}
+        <View style={styles.statsStrip}>
+          <View style={styles.statItem}>
+            <Text style={styles.statNum}>{rules.length}</Text>
+            <Text style={styles.statLabel}>{t("propertyMgmt.rulesCount")}</Text>
           </View>
-        )}
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statNum}>{categories.length}</Text>
+            <Text style={styles.statLabel}>{t("propertyMgmt.categoriesCount")}</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={[styles.statNum, importantCount > 0 && { color: "#DC2626" }]}>{importantCount}</Text>
+            <Text style={styles.statLabel}>{t("propertyMgmt.importantLabel")}</Text>
+          </View>
+          {!isAdmin ? (
+            <>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={[styles.statNum, { color: T.deepTeal }]}>{ackedCount}</Text>
+                <Text style={styles.statLabel}>{t("propertyMgmt.ackdLabel")}</Text>
+              </View>
+            </>
+          ) : null}
+        </View>
 
-        {error && (
-          <View style={[propertyStyles.sectionBlock, styles.errorBox]}>
+        {/* ── Action required ── */}
+        {!isAdmin && unacknowledged > 0 ? (
+          <Pressable
+            style={styles.alertRow}
+            onPress={() => {
+              const first = rules.find((r) => r.needs_action);
+              if (first) openRule(first);
+            }}
+          >
+            <View style={styles.alertDot} />
+            <Text style={styles.alertText}>
+              {t("propertyMgmt.awaitingReview", { count: unacknowledged })}
+            </Text>
+            <Feather name={arrowForward()} size={sf(14)} color="#991B1B" />
+          </Pressable>
+        ) : null}
+
+        {/* ── Error ── */}
+        {error ? (
+          <View style={styles.errorBox}>
             <Text style={styles.errorText}>{error}</Text>
-            <Pressable onPress={() => load()} style={styles.retryBtn}>
-              <Text style={styles.retryText}>Retry</Text>
+            <Pressable onPress={() => load()}>
+              <Text style={styles.linkText}>{t("common.retry")}</Text>
             </Pressable>
           </View>
-        )}
+        ) : null}
 
-        {categories.length > 0 && (
-          <View style={propertyStyles.sectionBlock}>
-            <View style={styles.quickCategoriesCard}>
-              <View style={styles.quickCategoriesHeader}>
-                <View style={styles.headingRow}>
-                  <View style={styles.headingIconWrap}>
-                    <Feather name="grid" size={sf(14)} color="#0A2A43" />
-                  </View>
-                  <View>
-                    <Text style={propertyStyles.sectionTitle}>Quick Categories</Text>
-                    <Text style={styles.quickCategoriesHint}>Tap a category to filter rules</Text>
-                  </View>
-                </View>
-                {selectedCategory !== "all" && (
-                  <Pressable onPress={() => setSelectedCategory("all")} style={styles.clearFilterBtn}>
-                    <Text style={styles.clearFilterText}>Clear</Text>
-                  </Pressable>
-                )}
-              </View>
-
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.quickCategoriesScroll}
-              >
-                {categories.map((cat, index) => {
-                  const meta = getCategoryMeta(cat.name, index);
-                  const isSelected = selectedCategory === cat.name;
-                  return (
-                    <Pressable
-                      key={cat.name}
-                      onPress={() => selectCategory(cat.name)}
-                      style={({ pressed }) => [
-                        styles.quickCatCard,
-                        isSelected && styles.quickCatCardActive,
-                        pressed && styles.quickCatCardPressed,
-                      ]}
-                    >
-                      <View style={[styles.quickCatIcon, { backgroundColor: meta.bg }]}>
-                        <Feather name={meta.icon} size={sf(16)} color={meta.color} />
-                      </View>
-                      <Text
-                        style={[styles.quickCatTitle, isSelected && styles.quickCatTitleActive]}
-                        numberOfLines={2}
-                      >
-                        {cat.name}
-                        <Text style={[styles.quickCatCountInline, isSelected && styles.quickCatCountInlineActive]}>
-                          {" "}({cat.count})
-                        </Text>
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </View>
-          </View>
-        )}
-
-        <View style={[propertyStyles.sectionBlock, styles.lastSection]}>
-          <View style={styles.rulesSectionHeader}>
-            <View>
-              <Text style={propertyStyles.sectionTitle}>All Rules</Text>
-              <Text style={styles.rulesSectionSub}>
-                {filteredRules.length} of {rules.length} rule{rules.length !== 1 ? "s" : ""}
-                {selectedCategory !== "all" ? ` in ${selectedCategory}` : ""}
-              </Text>
-            </View>
-          </View>
-
-          {categories.length > 0 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterChipsScroll}
-              style={styles.filterChipsList}
+        {/* ── Category filter chips ── */}
+        {categories.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipRail}
+            style={styles.chipWrap}
+          >
+            <Pressable
+              onPress={() => setActiveFilter("all")}
+              style={[styles.chip, activeFilter === "all" && styles.chipOn]}
             >
-              {filterOptions.map((option) => {
-                const isActive = selectedCategory === option.key;
-                return (
-                  <Pressable
-                    key={option.key}
-                    onPress={() => setSelectedCategory(option.key)}
-                    style={[styles.filterChip, isActive && styles.filterChipActive]}
-                  >
-                    <Text
-                      style={[styles.filterChipText, isActive && styles.filterChipTextActive]}
-                      numberOfLines={1}
-                    >
-                      {option.key === "all" ? "All" : option.label}
-                    </Text>
-                    <View style={[styles.filterChipBadge, isActive && styles.filterChipBadgeActive]}>
-                      <Text style={[styles.filterChipBadgeText, isActive && styles.filterChipBadgeTextActive]}>
-                        {option.count}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          )}
+              <Text style={[styles.chipLabel, activeFilter === "all" && styles.chipLabelOn]}>{t("propertyMgmt.allFilter")}</Text>
+            </Pressable>
+            {categories.map((cat) => {
+              const on = activeFilter === cat.name;
+              const m = catMeta(cat.name);
+              return (
+                <Pressable
+                  key={cat.name}
+                  onPress={() => setActiveFilter(on ? "all" : cat.name)}
+                  style={[styles.chip, on && styles.chipOn]}
+                >
+                  <Feather name={m.icon} size={sf(12)} color={on ? "#FFF" : m.accent} />
+                  <Text style={[styles.chipLabel, on && styles.chipLabelOn]} numberOfLines={1}>
+                    {cat.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : null}
 
-          {rules.length === 0 && !error && (
-            <View style={styles.empty}>
-              <Feather name="book-open" size={sf(32)} color="#D1D5DB" />
-              <Text style={styles.emptyText}>No rules yet</Text>
-              {isAdmin && (
-                <Text style={styles.emptyHint}>Tap "Add Rule" to create your first community rule.</Text>
-              )}
+        {/* ── Section label ── */}
+        <View style={styles.sectionHead}>
+          <Text style={styles.sectionLabel}>
+            {activeFilter === "all" ? t("propertyMgmt.allGuidelines") : activeFilter}
+          </Text>
+          <Text style={styles.sectionCount}>{filtered.length}</Text>
+        </View>
+
+        {/* ── Empty states ── */}
+        {rules.length === 0 && !error ? (
+          <View style={styles.empty}>
+            <View style={styles.emptyIcon}>
+              <Feather name="book-open" size={sf(24)} color={T.deepTeal} />
             </View>
-          )}
-
-          {rules.length > 0 && filteredRules.length === 0 && (
-            <View style={styles.empty}>
-              <Feather name="filter" size={sf(28)} color="#D1D5DB" />
-              <Text style={styles.emptyText}>No rules in this category</Text>
-              <Pressable onPress={() => setSelectedCategory("all")} style={styles.showAllBtn}>
-                <Text style={styles.showAllBtnText}>Show all rules</Text>
+            <Text style={styles.emptyTitle}>{t("propertyMgmt.noRules")}</Text>
+            <Text style={styles.emptyHint}>
+              {isAdmin ? t("propertyMgmt.createFirstGuideline") : t("propertyMgmt.guidelinesPublished")}
+            </Text>
+            {isAdmin ? (
+              <Pressable onPress={openAddRule} style={styles.emptyCta}>
+                <Feather name="plus" size={sf(14)} color="#FFF" />
+                <Text style={styles.emptyCtaText}>{t("propertyMgmt.addRule")}</Text>
               </Pressable>
-            </View>
-          )}
+            ) : null}
+          </View>
+        ) : null}
 
-          {filteredRules.map((rule) => {
-            const typeStyle = TYPE_STYLES[rule.severity] ?? TYPE_STYLES.info;
-            return (
-              <Pressable key={rule.id} style={styles.ruleCard} onPress={() => openRule(rule)}>
-                <View style={styles.ruleHeader}>
-                  <View style={[styles.ruleIconWrap, { backgroundColor: typeStyle.bg }]}>
-                    <SeverityIcon severity={rule.severity} />
-                  </View>
+        {rules.length > 0 && filtered.length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>{t("propertyMgmt.nothingHere")}</Text>
+            <Pressable onPress={() => setActiveFilter("all")}>
+              <Text style={styles.linkText}>{t("propertyMgmt.showAllGuidelines")}</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
-                  <View style={styles.ruleBody}>
-                    <Text style={styles.ruleTitle} numberOfLines={2}>{rule.title}</Text>
-                    <Text style={styles.ruleCategory}>{rule.category}</Text>
-                    <Text style={styles.ruleDescription} numberOfLines={2}>{rule.description}</Text>
-                  </View>
-
-                  <View style={styles.ruleRight}>
-                    {isAdmin ? (
-                      <Feather name="chevron-right" size={sf(16)} color="#9CA3AF" />
-                    ) : rule.needs_action ? (
-                      <View style={styles.ackBadge}>
-                        <Text style={styles.ackBadgeText}>Ack.</Text>
-                      </View>
-                    ) : rule.requires_acknowledgment && rule.acknowledged ? (
-                      <Feather name="check-circle" size={sf(16)} color="#10B981" />
-                    ) : (
-                      <Feather name="chevron-right" size={sf(16)} color="#9CA3AF" />
-                    )}
-                  </View>
-                </View>
-
-                <View style={styles.ruleFooter}>
-                  <View style={styles.updatedRow}>
-                    <Feather name="clock" size={sf(11)} color="#9CA3AF" />
-                    <Text style={styles.updatedText}>
-                      Updated {rule.updated_at
-                        ? new Date(rule.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-                        : "—"}
-                    </Text>
-                  </View>
-                  <View style={[styles.typePill, { backgroundColor: typeStyle.bg }]}>
-                    <Text style={[styles.typeText, { color: typeStyle.color }]}>{typeStyle.label}</Text>
-                  </View>
-                </View>
-              </Pressable>
-            );
-          })}
+        {/* ── Rule cards ── */}
+        <View style={styles.list}>
+          {filtered.map((rule, i) => (
+            <RuleCard
+              key={rule.id}
+              rule={rule}
+              isAdmin={isAdmin}
+              onPress={() => openRule(rule)}
+              isLast={i === filtered.length - 1}
+            />
+          ))}
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+const G = sw(18);
+const shadow = Platform.select({
+  ios: { shadowColor: T.navy, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12 },
+  android: { elevation: 3 },
+});
+
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: T.canvas },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+  scroll: { paddingBottom: sw(48) },
+
   addBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: sw(4),
-    paddingVertical: sw(6),
+    paddingVertical: sw(7),
     paddingHorizontal: sw(12),
-    borderRadius: sw(8),
-    backgroundColor: "#D1FAF5",
-    borderWidth: 1,
-    borderColor: "rgba(20, 184, 166, 0.28)",
+    borderRadius: sw(10),
+    backgroundColor: T.mint,
   },
-  addBtnText: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(12),
-    color: "#0A2A43",
-    fontWeight: "700",
-  },
-  alertBanner: {
+  addBtnText: { fontFamily: Fonts.semiBold, fontSize: sf(12), color: T.navy, fontWeight: "600" },
+
+  /* Stats strip */
+  statsStrip: {
     flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: G,
+    marginTop: sw(4),
+    marginBottom: sw(16),
+    backgroundColor: T.white,
+    borderRadius: sw(14),
+    paddingVertical: sw(14),
+    borderWidth: 1,
+    borderColor: T.border,
+  },
+  statItem: { flex: 1, alignItems: "center" },
+  statDivider: { width: 1, height: sw(28), backgroundColor: T.border },
+  statNum: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(18),
+    color: T.navy,
+    fontWeight: "700",
+    includeFontPadding: false,
+  },
+  statLabel: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(10),
+    color: T.gray,
+    marginTop: sw(2),
+    includeFontPadding: false,
+  },
+
+  /* Alert */
+  alertRow: {
+    marginHorizontal: G,
+    marginBottom: sw(14),
+    flexDirection: "row",
+    alignItems: "center",
     gap: sw(10),
     backgroundColor: "#FEF2F2",
-    borderWidth: 1,
-    borderColor: "#FFE2E2",
     borderRadius: sw(14),
-    padding: sw(16),
-  },
-  alertBody: { flex: 1, minWidth: 0 },
-  alertTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: PropertyType.body,
-    lineHeight: PropertyType.headingLine,
-    color: "#82181A",
-    fontWeight: "700",
-  },
-  alertText: {
-    fontFamily: Fonts.regular,
-    fontSize: PropertyType.caption,
-    lineHeight: PropertyType.bodyMdLine,
-    color: "#C10007",
-    marginTop: 2,
-  },
-  alertLink: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: sw(6) },
-  alertLinkText: {
-    fontFamily: Fonts.bold,
-    fontSize: PropertyType.caption,
-    color: "#E7000B",
-    fontWeight: "700",
-  },
-  quickCategoriesCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: sw(16),
+    paddingVertical: sw(12),
+    paddingHorizontal: sw(14),
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: sw(14),
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    borderColor: "#FECACA",
   },
-  quickCategoriesHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    marginBottom: sw(14),
-    gap: sw(8),
-  },
-  headingRow: {
+  alertDot: { width: sw(8), height: sw(8), borderRadius: sw(4), backgroundColor: "#DC2626" },
+  alertText: { fontFamily: Fonts.medium, fontSize: sf(13), color: "#991B1B", flex: 1, fontWeight: "500", includeFontPadding: false },
+
+  /* Error */
+  errorBox: { marginHorizontal: G, marginBottom: sw(12), padding: sw(14), borderRadius: sw(14), backgroundColor: "#FEF2F2", gap: sw(6) },
+  errorText: { fontFamily: Fonts.regular, fontSize: sf(13), color: "#B91C1C", includeFontPadding: false },
+  linkText: { fontFamily: Fonts.semiBold, fontSize: sf(13), color: T.navy, fontWeight: "600" },
+
+  /* Chips */
+  chipWrap: { flexGrow: 0, marginBottom: sw(14) },
+  chipRail: { paddingHorizontal: G, gap: sw(8) },
+  chip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: sw(10),
-    flex: 1,
-  },
-  headingIconWrap: {
-    width: sw(36),
-    height: sw(36),
-    borderRadius: sw(10),
-    backgroundColor: "#D1FAF5",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quickCategoriesHint: {
-    fontFamily: Fonts.regular,
-    fontSize: sf(11),
-    lineHeight: sf(15),
-    color: "#9CA3AF",
-    marginTop: 2,
-  },
-  clearFilterBtn: {
-    paddingVertical: sw(4),
-    paddingHorizontal: sw(10),
-    borderRadius: sw(8),
-    backgroundColor: "#F3F4F6",
-  },
-  clearFilterText: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(11),
-    color: "#4A5565",
-    fontWeight: "700",
-  },
-  quickCategoriesScroll: {
-    gap: sw(10),
-    paddingRight: sw(4),
-  },
-  quickCatCard: {
-    width: sw(118),
-    minHeight: sw(96),
-    borderRadius: sw(14),
+    gap: sw(5),
+    paddingVertical: sw(8),
+    paddingHorizontal: sw(14),
+    borderRadius: sw(999),
+    backgroundColor: T.white,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#FAFAFA",
-    padding: sw(12),
-    justifyContent: "space-between",
+    borderColor: T.border,
   },
-  quickCatCardActive: {
-    borderColor: "#0A2A43",
-    backgroundColor: "#D1FAF5",
-    shadowColor: "#0A2A43",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  quickCatCardPressed: { opacity: 0.92 },
-  quickCatIcon: {
-    width: sw(32),
-    height: sw(32),
-    borderRadius: sw(10),
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quickCatTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(11.5),
-    lineHeight: sf(15),
-    color: "#101828",
-    fontWeight: "700",
-    marginTop: sw(8),
-  },
-  quickCatTitleActive: { color: "#0A2A43" },
-  quickCatCountInline: {
-    fontFamily: Fonts.medium,
-    fontSize: sf(10.5),
-    color: "#9CA3AF",
-    fontWeight: "600",
-  },
-  quickCatCountInlineActive: { color: "#60A5FA" },
-  rulesSectionHeader: {
+  chipOn: { backgroundColor: T.navy, borderColor: T.navy },
+  chipLabel: { fontFamily: Fonts.medium, fontSize: sf(12), color: T.navy, fontWeight: "600", includeFontPadding: false },
+  chipLabelOn: { color: "#FFFFFF" },
+
+  /* Section */
+  sectionHead: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
+    paddingHorizontal: G,
     marginBottom: sw(10),
   },
-  rulesSectionSub: {
+  sectionLabel: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(12),
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: T.gray,
+    fontWeight: "600",
+    includeFontPadding: false,
+  },
+  sectionCount: { fontFamily: Fonts.semiBold, fontSize: sf(12), color: T.deepTeal, fontWeight: "600" },
+
+  /* Rule card */
+  list: { paddingHorizontal: G },
+  card: {
+    flexDirection: "row",
+    backgroundColor: T.white,
+    borderRadius: sw(14),
+    borderWidth: 1.5,
+    borderColor: T.border,
+    overflow: "hidden",
+    ...shadow,
+  },
+  cardGap: { marginBottom: sw(12) },
+  cardPressed: { opacity: 0.92, transform: [{ scale: 0.985 }] },
+  cardAccent: { width: sw(5) },
+  cardInner: { flex: 1, padding: sw(14) },
+  cardTop: { flexDirection: "row", alignItems: "center", gap: sw(10), marginBottom: sw(8) },
+  cardIcon: { width: sw(34), height: sw(34), borderRadius: sw(11), alignItems: "center", justifyContent: "center" },
+  cardTopText: { flex: 1, minWidth: 0 },
+  cardCategory: { fontFamily: Fonts.medium, fontSize: sf(11), color: T.gray, fontWeight: "500", includeFontPadding: false },
+  sevChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(3),
+    paddingHorizontal: sw(7),
+    paddingVertical: sw(3),
+    borderRadius: sw(6),
+    borderWidth: 1,
+  },
+  sevChipText: { fontFamily: Fonts.semiBold, fontSize: sf(9), fontWeight: "600", includeFontPadding: false },
+  cardTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(14),
+    lineHeight: sf(20),
+    color: T.navy,
+    fontWeight: "700",
+    includeFontPadding: false,
+  },
+  cardDesc: {
     fontFamily: Fonts.regular,
     fontSize: sf(12),
-    lineHeight: sf(16),
-    color: "#9CA3AF",
-    marginTop: 2,
+    lineHeight: sf(17),
+    color: T.gray,
+    marginTop: sw(4),
+    includeFontPadding: false,
   },
-  filterChipsList: { marginBottom: sw(12), flexGrow: 0 },
-  filterChipsScroll: { gap: sw(8), paddingRight: sw(4) },
-  filterChip: {
+  cardFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: sw(10),
+    paddingTop: sw(8),
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#F1F5F9",
+  },
+  cardDate: { fontFamily: Fonts.regular, fontSize: sf(11), color: "#94A3B8", includeFontPadding: false },
+  ackBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(4),
+    backgroundColor: "#FEF2F2",
+    paddingHorizontal: sw(8),
+    paddingVertical: sw(4),
+    borderRadius: sw(8),
+  },
+  ackBadgeText: { fontFamily: Fonts.semiBold, fontSize: sf(10), color: "#DC2626", fontWeight: "600", includeFontPadding: false },
+  doneBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(4),
+    backgroundColor: T.mint,
+    paddingHorizontal: sw(8),
+    paddingVertical: sw(4),
+    borderRadius: sw(8),
+  },
+  doneBadgeText: { fontFamily: Fonts.semiBold, fontSize: sf(10), color: T.deepTeal, fontWeight: "600", includeFontPadding: false },
+
+  /* Empty */
+  empty: { alignItems: "center", paddingVertical: sw(44), paddingHorizontal: sw(28), gap: sw(8) },
+  emptyIcon: {
+    width: sw(56),
+    height: sw(56),
+    borderRadius: sw(18),
+    backgroundColor: T.mint,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: sw(4),
+  },
+  emptyTitle: { fontFamily: Fonts.semiBold, fontSize: sf(16), color: T.navy, fontWeight: "600", includeFontPadding: false },
+  emptyHint: { fontFamily: Fonts.regular, fontSize: sf(13), lineHeight: sf(18), color: T.gray, textAlign: "center", includeFontPadding: false },
+  emptyCta: {
+    marginTop: sw(12),
     flexDirection: "row",
     alignItems: "center",
     gap: sw(6),
-    paddingVertical: sw(8),
-    paddingHorizontal: sw(12),
-    borderRadius: sw(999),
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#FFFFFF",
-    maxWidth: sw(200),
+    backgroundColor: T.navy,
+    paddingVertical: sw(11),
+    paddingHorizontal: sw(18),
+    borderRadius: sw(12),
   },
-  filterChipActive: {
-    borderColor: "#0A2A43",
-    backgroundColor: "#0A2A43",
-  },
-  filterChipText: {
-    fontFamily: Fonts.medium,
-    fontSize: sf(12),
-    color: "#4A5565",
-    fontWeight: "600",
-    flexShrink: 1,
-  },
-  filterChipTextActive: { color: "#FFFFFF" },
-  filterChipBadge: {
-    minWidth: sw(20),
-    paddingHorizontal: sw(6),
-    paddingVertical: sw(1),
-    borderRadius: sw(999),
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-  },
-  filterChipBadgeActive: { backgroundColor: "rgba(255,255,255,0.22)" },
-  filterChipBadgeText: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(10),
-    color: "#6A7282",
-    fontWeight: "700",
-  },
-  filterChipBadgeTextActive: { color: "#FFFFFF" },
-  lastSection: { borderBottomWidth: 0 },
-  ruleCard: {
-    marginTop: sw(12),
-    borderWidth: 1,
-    borderColor: "#F3F4F6",
-    borderRadius: sw(14),
-    padding: sw(14),
-    backgroundColor: "#FFFFFF",
-  },
-  ruleHeader: { flexDirection: "row", gap: sw(10), alignItems: "flex-start" },
-  ruleIconWrap: {
-    width: sw(34),
-    height: sw(34),
-    borderRadius: sw(10),
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  ruleBody: { flex: 1, minWidth: 0, gap: 2 },
-  ruleRight: { flexShrink: 0, alignItems: "flex-end", paddingTop: sw(2) },
-  ruleTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: PropertyType.body,
-    lineHeight: PropertyType.headingLine,
-    color: "#101828",
-    fontWeight: "700",
-  },
-  ruleCategory: {
-    fontFamily: Fonts.medium,
-    fontSize: PropertyType.caption,
-    lineHeight: PropertyType.captionLine,
-    color: "#6A7282",
-  },
-  ruleDescription: {
-    fontFamily: Fonts.regular,
-    fontSize: PropertyType.caption,
-    lineHeight: PropertyType.bodyMdLine,
-    color: "#364153",
-    marginTop: 2,
-  },
-  ackBadge: {
-    backgroundColor: "#FEF2F2",
-    borderRadius: sw(6),
-    paddingHorizontal: sw(6),
-    paddingVertical: sw(2),
-    borderWidth: 1,
-    borderColor: "#FFE2E2",
-  },
-  ackBadgeText: {
-    fontFamily: Fonts.bold,
-    fontSize: PropertyType.micro,
-    color: "#E7000B",
-    fontWeight: "700",
-  },
-  ruleFooter: {
-    marginTop: sw(10),
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: sw(8),
-  },
-  updatedRow: { flexDirection: "row", alignItems: "center", gap: sw(4), flex: 1 },
-  updatedText: {
-    fontFamily: Fonts.medium,
-    fontSize: PropertyType.caption,
-    lineHeight: PropertyType.captionLine,
-    color: "#9CA3AF",
-  },
-  typePill: {
-    paddingVertical: sw(4),
-    paddingHorizontal: sw(10),
-    borderRadius: sw(8),
-    flexShrink: 0,
-  },
-  typeText: {
-    fontFamily: Fonts.medium,
-    fontSize: PropertyType.caption,
-    lineHeight: PropertyType.captionLine,
-  },
-  empty: { alignItems: "center", paddingVertical: sw(40), gap: sw(8) },
-  emptyText: { fontFamily: Fonts.bold, fontSize: sf(15), color: "#9CA3AF", fontWeight: "700" },
-  emptyHint: { fontFamily: Fonts.regular, fontSize: sf(12), color: "#D1D5DB", textAlign: "center" },
-  showAllBtn: {
-    marginTop: sw(4),
-    paddingVertical: sw(8),
-    paddingHorizontal: sw(14),
-    borderRadius: sw(8),
-    backgroundColor: "#D1FAF5",
-  },
-  showAllBtnText: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(12),
-    color: "#0A2A43",
-    fontWeight: "700",
-  },
-  errorBox: { gap: sw(8) },
-  errorText: { fontFamily: Fonts.regular, fontSize: sf(13), color: "#E7000B" },
-  retryBtn: { alignSelf: "flex-start" },
-  retryText: { fontFamily: Fonts.bold, fontSize: sf(13), color: "#0A2A43", fontWeight: "700" },
+  emptyCtaText: { fontFamily: Fonts.semiBold, fontSize: sf(13), color: "#FFFFFF", fontWeight: "600" },
 });

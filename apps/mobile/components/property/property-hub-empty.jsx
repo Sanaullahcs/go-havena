@@ -1,10 +1,12 @@
 import React from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
+import { useTranslation } from "react-i18next";
 import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { Colors } from "../../constants/tokens";
 import { PropertyHubTheme } from "../../constants/property-management-theme";
 import { sf, sw } from "../../utils/responsive";
+import { arrowForward } from "../../utils/rtl";
 
 const ACCENTS = {
   blue: {
@@ -64,7 +66,7 @@ function EmptyShell({
           accessibilityRole="button"
         >
           <Text style={styles.ctaText}>{cta}</Text>
-          <Feather name="arrow-right" size={sf(12)} color="#FFFFFF" />
+          <Feather name={arrowForward()} size={sf(12)} color="#FFFFFF" />
         </Pressable>
       </View>
     </View>
@@ -73,13 +75,15 @@ function EmptyShell({
 
 /** Friendly empty state when there is no recent activity yet. */
 export default function PropertyHubEmpty({ isAdmin, onAction, variant = "default" }) {
+  const { t } = useTranslation();
+
   if (variant === "reservations-only") {
     return (
       <EmptyShell
         icon="calendar"
-        title="No reservations yet"
-        subtitle="Browse amenities and pick a date to make your first reservation."
-        cta="Browse amenities"
+        title={t("property.emptyReservationsTitle")}
+        subtitle={t("property.emptyReservationsSub")}
+        cta={t("property.browseAmenities")}
         routeKey="AMENITY"
         onAction={onAction}
         tone="blue"
@@ -91,13 +95,13 @@ export default function PropertyHubEmpty({ isAdmin, onAction, variant = "default
     return (
       <EmptyShell
         icon="check-circle"
-        title="Approval queue is clear"
-        subtitle="Nothing needs your review right now. New amenity submissions and booking requests will show up here."
-        cta="Manage amenities"
+        title={t("property.emptyAdminTitle")}
+        subtitle={t("property.emptyAdminSub")}
+        cta={t("property.manageAmenities")}
         routeKey="ADMIN_AMENITIES"
         onAction={onAction}
         tone="green"
-        hints={["Amenity reviews", "Booking requests"]}
+        hints={[t("property.hintAmenityReviews"), t("property.hintBookingRequests")]}
       />
     );
   }
@@ -105,9 +109,9 @@ export default function PropertyHubEmpty({ isAdmin, onAction, variant = "default
   return (
     <EmptyShell
       icon="compass"
-      title="Ready to explore"
-      subtitle="Browse amenities or review community rules to get started."
-      cta="Browse amenities"
+      title={t("property.emptyExploreTitle")}
+      subtitle={t("property.emptyExploreSub")}
+      cta={t("property.browseAmenities")}
       routeKey="AMENITY"
       onAction={onAction}
       tone="blue"
@@ -200,7 +204,7 @@ const styles = StyleSheet.create({
     fontSize: sf(10),
     lineHeight: sf(14),
     color: "#047857",
-    marginLeft: sw(4),
+    marginStart: sw(4),
   },
   cta: {
     flexDirection: "row",
@@ -213,7 +217,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: sf(11),
     color: "#FFFFFF",
-    marginRight: sw(5),
+    marginEnd: sw(5),
   },
   pressed: {
     opacity: 0.9,

@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 
+import { useTranslation } from "react-i18next";
 import ScreenHeader from "../layout/screen-header";
 import { HeaderIconSlot } from "../layout/header-chrome";
 import CommunityFeedPanel from "./community-feed-panel";
@@ -15,20 +16,21 @@ import { Fonts } from "../../constants/font";
 import { sf, sw } from "../../utils/responsive";
 
 const TABS = [
-  { id: "feed", label: "Feed", icon: "message-circle" },
-  { id: "marketplace", label: "Marketplace", icon: "shopping-bag" },
-  { id: "deals", label: "Deals", icon: "tag" },
+  { id: "feed", labelKey: "community.feed", icon: "message-circle", color: T.navy },
+  { id: "marketplace", labelKey: "community.marketplace", icon: "shopping-bag", color: T.deepTeal },
+  { id: "deals", labelKey: "community.deals", icon: "tag", color: "#D97706" },
 ];
 
-const TAB_SUBTITLES = {
-  feed: "Posts, updates & conversations",
-  marketplace: "Neighbor listings & services",
-  deals: "Local deals & offers",
+const TAB_SUBTITLE_KEYS = {
+  feed: "community.feedSub",
+  marketplace: "community.marketplaceSub",
+  deals: "community.dealsSub",
 };
 
 /** Community bottom-tab root — Feed, Marketplace listings, and Deals in one screen. */
 export default function CommunityTabScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState("feed");
 
   const headerRight = useCallback(() => {
@@ -38,22 +40,22 @@ export default function CommunityTabScreen() {
         onPress={() => router.push("/screens/community-feed/search")}
         hitSlop={12}
         accessibilityRole="button"
-        accessibilityLabel="Search community feed"
+        accessibilityLabel={t("common.search")}
       >
         <HeaderIconSlot>
           <Feather name="search" size={18} color={T.navy} />
         </HeaderIconSlot>
       </Pressable>
     );
-  }, [activeTab, router]);
+  }, [activeTab, router, t]);
 
-  const subtitle = TAB_SUBTITLES[activeTab] ?? TAB_SUBTITLES.feed;
+  const subtitle = t(TAB_SUBTITLE_KEYS[activeTab] ?? TAB_SUBTITLE_KEYS.feed);
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <ScreenHeader
         layout="stacked"
-        title="Community"
+        title={t("community.title")}
         subtitle={subtitle}
         showBack={false}
         iconOnly
@@ -64,14 +66,18 @@ export default function CommunityTabScreen() {
         <View style={styles.tabBar}>
           {TABS.map((tab) => {
             const active = activeTab === tab.id;
+            const label = t(tab.labelKey);
             return (
               <Pressable
                 key={tab.id}
-                style={[styles.tabButton, active && styles.tabButtonActive]}
+                style={[
+                  styles.tabButton,
+                  active && { backgroundColor: tab.color, borderColor: tab.color },
+                ]}
                 onPress={() => setActiveTab(tab.id)}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
-                accessibilityLabel={tab.label}
+                accessibilityLabel={label}
               >
                 <Feather
                   name={tab.icon}
@@ -79,7 +85,7 @@ export default function CommunityTabScreen() {
                   color={active ? T.white : T.gray}
                 />
                 <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
-                  {tab.label}
+                  {label}
                 </Text>
               </Pressable>
             );
@@ -144,10 +150,7 @@ const styles = StyleSheet.create({
       default: {},
     }),
   },
-  tabButtonActive: {
-    backgroundColor: T.teal,
-    borderColor: T.teal,
-  },
+  tabButtonActive: {},
   tabLabel: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(12),

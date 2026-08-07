@@ -3,6 +3,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ScrollView } from "react-native";
+import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import UserAvatar from "../../../components/ui/user-avatar";
 import { LeaderboardSkeleton } from "../../../components/ui/skeleton-loader";
@@ -31,11 +32,12 @@ const NEUTRAL_RANK = { soft: "#D1FAF5", text: Colors.brandPrimaryDeep };
 
 const PODIUM_ORDER = [2, 1, 3];
 
-function firstName(name) {
-  return name?.split(" ")[0] ?? "Member";
+function firstName(name, fallback = "Member") {
+  return name?.split(" ")[0] ?? fallback;
 }
 
 export default function LeaderBoard() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState(null);
@@ -84,7 +86,7 @@ export default function LeaderBoard() {
       return {
         rank,
         id: entry.user_id,
-        name: firstName(entry.name),
+        name: firstName(entry.name, t('achievements.member')),
         avatar: entry.avatar_url,
         points: formatPoints(entry.total_points),
         highlight: entry.is_me,
@@ -105,8 +107,8 @@ export default function LeaderBoard() {
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <InternalScreenHeader
-        title="Community Leaderboard"
-        subtitle="Rankings based on wellness points"
+        title={t('achievements.leaderboardTitle')}
+        subtitle={t('achievements.leaderboardSubtitle')}
       />
 
       <ScrollView
@@ -120,12 +122,12 @@ export default function LeaderBoard() {
             {/* Your position */}
             <View style={styles.positionCard}>
               <View style={styles.positionTop}>
-                <Text style={styles.positionEyebrow}>Your position</Text>
+                <Text style={styles.positionEyebrow}>{t('achievements.yourPosition')}</Text>
                 {weekPoints > 0 ? (
                   <View style={styles.weekChip}>
                     <Feather name="trending-up" size={sf(12)} color={Colors.brandPrimaryDeep} />
                     <Text style={styles.weekChipText}>
-                      +{formatPoints(weekPoints)} this week
+                      {t('achievements.thisWeek', { points: formatPoints(weekPoints) })}
                     </Text>
                   </View>
                 ) : null}
@@ -143,13 +145,13 @@ export default function LeaderBoard() {
                   </Text>
                   <Text style={styles.positionSub} numberOfLines={1}>
                     {profileFields.unitNumber
-                      ? `Unit ${profileFields.unitNumber}`
+                      ? t('achievements.unit', { number: profileFields.unitNumber })
                       : profileFields.communityName}
                   </Text>
                 </View>
                 <View style={styles.positionRankBox}>
                   <Text style={styles.positionRank}>{formatRank(resolvedRank)}</Text>
-                  <Text style={styles.positionPoints}>{formatPoints(myPoints)} pts</Text>
+                  <Text style={styles.positionPoints}>{t('achievements.pointsValue', { points: formatPoints(myPoints) })}</Text>
                 </View>
               </View>
 
@@ -158,8 +160,8 @@ export default function LeaderBoard() {
                   <Feather name="users" size={sf(12)} color={Colors.textMuted} />
                   <Text style={styles.positionFootText}>
                     {peopleBelow === 1
-                      ? "1 neighbor below you"
-                      : `${peopleBelow} neighbors below you`}
+                      ? t('achievements.oneNeighborBelow')
+                      : t('achievements.neighborsBelow', { count: peopleBelow })}
                   </Text>
                 </View>
               ) : null}
@@ -170,7 +172,7 @@ export default function LeaderBoard() {
               <View style={styles.card}>
                 <View style={styles.sectionHead}>
                   <Ionicons name="trophy" size={sf(15)} color="#F59E0B" />
-                  <Text style={styles.sectionTitle}>Top performers</Text>
+                  <Text style={styles.sectionTitle}>{t('achievements.topPerformers')}</Text>
                 </View>
 
                 <View
@@ -238,11 +240,11 @@ export default function LeaderBoard() {
             <View style={styles.card}>
               <View style={styles.sectionHead}>
                 <Feather name="bar-chart-2" size={sf(15)} color={Colors.brandPrimaryDeep} />
-                <Text style={styles.sectionTitle}>Community rankings</Text>
+                <Text style={styles.sectionTitle}>{t('achievements.communityRankings')}</Text>
               </View>
 
               {entries.length === 0 ? (
-                <Text style={styles.emptyText}>No community members ranked yet.</Text>
+                <Text style={styles.emptyText}>{t('achievements.noMembersRanked')}</Text>
               ) : (
                 <View style={styles.list}>
                   {entries.map((entry) => {
@@ -270,12 +272,12 @@ export default function LeaderBoard() {
                         <View style={styles.listCopy}>
                           <Text style={styles.listName} numberOfLines={1}>
                             {entry.name}
-                            {entry.is_me ? "  · You" : ""}
+                            {entry.is_me ? `  · ${t('achievements.you')}` : ""}
                           </Text>
                           <Text style={styles.listUnit} numberOfLines={1}>
                             {entry.unit_number
-                              ? `Unit ${entry.unit_number}`
-                              : "Community member"}
+                              ? t('achievements.unit', { number: entry.unit_number })
+                              : t('achievements.communityMember')}
                           </Text>
                         </View>
 
@@ -283,7 +285,7 @@ export default function LeaderBoard() {
                           <Text style={styles.listPoints}>
                             {formatPoints(entry.total_points)}
                           </Text>
-                          <Text style={styles.listPointsLabel}>pts</Text>
+                          <Text style={styles.listPointsLabel}>{t('achievements.pts')}</Text>
                         </View>
                       </View>
                     );
@@ -297,7 +299,7 @@ export default function LeaderBoard() {
               <View style={styles.nextCard}>
                 <Feather name="flag" size={sf(14)} color="#B45309" />
                 <Text style={styles.nextText}>
-                  {formatPoints(pointsToNext)} points to reach rank #{nextRank}
+                  {t('achievements.pointsToReach', { points: formatPoints(pointsToNext), rank: nextRank })}
                 </Text>
               </View>
             ) : null}
@@ -473,8 +475,8 @@ const styles = StyleSheet.create({
   medalBadge: {
     position: "absolute",
     bottom: -sw(6),
-    left: "50%",
-    marginLeft: -sw(10),
+    start: "50%",
+    marginStart: -sw(10),
     width: sw(20),
     height: sw(20),
     borderRadius: sw(10),

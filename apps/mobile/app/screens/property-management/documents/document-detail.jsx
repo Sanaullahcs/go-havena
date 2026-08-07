@@ -12,6 +12,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import i18n from "../../../../i18n";
+import { getLocaleForLang } from "../../../../hooks/use-app-locale";
 import InternalScreenHeader from "../../../../components/layout/internal-screen-header";
 import { pageStyles } from "../../../../constants/page-styles";
 import { propertyStyles } from "../../../../constants/property-styles";
@@ -28,10 +31,11 @@ import { useSubmitLock } from "../../../../hooks/use-submit-lock";
 
 function formatDocDate(value) {
   if (!value) return "—";
-  return new Date(value).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  return new Date(value).toLocaleDateString(getLocaleForLang(i18n.language), { month: "long", day: "numeric", year: "numeric" });
 }
 
 export default function DocumentDetail() {
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const { documentId } = useLocalSearchParams();
   const isAdmin = getCurrentRole() === "admin";
@@ -49,7 +53,7 @@ export default function DocumentDetail() {
       const found = await fetchCommunityDocument(documentId);
       setDoc(found);
     } catch (err) {
-      setError(err?.message ?? "Could not load document.");
+      setError(err?.message ?? t("propertyMgmt.couldNotLoadDocs"));
     } finally {
       setLoading(false);
       hasLoadedOnce.current = true;
@@ -72,10 +76,10 @@ export default function DocumentDetail() {
   };
 
   const handleDelete = () => {
-    Alert.alert("Delete Document", `Delete "${doc?.title}"?`, [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t("propertyMgmt.deleteDocument"), t("propertyMgmt.deleteDocumentMsg", { title: doc?.title }), [
+      { text: t("common.cancel"), style: "cancel" },
       {
-        text: "Delete",
+        text: t("common.delete"),
         style: "destructive",
         onPress: () =>
           run(async () => {
@@ -96,7 +100,7 @@ export default function DocumentDetail() {
   if (loading && !hasLoadedOnce.current) {
     return (
       <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
-        <InternalScreenHeader title="Document" />
+        <InternalScreenHeader title={t("propertyMgmt.documentTitle")} />
         <View style={styles.centered}><ActivityIndicator size="large" color="#0A2A43" /></View>
       </SafeAreaView>
     );
@@ -105,10 +109,10 @@ export default function DocumentDetail() {
   if (error || !doc) {
     return (
       <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
-        <InternalScreenHeader title="Document" />
+        <InternalScreenHeader title={t("propertyMgmt.documentTitle")} />
         <View style={styles.centered}>
-          <Text style={styles.errorText}>{error ?? "Not found."}</Text>
-          <Pressable onPress={router.back}><Text style={styles.linkText}>Go Back</Text></Pressable>
+          <Text style={styles.errorText}>{error ?? t("propertyMgmt.notFoundDoc")}</Text>
+          <Pressable onPress={router.back}><Text style={styles.linkText}>{t("propertyMgmt.goBackDoc")}</Text></Pressable>
         </View>
       </SafeAreaView>
     );
@@ -117,7 +121,7 @@ export default function DocumentDetail() {
   return (
     <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
       <InternalScreenHeader
-        title="Document"
+        title={t("propertyMgmt.documentTitle")}
         right={
           isAdmin ? (
             <View style={styles.adminActions}>
@@ -138,25 +142,25 @@ export default function DocumentDetail() {
             <Feather name="file-text" size={sf(22)} color="#E7000B" />
           </View>
           <Text style={styles.title}>{doc.title}</Text>
-          <Text style={styles.category}>{doc.category}</Text>
+<Text style={styles.category}>{doc.category}</Text>
           <View style={styles.metaRow}>
             <Text style={styles.metaText}>{doc.file_size_label} · {doc.file_name}</Text>
           </View>
           <View style={styles.metaRow}>
             <Feather name="clock" size={sf(11)} color="#9CA3AF" />
-            <Text style={styles.metaText}>Updated {formatDocDate(doc.updated_at)}</Text>
+            <Text style={styles.metaText}>{t("propertyMgmt.updatedDate", { date: formatDocDate(doc.updated_at) })}</Text>
           </View>
           <View style={styles.metaRow}>
             <Feather name="download" size={sf(11)} color="#9CA3AF" />
-            <Text style={styles.metaText}>{doc.download_count ?? 0} downloads</Text>
+            <Text style={styles.metaText}>{t("propertyMgmt.downloadCount", { count: doc.download_count ?? 0 })}</Text>
           </View>
         </View>
 
         {doc.description ? (
           <View style={[propertyStyles.sectionBlock, styles.descBlock]}>
-            <Text style={styles.descLabel}>Description</Text>
+            <Text style={styles.descLabel}>{t("propertyMgmt.descriptionLabel")}</Text>
             <Text style={styles.descText}>{doc.description}</Text>
-          </View>
+</View>
         ) : null}
       </ScrollView>
 
@@ -167,7 +171,7 @@ export default function DocumentDetail() {
           ) : (
             <>
               <Feather name="download" size={sf(16)} color="#FFFFFF" />
-              <Text style={styles.downloadBtnText}>Download Document</Text>
+              <Text style={styles.downloadBtnText}>{t("propertyMgmt.downloadDocument")}</Text>
             </>
           )}
         </Pressable>

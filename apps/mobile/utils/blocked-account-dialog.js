@@ -1,12 +1,13 @@
-export const ACCOUNT_SUSPENDED_TITLE = "Your account is suspended";
+import i18n from "../i18n";
 
-export const ACCOUNT_SUSPENDED_MESSAGE =
-  "Your account has been suspended. Please contact your community administrator or support.";
+export const ACCOUNT_SUSPENDED_TITLE = i18n.t("blockedAccount.title");
+
+export const ACCOUNT_SUSPENDED_MESSAGE = i18n.t("blockedAccount.message");
 
 function formatRejectedBy(rejectedBy) {
   if (!rejectedBy) return null;
-  if (rejectedBy === "system_admin") return "System administrator";
-  if (rejectedBy === "community_admin") return "Community administrator";
+  if (rejectedBy === "system_admin") return i18n.t("blockedAccount.systemAdmin");
+  if (rejectedBy === "community_admin") return i18n.t("blockedAccount.communityAdmin");
   return rejectedBy.replace(/_/g, " ");
 }
 
@@ -18,42 +19,42 @@ function isRejectedBlock(error) {
 function blockedAccountTitle(error) {
   const code = error?.code;
 
-  if (code === "MEMBERSHIP_REJECTED") return "Membership declined";
-  if (code === "COMMUNITY_ADMIN_REJECTED") return "Admin application declined";
-  if (code === "COMMUNITY_REQUEST_REJECTED") return "Community request declined";
-  if (code === "COMMUNITY_DEACTIVATED") return "Community deactivated";
-  if (isRejectedBlock(error)) return "Account not approved";
-  return ACCOUNT_SUSPENDED_TITLE;
+  if (code === "MEMBERSHIP_REJECTED") return i18n.t("blockedAccount.membershipDeclined");
+  if (code === "COMMUNITY_ADMIN_REJECTED") return i18n.t("blockedAccount.adminDeclined");
+  if (code === "COMMUNITY_REQUEST_REJECTED") return i18n.t("blockedAccount.communityRequestDeclined");
+  if (code === "COMMUNITY_DEACTIVATED") return i18n.t("blockedAccount.communityDeactivated");
+  if (isRejectedBlock(error)) return i18n.t("blockedAccount.accountNotApproved");
+  return i18n.t("blockedAccount.title");
 }
 
 function blockedAccountIntro(error, fallbackMessage) {
   const code = error?.code;
 
   if (code === "MEMBERSHIP_REJECTED") {
-    return "Your community admin declined your membership request. Review the details below or contact your community office if you have questions.";
+    return i18n.t("blockedAccount.membershipDeclinedMsg");
   }
   if (code === "COMMUNITY_ADMIN_REJECTED") {
-    return "Your community admin application was not approved. See the details below or contact support if you believe this was a mistake.";
+    return i18n.t("blockedAccount.adminDeclinedMsg");
   }
   if (code === "COMMUNITY_REQUEST_REJECTED") {
-    return "Your community request was not approved. You can submit a new request with updated details.";
+    return i18n.t("blockedAccount.communityRequestDeclinedMsg");
   }
   if (code === "COMMUNITY_DEACTIVATED") {
-    return "Your community is no longer active. Contact your community administrator or Havena support for assistance.";
+    return i18n.t("blockedAccount.communityDeactivatedMsg");
   }
   if (isRejectedBlock(error)) {
-    return "Your account is not approved for access. Review the details below or contact support for help.";
+    return i18n.t("blockedAccount.accountNotApprovedMsg");
   }
 
-  return fallbackMessage || error?.message || ACCOUNT_SUSPENDED_MESSAGE;
+  return fallbackMessage || error?.message || i18n.t("blockedAccount.message");
 }
 
 function blockedStatusLabel(error) {
-  if (isRejectedBlock(error)) return "Declined";
-  if (error?.statusKind === "suspended" || error?.code === "ACCOUNT_SUSPENDED") return "Suspended";
-  if (error?.code === "COMMUNITY_DEACTIVATED") return "Deactivated";
-  if (!error) return "Suspended";
-  return "Restricted";
+  if (isRejectedBlock(error)) return i18n.t("blockedAccount.declined");
+  if (error?.statusKind === "suspended" || error?.code === "ACCOUNT_SUSPENDED") return i18n.t("blockedAccount.suspended");
+  if (error?.code === "COMMUNITY_DEACTIVATED") return i18n.t("blockedAccount.deactivated");
+  if (!error) return i18n.t("blockedAccount.suspended");
+  return i18n.t("blockedAccount.restricted");
 }
 
 export function blockedAccountNoticeFromError(error) {
@@ -79,23 +80,23 @@ export function buildBlockedAccountDialogOptions(error, fallbackMessage) {
   const rejectedBy = formatRejectedBy(error?.rejectedBy);
   const meta = [
     {
-      label: "Status",
+      label: i18n.t("blockedAccount.status"),
       value: blockedStatusLabel(error),
       tone: rejected ? "danger" : "default",
     },
   ];
 
   if (rejectedBy) {
-    meta.push({ label: "Reviewed by", value: rejectedBy });
+    meta.push({ label: i18n.t("blockedAccount.reviewedBy"), value: rejectedBy });
   }
 
   const highlight =
     rejected || reason
       ? {
-          label: rejected ? "Reason for decline" : "Additional details",
+          label: rejected ? i18n.t("blockedAccount.reasonForDecline") : i18n.t("blockedAccount.additionalDetails"),
           value:
             reason ||
-            "No reason was provided. Contact your community office or Havena support for more information.",
+            i18n.t("blockedAccount.noReasonProvided"),
         }
       : null;
 
@@ -107,6 +108,6 @@ export function buildBlockedAccountDialogOptions(error, fallbackMessage) {
     statusLabel: blockedStatusLabel(error),
     meta,
     highlight,
-    actions: [{ key: "ok", label: "Got it", variant: "primary" }],
+    actions: [{ key: "ok", label: i18n.t("blockedAccount.gotIt"), variant: "primary" }],
   };
 }

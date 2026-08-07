@@ -2,6 +2,7 @@ import React, { useCallback } from "react";
 import { View, Pressable, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Feather } from "@expo/vector-icons";
 import ScreenHeader from "../layout/screen-header";
 import { HeaderIconSlot } from "../layout/header-chrome";
@@ -13,6 +14,7 @@ import { MarketplaceRoutes } from "../../constants/marketplace-routes";
 /** Marketplace tab root — deals, shops, and neighbor listings. */
 export default function CommunityHubScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
 
   const headerRight = useCallback(
     () => (
@@ -20,22 +22,22 @@ export default function CommunityHubScreen() {
         onPress={() => router.push(MarketplaceRoutes.DEALS)}
         hitSlop={12}
         accessibilityRole="button"
-        accessibilityLabel="Browse all deals"
+        accessibilityLabel={t("deals.browseAll")}
       >
         <HeaderIconSlot>
           <Feather name="tag" size={18} color={HomeTheme.navy} />
         </HeaderIconSlot>
       </Pressable>
     ),
-    [router],
+    [router, t],
   );
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <ScreenHeader
         layout="stacked"
-        title="Marketplace"
-        subtitle="Deals, shops & neighbor listings"
+        title={t("marketplace.title")}
+        subtitle={t("marketplace.subtitle")}
         showBack={false}
         iconOnly
         right={headerRight()}

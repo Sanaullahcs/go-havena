@@ -13,6 +13,7 @@ import {
 import { getToken } from "../../services/auth-session";
 import { fetchNotificationUnreadCount } from "../../services/notifications-api";
 import { emitNotificationBanner, emitNotificationRefresh } from "../../services/notification-events";
+import i18n from "../../i18n";
 
 async function refreshUnreadBadge() {
   try {
@@ -44,19 +45,19 @@ function extractNotificationContent(content) {
   const actor = data.actor_name || data.actorName || "";
 
   if (!title) {
-    if (kind === "post_comment" || kind === "post_comment_reply") title = kind === "post_comment_reply" ? "New reply" : "New comment";
-    else if (kind === "message" || kind === "new_message") title = "New message";
-    else if (kind === "post_like") title = "New like";
-    else if (kind === "post_created") title = "New community post";
+    if (kind === "post_comment" || kind === "post_comment_reply") title = kind === "post_comment_reply" ? i18n.t("pushNotifications.newReply") : i18n.t("pushNotifications.newComment");
+    else if (kind === "message" || kind === "new_message") title = i18n.t("pushNotifications.newMessage");
+    else if (kind === "post_like") title = i18n.t("pushNotifications.newLike");
+    else if (kind === "post_created") title = i18n.t("pushNotifications.newCommunityPost");
     else title = "Havena";
   }
 
   if (!body) {
-    if (kind === "post_comment_reply" && actor) body = `${actor} replied to your comment.`;
-    else if (kind === "post_comment" && actor) body = `${actor} commented on your post.`;
-    else if ((kind === "message" || kind === "new_message") && actor) body = `${actor} sent you a message.`;
-    else if (kind === "post_like" && actor) body = `${actor} liked your post.`;
-    else if (kind === "post_created" && actor) body = `${actor} shared a new post in your community.`;
+    if (kind === "post_comment_reply" && actor) body = i18n.t("pushNotifications.actorReplied", { actor });
+    else if (kind === "post_comment" && actor) body = i18n.t("pushNotifications.actorCommented", { actor });
+    else if ((kind === "message" || kind === "new_message") && actor) body = i18n.t("pushNotifications.actorMessaged", { actor });
+    else if (kind === "post_like" && actor) body = i18n.t("pushNotifications.actorLiked", { actor });
+    else if (kind === "post_created" && actor) body = i18n.t("pushNotifications.actorPosted", { actor });
   }
 
   return { title, body, kind, type };

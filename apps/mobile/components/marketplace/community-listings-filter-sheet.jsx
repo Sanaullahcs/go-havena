@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { MarketplaceType } from "../../constants/marketplace-type";
@@ -18,15 +19,15 @@ import { MarketplaceTheme as M } from "../../constants/marketplace-theme";
 import { sw, sf } from "../../utils/responsive";
 
 export const LISTING_SCOPE_FILTERS = [
-  { id: "all", icon: "layers-outline", label: "Active" },
-  { id: "mine", icon: "person-outline", label: "Mine" },
-  { id: "saved", icon: "heart-outline", label: "Saved" },
+  { id: "all", icon: "layers-outline", labelKey: "marketplace.active" },
+  { id: "mine", icon: "person-outline", labelKey: "marketplace.mine" },
+  { id: "saved", icon: "heart-outline", labelKey: "marketplace.savedFilter" },
 ];
 
 export const LISTING_TYPE_FILTERS = [
-  { id: "all", label: "All" },
-  { id: "item", label: "Items for Sale" },
-  { id: "service", label: "Services" },
+  { id: "all", labelKey: "common.all" },
+  { id: "item", labelKey: "marketplace.itemsForSale" },
+  { id: "service", labelKey: "marketplace.servicesList" },
 ];
 
 const DEFAULTS = {
@@ -75,6 +76,7 @@ function FilterSheetBody({
   isWide,
   sheetMaxWidth,
 }) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState(initialFilters);
 
   const activeDraftCount = useMemo(() => {
@@ -110,8 +112,8 @@ function FilterSheetBody({
 
       <View style={styles.header}>
         <View style={styles.headerCopy}>
-          <Text style={styles.headerTitle}>Filters</Text>
-          <Text style={styles.headerSubtitle}>Refine listings by scope, type, and category</Text>
+          <Text style={styles.headerTitle}>{t("marketplace.filtersTitle")}</Text>
+          <Text style={styles.headerSubtitle}>{t("marketplace.filtersSubtitle")}</Text>
         </View>
         <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={10}>
           <Ionicons name="close" size={20} color={M.textMuted} />
@@ -124,12 +126,12 @@ function FilterSheetBody({
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <SectionLabel title="Listing scope" subtitle="Choose whose listings you want to browse" />
+        <SectionLabel title={t("marketplace.listingScope")} subtitle={t("marketplace.listingScopeSub")} />
         <View style={styles.optionGrid}>
           {LISTING_SCOPE_FILTERS.map((tab) => (
             <OptionPill
               key={tab.id}
-              label={tab.label}
+              label={t(tab.labelKey)}
               icon={tab.icon}
               count={filterCounts[tab.id] ?? 0}
               active={draft.filterMode === tab.id}
@@ -138,7 +140,7 @@ function FilterSheetBody({
           ))}
         </View>
 
-        <SectionLabel title="Listing type" subtitle="Items for sale or services offered" />
+        <SectionLabel title={t("marketplace.listingType")} subtitle={t("marketplace.listingTypeSub")} />
         <View style={styles.segmentRow}>
           {LISTING_TYPE_FILTERS.map((tab, index) => {
             const active = draft.typeFilter === tab.id;
@@ -154,14 +156,14 @@ function FilterSheetBody({
                 activeOpacity={0.85}
               >
                 <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
-                  {tab.label}
+                  {t(tab.labelKey)}
                 </Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
-        <SectionLabel title="Category" subtitle="Filter by listing category" />
+        <SectionLabel title={t("marketplace.categoryLabel")} subtitle={t("marketplace.categorySub")} />
         <View style={styles.chipWrap}>
           {categories.map((item) => {
             const active = draft.selectedCategory === item;
@@ -178,7 +180,7 @@ function FilterSheetBody({
           })}
         </View>
 
-        <SectionLabel title="View layout" />
+        <SectionLabel title={t("marketplace.viewLayout")} />
         <View style={styles.viewRow}>
           <TouchableOpacity
             style={[styles.viewBtn, draft.viewMode === "grid" && styles.viewBtnActive]}
@@ -191,7 +193,7 @@ function FilterSheetBody({
               color={draft.viewMode === "grid" ? M.teal : M.caption}
             />
             <Text style={[styles.viewBtnText, draft.viewMode === "grid" && styles.viewBtnTextActive]}>
-              Grid
+              {t("marketplace.grid")}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -205,7 +207,7 @@ function FilterSheetBody({
               color={draft.viewMode === "list" ? M.teal : M.caption}
             />
             <Text style={[styles.viewBtnText, draft.viewMode === "list" && styles.viewBtnTextActive]}>
-              List
+              {t("marketplace.list")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -213,11 +215,11 @@ function FilterSheetBody({
 
       <View style={styles.footer}>
         <TouchableOpacity style={styles.resetBtn} onPress={handleReset} activeOpacity={0.85}>
-          <Text style={styles.resetBtnText}>Reset</Text>
+          <Text style={styles.resetBtnText}>{t("marketplace.reset")}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.applyBtn} onPress={handleApply} activeOpacity={0.9}>
           <Text style={styles.applyBtnText}>
-            {activeDraftCount > 0 ? `Apply (${activeDraftCount})` : "Apply filters"}
+            {activeDraftCount > 0 ? t("marketplace.applyCount", { count: activeDraftCount }) : t("marketplace.applyFilters")}
           </Text>
         </TouchableOpacity>
       </View>
@@ -237,6 +239,7 @@ export default function CommunityListingsFilterSheet({
   filterCounts = {},
   onApply,
 }) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -262,7 +265,7 @@ export default function CommunityListingsFilterSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={[styles.overlay, isWide && styles.overlayWide]}>
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close filters" />
+        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={t("marketplace.closeFilters")} />
 
         {visible ? (
           <FilterSheetBody
@@ -342,7 +345,7 @@ const styles = StyleSheet.create({
   headerCopy: {
     flex: 1,
     minWidth: 0,
-    paddingRight: sw(12),
+    paddingEnd: sw(12),
   },
   headerTitle: {
     fontFamily: Fonts.bold,
@@ -464,8 +467,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(6),
   },
   segmentDivider: {
-    borderLeftWidth: 1,
-    borderLeftColor: M.border,
+    borderStartWidth: 1,
+    borderStartColor: M.border,
   },
   segmentBtnActive: {
     backgroundColor: M.surface,

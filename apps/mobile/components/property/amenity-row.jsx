@@ -1,10 +1,13 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { PageType } from "../../constants/page-styles";
+import { chevronForward } from "../../utils/rtl";
 
 export default function AmenityRow({ name, description, capacity, status, icon, onPress }) {
+  const { t } = useTranslation();
   const isAvailable = status === "Available" || status === "Available Now";
   const showBadge = Boolean(status);
 
@@ -29,7 +32,7 @@ export default function AmenityRow({ name, description, capacity, status, icon, 
           {showBadge ? (
             <View style={[styles.badge, isAvailable ? styles.badgeOk : styles.badgeMuted]}>
               <Text style={[styles.badgeText, isAvailable ? styles.badgeTextOk : styles.badgeTextMuted]} numberOfLines={1}>
-                {isAvailable ? "Available" : status}
+                {isAvailable ? t("property.available") : status}
               </Text>
             </View>
           ) : null}
@@ -44,7 +47,7 @@ export default function AmenityRow({ name, description, capacity, status, icon, 
         ) : null}
       </View>
 
-      <Feather name="chevron-right" size={18} color="#D1D5DB" style={styles.chevron} />
+      <Feather name={chevronForward()} size={18} color="#D1D5DB" style={styles.chevron} />
     </Pressable>
   );
 }

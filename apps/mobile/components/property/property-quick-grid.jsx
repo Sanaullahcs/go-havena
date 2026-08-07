@@ -1,12 +1,11 @@
 import React from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { Property } from "../../constants/property-styles";
-import { PropertyHubTheme } from "../../constants/property-management-theme";
+import { PropertyHubTheme, getPropertyServiceMeta } from "../../constants/property-management-theme";
 import PropertyServiceIcon from "./property-service-icon";
 import { sf, sw } from "../../utils/responsive";
-
-const CARD_HEIGHT = sw(112);
 
 function chunkPairs(items) {
   const rows = [];
@@ -14,6 +13,66 @@ function chunkPairs(items) {
     rows.push(items.slice(index, index + 2));
   }
   return rows;
+}
+
+function ServiceCard({ item, badgeCount, onPress }) {
+  const showBadge = Number(badgeCount) > 0;
+  const meta = getPropertyServiceMeta(item.key);
+  const isPrimary = Boolean(item.primary);
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.pressable, pressed && styles.pressed]}
+      accessibilityRole="button"
+      accessibilityLabel={item.title}
+    >
+      <View style={[styles.card, isPrimary && styles.cardPrimary]}>
+        <View
+          style={[
+            styles.accentBar,
+            { backgroundColor: isPrimary ? PropertyHubTheme.teal : meta.color },
+          ]}
+        />
+        <View style={styles.cardInner}>
+          <View style={styles.cardTop}>
+            <PropertyServiceIcon
+              serviceKey={item.key}
+              size={sw(40)}
+              iconSize={sf(17)}
+              inverted={isPrimary}
+            />
+            {showBadge ? (
+              <View style={[styles.countBubble, isPrimary && styles.countBubbleOnPrimary]}>
+                <Text style={styles.countText}>{badgeCount}</Text>
+              </View>
+            ) : (
+              <View style={[styles.chevronWell, isPrimary && styles.chevronWellOnPrimary]}>
+                <Feather
+                  name="arrow-up-right"
+                  size={sf(13)}
+                  color={isPrimary ? "#FFFFFF" : PropertyHubTheme.textMuted}
+                />
+              </View>
+            )}
+          </View>
+
+          <Text
+            style={[styles.title, isPrimary && styles.titlePrimary]}
+            numberOfLines={2}
+          >
+            {item.title}
+          </Text>
+          <Text
+            style={[styles.subtitle, isPrimary && styles.subtitlePrimary]}
+            numberOfLines={2}
+          >
+            {item.subtitle}
+          </Text>
+        </View>
+      </View>
+    </Pressable>
+  );
 }
 
 export default function PropertyQuickGrid({ actions, onAction, badges = {} }) {
@@ -28,48 +87,18 @@ export default function PropertyQuickGrid({ actions, onAction, badges = {} }) {
         >
           {pair.map((item, columnIndex) => {
             const badgeCount = item.badgeKey ? badges[item.badgeKey] : item.badge;
-            const showBadge = Number(badgeCount) > 0;
 
             return (
-            <View
-              key={item.id}
-              style={[styles.col, columnIndex === 0 && pair.length > 1 && styles.colGap]}
-            >
-              <Pressable
-                onPress={() => onAction(item.routeKey)}
-                style={({ pressed }) => [styles.pressable, pressed && styles.pressed]}
-                accessibilityRole="button"
-                accessibilityLabel={item.title}
+              <View
+                key={item.id}
+                style={[styles.col, columnIndex === 0 && pair.length > 1 && styles.colGap]}
               >
-                <View style={[styles.card, item.primary && styles.cardPrimary]}>
-                  <View style={styles.cardTop}>
-                    <PropertyServiceIcon
-                      serviceKey={item.key}
-                      size={sw(36)}
-                      iconSize={sf(16)}
-                      inverted={Boolean(item.primary)}
-                    />
-                    {showBadge ? (
-                      <View style={styles.countBubble}>
-                        <Text style={styles.countText}>{badgeCount}</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  <Text
-                    style={[styles.title, item.primary && styles.titlePrimary]}
-                    numberOfLines={2}
-                  >
-                    {item.title}
-                  </Text>
-                  <Text
-                    style={[styles.subtitle, item.primary && styles.subtitlePrimary]}
-                    numberOfLines={2}
-                  >
-                    {item.subtitle}
-                  </Text>
-                </View>
-              </Pressable>
-            </View>
+                <ServiceCard
+                  item={item}
+                  badgeCount={badgeCount}
+                  onPress={() => onAction(item.routeKey)}
+                />
+              </View>
             );
           })}
           {pair.length === 1 ? <View style={[styles.col, styles.colPlaceholder]} /> : null}
@@ -95,7 +124,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   colGap: {
-    marginRight: Property.gridGap,
+    marginEnd: Property.gridGap,
   },
   colPlaceholder: {
     opacity: 0,
@@ -104,28 +133,38 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   pressed: {
-    opacity: 0.88,
+    opacity: 0.9,
+    transform: [{ scale: 0.985 }],
   },
   card: {
     width: "100%",
-    height: CARD_HEIGHT,
+    minHeight: sw(124),
     backgroundColor: PropertyHubTheme.surface,
-    borderRadius: sw(14),
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: sw(16),
+    borderWidth: 1,
     borderColor: PropertyHubTheme.border,
-    padding: sw(12),
-    ...(Platform.OS === "ios"
-      ? {
-          shadowColor: PropertyHubTheme.text,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.04,
-          shadowRadius: 6,
-        }
-      : { elevation: 1 }),
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: PropertyHubTheme.text,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+      },
+      android: { elevation: 3 },
+    }),
   },
   cardPrimary: {
     backgroundColor: PropertyHubTheme.text,
     borderColor: PropertyHubTheme.text,
+  },
+  accentBar: {
+    height: sw(3.5),
+    width: "100%",
+  },
+  cardInner: {
+    flex: 1,
+    padding: sw(12),
   },
   cardTop: {
     flexDirection: "row",
@@ -133,39 +172,53 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   countBubble: {
-    minWidth: sw(20),
-    height: sw(20),
-    paddingHorizontal: sw(5),
-    borderRadius: sw(10),
+    minWidth: sw(22),
+    height: sw(22),
+    paddingHorizontal: sw(6),
+    borderRadius: sw(11),
     backgroundColor: PropertyHubTheme.teal,
     alignItems: "center",
     justifyContent: "center",
   },
+  countBubbleOnPrimary: {
+    backgroundColor: PropertyHubTheme.teal,
+  },
   countText: {
-    fontFamily: Fonts.semiBold,
+    fontFamily: Fonts.bold,
     fontSize: sf(10),
     color: "#FFFFFF",
-    fontWeight: "600",
+    fontWeight: "700",
+  },
+  chevronWell: {
+    width: sw(24),
+    height: sw(24),
+    borderRadius: sw(8),
+    backgroundColor: PropertyHubTheme.screenBg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chevronWellOnPrimary: {
+    backgroundColor: "rgba(255,255,255,0.12)",
   },
   title: {
-    fontFamily: Fonts.semiBold,
-    fontSize: sf(13),
-    lineHeight: sf(17),
-    fontWeight: "600",
+    fontFamily: Fonts.bold,
+    fontSize: sf(13.5),
+    lineHeight: sf(18),
+    fontWeight: "700",
     color: PropertyHubTheme.text,
-    marginTop: sw(10),
+    marginTop: sw(12),
   },
   titlePrimary: {
     color: "#FFFFFF",
   },
   subtitle: {
     fontFamily: Fonts.regular,
-    fontSize: sf(11),
-    lineHeight: sf(14),
+    fontSize: sf(11.5),
+    lineHeight: sf(15),
     color: PropertyHubTheme.textMuted,
     marginTop: sw(3),
   },
   subtitlePrimary: {
-    color: "rgba(255,255,255,0.7)",
+    color: "rgba(209,250,245,0.78)",
   },
 });

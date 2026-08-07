@@ -10,6 +10,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../../constants/font";
 import { Ionicons } from "@expo/vector-icons";
 import { Building2, MapPin } from "lucide-react-native";
@@ -17,6 +18,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import BackButton from "../../../../components/ui/back-button";
 import { getCurrentRole } from "../../../../constants/role-session";
 import { saveRegionSelection, joinCommunity } from "../../../../services/auth-api";
+import { chevronForward } from "../../../../utils/rtl";
 import { fetchCommunitiesInRegion } from "../../../../services/regions-api";
 import { getApiErrorMessage } from "../../../../utils/auth-errors";
 import { goToCompleteProfile } from "../../../../constants/onboarding-routes";
@@ -27,6 +29,7 @@ import { HomeTheme as T } from "../../../../constants/home-theme";
 const SEARCH_DEBOUNCE_MS = 400;
 
 export default function RegionCommunitiesScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const {
     regionId,
@@ -62,7 +65,7 @@ export default function RegionCommunitiesScreen() {
   const loadCommunities = useCallback(
     async (silent = false) => {
       if (!numericRegionId) {
-        setError("Region not found. Please go back and select a region.");
+        setError(t("region.regionNotFound"));
         setLoading(false);
         return;
       }
@@ -110,7 +113,7 @@ export default function RegionCommunitiesScreen() {
         try {
           await joinCommunity(Number(community.id));
         } catch (err) {
-          await showFailure("Could not join community", err);
+          await showFailure(t("region.couldNotJoinCommunity"), err);
         }
       }
     } finally {
@@ -154,13 +157,13 @@ export default function RegionCommunitiesScreen() {
           </View>
         </View>
 
-        <Text style={styles.title}>Select Your Community</Text>
+        <Text style={styles.title}>{t("region.selectCommunity")}</Text>
         <Text style={styles.subtitle}>
           {isAdminOnboarding
-            ? `Communities in ${regionTitle}. Select one without an admin, or request to add a new community.`
+            ? t("region.adminCommunityHint", { region: regionTitle })
             : locationLabel
-              ? `Communities in ${locationLabel}`
-              : "Choose the community you belong to"}
+              ? t("region.residentCommunityHint", { location: locationLabel })
+              : t("region.chooseCommunity")}
         </Text>
 
         <View style={styles.searchWrap}>
@@ -168,7 +171,7 @@ export default function RegionCommunitiesScreen() {
           <TextInput
             value={searchText}
             onChangeText={setSearchText}
-            placeholder="Search communities…"
+            placeholder={t("region.searchCommunities")}
             placeholderTextColor={T.gray}
             style={styles.searchInput}
             returnKeyType="search"
@@ -190,15 +193,15 @@ export default function RegionCommunitiesScreen() {
       {loading ? (
         <View style={styles.centerState}>
           <ActivityIndicator size="large" color={T.teal} />
-          <Text style={styles.stateText}>Loading communities…</Text>
+          <Text style={styles.stateText}>{t("region.loadingCommunities")}</Text>
         </View>
       ) : error ? (
         <View style={styles.centerState}>
           <Ionicons name="cloud-offline-outline" size={40} color={T.gray} />
-          <Text style={styles.stateTitle}>Could not load communities</Text>
+          <Text style={styles.stateTitle}>{t("region.couldNotLoadCommunities")}</Text>
           <Text style={styles.stateText}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={() => loadCommunities()}>
-            <Text style={styles.retryText}>Try again</Text>
+            <Text style={styles.retryText}>{t("region.tryAgain")}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -222,19 +225,19 @@ export default function RegionCommunitiesScreen() {
                 <Building2 size={22} color={T.teal} strokeWidth={1.75} />
               </View>
               <Text style={styles.stateTitle}>
-                {isAdminOnboarding ? "No communities in this region" : "No communities yet"}
+                {isAdminOnboarding ? t("region.noCommunityAdmin") : t("region.noCommunityResident")}
               </Text>
               <Text style={styles.stateText}>
                 {isAdminOnboarding
-                  ? `There are no communities listed in ${regionTitle} yet. Request to register a new one.`
+                  ? t("region.noCommunityAdminMsg", { region: regionTitle })
                   : debouncedSearch
-                    ? "Try a different search term."
-                    : `There are no communities listed in ${regionTitle} yet. Contact your community admin if you need help.`}
+                    ? t("region.tryDifferentSearch")
+                    : t("region.noCommunityResidentMsg", { region: regionTitle })}
               </Text>
               {isAdminOnboarding ? (
                 <TouchableOpacity style={styles.requestBtn} onPress={goRequestCommunity}>
                   <Ionicons name="add-circle-outline" size={18} color={T.white} />
-                  <Text style={styles.requestBtnText}>Request to add community</Text>
+                  <Text style={styles.requestBtnText}>{t("region.requestAddCommunity")}</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -244,7 +247,7 @@ export default function RegionCommunitiesScreen() {
                 <View style={styles.adminBanner}>
                   <Ionicons name="information-circle-outline" size={18} color={T.deepTeal} />
                   <Text style={styles.adminBannerText}>
-                    Communities with an admin are shown but cannot be selected. Choose an available community or request a new one.
+                    {t("region.adminBanner")}
                   </Text>
                 </View>
               ) : null}
@@ -280,7 +283,7 @@ export default function RegionCommunitiesScreen() {
                         <Text style={styles.cardArea}>{community.area}</Text>
                       ) : null}
                       {isDisabled ? (
-                        <Text style={styles.cardBadge}>Community admin assigned</Text>
+                        <Text style={styles.cardBadge}>{t("region.communityAdminAssigned")}</Text>
                       ) : null}
                     </View>
 
@@ -290,7 +293,7 @@ export default function RegionCommunitiesScreen() {
                       <Ionicons name="lock-closed-outline" size={16} color={T.gray} />
                     ) : (
                       <View style={styles.chevronWrap}>
-                        <Ionicons name="chevron-forward" size={16} color={T.teal} />
+                        <Ionicons name={chevronForward()} size={16} color={T.teal} />
                       </View>
                     )}
                   </TouchableOpacity>
@@ -303,9 +306,9 @@ export default function RegionCommunitiesScreen() {
 
       {isAdminOnboarding && !loading && !error ? (
         <View style={styles.bottomSection}>
-          <Text style={styles.mutedText}>Don't see your community?</Text>
+          <Text style={styles.mutedText}>{t("region.dontSeeCommunity")}</Text>
           <TouchableOpacity activeOpacity={0.8} onPress={goRequestCommunity}>
-            <Text style={styles.tealLink}>Request to add it in {regionTitle}</Text>
+            <Text style={styles.tealLink}>{t("region.requestAddIn", { region: regionTitle })}</Text>
           </TouchableOpacity>
         </View>
       ) : null}

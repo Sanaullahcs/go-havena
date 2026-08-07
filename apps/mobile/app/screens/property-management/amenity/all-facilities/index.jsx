@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import React, { useCallback, useState } from "react";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import ScreenHeader from "../../../../../components/layout/screen-header";
@@ -18,13 +19,19 @@ import {
   hasUpcomingUserBooking,
   getNextUserBookingDate,
 } from "../../../../../utils/amenity-display";
+import { localizedField } from "../../../../../i18n";
 
 export default function AllFacilities() {
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const {
     id,
-    name,
-    description,
+    name: nameEn,
+    nameEs,
+    nameAr,
+    description: descEn,
+    descriptionEs,
+    descriptionAr,
     capacity,
     floor,
     hours,
@@ -36,6 +43,10 @@ export default function AllFacilities() {
     userHasUpcomingBooking,
     userNextBookingDate,
   } = useLocalSearchParams();
+
+  const amenityObj = { name: nameEn, name_es: nameEs, name_ar: nameAr, description: descEn, description_es: descriptionEs, description_ar: descriptionAr };
+  const name = localizedField(amenityObj, "name") || nameEn;
+  const description = localizedField(amenityObj, "description") || descEn;
 
   const [myBookings, setMyBookings] = useState([]);
 
@@ -74,23 +85,23 @@ export default function AllFacilities() {
 
   const infoRows = [
     floor
-      ? { icon: "map-pin", tint: "#0284C7", label: "Location", value: floor }
+      ? { icon: "map-pin", tint: "#0284C7", label: t("propertyMgmt.locationLabel"), value: floor }
       : null,
     hours
-      ? { icon: "clock", tint: "#059669", label: "Hours", value: hours }
+      ? { icon: "clock", tint: "#059669", label: t("propertyMgmt.hoursLabel"), value: hours }
       : null,
     {
       icon: "calendar",
       tint: "#0D9488",
-      label: "Weekends",
-      value: weekendsOn ? "Available" : "Closed Sat & Sun",
+      label: t("propertyMgmt.weekendsLabel"),
+      value: weekendsOn ? t("propertyMgmt.available") : t("propertyMgmt.closedSatSun"),
     },
     capacity
       ? {
           icon: "users",
           tint: "#7C3AED",
-          label: "Capacity",
-          value: `${capacity} people`,
+          label: t("propertyMgmt.capacityLabel"),
+          value: t("propertyMgmt.people", { count: Number(capacity) }),
         }
       : null,
   ].filter(Boolean);
@@ -122,7 +133,7 @@ export default function AllFacilities() {
       <ScreenHeader
         layout="inline"
         titleAlign="center"
-        title={name || "Amenity"}
+        title={name || t("propertyMgmt.amenityFallback")}
         iconOnly
       />
 
@@ -174,11 +185,11 @@ export default function AllFacilities() {
 
         {/* Guidelines */}
         <View style={styles.card}>
-          <Text style={styles.cardHeading}>Good to know</Text>
+          <Text style={styles.cardHeading}>{t("propertyMgmt.goodToKnow")}</Text>
           {[
-            "Please arrive on time for your reservation.",
-            "Respect capacity limits and other residents.",
-            "Leave the space clean for the next neighbor.",
+            t("propertyMgmt.tipArriveOnTime"),
+            t("propertyMgmt.tipRespectCapacity"),
+            t("propertyMgmt.tipLeaveClean"),
           ].map((tip, index) => (
             <View key={index} style={styles.tipRow}>
               <View style={styles.tipDot}>
@@ -194,27 +205,27 @@ export default function AllFacilities() {
         {ownedByMe ? (
           <TouchableOpacity activeOpacity={0.9} style={styles.primaryBtn} onPress={goToInbox}>
             <Feather name="inbox" size={sf(16)} color="#FFFFFF" />
-            <Text style={styles.primaryBtnText}>Approve requests</Text>
+            <Text style={styles.primaryBtnText}>{t("propertyMgmt.approveRequests")}</Text>
           </TouchableOpacity>
         ) : canBook && status === "bookable" ? (
           <TouchableOpacity activeOpacity={0.9} style={styles.primaryBtn} onPress={goToCalendar}>
             <Feather name="calendar" size={sf(16)} color="#FFFFFF" />
-            <Text style={styles.primaryBtnText}>Reserve a slot</Text>
+            <Text style={styles.primaryBtnText}>{t("propertyMgmt.reserveSlot")}</Text>
           </TouchableOpacity>
         ) : canBook && status === "open" ? (
           <TouchableOpacity activeOpacity={0.9} style={styles.primaryBtn} onPress={goToCalendar}>
             <Feather name="send" size={sf(16)} color="#FFFFFF" />
-            <Text style={styles.primaryBtnText}>Request access</Text>
+            <Text style={styles.primaryBtnText}>{t("propertyMgmt.requestAccess")}</Text>
           </TouchableOpacity>
         ) : alreadyBooked && !ownedByMe ? (
           <View style={styles.bookedBtn}>
             <Feather name="bookmark" size={sf(15)} color="#64748B" />
             <View style={styles.bookedCopy}>
-              <Text style={styles.bookedTitle}>Already booked</Text>
+              <Text style={styles.bookedTitle}>{t("propertyMgmt.alreadyBookedSection")}</Text>
               <Text style={styles.bookedText}>
                 {reservedDate
-                  ? `Your reservation is on ${formatLongDate(reservedDate)}. You can book again after that date.`
-                  : "You already have an upcoming reservation for this amenity."}
+                  ? t("propertyMgmt.reservationOnDate", { date: formatLongDate(reservedDate) })
+                  : t("propertyMgmt.alreadyUpcoming")}
               </Text>
             </View>
           </View>
@@ -223,10 +234,10 @@ export default function AllFacilities() {
             <Feather name="lock" size={sf(15)} color={Colors.textMuted} />
             <Text style={styles.closedText}>
               {reviewStatus === "pending"
-                ? "Waiting for admin approval"
+                ? t("propertyMgmt.waitingAdminApproval")
                 : reviewStatus === "rejected"
-                  ? "Not approved for booking"
-                  : "Currently closed"}
+                  ? t("propertyMgmt.notApproved")
+                  : t("propertyMgmt.currentlyClosed")}
             </Text>
           </View>
         )}

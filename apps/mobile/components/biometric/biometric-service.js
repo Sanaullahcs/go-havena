@@ -1,5 +1,6 @@
 import * as LocalAuthentication from "expo-local-authentication";
 import { Platform } from "react-native";
+import i18n from "../../i18n";
 import {
   getToken,
   getUser,
@@ -35,14 +36,14 @@ export async function authenticate(promptMessage = "Authenticate") {
   try {
     const options = {
       promptMessage,
-      cancelLabel: "Cancel",
-      fallbackLabel: "Use Passcode",
+      cancelLabel: i18n.t("common.cancel"),
+      fallbackLabel: i18n.t("auth.usePasscode"),
       disableDeviceFallback: false,
     };
 
     if (Platform.OS === "android") {
       options.requireConfirmation = false;
-      options.promptSubtitle = "Verify your identity to continue";
+      options.promptSubtitle = i18n.t("auth.verifyIdentity");
     }
 
     return await LocalAuthentication.authenticateAsync(options);
@@ -82,8 +83,7 @@ async function preflightBiometricLogin() {
     return {
       success: false,
       code: BIOMETRIC_ERROR.NO_SESSION,
-      message:
-        "Sign in with your phone number once. After that, fingerprint or Face ID unlocks your account.",
+      message: i18n.t("auth.signInWithPhoneFirst"),
     };
   }
 
@@ -94,8 +94,8 @@ async function preflightBiometricLogin() {
       code: BIOMETRIC_ERROR.NOT_AVAILABLE,
       message:
         Platform.OS === "ios"
-          ? "This device does not support Face ID."
-          : "This device does not support fingerprint or face unlock.",
+          ? i18n.t("auth.deviceNoFaceId")
+          : i18n.t("auth.deviceNoFingerprint"),
     };
   }
 
@@ -106,8 +106,8 @@ async function preflightBiometricLogin() {
       code: BIOMETRIC_ERROR.NOT_ENROLLED,
       message:
         Platform.OS === "ios"
-          ? "Set up Face ID in Settings first."
-          : "Set up fingerprint or face unlock in your device settings first.",
+          ? i18n.t("auth.setupFaceId")
+          : i18n.t("auth.setupFingerprint"),
     };
   }
 
@@ -119,14 +119,14 @@ function mapAuthFailure(result) {
     return {
       success: false,
       code: BIOMETRIC_ERROR.CANCELLED,
-      message: "Authentication was cancelled.",
+      message: i18n.t("auth.authCancelled"),
     };
   }
 
   return {
     success: false,
     code: BIOMETRIC_ERROR.FAILED,
-    message: "Authentication failed. Try again or use phone sign-in.",
+    message: i18n.t("auth.authFailed"),
   };
 }
 
@@ -174,8 +174,7 @@ export async function verifyBiometricLogin(promptMessage = "Authenticate") {
       return {
         success: false,
         code: BIOMETRIC_ERROR.NO_SESSION,
-        message:
-          "Your previous session expired. Sign in with your phone number once, then fingerprint will work again.",
+        message: i18n.t("auth.sessionExpiredBiometric"),
       };
     }
 
@@ -186,7 +185,7 @@ export async function verifyBiometricLogin(promptMessage = "Authenticate") {
     return {
       success: false,
       code: BIOMETRIC_ERROR.NO_SESSION,
-      message: "Your session expired. Sign in with your phone number again.",
+      message: i18n.t("auth.sessionExpired"),
     };
   }
 }

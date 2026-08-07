@@ -15,7 +15,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { LIKE_HEART_RED } from "../feed/feed-engagement";
 import UserAvatar from "../ui/user-avatar";
 import CrispImage from "../ui/crisp-image";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
+import { TOPIC_LABEL_KEY } from "../../services/feed-api";
 import { Home, homeStyles } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
 import HomeSectionHeader from "./section-header";
@@ -29,7 +31,6 @@ import {
 } from "../../services/feed-api";
 import FeedSensitiveContent from "../feed/feed-sensitive-content";
 import { openNeighborProfile } from "../../services/profile-api";
-import { mediaImageSource } from "../../utils/profile-display";
 import { useNow } from "../../hooks/use-now";
 import { sw, sf } from "../../utils/responsive";
 import { navigateAppRoute } from "../../utils/app-navigation";
@@ -44,7 +45,7 @@ function formatCount(value) {
 const CARD_GAP = sw(12);
 const PEEK = sw(40);
 const IMAGE_RATIO = 0.48;
-const BOTTOM_AREA_H = sw(132);
+const BOTTOM_AREA_H = sw(140);
 
 function FeedCard({
   post,
@@ -58,7 +59,8 @@ function FeedCard({
   onProfile,
   now,
 }) {
-  const authorName = post.user?.display_name ?? post.user?.name ?? "Neighbor";
+  const { t, i18n } = useTranslation();
+  const authorName = post.user?.display_name ?? post.user?.name ?? t("feed.neighbor");
   const likeCount = formatCount(post.likes_count ?? post.likes);
   const commentCount = formatCount(post.comments_count ?? post.comments);
   const isLiked = post.liked_by_me ?? false;
@@ -83,21 +85,21 @@ function FeedCard({
   const sensitive = isSensitivePost(post);
   const bodyText = sensitive
     ? null
-    : display.mainText || (display.hasImage ? "Shared a photo" : "");
+    : display.mainText || (display.hasImage ? t("feed.sharedPhoto") : "");
   const hasImage = !sensitive && display.hasImage;
   const isTextOnly = !hasImage && !sensitive;
-  const showImageCaption = hasImage && Boolean(bodyText) && bodyText !== "Shared a photo";
+  const showImageCaption = hasImage && Boolean(bodyText) && bodyText !== t("feed.sharedPhoto");
 
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.card, { width, height }, pressed && styles.cardPressed]}
+      style={({ pressed }) => [styles.card, { width, minHeight: height }, pressed && styles.cardPressed]}
     >
-      <View style={[styles.cardInner, { height }]}>
+      <View style={[styles.cardInner, { minHeight: height }]}>
         {hasImage ? (
           <View style={[styles.imageWrap, { height: imageH }]}>
             <CrispImage
-              source={mediaImageSource(post.image_url)}
+              source={post.image_url}
               style={StyleSheet.absoluteFill}
               contentFit="cover"
               contentPosition="center"
@@ -119,7 +121,7 @@ function FeedCard({
           </View>
         ) : null}
 
-        <View style={[styles.contentArea, { height: BOTTOM_AREA_H }]}>
+        <View style={[styles.contentArea, { minHeight: BOTTOM_AREA_H }]}>
           <Pressable style={styles.authorRow} onPress={onProfile} hitSlop={6}>
             <UserAvatar
               source={post.user?.avatar}
@@ -133,16 +135,16 @@ function FeedCard({
               </Text>
               <Text style={styles.authorMeta} numberOfLines={1}>
                 {relativeTime}
-                {post.user?.location ? ` · ${post.user.location}` : ""}
+                {post.author_unit ? ` · ${t("nav.unit", { number: post.author_unit })}` : ""}
               </Text>
             </View>
             {sensitive ? (
               <View style={[styles.chip, styles.chipWarn]}>
-                <Text style={[styles.chipText, styles.chipWarnText]}>Sensitive</Text>
+                <Text style={[styles.chipText, styles.chipWarnText]}>{t("feed.sensitive")}</Text>
               </View>
             ) : post.tag ? (
               <View style={styles.chip}>
-                <Text style={styles.chipText}>{post.tag}</Text>
+                <Text style={styles.chipText}>{TOPIC_LABEL_KEY[post.tag] ? t(TOPIC_LABEL_KEY[post.tag]) : post.tag}</Text>
               </View>
             ) : null}
           </Pressable>
@@ -160,8 +162,7 @@ function FeedCard({
           ) : (
             <View style={styles.bodySpacer} />
           )}
-
-          <View style={styles.engagementBar}>
+<View style={styles.engagementBar}>
             <Pressable style={styles.engBtn} onPress={onLike} disabled={sensitive}>
               <Animated.View style={{ transform: [{ scale: likeScale }] }}>
                 <Ionicons
@@ -204,6 +205,7 @@ function FeedCard({
 
 export default function Communities({ posts = [], onPostsChange }) {
   const router = useRouter();
+  const { t } = useTranslation();
   const now = useNow(30000);
   const { width: screenWidth } = useWindowDimensions();
 
@@ -246,10 +248,10 @@ export default function Communities({ posts = [], onPostsChange }) {
       const display = parsePostDisplayContent(post);
       const text = display.mainText || post.content || post.body || "";
       const preview = text.length > 80 ? `${text.slice(0, 80)}...` : text;
-      const author = post.user?.display_name ?? post.user?.name ?? "Neighbor";
+      const author = post.user?.display_name ?? post.user?.name ?? t("feed.neighbor");
       await Share.share({
-        title: `Post by ${author}`,
-        message: preview || "Check out this post on Havena!",
+        title: t("feed.postBy", { name: author }),
+        message: preview || t("feed.shareMessage"),
       });
     } catch {
       // user dismissed
@@ -258,7 +260,7 @@ export default function Communities({ posts = [], onPostsChange }) {
 
   const renderItem = useCallback(
     ({ item }) => (
-      <View style={{ width: layout.cardWidth, height: layout.cardHeight, flexShrink: 0 }}>
+      <View style={{ width: layout.cardWidth, minHeight: layout.cardHeight, flexShrink: 0 }}>
         <FeedCard
           post={item}
           width={layout.cardWidth}
@@ -295,12 +297,11 @@ export default function Communities({ posts = [], onPostsChange }) {
     return (
       <View style={homeStyles.section}>
         <HomeSectionHeader
-          label="Community Feed"
+          label={t("community.feed")}
           onPress={() => navigateAppRoute(router, COMMUNITY_FEED_ROUTE)}
         />
         <HomeSectionEmpty
-          message="No posts yet"
-          hint="Be the first to share with your neighbors."
+          message={t("common.noResults")}
         />
       </View>
     );
@@ -309,13 +310,13 @@ export default function Communities({ posts = [], onPostsChange }) {
   return (
     <View style={homeStyles.section}>
       <HomeSectionHeader
-        label="Community Feed"
+        label={t("community.feed")}
         onPress={() => navigateAppRoute(router, COMMUNITY_FEED_ROUTE)}
       />
       <FlatList
         data={posts}
         horizontal
-        style={[styles.carousel, { height: layout.cardHeight }]}
+        style={[styles.carousel, { minHeight: layout.cardHeight }]}
         showsHorizontalScrollIndicator={false}
         decelerationRate="fast"
         snapToInterval={layout.snap}
@@ -340,7 +341,7 @@ const RADIUS = sw(16);
 
 const styles = StyleSheet.create({
   carousel: { flexGrow: 0, alignSelf: "stretch" },
-  listContent: { paddingRight: PEEK, alignItems: "flex-start" },
+  listContent: { paddingEnd: PEEK, alignItems: "flex-start" },
   card: {
     borderRadius: RADIUS,
     ...(Platform.OS === "ios"
@@ -383,6 +384,7 @@ const styles = StyleSheet.create({
     lineHeight: sf(21),
     color: T.navy,
     fontWeight: "500",
+    writingDirection: "auto",
   },
   contentArea: {
     paddingHorizontal: sw(14),
@@ -399,7 +401,7 @@ const styles = StyleSheet.create({
     width: sw(30),
     height: sw(30),
     borderRadius: sw(15),
-    marginRight: sw(8),
+    marginEnd: sw(8),
   },
   authorCopy: { flex: 1, minWidth: 0 },
   authorName: {
@@ -408,6 +410,7 @@ const styles = StyleSheet.create({
     lineHeight: sf(16),
     color: T.navy,
     fontWeight: "700",
+    writingDirection: "auto",
   },
   authorMeta: {
     fontFamily: Fonts.regular,
@@ -415,6 +418,7 @@ const styles = StyleSheet.create({
     lineHeight: sf(13),
     color: T.gray,
     marginTop: 1,
+    writingDirection: "auto",
   },
   chip: {
     flexShrink: 0,
@@ -441,11 +445,11 @@ const styles = StyleSheet.create({
     fontSize: sf(12.5),
     lineHeight: sf(17),
     color: T.navy,
-    minHeight: sf(17) * 2,
     marginBottom: sw(8),
+    flexShrink: 1,
+    writingDirection: "auto",
   },
   bodySpacer: {
-    minHeight: sf(17) * 2,
     marginBottom: sw(8),
   },
   engagementBar: {

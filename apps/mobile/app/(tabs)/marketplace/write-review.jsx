@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { MarketplaceType } from "../../../constants/marketplace-type";
 import {
   View,
@@ -17,26 +18,27 @@ import { useApiAction } from "../../../hooks/use-api-action";
 import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { hasFieldErrors } from "../../../utils/form-validation";
 
-function validateReviewForm(review) {
+function validateReviewForm(review, t) {
   const errors = {};
   const trimmed = review.trim();
   if (!trimmed) {
-    errors.review = "Review is required.";
+    errors.review = t("validation.reviewRequired");
   } else if (trimmed.length < 10) {
-    errors.review = "Please write at least 10 characters.";
+    errors.review = t("validation.reviewMinLength");
   }
   return errors;
 }
 
 export default function WriteReviewScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
-  const { vendor = "Local Business" } = useLocalSearchParams();
+  const { vendor = "" } = useLocalSearchParams();
   const [rating, setRating] = useState(5);
   const [review, setReview] = useState("");
   const { touch, clearError, showError, validateOnSubmit } = useTouchedFieldErrors();
   const { runAction } = useApiAction();
 
-  const liveErrors = useMemo(() => validateReviewForm(review), [review]);
+  const liveErrors = useMemo(() => validateReviewForm(review, t), [review, t]);
   const canSubmit = useMemo(() => !hasFieldErrors(liveErrors), [liveErrors]);
 
   const submit = async () => {
@@ -44,16 +46,16 @@ export default function WriteReviewScreen() {
 
     await runAction({
       action: async () => Promise.resolve(),
-      successTitle: "Review Submitted",
-      successMessage: "Thank you for sharing your experience!",
-      errorTitle: "Could not submit review",
+      successTitle: t("deals.reviewSubmitted"),
+      successMessage: t("deals.thankYouReview"),
+      errorTitle: t("deals.couldNotSubmitReview"),
       onSuccess: () => router.back(),
     });
   };
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
-      <InternalScreenHeader title="Write Review" />
+      <InternalScreenHeader title={t("deals.writeReview")} />
 
       <KeyboardSafeScreen
         contentContainerStyle={styles.scroll}
@@ -63,14 +65,14 @@ export default function WriteReviewScreen() {
             onPress={submit}
             disabled={!canSubmit}
           >
-            <Text style={styles.submitText}>Submit Review</Text>
+            <Text style={styles.submitText}>{t("deals.submitReview")}</Text>
           </TouchableOpacity>
         }
       >
-        <Text style={pageStyles.screenSubtitle}>Reviewing {vendor}</Text>
+        <Text style={pageStyles.screenSubtitle}>{t("deals.reviewingVendor", { vendor: vendor || t("deals.localBusiness") })}</Text>
 
         <Text style={[pageStyles.sectionLabel, { marginTop: 20, marginBottom: 10 }]}>
-          Your Rating
+          {t("deals.yourRating")}
         </Text>
         <View style={styles.starsRow}>
           {[1, 2, 3, 4, 5].map((star) => (
@@ -83,7 +85,7 @@ export default function WriteReviewScreen() {
         </View>
 
         <Text style={[pageStyles.sectionLabel, { marginTop: 20, marginBottom: 8 }]}>
-          Your Review
+          {t("deals.yourReview")}
         </Text>
         <TextInput
           value={review}
@@ -92,7 +94,7 @@ export default function WriteReviewScreen() {
             clearError("review");
           }}
           onBlur={() => touch("review")}
-          placeholder="Share your experience..."
+          placeholder={t("deals.shareExperience")}
           placeholderTextColor="#9CA3AF"
           style={[styles.input, showError("review", liveErrors) && styles.inputError]}
           multiline

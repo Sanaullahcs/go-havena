@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Modal, TouchableOpacity, StyleSheet, Text, Platform } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { navigateAfterAuth } from "../../constants/onboarding-routes";
 import AuthSuccessOverlay from "../ui/auth-success-overlay";
 import { Fonts } from "../../constants/font";
@@ -9,17 +10,18 @@ import { verifyBiometricLogin, BIOMETRIC_ERROR } from "./biometric-service";
 import { useAppDialog } from "../../providers/app-dialog-provider";
 
 export default function FaceIdDialog({ visible, onClose }) {
+  const { t } = useTranslation();
   const dialog = useAppDialog();
   const [showSuccess, setShowSuccess] = useState(false);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const userRef = useRef(null);
   const finishingRef = useRef(false);
-  const title = Platform.OS === "ios" ? "Face ID Login" : "Face Unlock";
+  const title = Platform.OS === "ios" ? t("auth.faceIdLogin") : t("auth.faceUnlock");
   const waitingLabel =
-    Platform.OS === "ios" ? "Waiting for Face ID…" : "Waiting for face unlock…";
+    Platform.OS === "ios" ? t("auth.waitingFaceId") : t("auth.waitingFaceUnlock");
   const prompt =
-    Platform.OS === "ios" ? "Sign in with Face ID" : "Sign in with face unlock";
+    Platform.OS === "ios" ? t("auth.signInFaceId") : t("auth.signInFaceUnlock");
 
   const finishSignIn = useCallback(() => {
     if (finishingRef.current) return;
@@ -58,15 +60,15 @@ export default function FaceIdDialog({ visible, onClose }) {
       onClose?.();
       await dialog.showDialog({
         type: "info",
-        title: "Biometric sign-in unavailable",
+        title: t("auth.biometricUnavailableTitle"),
         message: result.message,
-        actions: [{ label: "OK", variant: "primary" }],
+        actions: [{ label: t("common.ok"), variant: "primary" }],
       });
       return;
     }
 
     setFailed(true);
-  }, [dialog, onClose, prompt]);
+  }, [dialog, onClose, prompt, t]);
 
   useEffect(() => {
     if (!visible) {
@@ -88,8 +90,8 @@ export default function FaceIdDialog({ visible, onClose }) {
     <>
       <AuthSuccessOverlay
         visible={showSuccess}
-        title="Authenticated"
-        subtitle="Opening Havena…"
+        title={t("auth.authenticated")}
+        subtitle={t("auth.openingHavena")}
         onComplete={finishSignIn}
       />
       <Modal visible={showSheet} transparent animationType="fade">
@@ -103,15 +105,15 @@ export default function FaceIdDialog({ visible, onClose }) {
             </View>
             <Text style={styles.title}>{title}</Text>
             <Text style={styles.sub}>
-              {busy ? waitingLabel : "Try again or use phone sign-in"}
+              {busy ? waitingLabel : t("auth.tryAgainOrPhone")}
             </Text>
             {!busy ? (
               <TouchableOpacity onPress={runAuth} style={styles.retryWrap}>
-                <Text style={styles.retry}>Try Again</Text>
+                <Text style={styles.retry}>{t("common.tryAgain")}</Text>
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity onPress={onClose} style={styles.cancelWrap}>
-              <Text style={styles.cancel}>Cancel</Text>
+              <Text style={styles.cancel}>{t("common.cancel")}</Text>
             </TouchableOpacity>
           </View>
         </View>

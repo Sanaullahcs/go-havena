@@ -4,6 +4,8 @@ import { API_BASE_URL } from "../constants/api-config";
 import { resolveMediaUrl } from "../utils/profile-display";
 import { guessImageMeta, uploadMultipartFile } from "../utils/upload-form-data";
 import { HOME_SECTION_CARD_LIMIT } from "../constants/home-sections";
+import i18n from "../i18n";
+import { getLocaleForLang } from "../hooks/use-app-locale";
 
 /** GET /v1/deals — browse active deals */
 export async function fetchDeals({ type, search, businessId, page = 1, perPage = 20, includeExpired = false } = {}) {
@@ -68,7 +70,7 @@ export async function deleteDeal(id, { asAdmin = false } = {}) {
 
 export async function uploadDealImage(uri, assetMeta = {}, { asAdmin = false } = {}) {
   const token = await getToken();
-  if (!token) throw new Error("You must be signed in to upload an image.");
+  if (!token) throw new Error(i18n.t("deals.signInToUpload"));
 
   const { mimeType } = guessImageMeta(uri, assetMeta, "deal-cover");
   const uploadPath = asAdmin ? "/admin/deals/upload-image" : "/deals/upload-image";
@@ -81,14 +83,14 @@ export async function uploadDealImage(uri, assetMeta = {}, { asAdmin = false } =
   });
 
   const imageUrl = resolveMediaUrl(body?.data?.image_url);
-  if (!imageUrl) throw new Error("Image upload failed. Please try again.");
+  if (!imageUrl) throw new Error(i18n.t("deals.uploadFailed"));
   return { image_url: imageUrl };
 }
 
 /** Upload deal image, then create the deal. */
 export async function publishDealWithImage(coverImage, payload, { asAdmin = false } = {}) {
   if (!coverImage?.uri) {
-    throw new Error("Deal image is required.");
+    throw new Error(i18n.t("deals.imageRequired"));
   }
   const uploaded = await uploadDealImage(coverImage.uri, coverImage, { asAdmin });
   return createDeal({ ...payload, image_url: uploaded.image_url }, { asAdmin });
@@ -102,11 +104,17 @@ export function normalizeDeal(d) {
     createdBy: d.created_by ?? null,
     businessId: d.business_id ?? null,
     title: d.title,
+    title_es: d.title_es ?? null,
+    title_ar: d.title_ar ?? null,
     vendor: d.vendor || d.title,
     description: d.description ?? "",
+    description_es: d.description_es ?? null,
+    description_ar: d.description_ar ?? null,
     type: d.type ?? "deal",
     category: d.category || "Other",
     offerTag: d.discount_label || "",
+    offerTag_es: d.discount_label_es || "",
+    offerTag_ar: d.discount_label_ar || "",
     promoCode: d.promo_code ?? null,
     originalPrice: d.original_price ?? null,
     discountedPrice: d.discounted_price ?? null,
@@ -120,7 +128,7 @@ export function normalizeDeal(d) {
     isLiked: !!(d.is_liked ?? d.is_saved),
     status: d.status,
     statusLabel: dealStatusLabel(d.status, d.is_expired),
-    imageUrl: resolveMediaUrl(d.image_url) || null,
+    imageUrl: d.image_url ?? null,
     imageKey: "food-bowl",
   };
 }
@@ -132,10 +140,10 @@ export async function toggleSaveDeal(id) {
 }
 
 function dealStatusLabel(status, isExpired) {
-  if (isExpired || status === "expired") return "Expired";
-  if (status === "active") return "Active";
-  if (status === "inactive") return "Inactive";
-  return status ?? "Unknown";
+  if (isExpired || status === "expired") return i18n.t("deals.expired");
+  if (status === "active") return i18n.t("deals.active");
+  if (status === "inactive") return i18n.t("deals.inactive");
+  return status ?? i18n.t("deals.unknown");
 }
 
 /** True when a deal should be hidden from the home screen only. */
@@ -170,7 +178,7 @@ function formatValidUntil(endsAt) {
   if (!endsAt) return "";
   const date = new Date(String(endsAt).replace(" ", "T"));
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString("en-US", {
+  return date.toLocaleDateString(getLocaleForLang(i18n.language), {
     month: "short",
     day: "numeric",
     year: "numeric",

@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import SearchInput from "../../../components/ui/search-input";
 import UserAvatar from "../../../components/ui/user-avatar";
@@ -20,15 +21,18 @@ import {
   parsePostDisplayContent,
   timeAgo,
   isSensitivePost,
+  TOPIC_LABEL_KEY,
 } from "../../../services/feed-api";
 import { getFeedTagTheme } from "../../../constants/feed-theme";
 import { Fonts } from "../../../constants/font";
 import { Colors } from "../../../constants/tokens";
 import { useNow } from "../../../hooks/use-now";
 import { sw, sf } from "../../../utils/responsive";
+import { chevronForward } from "../../../utils/rtl";
 
 export default function FeedSearchScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const now = useNow(30000);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
@@ -67,7 +71,7 @@ export default function FeedSearchScreen() {
       } catch (err) {
         if (!cancelled) {
           setResults([]);
-          setError(err?.message ?? "Could not search posts.");
+          setError(err?.message ?? t("feed.search.couldNotSearch"));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -89,7 +93,7 @@ export default function FeedSearchScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
-      <InternalScreenHeader title="Search Feed" />
+      <InternalScreenHeader title={t("feed.search.title")} />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -102,7 +106,7 @@ export default function FeedSearchScreen() {
             <SearchInput
               value={query}
               onChangeText={setQuery}
-              placeholder="Search posts or neighbors..."
+              placeholder={t("feed.search.placeholder")}
               autoFocus
             />
           </View>
@@ -112,14 +116,14 @@ export default function FeedSearchScreen() {
               onPress={() => setQuery("")}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel="Clear search"
+              accessibilityLabel={t("feed.search.clearSearch")}
             >
               <Feather name="x" size={sf(16)} color="#64748B" />
             </Pressable>
           ) : null}
         </View>
 
-        <Text style={styles.sectionLabel}>Topics</Text>
+        <Text style={styles.sectionLabel}>{t("feed.search.topics")}</Text>
         <View style={styles.chips}>
           {matchingTopics.map((topic) => {
             const theme = getFeedTagTheme(topic);
@@ -147,7 +151,7 @@ export default function FeedSearchScreen() {
                     isActive && { color: theme.text, fontFamily: Fonts.semiBold },
                   ]}
                 >
-                  {topic}
+                  {TOPIC_LABEL_KEY[topic] ? t(TOPIC_LABEL_KEY[topic]) : topic}
                 </Text>
               </Pressable>
             );
@@ -159,16 +163,16 @@ export default function FeedSearchScreen() {
             <View style={styles.idleIcon}>
               <Feather name="search" size={sf(22)} color={Colors.brandPrimaryDeep} />
             </View>
-            <Text style={styles.idleTitle}>Search the community</Text>
+            <Text style={styles.idleTitle}>{t("feed.search.searchCommunity")}</Text>
             <Text style={styles.idleText}>
-              Type a name or keyword, or tap a topic to find matching posts.
+              {t("feed.search.searchHint")}
             </Text>
           </View>
         ) : (
           <>
             <View style={styles.resultsHead}>
               <Text style={styles.sectionLabel}>
-                Results{loading ? "" : ` (${results.length})`}
+                {loading ? t("feed.search.results") : t("feed.search.resultsWithCount", { count: results.length })}
               </Text>
               {loading ? (
                 <ActivityIndicator size="small" color={Colors.brandPrimaryDeep} />
@@ -180,17 +184,17 @@ export default function FeedSearchScreen() {
             ) : error ? (
               <Text style={styles.emptyText}>{error}</Text>
             ) : results.length === 0 ? (
-              <Text style={styles.emptyText}>No posts match your search.</Text>
+              <Text style={styles.emptyText}>{t("feed.search.noResults")}</Text>
             ) : (
               results.map((post) => {
                 const authorName =
-                  post.user?.display_name ?? post.user?.name ?? "Neighbor";
+                  post.user?.display_name ?? post.user?.name ?? t("feed.neighbor");
                 const display = parsePostDisplayContent(post);
                 const sensitive = isSensitivePost(post);
                 const body = sensitive
-                  ? "⚠️ Sensitive Content — hidden due to community guidelines"
+                  ? `⚠️ ${t("feed.search.sensitiveHidden")}`
                   : display.mainText ||
-                    (display.hasImage ? "Shared a photo" : "View post");
+                    (display.hasImage ? t("feed.search.sharedPhoto") : t("feed.search.viewPost"));
                 const theme = getFeedTagTheme(post.tag);
                 const relativeTime =
                   timeAgo(post.created_at, now) || post.user?.time || "";
@@ -224,18 +228,18 @@ export default function FeedSearchScreen() {
                       {sensitive ? (
                         <View style={[styles.resultTag, { backgroundColor: "#FEF3C7" }]}>
                           <Text style={[styles.resultTagText, { color: "#B45309" }]}>
-                            Sensitive
+                            {t("feed.search.sensitive")}
                           </Text>
                         </View>
                       ) : post.tag ? (
                         <View style={[styles.resultTag, { backgroundColor: theme.bg }]}>
                           <Text style={[styles.resultTagText, { color: theme.text }]}>
-                            {post.tag}
+                            {TOPIC_LABEL_KEY[post.tag] ? t(TOPIC_LABEL_KEY[post.tag]) : post.tag}
                           </Text>
                         </View>
                       ) : null}
                     </View>
-                    <Feather name="chevron-right" size={sf(16)} color="#94A3B8" />
+                    <Feather name={chevronForward()} size={sf(16)} color="#94A3B8" />
                   </Pressable>
                 );
               })

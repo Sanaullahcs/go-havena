@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import AdminRowActionsMenu from "../admin/admin-row-actions-menu";
 import FeedPostReportSheet from "./feed-post-report-sheet";
 import { reportFeedPost } from "../../services/feed-api";
@@ -8,6 +9,7 @@ import { useApiAction } from "../../hooks/use-api-action";
  * More-menu + report sheet wiring for feed posts.
  */
 export default function FeedPostOptions({ post }) {
+  const { t } = useTranslation();
   const { runAction, showFailure, showSuccess } = useApiAction();
   const [reportOpen, setReportOpen] = useState(false);
   const [reporting, setReporting] = useState(false);
@@ -31,8 +33,8 @@ export default function FeedPostOptions({ post }) {
               type: payload.type,
               description: payload.description,
             }),
-          successTitle: "Report submitted",
-          successMessage: "Community admins will review this post.",
+          successTitle: t("feed.options.reportSubmitted"),
+          successMessage: t("feed.options.adminWillReview"),
           silentSuccess: false,
         });
         setReportOpen(false);
@@ -47,7 +49,7 @@ export default function FeedPostOptions({ post }) {
     () => [
       {
         id: "download",
-        label: "Download photo",
+        label: t("feed.options.downloadPhoto"),
         icon: "download-outline",
         tone: "primary",
         hidden: !hasImage,
@@ -55,13 +57,13 @@ export default function FeedPostOptions({ post }) {
       },
       {
         id: "report",
-        label: "Report post",
+        label: t("feed.options.reportPost"),
         icon: "flag-outline",
         tone: "danger",
         onPress: () => setReportOpen(true),
       },
     ],
-    [hasImage, handleDownload],
+    [hasImage, handleDownload, t],
   );
 
   return (
@@ -70,8 +72,8 @@ export default function FeedPostOptions({ post }) {
         actions={actions}
         disabled={reporting}
         compact
-        title="Post options"
-        message="Download the photo or report this post to community admins."
+        title={t("feed.options.postOptions")}
+        message={t("feed.options.optionsMessage")}
         headerIcon={hasImage ? "image-outline" : "document-text-outline"}
       />
       <FeedPostReportSheet

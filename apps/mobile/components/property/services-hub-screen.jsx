@@ -11,8 +11,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import ScreenHeader from "../layout/screen-header";
+import PropertyHubHero from "../property/property-hub-hero";
 import PropertyHubSectionHeader from "../property/property-hub-section-header";
 import PropertyHubStats from "../property/property-hub-stats";
 import PropertyHubUpNext from "../property/property-hub-up-next";
@@ -26,7 +27,6 @@ import { sf, sw } from "../../utils/responsive";
 import {
   PropertyHubTheme,
   getPropertyHubServices,
-  getPropertyHubHeroCopy,
 } from "../../constants/property-management-theme";
 import {
   fetchMyBookings,
@@ -40,10 +40,12 @@ import {
 
 const ROUTES = { ...PropertyManagementRoutes, HELP: "/screens/help" };
 
-const EMPTY_RESIDENT_ACTIVITY = {
-  incoming: { title: "Requests to approve", items: [] },
-  outgoing: { title: "Your reservations", items: [] },
-};
+function getEmptyResidentActivity(t) {
+  return {
+    incoming: { title: t("services.requestsToApprove"), items: [] },
+    outgoing: { title: t("services.yourReservations"), items: [] },
+  };
+}
 
 function SectionLoader({ label }) {
   return (
@@ -54,58 +56,32 @@ function SectionLoader({ label }) {
   );
 }
 
-function ServicesHero({ title, subtitle, isAdmin }) {
-  return (
-    <View style={styles.heroCard}>
-      <View style={styles.heroAccent} />
-      <View style={styles.heroBody}>
-        <View style={styles.heroRow}>
-          <View style={styles.heroIconWrap}>
-            <Feather name="layers" size={sf(20)} color={PropertyHubTheme.teal} />
-          </View>
-          <View style={styles.heroCopy}>
-            <View style={styles.heroTitleRow}>
-              <Text style={styles.heroTitle} numberOfLines={2}>
-                {title}
-              </Text>
-              <View style={styles.heroBadge}>
-                <Text style={styles.heroBadgeText}>{isAdmin ? "Admin" : "Resident"}</Text>
-              </View>
-            </View>
-            <Text style={styles.heroSubtitle}>{subtitle}</Text>
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-}
-
 export default function PropertyManagment() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { width: windowWidth } = useWindowDimensions();
   const isWide = windowWidth >= 768;
   const contentMaxWidth = Math.min(windowWidth, isWide ? 720 : windowWidth);
 
   const [isAdmin, setIsAdmin] = useState(() => getCurrentRole() === "admin");
-  const hubServices = useMemo(() => getPropertyHubServices(isAdmin), [isAdmin]);
-  const heroCopy = useMemo(() => getPropertyHubHeroCopy(isAdmin), [isAdmin]);
+  const hubServices = useMemo(() => getPropertyHubServices(isAdmin, t), [isAdmin, t]);
 
   const [refreshing, setRefreshing] = useState(false);
-  const [adminActivity, setAdminActivity] = useState({ title: "Approval queue", items: [] });
-  const [residentActivity, setResidentActivity] = useState(EMPTY_RESIDENT_ACTIVITY);
+  const [adminActivity, setAdminActivity] = useState({ title: t("services.approvalQueue"), items: [] });
+  const [residentActivity, setResidentActivity] = useState(() => getEmptyResidentActivity(t));
   const [hubStats, setHubStats] = useState(() =>
     getCurrentRole() === "admin"
       ? [
           {
             id: "pending-reviews",
-            label: "Amenity reviews",
+            label: t("services.amenityReviews"),
             value: "0",
             tone: "default",
             routeKey: "ADMIN_AMENITIES",
           },
           {
             id: "pending-bookings",
-            label: "Booking requests",
+            label: t("services.bookingRequestsLabel"),
             value: "0",
             tone: "default",
             routeKey: "ADMIN_BOOKINGS",
@@ -138,19 +114,19 @@ export default function PropertyManagment() {
           isAdmin: true,
         });
         setAdminActivity(built);
-        setResidentActivity(EMPTY_RESIDENT_ACTIVITY);
+        setResidentActivity(getEmptyResidentActivity(t));
         setBookingCounts({ myReservationCount: 0, approveRequestCount: pendingBookings.length });
         setHubStats([
           {
             id: "pending-reviews",
-            label: "Amenity reviews",
+            label: t("services.amenityReviews"),
             value: String(pendingAmenities.length),
             tone: pendingAmenities.length ? "pending" : "default",
             routeKey: "ADMIN_AMENITIES",
           },
           {
             id: "pending-bookings",
-            label: "Booking requests",
+            label: t("services.bookingRequestsLabel"),
             value: String(pendingBookings.length),
             tone: pendingBookings.length ? "pending" : "default",
             routeKey: "ADMIN_BOOKINGS",
@@ -175,15 +151,15 @@ export default function PropertyManagment() {
       ).length;
 
       setResidentActivity(resident);
-      setAdminActivity({ title: "Approval queue", items: [] });
+      setAdminActivity({ title: t("services.approvalQueue"), items: [] });
       setBookingCounts({
         myReservationCount: upcomingCount,
         approveRequestCount: pendingCount,
       });
       setHubStats([]);
     } catch {
-      setAdminActivity({ title: "Approval queue", items: [] });
-      setResidentActivity(EMPTY_RESIDENT_ACTIVITY);
+      setAdminActivity({ title: t("services.approvalQueue"), items: [] });
+      setResidentActivity(getEmptyResidentActivity(t));
       setBookingCounts({ myReservationCount: 0, approveRequestCount: 0 });
       if (getCurrentRole() === "admin") {
         setHubStats((prev) =>
@@ -192,14 +168,14 @@ export default function PropertyManagment() {
             : [
                 {
                   id: "pending-reviews",
-                  label: "Amenity reviews",
+                  label: t("services.amenityReviews"),
                   value: "0",
                   tone: "default",
                   routeKey: "ADMIN_AMENITIES",
                 },
                 {
                   id: "pending-bookings",
-                  label: "Booking requests",
+                  label: t("services.bookingRequestsLabel"),
                   value: "0",
                   tone: "default",
                   routeKey: "ADMIN_BOOKINGS",
@@ -213,7 +189,7 @@ export default function PropertyManagment() {
       setActivityLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -250,8 +226,8 @@ export default function PropertyManagment() {
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <ScreenHeader
         layout="stacked"
-        title="Services"
-        subtitle={isAdmin ? "Manage community resources" : "Amenities, bookings, and more"}
+        title={t("services.title")}
+        subtitle={isAdmin ? t("services.adminSubtitle") : t("services.residentSubtitle")}
         showBack
         iconOnly
       />
@@ -270,41 +246,43 @@ export default function PropertyManagment() {
           />
         }
       >
-        <ServicesHero
-          title={heroCopy.title}
-          subtitle={heroCopy.subtitle}
-          isAdmin={isAdmin}
-        />
+        <View style={styles.heroSection}>
+          <PropertyHubHero isAdmin={isAdmin} onAction={goTo} />
+        </View>
 
         {isAdmin && hubStats.length > 0 ? (
           <View style={styles.section}>
+            <PropertyHubSectionHeader
+              title={t("services.needsAttention")}
+              subtitle={t("services.needsAttentionSub")}
+            />
             <PropertyHubStats items={hubStats} onAction={goTo} />
           </View>
         ) : null}
 
         {!isAdmin ? (
-          <View style={styles.section}>
-            <PropertyHubSectionHeader title="Up next" />
-            {activityLoading && !nextReservation ? (
-              <SectionLoader label="Checking your schedule…" />
-            ) : (
-              <PropertyHubUpNext
-                nextReservation={nextReservation}
-                myReservationCount={bookingCounts.myReservationCount}
-                approveRequestCount={bookingCounts.approveRequestCount}
-                onAction={goTo}
-              />
-            )}
+          <View style={styles.upNextSection}>
+            <PropertyHubSectionHeader
+              title={t("services.upNext")}
+              subtitle={t("services.upNextSub")}
+            />
+            <PropertyHubUpNext
+              nextReservation={nextReservation}
+              myReservationCount={bookingCounts.myReservationCount}
+              approveRequestCount={bookingCounts.approveRequestCount}
+              loading={activityLoading}
+              onAction={goTo}
+            />
           </View>
         ) : null}
 
         <View style={styles.section}>
           <PropertyHubSectionHeader
-            title="Explore"
+            title={t("services.explore")}
             subtitle={
               isAdmin
-                ? "Amenities, documents, and community tools"
-                : "Book, add amenities, and community essentials"
+                ? t("services.exploreAdminSub")
+                : t("services.exploreResidentSub")
             }
           />
           <PropertyQuickGrid
@@ -322,13 +300,13 @@ export default function PropertyManagment() {
             <PropertyHubSectionHeader
               title={adminActivity.title}
               count={adminActivity.items.length || undefined}
-              actionLabel={adminActivity.items.length ? "See all" : undefined}
+              actionLabel={adminActivity.items.length ? t("services.seeAll") : undefined}
               onAction={adminActivity.items.length ? () => goTo("ADMIN_BOOKINGS") : undefined}
             />
             {adminActivity.items.length > 0 ? (
               <PropertyActivitySection items={adminActivity.items} onAction={handleActivity} />
             ) : (
-              <SectionLoader label="Loading approval queue…" />
+              <SectionLoader label={t("services.loadingApprovalQueue")} />
             )}
           </View>
         ) : null}
@@ -338,7 +316,7 @@ export default function PropertyManagment() {
             <PropertyHubSectionHeader
               title={residentActivity.incoming.title}
               count={incomingApprovals.length}
-              actionLabel="See all"
+              actionLabel={t("services.seeAll")}
               onAction={() => goTo("ADMIN_BOOKINGS")}
             />
             <PropertyActivitySection items={incomingApprovals} onAction={handleActivity} />
@@ -356,102 +334,17 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: Layout.screenPadding,
-    paddingTop: sw(4),
-    paddingBottom: sw(28),
+    paddingTop: sw(10),
+    paddingBottom: sw(40),
   },
-  heroCard: {
-    flexDirection: "row",
-    backgroundColor: PropertyHubTheme.heroBg,
-    borderRadius: sw(16),
-    marginBottom: sw(20),
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: PropertyHubTheme.heroBorder,
-    overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: PropertyHubTheme.text,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-      },
-      android: { elevation: 2 },
-    }),
-  },
-  heroAccent: {
-    width: sw(4),
-    alignSelf: "stretch",
-    backgroundColor: PropertyHubTheme.heroAccent,
-  },
-  heroBody: {
-    flex: 1,
-    paddingHorizontal: sw(16),
-    paddingVertical: sw(16),
-  },
-  heroRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: sw(12),
-  },
-  heroCopy: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: "flex-start",
-  },
-  heroTitleRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    alignSelf: "stretch",
-    gap: sw(8),
-    marginBottom: sw(6),
-  },
-  heroIconWrap: {
-    width: sw(44),
-    height: sw(44),
-    borderRadius: sw(12),
-    backgroundColor: PropertyHubTheme.iconWell,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: PropertyHubTheme.iconBorder,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  heroBadge: {
-    paddingHorizontal: sw(10),
-    paddingVertical: sw(4),
-    borderRadius: sw(999),
-    backgroundColor: PropertyHubTheme.mint,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: PropertyHubTheme.iconBorder,
-  },
-  heroBadgeText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: sf(10),
-    lineHeight: sf(13),
-    color: PropertyHubTheme.deepTeal,
-    fontWeight: "600",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-  },
-  heroTitle: {
-    flexShrink: 1,
-    fontFamily: Fonts.bold,
-    fontSize: sf(20),
-    lineHeight: sf(26),
-    color: PropertyHubTheme.heroText,
-    fontWeight: "700",
-    textAlign: "left",
-  },
-  heroSubtitle: {
-    fontFamily: Fonts.regular,
-    fontSize: sf(13),
-    lineHeight: sf(19),
-    color: PropertyHubTheme.heroSubtext,
-    textAlign: "left",
-    alignSelf: "stretch",
+  heroSection: {
+    marginBottom: sw(24),
   },
   section: {
-    marginBottom: sw(20),
+    marginBottom: sw(26),
+  },
+  upNextSection: {
+    marginBottom: sw(26),
   },
   lastSection: {
     marginBottom: 0,

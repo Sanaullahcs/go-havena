@@ -10,6 +10,7 @@ import {
   Modal,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import ScreenHeader from "../../../components/layout/screen-header";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
 import UserAvatar from "../../../components/ui/user-avatar";
@@ -32,6 +33,8 @@ import { hasFieldErrors, LIMITS, validateFeedPostForm } from "../../../utils/for
 import GuestFeatureErrorState from "../../../components/guest/guest-permission-denied-state";
 import { isFeatureAccessBlockedError } from "../../../utils/guest-permission-errors";
 import { resolveLoadRestriction } from "../../../utils/account-access-sync";
+import { useLanguage } from "../../../providers/language-provider";
+import { SUPPORTED } from "../../../i18n";
 
 const TYPE_ICONS = {
   Recommendations: "star",
@@ -42,34 +45,43 @@ const TYPE_ICONS = {
 };
 
 const ATTACH_OPTIONS = [
-  { id: "photo", label: "Photo", icon: "image", tint: "#0A2A43", soft: "#D1FAF5" },
-  { id: "location", label: "Location", icon: "map-pin", tint: "#047857", soft: "#ECFDF5" },
-  { id: "emoji", label: "Feeling", icon: "smile", tint: "#C2410C", soft: "#FFF7ED" },
+  { id: "photo", labelKey: "feed.createPost.photo", icon: "image", tint: "#0A2A43", soft: "#D1FAF5" },
+  { id: "location", labelKey: "feed.createPost.location", icon: "map-pin", tint: "#047857", soft: "#ECFDF5" },
+  { id: "emoji", labelKey: "feed.createPost.feelingLabel", icon: "smile", tint: "#C2410C", soft: "#FFF7ED" },
 ];
 
 const FEELINGS = [
-  { emoji: "😊", label: "happy" },
-  { emoji: "🥰", label: "loved" },
-  { emoji: "🙏", label: "grateful" },
-  { emoji: "🎉", label: "excited" },
-  { emoji: "😌", label: "relaxed" },
-  { emoji: "💪", label: "motivated" },
-  { emoji: "😎", label: "proud" },
-  { emoji: "😴", label: "tired" },
+  { emoji: "😊", labelKey: "happy" },
+  { emoji: "🥰", labelKey: "loved" },
+  { emoji: "🙏", labelKey: "grateful" },
+  { emoji: "🎉", labelKey: "excited" },
+  { emoji: "😌", labelKey: "relaxed" },
+  { emoji: "💪", labelKey: "motivated" },
+  { emoji: "😎", labelKey: "proud" },
+  { emoji: "😴", labelKey: "tired" },
 ];
 
 const VALID_CATEGORIES = new Set(["general", "event", "help", "update", "announcement"]);
 
+const POST_LANG_OPTIONS = [
+  { code: "en", flag: "🇺🇸" },
+  { code: "es", flag: "🇪🇸" },
+  { code: "ar", flag: "🇸🇦" },
+];
+
 export default function CreatePost() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { category: categoryParam, postId: postIdParam } = useLocalSearchParams();
   const editPostId = postIdParam ? String(Array.isArray(postIdParam) ? postIdParam[0] : postIdParam) : null;
   const isEditing = Boolean(editPostId);
   const initialCategory = VALID_CATEGORIES.has(String(categoryParam))
     ? String(categoryParam)
     : "general";
+  const { language: appLanguage } = useLanguage();
   const { submitting, run } = useSubmitLock();
   const { showFailure } = useApiAction();
+  const [postLanguage, setPostLanguage] = useState(appLanguage);
   const [postText, setPostText] = useState("");
   const [showDone, setShowDone] = useState(false);
   const [successModal, setSuccessModal] = useState(false);
@@ -135,7 +147,7 @@ export default function CreatePost() {
         }
       } catch (err) {
         if (!cancelled) {
-          await showFailure("Could not load post", err);
+          await showFailure(t("feed.createPost.couldNotLoad"), err);
           router.back();
         }
       } finally {
@@ -163,8 +175,8 @@ export default function CreatePost() {
     [liveErrors, submitting],
   );
   const profileFields = useMemo(() => getProfileFields(user), [user]);
-  const displayName = user?.display_name ?? user?.name ?? "You";
-  const community = approvedMembership?.community?.name ?? "Your Community";
+  const displayName = user?.display_name ?? user?.name ?? t("common.you");
+  const community = approvedMembership?.community?.name ?? t("community.yourCommunity");
   const accessBlocked = Boolean(
     restrictionError && isFeatureAccessBlockedError(restrictionError),
   );
@@ -195,8 +207,8 @@ export default function CreatePost() {
     if (action === "photo") {
       const asset = await pickImage(undefined, {
         allowCamera: true,
-        promptTitle: "Add photo",
-        promptMessage: "Take a photo or choose from your gallery",
+        promptTitle: t("feed.createPost.addPhoto"),
+        promptMessage: t("feed.createPost.photoPrompt"),
         showError: (title, message) => showFailure(title, { message }),
       });
       if (asset?.uri) {
@@ -231,7 +243,7 @@ export default function CreatePost() {
 
       const communityId = await ensureFeedCommunityContext();
       if (!communityId) {
-        throw new Error("Join an approved community before posting.");
+        throw new Error(t("feed.createPost.joinCommunityError"));
       }
 
       let imageUrl;
@@ -247,9 +259,9 @@ export default function CreatePost() {
         removeImage = true;
       }
 
-      const base = postText.trim() || (attachedImage?.uri ? "Shared a photo." : "");
+      const base = postText.trim() || (attachedImage?.uri ? t("feed.createPost.sharedPhoto") : "");
       const extras = [];
-      if (feeling) extras.push(`— feeling ${feeling.emoji} ${feeling.label}`);
+      if (feeling) extras.push(`— ${t("feed.createPost.feeling", { label: t(`feed.createPost.feelings.${feeling.labelKey}`) })} ${feeling.emoji}`);
       if (location) extras.push(`📍 ${location}`);
       const content = [base, ...extras].filter(Boolean).join("\n");
 
@@ -257,6 +269,7 @@ export default function CreatePost() {
         const { message } = await updatePost(editPostId, {
           content,
           category: selectedCategory,
+          language: postLanguage,
           imageUrl,
           removeImage,
         });
@@ -265,6 +278,7 @@ export default function CreatePost() {
         const { message } = await createPost({
           content,
           category: selectedCategory,
+          language: postLanguage,
           imageUrl,
         });
         setSuccessMessage(message);
@@ -272,7 +286,7 @@ export default function CreatePost() {
 
       setSuccessModal(true);
     }).catch(async (err) => {
-      await showFailure(isEditing ? "Could not update post" : "Could not post", err);
+      await showFailure(isEditing ? t("feed.createPost.couldNotUpdate") : t("feed.createPost.couldNotPost"), err);
     });
   };
 
@@ -293,7 +307,7 @@ export default function CreatePost() {
       <SafeAreaView style={styles.screen} edges={["left", "right"]}>
         <ScreenHeader
           layout="inline"
-          title={isEditing ? "Edit Post" : "Create Post"}
+          title={isEditing ? t("feed.createPost.editTitle") : t("feed.createPost.title")}
           iconOnly
           showBackLabel={false}
           style={styles.header}
@@ -306,7 +320,7 @@ export default function CreatePost() {
                   setShowDone(false);
                 }}
               >
-                <Text style={styles.doneBtn}>Done</Text>
+                <Text style={styles.doneBtn}>{t("common.done")}</Text>
               </TouchableOpacity>
             ) : null
           }
@@ -316,7 +330,7 @@ export default function CreatePost() {
           <GuestFeatureErrorState
             error={restrictionError}
             fallbackFeature="feed"
-            defaultTitle="Cannot create posts"
+            defaultTitle={t("feed.createPost.cannotCreate")}
             onRetry={() => resolveLoadRestriction("feed").then(setRestrictionError)}
           />
         ) : (
@@ -332,14 +346,14 @@ export default function CreatePost() {
               <Feather name="send" size={sf(15)} color="#FFFFFF" />
               <Text style={styles.postButtonText}>
                 {loadingPost
-                  ? "Loading..."
+                  ? t("feed.createPost.loading")
                   : submitting
                     ? isEditing
-                      ? "Saving..."
-                      : "Posting..."
+                      ? t("feed.createPost.saving")
+                      : t("feed.createPost.posting")
                     : isEditing
-                      ? "Save changes"
-                      : "Share post"}
+                      ? t("feed.createPost.saveChanges")
+                      : t("feed.createPost.sharePost")}
               </Text>
             </TouchableOpacity>
           }
@@ -357,7 +371,7 @@ export default function CreatePost() {
             </View>
 
             <TextInput
-              placeholder="What's on your mind?"
+              placeholder={t("feed.createPost.placeholder")}
               placeholderTextColor={Colors.textMuted}
               multiline
               value={postText}
@@ -385,7 +399,7 @@ export default function CreatePost() {
                 {feeling ? (
                   <View style={styles.selPill}>
                     <Text style={styles.selPillText}>
-                      {feeling.emoji} feeling {feeling.label}
+                      {feeling.emoji} {t("feed.createPost.feeling", { label: t(`feed.createPost.feelings.${feeling.labelKey}`) })}
                     </Text>
                     <TouchableOpacity onPress={() => setFeeling(null)} hitSlop={8}>
                       <Feather name="x" size={sf(13)} color={Colors.textMuted} />
@@ -417,7 +431,7 @@ export default function CreatePost() {
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.sectionLabel}>Post type</Text>
+            <Text style={styles.sectionLabel}>{t("feed.createPost.postType")}</Text>
             <View style={styles.typeChips}>
               {POST_TYPE_OPTIONS.map((option) => {
                 const selected = selectedCategory === option.category;
@@ -444,7 +458,7 @@ export default function CreatePost() {
                         { color: selected ? option.text : Colors.textBody },
                       ]}
                     >
-                      {option.label}
+                      {t(option.labelKey)}
                     </Text>
                   </Pressable>
                 );
@@ -453,7 +467,36 @@ export default function CreatePost() {
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.sectionLabel}>Add to your post</Text>
+            <Text style={styles.sectionLabel}>{t("feed.createPost.postLanguage")}</Text>
+            <View style={styles.typeChips}>
+              {POST_LANG_OPTIONS.map((opt) => {
+                const selected = postLanguage === opt.code;
+                return (
+                  <Pressable
+                    key={opt.code}
+                    style={[
+                      styles.langChip,
+                      selected && styles.langChipActive,
+                    ]}
+                    onPress={() => setPostLanguage(opt.code)}
+                  >
+                    <Text style={styles.langChipFlag}>{opt.flag}</Text>
+                    <Text
+                      style={[
+                        styles.typeChipText,
+                        { color: selected ? Colors.brandPrimaryDeep : Colors.textBody },
+                      ]}
+                    >
+                      {t(`languages.${opt.code}`)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.sectionLabel}>{t("feed.createPost.addToPost")}</Text>
             <View style={styles.attachRow}>
               {ATTACH_OPTIONS.map((item) => {
                 const active =
@@ -477,7 +520,7 @@ export default function CreatePost() {
                         color={item.tint}
                       />
                     </View>
-                    <Text style={styles.attachTileLabel}>{item.label}</Text>
+                    <Text style={styles.attachTileLabel}>{t(item.labelKey)}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -496,19 +539,19 @@ export default function CreatePost() {
         <Pressable style={styles.sheetOverlay} onPress={() => setFeelingModal(false)}>
           <Pressable style={styles.sheet}>
             <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>How are you feeling?</Text>
+            <Text style={styles.sheetTitle}>{t("feed.createPost.howFeeling")}</Text>
             <View style={styles.feelingGrid}>
               {FEELINGS.map((item) => {
-                const selected = feeling?.label === item.label;
+                const selected = feeling?.labelKey === item.labelKey;
                 return (
                   <TouchableOpacity
-                    key={item.label}
+                    key={item.labelKey}
                     activeOpacity={0.85}
                     style={[styles.feelingItem, selected && styles.feelingItemActive]}
                     onPress={() => selectFeeling(item)}
                   >
                     <Text style={styles.feelingEmoji}>{item.emoji}</Text>
-                    <Text style={styles.feelingLabel}>{item.label}</Text>
+                    <Text style={styles.feelingLabel}>{t(`feed.createPost.feelings.${item.labelKey}`)}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -523,12 +566,12 @@ export default function CreatePost() {
             <View style={styles.modalIcon}>
               <Feather name="check" size={sf(26)} color="#FFFFFF" />
             </View>
-            <Text style={styles.modalTitle}>{isEditing ? "Post Updated!" : "Post Created!"}</Text>
+            <Text style={styles.modalTitle}>{isEditing ? t("feed.createPost.postUpdated") : t("feed.createPost.postCreated")}</Text>
             <Text style={styles.modalSub}>
-              {successMessage || "Your post is now live in your community feed."}
+              {successMessage || t("feed.createPost.postLiveFallback")}
             </Text>
             <TouchableOpacity style={styles.modalButton} onPress={closeSuccessModal}>
-              <Text style={styles.modalButtonText}>Done</Text>
+              <Text style={styles.modalButtonText}>{t("common.done")}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -630,7 +673,7 @@ const styles = StyleSheet.create({
   previewRemove: {
     position: "absolute",
     top: sw(8),
-    right: sw(8),
+    end: sw(8),
     width: sw(28),
     height: sw(28),
     borderRadius: sw(14),
@@ -705,6 +748,24 @@ const styles = StyleSheet.create({
     lineHeight: sf(14),
   },
 
+  langChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(6),
+    paddingHorizontal: sw(12),
+    paddingVertical: sw(8),
+    borderRadius: sw(999),
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    backgroundColor: "#FFFFFF",
+  },
+  langChipActive: {
+    borderColor: Colors.brandPrimaryDeep,
+    backgroundColor: "#D1FAF5",
+  },
+  langChipFlag: {
+    fontSize: sf(14),
+  },
   attachRow: {
     flexDirection: "row",
     gap: sw(10),

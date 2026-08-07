@@ -3,6 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { RefreshControl, ScrollView, StyleSheet } from "react-native";
 import ScreenShell from "../../components/layout/screen-shell";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { useSideMenu } from "../../hooks/use-side-menu";
 import Notices from "../../components/new-home/Notices";
 import HappeningSoon from "../../components/new-home/HappeningSoon";
@@ -18,6 +19,7 @@ import GuestFeatureErrorState from "../../components/guest/guest-permission-deni
 import { isFeatureAccessBlockedError } from "../../utils/guest-permission-errors";
 
 export default function Home() {
+  const { t } = useTranslation();
   const menu = useSideMenu();
   const {
     carouselNotices,
@@ -62,7 +64,7 @@ export default function Home() {
             <GuestFeatureErrorState
               error={restrictionError}
               fallbackFeature="feed"
-              defaultTitle="Could not load home"
+              defaultTitle={t("home.couldNotLoad")}
               onRetry={onRefresh}
             />
           ) : (

@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
@@ -106,6 +107,7 @@ function buildCommentDisplayRows(comments, expandedThreads) {
 
 export default function FeedCommentsScreen() {
   const router = useRouter();
+  const { t, i18n } = useTranslation();
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
   const { postId = "1" } = useLocalSearchParams();
@@ -147,7 +149,7 @@ export default function FeedCommentsScreen() {
     } catch (err) {
       setPost(null);
       setComments([]);
-      if (!silent) await showFailure("Could not load comments", err);
+      if (!silent) await showFailure(t("feed.comments.couldNotLoad"), err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -182,14 +184,14 @@ export default function FeedCommentsScreen() {
       setPost((p) => applyLikeToPost(p, result));
     } catch (err) {
       setPost(prev);
-      await showFailure("Could not update like", err);
+      await showFailure(t("feed.comments.couldNotLike"), err);
     } finally {
       setLiking(false);
     }
   };
 
   const handleReply = (comment) => {
-    const name = comment.user?.display_name ?? comment.user?.name ?? "Neighbor";
+    const name = comment.user?.display_name ?? comment.user?.name ?? t("feed.neighbor");
     const depth = Math.max(0, Math.min(Number(comment.depth) || 0, 2));
     const rootId = getThreadRootId(comment, comments);
     setReplyTo({
@@ -246,7 +248,7 @@ export default function FeedCommentsScreen() {
             : item,
         ),
       );
-      await showFailure("Could not update comment like", err);
+      await showFailure(t("feed.comments.couldNotLikeComment"), err);
     } finally {
       setLikingCommentId(null);
     }
@@ -310,7 +312,7 @@ export default function FeedCommentsScreen() {
       content: text,
       body: text,
       created_at: new Date().toISOString(),
-      time_ago: "Just now",
+      time_ago: t("feed.comments.justNow"),
       is_mine: true,
       pending: true,
       user: {
@@ -365,7 +367,7 @@ export default function FeedCommentsScreen() {
             }
           : p,
       );
-      await showFailure("Could not post comment", err);
+      await showFailure(t("feed.comments.couldNotPost"), err);
     } finally {
       setSending(false);
     }
@@ -378,8 +380,8 @@ export default function FeedCommentsScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <InternalScreenHeader
-        title="Comments"
-        subtitle={post ? `${commentCountLabel} on this post` : undefined}
+        title={t("feed.comments.title")}
+        subtitle={post ? t("feed.comments.subtitle", { count: commentCountLabel }) : undefined}
       />
 
       <KeyboardSafeScreen
@@ -397,7 +399,7 @@ export default function FeedCommentsScreen() {
             <View style={styles.sensitiveComposer}>
               <Feather name="alert-triangle" size={14} color="#B45309" />
               <Text style={styles.sensitiveComposerText}>
-                Comments are disabled for sensitive content.
+                {t("feed.comments.sensitiveDisabled")}
               </Text>
             </View>
           ) : (
@@ -406,7 +408,7 @@ export default function FeedCommentsScreen() {
               <View style={styles.replyBanner}>
                 <Feather name="corner-down-right" size={14} color={Colors.brandPrimaryDeep} />
                 <Text style={styles.replyBannerText} numberOfLines={1}>
-                  Replying to <Text style={styles.replyBannerName}>{replyTo.name}</Text>
+                  {t("feed.comments.replyingTo")} <Text style={styles.replyBannerName}>{replyTo.name}</Text>
                 </Text>
                 <TouchableOpacity onPress={clearReply} hitSlop={8}>
                   <Feather name="x" size={16} color="#65676B" />
@@ -428,7 +430,7 @@ export default function FeedCommentsScreen() {
                     setDraft(text);
                     clearError("body");
                   }}
-                  placeholder={replyTo ? `Reply to ${replyTo.name}...` : "Write a comment..."}
+                  placeholder={replyTo ? t("feed.comments.replyPlaceholder", { name: replyTo.name }) : t("feed.comments.placeholder")}
                   placeholderTextColor="#9CA3AF"
                   style={styles.input}
                   multiline
@@ -454,28 +456,32 @@ export default function FeedCommentsScreen() {
         }
       >
           {post ? (
-            <FeedPostCard
-              post={post}
-              now={now}
-              footerVariant="engagement"
-              style={styles.postCard}
-              onLike={handleLike}
-              onComments={focusComposer}
-              onProfile={() =>
-                openNeighborProfile(router, {
-                  userId: post.user_id ?? post.user?.id,
-                  isMine: post.is_mine,
-                })
-              }
-            />
+            <>
+              <FeedPostCard
+                post={post}
+                now={now}
+                footerVariant="engagement"
+                style={styles.postCard}
+                onLike={handleLike}
+                onComments={focusComposer}
+                onProfile={() =>
+                  openNeighborProfile(router, {
+                    userId: post.user_id ?? post.user?.id,
+                    isMine: post.is_mine,
+                  })
+                }
+              />
+              <View style={{ paddingHorizontal: sw(4), marginBottom: sw(4) }}>
+</View>
+            </>
           ) : null}
 
           <View style={styles.commentsCard}>
             <View style={styles.commentsHeader}>
-              <Text style={styles.sectionTitle}>All Comments</Text>
+              <Text style={styles.sectionTitle}>{t("feed.comments.allComments")}</Text>
               <View style={styles.sortPill}>
                 <Feather name="clock" size={12} color="#65676B" />
-                <Text style={styles.sortText}>Most recent</Text>
+                <Text style={styles.sortText}>{t("feed.comments.mostRecent")}</Text>
               </View>
             </View>
 
@@ -488,15 +494,15 @@ export default function FeedCommentsScreen() {
                 >
                   <Feather name="message-circle" size={28} color={Colors.brandPrimaryDeep} />
                 </View>
-                <Text style={styles.emptyTitle}>No comments yet</Text>
+                <Text style={styles.emptyTitle}>{t("feed.comments.emptyTitle")}</Text>
                 <Text style={styles.emptyText}>
                   {isSensitive
-                    ? "Comments are disabled because this post was marked as sensitive content."
-                    : "Start the conversation — your neighbors would love to hear from you."}
+                    ? t("feed.comments.emptySensitive")
+                    : t("feed.comments.emptyStart")}
                 </Text>
                 {!isSensitive ? (
                   <TouchableOpacity style={styles.emptyBtn} onPress={focusComposer}>
-                    <Text style={styles.emptyBtnText}>Write a comment</Text>
+                    <Text style={styles.emptyBtnText}>{t("feed.comments.writeComment")}</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -512,7 +518,7 @@ export default function FeedCommentsScreen() {
                     >
                       <Feather name="message-circle" size={14} color={Colors.brandPrimaryDeep} />
                       <Text style={styles.threadToggleText}>
-                        View all {row.count} {row.count === 1 ? "reply" : "replies"}
+                        {t("feed.comments.viewAllReplies", { count: row.count })}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -526,7 +532,7 @@ export default function FeedCommentsScreen() {
                       onPress={() => toggleThread(row.rootId)}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.threadToggleText}>Hide replies</Text>
+                      <Text style={styles.threadToggleText}>{t("feed.comments.hideReplies")}</Text>
                     </TouchableOpacity>
                   );
                 }

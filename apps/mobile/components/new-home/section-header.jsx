@@ -1,11 +1,15 @@
 import { Pressable, Text, View, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { homeStyles } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { Fonts } from "../../constants/font";
 import { sf, sw } from "../../utils/responsive";
+import { chevronForward } from "../../utils/rtl";
 
 export default function HomeSectionHeader({ label, onPress, style }) {
+  const { t } = useTranslation();
+
   return (
     <View style={[homeStyles.sectionHeader, style]}>
       <Text style={homeStyles.sectionLabel}>{label}</Text>
@@ -16,8 +20,8 @@ export default function HomeSectionHeader({ label, onPress, style }) {
           hitSlop={8}
           accessibilityRole="button"
         >
-          <Text style={localStyles.viewAllText}>View All</Text>
-          <Feather name="chevron-right" size={sf(13)} color={T.teal} />
+          <Text style={localStyles.viewAllText}>{t("common.viewAll")}</Text>
+          <Feather name={chevronForward()} size={sf(13)} color={T.teal} />
         </Pressable>
       ) : null}
     </View>
@@ -30,7 +34,7 @@ const localStyles = StyleSheet.create({
     alignItems: "center",
     gap: sw(2),
     paddingVertical: sw(4),
-    paddingLeft: sw(8),
+    paddingStart: sw(8),
   },
   viewAllText: {
     fontFamily: Fonts.semiBold,

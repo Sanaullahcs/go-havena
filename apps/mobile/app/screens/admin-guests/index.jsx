@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 
 import ScreenHeader from "../../../components/layout/screen-header";
 import { AdminTheme, adminSharedStyles } from "../../../constants/admin-theme";
@@ -25,16 +26,16 @@ import { resolveMediaUrl } from "../../../utils/profile-display";
 import { formatDisplayDate, formatDisplayTime } from "../../../utils/form-datetime";
 
 const FILTERS = [
-  { key: "all", label: "All" },
-  { key: "active", label: "Active" },
-  { key: "pending_verification", label: "Pending" },
-  { key: "expired", label: "Expired" },
-  { key: "revoked", label: "Revoked" },
+  { key: "all", labelKey: "admin.all" },
+  { key: "active", labelKey: "admin.active" },
+  { key: "pending_verification", labelKey: "admin.pending" },
+  { key: "expired", labelKey: "admin.expired" },
+  { key: "revoked", labelKey: "admin.revoked" },
 ];
 
 const STATUS_META = {
   active: {
-    label: "Active",
+    label: "admin.active",
     bg: "#ECFDF5",
     text: "#047857",
     border: "#A7F3D0",
@@ -42,7 +43,7 @@ const STATUS_META = {
     icon: "check-circle",
   },
   pending_verification: {
-    label: "Pending verification",
+    label: "admin.pendingVerification",
     bg: "#D1FAF5",
     text: "#0A2A43",
     border: "rgba(20, 184, 166, 0.28)",
@@ -50,7 +51,7 @@ const STATUS_META = {
     icon: "smartphone",
   },
   pending_approval: {
-    label: "Pending approval",
+    label: "admin.pendingApproval",
     bg: "#FFFBEB",
     text: "#B45309",
     border: "#FDE68A",
@@ -58,7 +59,7 @@ const STATUS_META = {
     icon: "clock",
   },
   expired: {
-    label: "Expired",
+    label: "admin.expired",
     bg: "#F8FAFC",
     text: "#64748B",
     border: "#E2E8F0",
@@ -66,7 +67,7 @@ const STATUS_META = {
     icon: "minus-circle",
   },
   revoked: {
-    label: "Revoked",
+    label: "admin.revoked",
     bg: "#F8FAFC",
     text: "#64748B",
     border: "#E2E8F0",
@@ -74,7 +75,7 @@ const STATUS_META = {
     icon: "slash",
   },
   rejected: {
-    label: "Rejected",
+    label: "admin.rejected",
     bg: "#FEF2F2",
     text: "#B91C1C",
     border: "#FECACA",
@@ -87,20 +88,20 @@ function guestStatusMeta(status) {
   return STATUS_META[status] ?? STATUS_META.expired;
 }
 
-function relTime(ts) {
+function relTime(ts, t) {
   if (!ts) return null;
   const diff = Date.now() - new Date(ts).getTime();
-  if (diff < 60000) return "Just now";
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-  return `${Math.floor(diff / 86400000)}d ago`;
+  if (diff < 60000) return t("admin.justNow");
+  if (diff < 3600000) return t("admin.minutesAgo", { count: Math.floor(diff / 60000) });
+  if (diff < 86400000) return t("admin.hoursAgo", { count: Math.floor(diff / 3600000) });
+  return t("admin.daysAgo", { count: Math.floor(diff / 86400000) });
 }
 
-function formatAccessWindow(startsAt, endsAt) {
-  if (!startsAt || !endsAt) return "Access window not set";
+function formatAccessWindow(startsAt, endsAt, t) {
+  if (!startsAt || !endsAt) return t("admin.accessWindowNotSet");
   const start = new Date(startsAt);
   const end = new Date(endsAt);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "Access window not set";
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return t("admin.accessWindowNotSet");
   return `${formatDisplayDate(start)} ${formatDisplayTime(start)} – ${formatDisplayDate(end)} ${formatDisplayTime(end)}`;
 }
 
@@ -130,7 +131,7 @@ function StatChip({ label, value, tone = "default" }) {
   );
 }
 
-function GuestCard({ item, revoking, onRevoke }) {
+function GuestCard({ item, revoking, onRevoke, t }) {
   const status = guestStatusMeta(item.status);
   const isActive = item.status === "active";
   const avatarUrl = resolveMediaUrl(item.guest_avatar_url);
@@ -140,7 +141,7 @@ function GuestCard({ item, revoking, onRevoke }) {
       : item.invited_by?.display_name || item.invited_by?.name;
 
   return (
-    <View style={[styles.card, { borderLeftColor: status.accent }]}>
+    <View style={[styles.card, { borderStartColor: status.accent }]}>
       <View style={styles.cardTop}>
         <View style={[styles.avatar, { backgroundColor: `${status.accent}18`, borderColor: `${status.accent}40` }]}>
           {avatarUrl ? (
@@ -159,12 +160,12 @@ function GuestCard({ item, revoking, onRevoke }) {
               <View style={[styles.statusPill, { backgroundColor: status.bg, borderColor: status.border }]}>
                 <Feather name={status.icon} size={sf(10)} color={status.text} />
                 <Text style={[styles.statusPillText, { color: status.text }]} numberOfLines={1}>
-                  {status.label}
+                  {t(status.label)}
                 </Text>
               </View>
               <View style={[styles.inviteTypePill, item.invitation_type === "admin" && styles.inviteTypePillAdmin]}>
                 <Text style={[styles.inviteTypePillText, item.invitation_type === "admin" && styles.inviteTypePillTextAdmin]}>
-                  {item.invitation_type === "admin" ? "Admin invite" : "Resident invite"}
+                  {item.invitation_type === "admin" ? t("admin.adminInvite") : t("admin.residentInvite")}
                 </Text>
               </View>
             </View>
@@ -173,7 +174,7 @@ function GuestCard({ item, revoking, onRevoke }) {
           <View style={styles.metaRow}>
             <Feather name="phone" size={sf(12)} color="#94A3B8" />
             <Text style={styles.metaText} numberOfLines={1}>
-              {item.guest_phone || "No phone"}
+              {item.guest_phone || t("admin.noPhone")}
             </Text>
           </View>
 
@@ -194,8 +195,8 @@ function GuestCard({ item, revoking, onRevoke }) {
             <Feather name="calendar" size={sf(13)} color={AdminTheme.accent} />
           </View>
           <View style={styles.infoCopy}>
-            <Text style={styles.infoLabel}>Access window</Text>
-            <Text style={styles.infoValue}>{formatAccessWindow(item.starts_at, item.ends_at)}</Text>
+            <Text style={styles.infoLabel}>{t("admin.accessWindow")}</Text>
+            <Text style={styles.infoValue}>{formatAccessWindow(item.starts_at, item.ends_at, t)}</Text>
           </View>
         </View>
 
@@ -204,7 +205,7 @@ function GuestCard({ item, revoking, onRevoke }) {
             <Feather name="key" size={sf(13)} color={AdminTheme.accent} />
           </View>
           <View style={styles.infoCopy}>
-            <Text style={styles.infoLabel}>Invite code</Text>
+            <Text style={styles.infoLabel}>{t("admin.inviteCode")}</Text>
             <Text style={styles.codeValue}>{item.invite_code || "—"}</Text>
           </View>
         </View>
@@ -220,11 +221,11 @@ function GuestCard({ item, revoking, onRevoke }) {
             </View>
             <View style={styles.infoCopy}>
               <Text style={styles.infoLabel}>
-                {item.invitation_type === "resident" ? "Resident invite" : "Invited by admin"}
+                {item.invitation_type === "resident" ? t("admin.residentInvite") : t("admin.invitedByAdmin")}
               </Text>
               <Text style={styles.infoValue} numberOfLines={1}>
                 {hostLabel}
-                {item.resident?.unit_number ? ` · Unit ${item.resident.unit_number}` : ""}
+                {item.resident?.unit_number ? ` · ${t("admin.unitLabel", { unit: item.resident.unit_number })}` : ""}
               </Text>
             </View>
           </View>
@@ -235,8 +236,8 @@ function GuestCard({ item, revoking, onRevoke }) {
         <View style={styles.footerMeta}>
           <Feather name="clock" size={sf(11)} color="#94A3B8" />
           <Text style={styles.footerMetaText}>
-            Invited {relTime(item.created_at) ?? "recently"}
-            {item.last_activity_at ? ` · Last active ${relTime(item.last_activity_at)}` : ""}
+            {t("admin.invitedTime", { time: relTime(item.created_at, t) ?? t("admin.recently") })}
+            {item.last_activity_at ? ` · ${t("admin.lastActiveTime", { time: relTime(item.last_activity_at, t) })}` : ""}
           </Text>
         </View>
 
@@ -251,7 +252,7 @@ function GuestCard({ item, revoking, onRevoke }) {
             ) : (
               <>
                 <Feather name="slash" size={sf(14)} color="#DC2626" />
-                <Text style={styles.revokeText}>Revoke</Text>
+                <Text style={styles.revokeText}>{t("admin.revoke")}</Text>
               </>
             )}
           </Pressable>
@@ -262,6 +263,7 @@ function GuestCard({ item, revoking, onRevoke }) {
 }
 
 export default function AdminGuestsScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { dialog, showFailure, showSuccess } = useApiAction();
   const [guests, setGuests] = useState([]);
@@ -283,12 +285,12 @@ export default function AdminGuestsScreen() {
         setStats(res.meta.stats);
       }
     } catch (err) {
-      await showFailure("Could not load guests", err);
+      await showFailure(t("admin.couldNotLoadGuests"), err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [filter, search, showFailure]);
+  }, [filter, search, showFailure, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -316,19 +318,19 @@ export default function AdminGuestsScreen() {
 
   const handleRevoke = async (guest) => {
     const result = await dialog.showConfirm(
-      "Revoke guest access?",
-      `${guest.guest_name} will be logged out and cannot access the community until re-invited.`,
-      { confirmLabel: "Revoke", destructive: true },
+      t("admin.revokeGuestAccess"),
+      t("admin.revokeGuestMessage", { name: guest.guest_name }),
+      { confirmLabel: t("admin.revoke"), destructive: true },
     );
     if (result !== "confirm") return;
 
     setRevokingId(guest.id);
     try {
       await revokeAdminGuest(guest.id);
-      await showSuccess("Access revoked", "The guest can no longer access the community.");
+      await showSuccess(t("admin.accessRevoked"), t("admin.guestNoLongerAccess"));
       load();
     } catch (err) {
-      await showFailure("Revoke failed", err);
+      await showFailure(t("admin.revokeFailed"), err);
     } finally {
       setRevokingId(null);
     }
@@ -336,19 +338,19 @@ export default function AdminGuestsScreen() {
 
   const emptyMessage =
     filter === "active"
-      ? "No active guests right now."
+      ? t("admin.noActiveGuests")
       : filter === "pending_verification"
-        ? "No pending guest invitations."
+        ? t("admin.noPendingGuests")
         : filter === "expired"
-          ? "No expired guest passes."
+          ? t("admin.noExpiredGuests")
           : search.trim()
-            ? "No guests match your search."
-            : "No guest invitations yet.";
+            ? t("admin.noGuestsMatch")
+            : t("admin.noGuestInvitations");
 
   if (loading) {
     return (
       <SafeAreaView style={adminSharedStyles.screen} edges={["left", "right"]}>
-        <ScreenHeader title="Guest Users" onBack={() => router.back()} />
+        <ScreenHeader title={t("admin.guestUsersTitle")} onBack={() => router.back()} />
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={AdminTheme.accent} />
         </View>
@@ -358,7 +360,7 @@ export default function AdminGuestsScreen() {
 
   return (
     <SafeAreaView style={adminSharedStyles.screen} edges={["left", "right"]}>
-      <ScreenHeader title="Guest Users" onBack={() => router.back()} />
+      <ScreenHeader title={t("admin.guestUsersTitle")} onBack={() => router.back()} />
 
       <FlatList
         data={guests}
@@ -381,17 +383,17 @@ export default function AdminGuestsScreen() {
                 <Feather name="users" size={sf(18)} color={AdminTheme.accent} />
               </View>
               <View style={styles.heroCopy}>
-                <Text style={styles.heroTitle}>Community guests</Text>
+                <Text style={styles.heroTitle}>{t("admin.communityGuests")}</Text>
                 <Text style={styles.heroSubtitle}>
-                  {stats.active ?? 0} active · {pendingTotal} pending review
+                  {t("admin.guestsSummary", { active: stats.active ?? 0, pending: pendingTotal })}
                 </Text>
               </View>
             </View>
 
             <View style={styles.statsRow}>
-              <StatChip label="Total" value={stats.total ?? guests.length} />
-              <StatChip label="Active" value={stats.active ?? 0} tone="active" />
-              <StatChip label="Pending" value={pendingTotal} tone="pending" />
+              <StatChip label={t("admin.total")} value={stats.total ?? guests.length} />
+              <StatChip label={t("admin.active")} value={stats.active ?? 0} tone="active" />
+              <StatChip label={t("admin.pending")} value={pendingTotal} tone="pending" />
             </View>
 
             <View style={adminSharedStyles.searchWrap}>
@@ -400,7 +402,7 @@ export default function AdminGuestsScreen() {
                 value={search}
                 onChangeText={setSearch}
                 onSubmitEditing={load}
-                placeholder="Search name, phone, email, or code"
+                placeholder={t("admin.searchGuestsPlaceholder")}
                 placeholderTextColor={AdminTheme.textMuted}
                 style={adminSharedStyles.searchInput}
                 returnKeyType="search"
@@ -427,7 +429,7 @@ export default function AdminGuestsScreen() {
                     onPress={() => setFilter(item.key)}
                   >
                     <Text style={[adminSharedStyles.filterChipText, active && adminSharedStyles.filterChipTextActive]}>
-                      {item.label}
+                      {t(item.labelKey)}
                       {typeof count === "number" ? ` (${count})` : ""}
                     </Text>
                   </Pressable>
@@ -444,12 +446,12 @@ export default function AdminGuestsScreen() {
             <Text style={adminSharedStyles.emptyText}>{emptyMessage}</Text>
             <Pressable style={styles.emptyCta} onPress={() => router.push("/screens/invite-guest-admin")}>
               <Feather name="plus" size={sf(14)} color="#FFF" />
-              <Text style={styles.emptyCtaText}>Invite guest</Text>
+              <Text style={styles.emptyCtaText}>{t("admin.inviteGuest")}</Text>
             </Pressable>
           </View>
         }
         renderItem={({ item }) => (
-          <GuestCard item={item} revoking={revokingId === item.id} onRevoke={handleRevoke} />
+          <GuestCard item={item} revoking={revokingId === item.id} onRevoke={handleRevoke} t={t} />
         )}
       />
 
@@ -523,7 +525,7 @@ const styles = StyleSheet.create({
     marginBottom: sw(12),
     borderWidth: 1,
     borderColor: AdminTheme.border,
-    borderLeftWidth: sw(4),
+    borderStartWidth: sw(4),
     shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -741,7 +743,7 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: "absolute",
-    right: sw(20),
+    end: sw(20),
     bottom: sw(24),
     width: sw(56),
     height: sw(56),

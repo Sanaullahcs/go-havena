@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import ScreenHeader from "../../../components/layout/screen-header";
 import { Fonts } from "../../../constants/font";
 import { Colors } from "../../../constants/tokens";
@@ -26,18 +27,18 @@ import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { useApiAction } from "../../../hooks/use-api-action";
 
 const FILTERS = [
-  { key: "pending", label: "Pending" },
-  { key: "approved", label: "Approved" },
-  { key: "rejected", label: "Rejected" },
-  { key: "all", label: "All" },
+  { key: "pending", labelKey: "admin.pending" },
+  { key: "approved", labelKey: "admin.approved" },
+  { key: "rejected", labelKey: "admin.rejected" },
+  { key: "all", labelKey: "admin.all" },
 ];
 
 const STATUS_META = {
-  pending: { label: "Pending", bg: "#FFFBEB", text: "#D97706" },
-  approved: { label: "Approved", bg: "#ECFDF5", text: "#059669" },
-  rejected: { label: "Rejected", bg: "#FEF2F2", text: "#DC2626" },
-  banned: { label: "Suspended", bg: "#F1F5F9", text: "#64748B" },
-  onboarding: { label: "Onboarding", bg: "#D1FAF5", text: "#14B8A6" },
+  pending: { label: "admin.pending", bg: "#FFFBEB", text: "#D97706" },
+  approved: { label: "admin.approved", bg: "#ECFDF5", text: "#059669" },
+  rejected: { label: "admin.rejected", bg: "#FEF2F2", text: "#DC2626" },
+  banned: { label: "admin.suspended", bg: "#F1F5F9", text: "#64748B" },
+  onboarding: { label: "admin.onboarding", bg: "#D1FAF5", text: "#14B8A6" },
 };
 
 function memberStatusMeta(status) {
@@ -45,15 +46,15 @@ function memberStatusMeta(status) {
   return STATUS_META[status] ?? { label: status, bg: "#F3F4F6", text: "#64748B" };
 }
 
-function emptyMessageForFilter(filter) {
-  if (filter === "pending") return "No pending join requests.";
-  if (filter === "approved") return "No approved residents yet.";
-  if (filter === "rejected") return "No rejected residents.";
-  return "No members found.";
+function emptyMessageForFilter(filter, t) {
+  if (filter === "pending") return t("admin.noPendingRequests");
+  if (filter === "approved") return t("admin.noApprovedResidents");
+  if (filter === "rejected") return t("admin.noRejectedResidents");
+  return t("admin.noMembersFound");
 }
 
-function MemberRow({ item, approving, rejecting, onApprove, onReject }) {
-  const name = item.display_name || item.name || "Resident";
+function MemberRow({ item, approving, rejecting, onApprove, onReject, t }) {
+  const name = item.display_name || item.name || t("admin.resident");
   const contact = item.phone || item.email || "—";
   const pending = item.status === "pending";
   const busy = approving === item.id || rejecting === item.id;
@@ -68,9 +69,9 @@ function MemberRow({ item, approving, rejecting, onApprove, onReject }) {
         <View style={styles.memberBody}>
           <Text style={styles.memberName}>{name}</Text>
           <Text style={styles.memberMeta} numberOfLines={1}>{contact}</Text>
-          {item.unit_number ? <Text style={styles.memberMeta}>Unit {item.unit_number}</Text> : null}
+          {item.unit_number ? <Text style={styles.memberMeta}>{t("admin.unitLabel", { unit: item.unit_number })}</Text> : null}
           <View style={[styles.statusPill, { backgroundColor: status.bg }]}>
-            <Text style={[styles.statusPillText, { color: status.text }]}>{status.label}</Text>
+            <Text style={[styles.statusPillText, { color: status.text }]}>{t(status.label)}</Text>
           </View>
         </View>
         {pending ? (
@@ -79,7 +80,7 @@ function MemberRow({ item, approving, rejecting, onApprove, onReject }) {
               style={[styles.iconBtn, styles.iconBtnReject, busy && styles.actionBtnDisabled]}
               disabled={busy}
               onPress={() => onReject(item)}
-              accessibilityLabel="Reject resident"
+              accessibilityLabel={t("admin.rejectResident")}
             >
               {rejecting === item.id ? (
                 <ActivityIndicator size="small" color="#DC2626" />
@@ -91,7 +92,7 @@ function MemberRow({ item, approving, rejecting, onApprove, onReject }) {
               style={[styles.iconBtn, styles.iconBtnApprove, busy && styles.actionBtnDisabled]}
               disabled={busy}
               onPress={() => onApprove(item.id)}
-              accessibilityLabel="Approve resident"
+              accessibilityLabel={t("admin.approveResident")}
             >
               {approving === item.id ? (
                 <ActivityIndicator size="small" color="#059669" />
@@ -107,6 +108,7 @@ function MemberRow({ item, approving, rejecting, onApprove, onReject }) {
 }
 
 export default function AdminMembersScreen() {
+  const { t } = useTranslation();
   const params = useLocalSearchParams();
   const [filter, setFilter] = useState("pending");
   const [search, setSearch] = useState("");
@@ -137,7 +139,7 @@ export default function AdminMembersScreen() {
       });
       setMembers(res.data);
     } catch (err) {
-      await showFailure("Could not load members", err);
+      await showFailure(t("admin.couldNotLoadMembers"), err);
     } finally {
       setLoading(false);
     }
@@ -154,9 +156,9 @@ export default function AdminMembersScreen() {
     try {
       await runAction({
         action: () => approveMember(userId),
-        successTitle: "Approved",
-        successMessage: "Resident can now access the community.",
-        errorTitle: "Approval failed",
+        successTitle: t("admin.approved"),
+        successMessage: t("admin.residentCanAccess"),
+        errorTitle: t("admin.approvalFailed"),
         onSuccess: () => load(),
       });
     } finally {
@@ -177,7 +179,7 @@ export default function AdminMembersScreen() {
   const handleReject = async () => {
     const reason = rejectReason.trim();
     if (!reason) {
-      await showFailure("Reason required", { message: "Tell the resident why their request was rejected." });
+      await showFailure(t("admin.reasonRequired"), { message: t("admin.tellResidentWhy") });
       return;
     }
     if (!rejectTarget) return;
@@ -186,9 +188,9 @@ export default function AdminMembersScreen() {
     try {
       await runAction({
         action: () => rejectMember(rejectTarget.id, reason),
-        successTitle: "Rejected",
-        successMessage: "The resident will see your reason in the app.",
-        errorTitle: "Rejection failed",
+        successTitle: t("admin.rejected"),
+        successMessage: t("admin.residentWillSeeReason"),
+        errorTitle: t("admin.rejectionFailed"),
         onSuccess: () => {
           closeReject();
           load();
@@ -221,9 +223,9 @@ export default function AdminMembersScreen() {
           email: inviteForm.email.trim(),
           unit_number: inviteForm.unit.trim() || undefined,
         }),
-        successTitle: "Invite sent",
-        successMessage: "The resident invitation was created successfully.",
-        errorTitle: "Invite failed",
+        successTitle: t("admin.inviteSent"),
+        successMessage: t("admin.inviteCreated"),
+        errorTitle: t("admin.inviteFailed"),
         silentSuccess: true,
       });
       setInviteResult(res.data ?? res);
@@ -247,7 +249,7 @@ export default function AdminMembersScreen() {
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <ScreenHeader
         layout="inline"
-        title="Residents"
+        title={t("admin.residents")}
         iconOnly
         right={
           <TouchableOpacity style={styles.inviteHeaderBtn} onPress={() => setInviteOpen(true)}>
@@ -262,7 +264,7 @@ export default function AdminMembersScreen() {
           <TextInput
             value={search}
             onChangeText={setSearch}
-            placeholder="Search name, email, unit…"
+            placeholder={t("admin.searchPlaceholderMembers")}
             placeholderTextColor="#99A1AF"
             style={styles.searchInput}
             returnKeyType="search"
@@ -291,7 +293,7 @@ export default function AdminMembersScreen() {
                   numberOfLines={1}
                   includeFontPadding={false}
                 >
-                  {f.label}
+                  {t(f.labelKey)}
                 </Text>
               </TouchableOpacity>
             );
@@ -310,7 +312,7 @@ export default function AdminMembersScreen() {
           style={styles.list}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>{emptyMessageForFilter(filter)}</Text>
+            <Text style={styles.emptyText}>{emptyMessageForFilter(filter, t)}</Text>
           }
           renderItem={({ item }) => (
             <MemberRow
@@ -319,6 +321,7 @@ export default function AdminMembersScreen() {
               rejecting={rejecting}
               onApprove={handleApprove}
               onReject={openReject}
+              t={t}
             />
           )}
         />
@@ -332,30 +335,30 @@ export default function AdminMembersScreen() {
           >
             <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
               <Text style={styles.modalTitle}>
-                {inviteResult ? "Invite sent" : "Invite resident"}
+                {inviteResult ? t("admin.inviteSent") : t("admin.inviteResident")}
               </Text>
 
               {inviteResult ? (
                 <View>
                   <Text style={styles.resultLine}>
-                    Share this invite code with the resident:
+                    {t("admin.shareInviteCode")}
                   </Text>
                   <Text style={styles.inviteCode}>{inviteResult.invite_code}</Text>
                   {inviteResult.temp_password ? (
                     <Text style={styles.resultMeta}>
-                      Temporary password: {inviteResult.temp_password}
+                      {t("admin.temporaryPassword", { password: inviteResult.temp_password })}
                     </Text>
                   ) : null}
                   {inviteResult.community_name ? (
-                    <Text style={styles.resultMeta}>Community: {inviteResult.community_name}</Text>
+                    <Text style={styles.resultMeta}>{t("admin.communityLabel", { name: inviteResult.community_name })}</Text>
                   ) : null}
                   <TouchableOpacity style={styles.primaryBtn} onPress={closeInvite}>
-                    <Text style={styles.primaryBtnText}>Done</Text>
+                    <Text style={styles.primaryBtnText}>{t("admin.done")}</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
                 <>
-                  <Text style={styles.label}>Full name *</Text>
+                  <Text style={styles.label}>{t("admin.fullName")}</Text>
                   <TextInput
                     value={inviteForm.name}
                     onChangeText={(v) => {
@@ -364,10 +367,10 @@ export default function AdminMembersScreen() {
                     }}
                     onBlur={() => touch("name")}
                     style={[styles.input, showError("name", inviteLiveErrors) && styles.inputError]}
-                    placeholder="Resident name"
+                    placeholder={t("admin.residentName")}
                   />
                   {showError("name", inviteLiveErrors) ? <Text style={styles.errorText}>{showError("name", inviteLiveErrors)}</Text> : null}
-                  <Text style={styles.label}>Email *</Text>
+                  <Text style={styles.label}>{t("admin.emailLabel")}</Text>
                   <TextInput
                     value={inviteForm.email}
                     onChangeText={(v) => {
@@ -376,12 +379,12 @@ export default function AdminMembersScreen() {
                     }}
                     onBlur={() => touch("email")}
                     style={[styles.input, showError("email", inviteLiveErrors) && styles.inputError]}
-                    placeholder="email@example.com"
+                    placeholder={t("admin.emailPlaceholder")}
                     keyboardType="email-address"
                     autoCapitalize="none"
                   />
                   {showError("email", inviteLiveErrors) ? <Text style={styles.errorText}>{showError("email", inviteLiveErrors)}</Text> : null}
-                  <Text style={styles.label}>Unit (optional)</Text>
+                  <Text style={styles.label}>{t("admin.unitOptional")}</Text>
                   <TextInput
                     value={inviteForm.unit}
                     onChangeText={(v) => {
@@ -390,7 +393,7 @@ export default function AdminMembersScreen() {
                     }}
                     onBlur={() => touch("unit")}
                     style={[styles.input, showError("unit", inviteLiveErrors) && styles.inputError]}
-                    placeholder="e.g. 12B"
+                    placeholder={t("admin.unitPlaceholder")}
                   />
                   {showError("unit", inviteLiveErrors) ? <Text style={styles.errorText}>{showError("unit", inviteLiveErrors)}</Text> : null}
                   <TouchableOpacity
@@ -401,7 +404,7 @@ export default function AdminMembersScreen() {
                     {inviting ? (
                       <ActivityIndicator color="#fff" />
                     ) : (
-                      <Text style={styles.primaryBtnText}>Send invite</Text>
+                      <Text style={styles.primaryBtnText}>{t("admin.sendInvite")}</Text>
                     )}
                   </TouchableOpacity>
                 </>
@@ -418,16 +421,16 @@ export default function AdminMembersScreen() {
             style={styles.modalKeyboard}
           >
             <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
-              <Text style={styles.modalTitle}>Reject resident</Text>
+              <Text style={styles.modalTitle}>{t("admin.rejectResident")}</Text>
               <Text style={styles.rejectHint}>
-                {rejectTarget?.display_name || rejectTarget?.name || "This resident"} will see your reason in the app.
+                {t("admin.rejectHintMessage", { name: rejectTarget?.display_name || rejectTarget?.name || t("admin.thisResident") })}
               </Text>
-              <Text style={styles.label}>Reason *</Text>
+              <Text style={styles.label}>{t("admin.reasonLabel")}</Text>
               <TextInput
                 value={rejectReason}
                 onChangeText={setRejectReason}
                 style={[styles.input, styles.rejectInput]}
-                placeholder="Explain why the request was rejected"
+                placeholder={t("admin.explainRejection")}
                 multiline
                 textAlignVertical="top"
                 maxLength={500}
@@ -438,7 +441,7 @@ export default function AdminMembersScreen() {
                   disabled={Boolean(rejecting)}
                   onPress={closeReject}
                 >
-                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                  <Text style={styles.cancelBtnText}>{t("admin.cancel")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.rejectBtn, styles.modalActionBtn, rejecting && styles.actionBtnDisabled]}
@@ -448,7 +451,7 @@ export default function AdminMembersScreen() {
                   {rejecting ? (
                     <ActivityIndicator size="small" color="#B91C1C" />
                   ) : (
-                    <Text style={styles.rejectBtnText}>Confirm reject</Text>
+                    <Text style={styles.rejectBtnText}>{t("admin.confirmReject")}</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -525,7 +528,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     paddingHorizontal: 24,
-    paddingRight: 32,
+    paddingEnd: 32,
     minHeight: 28,
   },
   filterChip: {
@@ -615,7 +618,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginLeft: 4,
+    marginStart: 4,
   },
   iconBtn: {
     width: 38,

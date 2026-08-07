@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Keyboard,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import BackButton from "../../../components/ui/back-button";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
 import OTPInput from "../../../components/ui/otp-input";
@@ -36,6 +37,7 @@ import { decodeRoutePhone, paramString } from "../../../utils/route-params";
 import { ScreenBrand as B } from "../../../constants/screen-brand";
 
 export default function VerifyRegistrationScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const dialog = useAppDialog();
   const { role: roleParam = "resident", phone: phoneParam = "" } = useLocalSearchParams();
@@ -88,7 +90,7 @@ export default function VerifyRegistrationScreen() {
       try {
         await requestOtp(phone, { intent: "signup" });
         resetCountdown();
-        await showApiSuccess(dialog, "Code sent", "A new verification code has been sent.");
+        await showApiSuccess(dialog, t("auth.codeSent"), t("auth.newVerificationCodeSent"));
       } catch (err) {
         await handleAuthApiError(err, dialog, router, { phone });
       }
@@ -111,12 +113,12 @@ export default function VerifyRegistrationScreen() {
           submitting && styles.resendMuted,
         ]}
       >
-        {submitting ? "Sending…" : "Resend Code"}
+        {submitting ? t("auth.sending") : t("auth.resendCode")}
       </Text>
     </TouchableOpacity>
   ) : (
     <Text style={styles.resendText}>
-      Resend code in{" "}
+      {t("auth.resendCodeIn") + " "}
       <Text style={styles.resendHighlight}>{countdownLabel}</Text>
     </Text>
   );
@@ -126,8 +128,8 @@ export default function VerifyRegistrationScreen() {
       <ScreenStatusBar style="dark" opaque />
       <AuthSuccessOverlay
         visible={showSuccess}
-        title="Number verified!"
-        subtitle={role === "admin" ? "Now choose your region and register your community" : "Let's choose your region next"}
+        title={t("auth.numberVerified")}
+        subtitle={role === "admin" ? t("auth.chooseRegionAdmin") : t("auth.chooseRegionNext")}
         onComplete={() => {
           setShowSuccess(false);
           navigateAfterAuth(router, verifiedUser, { role });
@@ -146,13 +148,13 @@ export default function VerifyRegistrationScreen() {
           <View style={styles.formBlock}>
             <View style={styles.logoContainer}>
               <AuthLogo compact size={68} tileColor={B.primary} />
-              <Text style={styles.title}>Verify Your Number</Text>
-              <Text style={styles.subtitle}>Enter the 6-digit code sent to</Text>
+              <Text style={styles.title}>{t("auth.verifyYourNumber")}</Text>
+              <Text style={styles.subtitle}>{t("auth.enterCodeSentTo")}</Text>
               <Text style={styles.numberDisplay}>{phoneDisplay}</Text>
             </View>
 
             <View style={styles.otpContainer}>
-              <Text style={styles.otpLabel}>Enter Code</Text>
+              <Text style={styles.otpLabel}>{t("auth.enterCode")}</Text>
               <OTPInput
                 length={6}
                 onOTPChange={handleOtpChange}
@@ -163,15 +165,15 @@ export default function VerifyRegistrationScreen() {
               />
               {showOtpError ? (
                 <Text style={authStyles.inputErrorText}>
-                  Enter the 6-digit verification code
+                  {t("auth.enter6DigitCode")}
                 </Text>
               ) : null}
             </View>
 
             <View style={styles.actionsBlock}>
               <AuthSubmitButton
-                label="Verify & Continue"
-                loadingLabel="Verifying…"
+                label={t("auth.verifyContinue")}
+                loadingLabel={t("auth.verifying")}
                 enabled={isValid}
                 loading={submitting}
                 onPress={handleVerify}
@@ -180,7 +182,7 @@ export default function VerifyRegistrationScreen() {
                 style={B.buttonShadow}
               />
               <Text style={styles.footerText}>
-                This code will expire in 2 minutes
+                {t("auth.codeExpireIn2Min")}
               </Text>
               {resendFooter}
             </View>

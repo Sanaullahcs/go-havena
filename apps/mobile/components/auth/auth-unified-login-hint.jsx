@@ -1,11 +1,12 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
+import { useTranslation } from "react-i18next";
 import RoleBadge from "../ui/role-badge";
 import { Fonts } from "../../constants/font";
 import { Colors } from "../../constants/tokens";
 
-/** Shows that residents and community admins share one phone sign-in. */
 export default function AuthUnifiedLoginHint() {
+  const { t } = useTranslation();
   return (
     <View style={styles.wrap}>
       <View style={styles.badges}>
@@ -13,7 +14,7 @@ export default function AuthUnifiedLoginHint() {
         <RoleBadge role="admin" />
       </View>
       <Text style={styles.caption}>
-        One sign-in for residents and community admins
+        {t("auth.unifiedLogin")}
       </Text>
     </View>
   );

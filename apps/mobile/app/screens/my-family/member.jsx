@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import ProfilePhotoAvatar from "../../../components/profile/profile-photo-avatar";
 import { propertyStyles } from "../../../constants/property-styles";
@@ -31,21 +32,21 @@ const STATUS_META = {
   blocked: { label: "Blocked", bg: "#FEF2F2", color: "#991B1B", border: "#FECACA" },
 };
 
-function familyRoleLabel(role) {
-  if (role === "head") return "Family Head";
-  return "Family Member";
+function familyRoleLabel(role, t) {
+  if (role === "head") return t("family.familyHead");
+  return t("family.familyMember");
 }
 
-function communityRoleLabel(role) {
-  if (role === "community_admin" || role === "admin") return "Community admin";
-  if (role === "guest") return "Guest";
+function communityRoleLabel(role, t) {
+  if (role === "community_admin" || role === "admin") return t("family.memberDetail.communityAdmin");
+  if (role === "guest") return t("family.memberDetail.guest");
   if (!role) return null;
-  return "Resident";
+  return t("family.memberDetail.resident");
 }
 
-function residenceLabel(type) {
-  if (type === "homeowner") return "Homeowner";
-  if (type === "tenant") return "Tenant";
+function residenceLabel(type, t) {
+  if (type === "homeowner") return t("family.memberDetail.homeowner");
+  if (type === "tenant") return t("family.memberDetail.tenant");
   return null;
 }
 
@@ -71,6 +72,7 @@ function DetailRow({ icon, label, value, last = false }) {
 
 export default function FamilyMemberDetailScreen() {
   const params = useLocalSearchParams();
+  const { t } = useTranslation();
   const userId = String(params.userId ?? "").trim();
 
   const [member, setMember] = useState(null);
@@ -82,7 +84,7 @@ export default function FamilyMemberDetailScreen() {
 
   const load = useCallback(async () => {
     if (!userId) {
-      setError("Member not found.");
+      setError(t("family.memberDetail.memberNotFound"));
       setMember(null);
       setFamily(null);
       setNeighbor(null);
@@ -102,7 +104,7 @@ export default function FamilyMemberDetailScreen() {
         setMember(null);
         setFamily(familyData);
         setNeighbor(null);
-        setError("This person is not in your family.");
+        setError(t("family.memberDetail.notInFamily"));
         return;
       }
 
@@ -119,7 +121,7 @@ export default function FamilyMemberDetailScreen() {
       setMember(null);
       setFamily(null);
       setNeighbor(null);
-      setError(err?.message || "Could not load member details.");
+      setError(err?.message || t("family.memberDetail.couldNotLoad"));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -136,12 +138,20 @@ export default function FamilyMemberDetailScreen() {
   const user = member?.user ?? {};
   const statusKey = resolveStatusKey(member);
   const status = STATUS_META[statusKey] ?? STATUS_META.active;
-  const displayName = neighbor?.displayName || user.name || "Member";
+  const statusLabels = {
+    head: t("family.memberDetail.statusHead"),
+    active: t("family.memberDetail.statusActive"),
+    pending: t("family.memberDetail.statusPending"),
+    suspended: t("family.memberDetail.statusSuspended"),
+    blocked: t("family.memberDetail.statusBlocked"),
+  };
+  const translatedStatusLabel = statusLabels[statusKey] ?? status.label;
+  const displayName = neighbor?.displayName || user.name || t("family.member");
   const avatarUrl = resolveMediaUrl(neighbor?.avatar_url || user.avatar_url);
   const unitNumber = neighbor?.unitNumber || user.unit_number || null;
   const bio = neighbor?.bio?.trim() || "";
-  const residence = residenceLabel(neighbor?.residence_type);
-  const communityRole = communityRoleLabel(neighbor?.role);
+  const residence = residenceLabel(neighbor?.residence_type, t);
+  const communityRole = communityRoleLabel(neighbor?.role, t);
   const communityName = neighbor?.communityName || family?.community_name || null;
   const joinedLabel = member?.joined_at ? formatDisplayDate(member.joined_at) : null;
   const phoneLabel = toDisplayPhone(user.phone) || null;
@@ -149,24 +159,24 @@ export default function FamilyMemberDetailScreen() {
 
   const detailRows = useMemo(() => {
     const rows = [
-      { icon: "award", label: "Family role", value: familyRoleLabel(member?.role) },
-      { icon: "activity", label: "Family status", value: status.label },
-      { icon: "heart", label: "Relationship", value: member?.relationship || null },
-      { icon: "phone", label: "Phone", value: phoneLabel },
-      { icon: "mail", label: "Email", value: emailLabel },
-      { icon: "home", label: "Unit number", value: unitNumber ? `Unit ${unitNumber}` : null },
-      { icon: "users", label: "Community role", value: communityRole },
-      { icon: "map-pin", label: "Community", value: communityName },
-      { icon: "briefcase", label: "Residence", value: residence },
-      { icon: "calendar", label: "Joined family", value: joinedLabel },
-      { icon: "hash", label: "Family number", value: family?.family_number || null },
+      { icon: "award", label: t("family.memberDetail.familyRole"), value: familyRoleLabel(member?.role, t) },
+      { icon: "activity", label: t("family.memberDetail.familyStatus"), value: translatedStatusLabel },
+      { icon: "heart", label: t("family.memberDetail.relationship"), value: member?.relationship || null },
+      { icon: "phone", label: t("family.memberDetail.phone"), value: phoneLabel },
+      { icon: "mail", label: t("family.memberDetail.emailLabel"), value: emailLabel },
+      { icon: "home", label: t("family.memberDetail.unitNumber"), value: unitNumber ? `${t("family.memberDetail.unit")} ${unitNumber}` : null },
+      { icon: "users", label: t("family.memberDetail.communityRole"), value: communityRole },
+      { icon: "map-pin", label: t("family.memberDetail.community"), value: communityName },
+      { icon: "briefcase", label: t("family.memberDetail.residence"), value: residence },
+      { icon: "calendar", label: t("family.memberDetail.joinedFamily"), value: joinedLabel },
+      { icon: "hash", label: t("family.memberDetail.familyNumber"), value: family?.family_number || null },
     ].filter((row) => row.value);
 
     return rows;
   }, [
     member?.role,
     member?.relationship,
-    status.label,
+    translatedStatusLabel,
     phoneLabel,
     emailLabel,
     unitNumber,
@@ -175,11 +185,12 @@ export default function FamilyMemberDetailScreen() {
     residence,
     joinedLabel,
     family?.family_number,
+    t,
   ]);
 
   return (
     <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
-      <InternalScreenHeader title="Member profile" subtitle={displayName !== "Member" ? displayName : undefined} />
+      <InternalScreenHeader title={t("family.memberDetail.title")} subtitle={displayName !== t("family.member") ? displayName : undefined} />
 
       {loading ? (
         <View style={styles.centered}>
@@ -190,7 +201,7 @@ export default function FamilyMemberDetailScreen() {
           <View style={styles.errorIcon}>
             <Feather name="user-x" size={sf(28)} color="#94A3B8" />
           </View>
-          <Text style={styles.errorTitle}>Profile unavailable</Text>
+          <Text style={styles.errorTitle}>{t("family.memberDetail.profileUnavailable")}</Text>
           <Text style={styles.errorText}>{error}</Text>
           <Pressable
             style={styles.retryBtn}
@@ -199,7 +210,7 @@ export default function FamilyMemberDetailScreen() {
               load();
             }}
           >
-            <Text style={styles.retryText}>Try again</Text>
+            <Text style={styles.retryText}>{t("family.memberDetail.tryAgain")}</Text>
           </Pressable>
         </View>
       ) : member ? (
@@ -222,7 +233,7 @@ export default function FamilyMemberDetailScreen() {
             <Text style={styles.name}>{displayName}</Text>
             <View style={styles.chipRow}>
               <View style={[styles.chip, { backgroundColor: status.bg, borderColor: status.border }]}>
-                <Text style={[styles.chipText, { color: status.color }]}>{status.label}</Text>
+                <Text style={[styles.chipText, { color: status.color }]}>{translatedStatusLabel}</Text>
               </View>
               {member.relationship ? (
                 <View style={[styles.chip, styles.chipNeutral]}>
@@ -233,12 +244,12 @@ export default function FamilyMemberDetailScreen() {
             {bio ? (
               <Text style={styles.bio}>{bio}</Text>
             ) : (
-              <Text style={styles.bioEmpty}>No bio shared yet.</Text>
+              <Text style={styles.bioEmpty}>{t("family.memberDetail.noBioYet")}</Text>
             )}
           </View>
 
           <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Details</Text>
+            <Text style={styles.sectionTitle}>{t("family.memberDetail.details")}</Text>
             {detailRows.map((row, index) => (
               <DetailRow
                 key={row.label}

@@ -2,6 +2,7 @@ import React, { useCallback, useState } from "react";
 import { View, StyleSheet, ActivityIndicator, ScrollView, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
+import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import FamilyTreeView from "../../../components/family/family-tree-view";
 import { FamilySuspendedState, FamilyBlockedState } from "../../../components/family/family-empty-states";
@@ -11,6 +12,7 @@ import { useApiAction } from "../../../hooks/use-api-action";
 import { sw } from "../../../utils/responsive";
 
 export default function FamilyTreeScreen() {
+  const { t } = useTranslation();
   const { showFailure } = useApiAction();
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -21,7 +23,7 @@ export default function FamilyTreeScreen() {
       const data = await fetchMyFamily();
       setPayload(data);
     } catch (err) {
-      await showFailure("Could not load family tree", err);
+      await showFailure(t("family.couldNotLoadFamilyTree"), err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -40,7 +42,7 @@ export default function FamilyTreeScreen() {
   if (loading) {
     return (
       <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
-        <InternalScreenHeader title="Family Tree" />
+        <InternalScreenHeader title={t("family.familyTree")} />
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#0A2A43" />
         </View>
@@ -51,8 +53,8 @@ export default function FamilyTreeScreen() {
   if (state === "suspended") {
     return (
       <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
-        <InternalScreenHeader title="Family Tree" />
-        <FamilySuspendedState familyName={family?.family_number} />
+        <InternalScreenHeader title={t("family.familyTree")} />
+        <FamilySuspendedState familyName={family?.family_number} t={t} />
       </SafeAreaView>
     );
   }
@@ -60,10 +62,11 @@ export default function FamilyTreeScreen() {
   if (state === "blocked") {
     return (
       <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
-        <InternalScreenHeader title="Family Tree" />
+        <InternalScreenHeader title={t("family.familyTree")} />
         <FamilyBlockedState
           familyNumber={family?.family_number}
           communityName={family?.community_name}
+          t={t}
         />
       </SafeAreaView>
     );
@@ -72,13 +75,13 @@ export default function FamilyTreeScreen() {
   return (
     <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
       <InternalScreenHeader
-        title="Family Tree"
+        title={t("family.familyTree")}
         subtitle={
           family?.name ||
           (family?.community_name
             ? family.community_name
             : family?.family_number
-              ? `Household ${family.family_number}`
+              ? t("family.household", { number: family.family_number })
               : undefined)
         }
       />
@@ -96,7 +99,7 @@ export default function FamilyTreeScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        <FamilyTreeView members={family?.members ?? []} family={family} />
+        <FamilyTreeView members={family?.members ?? []} family={family} t={t} />
       </ScrollView>
     </SafeAreaView>
   );

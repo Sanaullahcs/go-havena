@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Pressable, StyleSheet, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 
 export default function BiometricAuthButtons({
   onFingerprint,
@@ -9,12 +10,13 @@ export default function BiometricAuthButtons({
   showFingerprint = true,
   showFaceId = true,
 }) {
+  const { t } = useTranslation();
   if (!showFingerprint && !showFaceId) return null;
 
   const faceLabel =
-    Platform.OS === "ios" ? "Sign in with Face ID" : "Sign in with face unlock";
+    Platform.OS === "ios" ? t("biometric.signInFaceId") : t("biometric.signInFaceUnlock");
   const fingerLabel =
-    Platform.OS === "ios" ? "Sign in with Touch ID" : "Sign in with fingerprint";
+    Platform.OS === "ios" ? t("biometric.signInTouchId") : t("biometric.signInFingerprint");
 
   return (
     <View style={[styles.row, disabled && styles.rowDisabled]}>

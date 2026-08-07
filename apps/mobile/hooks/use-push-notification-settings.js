@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Linking, Platform } from "react-native";
+import i18n from "../i18n";
 import {
   disablePushNotifications,
   enablePushNotifications,
@@ -45,7 +46,7 @@ export function usePushNotificationSettings() {
   }, [refresh]);
 
   const setPush = useCallback(async (nextValue) => {
-    if (pushBusy) return { ok: false, message: "Please wait…" };
+    if (pushBusy) return { ok: false, message: i18n.t("settings.pleaseWait") };
 
     setPushBusy(true);
     try {
@@ -59,7 +60,7 @@ export function usePushNotificationSettings() {
       setPushEnabled(false);
       return { ok: true };
     } catch (err) {
-      const message = err?.message ?? "Could not update push notifications.";
+      const message = err?.message ?? i18n.t("settings.pushUpdateFailed");
       setPushEnabled(false);
       return { ok: false, message };
     } finally {
@@ -68,7 +69,7 @@ export function usePushNotificationSettings() {
   }, [pushBusy]);
 
   const setEmail = useCallback(async (nextValue) => {
-    if (emailBusy) return { ok: false, message: "Please wait…" };
+    if (emailBusy) return { ok: false, message: i18n.t("settings.pleaseWait") };
 
     setEmailBusy(true);
     try {
@@ -76,7 +77,7 @@ export function usePushNotificationSettings() {
       setEmailEnabled(nextValue);
       return { ok: true };
     } catch (err) {
-      return { ok: false, message: err?.message ?? "Could not save email preference." };
+      return { ok: false, message: err?.message ?? i18n.t("settings.emailPreferenceFailed") };
     } finally {
       setEmailBusy(false);
     }

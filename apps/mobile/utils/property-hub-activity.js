@@ -1,4 +1,6 @@
 /** Build Property Management hub activity from live API data (role-aware). */
+import i18n, { localizedField } from "../i18n";
+import { getLocaleForLang } from "../hooks/use-app-locale";
 
 const RESIDENT_STATUSES = new Set(["pending", "confirmed", "rejected"]);
 const ACTIVITY_LIMIT = 3;
@@ -26,7 +28,7 @@ function parseLocalDate(dateStr) {
 
 /** @param {string} dateStr YYYY-MM-DD @param {string} [timeSlot] */
 export function formatBookingActivityMeta(dateStr, timeSlot) {
-  if (!dateStr) return "Date TBD";
+  if (!dateStr) return i18n.t("time.dateTBD");
 
   const date = parseLocalDate(dateStr);
   if (!date) return dateStr;
@@ -35,11 +37,11 @@ export function formatBookingActivityMeta(dateStr, timeSlot) {
   const diffDays = Math.round((date.getTime() - today.getTime()) / 86400000);
 
   let dayLabel;
-  if (diffDays === 0) dayLabel = "Today";
-  else if (diffDays === 1) dayLabel = "Tomorrow";
-  else if (diffDays === -1) dayLabel = "Yesterday";
+  if (diffDays === 0) dayLabel = i18n.t("time.today");
+  else if (diffDays === 1) dayLabel = i18n.t("time.tomorrow");
+  else if (diffDays === -1) dayLabel = i18n.t("time.yesterday");
   else {
-    dayLabel = date.toLocaleDateString("en-US", {
+    dayLabel = date.toLocaleDateString(getLocaleForLang(i18n.language), {
       weekday: "short",
       month: "short",
       day: "numeric",
@@ -74,7 +76,7 @@ export function pickAdminPendingBookings(bookings = [], limit = ACTIVITY_LIMIT) 
 }
 
 function residentBookingCard(booking) {
-  const amenityName = booking.amenity?.name ?? booking.amenity_name ?? "Amenity";
+  const amenityName = localizedField(booking.amenity ?? booking, "amenity_name") || localizedField(booking.amenity ?? {}, "name") || i18n.t("services.amenity");
   const status = booking.status;
   const meta = formatBookingActivityMeta(booking.date ?? booking.starts_at, booking.time_slot);
 
@@ -85,8 +87,8 @@ function residentBookingCard(booking) {
       key: "bookings",
       title: amenityName,
       meta,
-      note: "Awaiting owner approval",
-      badge: "Pending",
+      note: i18n.t("services.activity.awaitingApproval"),
+      badge: i18n.t("services.activity.pending"),
       routeKey: "MY_BOOKING",
     };
   }
@@ -100,29 +102,28 @@ function residentBookingCard(booking) {
       meta,
       note: booking.rejection_reason
         ? String(booking.rejection_reason)
-        : "Your request was not approved. You can book another time.",
-      badge: "Declined",
+        : i18n.t("services.activity.notApproved"),
+      badge: i18n.t("services.activity.declined"),
       routeKey: "MY_BOOKING",
     };
   }
 
-  // confirmed / approved
   return {
     id: `booking-${booking.id}`,
     type: "success",
     key: "bookings",
     title: amenityName,
     meta,
-    note: "Reservation confirmed",
-    badge: "Approved",
+    note: i18n.t("services.activity.confirmed"),
+    badge: i18n.t("services.activity.approved"),
     routeKey: "MY_BOOKING",
   };
 }
 
 function adminPendingCard(booking) {
-  const amenityName = booking.amenity?.name ?? booking.amenity_name ?? "Amenity";
-  const residentName = booking.user_name ?? booking.resident_name ?? "Resident";
-  const unit = booking.user_unit ? ` · Unit ${booking.user_unit}` : "";
+  const amenityName = localizedField(booking.amenity ?? booking, "amenity_name") || localizedField(booking.amenity ?? {}, "name") || i18n.t("services.amenity");
+  const residentName = booking.user_name ?? booking.resident_name ?? i18n.t("roles.resident");
+  const unit = booking.user_unit ? ` · ${i18n.t("profile.unit")} ${booking.user_unit}` : "";
 
   return {
     id: `pending-${booking.id}`,
@@ -132,8 +133,8 @@ function adminPendingCard(booking) {
     title: amenityName,
     meta: `${residentName}${unit}`,
     note: formatBookingActivityMeta(booking.date ?? booking.starts_at, booking.time_slot),
-    badge: "Pending",
-    linkLabel: "Approve",
+    badge: i18n.t("services.activity.pending"),
+    linkLabel: i18n.t("services.activity.approve"),
     routeKey: "ADMIN_BOOKINGS",
   };
 }
@@ -144,11 +145,11 @@ function pendingAmenityReviewCard(amenity) {
     type: "approval",
     key: "amenity",
     iconKey: "amenityReview",
-    title: amenity.name ?? "Amenity",
-    meta: amenity.creator_name ? `Submitted by ${amenity.creator_name}` : "Resident submission",
-    note: "Needs publish approval before it goes live",
-    badge: "Review",
-    linkLabel: "Review",
+    title: localizedField(amenity, "name") || i18n.t("services.amenity"),
+    meta: amenity.creator_name ? i18n.t("services.activity.submittedBy", { name: amenity.creator_name }) : i18n.t("services.activity.residentSubmission"),
+    note: i18n.t("services.activity.needsApproval"),
+    badge: i18n.t("services.activity.review"),
+    linkLabel: i18n.t("services.activity.review"),
     routeKey: "ADMIN_AMENITIES",
   };
 }
@@ -168,11 +169,11 @@ export function buildResidentHubActivity({
 
   return {
     incoming: {
-      title: "Requests to approve",
+      title: i18n.t("services.activity.requestsToApprove"),
       items: incoming,
     },
     outgoing: {
-      title: "Your reservations",
+      title: i18n.t("services.activity.yourReservations"),
       items: outgoingItems,
     },
   };
@@ -196,7 +197,7 @@ export function buildPropertyHubActivity({
     const remaining = Math.max(0, limit - pendingAmenities.length);
     const pendingBookings = pickAdminPendingBookings(bookings, remaining).map(adminPendingCard);
     return {
-      title: "Approval queue",
+      title: i18n.t("services.activity.approvalQueue"),
       items: [...pendingAmenities, ...pendingBookings],
     };
   }

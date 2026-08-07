@@ -20,6 +20,7 @@ import GuestFeatureErrorState from "../../../components/guest/guest-permission-d
 import { isFeatureAccessBlockedError } from "../../../utils/guest-permission-errors";
 import { resolveLoadRestriction } from "../../../utils/account-access-sync";
 import { sf, sw } from "../../../utils/responsive";
+import { useTranslation } from 'react-i18next';
 
 function resolveCategoryKey(typeParam, category) {
   if (category?.key) return String(category.key);
@@ -29,6 +30,7 @@ function resolveCategoryKey(typeParam, category) {
 
 export default function WellnessDetail() {
   const router = useRouter();
+  const { t, i18n } = useTranslation();
   const { title, subTitle, type } = useLocalSearchParams();
   const { showFailure } = useApiAction();
   const [courses, setCourses] = useState([]);
@@ -38,9 +40,9 @@ export default function WellnessDetail() {
 
   const categoryKey = resolveCategoryKey(type, category);
   const meta = getWellnessCategoryMeta(categoryKey);
-  const displayTitle = category?.title ?? title ?? "Weight & Diet";
+  const displayTitle = meta.titleKey ? t(meta.titleKey) : (category?.title ?? title ?? t('wellness.defaultCategoryTitle'));
   const displaySubtitle =
-    category?.subtitle || subTitle || "Nutrition and healthy eating";
+    category?.subtitle || subTitle || t('wellness.defaultCategorySubtitle');
 
   const load = useCallback(async () => {
     if (!type) return;
@@ -64,7 +66,7 @@ export default function WellnessDetail() {
         setError(restricted);
         return;
       }
-      await showFailure("Could not load courses", err);
+      await showFailure(t('wellness.couldNotLoadCourses'), err);
     } finally {
       setLoading(false);
     }
@@ -103,7 +105,7 @@ export default function WellnessDetail() {
     <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
       <WellnessScreenHeader
         title={displayTitle}
-        subtitle="WELLS Framework"
+        subtitle={t('wellness.wellsFramework')}
         categoryKey={categoryKey}
         onBack={() => router.back()}
       />
@@ -117,7 +119,7 @@ export default function WellnessDetail() {
           <GuestFeatureErrorState
             error={error}
             fallbackFeature="wellness"
-            defaultTitle="Could not load courses"
+            defaultTitle={t('wellness.couldNotLoadCourses')}
             onRetry={load}
           />
         ) : (
@@ -134,26 +136,27 @@ export default function WellnessDetail() {
 
             {courses.length > 0 ? (
               <>
-                <SectionLabel style={styles.sectionLabel}>Courses</SectionLabel>
+                <SectionLabel style={styles.sectionLabel}>{t('wellness.courses')}</SectionLabel>
                 <View style={styles.courseList}>
                   {courses.map((item) => (
-                    <WellnessCourseCard
-                      key={item.id}
-                      categoryKey={categoryKey}
-                      title={item.title}
-                      lessonCount={item.lessonCount}
-                      durationMin={item.durationMin}
-                      progressPercent={item.progressPercent}
-                      onPress={() => openCourse(item)}
-                    />
+                    <React.Fragment key={item.id}>
+                      <WellnessCourseCard
+                        categoryKey={categoryKey}
+                        title={item.title}
+                        lessonCount={item.lessonCount}
+                        durationMin={item.durationMin}
+                        progressPercent={item.progressPercent}
+                        onPress={() => openCourse(item)}
+                      />
+</React.Fragment>
                   ))}
                 </View>
               </>
             ) : (
               <View style={styles.empty}>
-                <Text style={styles.emptyTitle}>No courses yet</Text>
+                <Text style={styles.emptyTitle}>{t('wellness.noCoursesYet')}</Text>
                 <Text style={styles.emptyText}>
-                  New {displayTitle.toLowerCase()} programs will appear here when your community adds them.
+                  {t('wellness.noCoursesDescription', { category: displayTitle.toLowerCase() })}
                 </Text>
               </View>
             )}

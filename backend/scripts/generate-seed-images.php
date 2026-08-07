@@ -1,14 +1,20 @@
 <?php
 
 /**
- * Generate lightweight placeholder JPEGs for demo content when source assets
- * are not available. Skips files that already exist.
+ * Ensure demo seed JPEGs exist under storage/app/public/seed.
+ *
+ * Never overwrite real photos with teal label placeholders.
+ * Placeholders are only created when a file is missing (or is a tiny stub).
  *
  * Usage: php scripts/generate-seed-images.php [--force]
+ *   --force  regenerate missing/tiny stubs only (still never clobber real photos)
  */
 
 $force = in_array('--force', $argv, true);
 $dest = __DIR__.'/../storage/app/public/seed';
+
+/** Real demo photos are typically 50KB+; teal label stubs are ~12–20KB. */
+const MIN_REAL_SEED_BYTES = 40000;
 
 if (! is_dir($dest)) {
     mkdir($dest, 0775, true);
@@ -31,7 +37,18 @@ $useGd = extension_loaded('gd');
 
 foreach ($whitelist as $name) {
     $outPath = $dest.'/'.$name.'.jpg';
-    if (! $force && is_file($outPath)) {
+    $exists = is_file($outPath);
+    $size = $exists ? (int) filesize($outPath) : 0;
+    $isRealPhoto = $exists && $size >= MIN_REAL_SEED_BYTES;
+
+    // Always keep real photos. Never overwrite them with gradient stubs.
+    if ($isRealPhoto) {
+        $skipped++;
+        continue;
+    }
+
+    // Skip existing stubs unless --force (then replace stub with another stub only if still tiny).
+    if ($exists && ! $force) {
         $skipped++;
         continue;
     }

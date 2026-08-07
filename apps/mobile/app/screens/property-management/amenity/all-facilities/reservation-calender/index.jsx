@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import InternalScreenHeader from "../../../../../../components/layout/internal-screen-header";
@@ -31,6 +32,7 @@ import { useSubmitLock } from "../../../../../../hooks/use-submit-lock";
 const DATES = buildUpcomingDates(14);
 
 export default function ReservationCalender() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { id, name, status, isMine } = useLocalSearchParams();
   const amenityId = Number(id);
@@ -62,7 +64,6 @@ export default function ReservationCalender() {
 
   useEffect(() => {
     if (!ownedByMe) return;
-    // Creators cannot book their own amenity — send them to the request inbox.
     router.replace(PropertyManagementRoutes.ADMIN_BOOKINGS);
   }, [ownedByMe, router]);
 
@@ -76,7 +77,7 @@ export default function ReservationCalender() {
     if (isDateBookedByUser(myBookings, amenityId, selectedDate)) {
       setSlots([]);
       setUserAlreadyBooked(true);
-      setSlotsMessage("You already have a reservation for this amenity on this date.");
+      setSlotsMessage(t("propertyMgmt.reservationForDate"));
       return;
     }
     setSlotsLoading(true);
@@ -86,19 +87,19 @@ export default function ReservationCalender() {
       setUserAlreadyBooked(Boolean(result.userAlreadyBooked));
       setSlotsMessage(
         result.userAlreadyBooked
-          ? result.message || "You already have a reservation for this amenity on this date."
+          ? result.message || t("propertyMgmt.reservationForDate")
           : result.closed
-            ? result.message || "Closed this day."
+            ? result.message || t("propertyMgmt.closedThisDay")
             : "",
       );
     } catch {
       setSlots([]);
       setUserAlreadyBooked(false);
-      setSlotsMessage("Could not load slots.");
+      setSlotsMessage(t("propertyMgmt.couldNotLoadSlots"));
     } finally {
       setSlotsLoading(false);
     }
-  }, [amenityId, selectedDate, isOpenMode, ownedByMe, myBookings]);
+  }, [amenityId, selectedDate, isOpenMode, ownedByMe, myBookings, t]);
 
   useEffect(() => {
     loadSlots();
@@ -118,19 +119,19 @@ export default function ReservationCalender() {
           return result;
         },
         successTitle:
-          "Request submitted",
+          t("propertyMgmt.requestSubmitted"),
         successMessage: (result) => {
           const confirmed = result?.data?.status === "confirmed";
           if (confirmed) {
             return isOpenMode
-              ? `Your reservation for ${name} on ${formatLongDate(selectedDate)} is confirmed.`
-              : `Your reservation for ${name} on ${formatLongDate(selectedDate)} (${selectedSlot}) is confirmed.`;
+              ? t("propertyMgmt.reservationConfirmed", { name, date: formatLongDate(selectedDate) })
+              : t("propertyMgmt.reservationConfirmed", { name, date: `${formatLongDate(selectedDate)} (${selectedSlot})` });
           }
           return isOpenMode
-            ? `Your access request for ${name} on ${formatLongDate(selectedDate)} was sent to the amenity owner.`
-            : `Your request for ${name} on ${formatLongDate(selectedDate)} (${selectedSlot}) was sent to the amenity owner.`;
+            ? t("propertyMgmt.accessRequestSent", { name, date: formatLongDate(selectedDate) })
+            : t("propertyMgmt.requestSlotSent", { name, date: formatLongDate(selectedDate), slot: selectedSlot });
         },
-        errorTitle: "Could not book",
+        errorTitle: t("propertyMgmt.couldNotBook"),
         onSuccess: () => router.replace(PropertyManagementRoutes.MY_BOOKING),
       });
     });
@@ -147,7 +148,7 @@ export default function ReservationCalender() {
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <InternalScreenHeader
-        title={isOpenMode ? "Request access" : "Reserve a slot"}
+        title={isOpenMode ? t("propertyMgmt.requestAccess") : t("propertyMgmt.reserveSlot")}
         subtitle={name}
       />
 
@@ -156,7 +157,7 @@ export default function ReservationCalender() {
         contentContainerStyle={styles.scroll}
       >
         {/* Dates */}
-        <Text style={styles.label}>Select a date</Text>
+        <Text style={styles.label}>{t("propertyMgmt.selectDate")}</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -205,7 +206,7 @@ export default function ReservationCalender() {
                     bookedByUser && styles.dateBookedText,
                   ]}
                 >
-                  {bookedByUser ? "Booked" : d.isToday ? "Today" : d.month}
+                  {bookedByUser ? t("propertyMgmt.booked") : d.isToday ? t("propertyMgmt.todayLabel") : d.month}
                 </Text>
               </TouchableOpacity>
             );
@@ -216,29 +217,27 @@ export default function ReservationCalender() {
           selectedDateBooked ? (
             <View style={styles.bookedCard}>
               <Feather name="bookmark" size={sf(18)} color="#64748B" />
-              <Text style={styles.bookedTitle}>Already booked</Text>
+              <Text style={styles.bookedTitle}>{t("propertyMgmt.alreadyBookedSection")}</Text>
               <Text style={styles.bookedCopy}>
-                You already have a reservation for {formatLongDate(selectedDate)}. Pick another
-                date after this one passes.
+                {t("propertyMgmt.alreadyReservation", { date: formatLongDate(selectedDate) })}
               </Text>
             </View>
           ) : (
             <View style={styles.openCard}>
               <Feather name="unlock" size={sf(18)} color="#047857" />
-              <Text style={styles.openTitle}>Open availability</Text>
+              <Text style={styles.openTitle}>{t("propertyMgmt.openAvailability")}</Text>
               <Text style={styles.openCopy}>
-                No time slot needed. Pick a date and send a request — the amenity
-                owner will approve or decline.
+                {t("propertyMgmt.noSlotNeeded")}
               </Text>
             </View>
           )
         ) : (
           <>
             <View style={styles.slotHead}>
-              <Text style={styles.label}>Available time slots</Text>
+              <Text style={styles.label}>{t("propertyMgmt.availableTimeSlots")}</Text>
               <View style={styles.legend}>
                 <View style={styles.legendDot} />
-                <Text style={styles.legendText}>Available</Text>
+                <Text style={styles.legendText}>{t("propertyMgmt.availableLegend")}</Text>
               </View>
             </View>
 
@@ -247,7 +246,7 @@ export default function ReservationCalender() {
             ) : slotsMessage ? (
               <Text style={styles.emptySlots}>{slotsMessage}</Text>
             ) : slots.length === 0 ? (
-              <Text style={styles.emptySlots}>No slots configured for this amenity.</Text>
+              <Text style={styles.emptySlots}>{t("propertyMgmt.noSlotsConfigured")}</Text>
             ) : (
               <View style={styles.slotGrid}>
                 {slots.map((slot) => {
@@ -274,7 +273,7 @@ export default function ReservationCalender() {
                       >
                         {slot.label}
                       </Text>
-                      {booked ? <Text style={styles.slotBookedLabel}>Taken</Text> : null}
+                      {booked ? <Text style={styles.slotBookedLabel}>{t("propertyMgmt.taken")}</Text> : null}
                     </TouchableOpacity>
                   );
                 })}
@@ -300,14 +299,14 @@ export default function ReservationCalender() {
               <Feather name="send" size={sf(16)} color="#FFFFFF" />
               <Text style={styles.confirmText}>
                 {selectedDateBooked || userAlreadyBooked
-                  ? "Already booked"
+                  ? t("propertyMgmt.alreadyBookedSection")
                   : isOpenMode
                     ? selectedDate
-                      ? `Request ${formatLongDate(selectedDate)}`
-                      : "Select a date"
+                      ? t("propertyMgmt.requestDate", { date: formatLongDate(selectedDate) })
+                      : t("propertyMgmt.selectADate")
                     : selectedSlot
-                      ? `Request ${selectedSlot}`
-                      : "Select a time slot"}
+                      ? t("propertyMgmt.requestSlotBtn", { slot: selectedSlot })
+                      : t("propertyMgmt.selectTimeSlot")}
               </Text>
             </>
           )}

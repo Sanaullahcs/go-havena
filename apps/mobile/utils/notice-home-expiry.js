@@ -24,7 +24,7 @@ export function isNoticeExpiredForHome(notice, now = new Date()) {
   const isEvent = category === "event" || notice?.isEvent === true;
   const dayKey = noticeDayKey(notice?.eventDate ?? notice?.event_date);
   if (!dayKey) {
-    return category !== "emergency" && !isAlertNotice(notice);
+    return false;
   }
 
   const todayKey = todayDayKey(now);
@@ -56,5 +56,6 @@ export function isAlertNotice(notice) {
 }
 
 export function isCarouselNotice(notice) {
-  return notice && !isEventNotice(notice) && !isAlertNotice(notice);
+  // Home hero shows announcements + alerts; events go to Happening Soon.
+  return Boolean(notice) && !isEventNotice(notice);
 }

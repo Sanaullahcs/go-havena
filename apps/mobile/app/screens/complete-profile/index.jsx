@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -47,6 +48,7 @@ function isPdfAsset(asset) {
 }
 
 export default function CompleteProfile() {
+  const { t } = useTranslation();
   const dialog = useAppDialog();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -196,14 +198,14 @@ export default function CompleteProfile() {
 
         if (familyMode === "create") {
           if (!result.available) {
-            setFamilyNumberError(result.message || "This Family Number already exists.");
+            setFamilyNumberError(result.message || t("onboarding.familyNumberRequired"));
           } else {
             setFamilyNumberError(null);
           }
         } else {
           // Join mode — number must already exist.
           if (result.available) {
-            setFamilyNumberError("Family Number not found.");
+            setFamilyNumberError(t("onboarding.familyNumberNotFound"));
           } else if (result.message && !/already (exists|taken)/i.test(result.message)) {
             setFamilyNumberError(result.message);
           } else {
@@ -212,7 +214,7 @@ export default function CompleteProfile() {
         }
       } catch {
         if (seq === familyCheckSeq.current) {
-          setFamilyNumberError("Could not verify this family number.");
+          setFamilyNumberError(t("onboarding.couldNotVerifyFamily"));
         }
       } finally {
         if (seq === familyCheckSeq.current) {
@@ -237,7 +239,7 @@ export default function CompleteProfile() {
         setFamilyNumberError(null);
       }
     } catch {
-      setFamilyNumberError("Could not generate a family number. Try again.");
+      setFamilyNumberError(t("onboarding.couldNotGenerateFamily"));
     } finally {
       setFamilyNumberLoading(false);
     }
@@ -253,7 +255,7 @@ export default function CompleteProfile() {
         setFamilyNumberError(null);
       }
     } catch {
-      setFamilyNumberError("Could not generate a new family number.");
+      setFamilyNumberError(t("onboarding.couldNotGenerateNewFamily"));
     } finally {
       setFamilyNumberLoading(false);
     }
@@ -282,7 +284,7 @@ export default function CompleteProfile() {
         setFamilyNumber(suggested.family_number);
       }
     } catch {
-      setFamilyNumberError("Could not generate a family number. Try again.");
+      setFamilyNumberError(t("onboarding.couldNotGenerateFamily"));
     } finally {
       setFamilyNumberLoading(false);
     }
@@ -318,7 +320,7 @@ export default function CompleteProfile() {
         setExistingUtilityBillUrl(fields.utilityBillUrl);
       } catch (err) {
         if (!cancelled && isEditMode) {
-          await showApiFailure(dialog, "Could not load profile", err);
+          await showApiFailure(dialog, t("onboarding.couldNotLoadProfile"), err);
           router.back();
         }
       } finally {
@@ -385,8 +387,8 @@ export default function CompleteProfile() {
         touch("familyNumber");
         setFamilyNumberError(
           familyMode === "join"
-            ? "Enter the Family Number from your Family Head."
-            : "Family Number is required.",
+            ? t("onboarding.enterFamilyFromHead")
+            : t("onboarding.familyNumberRequired"),
         );
         return;
       }
@@ -445,14 +447,14 @@ export default function CompleteProfile() {
             }
 
             if (!numberToSave) {
-              await showApiFailure(dialog, "Family number required", {
-                message: "We could not generate a family number. Check your connection and try again.",
+              await showApiFailure(dialog, t("onboarding.familyNumberRequired"), {
+                message: t("onboarding.couldNotGenerateFamily"),
               });
               return;
             }
 
             if (familyNumberError) {
-              await showApiFailure(dialog, "Invalid family number", {
+              await showApiFailure(dialog, t("onboarding.couldNotVerifyFamily"), {
                 message: familyNumberError,
               });
               return;
@@ -462,19 +464,19 @@ export default function CompleteProfile() {
               const family = await ensureMyFamily(numberToSave);
               savedFamilyNumber = family?.family_number ?? numberToSave;
             } catch (err) {
-              await showApiFailure(dialog, "Could not create family", err);
+              await showApiFailure(dialog, t("onboarding.couldNotVerifyFamily"), err);
               return;
             }
           } else {
             if (!numberToSave) {
-              await showApiFailure(dialog, "Family Number required", {
-                message: "Enter the Family Number shared by your Family Head.",
+              await showApiFailure(dialog, t("onboarding.familyNumberRequired"), {
+                message: t("onboarding.enterFamilyFromHead"),
               });
               return;
             }
 
             if (familyNumberError) {
-              await showApiFailure(dialog, "Invalid family number", {
+              await showApiFailure(dialog, t("onboarding.couldNotVerifyFamily"), {
                 message: familyNumberError,
               });
               return;
@@ -485,7 +487,7 @@ export default function CompleteProfile() {
               savedFamilyNumber = numberToSave;
               joinPending = true;
             } catch (err) {
-              await showApiFailure(dialog, "Could not send join request", err);
+              await showApiFailure(dialog, t("onboarding.couldNotVerifyFamily"), err);
               return;
             }
           }
@@ -509,7 +511,7 @@ export default function CompleteProfile() {
         setShowSuccess(true);
         setSavedUser(user);
       } catch (err) {
-        await showApiFailure(dialog, "Unable to complete profile", err);
+        await showApiFailure(dialog, t("onboarding.unableToCompleteProfile"), err);
       }
     });
 
@@ -521,35 +523,35 @@ export default function CompleteProfile() {
         visible={showSuccess}
         title={
           isEditMode
-            ? "Profile updated!"
+            ? t("onboarding.profileUpdated")
             : isAdminClaim || isCommunityRequest
-              ? "Application submitted!"
+              ? t("onboarding.applicationSubmitted")
               : isResidentJoin
-                ? "Profile submitted!"
-                : "Profile saved!"
+                ? t("onboarding.profileSubmitted")
+                : t("onboarding.profileSaved")
         }
         subtitle={
           isEditMode
-            ? "Your profile changes have been saved."
+            ? t("onboarding.profileChangesSaved")
             : isCommunityRequest
               ? role === "admin"
-                ? "A system administrator must approve your account and community before you get full access."
-                : "We'll notify you when your community is approved"
+                ? t("onboarding.adminApprovalRequired")
+                : t("onboarding.communityApprovalNotify")
               : isAdminClaim
-                ? "A system administrator must approve your account before you can manage this community."
+                ? t("onboarding.adminApprovalManage")
                 : familyJoinPending
-                  ? "Your family join request was sent. You'll wait for Family Head approval before community admin review."
+                  ? t("onboarding.familyJoinSentPending")
                   : isResidentJoin
                     ? familyMode === "skip"
-                      ? "Your membership request was sent. You can set up a family anytime from My Family after you're approved."
+                      ? t("onboarding.membershipSentSkipFamily")
                       : generatedFamilyNumber
-                        ? `Your membership request was sent. Your family number ${generatedFamilyNumber} is ready in My Family — you are the Family Head.`
-                        : "Your community admin will review your membership request. You'll get access once approved."
+                        ? t("onboarding.membershipSentFamilyReady", { number: generatedFamilyNumber })
+                        : t("onboarding.adminReviewMembership")
                     : familyMode === "skip"
-                      ? "Welcome! You can create or join a family anytime from My Family."
+                      ? t("onboarding.welcomeSkipFamily")
                       : generatedFamilyNumber
-                        ? `Welcome! Your family number ${generatedFamilyNumber} is ready in My Family — you are the Family Head.`
-                        : "Welcome to your community"
+                        ? t("onboarding.welcomeFamilyReady", { number: generatedFamilyNumber })
+                        : t("onboarding.welcomeToCommunity")
         }
         onComplete={() => {
           setShowSuccess(false);
@@ -568,7 +570,7 @@ export default function CompleteProfile() {
       <View style={styles.headerRow}>
         <BackButton iconOnly compact />
         <Text style={styles.headerTitle} numberOfLines={1}>
-          {isEditMode ? "Edit Profile" : "Complete Your Profile"}
+          {isEditMode ? t("onboarding.editProfile") : t("onboarding.completeProfile")}
         </Text>
       </View>
 
@@ -604,19 +606,19 @@ export default function CompleteProfile() {
                   ) : (
                     <Text style={styles.buttonText}>
                       {isEditMode
-                        ? "Save Changes"
+                        ? t("onboarding.saveChanges")
                         : isCommunityRequest || isAdminClaim
-                          ? "Save & continue"
+                          ? t("onboarding.saveContinue")
                           : isResidentJoin
-                            ? "Submit for approval"
-                            : "Join Community"}
+                            ? t("onboarding.submitForApproval")
+                            : t("onboarding.joinCommunity")}
                     </Text>
                   )}
                 </View>
               </TouchableOpacity>
 
               <Text style={styles.footerHint}>
-                By continuing you agree to our Terms of Service & Privacy Policy
+                {t("onboarding.termsAgreement")}
               </Text>
             </View>
           ) : null
@@ -627,15 +629,15 @@ export default function CompleteProfile() {
             <Text style={styles.subHeading}>
               {isEditMode
                 ? isGuestProfile
-                  ? "Update your guest profile details."
-                  : "Update your name, email, bio, and verification documents."
+                  ? t("onboarding.updateGuestProfile")
+                  : t("onboarding.updateProfileDetails")
                 : isCommunityRequest && role === "admin"
-                  ? "Registering "
+                  ? t("onboarding.registering") + " "
                   : isAdminClaim
-                    ? "Applying to manage "
+                    ? t("onboarding.applyingToManage") + " "
                     : isResidentJoin
-                      ? "Almost there — complete your profile for "
-                      : "Joining "}
+                      ? t("onboarding.almostThere") + " "
+                      : t("onboarding.joining") + " "}
               {!isEditMode ? (
                 <Text style={styles.subHeadingBold}>{communityName}</Text>
               ) : null}
@@ -643,10 +645,10 @@ export default function CompleteProfile() {
             {isResidentJoin && !isEditMode ? (
               <Text style={styles.stepHint}>
                 {familyMode === "skip"
-                  ? "After you submit, your community admin will review your membership. You can set up a family later from My Family."
+                  ? t("onboarding.afterSubmitSkipFamily")
                   : familyMode === "join"
-                    ? "After you submit, your Family Head reviews first — then your community admin."
-                    : "After you submit, your community admin will review and approve your request."}
+                    ? t("onboarding.afterSubmitFamilyHead")
+                    : t("onboarding.afterSubmitAdmin")}
               </Text>
             ) : null}
           </View>
@@ -657,7 +659,7 @@ export default function CompleteProfile() {
               <View style={styles.doneDot}>
                 <Ionicons name="checkmark" size={12} color="#FFFFFF" />
               </View>
-              <Text style={styles.progressTextMuted}>Join</Text>
+              <Text style={styles.progressTextMuted}>{t("onboarding.join")}</Text>
             </View>
 
             <View style={styles.progressLine} />
@@ -666,7 +668,7 @@ export default function CompleteProfile() {
               <View style={styles.doneDot}>
                 <Ionicons name="checkmark" size={12} color="#FFFFFF" />
               </View>
-              <Text style={styles.progressTextMuted}>Phone</Text>
+              <Text style={styles.progressTextMuted}>{t("onboarding.phone")}</Text>
             </View>
 
             <View style={styles.progressLine} />
@@ -675,7 +677,7 @@ export default function CompleteProfile() {
               <View style={styles.doneDot}>
                 <Ionicons name="checkmark" size={12} color="#FFFFFF" />
               </View>
-              <Text style={styles.progressTextMuted}>Verified</Text>
+              <Text style={styles.progressTextMuted}>{t("onboarding.verified")}</Text>
             </View>
 
             <View style={styles.progressLine} />
@@ -684,7 +686,7 @@ export default function CompleteProfile() {
               <View style={styles.currentDot}>
                 <Text style={styles.currentDotText}>4</Text>
               </View>
-              <Text style={styles.progressTextActive}>Profile</Text>
+              <Text style={styles.progressTextActive}>{t("onboarding.profileStep")}</Text>
             </View>
           </View>
           ) : null}
@@ -693,7 +695,7 @@ export default function CompleteProfile() {
             <View style={styles.infoBanner}>
               <Ionicons name="information-circle-outline" size={18} color={T.deepTeal} />
               <Text style={styles.infoBannerText}>
-                Your details help the community admin verify you live in {communityName}.
+                {t("onboarding.detailsHelpVerify", { community: communityName })}
               </Text>
             </View>
           ) : null}
@@ -707,11 +709,11 @@ export default function CompleteProfile() {
           <View style={styles.form}>
             <View style={styles.fieldGroup}>
               <Text style={styles.inputText}>
-                Full Name <Text style={styles.requiredMark}>*</Text>
+                {t("onboarding.fullName")} <Text style={styles.requiredMark}>*</Text>
               </Text>
               <TextInput
                 style={[styles.input, showError("name", liveErrors) && styles.inputError]}
-                placeholder="e.g. Alex Turner"
+                placeholder={t("onboarding.namePlaceholder")}
                 placeholderTextColor={T.gray}
                 value={name}
                 onChangeText={(text) => {
@@ -726,7 +728,7 @@ export default function CompleteProfile() {
 
             <View style={styles.fieldGroup}>
               <Text style={styles.inputText}>
-                Email Address <Text style={styles.requiredMark}>*</Text>
+                {t("onboarding.emailAddress")} <Text style={styles.requiredMark}>*</Text>
               </Text>
               <TextInput
                 style={[styles.input, showError("email", liveErrors) && styles.inputError]}
@@ -749,10 +751,10 @@ export default function CompleteProfile() {
             </View>
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.inputText}>Bio</Text>
+              <Text style={styles.inputText}>{t("onboarding.bio")}</Text>
               <TextInput
                 style={[styles.input, styles.textArea, showError("bio", liveErrors) && styles.inputError]}
-                placeholder="Tell neighbors a little about yourself (optional)"
+                placeholder={t("onboarding.bioPlaceholder")}
                 placeholderTextColor={T.gray}
                 value={bio}
                 onChangeText={(text) => {
@@ -764,18 +766,18 @@ export default function CompleteProfile() {
                 textAlignVertical="top"
                 maxLength={LIMITS.profileBio}
               />
-              <Text style={styles.helperText}>{bio.length}/{LIMITS.profileBio} characters</Text>
+              <Text style={styles.helperText}>{t("onboarding.characters", { count: bio.length, max: LIMITS.profileBio })}</Text>
               {showError("bio", liveErrors) ? <Text style={styles.errorText}>{showError("bio", liveErrors)}</Text> : null}
             </View>
 
             <View style={styles.fieldGroup}>
               <Text style={styles.inputText}>
-                Unit / Apartment Number
+                {t("onboarding.unitNumber")}
                 {!isGuestProfile ? <Text style={styles.requiredMark}> *</Text> : null}
               </Text>
               <TextInput
                 style={[styles.input, showError("unitNumber", liveErrors) && styles.inputError]}
-                placeholder="e.g. Unit 204 or 2345 Oak Valley Dr"
+                placeholder={t("onboarding.unitPlaceholder")}
                 placeholderTextColor={T.gray}
                 value={unitNumber}
                 onChangeText={(text) => {
@@ -790,9 +792,9 @@ export default function CompleteProfile() {
 
             {showFamilyNumberField && !isGuestProfile ? (
               <View style={styles.fieldGroup}>
-                <Text style={styles.inputText}>Family</Text>
+                <Text style={styles.inputText}>{t("onboarding.family")}</Text>
                 <Text style={styles.fieldHint}>
-                  Create a household, join one with a Family Number, or skip and set up family later.
+                  {t("onboarding.familyHint")}
                 </Text>
 
                 {!familyNumberLocked ? (
@@ -818,8 +820,8 @@ export default function CompleteProfile() {
                             strokeWidth={2}
                           />
                         </View>
-                        <Text style={styles.typeTitle}>Create My Family</Text>
-                        <Text style={styles.typeSubTitle}>Become Family Head</Text>
+                        <Text style={styles.typeTitle}>{t("onboarding.createMyFamily")}</Text>
+                        <Text style={styles.typeSubTitle}>{t("onboarding.becomeFamilyHead")}</Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity
@@ -842,8 +844,8 @@ export default function CompleteProfile() {
                             strokeWidth={2}
                           />
                         </View>
-                        <Text style={styles.typeTitle}>Join Family</Text>
-                        <Text style={styles.typeSubTitle}>Request to join</Text>
+                        <Text style={styles.typeTitle}>{t("onboarding.joinFamily")}</Text>
+                        <Text style={styles.typeSubTitle}>{t("onboarding.requestToJoin")}</Text>
                       </TouchableOpacity>
                     </View>
 
@@ -874,10 +876,10 @@ export default function CompleteProfile() {
                             familyMode === "skip" && styles.familySkipTitleActive,
                           ]}
                         >
-                          Skip for Now
+                          {t("onboarding.skipForNow")}
                         </Text>
                         <Text style={styles.typeSubTitle}>
-                          Continue without a family. Set up later in My Family
+                          {t("onboarding.skipFamilyContinue")}
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -890,10 +892,9 @@ export default function CompleteProfile() {
                   <View style={styles.familyPendingBanner}>
                     <Ionicons name="time-outline" size={18} color="#B45309" />
                     <View style={styles.familyPendingCopy}>
-                      <Text style={styles.familyPendingTitle}>Pending Approval</Text>
+                      <Text style={styles.familyPendingTitle}>{t("onboarding.pendingApproval")}</Text>
                       <Text style={styles.familyPendingText}>
-                        Your request has been sent to the Family Head. You will join the family once
-                        your request is approved.
+                        {t("onboarding.pendingApprovalMsg")}
                       </Text>
                     </View>
                   </View>
@@ -904,10 +905,10 @@ export default function CompleteProfile() {
                   <Text style={styles.inputText}>
                     {familyMode === "join" ? (
                       <>
-                        Enter Family Number <Text style={styles.requiredMark}>*</Text>
+                        {t("onboarding.enterFamilyNumber")} <Text style={styles.requiredMark}>*</Text>
                       </>
                     ) : (
-                      "Family Number"
+                      t("onboarding.familyNumber")
                     )}
                   </Text>
                   {familyMode === "create" && !familyNumberLocked ? (
@@ -916,7 +917,7 @@ export default function CompleteProfile() {
                       disabled={familyNumberLoading}
                       hitSlop={8}
                     >
-                      <Text style={styles.familyRegenerateText}>Refresh</Text>
+                      <Text style={styles.familyRegenerateText}>{t("onboarding.refresh")}</Text>
                     </TouchableOpacity>
                   ) : null}
                 </View>
@@ -929,7 +930,7 @@ export default function CompleteProfile() {
                       (familyNumberError || showError("familyNumber", liveErrors)) && styles.inputError,
                       familyNumberLocked && styles.inputReadOnly,
                     ]}
-                    placeholder={familyMode === "join" ? "Enter Family Number" : "FAM-XXXXXX"}
+                    placeholder={familyMode === "join" ? t("onboarding.enterFamilyNumber") : "FAM-XXXXXX"}
                     placeholderTextColor={T.gray}
                     value={familyNumber}
                     onChangeText={(text) => {
@@ -951,11 +952,11 @@ export default function CompleteProfile() {
                 <Text style={styles.helperText}>
                   {familyNumberLocked
                     ? familyJoinPending
-                      ? "Your join request is waiting for Family Head approval."
-                      : "Your saved family number cannot be changed here."
+                      ? t("onboarding.joinRequestPending")
+                      : t("onboarding.savedFamilyNumber")
                     : familyMode === "join"
-                      ? "Enter the Family Number shared by your Family Head. Approval is required before you join."
-                      : "A unique code is generated for you. You can edit it, or clear the field to get a new one."}
+                      ? t("onboarding.enterFamilyNumberJoinHint")
+                      : t("onboarding.familyNumberCreateHint")}
                 </Text>
                 {familyNumberError || showError("familyNumber", liveErrors) ? (
                   <Text style={styles.errorText}>
@@ -970,10 +971,9 @@ export default function CompleteProfile() {
                       <Ionicons name="checkmark-circle" size={22} color={T.teal} />
                     </View>
                     <View style={styles.familySkipBannerCopy}>
-                      <Text style={styles.familySkipBannerTitle}>Family setup skipped</Text>
+                      <Text style={styles.familySkipBannerTitle}>{t("onboarding.familySetupSkipped")}</Text>
                       <Text style={styles.familySkipBannerText}>
-                        No problem. You can create or join a household later from My Family in your
-                        profile.
+                        {t("onboarding.familySetupSkippedMsg")}
                       </Text>
                     </View>
                   </View>
@@ -985,7 +985,7 @@ export default function CompleteProfile() {
           <>
           <View style={styles.fieldGroup}>
             <Text style={styles.inputText}>
-              I am a... <Text style={styles.requiredMark}>*</Text>
+              {t("onboarding.iAmA")} <Text style={styles.requiredMark}>*</Text>
             </Text>
 
             <View style={styles.residenceRow}>
@@ -1007,8 +1007,8 @@ export default function CompleteProfile() {
                   color={residenceType === "homeowner" ? T.navy : T.gray}
                   style={styles.roleIcon}
                 />
-                <Text style={styles.typeTitle}>Homeowner</Text>
-                <Text style={styles.typeSubTitle}>I own this unit</Text>
+                <Text style={styles.typeTitle}>{t("onboarding.homeowner")}</Text>
+                <Text style={styles.typeSubTitle}>{t("onboarding.iOwnUnit")}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1029,8 +1029,8 @@ export default function CompleteProfile() {
                   color={residenceType === "tenant" ? T.navy : T.gray}
                   style={styles.roleIcon}
                 />
-                <Text style={styles.typeTitle}>Tenant</Text>
-                <Text style={styles.typeSubTitle}>I rent this unit</Text>
+                <Text style={styles.typeTitle}>{t("onboarding.tenant")}</Text>
+                <Text style={styles.typeSubTitle}>{t("onboarding.iRentUnit")}</Text>
               </TouchableOpacity>
             </View>
             {showError("residenceType", liveErrors) ? (
@@ -1040,7 +1040,7 @@ export default function CompleteProfile() {
 
           <View style={styles.fieldGroup}>
             <Text style={styles.inputText}>
-              Upload lease or last 3 month utility bill{" "}
+              {t("onboarding.uploadLease")}{" "}
               {!isEditMode || !existingUtilityBillUrl ? (
                 <Text style={styles.requiredMark}>*</Text>
               ) : null}
@@ -1065,8 +1065,8 @@ export default function CompleteProfile() {
                     allowFile: false,
                     documentPick: true,
                     uploadBaseName: "utility-bill",
-                    promptTitle: "Upload document",
-                    promptMessage: "Take a photo or choose from your gallery.",
+                    promptTitle: t("onboarding.uploadDocument"),
+                    promptMessage: t("onboarding.uploadDocumentMsg"),
                     showError: (title, message) => dialog.showError(title, message),
                   },
                 );
@@ -1077,7 +1077,7 @@ export default function CompleteProfile() {
                   <View style={styles.uploadPdfPreview}>
                     <Ionicons name="document-text-outline" size={40} color={T.navy} />
                     <Text style={styles.uploadText}>
-                      {selectedFile.fileName || "Document.pdf"}
+                      {selectedFile.fileName || t("onboarding.documentPdf")}
                     </Text>
                   </View>
                 ) : (
@@ -1091,7 +1091,7 @@ export default function CompleteProfile() {
                 isPdfAsset({ uri: existingUtilityBillUrl }) ? (
                   <View style={styles.uploadPdfPreview}>
                     <Ionicons name="document-text-outline" size={40} color={T.navy} />
-                    <Text style={styles.uploadText}>Uploaded document</Text>
+                    <Text style={styles.uploadText}>{t("onboarding.uploadedDocument")}</Text>
                   </View>
                 ) : (
                   <Image
@@ -1106,10 +1106,10 @@ export default function CompleteProfile() {
                     source={require("../../../assets/images/download-image-icon.png")}
                     style={{ width: 32, height: 32 }}
                   />
-                  <Text style={styles.uploadText}>Upload file</Text>
+                  <Text style={styles.uploadText}>{t("onboarding.uploadFile")}</Text>
                   <Text style={styles.helperText}>
-                    Drag & Drop your file here, or{" "}
-                    <Text style={styles.uploadLink}>Upload file</Text>
+                    {t("onboarding.dragDropHint") + " "}
+                    <Text style={styles.uploadLink}>{t("onboarding.uploadFile")}</Text>
                   </Text>
                 </>
               )}
@@ -1119,7 +1119,7 @@ export default function CompleteProfile() {
             ) : null}
 
             <Text style={styles.helperText}>
-              Verification may take 48-72 hours.
+              {t("onboarding.verificationDelay")}
             </Text>
           </View>
           </>
@@ -1479,11 +1479,11 @@ const styles = StyleSheet.create({
   familyInput: {
     fontFamily: Fonts.bold,
     letterSpacing: 1,
-    paddingRight: 44,
+    paddingEnd: 44,
   },
   familyInputSpinner: {
     position: "absolute",
-    right: 14,
+    end: 14,
     top: 20,
   },
   inputReadOnly: {

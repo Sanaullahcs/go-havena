@@ -1,13 +1,9 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { sw, sf } from "../../utils/responsive";
-
-const DEFAULT_MESSAGE =
-  "This post has been reported and hidden due to community guidelines.";
-
-const COMPACT_MESSAGE = "Reported and hidden due to community guidelines.";
 
 /**
  * Sensitive content warning for feed posts.
@@ -18,9 +14,11 @@ export default function FeedSensitiveContent({
   compact = false,
   style,
 }) {
+  const { t } = useTranslation();
+
   const copy = compact
-    ? COMPACT_MESSAGE
-    : message || DEFAULT_MESSAGE;
+    ? t("feed.sensitiveContent.compactMessage")
+    : message || t("feed.sensitiveContent.defaultMessage");
 
   if (compact) {
     return (
@@ -30,7 +28,7 @@ export default function FeedSensitiveContent({
         </View>
         <View style={styles.compactCopy}>
           <Text style={styles.compactTitle} numberOfLines={1}>
-            Sensitive Content
+            {t("feed.sensitiveContent.title")}
           </Text>
           <Text style={styles.compactMessage} numberOfLines={2}>
             {copy}
@@ -42,7 +40,7 @@ export default function FeedSensitiveContent({
 
   return (
     <View style={[styles.wrap, style]}>
-      <Text style={styles.title}>⚠️ Sensitive Content</Text>
+      <Text style={styles.title}>⚠️ {t("feed.sensitiveContent.title")}</Text>
       <Text style={styles.message}>{copy}</Text>
     </View>
   );

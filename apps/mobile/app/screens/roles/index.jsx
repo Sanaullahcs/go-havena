@@ -7,10 +7,12 @@ import {
   ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ShieldCheck, Ticket } from "lucide-react-native";
+import { ionChevronForward } from "../../../utils/rtl";
 import HavenaLogo from "../../../components/ui/havena-logo";
 import BackButton from "../../../components/ui/back-button";
 import { Routes } from "../../../constants/onboarding-routes";
@@ -28,36 +30,38 @@ const CARD_ACCENT = {
   border: "rgba(15, 61, 95, 0.12)",
 };
 
-const ROLE_CARDS = [
+const getRoleCards = (t) => [
   {
     key: "admin",
-    title: "Community Admin",
-    subTitle: "Property Owner · Manager · HOA",
-    description: "Create your community, verify residents, and manage announcements.",
-    chips: ["Create Community", "Verify Residents", "Manage Events"],
+    title: t("roles.communityAdmin"),
+    subTitle: t("roles.adminSubtitle"),
+    description: t("roles.adminDescription"),
+    chips: [t("roles.adminChip1"), t("roles.adminChip2"), t("roles.adminChip3")],
     ...CARD_ACCENT,
   },
   {
     key: "resident",
-    title: "Resident",
-    subTitle: "Homeowner · Tenant",
-    description: "Join your community for wellness, notices, and local deals.",
-    chips: ["Join Community", "Wellness Programs", "Community Feed"],
+    title: t("roles.resident"),
+    subTitle: t("roles.residentSubtitle"),
+    description: t("roles.residentDescription"),
+    chips: [t("roles.residentChip1"), t("roles.residentChip2"), t("roles.residentChip3")],
     ...CARD_ACCENT,
   },
   {
     key: "guest",
-    title: "Guest",
-    subTitle: "Invited visitor",
-    description: "Sign in with your invitation to visit a community for a limited time.",
-    chips: ["Limited access", "Host invitation", "Timed visit"],
+    title: t("roles.guest"),
+    subTitle: t("roles.guestSubtitle"),
+    description: t("roles.guestDescription"),
+    chips: [t("roles.guestChip1"), t("roles.guestChip2"), t("roles.guestChip3")],
     ...CARD_ACCENT,
   },
 ];
 
 export default function Roles() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const ROLE_CARDS = getRoleCards(t);
 
   const goLogin = () => {
     prepareAuthScreenChrome();
@@ -84,9 +88,9 @@ export default function Roles() {
         <View style={styles.body}>
           <View style={styles.hero}>
             <HavenaLogo size={40} compact tileColor={T.navy} />
-            <Text style={styles.pageTitle}>Join Havena</Text>
+            <Text style={styles.pageTitle}>{t("roles.joinHavena")}</Text>
             <Text style={styles.pageSubTitle}>
-              Choose your role to get the right experience for your community.
+              {t("roles.chooseRole")}
             </Text>
           </View>
 
@@ -132,7 +136,7 @@ export default function Roles() {
                 </View>
 
                 <View style={[styles.chevronWrap, { backgroundColor: role.iconBg }]}>
-                  <Ionicons name="chevron-forward" size={16} color={role.accent} />
+                  <Ionicons name={ionChevronForward()} size={16} color={role.accent} />
                 </View>
               </TouchableOpacity>
             ))}
@@ -144,14 +148,14 @@ export default function Roles() {
                 <ShieldCheck size={16} color={T.deepTeal} strokeWidth={2} />
               </View>
               <Text style={styles.trustText}>
-                All accounts are verified by phone number for community safety.
+                {t("roles.verifiedPhonesTrust")}
               </Text>
             </View>
 
             <View style={styles.footerRow}>
-              <Text style={styles.footerText}>Already have an account? </Text>
+              <Text style={styles.footerText}>{t("roles.alreadyHaveAccount") + " "}</Text>
               <TouchableOpacity onPress={goLogin} hitSlop={8}>
-                <Text style={styles.signInText}>Sign in</Text>
+                <Text style={styles.signInText}>{t("roles.signIn")}</Text>
               </TouchableOpacity>
             </View>
           </View>

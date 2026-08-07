@@ -32,13 +32,14 @@ import NoticeCoverThumbnail from "../../components/notices/notice-cover-thumbnai
 import { resolveGuestFeatureError, isFeatureAccessBlockedError } from "../../utils/guest-permission-errors";
 import GuestFeatureErrorState from "../../components/guest/guest-permission-denied-state";
 import { resolveLoadRestriction } from "../../utils/account-access-sync";
+import { useTranslation } from "react-i18next";
 
 const TABS = [
-  { id: "all", label: "All" },
-  { id: "events", label: "Events", categoryGroup: "events" },
-  { id: "alerts", label: "Alerts", categoryGroup: "alerts" },
-  { id: "notices", label: "Notice", categoryGroup: "notices" },
-  { id: "saved", label: "Saved", savedOnly: true },
+  { id: "all", labelKey: "notices.tabAll" },
+  { id: "events", labelKey: "notices.tabEvents", categoryGroup: "events" },
+  { id: "alerts", labelKey: "notices.tabAlerts", categoryGroup: "alerts" },
+  { id: "notices", labelKey: "notices.tabNotice", categoryGroup: "notices" },
+  { id: "saved", labelKey: "notices.tabSaved", savedOnly: true },
 ];
 
 function noticePermissionFeature(tab) {
@@ -56,6 +57,7 @@ function formatCardDate(notice) {
 }
 
 export default function Notifications() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [selectedTab, setSelectedTab] = useState("all");
   const [savedIds, setSavedIds] = useState([]);
@@ -176,6 +178,7 @@ export default function Notifications() {
       const isSaved = savedIds.includes(Number(notice.id));
       const rsvpLabel = isEventNotice(notice) ? formatEventRsvpLabel(notice) : null;
       const cardDate = formatCardDate(notice);
+      const categoryLabel = notice.categoryLabel || notice.theme?.label || t("notices.notice");
 
       return (
         <TouchableOpacity
@@ -186,43 +189,24 @@ export default function Notifications() {
           <View style={styles.cardData}>
             <NoticeCoverThumbnail
               imageUrl={notice.imageUrl}
-              size={sw(52)}
-              borderRadius={sw(10)}
+              size={sw(78)}
+              borderRadius={sw(12)}
+              backgroundColor="#D1FAF5"
             />
 
             <View style={styles.cardContent}>
-              <Text style={styles.cardTitle} numberOfLines={2}>
-                {notice.title}
-              </Text>
-              <Text style={styles.cardDescription} numberOfLines={2}>
-                {notice.body}
-              </Text>
-
-              <View style={styles.cardFooter}>
-                <View style={styles.cardFooterLeft}>
-                  {cardDate ? (
-                    <Text style={styles.cardDate}>{cardDate}</Text>
-                  ) : null}
-                  {rsvpLabel ? (
-                    <Text
-                      style={[
-                        styles.cardRsvp,
-                        notice.isFull && styles.cardRsvpFull,
-                        notice.isJoined && styles.cardRsvpJoined,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {notice.isJoined ? `${rsvpLabel} · You're going` : rsvpLabel}
-                    </Text>
-                  ) : null}
+              <View style={styles.cardTopRow}>
+                <View style={styles.categoryChip}>
+                  <Text style={styles.categoryChipText} numberOfLines={1}>
+                    {String(categoryLabel).toUpperCase()}
+                  </Text>
                 </View>
-
                 <TouchableOpacity
                   onPress={() => toggleSaved(notice.id)}
                   style={styles.bookmarkBtn}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   accessibilityRole="button"
-                  accessibilityLabel={isSaved ? "Remove from saved" : "Save notice"}
+                  accessibilityLabel={isSaved ? t("notices.removeFromSaved") : t("notices.saveNotice")}
                 >
                   <Image
                     source={
@@ -235,12 +219,43 @@ export default function Notifications() {
                   />
                 </TouchableOpacity>
               </View>
+
+              <Text style={styles.cardTitle} numberOfLines={2}>
+                {notice.title}
+              </Text>
+              {notice.body ? (
+                <Text style={styles.cardDescription} numberOfLines={2}>
+                  {notice.body}
+                </Text>
+              ) : null}
+
+              {(cardDate || rsvpLabel) ? (
+                <View style={styles.cardFooter}>
+                  <View style={styles.cardFooterLeft}>
+                    {cardDate ? (
+                      <Text style={styles.cardDate}>{cardDate}</Text>
+                    ) : null}
+                    {rsvpLabel ? (
+                      <Text
+                        style={[
+                          styles.cardRsvp,
+                          notice.isFull && styles.cardRsvpFull,
+                          notice.isJoined && styles.cardRsvpJoined,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {notice.isJoined ? `${rsvpLabel} · ${t("notices.youreGoing")}` : rsvpLabel}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
             </View>
           </View>
         </TouchableOpacity>
       );
     },
-    [openNotice, savedIds, toggleSaved],
+    [openNotice, savedIds, toggleSaved, t],
   );
 
   const listEmpty = useMemo(() => {
@@ -259,7 +274,7 @@ export default function Notifications() {
           <GuestFeatureErrorState
             error={error}
             fallbackFeature={permissionFeature}
-            defaultTitle="Could not load notices"
+            defaultTitle={t("notices.couldNotLoad")}
             compact
           />
         );
@@ -268,7 +283,7 @@ export default function Notifications() {
       const errorState = resolveGuestFeatureError(
         error,
         permissionFeature,
-        "Could not load notices",
+        t("notices.couldNotLoad"),
       );
       return (
         <View style={styles.emptyWrap}>
@@ -281,18 +296,18 @@ export default function Notifications() {
     return (
       <View style={styles.emptyWrap}>
         <Text style={styles.emptyTitle}>
-          {selectedTab === "saved" ? "No saved notices yet" : "No notices found"}
+          {selectedTab === "saved" ? t("notices.emptyTitleSaved") : t("notices.emptyTitleAll")}
         </Text>
         <Text style={styles.emptyHint}>
           {selectedTab === "saved"
-            ? "Tap the bookmark on any notice to save it here."
+            ? t("notices.emptyHintSaved")
             : query.trim()
-              ? "Try a different search or category."
-              : "New community announcements will appear here."}
+              ? t("notices.emptyHintSearch")
+              : t("notices.emptyHintDefault")}
         </Text>
       </View>
     );
-  }, [loading, query, selectedTab, error, currentTab]);
+  }, [loading, query, selectedTab, error, currentTab, t]);
 
   const accessBlocked = Boolean(error && isFeatureAccessBlockedError(error));
 
@@ -314,7 +329,7 @@ export default function Notifications() {
                       fontFamily: Fonts.bold,
                     }}
                   >
-                    Community Updates
+                    {t("notices.communityUpdates")}
                   </Text>
                 </View>
               </View>
@@ -322,7 +337,7 @@ export default function Notifications() {
               <TouchableOpacity
                 activeOpacity={0.85}
                 onPress={() => router.push("/screens/notification")}
-                accessibilityLabel="Notifications"
+                accessibilityLabel={t("notices.notifications")}
               >
                 <View style={styles.bellIconContainer}>
                   <Image
@@ -343,14 +358,14 @@ export default function Notifications() {
             {!accessBlocked ? (
             <>
             <View>
-              <Text style={styles.subtitle}>Notices, events & alerts</Text>
+              <Text style={styles.subtitle}>{t("notices.subtitle")}</Text>
             </View>
 
             <View style={{ marginTop: 12 }}>
               <SearchInput
                 value={query}
                 onChangeText={setQuery}
-                placeholder="Search notices..."
+                placeholder={t("notices.searchPlaceholder")}
               />
             </View>
             </>
@@ -383,7 +398,7 @@ export default function Notifications() {
                   },
                 ]}
               >
-                {tab.label}
+                {t(tab.labelKey)}
               </Text>
             </TouchableOpacity>
           ))}
@@ -395,7 +410,7 @@ export default function Notifications() {
         <GuestFeatureErrorState
           error={error}
           fallbackFeature={noticePermissionFeature(currentTab)}
-          defaultTitle="Could not load notices"
+          defaultTitle={t("notices.couldNotLoad")}
           onRetry={onRefresh}
         />
       ) : (
@@ -480,7 +495,7 @@ const styles = StyleSheet.create({
     position: "relative",
     overflow: "visible",
     marginTop: sw(2),
-    marginRight: sw(2),
+    marginEnd: sw(2),
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -524,46 +539,67 @@ const styles = StyleSheet.create({
   cardData: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 12,
+    gap: sw(12),
   },
   cardContent: {
     flex: 1,
     flexDirection: "column",
-    gap: 4,
+    gap: sw(4),
     minWidth: 0,
+  },
+  cardTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: sw(8),
+  },
+  categoryChip: {
+    maxWidth: "80%",
+    paddingHorizontal: sw(8),
+    paddingVertical: sw(3),
+    borderRadius: 999,
+    backgroundColor: "#D1FAF5",
+  },
+  categoryChipText: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(9),
+    lineHeight: sf(12),
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    color: "#0F3D5F",
   },
   cardTitle: {
     fontFamily: Fonts.semibold,
     fontWeight: "700",
-    fontSize: sf(14),
-    lineHeight: sf(18),
-    color: "#101828",
+    fontSize: sf(14.5),
+    lineHeight: sf(19),
+    color: "#0F3D5F",
   },
   cardDescription: {
     fontFamily: Fonts.regular,
     fontWeight: "400",
-    fontSize: sf(11),
-    lineHeight: sf(15),
+    fontSize: sf(12),
+    lineHeight: sf(16),
     color: "#4A5565",
   },
   cardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: 6,
-    marginTop: 2,
-    borderTopWidth: 1,
+    paddingTop: sw(6),
+    marginTop: sw(2),
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "rgba(243, 244, 246, 1)",
   },
   cardFooterLeft: {
     flex: 1,
     minWidth: 0,
     gap: 2,
-    paddingRight: 8,
   },
   bookmarkBtn: {
     flexDirection: "row",
     alignItems: "center",
+    padding: sw(2),
   },
   cardDate: {
     fontWeight: 500,

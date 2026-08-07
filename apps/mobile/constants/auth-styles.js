@@ -93,8 +93,8 @@ export const authStyles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: "#fff",
     height: 60,
-    paddingLeft: 16,
-    paddingRight: 12,
+    paddingStart: 16,
+    paddingEnd: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -106,7 +106,7 @@ export const authStyles = StyleSheet.create({
     fontSize: 16,
     color: Colors.textPrimary,
     fontWeight: "600",
-    marginRight: 8,
+    marginEnd: 8,
   },
   loginPhoneField: {
     flex: 1,
@@ -118,7 +118,7 @@ export const authStyles = StyleSheet.create({
   },
   phoneClearBtn: {
     padding: 4,
-    marginLeft: 4,
+    marginStart: 4,
   },
   loginInputError: {
     borderColor: Colors.error,
@@ -149,7 +149,7 @@ export const authStyles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginEnd: 12,
     borderWidth: 1,
     borderColor: Colors.borderSignup,
   },

@@ -4,6 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { internalType } from "../../constants/internal-styles";
 import { sw, sf } from "../../utils/responsive";
+import { chevronForward } from "../../utils/rtl";
 
 export default function ListRow({
   title,
@@ -18,7 +19,7 @@ export default function ListRow({
   style,
 }) {
   const rowStyle = [styles.row, flat && styles.rowFlat, style];
-  const chevron = right ?? (onPress ? <Feather name="chevron-right" size={sf(16)} color="#CBD5E1" /> : null);
+  const chevron = right ?? (onPress ? <Feather name={chevronForward()} size={sf(16)} color="#CBD5E1" /> : null);
 
   const inner = (
     <View style={rowStyle}>
@@ -77,7 +78,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-    marginRight: sw(12),
+    marginEnd: sw(12),
   },
   text: {
     flex: 1,
@@ -88,7 +89,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: sw(8),
+    marginStart: sw(8),
   },
   title: {
     fontFamily: Fonts.bold,

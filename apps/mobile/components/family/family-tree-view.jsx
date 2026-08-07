@@ -9,10 +9,12 @@ import {
 import Svg, { Line } from "react-native-svg";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 
 import ProfilePhotoAvatar from "../profile/profile-photo-avatar";
 import { Fonts } from "../../constants/font";
 import { sf, sw } from "../../utils/responsive";
+import { chevronForward } from "../../utils/rtl";
 
 const STATUS_META = {
   head: { label: "Family Head", bg: "#D1FAF5", color: "#0A2A43", border: "rgba(20, 184, 166, 0.28)" },
@@ -28,18 +30,27 @@ function resolveStatus(member) {
 }
 
 function StatusBadge({ member }) {
+  const { t } = useTranslation();
   const key = resolveStatus(member);
   const meta = STATUS_META[key] ?? STATUS_META.active;
+  const statusLabels = {
+    head: t("family.tree.statusHead"),
+    active: t("family.tree.statusMember"),
+    pending: t("family.tree.statusPending"),
+    suspended: t("family.tree.statusSuspended"),
+    blocked: t("family.tree.statusBlocked"),
+  };
 
   return (
     <View style={[styles.badge, { backgroundColor: meta.bg, borderColor: meta.border }]}>
-      <Text style={[styles.badgeText, { color: meta.color }]}>{meta.label}</Text>
+      <Text style={[styles.badgeText, { color: meta.color }]}>{statusLabels[key] ?? meta.label}</Text>
     </View>
   );
 }
 
 function TreeHero({ family, memberCount }) {
-  const community = family?.community_name ?? "Your community";
+  const { t } = useTranslation();
+  const community = family?.community_name ?? t("family.tree.yourCommunity");
   const familyNumber = family?.family_number ?? "—";
 
   return (
@@ -51,7 +62,7 @@ function TreeHero({ family, memberCount }) {
           <Feather name="git-branch" size={sf(20)} color="#0A2A43" />
         </View>
         <View style={styles.heroCopy}>
-          <Text style={styles.heroEyebrow}>Family tree</Text>
+          <Text style={styles.heroEyebrow}>{t("family.tree.familyTreeLabel")}</Text>
           <Text style={styles.heroTitle} numberOfLines={1}>
             {community}
           </Text>
@@ -62,7 +73,7 @@ function TreeHero({ family, memberCount }) {
         <View style={styles.heroStat}>
           <Text style={styles.heroStatValue}>{memberCount}</Text>
           <Text style={styles.heroStatLabel}>
-            {memberCount === 1 ? "Member" : "Members"}
+            {memberCount === 1 ? t("family.tree.memberSingular") : t("family.tree.membersPlural")}
           </Text>
         </View>
         <View style={styles.heroStatDivider} />
@@ -70,7 +81,7 @@ function TreeHero({ family, memberCount }) {
           <Text style={styles.heroStatValueSmall} numberOfLines={1}>
             {familyNumber}
           </Text>
-          <Text style={styles.heroStatLabel}>Family ID</Text>
+          <Text style={styles.heroStatLabel}>{t("family.tree.familyId")}</Text>
         </View>
       </View>
     </View>
@@ -78,6 +89,7 @@ function TreeHero({ family, memberCount }) {
 }
 
 function HeadNode({ member, index = 0 }) {
+  const { t } = useTranslation();
   const user = member.user ?? {};
 
   return (
@@ -96,11 +108,11 @@ function HeadNode({ member, index = 0 }) {
       </View>
 
       <Text style={styles.headName} numberOfLines={2}>
-        {user.name ?? "Family Head"}
+        {user.name ?? t("family.familyHead")}
       </Text>
       {user.unit_number ? (
         <Text style={styles.headMeta} numberOfLines={1}>
-          Unit {user.unit_number}
+          {t("family.tree.unit", { number: user.unit_number })}
         </Text>
       ) : null}
       <StatusBadge member={member} />
@@ -109,6 +121,7 @@ function HeadNode({ member, index = 0 }) {
 }
 
 function MemberNode({ member, index = 0, width }) {
+  const { t } = useTranslation();
   const user = member.user ?? {};
 
   return (
@@ -120,11 +133,11 @@ function MemberNode({ member, index = 0, width }) {
         <ProfilePhotoAvatar avatarUrl={user.avatar_url} size={sw(52)} />
       </View>
       <Text style={styles.memberName} numberOfLines={2}>
-        {user.name ?? "Member"}
+        {user.name ?? t("family.member")}
       </Text>
       {user.unit_number ? (
         <Text style={styles.memberMeta} numberOfLines={1}>
-          Unit {user.unit_number}
+          {t("family.tree.unit", { number: user.unit_number })}
         </Text>
       ) : null}
       {member.relationship ? (
@@ -205,13 +218,14 @@ function TreeConnector({ childCount, canvasWidth, nodeWidth, gap }) {
 }
 
 function MemberRoster({ members }) {
+  const { t } = useTranslation();
   if (members.length === 0) return null;
 
   return (
     <View style={styles.rosterCard}>
       <View style={styles.rosterHeader}>
         <Feather name="list" size={sf(14)} color="#0A2A43" />
-        <Text style={styles.rosterTitle}>All members</Text>
+        <Text style={styles.rosterTitle}>{t("family.tree.allMembers")}</Text>
         <Text style={styles.rosterCount}>{members.length}</Text>
       </View>
       <View style={styles.rosterList}>
@@ -226,12 +240,12 @@ function MemberRoster({ members }) {
               <ProfilePhotoAvatar avatarUrl={user.avatar_url} size={sw(40)} />
               <View style={styles.rosterCopy}>
                 <Text style={styles.rosterName} numberOfLines={1}>
-                  {user.name ?? "Member"}
+                  {user.name ?? t("family.member")}
                 </Text>
                 <Text style={styles.rosterMeta} numberOfLines={1}>
-                  {[user.unit_number ? `Unit ${user.unit_number}` : null, member.relationship]
+                  {[user.unit_number ? t("family.tree.unit", { number: user.unit_number }) : null, member.relationship]
                     .filter(Boolean)
-                    .join(" · ") || "Household member"}
+                    .join(" · ") || t("family.tree.householdMember")}
                 </Text>
               </View>
               {isHead ? (
@@ -239,7 +253,7 @@ function MemberRoster({ members }) {
                   <Feather name="award" size={sf(14)} color="#0A2A43" />
                 </View>
               ) : (
-                <Feather name="chevron-right" size={sf(16)} color="#CBD5E1" />
+                <Feather name={chevronForward()} size={sf(16)} color="#CBD5E1" />
               )}
             </View>
           );
@@ -250,6 +264,7 @@ function MemberRoster({ members }) {
 }
 
 export default function FamilyTreeView({ members = [], family = null }) {
+  const { t } = useTranslation();
   const { width: windowWidth } = useWindowDimensions();
   const contentWidth = Math.max(windowWidth - sw(32), sw(280));
 
@@ -275,22 +290,22 @@ export default function FamilyTreeView({ members = [], family = null }) {
         <View style={styles.emptyIcon}>
           <Feather name="git-branch" size={sf(28)} color="#0A2A43" />
         </View>
-        <Text style={styles.emptyTitle}>No family tree yet</Text>
-        <Text style={styles.emptyText}>Add members to see your household tree.</Text>
+        <Text style={styles.emptyTitle}>{t("family.tree.noTreeYet")}</Text>
+        <Text style={styles.emptyText}>{t("family.tree.addMembersHint")}</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.wrap}>
-      <TreeHero family={family} memberCount={members.length} />
+      <TreeHero family={family} memberCount={members.length} t={t} />
 
       <View style={styles.treeCard}>
         <View style={styles.treeCardHeader}>
-          <Text style={styles.treeCardTitle}>Household</Text>
+          <Text style={styles.treeCardTitle}>{t("family.tree.household")}</Text>
           <View style={styles.treeCardPill}>
             <Feather name="users" size={sf(12)} color="#0A2A43" />
-            <Text style={styles.treeCardPillText}>{members.length} total</Text>
+            <Text style={styles.treeCardPillText}>{t("family.tree.total", { count: members.length })}</Text>
           </View>
         </View>
 
@@ -341,14 +356,14 @@ export default function FamilyTreeView({ members = [], family = null }) {
             <View style={styles.soloWrap}>
               <Feather name="user-plus" size={sf(16)} color="#94A3B8" />
               <Text style={styles.soloHint}>
-                You are the only member so far. Invite others with your family ID.
+                {t("family.tree.soloHint")}
               </Text>
             </View>
           )}
         </View>
       </View>
 
-      <MemberRoster members={sortedMembers} />
+      <MemberRoster members={sortedMembers} t={t} />
     </View>
   );
 }
@@ -507,7 +522,7 @@ const styles = StyleSheet.create({
   },
   crownBadge: {
     position: "absolute",
-    right: -sw(2),
+    end: -sw(2),
     bottom: -sw(2),
     width: sw(28),
     height: sw(28),

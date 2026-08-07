@@ -11,21 +11,22 @@ import AppModal from "../components/layout/app-modal";
 import { Fonts } from "../constants/font";
 import { Colors, Layout } from "../constants/tokens";
 import { sf, sw } from "../utils/responsive";
+import i18n from "../i18n";
 
 const SOURCE_OPTIONS = {
   camera: {
     id: "camera",
-    label: "Camera",
+    labelKey: "imagePicker.camera",
     icon: "camera-outline",
   },
   library: {
     id: "library",
-    label: "Gallery",
+    labelKey: "imagePicker.gallery",
     icon: "images-outline",
   },
   file: {
     id: "file",
-    label: "Files",
+    labelKey: "imagePicker.files",
     icon: "document-text-outline",
   },
 };
@@ -70,7 +71,7 @@ function ImageSourcePickerDialog({
                 onPress={() => onSelect(option.id)}
               >
                 <Ionicons name={option.icon} size={sf(18)} color={Colors.brandPrimaryDeep} />
-                <Text style={styles.optionBtnText}>{option.label}</Text>
+                <Text style={styles.optionBtnText}>{i18n.t(option.labelKey)}</Text>
               </TouchableOpacity>
             ))}
 
@@ -79,7 +80,7 @@ function ImageSourcePickerDialog({
               activeOpacity={0.88}
               onPress={onDismiss}
             >
-              <Text style={styles.cancelBtnText}>Cancel</Text>
+              <Text style={styles.cancelBtnText}>{i18n.t("common.cancel")}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -101,8 +102,8 @@ export function dismissImageSourcePicker() {
  * @returns {Promise<"camera"|"library"|"file"|null>}
  */
 export function promptImageSourceAsync({
-  title = "Upload photo",
-  message = "Choose how you want to add a photo",
+  title = i18n.t("imagePicker.uploadPhoto"),
+  message = i18n.t("imagePicker.chooseHowToAdd"),
   allowCamera = true,
   allowFile = false,
 } = {}) {

@@ -57,6 +57,6 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   back: {
-    marginRight: 2,
+    marginEnd: 2,
   },
 });

@@ -1,20 +1,23 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, Pressable, TouchableOpacity, Platform } from "react-native";
-import { Image } from "expo-image";
+import { useTranslation } from "react-i18next";
+import i18n from "../../i18n";
 import { Ionicons } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { MarketplaceType } from "../../constants/marketplace-type";
 import { getListingTypeTheme } from "../../constants/marketplace-theme";
-import { mediaImageSource, resolveMediaUrl } from "../../utils/profile-display";
+import { mediaImageSource } from "../../utils/profile-display";
+import { getLocaleForLang } from "../../hooks/use-app-locale";
+import CrispImage from "../ui/crisp-image";
 import ThemedIconBox from "../ui/themed-icon-box";
 
 const CARD_RADIUS = 16;
 
 export function formatListingPrice(price) {
-  if (price == null || price === "") return "Make offer";
+  if (price == null || price === "") return i18n.t("marketplace.makeOfferPrice");
   const n = Number(price);
-  if (Number.isNaN(n)) return "Make offer";
-  if (n === 0) return "Free";
+  if (Number.isNaN(n)) return i18n.t("marketplace.makeOfferPrice");
+  if (n === 0) return i18n.t("marketplace.free");
   return `$${n % 1 === 0 ? n.toFixed(0) : n.toFixed(2)}`;
 }
 
@@ -22,12 +25,12 @@ export function formatListingTimeAgo(iso) {
   if (!iso) return "";
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${Math.max(1, mins)}m ago`;
+  if (mins < 60) return i18n.t("marketplace.minsAgo", { count: Math.max(1, mins) });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return i18n.t("marketplace.hoursAgo", { count: hours });
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  if (days < 7) return i18n.t("marketplace.daysAgo", { count: days });
+  return new Date(iso).toLocaleDateString(getLocaleForLang(i18n.language), { month: "short", day: "numeric" });
 }
 
 export function listingCondition(item) {
@@ -44,11 +47,38 @@ export function listingDistance(item) {
   return null;
 }
 
+/** Normalize API `images` (array, JSON string, or single path) to string URLs/paths. */
+export function normalizeListingImages(images) {
+  if (!images) return [];
+  if (typeof images === "string") {
+    const trimmed = images.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return Array.isArray(parsed) ? normalizeListingImages(parsed) : [];
+      } catch {
+        return [];
+      }
+    }
+    if (trimmed.includes("SQLSTATE") || trimmed.startsWith("{")) return [];
+    return [trimmed];
+  }
+  if (!Array.isArray(images)) return [];
+  return images
+    .map((entry) => {
+      if (typeof entry === "string") return entry.trim();
+      if (entry && typeof entry === "object" && typeof entry.uri === "string") {
+        return entry.uri.trim();
+      }
+      return "";
+    })
+    .filter((uri) => uri && !uri.includes("SQLSTATE") && !uri.startsWith("{"));
+}
+
+/** Raw first image path/URL — resolve at render with mediaImageSource / CrispImage. */
 export function getListingImageUrl(item) {
-  const raw = item?.images?.[0];
-  if (!raw || typeof raw !== "string") return null;
-  if (raw.includes("SQLSTATE") || raw.startsWith("{")) return null;
-  return resolveMediaUrl(raw);
+  return normalizeListingImages(item?.images)[0] ?? null;
 }
 
 function resolveListingTheme(item) {
@@ -57,10 +87,10 @@ function resolveListingTheme(item) {
 }
 
 function typeLabel(type) {
-  if (type === "for_sale") return "For Sale";
-  if (type === "service") return "Service";
-  if (type === "deal") return "Deal";
-  return type ?? "Listing";
+  if (type === "for_sale") return i18n.t("marketplace.forSale");
+  if (type === "service") return i18n.t("marketplace.service");
+  if (type === "deal") return i18n.t("marketplace.deal");
+  return type ?? i18n.t("marketplace.listing");
 }
 
 export function listingTypeLabel(type) {
@@ -76,7 +106,7 @@ function MediaPlaceholder({ theme, compact }) {
         color={theme.accent}
         backgroundColor="#FFFFFF"
       />
-      <Text style={[styles.placeholderText, { color: theme.accent }]}>{theme.shortLabel}</Text>
+      <Text style={[styles.placeholderText, { color: theme.accent }]}>{i18n.t(theme.shortLabelKey ?? theme.shortLabel)}</Text>
     </View>
   );
 }
@@ -84,14 +114,16 @@ function MediaPlaceholder({ theme, compact }) {
 function ListingMedia({ item, variant, theme }) {
   const [failed, setFailed] = useState(false);
   const imageUrl = getListingImageUrl(item);
+  const imageSource = imageUrl ? mediaImageSource(imageUrl) : null;
   const isList = variant === "list";
-  const showImage = imageUrl && !failed;
+  const showImage = Boolean(imageSource) && !failed;
+  const imageCount = normalizeListingImages(item?.images).length;
 
   return (
     <View style={[styles.mediaWrap, { backgroundColor: theme.soft }, isList && styles.mediaWrapList]}>
       {showImage ? (
-        <Image
-          source={mediaImageSource(imageUrl)}
+        <CrispImage
+          source={imageSource}
           style={styles.media}
           contentFit="cover"
           transition={200}
@@ -107,19 +139,19 @@ function ListingMedia({ item, variant, theme }) {
           size={10}
           color="#FFFFFF"
         />
-        <Text style={styles.typeBadgeText}>{theme.shortLabel}</Text>
+        <Text style={styles.typeBadgeText}>{i18n.t(theme.shortLabelKey ?? theme.shortLabel)}</Text>
       </View>
 
-      {(item.images?.length ?? 0) >= 2 ? (
+      {imageCount >= 2 ? (
         <View style={styles.photoBadge}>
           <Ionicons name="images-outline" size={10} color="#FFFFFF" />
-          <Text style={styles.photoBadgeText}>{item.images.length}</Text>
+          <Text style={styles.photoBadgeText}>{imageCount}</Text>
         </View>
       ) : null}
 
       {item.status === "pending" ? (
         <View style={styles.pendingBadge}>
-          <Text style={styles.pendingText}>Pending</Text>
+          <Text style={styles.pendingText}>{i18n.t("marketplace.pending")}</Text>
         </View>
       ) : null}
     </View>
@@ -251,7 +283,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "stretch",
     gap: 12,
-    paddingRight: 36,
+    paddingEnd: 36,
   },
   pressed: {
     opacity: 0.96,
@@ -262,8 +294,8 @@ const styles = StyleSheet.create({
     aspectRatio: 1.05,
     position: "relative",
     overflow: "hidden",
-    borderTopLeftRadius: CARD_RADIUS,
-    borderTopRightRadius: CARD_RADIUS,
+    borderTopStartRadius: CARD_RADIUS,
+    borderTopEndRadius: CARD_RADIUS,
   },
   mediaWrapList: {
     width: 108,
@@ -271,8 +303,8 @@ const styles = StyleSheet.create({
     aspectRatio: undefined,
     borderRadius: 14,
     flexShrink: 0,
-    borderTopLeftRadius: 14,
-    borderTopRightRadius: 14,
+    borderTopStartRadius: 14,
+    borderTopEndRadius: 14,
   },
   media: {
     width: "100%",
@@ -295,7 +327,7 @@ const styles = StyleSheet.create({
   typeBadge: {
     position: "absolute",
     top: 8,
-    left: 8,
+    start: 8,
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
@@ -312,7 +344,7 @@ const styles = StyleSheet.create({
   photoBadge: {
     position: "absolute",
     bottom: 8,
-    right: 8,
+    end: 8,
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
@@ -330,7 +362,7 @@ const styles = StyleSheet.create({
   pendingBadge: {
     position: "absolute",
     bottom: 8,
-    left: 8,
+    start: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
@@ -347,7 +379,7 @@ const styles = StyleSheet.create({
   heartBtn: {
     position: "absolute",
     top: 8,
-    right: 8,
+    end: 8,
     width: 34,
     height: 34,
     borderRadius: 17,
@@ -368,7 +400,7 @@ const styles = StyleSheet.create({
   },
   heartBtnList: {
     top: 12,
-    right: 12,
+    end: 12,
   },
   body: {
     paddingHorizontal: 12,

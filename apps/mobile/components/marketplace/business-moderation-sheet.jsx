@@ -8,6 +8,7 @@ import {
   Pressable,
   ActivityIndicator,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { MarketplaceType } from "../../constants/marketplace-type";
@@ -43,6 +44,7 @@ export default function BusinessModerationSheet({
   onClose,
   onConfirm,
 }) {
+  const { t } = useTranslation();
   if (!business) return null;
 
   const isReject = mode === "reject";
@@ -53,18 +55,18 @@ export default function BusinessModerationSheet({
   const totalDeals = dealStats?.total ?? 0;
 
   const title = isReject
-    ? "Reject business"
+    ? t("moderation.rejectBusiness")
     : isReapprove
-      ? "Re-approve business"
-      : "Approve business";
+      ? t("moderation.reapproveBusiness")
+      : t("moderation.approveBusiness");
 
   const subtitle = isReject
-    ? "This hides the business from residents. Deals are disabled, not deleted."
+    ? t("moderation.rejectSubtitle")
     : isReapprove
-      ? "Restore marketplace access and re-enable eligible deals."
-      : "Make this business visible in the community marketplace.";
+      ? t("moderation.reapproveSubtitle")
+      : t("moderation.approveSubtitle");
 
-  const confirmLabel = isReject ? "Reject business" : isReapprove ? "Re-approve" : "Approve business";
+  const confirmLabel = isReject ? t("moderation.rejectBusiness") : isReapprove ? t("moderation.reapproveBtn") : t("moderation.approveBusiness");
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -108,31 +110,31 @@ export default function BusinessModerationSheet({
           </View>
 
           <View style={styles.impactBox}>
-            <Text style={styles.impactHeading}>What happens next</Text>
+            <Text style={styles.impactHeading}>{t("moderation.whatHappensNext")}</Text>
 
             {isReject ? (
               <>
                 <ImpactRow
                   icon="eye-off-outline"
                   tone="danger"
-                  title="Hidden from marketplace"
-                  detail="Residents will no longer see this business in browse lists."
+                  title={t("moderation.hiddenFromMarketplace")}
+                  detail={t("moderation.hiddenDetail")}
                 />
                 <ImpactRow
                   icon="pause-circle-outline"
                   tone="warning"
                   title={
                     activeDeals > 0
-                      ? `${activeDeals} active deal${activeDeals === 1 ? "" : "s"} will be disabled`
-                      : "No active deals to disable"
+                      ? t("moderation.activeDealsDisabled", { count: activeDeals })
+                      : t("moderation.noActiveDealsToDisable")
                   }
-                  detail="Deals stay saved and can be restored if you re-approve later."
+                  detail={t("moderation.dealsStaySaved")}
                 />
                 <ImpactRow
                   icon="add-circle-outline"
                   tone="info"
-                  title="New deals blocked"
-                  detail="The owner cannot publish new deals while rejected."
+                  title={t("moderation.newDealsBlocked")}
+                  detail={t("moderation.newDealsBlockedDetail")}
                 />
               </>
             ) : isReapprove ? (
@@ -140,26 +142,26 @@ export default function BusinessModerationSheet({
                 <ImpactRow
                   icon="eye-outline"
                   tone="success"
-                  title="Visible in marketplace again"
-                  detail="Residents can discover this business and its profile."
+                  title={t("moderation.visibleAgain")}
+                  detail={t("moderation.visibleAgainDetail")}
                 />
                 <ImpactRow
                   icon="play-circle-outline"
                   tone="success"
                   title={
                     inactiveDeals > 0
-                      ? `${inactiveDeals} disabled deal${inactiveDeals === 1 ? "" : "s"} will go live`
+                      ? t("moderation.disabledDealsGoLive", { count: inactiveDeals })
                       : totalDeals > 0
-                        ? "Existing deals remain as-is"
-                        : "No deals to restore yet"
+                        ? t("moderation.existingDealsRemain")
+                        : t("moderation.noDealsToRestore")
                   }
-                  detail="Only non-expired deals that were disabled are re-enabled."
+                  detail={t("moderation.onlyNonExpiredReenabled")}
                 />
                 <ImpactRow
                   icon="pricetag-outline"
                   tone="info"
-                  title="Owner can create deals again"
-                  detail="Deal publishing is unlocked for this business."
+                  title={t("moderation.ownerCanCreateDeals")}
+                  detail={t("moderation.dealPublishingUnlocked")}
                 />
               </>
             ) : (
@@ -167,14 +169,14 @@ export default function BusinessModerationSheet({
                 <ImpactRow
                   icon="checkmark-done-outline"
                   tone="success"
-                  title="Approved for marketplace"
-                  detail="This business will appear in local business listings."
+                  title={t("moderation.approvedForMarketplace")}
+                  detail={t("moderation.approvedDetail")}
                 />
                 <ImpactRow
                   icon="pricetag-outline"
                   tone="info"
-                  title="Owner can publish deals"
-                  detail="The business owner may create offers once approved."
+                  title={t("moderation.ownerCanPublishDeals")}
+                  detail={t("moderation.ownerCanPublishDetail")}
                 />
               </>
             )}
@@ -187,7 +189,7 @@ export default function BusinessModerationSheet({
               disabled={loading}
               onPress={onClose}
             >
-              <Text style={styles.cancelBtnText}>Cancel</Text>
+              <Text style={styles.cancelBtnText}>{t("common.cancel")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.confirmBtn, isReject && styles.confirmBtnReject]}

@@ -1,3 +1,4 @@
+import i18n from "../i18n";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import * as Device from "expo-device";
 import { AppState } from "react-native";
@@ -37,15 +38,15 @@ export function isRemotePushSupported() {
 
 export function getRemotePushUnavailableMessage() {
   if (!Device.isDevice) {
-    return "Push notifications require a physical phone or tablet.";
+    return i18n.t("push.requiresDevice");
   }
 
   const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
   if (isExpoGo && Platform.OS === "android") {
-    return "Android Expo Go uses in-app alerts while the app is open. Install a development build for true background push.";
+    return i18n.t("push.expoGoAndroid");
   }
 
-  return "Push notifications are unavailable on this device.";
+  return i18n.t("push.unavailable");
 }
 
 async function loadNotificationsModule() {
@@ -96,7 +97,7 @@ async function ensureAndroidChannel(Notifications) {
   if (Platform.OS !== "android") return;
 
   await Notifications.setNotificationChannelAsync("default", {
-    name: "Havena Alerts",
+    name: i18n.t("push.channelName"),
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 250, 250, 250],
     lightColor: "#0A2A43",
@@ -140,7 +141,7 @@ export async function getExpoPushToken() {
 
   const projectId = getProjectId();
   if (!projectId) {
-    throw new Error("Missing Expo project ID. Rebuild the app after updating app.json.");
+    throw new Error(i18n.t("push.missingProjectId"));
   }
 
   const status = await requestNotificationPermission();
@@ -148,7 +149,7 @@ export async function getExpoPushToken() {
     throw new Error(getRemotePushUnavailableMessage());
   }
   if (status !== "granted") {
-    throw new Error("Notification permission was denied. Enable notifications in your phone settings.");
+    throw new Error(i18n.t("push.permissionDenied"));
   }
 
   await ensureAndroidChannel(Notifications);
@@ -156,7 +157,7 @@ export async function getExpoPushToken() {
   const tokenResult = await Notifications.getExpoPushTokenAsync({ projectId });
   const token = tokenResult?.data?.trim();
   if (!token) {
-    throw new Error("Could not get an Expo push token.");
+    throw new Error(i18n.t("push.couldNotGetToken"));
   }
 
   return token;

@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import ScreenHeader from "../../../components/layout/screen-header";
 import { Fonts } from "../../../constants/font";
 import { Colors } from "../../../constants/tokens";
@@ -26,28 +27,31 @@ import { useAppDialog } from "../../../providers/app-dialog-provider";
 
 const KIND_CONFIG = {
   event: {
-    title: "Pending Events",
+    titleKey: "admin.pendingEvents",
     category_group: "events",
-    empty: "No events waiting for approval.",
-    approveTitle: "Approve event",
-    approveMessage: "This event will be published for residents.",
-    rejectTitle: "Reject event",
+    emptyKey: "admin.noEventsWaiting",
+    approveTitleKey: "admin.approveEvent",
+    approveMessageKey: "admin.eventGoLive",
+    rejectTitleKey: "admin.rejectEvent",
+    reviewHintKey: "admin.reviewHintEvents",
   },
   alert: {
-    title: "Pending Alerts",
+    titleKey: "admin.pendingAlerts",
     category_group: "alerts",
-    empty: "No alerts waiting for approval.",
-    approveTitle: "Approve alert",
-    approveMessage: "This alert will be published for residents.",
-    rejectTitle: "Reject alert",
+    emptyKey: "admin.noAlertsWaiting",
+    approveTitleKey: "admin.approveAlert",
+    approveMessageKey: "admin.alertGoLive",
+    rejectTitleKey: "admin.rejectAlert",
+    reviewHintKey: "admin.reviewHintAlerts",
   },
   notice: {
-    title: "Pending Notices",
+    titleKey: "admin.pendingNotices",
     category_group: "notices",
-    empty: "No notices waiting for approval.",
-    approveTitle: "Approve notice",
-    approveMessage: "This notice will be published for residents.",
-    rejectTitle: "Reject notice",
+    emptyKey: "admin.noNoticesWaiting",
+    approveTitleKey: "admin.approveNotice",
+    approveMessageKey: "admin.noticeGoLive",
+    rejectTitleKey: "admin.rejectNotice",
+    reviewHintKey: "admin.reviewHintNotices",
   },
 };
 
@@ -57,7 +61,7 @@ function formatSchedule(item) {
   return parts.join(" · ");
 }
 
-function ContentRow({ item, busy, onApprove, onReject }) {
+function ContentRow({ item, busy, onApprove, onReject, t }) {
   const theme = CATEGORY_THEME[item.category] ?? CATEGORY_THEME.general;
   const schedule = formatSchedule(item);
 
@@ -68,12 +72,12 @@ function ContentRow({ item, busy, onApprove, onReject }) {
           <Feather name={theme.icon} size={sf(11)} color={theme.text} />
           <Text style={[styles.typePillText, { color: theme.text }]}>{theme.label}</Text>
         </View>
-        <Text style={styles.author}>By {item.author_name ?? "Resident"}</Text>
+        <Text style={styles.author}>{t("admin.bySeller", { name: item.author_name ?? t("admin.resident") })}</Text>
       </View>
 
       <Text style={styles.title}>{item.title}</Text>
       {schedule ? <Text style={styles.schedule}>{schedule}</Text> : null}
-      {item.location ? <Text style={styles.meta}>Location: {item.location}</Text> : null}
+      {item.location ? <Text style={styles.meta}>{t("admin.locationLabel", { location: item.location })}</Text> : null}
       {item.body ? (
         <Text style={styles.body} numberOfLines={4}>
           {item.body}
@@ -82,13 +86,13 @@ function ContentRow({ item, busy, onApprove, onReject }) {
 
       <View style={styles.actions}>
         <TouchableOpacity style={styles.rejectBtn} disabled={busy} onPress={() => onReject(item.id)}>
-          <Text style={styles.rejectBtnText}>Reject</Text>
+          <Text style={styles.rejectBtnText}>{t("admin.reject")}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.approveBtn} disabled={busy} onPress={() => onApprove(item.id)}>
           {busy ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text style={styles.approveBtnText}>Approve</Text>
+            <Text style={styles.approveBtnText}>{t("admin.approve")}</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -97,6 +101,7 @@ function ContentRow({ item, busy, onApprove, onReject }) {
 }
 
 export default function AdminContentReviewScreen() {
+  const { t } = useTranslation();
   const { kind = "event" } = useLocalSearchParams();
   const config = KIND_CONFIG[kind] ?? KIND_CONFIG.event;
   const [items, setItems] = useState([]);
@@ -117,13 +122,13 @@ export default function AdminContentReviewScreen() {
         });
         setItems(res.data);
       } catch (err) {
-        await showFailure(`Could not load ${config.title.toLowerCase()}`, err);
+        await showFailure(t("admin.couldNotLoad", { title: t(config.titleKey).toLowerCase() }), err);
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [config.category_group, config.title, showFailure],
+    [config.category_group, config.titleKey, showFailure, t],
   );
 
   useFocusEffect(
@@ -138,8 +143,8 @@ export default function AdminContentReviewScreen() {
   };
 
   const handleApprove = async (id) => {
-    const confirmed = await showConfirm(config.approveTitle, config.approveMessage, {
-      confirmLabel: "Approve",
+    const confirmed = await showConfirm(t(config.approveTitleKey), t(config.approveMessageKey), {
+      confirmLabel: t("admin.approve"),
     });
     if (confirmed !== "confirm") return;
 
@@ -147,9 +152,9 @@ export default function AdminContentReviewScreen() {
     try {
       await runAction({
         action: () => approveNotice(id),
-        successTitle: "Approved",
-        successMessage: "Residents can now see this content.",
-        errorTitle: "Approval failed",
+        successTitle: t("admin.approved"),
+        successMessage: t("admin.residentsCanSeeContent"),
+        errorTitle: t("admin.approvalFailed"),
         onSuccess: () => setItems((prev) => prev.filter((item) => item.id !== id)),
       });
     } finally {
@@ -159,9 +164,9 @@ export default function AdminContentReviewScreen() {
 
   const handleReject = async (id) => {
     const confirmed = await showConfirm(
-      config.rejectTitle,
-      "The resident will be notified.",
-      { confirmLabel: "Reject", destructive: true },
+      t(config.rejectTitleKey),
+      t("admin.residentWillBeNotified"),
+      { confirmLabel: t("admin.reject"), destructive: true },
     );
     if (confirmed !== "confirm") return;
 
@@ -169,9 +174,9 @@ export default function AdminContentReviewScreen() {
     try {
       await runAction({
         action: () => rejectNotice(id),
-        successTitle: "Rejected",
-        successMessage: "The resident has been notified.",
-        errorTitle: "Reject failed",
+        successTitle: t("admin.rejected"),
+        successMessage: t("admin.residentHasBeenNotified"),
+        errorTitle: t("admin.rejectFailed"),
         onSuccess: () => setItems((prev) => prev.filter((item) => item.id !== id)),
       });
     } finally {
@@ -182,15 +187,15 @@ export default function AdminContentReviewScreen() {
   const listHeader = useMemo(
     () => (
       <Text style={styles.hint}>
-        Review resident-submitted {kind === "event" ? "events" : kind === "alert" ? "alerts" : "notices"} before they go live.
+        {t(config.reviewHintKey)}
       </Text>
     ),
-    [kind],
+    [config.reviewHintKey, t],
   );
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
-      <ScreenHeader layout="inline" title={config.title} iconOnly />
+      <ScreenHeader layout="inline" title={t(config.titleKey)} iconOnly />
 
       {loading && items.length === 0 ? (
         <View style={styles.centered}>
@@ -203,13 +208,14 @@ export default function AdminContentReviewScreen() {
           contentContainerStyle={styles.listContent}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListHeaderComponent={listHeader}
-          ListEmptyComponent={<Text style={styles.emptyText}>{config.empty}</Text>}
+          ListEmptyComponent={<Text style={styles.emptyText}>{t(config.emptyKey)}</Text>}
           renderItem={({ item }) => (
             <ContentRow
               item={item}
               busy={busyId === item.id}
               onApprove={handleApprove}
               onReject={handleReject}
+              t={t}
             />
           )}
         />
@@ -260,7 +266,7 @@ const styles = StyleSheet.create({
   },
   author: {
     flex: 1,
-    textAlign: "right",
+    textAlign: "auto",
     fontFamily: Fonts.regular,
     fontSize: sf(11),
     color: Colors.textMuted,

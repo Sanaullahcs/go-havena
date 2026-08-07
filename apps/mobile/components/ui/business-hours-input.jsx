@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Modal, Pressable } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 
 function parseHHMM(str) {
@@ -50,6 +51,7 @@ function buildHoursString(openDate, closeDate) {
 }
 
 export default function BusinessHoursInput({ value = "", onChange, showError = false }) {
+  const { t } = useTranslation();
   const initial = parseInitialTimes(value);
 
   const [openTime, setOpenTime] = useState(initial.open);
@@ -64,8 +66,8 @@ export default function BusinessHoursInput({ value = "", onChange, showError = f
   const [picking, setPicking] = useState(null); // "open" | "close" | null
   const [tempDate, setTempDate] = useState(null);
 
-  const displayOpen = openTime ? formatTime(openTime) : "Set time";
-  const displayClose = closeTime ? formatTime(closeTime) : "Set time";
+  const displayOpen = openTime ? formatTime(openTime) : t("businessHours.setTime");
+  const displayClose = closeTime ? formatTime(closeTime) : t("businessHours.setTime");
 
   const isEmpty = !openTime || !closeTime;
   const shouldShowError = showError && isEmpty;
@@ -110,7 +112,7 @@ export default function BusinessHoursInput({ value = "", onChange, showError = f
     <View style={styles.wrapper}>
       <View style={styles.row}>
         <TimeChip
-          label="Opens"
+          label={t("businessHours.opens")}
           value={displayOpen}
           onPress={() => openPicker("open")}
           filled={!!openTime}
@@ -120,7 +122,7 @@ export default function BusinessHoursInput({ value = "", onChange, showError = f
           <Ionicons name="arrow-forward" size={14} color="#9CA3AF" />
         </View>
         <TimeChip
-          label="Closes"
+          label={t("businessHours.closes")}
           value={displayClose}
           onPress={() => openPicker("close")}
           filled={!!closeTime}
@@ -129,13 +131,13 @@ export default function BusinessHoursInput({ value = "", onChange, showError = f
       </View>
 
       {shouldShowError ? (
-        <Text style={styles.errorText}>Please set opening and closing times</Text>
+        <Text style={styles.errorText}>{t("businessHours.setTimesError")}</Text>
       ) : !isEmpty ? (
         <Text style={styles.hintText}>
           <Ionicons name="time-outline" size={11} color="#6B7280" /> {displayOpen} – {displayClose}
         </Text>
       ) : (
-        <Text style={styles.hintText}>Tap each chip to set open and close time</Text>
+        <Text style={styles.hintText}>{t("businessHours.tapChipsHint")}</Text>
       )}
 
       {/* Android: system dialog */}
@@ -158,13 +160,13 @@ export default function BusinessHoursInput({ value = "", onChange, showError = f
             <View style={styles.iosSheet}>
               <View style={styles.iosToolbar}>
                 <TouchableOpacity onPress={cancelIOS} hitSlop={8}>
-                  <Text style={styles.iosCancel}>Cancel</Text>
+                  <Text style={styles.iosCancel}>{t("common.cancel")}</Text>
                 </TouchableOpacity>
                 <Text style={styles.iosTitle}>
-                  {picking === "open" ? "Opening Time" : "Closing Time"}
+                  {picking === "open" ? t("businessHours.openingTime") : t("businessHours.closingTime")}
                 </Text>
                 <TouchableOpacity onPress={confirmIOS} hitSlop={8}>
-                  <Text style={styles.iosDone}>Done</Text>
+                  <Text style={styles.iosDone}>{t("common.done")}</Text>
                 </TouchableOpacity>
               </View>
               <View style={styles.iosPickerWrap}>
@@ -288,8 +290,8 @@ const styles = StyleSheet.create({
   },
   iosSheet: {
     backgroundColor: "#F8FAFC",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopStartRadius: 20,
+    borderTopEndRadius: 20,
     paddingBottom: 34,
     overflow: "hidden",
   },

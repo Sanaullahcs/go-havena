@@ -1,33 +1,36 @@
 /** Visual + status helpers for the amenities module (Lucide icon keys). */
 
+import i18n from "../i18n";
+import { getLocaleForLang } from "../hooks/use-app-locale";
+
 const VISUALS = [
-  { key: "pool", match: ["pool", "swim"], tint: "#0284C7", soft: "#E0F2FE", label: "Pool" },
-  { key: "gym", match: ["gym", "fitness", "workout"], tint: "#DB2777", soft: "#FCE7F3", label: "Gym" },
-  { key: "hall", match: ["hall", "party", "event", "lounge", "community", "clubhouse"], tint: "#6366F1", soft: "#D1FAF5", label: "Hall" },
-  { key: "meeting", match: ["meeting", "conference", "business", "office", "co-work", "cowork"], tint: "#0A2A43", soft: "#D1FAF5", label: "Meeting" },
-  { key: "dining", match: ["bbq", "grill", "kitchen", "dining", "cafe", "restaurant"], tint: "#EA580C", soft: "#FFF7ED", label: "Dining" },
-  { key: "sports", match: ["tennis", "court", "sport", "basketball", "court"], tint: "#059669", soft: "#ECFDF5", label: "Sports" },
-  { key: "playground", match: ["kid", "playground", "child", "play"], tint: "#D97706", soft: "#FEF3C7", label: "Play" },
-  { key: "terrace", match: ["garden", "park", "green", "roof", "terrace", "outdoor"], tint: "#16A34A", soft: "#F0FDF4", label: "Outdoor" },
-  { key: "spa", match: ["spa", "sauna", "wellness", "yoga"], tint: "#BE185D", soft: "#FDF2F8", label: "Wellness" },
-  { key: "library", match: ["library", "study", "reading"], tint: "#4F46E5", soft: "#D1FAF5", label: "Study" },
-  { key: "parking", match: ["parking", "garage", "car"], tint: "#475569", soft: "#F1F5F9", label: "Parking" },
-  { key: "laundry", match: ["laundry", "wash"], tint: "#0D9488", soft: "#F0FDFA", label: "Laundry" },
-  { key: "cinema", match: ["cinema", "theater", "theatre", "movie"], tint: "#7C3AED", soft: "#F5F3FF", label: "Cinema" },
-  { key: "bike", match: ["bike", "cycle", "bicycle"], tint: "#14B8A6", soft: "#D1FAF5", label: "Bike" },
+  { key: "pool", match: ["pool", "swim"], tint: "#0284C7", soft: "#E0F2FE", labelKey: "amenities.types.pool" },
+  { key: "gym", match: ["gym", "fitness", "workout"], tint: "#DB2777", soft: "#FCE7F3", labelKey: "amenities.types.gym" },
+  { key: "hall", match: ["hall", "party", "event", "lounge", "community", "clubhouse"], tint: "#6366F1", soft: "#D1FAF5", labelKey: "amenities.types.hall" },
+  { key: "meeting", match: ["meeting", "conference", "business", "office", "co-work", "cowork"], tint: "#0A2A43", soft: "#D1FAF5", labelKey: "amenities.types.meeting" },
+  { key: "dining", match: ["bbq", "grill", "kitchen", "dining", "cafe", "restaurant"], tint: "#EA580C", soft: "#FFF7ED", labelKey: "amenities.types.dining" },
+  { key: "sports", match: ["tennis", "court", "sport", "basketball", "court"], tint: "#059669", soft: "#ECFDF5", labelKey: "amenities.types.sports" },
+  { key: "playground", match: ["kid", "playground", "child", "play"], tint: "#D97706", soft: "#FEF3C7", labelKey: "amenities.types.play" },
+  { key: "terrace", match: ["garden", "park", "green", "roof", "terrace", "outdoor"], tint: "#16A34A", soft: "#F0FDF4", labelKey: "amenities.types.outdoor" },
+  { key: "spa", match: ["spa", "sauna", "wellness", "yoga"], tint: "#BE185D", soft: "#FDF2F8", labelKey: "amenities.types.wellness" },
+  { key: "library", match: ["library", "study", "reading"], tint: "#4F46E5", soft: "#D1FAF5", labelKey: "amenities.types.study" },
+  { key: "parking", match: ["parking", "garage", "car"], tint: "#475569", soft: "#F1F5F9", labelKey: "amenities.types.parking" },
+  { key: "laundry", match: ["laundry", "wash"], tint: "#0D9488", soft: "#F0FDFA", labelKey: "amenities.types.laundry" },
+  { key: "cinema", match: ["cinema", "theater", "theatre", "movie"], tint: "#7C3AED", soft: "#F5F3FF", labelKey: "amenities.types.cinema" },
+  { key: "bike", match: ["bike", "cycle", "bicycle"], tint: "#14B8A6", soft: "#D1FAF5", labelKey: "amenities.types.bike" },
 ];
 
 const DEFAULT_VISUAL = {
   key: "building",
   tint: "#0A2A43",
   soft: "#D1FAF5",
-  label: "Building",
+  labelKey: "amenities.types.building",
 };
 
 /** Fixed Lucide catalog for the admin icon picker. */
 export const AMENITY_ICON_CATALOG = [
-  ...VISUALS.map(({ key, tint, soft, label }) => ({ key, tint, soft, label })),
-  DEFAULT_VISUAL,
+  ...VISUALS.map(({ key, tint, soft, labelKey }) => ({ key, tint, soft, labelKey, get label() { return i18n.t(labelKey); } })),
+  { ...DEFAULT_VISUAL, get label() { return i18n.t(DEFAULT_VISUAL.labelKey); } },
 ];
 
 export const AMENITY_ICON_KEYS = AMENITY_ICON_CATALOG.map((v) => v.key);
@@ -38,14 +41,16 @@ export function getAmenityVisual(name = "", iconKey = null) {
     if (byKey) return byKey;
   }
   const n = String(name).toLowerCase();
-  return VISUALS.find((v) => v.match.some((m) => n.includes(m))) ?? DEFAULT_VISUAL;
+  const found = VISUALS.find((v) => v.match.some((m) => n.includes(m)));
+  const base = found ?? DEFAULT_VISUAL;
+  return { ...base, get label() { return i18n.t(base.labelKey); } };
 }
 
 export function getAmenityStatus(status) {
   switch (status) {
     case "bookable":
       return {
-        label: "Timed slots",
+        label: i18n.t("amenities.timedSlots"),
         color: "#B45309",
         bg: "#FEF3C7",
         dot: "#F59E0B",
@@ -54,7 +59,7 @@ export function getAmenityStatus(status) {
       };
     case "closed":
       return {
-        label: "Closed",
+        label: i18n.t("amenities.closed"),
         color: "#B91C1C",
         bg: "#FEF2F2",
         dot: "#EF4444",
@@ -64,7 +69,7 @@ export function getAmenityStatus(status) {
     case "open":
     default:
       return {
-        label: "Open availability",
+        label: i18n.t("amenities.openAvailability"),
         color: "#047857",
         bg: "#ECFDF5",
         dot: "#10B981",
@@ -75,10 +80,10 @@ export function getAmenityStatus(status) {
 }
 
 export const SLOT_DURATION_OPTIONS = [
-  { value: 30, label: "30 minutes" },
-  { value: 60, label: "1 hour" },
-  { value: 90, label: "1.5 hours" },
-  { value: 120, label: "2 hours" },
+  { value: 30, get label() { return i18n.t("amenities.slot30min"); } },
+  { value: 60, get label() { return i18n.t("amenities.slot1hr"); } },
+  { value: 90, get label() { return i18n.t("amenities.slot1_5hr"); } },
+  { value: 120, get label() { return i18n.t("amenities.slot2hr"); } },
 ];
 
 /** Parse "9:00 AM - 5:00 PM" into { start_time: "09:00", end_time: "17:00" }. */
@@ -152,47 +157,47 @@ export function validateAmenityForm(form) {
   const weekends = form.weekends_available;
   const slotDuration = Number(form.slot_duration_minutes);
 
-  if (!name) errors.name = "Name is required.";
-  else if (name.length < 2) errors.name = "Use at least 2 characters.";
-  else if (name.length > 100) errors.name = "Keep the name under 100 characters.";
+  if (!name) errors.name = i18n.t("amenities.validation.nameRequired");
+  else if (name.length < 2) errors.name = i18n.t("amenities.validation.nameMinLength");
+  else if (name.length > 100) errors.name = i18n.t("amenities.validation.nameMaxLength");
 
-  if (description.length > 2000) errors.description = "Description is too long.";
+  if (description.length > 2000) errors.description = i18n.t("amenities.validation.descriptionTooLong");
 
   if (!["open", "bookable", "closed"].includes(status)) {
-    errors.status = "Choose an availability option.";
+    errors.status = i18n.t("amenities.validation.statusRequired");
   }
 
-  if (capacityRaw === "") errors.capacity = "Capacity is required.";
+  if (capacityRaw === "") errors.capacity = i18n.t("amenities.validation.capacityRequired");
   else {
     const capacity = Number(capacityRaw);
     if (!Number.isInteger(capacity) || capacity < 0 || capacity > 1000) {
-      errors.capacity = "Capacity must be 0–1000.";
+      errors.capacity = i18n.t("amenities.validation.capacityRange");
     }
   }
 
-  if (!floor) errors.floor = "Location is required.";
-  else if (floor.length > 40) errors.floor = "Keep location under 40 characters.";
+  if (!floor) errors.floor = i18n.t("amenities.validation.locationRequired");
+  else if (floor.length > 40) errors.floor = i18n.t("amenities.validation.locationMaxLength");
 
-  if (!hours) errors.hours = "Open and close times are required.";
-  else if (!parseHoursToApiTimes(hours)) errors.hours = "Use a valid open–close time range.";
+  if (!hours) errors.hours = i18n.t("amenities.validation.hoursRequired");
+  else if (!parseHoursToApiTimes(hours)) errors.hours = i18n.t("amenities.validation.hoursInvalid");
 
   if (typeof weekends !== "boolean") {
-    errors.weekends_available = "Choose weekend availability.";
+    errors.weekends_available = i18n.t("amenities.validation.weekendsRequired");
   }
 
   if (status === "bookable") {
     if (![30, 60, 90, 120].includes(slotDuration)) {
-      errors.slot_duration_minutes = "Choose a slot duration.";
+      errors.slot_duration_minutes = i18n.t("amenities.validation.slotDurationRequired");
     } else {
       const times = parseHoursToApiTimes(hours);
       if (times && generateAmenitySlots(times.start_time, times.end_time, slotDuration).length === 0) {
-        errors.slot_duration_minutes = "Duration does not fit the open hours.";
+        errors.slot_duration_minutes = i18n.t("amenities.validation.slotDurationNoFit");
       }
     }
   }
 
   if (!iconKey || !AMENITY_ICON_KEYS.includes(iconKey)) {
-    errors.icon_key = "Category is required.";
+    errors.icon_key = i18n.t("amenities.validation.categoryRequired");
   }
 
   return errors;
@@ -240,9 +245,9 @@ export function buildUpcomingDates(count = 14) {
     out.push({
       key,
       date: d,
-      weekday: d.toLocaleDateString("en-US", { weekday: "short" }),
+      weekday: d.toLocaleDateString(getLocaleForLang(i18n.language), { weekday: "short" }),
       day: String(d.getDate()),
-      month: d.toLocaleDateString("en-US", { month: "short" }),
+      month: d.toLocaleDateString(getLocaleForLang(i18n.language), { month: "short" }),
       isToday: i === 0,
     });
   }
@@ -273,7 +278,7 @@ export function formatLongDate(dateKey) {
   try {
     const [y, m, d] = dateKey.split("-").map(Number);
     const date = new Date(y, m - 1, d);
-    return date.toLocaleDateString("en-US", {
+    return date.toLocaleDateString(getLocaleForLang(i18n.language), {
       weekday: "long",
       month: "long",
       day: "numeric",

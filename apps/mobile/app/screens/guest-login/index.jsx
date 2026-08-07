@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from "react"
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Routes, getPostAuthRoute } from "../../../constants/onboarding-routes";
 import { prepareAuthScreenChrome } from "../../../components/layout/chrome-manager";
 import { isGuestPendingApproval } from "../../../services/community-access";
@@ -29,34 +30,35 @@ import { Colors, Shadows } from "../../../constants/tokens";
 import { sf, sw } from "../../../utils/responsive";
 import { guestAccessNoticeMessage } from "../../../utils/guest-access-schedule";
 
-const STEP_META = {
+const getStepMeta = (t) => ({
   phone: {
     current: 1,
-    eyebrow: "Guest access",
-    title: "Login as Guest",
-    subtitle: "Use the phone number from your invitation.",
-    button: "Send Code",
-    loading: "Sending…",
+    eyebrow: t("guest.guestAccess"),
+    title: t("guest.loginAsGuest"),
+    subtitle: t("guest.useInvitationPhone"),
+    button: t("auth.sendCode"),
+    loading: t("auth.sending"),
   },
   otp: {
     current: 2,
-    eyebrow: "Step 2 of 3",
-    title: "Enter verification code",
+    eyebrow: t("guest.step2of3"),
+    title: t("auth.enterVerificationCode"),
     subtitle: null,
-    button: "Verify & Sign In",
-    loading: "Verifying…",
+    button: t("auth.verifySignIn"),
+    loading: t("auth.verifying"),
   },
   invite: {
     current: 3,
-    eyebrow: "Invite code",
-    title: "Enter invite code",
-    subtitle: "Use the code your host shared with you.",
-    button: "Verify Invite",
-    loading: "Verifying…",
+    eyebrow: t("guest.inviteCode"),
+    title: t("guest.enterInviteCode"),
+    subtitle: t("guest.useHostCode"),
+    button: t("guest.verifyInvite"),
+    loading: t("auth.verifying"),
   },
-};
+});
 
 export default function GuestLoginScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { notice } = useLocalSearchParams();
   const { submitting, run } = useSubmitLock();
@@ -72,8 +74,9 @@ export default function GuestLoginScreen() {
   const [otpRefocusToken, setOtpRefocusToken] = useState(0);
   const [inviteCode, setInviteCode] = useState("");
   const phoneE164 = toE164(phoneDigits, phoneCountry);
-  const phoneDisplay = toDisplayPhone(phoneE164) || "your phone";
+  const phoneDisplay = toDisplayPhone(phoneE164) || t("auth.yourPhone");
   const otpDigits = otp.replace(/[^0-9]/g, "");
+  const STEP_META = getStepMeta(t);
   const meta = STEP_META[step] ?? STEP_META.phone;
   const { canResend, countdownLabel, resetCountdown } = useOtpCountdown();
   const verifyLockRef = useRef(false);
@@ -92,10 +95,10 @@ export default function GuestLoginScreen() {
 
     const title =
       notice === "GUEST_ACCESS_REVOKED" || notice?.[0] === "GUEST_ACCESS_REVOKED"
-        ? "Guest access revoked"
+        ? t("guest.guestAccessRevoked")
         : notice === "GUEST_ACCESS_EXPIRED" || notice?.[0] === "GUEST_ACCESS_EXPIRED"
-          ? "Guest access expired"
-          : "Guest access";
+          ? t("guest.guestAccessExpired")
+          : t("guest.guestAccess");
 
     dialog.showError(title, message).catch(() => {});
   }, [dialog, notice]);
@@ -167,7 +170,7 @@ export default function GuestLoginScreen() {
       } finally {
         setOtpSending(false);
       }
-    }).catch((err) => showFailure("Could not send code", err));
+    }).catch((err) => showFailure(t("guest.couldNotSendCode"), err));
   };
 
   const verifyOtpStep = useCallback(
@@ -192,7 +195,7 @@ export default function GuestLoginScreen() {
         } catch (err) {
           verifyLockRef.current = false;
           setShowOtpError(true);
-          await showFailure("Verification failed", err);
+          await showFailure(t("guest.verificationFailed"), err);
           setOtpRefocusToken((token) => token + 1);
         }
       });
@@ -216,7 +219,7 @@ export default function GuestLoginScreen() {
       } finally {
         setOtpSending(false);
       }
-    }).catch((err) => showFailure("Could not resend code", err));
+    }).catch((err) => showFailure(t("guest.couldNotResendCode"), err));
   };
 
   const handleOtpChange = (value) => {
@@ -235,7 +238,7 @@ export default function GuestLoginScreen() {
     run(async () => {
       const res = await verifyGuestInvite(phoneE164, otp, normalizeInviteCode(inviteCode));
       await finishLogin(res);
-    }).catch((err) => showFailure("Invite verification failed", err));
+    }).catch((err) => showFailure(t("guest.inviteVerificationFailed"), err));
   };
 
   const handleSubmit = () => {
@@ -245,25 +248,25 @@ export default function GuestLoginScreen() {
   };
 
   const otpSubtitle = otpSending ? (
-    "Sending a 6-digit code to your phone…"
+    t("auth.sendingCodeToPhone")
   ) : (
     <>
-      We sent a code to{" "}
+      {t("auth.weSentCodeTo") + " "}
       <Text style={layout.phoneHighlight}>{phoneDisplay}</Text>
     </>
   );
 
   const resendFooter = resendNotice ? (
-    <Text style={[layout.footerNote, layout.resendSuccess]}>New code sent</Text>
+    <Text style={[layout.footerNote, layout.resendSuccess]}>{t("auth.newCodeSent")}</Text>
   ) : canResend ? (
     <TouchableOpacity onPress={handleResend} disabled={busy}>
       <Text style={[layout.footerNote, layout.resendHighlight, busy && styles.resendMuted]}>
-        {otpSending ? "Sending…" : "Resend code"}
+        {otpSending ? t("auth.sending") : t("auth.resendCode")}
       </Text>
     </TouchableOpacity>
   ) : (
     <Text style={layout.footerNote}>
-      Resend available in{" "}
+      {t("auth.resendAvailableIn") + " "}
       <Text style={layout.resendHighlight}>{countdownLabel}</Text>
     </Text>
   );
@@ -274,14 +277,14 @@ export default function GuestLoginScreen() {
     ) : step !== "phone" ? (
       <Text style={layout.footerNote}>
         <Text style={layout.footerLink} onPress={handleBack}>
-          Go back
+          {t("guest.goBack")}
         </Text>
       </Text>
     ) : (
       <Text style={layout.footerNote}>
-        Returning resident?{" "}
+        {t("guest.returningResident") + " "}
         <Text style={layout.footerLink} onPress={goToResidentLogin}>
-          Sign in normally
+          {t("guest.signInNormally")}
         </Text>
       </Text>
     );
@@ -326,7 +329,7 @@ export default function GuestLoginScreen() {
 
             {step === "phone" ? (
               <View style={layout.fieldBlock}>
-                <Text style={layout.fieldLabel}>Phone number</Text>
+                <Text style={layout.fieldLabel}>{t("auth.phoneNumber")}</Text>
                 <LoginPhoneInput
                   digits={phoneDigits}
                   country={phoneCountry}
@@ -345,10 +348,10 @@ export default function GuestLoginScreen() {
             {step === "otp" ? (
               <View style={layout.fieldBlock}>
                 {otpSending ? (
-                  <AuthInlineLoader text={`Sending to ${phoneDisplay}…`} />
+                  <AuthInlineLoader text={t("auth.sendingTo", { phone: phoneDisplay })} />
                 ) : (
                   <>
-                    <Text style={layout.fieldLabel}>Verification code</Text>
+                    <Text style={layout.fieldLabel}>{t("auth.verificationCode")}</Text>
                     <OTPInput
                       key={otpInputKey}
                       length={6}
@@ -360,7 +363,7 @@ export default function GuestLoginScreen() {
                     />
                     {showOtpError ? (
                       <Text style={authStyles.inputErrorText}>
-                        Enter the 6-digit verification code
+                        {t("auth.enter6DigitCode")}
                       </Text>
                     ) : null}
                     {__DEV__ ? (
@@ -375,7 +378,7 @@ export default function GuestLoginScreen() {
 
             {step === "invite" ? (
               <View style={layout.fieldBlock}>
-                <Text style={layout.fieldLabel}>Invite code</Text>
+                <Text style={layout.fieldLabel}>{t("guest.inviteCode")}</Text>
                 <TextInput
                   style={styles.input}
                   value={inviteCode}

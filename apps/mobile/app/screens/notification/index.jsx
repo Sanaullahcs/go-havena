@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Fonts } from "../../../constants/font";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 import { useFocusEffect, useRouter } from "expo-router";
 import ScreenHeader from "../../../components/layout/screen-header";
@@ -58,6 +59,7 @@ function NotificationRow({ item, onPress }) {
 
 export default function Notifications() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [items, setItems] = useState([]);
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -116,7 +118,6 @@ export default function Notifications() {
         loadPage(1);
         return;
       }
-      // Refresh first page when returning — do not depend on items.length (breaks pagination).
       loadPage(1, { silent: true });
     }, [loadPage]),
   );
@@ -160,9 +161,9 @@ export default function Notifications() {
     try {
       await runAction({
         action: () => markAllNotificationsRead(),
-        successTitle: "All caught up",
-        successMessage: "All notifications marked as read.",
-        errorTitle: "Could not mark all read",
+        successTitle: t("notifications.allCaughtUpTitle"),
+        successMessage: t("notifications.allMarkedRead"),
+        errorTitle: t("notifications.couldNotMarkAllRead"),
         onSuccess: () => {
           setItems((prev) => sortNotifications(prev.map((item) => ({ ...item, read: true }))));
           setUnread(0);
@@ -173,7 +174,7 @@ export default function Notifications() {
     } finally {
       setMarkingAll(false);
     }
-  }, [markingAll, unread, runAction]);
+  }, [markingAll, unread, runAction, t]);
 
   const handlePressItem = useCallback(
     async (item) => {
@@ -188,7 +189,7 @@ export default function Notifications() {
         try {
           await markNotificationRead(item.id);
         } catch (err) {
-          await showFailure("Could not update notification", err);
+          await showFailure(t("notifications.couldNotUpdateNotification"), err);
         }
       }
 
@@ -198,15 +199,15 @@ export default function Notifications() {
         return;
       }
 
-      await showFailure("Unable to open", {
-        message: "This notification has no related screen to open.",
+      await showFailure(t("notifications.unableToOpen"), {
+        message: t("notifications.noRelatedScreen"),
       });
     },
-    [router, showFailure],
+    [router, showFailure, t],
   );
 
   const unreadLabel =
-    unread === 0 ? "All caught up" : `${unread} unread`;
+    unread === 0 ? t("notifications.allCaughtUp") : t("notifications.unreadCount", { count: unread });
 
   const renderFooter = useCallback(() => {
     if (showFooterLoader) {
@@ -221,14 +222,14 @@ export default function Notifications() {
       return (
         <View style={styles.footerWrap}>
           <Text style={styles.footerText}>
-            {total > 0 ? `Showing all ${total} notification${total === 1 ? "" : "s"}` : "You're all caught up"}
+            {total > 0 ? t("notifications.showingAll", { count: total }) : t("notifications.allCaughtUp")}
           </Text>
         </View>
       );
     }
 
     return <View style={styles.footerSpacer} />;
-  }, [hasMore, items.length, showFooterLoader, total]);
+  }, [hasMore, items.length, showFooterLoader, total, t]);
 
   const renderEmpty = useCallback(() => {
     if (loading) {
@@ -239,14 +240,14 @@ export default function Notifications() {
       );
     }
 
-    return <Text style={styles.emptyText}>No notifications yet.</Text>;
-  }, [loading]);
+    return <Text style={styles.emptyText}>{t("notifications.noNotificationsYet")}</Text>;
+  }, [loading, t]);
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <ScreenHeader
         layout="stacked"
-        title="Notifications"
+        title={t("notifications.title")}
         subtitle={unreadLabel}
         iconOnly
         compact
@@ -257,7 +258,7 @@ export default function Notifications() {
             disabled={markingAll || unread === 0}
           >
             <Text style={[styles.markAllRead, unread === 0 && styles.markAllReadDisabled]}>
-              Mark all read
+              {t("notifications.markAllRead")}
             </Text>
           </TouchableOpacity>
         }

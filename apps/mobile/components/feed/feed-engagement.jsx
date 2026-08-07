@@ -9,6 +9,7 @@ import {
 } from "react-native";
 
 import { Feather, Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import UserAvatar from "../ui/user-avatar";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
@@ -23,6 +24,7 @@ export function FeedEngagementSummary({
   style,
   onCommentsPress,
 }) {
+  const { t } = useTranslation();
   const likes = Number(likesCount ?? 0);
   const comments = Number(commentsCount ?? 0);
 
@@ -39,7 +41,7 @@ export function FeedEngagementSummary({
             <Text style={styles.summaryText}>
               <Text style={styles.summaryCount}>{formatCount(likes)}</Text>
               {" "}
-              {likes === 1 ? "Like" : "Likes"}
+              {t("feed.likeCount", { count: likes })}
             </Text>
           </View>
         ) : null}
@@ -54,7 +56,7 @@ export function FeedEngagementSummary({
           <Text style={styles.summaryComments}>
             <Text style={styles.summaryCount}>{formatCount(comments)}</Text>
             {" "}
-            {comments === 1 ? "Comment" : "Comments"}
+            {t("feed.commentCount", { count: comments })}
           </Text>
         </Pressable>
       ) : null}
@@ -66,10 +68,13 @@ export function FeedActionRow({
   liked,
   onLike,
   onComment,
-  likeLabel = "Like",
-  commentLabel = "Comment",
+  likeLabel,
+  commentLabel,
   disabled = false,
 }) {
+  const { t } = useTranslation();
+  const resolvedLikeLabel = likeLabel ?? (liked ? t("feed.liked") : t("feed.like"));
+  const resolvedCommentLabel = commentLabel ?? t("feed.comment");
   const scale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -113,7 +118,7 @@ export function FeedActionRow({
             disabled && styles.actionLabelDisabled,
           ]}
         >
-          {likeLabel}
+          {resolvedLikeLabel}
         </Text>
       </Pressable>
 
@@ -141,7 +146,7 @@ export function FeedActionRow({
             disabled && styles.actionLabelDisabled,
           ]}
         >
-          {commentLabel}
+          {resolvedCommentLabel}
         </Text>
       </Pressable>
     </View>
@@ -155,10 +160,11 @@ export function FeedCardFooter({
   onLike,
   onComment,
   likeLabel,
-  commentLabel = "Comment",
+  commentLabel,
   disabled = false,
   style,
 }) {
+  const { t } = useTranslation();
   const likes = Number(likesCount ?? 0);
   const comments = Number(commentsCount ?? 0);
   const hasSummary = likes > 0 || comments > 0;
@@ -176,8 +182,8 @@ export function FeedCardFooter({
         liked={liked}
         onLike={onLike}
         onComment={onComment}
-        likeLabel={likeLabel ?? (liked ? "Liked" : "Like")}
-        commentLabel={commentLabel}
+        likeLabel={likeLabel ?? (liked ? t("feed.liked") : t("feed.like"))}
+        commentLabel={commentLabel ?? t("feed.comment")}
         disabled={disabled}
       />
     </View>
@@ -193,7 +199,8 @@ export function FeedCommentBubble({
   now,
   depth = 0,
 }) {
-  const authorName = comment.user?.display_name ?? comment.user?.name ?? "Neighbor";
+  const { t } = useTranslation();
+  const authorName = comment.user?.display_name ?? comment.user?.name ?? t("feed.neighbor");
   const timeLabel = getCommentTimeLabel(
     { ...comment, pending: pending || comment.pending },
     now ?? Date.now(),
@@ -231,7 +238,7 @@ export function FeedCommentBubble({
           </Pressable>
           {parentAuthor && indentLevel > 0 ? (
             <Text style={styles.replyHint}>
-              Replying to <Text style={styles.replyHintName}>{parentAuthor}</Text>
+              {t("feed.replyingTo")} <Text style={styles.replyHintName}>{parentAuthor}</Text>
             </Text>
           ) : null}
           <Text style={styles.bubbleText}>{comment.content ?? comment.body}</Text>
@@ -240,15 +247,15 @@ export function FeedCommentBubble({
           <Text style={styles.metaTime}>{timeLabel}</Text>
           <Pressable onPress={() => onLike?.(comment)} hitSlop={8}>
             <Text style={[styles.metaAction, liked && styles.metaActionLiked]}>
-              {liked ? "Liked" : "Like"}
+              {liked ? t("feed.liked") : t("feed.like")}
               {likeCount > 0 ? ` · ${formatCount(likeCount)}` : ""}
             </Text>
           </Pressable>
           <Pressable onPress={() => onReply?.(comment)} hitSlop={8}>
-            <Text style={styles.metaAction}>Reply</Text>
+            <Text style={styles.metaAction}>{t("feed.reply")}</Text>
           </Pressable>
           {pending ? (
-            <ActivityIndicator size="small" color={T.gray} style={{ marginLeft: 4 }} />
+            <ActivityIndicator size="small" color={T.gray} style={{ marginStart: 4 }} />
           ) : null}
         </View>
       </View>
@@ -443,7 +450,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: sw(14),
     marginTop: sw(6),
-    marginLeft: sw(14),
+    marginStart: sw(14),
   },
   metaTime: {
     fontFamily: Fonts.bold,

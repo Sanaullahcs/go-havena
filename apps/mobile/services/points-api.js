@@ -1,4 +1,6 @@
 import { apiRequest } from "./api-client";
+import i18n from "../i18n";
+import { getLocaleForLang } from "../hooks/use-app-locale";
 
 const ACTION_ICONS = {
   lesson_completed: { icon: "book-open", iconColor: "#0A2A43", iconBg: "#D1FAF5" },
@@ -16,15 +18,16 @@ function formatHistoryTime(iso) {
   if (!iso) return "";
   const date = new Date(iso);
   const now = new Date();
+  const locale = getLocaleForLang(i18n.language);
   const isToday = date.toDateString() === now.toDateString();
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
   const isYesterday = date.toDateString() === yesterday.toDateString();
-  const time = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const time = date.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
 
-  if (isToday) return `Today · ${time}`;
-  if (isYesterday) return `Yesterday · ${time}`;
-  return `${date.toLocaleDateString([], { month: "short", day: "numeric" })} · ${time}`;
+  if (isToday) return `${i18n.t("time.today")} · ${time}`;
+  if (isYesterday) return `${i18n.t("time.yesterday")} · ${time}`;
+  return `${date.toLocaleDateString(locale, { month: "short", day: "numeric" })} · ${time}`;
 }
 
 export async function fetchPointsStats() {

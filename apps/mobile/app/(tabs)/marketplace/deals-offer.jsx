@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { MarketplaceType } from "../../../constants/marketplace-type";
 import {
   View,
@@ -43,6 +44,7 @@ function sortFavoritesFirst(list) {
 
 export default function DealsOffer({ embedded = false }) {
   const router = useRouter();
+  const { t } = useTranslation();
   const { role: roleParam } = useLocalSearchParams();
   const activeRole =
     roleParam === "admin" || roleParam === "resident"
@@ -67,7 +69,7 @@ export default function DealsOffer({ embedded = false }) {
       setDeals(sortFavoritesFirst(rows));
       setMyBusiness(mine);
     } catch (err) {
-      setError(err?.message || "Could not load deals.");
+      setError(err?.message || t("deals.couldntLoadDeals"));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -136,7 +138,7 @@ export default function DealsOffer({ embedded = false }) {
       {!embedded ? (
         <ScreenHeader
           layout="inline"
-          title="Deals & Offers"
+          title={t("deals.dealsAndOffers")}
           iconOnly
           compact
           right={
@@ -147,12 +149,12 @@ export default function DealsOffer({ embedded = false }) {
                 onPress={() => {
                   if (!myBusiness) {
                     Alert.alert(
-                      "Add a Business First",
-                      "Register your business before creating a deal.",
+                      t("deals.addBusinessFirst"),
+                      t("deals.registerBeforeDeal"),
                       [
-                        { text: "Cancel", style: "cancel" },
+                        { text: t("common.cancel"), style: "cancel" },
                         {
-                          text: "Add Business",
+                          text: t("marketplace.addBusiness"),
                           onPress: () =>
                             router.push({
                               pathname: MarketplaceRoutes.ADD_BUSINESS,
@@ -169,7 +171,7 @@ export default function DealsOffer({ embedded = false }) {
                   });
                 }}
               >
-                <Text style={styles.createDealBtnText}>Create Deal</Text>
+                <Text style={styles.createDealBtnText}>{t("deals.createDeal")}</Text>
               </TouchableOpacity>
             ) : null
           }
@@ -210,8 +212,8 @@ export default function DealsOffer({ embedded = false }) {
                     backgroundColor={MarketplaceTheme.accentSoft}
                   />
                   <View>
-                    <Text style={styles.savedTitle}>My Saved Coupons</Text>
-                    <Text style={styles.savedSubTitle}>View your active offers</Text>
+                    <Text style={styles.savedTitle}>{t("deals.mySavedCoupons")}</Text>
+                    <Text style={styles.savedSubTitle}>{t("deals.viewActiveOffers")}</Text>
                   </View>
                 </View>
 
@@ -245,7 +247,7 @@ export default function DealsOffer({ embedded = false }) {
                         isSelected && marketplaceSharedStyles.chipTextActive,
                       ]}
                     >
-                      {category}
+                      {category === "All" ? t("deals.allCategory") : category}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -255,11 +257,11 @@ export default function DealsOffer({ embedded = false }) {
             <View style={styles.listWrap}>
               {error ? (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyTitle}>Couldn't load deals</Text>
+                  <Text style={styles.emptyTitle}>{t("deals.couldntLoadDeals")}</Text>
                   <Text style={styles.emptySubTitle}>{error}</Text>
                   <TouchableOpacity onPress={load} style={{ marginTop: 10 }}>
                     <Text style={[styles.emptySubTitle, { color: "#14B8A6" }]}>
-                      Tap to retry
+                      {t("deals.tapToRetry")}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -291,7 +293,7 @@ export default function DealsOffer({ embedded = false }) {
                       source={require("../../../assets/images/white-curl.svg")}
                       style={{ width: 12, height: 12 }}
                     />
-                    <Text style={styles.trendingText}>Trending</Text>
+                    <Text style={styles.trendingText}>{t("deals.trending")}</Text>
                   </View>
                 ) : null}
 
@@ -303,7 +305,7 @@ export default function DealsOffer({ embedded = false }) {
                     handleToggleLike(deal);
                   }}
                   hitSlop={8}
-                  accessibilityLabel={deal.isLiked ? "Unsave deal" : "Save deal"}
+                  accessibilityLabel={deal.isLiked ? t("deals.unsaveDeal") : t("deals.saveDeal")}
                 >
                   {deal.isLiked ? (
                     <Image
@@ -333,7 +335,7 @@ export default function DealsOffer({ embedded = false }) {
               <View style={styles.cardBody}>
                 <Text style={styles.cardTitle}>{deal.title}</Text>
                 {deal.vendor ? (
-                  <Text style={styles.vendorText}>by {deal.vendor}</Text>
+                  <Text style={styles.vendorText}>{t("deals.byVendor", { vendor: deal.vendor })}</Text>
                 ) : null}
                 {deal.description ? (
                   <Text style={styles.descriptionText} numberOfLines={2}>
@@ -361,7 +363,7 @@ export default function DealsOffer({ embedded = false }) {
                         style={styles.metaIcon}
                       />
                       <Text style={styles.metaText}>
-                        Valid until {deal.validUntil}
+                        {t("marketplace.validUntil")} {deal.validUntil}
                       </Text>
                     </View>
                   ) : null}
@@ -372,11 +374,11 @@ export default function DealsOffer({ embedded = false }) {
 
               {!error && filteredDeals.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyTitle}>No deals found</Text>
+                  <Text style={styles.emptyTitle}>{t("deals.noDealsFound")}</Text>
                   <Text style={styles.emptySubTitle}>
                     {selectedCategory === "All"
-                      ? "Check back soon for new local deals"
-                      : "Try another category"}
+                      ? t("deals.checkBackSoon")
+                      : t("deals.tryAnotherCategory")}
                   </Text>
                 </View>
               ) : null}
@@ -475,7 +477,7 @@ const styles = StyleSheet.create({
   trendingTag: {
     position: "absolute",
     top: 12,
-    left: 12,
+    start: 12,
     backgroundColor: "#FE9A00",
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -497,7 +499,7 @@ const styles = StyleSheet.create({
   likeButton: {
     position: "absolute",
     top: 12,
-    right: 12,
+    end: 12,
     width: 36,
     height: 36,
     borderRadius: 50,
@@ -517,7 +519,7 @@ const styles = StyleSheet.create({
   },
   offerTag: {
     position: "absolute",
-    right: 12,
+    end: 12,
     bottom: 12,
     paddingVertical: 8,
     paddingHorizontal: 14,

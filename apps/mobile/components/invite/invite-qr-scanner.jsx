@@ -3,6 +3,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { useAppDialog } from "../../providers/app-dialog-provider";
 
@@ -25,6 +26,7 @@ function extractInviteCode(rawValue) {
 }
 
 export default function InviteQrScanner({ visible, onClose, onScanned }) {
+  const { t } = useTranslation();
   const [permission, requestPermission] = useCameraPermissions();
   const [locked, setLocked] = useState(false);
   const { showError } = useAppDialog();
@@ -67,24 +69,24 @@ export default function InviteQrScanner({ visible, onClose, onScanned }) {
         ) : (
           <SafeAreaView style={styles.permissionWrap}>
             <Text style={styles.permissionText}>
-              Camera access is required to scan your invite QR code.
+              {t("guests.cameraRequired")}
             </Text>
             <TouchableOpacity
               onPress={async () => {
                 const result = await requestPermission();
                 if (!result.granted) {
                   await showError(
-                    "Camera permission required",
-                    "Enable camera access in your device settings to scan QR codes.",
+                    t("guests.cameraPermission"),
+                    t("guests.enableCamera"),
                   );
                 }
               }}
               style={styles.allowButton}
             >
-              <Text style={styles.allowButtonText}>Allow Camera</Text>
+              <Text style={styles.allowButtonText}>{t("guests.allowCamera")}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Text style={styles.closeButtonText}>Cancel</Text>
+              <Text style={styles.closeButtonText}>{t("common.cancel")}</Text>
             </TouchableOpacity>
           </SafeAreaView>
         )}
@@ -94,7 +96,7 @@ export default function InviteQrScanner({ visible, onClose, onScanned }) {
             <TouchableOpacity onPress={onClose} style={styles.closeIcon}>
               <Ionicons name="close" size={28} color="#FFFFFF" />
             </TouchableOpacity>
-            <Text style={styles.hint}>Point your camera at the invite QR code</Text>
+            <Text style={styles.hint}>{t("guests.pointCamera")}</Text>
           </SafeAreaView>
         ) : null}
       </View>
@@ -113,8 +115,8 @@ const styles = StyleSheet.create({
   overlay: {
     position: "absolute",
     top: 0,
-    left: 0,
-    right: 0,
+    start: 0,
+    end: 0,
     paddingHorizontal: 24,
     paddingTop: 12,
   },

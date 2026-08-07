@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../../components/layout/internal-screen-header";
 import BusinessHoursInput from "../../../../components/ui/business-hours-input";
 import AmenityIcon from "../../../../components/property/amenity-icon";
@@ -45,22 +46,10 @@ const EMPTY_FORM = {
   icon_key: "building",
 };
 
-const STATUS_OPTIONS = [
-  {
-    id: "bookable",
-    title: "Timed slots",
-    subtitle: "Users pick a generated time slot",
-  },
-  {
-    id: "open",
-    title: "Open availability",
-    subtitle: "Users request access without a slot",
-  },
-  {
-    id: "closed",
-    title: "Closed",
-    subtitle: "Hidden from booking for now",
-  },
+const STATUS_OPTION_KEYS = [
+  { id: "bookable",  titleKey: "propertyMgmt.timedSlots",        subtitleKey: "propertyMgmt.timedSlotsSub" },
+  { id: "open",      titleKey: "propertyMgmt.openAvailability",  subtitleKey: "propertyMgmt.openAvailabilitySub" },
+  { id: "closed",    titleKey: "propertyMgmt.closed",            subtitleKey: "propertyMgmt.closedModeSub" },
 ];
 
 function RequiredLabel({ children }) {
@@ -74,6 +63,7 @@ function RequiredLabel({ children }) {
 
 export default function AmenityFormScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const isAdmin = getCurrentRole() === "admin";
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
@@ -107,11 +97,11 @@ export default function AmenityFormScreen() {
     setSubmitting(true);
     await runAction({
       action: () => (isAdmin ? createAmenity(payload) : submitAmenity(payload)),
-      successTitle: isAdmin ? "Amenity published" : "Amenity submitted",
+      successTitle: isAdmin ? t("propertyMgmt.amenityPublished") : t("propertyMgmt.amenitySubmitted"),
       successMessage: isAdmin
-        ? "Published immediately — no approval required for community admins."
-        : "A community admin will review it before it goes live.",
-      errorTitle: "Could not save amenity",
+        ? t("propertyMgmt.amenityPublishedMsg")
+        : t("propertyMgmt.amenitySubmittedMsg"),
+      errorTitle: t("propertyMgmt.couldNotSaveAmenity"),
       onSuccess: () => router.back(),
     });
     setSubmitting(false);
@@ -123,6 +113,7 @@ export default function AmenityFormScreen() {
     runAction,
     isAdmin,
     router,
+    t,
   ]);
 
   const nameError = showError("name", liveErrors);
@@ -137,11 +128,11 @@ export default function AmenityFormScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <InternalScreenHeader
-        title="Add Amenity"
+        title={t("propertyMgmt.addAmenityTitle")}
         subtitle={
           isAdmin
-            ? "Community admin — publishes with no approval"
-            : "Resident — needs community admin approval"
+            ? t("propertyMgmt.adminPublishHint")
+            : t("propertyMgmt.residentApprovalHint")
         }
       />
 
@@ -151,13 +142,13 @@ export default function AmenityFormScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.field}>
-          <RequiredLabel>Name</RequiredLabel>
+          <RequiredLabel>{t("propertyMgmt.nameLabel")}</RequiredLabel>
           <TextInput
             style={[styles.input, nameError && styles.inputError]}
             value={form.name}
             onChangeText={(v) => setF("name", v)}
             onBlur={() => touch("name")}
-            placeholder="e.g. Rooftop Lounge"
+            placeholder={t("propertyMgmt.namePlaceholder")}
             placeholderTextColor="#94A3B8"
             maxLength={100}
           />
@@ -165,13 +156,13 @@ export default function AmenityFormScreen() {
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.label}>Description</Text>
+          <Text style={styles.label}>{t("propertyMgmt.descriptionLabel")}</Text>
           <TextInput
             style={[styles.input, styles.textArea, descriptionError && styles.inputError]}
             value={form.description}
             onChangeText={(v) => setF("description", v)}
             onBlur={() => touch("description")}
-            placeholder="What residents should know (optional)"
+            placeholder={t("propertyMgmt.descriptionPlaceholder")}
             placeholderTextColor="#94A3B8"
             multiline
             maxLength={2000}
@@ -182,7 +173,7 @@ export default function AmenityFormScreen() {
         </View>
 
         <View style={styles.field}>
-          <RequiredLabel>Category</RequiredLabel>
+          <RequiredLabel>{t("propertyMgmt.categoryLabel")}</RequiredLabel>
           <View style={[styles.iconGrid, iconError && styles.groupError]}>
             {AMENITY_ICON_CATALOG.map((item) => {
               const selected = form.icon_key === item.key;
@@ -209,8 +200,8 @@ export default function AmenityFormScreen() {
         </View>
 
         <View style={styles.field}>
-          <RequiredLabel>Booking mode</RequiredLabel>
-          {STATUS_OPTIONS.map((opt) => {
+          <RequiredLabel>{t("propertyMgmt.bookingMode")}</RequiredLabel>
+          {STATUS_OPTION_KEYS.map((opt) => {
             const selected = form.status === opt.id;
             return (
               <Pressable
@@ -223,8 +214,8 @@ export default function AmenityFormScreen() {
                 ]}
               >
                 <View style={styles.modeCopy}>
-                  <Text style={styles.modeTitle}>{opt.title}</Text>
-                  <Text style={styles.modeSub}>{opt.subtitle}</Text>
+                  <Text style={styles.modeTitle}>{t(opt.titleKey)}</Text>
+                  <Text style={styles.modeSub}>{t(opt.subtitleKey)}</Text>
                 </View>
                 <View style={[styles.radio, selected && styles.radioActive]}>
                   {selected ? <View style={styles.radioDot} /> : null}
@@ -236,7 +227,7 @@ export default function AmenityFormScreen() {
         </View>
 
         <View style={styles.field}>
-          <RequiredLabel>Daily hours</RequiredLabel>
+          <RequiredLabel>{t("propertyMgmt.dailyHours")}</RequiredLabel>
           <BusinessHoursInput
             value={form.hours}
             onChange={(v) => setF("hours", v)}
@@ -247,8 +238,8 @@ export default function AmenityFormScreen() {
 
         <View style={styles.switchRow}>
           <View style={styles.switchCopy}>
-            <Text style={styles.modeTitle}>Available on weekends</Text>
-            <Text style={styles.modeSub}>Turn off to close Sat & Sun</Text>
+            <Text style={styles.modeTitle}>{t("propertyMgmt.weekendsAvailable")}</Text>
+            <Text style={styles.modeSub}>{t("propertyMgmt.weekendsOff")}</Text>
           </View>
           <Switch
             value={form.weekends_available}
@@ -260,7 +251,7 @@ export default function AmenityFormScreen() {
 
         {form.status === "bookable" ? (
           <View style={styles.field}>
-            <RequiredLabel>Slot duration</RequiredLabel>
+            <RequiredLabel>{t("propertyMgmt.slotDuration")}</RequiredLabel>
             <View style={[styles.durationRow, slotError && styles.groupError]}>
               {SLOT_DURATION_OPTIONS.map((opt) => {
                 const selected = Number(form.slot_duration_minutes) === opt.value;
@@ -283,7 +274,7 @@ export default function AmenityFormScreen() {
 
             {previewSlots.length > 0 ? (
               <View style={styles.previewCard}>
-                <Text style={styles.previewTitle}>Generated slots preview</Text>
+                <Text style={styles.previewTitle}>{t("propertyMgmt.slotsPreview")}</Text>
                 {previewSlots.map((slot) => (
                   <Text key={slot.value} style={styles.previewSlot}>
                     {slot.value}
@@ -295,7 +286,7 @@ export default function AmenityFormScreen() {
         ) : null}
 
         <View style={styles.field}>
-          <RequiredLabel>Capacity</RequiredLabel>
+          <RequiredLabel>{t("propertyMgmt.capacityLabel")}</RequiredLabel>
           <TextInput
             style={[styles.input, capacityError && styles.inputError]}
             value={String(form.capacity)}
@@ -309,13 +300,13 @@ export default function AmenityFormScreen() {
         </View>
 
         <View style={styles.field}>
-          <RequiredLabel>Location</RequiredLabel>
+          <RequiredLabel>{t("propertyMgmt.locationLabel")}</RequiredLabel>
           <TextInput
             style={[styles.input, floorError && styles.inputError]}
             value={form.floor}
             onChangeText={(v) => setF("floor", v)}
             onBlur={() => touch("floor")}
-            placeholder="e.g. Floor 3 / Building A"
+            placeholder={t("propertyMgmt.locationPlaceholder")}
             placeholderTextColor="#94A3B8"
             maxLength={40}
           />
@@ -333,7 +324,7 @@ export default function AmenityFormScreen() {
             <>
               <Feather name="check" size={sf(16)} color="#FFFFFF" />
               <Text style={styles.submitText}>
-                {isAdmin ? "Publish amenity" : "Submit for approval"}
+                {isAdmin ? t("propertyMgmt.publishAmenity") : t("propertyMgmt.submitForApproval")}
               </Text>
             </>
           )}
@@ -414,7 +405,7 @@ const styles = StyleSheet.create({
     marginBottom: sw(8),
   },
   modeCardActive: { borderColor: "#0A2A43", backgroundColor: "#F8FBFF" },
-  modeCopy: { flex: 1, marginRight: sw(10) },
+  modeCopy: { flex: 1, marginEnd: sw(10) },
   modeTitle: {
     fontFamily: Fonts.bold,
     fontSize: PropertyType.bodyMd,
@@ -452,7 +443,7 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
     padding: sw(14),
   },
-  switchCopy: { flex: 1, marginRight: sw(12) },
+  switchCopy: { flex: 1, marginEnd: sw(12) },
   durationRow: { flexDirection: "row", flexWrap: "wrap", gap: sw(8) },
   durationChip: {
     paddingHorizontal: sw(12),

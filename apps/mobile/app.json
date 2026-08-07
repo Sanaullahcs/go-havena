@@ -1,12 +1,12 @@
 {
   "expo": {
     "name": "Havena",
-    "slug": "neighborlink",
+    "slug": "havena",
     "owner": "sanas-team",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
-    "scheme": "neighborlink",
+    "scheme": "havena",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
@@ -104,7 +104,8 @@
       ],
       "expo-secure-store",
       "@react-native-community/datetimepicker",
-      "expo-video"
+      "expo-video",
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true

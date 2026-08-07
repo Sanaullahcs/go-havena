@@ -7,15 +7,17 @@ import {
   Pressable,
   Alert,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import i18n from "../../../../i18n";
+import { getLocaleForLang } from "../../../../hooks/use-app-locale";
 import InternalScreenHeader from "../../../../components/layout/internal-screen-header";
-import { pageStyles } from "../../../../constants/page-styles";
-import { PropertyType } from "../../../../constants/property-management-type";
-import { propertyStyles } from "../../../../constants/property-styles";
 import { Fonts } from "../../../../constants/font";
+import { HomeTheme as T } from "../../../../constants/home-theme";
 import { sw, sf, hp } from "../../../../utils/responsive";
 import { PropertyManagementRoutes } from "../../../../constants/property-management-routes";
 import {
@@ -26,51 +28,60 @@ import {
 import { getCurrentRole } from "../../../../constants/role-session";
 import { useSubmitLock } from "../../../../hooks/use-submit-lock";
 
-const SEVERITY = {
-  important: { bg: "#FEF2F2", color: "#E7000B", label: "Important", icon: "alert-circle" },
-  standard:  { bg: "#FFFBEB", color: "#E17100", label: "Standard",  icon: "alert-triangle" },
-  info:      { bg: "#F9FAFB", color: "#6A7282", label: "Info",      icon: "info" },
+const SEV = {
+  important: { accent: "#DC2626", bg: "#FEF2F2", label: "propertyMgmt.importantLabel", icon: "alert-circle" },
+  standard: { accent: "#D97706", bg: "#FFFBEB", label: "propertyMgmt.standardLabel", icon: "alert-triangle" },
+  info: { accent: T.deepTeal, bg: T.mint, label: "propertyMgmt.infoLabel", icon: "info" },
 };
 
+function InfoRow({ icon, label, value }) {
+  if (!value) return null;
+  return (
+    <View style={styles.infoRow}>
+      <View style={styles.infoIcon}>
+        <Feather name={icon} size={sf(14)} color={T.deepTeal} />
+      </View>
+      <View style={styles.infoCopy}>
+        <Text style={styles.infoLabel}>{label}</Text>
+        <Text style={styles.infoValue}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
 export default function RuleDetail() {
-  const router         = useRouter();
-  const { ruleId }     = useLocalSearchParams();
-  const activeRole     = getCurrentRole();
-  const isAdmin        = activeRole === "admin";
+  const router = useRouter();
+  const { t, i18n } = useTranslation();
+  const { ruleId } = useLocalSearchParams();
+  const isAdmin = getCurrentRole() === "admin";
   const { submitting, run } = useSubmitLock();
 
-  const [rule,    setRule]    = useState(null);
+  const [rule, setRule] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
+  const [error, setError] = useState(null);
   const hasLoadedOnce = useRef(false);
 
-  const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchCommunityRules();
-      const found = data.rules.find((r) => String(r.id) === String(ruleId));
-      if (!found) {
-        setRule(null);
-        setError("Rule not found.");
-        return;
+  const load = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      setError(null);
+      try {
+        const data = await fetchCommunityRules();
+        const found = data.rules.find((r) => String(r.id) === String(ruleId));
+        if (!found) { setRule(null); setError(t("propertyMgmt.ruleNotFound")); return; }
+        setRule(found);
+      } catch (err) {
+        setError(err?.message ?? t("propertyMgmt.couldNotLoadRule"));
+      } finally {
+        setLoading(false);
+        hasLoadedOnce.current = true;
       }
-      setRule(found);
-    } catch (err) {
-      setError(err?.message ?? "Could not load rule.");
-    } finally {
-      setLoading(false);
-      hasLoadedOnce.current = true;
-    }
-  }, [ruleId]);
-
-  useFocusEffect(
-    useCallback(() => {
-      load(hasLoadedOnce.current);
-    }, [load]),
+    },
+    [ruleId, t],
   );
 
-  /* ── Acknowledge ── */
+  useFocusEffect(useCallback(() => { load(hasLoadedOnce.current); }, [load]));
+
   const handleAcknowledge = () => {
     run(async () => {
       await acknowledgeRule(rule.id);
@@ -78,142 +89,123 @@ export default function RuleDetail() {
     });
   };
 
-  /* ── Admin delete ── */
   const handleDelete = () => {
-    Alert.alert(
-      "Delete Rule",
-      `Delete "${rule?.title}"? This cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () =>
-            run(async () => {
-              await deleteCommunityRule(rule.id);
-              router.back();
-            }),
-        },
-      ],
-    );
+    Alert.alert(t("propertyMgmt.deleteRule"), t("propertyMgmt.deleteRuleMsg", { title: rule?.title }), [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("common.delete"), style: "destructive", onPress: () => run(async () => { await deleteCommunityRule(rule.id); router.back(); }) },
+    ]);
   };
 
-  /* ── Admin edit ── */
   const handleEdit = () => {
-    router.push({
-      pathname: PropertyManagementRoutes.RULE_FORM,
-      params: { ruleId: String(rule.id) },
-    });
+    router.push({ pathname: PropertyManagementRoutes.RULE_FORM, params: { ruleId: String(rule.id) } });
   };
 
-  /* ── Render ── */
   if (loading) {
     return (
-      <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
-        <InternalScreenHeader title="Rule Detail" />
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#0A2A43" />
-        </View>
+      <SafeAreaView style={styles.screen} edges={["left", "right"]}>
+        <InternalScreenHeader title={t("propertyMgmt.guidelineTitle")} />
+        <View style={styles.centered}><ActivityIndicator size="large" color={T.navy} /></View>
       </SafeAreaView>
     );
   }
 
   if (error || !rule) {
     return (
-      <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
-        <InternalScreenHeader title="Rule Detail" />
+      <SafeAreaView style={styles.screen} edges={["left", "right"]}>
+        <InternalScreenHeader title={t("propertyMgmt.guidelineTitle")} />
         <View style={styles.centered}>
-          <Text style={styles.errorText}>{error ?? "Rule not found."}</Text>
-          <Pressable onPress={router.back} style={styles.retryBtn}>
-            <Text style={styles.retryText}>Go Back</Text>
+          <View style={styles.errorIcon}><Feather name="alert-circle" size={sf(28)} color="#9CA3AF" /></View>
+          <Text style={styles.errorTitle}>{t("propertyMgmt.somethingWrong")}</Text>
+          <Text style={styles.errorText}>{error ?? t("propertyMgmt.ruleNotFound")}</Text>
+          <Pressable style={styles.retryBtn} onPress={router.back}>
+            <Text style={styles.retryBtnText}>{t("propertyMgmt.goBack")}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
     );
   }
 
-  const sev = SEVERITY[rule.severity] ?? SEVERITY.info;
+  const sev = SEV[rule.severity] ?? SEV.info;
+  const updatedLabel = rule.updated_at
+    ? new Date(rule.updated_at).toLocaleDateString(getLocaleForLang(i18n.language), { month: "long", day: "numeric", year: "numeric" })
+    : null;
 
   return (
-    <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
+    <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <InternalScreenHeader
-        title="Rule Detail"
+        title={t("propertyMgmt.guidelineTitle")}
         right={
           isAdmin ? (
-            <View style={styles.adminActions}>
-              <Pressable onPress={handleEdit} style={styles.iconBtn}>
-                <Feather name="edit-2" size={sf(16)} color="#0A2A43" />
+            <View style={styles.adminRow}>
+              <Pressable onPress={handleEdit} style={styles.headerBtn} hitSlop={6}>
+                <Feather name="edit-2" size={sf(15)} color={T.navy} />
               </Pressable>
-              <Pressable onPress={handleDelete} style={[styles.iconBtn, styles.iconBtnRed]}>
-                <Feather name="trash-2" size={sf(16)} color="#E7000B" />
+              <Pressable onPress={handleDelete} style={[styles.headerBtn, styles.headerBtnDanger]} hitSlop={6}>
+                <Feather name="trash-2" size={sf(15)} color="#DC2626" />
               </Pressable>
             </View>
           ) : null
         }
       />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={pageStyles.scrollBottom}>
-        {/* Severity chip + title block */}
-        <View style={[propertyStyles.sectionBlock, styles.heroBlock]}>
-          <View style={[styles.severityChip, { backgroundColor: sev.bg }]}>
-            <Feather name={sev.icon} size={sf(13)} color={sev.color} />
-            <Text style={[styles.severityLabel, { color: sev.color }]}>{sev.label}</Text>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        {/* ── Title section ── */}
+        <View style={styles.titleSection}>
+          <View style={[styles.sevPill, { backgroundColor: sev.bg }]}>
+            <Feather name={sev.icon} size={sf(11)} color={sev.accent} />
+            <Text style={[styles.sevPillText, { color: sev.accent }]}>{t(sev.label)}</Text>
           </View>
+          <Text style={styles.heroCategory}>{rule.category}</Text>
+          <Text style={styles.heroTitle}>{rule.title}</Text>
+</View>
 
-          <Text style={styles.ruleTitle}>{rule.title}</Text>
-          <Text style={styles.ruleCategory}>{rule.category}</Text>
-
-          <View style={styles.metaRow}>
-            <Feather name="clock" size={sf(11)} color="#9CA3AF" />
-            <Text style={styles.metaText}>
-              Updated {rule.updated_at
-                ? new Date(rule.updated_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
-                : "—"}
-            </Text>
-          </View>
+        {/* ── Meta info ── */}
+        <View style={styles.metaCard}>
+          <InfoRow icon="calendar" label={t("propertyMgmt.lastUpdated")} value={updatedLabel} />
+          <InfoRow icon="tag" label={t("propertyMgmt.categoryLabel")} value={rule.category} />
+          <InfoRow icon="flag" label={t("propertyMgmt.severityLabel")} value={t(sev.label)} />
         </View>
 
-        {/* Description */}
-        <View style={[propertyStyles.sectionBlock, styles.descBlock]}>
-          <Text style={styles.descLabel}>Description</Text>
-          <Text style={styles.descText}>{rule.description}</Text>
-        </View>
-
-        {/* Acknowledgment status */}
-        {rule.requires_acknowledgment && (
-          <View style={propertyStyles.sectionBlock}>
-            {rule.acknowledged || isAdmin ? (
-              <View style={styles.ackDone}>
-                <Feather name="check-circle" size={sf(20)} color="#10B981" />
-                <View>
-                  <Text style={styles.ackDoneTitle}>
-                    {isAdmin ? "Acknowledgment Required" : "Acknowledged"}
-                  </Text>
-                  <Text style={styles.ackDoneSub}>
-                    {isAdmin
-                      ? "Residents must confirm they have read this rule."
-                      : "You have confirmed you have read and understood this rule."}
-                  </Text>
-                </View>
-              </View>
-            ) : (
-              <View style={styles.ackPending}>
-                <Feather name="alert-circle" size={sf(18)} color="#E7000B" />
-                <View>
-                  <Text style={styles.ackPendingTitle}>Acknowledgment Required</Text>
-                  <Text style={styles.ackPendingSub}>Please read this rule and tap Acknowledge below.</Text>
-                </View>
-              </View>
-            )}
+        {/* ── Description ── */}
+        <View style={styles.bodyCard}>
+          <View style={styles.bodySectionRow}>
+            <View style={styles.bodySectionIcon}>
+              <Feather name="file-text" size={sf(13)} color={T.deepTeal} />
+            </View>
+            <Text style={styles.bodySectionTitle}>{t("propertyMgmt.guidelineDetails")}</Text>
           </View>
-        )}
+          <Text style={styles.bodyText}>{rule.description}</Text>
+</View>
+
+        {/* ── Acknowledgment ── */}
+        {rule.requires_acknowledgment ? (
+          <View style={[styles.ackCard, rule.acknowledged || isAdmin ? styles.ackDone : styles.ackPending]}>
+            <Feather
+              name={rule.acknowledged || isAdmin ? "check-circle" : "alert-circle"}
+              size={sf(18)}
+              color={rule.acknowledged || isAdmin ? T.deepTeal : "#DC2626"}
+            />
+            <View style={styles.ackCopy}>
+              <Text style={[styles.ackTitle, rule.acknowledged || isAdmin ? styles.ackTitleDone : styles.ackTitlePending]}>
+                {isAdmin ? t("propertyMgmt.ackRequiredAdmin") : rule.acknowledged ? t("propertyMgmt.acknowledged") : t("propertyMgmt.ackNeeded")}
+              </Text>
+              <Text style={[styles.ackSub, rule.acknowledged || isAdmin ? styles.ackSubDone : styles.ackSubPending]}>
+                {isAdmin
+                  ? t("propertyMgmt.ackAdminHint")
+                  : rule.acknowledged
+                    ? t("propertyMgmt.ackDoneHint")
+                    : t("propertyMgmt.ackPendingHint")}
+              </Text>
+            </View>
+          </View>
+        ) : null}
       </ScrollView>
 
-      {/* Footer: Acknowledge (resident only, pending only) */}
-      {!isAdmin && rule.requires_acknowledgment && !rule.acknowledged && (
+      {/* ── Footer CTA ── */}
+      {!isAdmin && rule.requires_acknowledgment && !rule.acknowledged ? (
         <View style={styles.footer}>
           <Pressable
-            style={[styles.ackBtn, submitting && styles.ackBtnDisabled]}
+            style={[styles.ackBtn, submitting && styles.ackBtnOff]}
             disabled={submitting}
             onPress={handleAcknowledge}
           >
@@ -222,146 +214,121 @@ export default function RuleDetail() {
             ) : (
               <>
                 <Feather name="check" size={sf(16)} color="#FFFFFF" />
-                <Text style={styles.ackBtnText}>I Acknowledge This Rule</Text>
+                <Text style={styles.ackBtnText}>{t("propertyMgmt.iAcknowledge")}</Text>
               </>
             )}
           </Pressable>
         </View>
-      )}
+      ) : null}
     </SafeAreaView>
   );
 }
 
+const G = sw(18);
+const shadow = Platform.select({
+  ios: { shadowColor: T.navy, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12 },
+  android: { elevation: 3 },
+});
+
 const styles = StyleSheet.create({
-  centered:      { flex: 1, alignItems: "center", justifyContent: "center", gap: sw(12) },
-  errorText:     { fontFamily: Fonts.regular, fontSize: sf(14), color: "#E7000B", textAlign: "center" },
-  retryBtn:      { paddingVertical: sw(8), paddingHorizontal: sw(16) },
-  retryText:     { fontFamily: Fonts.bold, fontSize: sf(14), color: "#0A2A43", fontWeight: "700" },
+  screen: { flex: 1, backgroundColor: T.canvas },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center", gap: sw(10), paddingHorizontal: sw(32) },
+  scroll: { paddingBottom: sw(36) },
 
-  adminActions:  { flexDirection: "row", gap: sw(6) },
-  iconBtn: {
-    width: sw(34),
-    height: sw(34),
-    borderRadius: sw(8),
-    backgroundColor: "#D1FAF5",
-    alignItems: "center",
-    justifyContent: "center",
+  errorIcon: { width: sw(56), height: sw(56), borderRadius: sw(18), backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center", marginBottom: sw(4) },
+  errorTitle: { fontFamily: Fonts.semiBold, fontSize: sf(16), color: T.navy, fontWeight: "600", includeFontPadding: false },
+  errorText: { fontFamily: Fonts.regular, fontSize: sf(13), color: T.gray, textAlign: "center", includeFontPadding: false },
+  retryBtn: { marginTop: sw(8), paddingVertical: sw(10), paddingHorizontal: sw(20), borderRadius: sw(10), backgroundColor: T.navy },
+  retryBtnText: { fontFamily: Fonts.semiBold, fontSize: sf(13), color: "#FFF", fontWeight: "600" },
+
+  adminRow: { flexDirection: "row", gap: sw(8) },
+  headerBtn: { width: sw(36), height: sw(36), borderRadius: sw(12), backgroundColor: T.mint, alignItems: "center", justifyContent: "center" },
+  headerBtnDanger: { backgroundColor: "#FEF2F2" },
+
+  titleSection: {
+    marginHorizontal: G,
+    marginTop: sw(4),
+    marginBottom: sw(16),
+    paddingHorizontal: sw(2),
   },
-  iconBtnRed:    { backgroundColor: "#FEF2F2" },
-
-  heroBlock:     { paddingBottom: sw(12) },
-  severityChip:  {
+  sevPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: sw(5),
+    gap: sw(4),
     alignSelf: "flex-start",
     paddingHorizontal: sw(10),
     paddingVertical: sw(4),
-    borderRadius: sw(8),
+    borderRadius: sw(999),
     marginBottom: sw(10),
   },
-  severityLabel: { fontFamily: Fonts.bold, fontSize: sf(11), fontWeight: "700" },
+  sevPillText: { fontFamily: Fonts.semiBold, fontSize: sf(10), fontWeight: "600", includeFontPadding: false },
+  heroCategory: { fontFamily: Fonts.medium, fontSize: sf(12), color: T.teal, marginBottom: sw(4), includeFontPadding: false },
+  heroTitle: { fontFamily: Fonts.bold, fontSize: sf(22), lineHeight: sf(28), color: T.navy, fontWeight: "700", includeFontPadding: false },
 
-  ruleTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(20),
-    lineHeight: sf(27),
-    color: "#101828",
-    fontWeight: "700",
-  },
-  ruleCategory: {
-    fontFamily: Fonts.medium,
-    fontSize: sf(13),
-    color: "#0A2A43",
-    marginTop: sw(4),
-  },
-  metaRow: { flexDirection: "row", alignItems: "center", gap: sw(4), marginTop: sw(8) },
-  metaText: { fontFamily: Fonts.regular, fontSize: sf(11), color: "#9CA3AF" },
-
-  descBlock:     { paddingTop: sw(8) },
-  descLabel: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(12),
-    fontWeight: "700",
-    color: "#6A7282",
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-    marginBottom: sw(8),
-  },
-  descText: {
-    fontFamily: Fonts.regular,
-    fontSize: sf(14),
-    lineHeight: sf(22),
-    color: "#364153",
-  },
-
-  ackDone: {
-    flexDirection: "row",
-    gap: sw(10),
-    alignItems: "flex-start",
-    backgroundColor: "#ECFDF5",
-    borderRadius: sw(12),
-    padding: sw(14),
+  metaCard: {
+    marginHorizontal: G,
+    marginBottom: sw(14),
+    backgroundColor: T.white,
+    borderRadius: sw(16),
+    paddingVertical: sw(6),
     borderWidth: 1,
-    borderColor: "#A7F3D0",
+    borderColor: T.border,
   },
-  ackDoneTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(13),
-    color: "#065F46",
-    fontWeight: "700",
-  },
-  ackDoneSub: {
-    fontFamily: Fonts.regular,
-    fontSize: sf(12),
-    color: "#047857",
-    marginTop: 2,
-  },
-  ackPending: {
-    flexDirection: "row",
-    gap: sw(10),
-    alignItems: "flex-start",
-    backgroundColor: "#FEF2F2",
-    borderRadius: sw(12),
-    padding: sw(14),
+  infoRow: { flexDirection: "row", alignItems: "center", gap: sw(12), paddingVertical: sw(11), paddingHorizontal: sw(14), borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#F1F5F9" },
+  infoIcon: { width: sw(32), height: sw(32), borderRadius: sw(10), backgroundColor: T.mint, alignItems: "center", justifyContent: "center" },
+  infoCopy: { flex: 1, minWidth: 0 },
+  infoLabel: { fontFamily: Fonts.regular, fontSize: sf(11), color: "#94A3B8", includeFontPadding: false },
+  infoValue: { fontFamily: Fonts.semiBold, fontSize: sf(13), color: T.navy, fontWeight: "600", marginTop: 1, includeFontPadding: false },
+
+  bodyCard: {
+    marginHorizontal: G,
+    marginBottom: sw(14),
+    backgroundColor: T.white,
+    borderRadius: sw(16),
+    padding: sw(16),
     borderWidth: 1,
-    borderColor: "#FFE2E2",
+    borderColor: T.border,
   },
-  ackPendingTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(13),
-    color: "#82181A",
-    fontWeight: "700",
+  bodySectionRow: { flexDirection: "row", alignItems: "center", gap: sw(8), marginBottom: sw(12) },
+  bodySectionIcon: { width: sw(28), height: sw(28), borderRadius: sw(9), backgroundColor: `${T.deepTeal}14`, alignItems: "center", justifyContent: "center" },
+  bodySectionTitle: { fontFamily: Fonts.semiBold, fontSize: sf(13), color: T.navy, fontWeight: "600", includeFontPadding: false },
+  bodyText: { fontFamily: Fonts.regular, fontSize: sf(14), lineHeight: sf(23), color: "#475569", includeFontPadding: false },
+
+  ackCard: {
+    marginHorizontal: G,
+    flexDirection: "row",
+    gap: sw(12),
+    alignItems: "flex-start",
+    borderRadius: sw(16),
+    padding: sw(14),
   },
-  ackPendingSub: {
-    fontFamily: Fonts.regular,
-    fontSize: sf(12),
-    color: "#C10007",
-    marginTop: 2,
-  },
+  ackDone: { backgroundColor: "#ECFDF5" },
+  ackPending: { backgroundColor: "#FEF2F2" },
+  ackCopy: { flex: 1, minWidth: 0 },
+  ackTitle: { fontFamily: Fonts.semiBold, fontSize: sf(13), fontWeight: "600", includeFontPadding: false },
+  ackTitleDone: { color: "#065F46" },
+  ackTitlePending: { color: "#991B1B" },
+  ackSub: { fontFamily: Fonts.regular, fontSize: sf(12), lineHeight: sf(17), marginTop: sw(2), includeFontPadding: false },
+  ackSubDone: { color: "#047857" },
+  ackSubPending: { color: "#B91C1C" },
 
   footer: {
-    paddingHorizontal: sw(18),
+    paddingHorizontal: G,
     paddingBottom: hp(3),
     paddingTop: sw(12),
+    backgroundColor: T.canvas,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#F3F4F6",
-    backgroundColor: "#FFFFFF",
+    borderTopColor: "rgba(15,61,95,0.08)",
   },
   ackBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: sw(8),
-    backgroundColor: "#0A2A43",
+    backgroundColor: T.navy,
     borderRadius: sw(14),
     paddingVertical: sw(15),
   },
-  ackBtnDisabled: { opacity: 0.5 },
-  ackBtnText: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(15),
-    color: "#FFFFFF",
-    fontWeight: "700",
-  },
+  ackBtnOff: { opacity: 0.5 },
+  ackBtnText: { fontFamily: Fonts.semiBold, fontSize: sf(15), color: "#FFFFFF", fontWeight: "600" },
 });

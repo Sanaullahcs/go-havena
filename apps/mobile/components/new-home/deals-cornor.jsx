@@ -3,6 +3,7 @@ import React, { useCallback, useMemo } from "react";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { Home, homeStyles } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
@@ -12,8 +13,10 @@ import HomeSectionHeader from "./section-header";
 import { timeAgo } from "../../services/feed-api";
 import HomeSectionEmpty from "./home-section-empty";
 import { sw, sf } from "../../utils/responsive";
+import { arrowForward } from "../../utils/rtl";
 import { getCurrentRole } from "../../constants/role-session";
 import { MarketplaceRoutes, dealDetailsParams } from "../../constants/marketplace-routes";
+import { localizedField } from "../../i18n";
 
 const CARD_GAP = sw(12);
 const PEEK = sw(32);
@@ -27,32 +30,34 @@ const FALLBACK_IMAGES = [
 ];
 
 function mapDealToCard(deal, index) {
-  const badgeText = deal.isTrending
-    ? "LIMITED TIME"
-    : (deal.category || "LOCAL DEAL").toUpperCase();
-
-  const headline = (deal.offerTag || deal.title || "").trim();
+  const localTitle = localizedField(deal, "title") || deal.title || "";
+  const localOfferTag = localizedField(deal, "offerTag") || deal.offerTag || "";
+  const headline = (localOfferTag || localTitle).trim();
   const vendor = deal.vendor?.trim() ?? "";
   const businessName =
     vendor &&
     vendor.toLowerCase() !== headline.toLowerCase() &&
-    vendor.toLowerCase() !== (deal.title || "").trim().toLowerCase()
+    vendor.toLowerCase() !== localTitle.trim().toLowerCase()
       ? vendor
       : "";
 
   return {
     id: String(deal.id),
-    badgeText,
     image: deal.imageUrl || FALLBACK_IMAGES[index % FALLBACK_IMAGES.length],
     title: headline,
     businessName,
-    timeLabel: timeAgo(deal.createdAt) || "",
     location: deal.location?.trim() || "",
     deal,
   };
 }
 
 function DealCard({ item, cardWidth, cardHeight, onPress }) {
+  const { t, i18n } = useTranslation();
+  const deal = item.deal;
+  const badgeText = deal?.isTrending
+    ? t("deals.limitedTime")
+    : (deal?.category ? t(`categories.${deal.category}`, { defaultValue: deal.category }) : t("deals.localDeal")).toUpperCase();
+
   return (
     <Pressable
       onPress={onPress}
@@ -71,7 +76,7 @@ function DealCard({ item, cardWidth, cardHeight, onPress }) {
 
         {/* Top badge */}
         <View style={styles.badge}>
-          <Text style={styles.badgeText} numberOfLines={1}>{item.badgeText}</Text>
+          <Text style={styles.badgeText} numberOfLines={1}>{badgeText}</Text>
         </View>
 
         {/* Bottom gradient overlay */}
@@ -81,12 +86,12 @@ function DealCard({ item, cardWidth, cardHeight, onPress }) {
           style={styles.overlay}
         >
           <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
-          {item.businessName ? (
+{item.businessName ? (
             <Text style={styles.vendor} numberOfLines={1}>{item.businessName}</Text>
           ) : null}
           <Pressable style={styles.ctaBtn} onPress={onPress}>
-            <Text style={styles.ctaBtnText}>Get Deal</Text>
-            <Feather name="arrow-right" size={sf(12)} color={T.navy} />
+            <Text style={styles.ctaBtnText}>{t("deals.getDeal")}</Text>
+            <Feather name={arrowForward()} size={sf(12)} color={T.navy} />
           </Pressable>
         </LinearGradient>
       </View>
@@ -96,10 +101,11 @@ function DealCard({ item, cardWidth, cardHeight, onPress }) {
 
 export default function DealsCornor({ items = [] }) {
   const router = useRouter();
+  const { t, i18n } = useTranslation();
   const { width: screenWidth } = useWindowDimensions();
   const activeRole = getCurrentRole();
 
-  const cards = useMemo(() => (items ?? []).map(mapDealToCard), [items]);
+  const cards = useMemo(() => (items ?? []).map((d, i) => mapDealToCard(d, i)), [items, i18n.language]);
 
   const layout = useMemo(() => {
     const contentWidth = screenWidth - Home.gutter * 2;
@@ -137,12 +143,11 @@ export default function DealsCornor({ items = [] }) {
     return (
       <View style={homeStyles.section}>
         <HomeSectionHeader
-          label="Deal Corner"
+          label={t("home.deals")}
           onPress={() => router.push(MarketplaceRoutes.DEALS)}
         />
         <HomeSectionEmpty
-          message="No deals available"
-          hint="Local offers from your community will show here."
+          message={t("common.noResults")}
         />
       </View>
     );
@@ -151,7 +156,7 @@ export default function DealsCornor({ items = [] }) {
   return (
     <View style={homeStyles.section}>
       <HomeSectionHeader
-        label="Deal Corner"
+        label={t("home.deals")}
         onPress={() => router.push(MarketplaceRoutes.DEALS)}
       />
       <FlatList
@@ -180,7 +185,7 @@ export default function DealsCornor({ items = [] }) {
 
 const styles = StyleSheet.create({
   carousel: { flexGrow: 0, alignSelf: "stretch" },
-  listContent: { paddingRight: PEEK, alignItems: "flex-start" },
+  listContent: { paddingEnd: PEEK, alignItems: "flex-start" },
   card: {
     borderRadius: CARD_RADIUS,
     ...(Platform.OS === "ios"
@@ -204,7 +209,7 @@ const styles = StyleSheet.create({
   badge: {
     position: "absolute",
     top: sw(10),
-    left: sw(10),
+    start: sw(10),
     paddingHorizontal: sw(8),
     paddingVertical: sw(4),
     borderRadius: 999,
@@ -218,11 +223,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     color: T.navy,
     textTransform: "uppercase",
+    flexShrink: 1,
+    writingDirection: "auto",
   },
   overlay: {
     position: "absolute",
-    left: 0,
-    right: 0,
+    start: 0,
+    end: 0,
     bottom: 0,
     paddingHorizontal: sw(12),
     paddingBottom: sw(12),
@@ -230,16 +237,19 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: Fonts.bold,
-    fontSize: sf(13),
+    fontSize: sf(12.5),
     lineHeight: sf(17),
     color: "#FFFFFF",
     fontWeight: "700",
+    flexShrink: 1,
+    writingDirection: "auto",
   },
   vendor: {
     fontFamily: Fonts.regular,
     fontSize: sf(10.5),
     color: "rgba(255,255,255,0.75)",
     marginTop: sw(2),
+    writingDirection: "auto",
   },
   ctaBtn: {
     marginTop: sw(8),
@@ -257,5 +267,6 @@ const styles = StyleSheet.create({
     fontSize: sf(10.5),
     color: T.navy,
     fontWeight: "700",
+    writingDirection: "auto",
   },
 });

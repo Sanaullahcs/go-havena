@@ -144,7 +144,7 @@ function MpPopularStarsSkeleton({ delay = 0 }) {
           delay={delay + star * 35}
         />
       ))}
-      <SkeletonLine width={26} height={10} tone="card" style={{ marginLeft: 2 }} delay={delay + 80} />
+      <SkeletonLine width={26} height={10} tone="card" style={{ marginStart: 2 }} delay={delay + 80} />
     </View>
   );
 }
@@ -852,7 +852,7 @@ export function AdminDashboardSkeleton() {
               style={[styles.adminDashListRow, i === 0 && styles.adminDashListRowBorder]}
             >
               <SkeletonCircle size={sw(36)} tone="soft" />
-              <View style={{ flex: 1, marginLeft: sw(12), minWidth: 0 }}>
+              <View style={{ flex: 1, marginStart: sw(12), minWidth: 0 }}>
                 <SkeletonLine width="72%" height={sf(13)} delay={90 + i * 20} />
                 <SkeletonLine
                   width="44%"
@@ -882,8 +882,8 @@ export function AdminDashboardSkeleton() {
               ]}
             >
               <SkeletonCircle size={sw(36)} tone="soft" />
-              <SkeletonLine width={width} height={sf(14)} style={{ marginLeft: sw(12), flex: 1 }} />
-              <SkeletonLine width={sw(12)} height={sf(14)} tone="soft" style={{ marginLeft: "auto" }} />
+              <SkeletonLine width={width} height={sf(14)} style={{ marginStart: sw(12), flex: 1 }} />
+              <SkeletonLine width={sw(12)} height={sf(14)} tone="soft" style={{ marginStart: "auto" }} />
             </View>
           ))}
         </View>
@@ -1252,13 +1252,13 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    paddingLeft: sw(16),
-    paddingRight: 0,
+    paddingStart: sw(16),
+    paddingEnd: 0,
   },
   homeHeroCopy: {
     flex: 1,
     minWidth: 0,
-    paddingRight: sw(12),
+    paddingEnd: sw(12),
   },
   homeHeroCta: {
     marginTop: sw(10),
@@ -1424,7 +1424,7 @@ const styles = StyleSheet.create({
     borderColor: "#C7E2FF",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: sw(10),
+    marginEnd: sw(10),
   },
   sidebarWellnessIconShimmer: {
     borderRadius: sw(4),
@@ -1513,12 +1513,12 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     top: -36,
-    right: -28,
+    end: -28,
     opacity: 0.9,
   },
   mpDealAccentBar: {
     position: "absolute",
-    left: 0,
+    start: 0,
     top: 18,
     bottom: 18,
     width: 3,
@@ -1528,7 +1528,7 @@ const styles = StyleSheet.create({
   mpDealBadgeShell: {
     position: "absolute",
     top: 12,
-    right: 12,
+    end: 12,
     zIndex: 2,
   },
   mpDealBadge: {
@@ -1539,7 +1539,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
-    paddingRight: 76,
+    paddingEnd: 76,
   },
   mpDealImageShell: {
     width: 72,
@@ -1562,7 +1562,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 90,
     top: -8,
-    left: 12,
+    start: 12,
     borderRadius: 14,
     transform: [{ rotate: "-18deg" }],
     opacity: 0.55,
@@ -1616,14 +1616,14 @@ const styles = StyleSheet.create({
   },
   mpPopularImageGradient: {
     position: "absolute",
-    left: 0,
-    right: 0,
+    start: 0,
+    end: 0,
     bottom: 0,
     height: 48,
   },
   mpPopularCategoryChipWrap: {
     position: "absolute",
-    left: 10,
+    start: 10,
     bottom: 10,
   },
   mpPopularCategoryChip: {
@@ -1634,7 +1634,7 @@ const styles = StyleSheet.create({
   mpPopularHeart: {
     position: "absolute",
     top: 10,
-    right: 10,
+    end: 10,
     width: 28,
     height: 28,
     borderRadius: 14,
@@ -1722,14 +1722,14 @@ const styles = StyleSheet.create({
   dealsOfferHeart: {
     position: "absolute",
     top: 12,
-    right: 12,
+    end: 12,
     width: 36,
     height: 36,
     borderRadius: 18,
   },
   dealsOfferTag: {
     position: "absolute",
-    right: 12,
+    end: 12,
     bottom: 12,
     width: 72,
     height: 32,

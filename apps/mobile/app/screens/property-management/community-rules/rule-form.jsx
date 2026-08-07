@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../../components/layout/internal-screen-header";
 import { pageStyles } from "../../../../constants/page-styles";
 import { PropertyType } from "../../../../constants/property-management-type";
@@ -36,9 +37,9 @@ import {
 } from "../../../../constants/community-rule-categories";
 
 const SEVERITIES = [
-  { key: "important", label: "Important", icon: "alert-circle",   color: "#E7000B", bg: "#FEF2F2" },
-  { key: "standard",  label: "Standard",  icon: "alert-triangle", color: "#E17100", bg: "#FFFBEB" },
-  { key: "info",      label: "Info",      icon: "info",           color: "#4A5565", bg: "#F9FAFB" },
+  { key: "important", label: "propertyMgmt.importantLabel", icon: "alert-circle",   color: "#E7000B", bg: "#FEF2F2" },
+  { key: "standard",  label: "propertyMgmt.standardLabel",  icon: "alert-triangle", color: "#E17100", bg: "#FFFBEB" },
+  { key: "info",      label: "propertyMgmt.infoLabel",      icon: "info",           color: "#4A5565", bg: "#F9FAFB" },
 ];
 
 const DEFAULT_FORM = {
@@ -52,6 +53,7 @@ const DEFAULT_FORM = {
 
 export default function RuleForm() {
   const router            = useRouter();
+  const { t }             = useTranslation();
   const { ruleId }        = useLocalSearchParams();
   const isEdit            = Boolean(ruleId);
   const { submitting, run } = useSubmitLock();
@@ -130,14 +132,14 @@ export default function RuleForm() {
       }
       router.back();
     }).catch(async (err) => {
-      await showFailure(isEdit ? "Could not update rule" : "Could not create rule", err);
+      await showFailure(isEdit ? t("propertyMgmt.couldNotUpdateRule") : t("propertyMgmt.couldNotCreateRule"), err);
     });
   }, [liveErrors, validateOnSubmit, form, resolvedCategory, isEdit, ruleId, run, router, showFailure]);
 
   if (loading) {
     return (
       <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
-        <InternalScreenHeader title={isEdit ? "Edit Rule" : "Add Rule"} />
+        <InternalScreenHeader title={isEdit ? t("propertyMgmt.editRule") : t("propertyMgmt.addRuleTitle")} />
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#0A2A43" />
         </View>
@@ -147,7 +149,7 @@ export default function RuleForm() {
 
   return (
     <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
-      <InternalScreenHeader title={isEdit ? "Edit Rule" : "Add Rule"} />
+      <InternalScreenHeader title={isEdit ? t("propertyMgmt.editRule") : t("propertyMgmt.addRuleTitle")} />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -156,10 +158,10 @@ export default function RuleForm() {
       >
         {/* Title */}
         <View style={styles.field}>
-          <Text style={styles.label}>Rule Title *</Text>
+          <Text style={styles.label}>{t("propertyMgmt.ruleTitleLabel")}</Text>
           <TextInput
             style={[styles.input, showError("title", liveErrors) && styles.inputError]}
-            placeholder="e.g. Quiet Hours Policy"
+            placeholder={t("propertyMgmt.ruleTitlePlaceholder")}
             placeholderTextColor="#9CA3AF"
             value={form.title}
             onChangeText={(v) => setF("title", v)}
@@ -170,10 +172,10 @@ export default function RuleForm() {
 
         {/* Category */}
         <View style={styles.field}>
-          <Text style={styles.label}>Category *</Text>
+          <Text style={styles.label}>{t("propertyMgmt.categoryRequired")}</Text>
           {categoryOptions.length <= 1 ? (
             <Text style={[styles.hint, { marginBottom: sw(8) }]}>
-              No categories yet — choose Other and type a name, or add categories from the dashboard.
+              {t("propertyMgmt.noCategoriesHint")}
             </Text>
           ) : null}
           <ScrollView
@@ -206,7 +208,7 @@ export default function RuleForm() {
           {categorySelect === RULE_OTHER_CATEGORY ? (
             <TextInput
               style={[styles.input, { marginTop: sw(8) }, showError("category", liveErrors) && styles.inputError]}
-              placeholder="Enter custom category name"
+              placeholder={t("propertyMgmt.enterCustomCategory")}
               placeholderTextColor="#9CA3AF"
               value={customCategoryInput}
               onChangeText={(v) => {
@@ -222,7 +224,7 @@ export default function RuleForm() {
 
         {/* Severity */}
         <View style={styles.field}>
-          <Text style={styles.label}>Severity *</Text>
+          <Text style={styles.label}>{t("propertyMgmt.severityRequired")}</Text>
           <View style={styles.severityRow}>
             {SEVERITIES.map((sev) => (
               <Pressable
@@ -244,7 +246,7 @@ export default function RuleForm() {
                     form.severity === sev.key && { color: sev.color, fontFamily: Fonts.bold, fontWeight: "700" },
                   ]}
                 >
-                  {sev.label}
+                  {t(sev.label)}
                 </Text>
               </Pressable>
             ))}
@@ -254,10 +256,10 @@ export default function RuleForm() {
 
         {/* Description */}
         <View style={styles.field}>
-          <Text style={styles.label}>Description *</Text>
+          <Text style={styles.label}>{t("propertyMgmt.descriptionRequired")}</Text>
           <TextInput
             style={[styles.input, styles.textArea, showError("description", liveErrors) && styles.inputError]}
-            placeholder="Describe the rule clearly for residents…"
+            placeholder={t("propertyMgmt.ruleDescPlaceholder")}
             placeholderTextColor="#9CA3AF"
             multiline
             value={form.description}
@@ -270,8 +272,8 @@ export default function RuleForm() {
         {/* Requires Acknowledgment */}
         <View style={[styles.field, styles.toggleRow]}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.label}>Requires Acknowledgment</Text>
-            <Text style={styles.hint}>Residents must confirm they have read this rule.</Text>
+            <Text style={styles.label}>{t("propertyMgmt.requiresAck")}</Text>
+            <Text style={styles.hint}>{t("propertyMgmt.requiresAckHint")}</Text>
           </View>
           <Switch
             value={form.requires_acknowledgment}
@@ -284,8 +286,8 @@ export default function RuleForm() {
         {/* Active / Inactive */}
         <View style={[styles.field, styles.toggleRow]}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.label}>Active</Text>
-            <Text style={styles.hint}>Active rules are visible to residents.</Text>
+            <Text style={styles.label}>{t("propertyMgmt.activeLabel")}</Text>
+            <Text style={styles.hint}>{t("propertyMgmt.activeRulesHint")}</Text>
           </View>
           <Switch
             value={form.status === "active"}
@@ -308,7 +310,7 @@ export default function RuleForm() {
           {submitting ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
           ) : (
-            <Text style={styles.submitBtnText}>{isEdit ? "Save Changes" : "Create Rule"}</Text>
+            <Text style={styles.submitBtnText}>{isEdit ? t("propertyMgmt.saveChanges") : t("propertyMgmt.createRule")}</Text>
           )}
         </Pressable>
       </View>

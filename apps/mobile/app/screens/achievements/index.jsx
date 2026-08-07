@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -34,6 +35,7 @@ const calculatePercentage = (earned, total) => {
 };
 
 export default function Achievements() {
+  const { t } = useTranslation();
   const [data, setData] = useState(null);
 
   const load = useCallback(async () => {
@@ -59,8 +61,8 @@ export default function Achievements() {
 
   return (
     <InternalPageShell
-      title="Achievements"
-      subtitle={`${earnedCount} of ${totalCount} earned`}
+      title={t('achievements.title')}
+      subtitle={t('achievements.subtitle', { earned: earnedCount, total: totalCount })}
       contentStyle={pageStyles.scrollBottom}
     >
       <View style={styles.overAllProgress}>
@@ -71,7 +73,7 @@ export default function Achievements() {
             justifyContent: "space-between",
           }}
         >
-          <Text style={styles.overallProgressTitle}>Overall Progress</Text>
+          <Text style={styles.overallProgressTitle}>{t('achievements.overallProgress')}</Text>
           <Text
             style={{
               ...styles.overallProgressTitle,
@@ -106,7 +108,7 @@ export default function Achievements() {
             style={{ width: 20, height: 20 }}
             contentFit="contain"
           />
-          <Text style={styles.overallProgressTitle}>Earned Badges</Text>
+          <Text style={styles.overallProgressTitle}>{t('achievements.earnedBadges')}</Text>
         </View>
 
         <View
@@ -184,7 +186,7 @@ export default function Achievements() {
             style={{ width: 20, height: 20 }}
             contentFit="contain"
           />
-          <Text style={styles.overallProgressTitle}>Locked Badges</Text>
+          <Text style={styles.overallProgressTitle}>{t('achievements.lockedBadges')}</Text>
         </View>
 
         <View
@@ -248,7 +250,7 @@ export default function Achievements() {
                     justifyContent: "space-between",
                   }}
                 >
-                  <Text style={styles.progressText}>Progress</Text>
+                  <Text style={styles.progressText}>{t('achievements.progress')}</Text>
                   <Text style={styles.progressText}>
                     {item.progress.current}/{item.progress.total}
                   </Text>

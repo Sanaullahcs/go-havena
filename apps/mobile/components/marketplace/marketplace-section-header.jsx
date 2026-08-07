@@ -4,6 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { marketplaceSharedStyles, MarketplaceTheme } from "../../constants/marketplace-theme";
 import { sf } from "../../utils/responsive";
+import { chevronForward } from "../../utils/rtl";
 
 export default function MarketplaceSectionHeader({ title, subtitle, actionLabel, onAction }) {
   return (
@@ -16,7 +17,7 @@ export default function MarketplaceSectionHeader({ title, subtitle, actionLabel,
         <Pressable onPress={onAction} hitSlop={8} style={({ pressed }) => pressed && styles.pressed}>
           <View style={styles.actionRow}>
             <Text style={marketplaceSharedStyles.sectionLink}>{actionLabel}</Text>
-            <Feather name="chevron-right" size={sf(14)} color={MarketplaceTheme.teal} />
+            <Feather name={chevronForward()} size={sf(14)} color={MarketplaceTheme.teal} />
           </View>
         </Pressable>
       ) : null}
@@ -28,7 +29,7 @@ const styles = StyleSheet.create({
   titleBlock: {
     flex: 1,
     minWidth: 0,
-    marginRight: 8,
+    marginEnd: 8,
   },
   subtitle: {
     fontFamily: Fonts.regular,

@@ -11,12 +11,16 @@ import {
   Animated,
   ScrollView,
 } from "react-native";
+import { useTranslation } from "react-i18next";
+import i18n from "../../../i18n";
+import { getLocaleForLang } from "../../../hooks/use-app-locale";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
+import { chevronBack, chevronForward } from "../../../utils/rtl";
 import { Fonts } from "../../../constants/font";
 import UserAvatar from "../../../components/ui/user-avatar";
+import CrispImage from "../../../components/ui/crisp-image";
 import {
   fetchListing,
   toggleSaveListing,
@@ -35,6 +39,7 @@ import {
   formatListingTimeAgo,
   listingCondition,
   getListingImageUrl,
+  normalizeListingImages,
   listingTypeLabel,
 } from "../../../components/marketplace/listing-grid-card";
 
@@ -47,14 +52,16 @@ const LISTING_BOTTOM_BAR_TOP_PAD = 10;
 const LISTING_SCROLL_BOTTOM_BUFFER = 8;
 
 function formatMemberSince(iso) {
-  if (!iso) return "Member";
+  if (!iso) return i18n.t("marketplace.member");
   try {
-    return `Member since ${new Date(iso).toLocaleDateString("en-US", {
-      month: "short",
-      year: "numeric",
-    })}`;
+    return i18n.t("marketplace.memberSince", {
+      date: new Date(iso).toLocaleDateString(getLocaleForLang(i18n.language), {
+        month: "short",
+        year: "numeric",
+      }),
+    });
   } catch {
-    return "Member";
+    return i18n.t("marketplace.member");
   }
 }
 
@@ -62,8 +69,8 @@ function statusMeta(status) {
   switch (status) {
     case "pending":
       return {
-        label: "Pending review",
-        message: "This listing is awaiting community admin approval and is hidden from the public feed.",
+        label: i18n.t("marketplace.pendingReview"),
+        message: i18n.t("marketplace.pendingReviewMsg"),
         bg: "#FFFBEB",
         border: "#FEF3C7",
         color: "#B45309",
@@ -71,8 +78,8 @@ function statusMeta(status) {
       };
     case "rejected":
       return {
-        label: "Not approved",
-        message: "This listing was not approved. Edit and resubmit to try again.",
+        label: i18n.t("marketplace.notApproved"),
+        message: i18n.t("marketplace.notApprovedMsg"),
         bg: "#FEF2F2",
         border: "#FECACA",
         color: "#DC2626",
@@ -80,8 +87,8 @@ function statusMeta(status) {
       };
     case "sold":
       return {
-        label: "Sold",
-        message: "This listing has been marked as sold.",
+        label: i18n.t("marketplace.sold"),
+        message: i18n.t("marketplace.soldMsg"),
         bg: "#F3F4F6",
         border: "#E5E7EB",
         color: "#374151",
@@ -129,6 +136,7 @@ function SectionHeader({ title, accent = "#14B8A6" }) {
 }
 
 export default function ListingDetailScreen() {
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams();
@@ -168,10 +176,7 @@ export default function ListingDetailScreen() {
     }, [load]),
   );
 
-  const images = listing?.images?.length
-    ? listing.images.map((u) => getListingImageUrl({ images: [u] })).filter(Boolean)
-    : [];
-
+  const images = normalizeListingImages(listing?.images);
   const currentImage = images[photoIndex] ?? null;
 
   const handleSave = async () => {
@@ -211,7 +216,7 @@ export default function ListingDetailScreen() {
       pathname: "/screens/messages/chat",
       params: {
         conversationId: String(conversationId),
-        recipientName: listing?.seller_name ?? "Seller",
+        recipientName: listing?.seller_name ?? t("marketplace.seller"),
         listingId: listing?.id ? String(listing.id) : undefined,
         ...extra,
       },
@@ -230,10 +235,10 @@ export default function ListingDetailScreen() {
         listingId: listing.id,
       });
       openChat(data.conversation_id, {
-        initialDraft: "Hi, is this still available?",
+        initialDraft: t("marketplace.isThisAvailable"),
       });
     } catch (err) {
-      showError("Could not start chat", err?.message ?? "Please try again in a moment.");
+      showError(t("marketplace.couldNotStartChat"), err?.message ?? t("marketplace.pleaseTryAgain"));
     } finally {
       setMessageBusy(false);
     }
@@ -253,7 +258,7 @@ export default function ListingDetailScreen() {
       setOfferSheetVisible(false);
       openChat(data.conversation_id);
     } catch (err) {
-      showError("Could not send offer", err?.message ?? "Please try again in a moment.");
+      showError(t("marketplace.couldNotSendOffer"), err?.message ?? t("marketplace.pleaseTryAgain"));
     } finally {
       setOfferBusy(false);
     }
@@ -273,19 +278,19 @@ export default function ListingDetailScreen() {
 
   const handleDelete = async () => {
     const confirmed = await showConfirm(
-      "Delete listing",
-      "This action cannot be undone.",
-      { confirmLabel: "Delete", destructive: true },
+      t("marketplace.deleteListing"),
+      t("marketplace.deleteCannotUndo"),
+      { confirmLabel: t("common.delete"), destructive: true },
     );
     if (confirmed !== "confirm") return;
 
     setOwnerBusy(true);
     try {
       await deleteListing(listing.id);
-      await showSuccess("Listing deleted", "Your listing has been removed.");
+      await showSuccess(t("marketplace.listingDeleted"), t("marketplace.listingDeletedMsg"));
       router.back();
     } catch {
-      showError("Could not delete", "Please try again in a moment.");
+      showError(t("marketplace.couldNotDelete"), t("marketplace.pleaseTryAgain"));
     } finally {
       setOwnerBusy(false);
     }
@@ -293,9 +298,9 @@ export default function ListingDetailScreen() {
 
   const handleMarkSold = async () => {
     const confirmed = await showConfirm(
-      "Mark as sold",
-      "This listing will be removed from the active marketplace feed.",
-      { confirmLabel: "Mark as sold" },
+      t("marketplace.markAsSold"),
+      t("marketplace.markAsSoldMsg"),
+      { confirmLabel: t("marketplace.markAsSold") },
     );
     if (confirmed !== "confirm") return;
 
@@ -303,9 +308,9 @@ export default function ListingDetailScreen() {
     try {
       await markListingSold(listing.id);
       setListing((prev) => (prev ? { ...prev, status: "sold" } : prev));
-      await showSuccess("Marked as sold", "Buyers will no longer see this as an active listing.");
+      await showSuccess(t("marketplace.markedAsSold"), t("marketplace.markedAsSoldMsg"));
     } catch {
-      showError("Could not update", "Only approved listings can be marked as sold.");
+      showError(t("marketplace.couldNotUpdate"), t("marketplace.onlyApprovedSold"));
     } finally {
       setOwnerBusy(false);
     }
@@ -334,9 +339,9 @@ export default function ListingDetailScreen() {
   if (!listing) {
     return (
       <View style={styles.loadingWrap}>
-        <Text style={styles.errorText}>Listing not found.</Text>
+        <Text style={styles.errorText}>{t("marketplace.listingNotFound")}</Text>
         <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
-          <Text style={styles.backLinkText}>Go back</Text>
+          <Text style={styles.backLinkText}>{t("marketplace.goBack")}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -354,7 +359,7 @@ export default function ListingDetailScreen() {
   const categoryText = listing.category?.trim() || null;
   const isItemListing = listing.type === "for_sale" || listing.type === "item";
   const isServiceListing = isServiceListingType(listing.type);
-  const conditionText = condition || (isItemListing ? "Not specified" : null);
+  const conditionText = condition || (isItemListing ? t("marketplace.notSpecified") : null);
   const statusInfo = statusMeta(listing.status);
   const canMarkSold = isOwner && listing.status === "approved";
   const canEdit = isOwner && listing.status !== "sold";
@@ -370,8 +375,8 @@ export default function ListingDetailScreen() {
         ]}
       >
         {currentImage && !heroFailed ? (
-          <Image
-            source={{ uri: currentImage }}
+          <CrispImage
+            source={currentImage}
             style={styles.heroImage}
             contentFit="cover"
             contentPosition="center"
@@ -396,7 +401,7 @@ export default function ListingDetailScreen() {
               size={11}
               color={listing.is_saved ? "#FCA5A5" : "#FFFFFF"}
             />
-            <Text style={styles.heroStatText}>{likes} saved</Text>
+            <Text style={styles.heroStatText}>{t("marketplace.saved", { count: likes })}</Text>
           </View>
           {images.length > 1 ? (
             <View style={styles.heroStatPill}>
@@ -459,7 +464,7 @@ export default function ListingDetailScreen() {
                   }}
                   style={[styles.thumb, i === photoIndex && styles.thumbActive]}
                 >
-                  <Image source={{ uri }} style={styles.thumbImage} contentFit="cover" />
+                  <CrispImage source={uri} style={styles.thumbImage} contentFit="cover" />
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -477,34 +482,33 @@ export default function ListingDetailScreen() {
           </View>
 
           <Text style={styles.title}>{listing.title}</Text>
-
-          <SectionHeader title="Details" />
+<SectionHeader title={t("marketplace.details")} />
           <View style={styles.detailsCard}>
             <DetailRow
               icon="grid-outline"
-              label="Category"
-              value={categoryText || "Not specified"}
+              label={t("marketplace.category")}
+              value={categoryText || t("marketplace.notSpecified")}
             />
             {conditionText ? (
-              <DetailRow icon="sparkles-outline" label="Condition" value={conditionText} />
+              <DetailRow icon="sparkles-outline" label={t("marketplace.condition")} value={conditionText} />
             ) : null}
             {locationText ? (
-              <DetailRow icon="location-outline" label="Location" value={locationText} />
+              <DetailRow icon="location-outline" label={t("marketplace.location")} value={locationText} />
             ) : null}
             <DetailRow
               icon="calendar-outline"
-              label="Posted"
+              label={t("marketplace.posted")}
               value={formatListingTimeAgo(listing.created_at) || "—"}
               isLast
             />
           </View>
 
-          <SectionHeader title="Description" />
+          <SectionHeader title={t("marketplace.description")} />
           <Text style={styles.description}>
-            {listing.description?.trim() || "No description provided."}
+            {listing.description?.trim() || t("marketplace.noDescription")}
           </Text>
 
-          <SectionHeader title="Seller" accent="#111827" />
+          <SectionHeader title={t("marketplace.seller")} accent="#111827" />
           <TouchableOpacity style={styles.sellerCard} activeOpacity={0.88} onPress={handleMessage}>
             <UserAvatar
               name={listing.seller_name}
@@ -513,22 +517,21 @@ export default function ListingDetailScreen() {
             />
             <View style={styles.sellerInfo}>
               <View style={styles.sellerNameRow}>
-                <Text style={styles.sellerName}>{listing.seller_name ?? "Resident"}</Text>
+                <Text style={styles.sellerName}>{listing.seller_name ?? t("marketplace.resident")}</Text>
                 {listing.is_verified ? (
                   <Ionicons name="checkmark-circle" size={16} color="#14B8A6" />
                 ) : null}
               </View>
               <Text style={styles.sellerMeta}>
-                {listing.seller_unit ? `Unit ${listing.seller_unit}` : "Community member"}
+                {listing.seller_unit ? t("marketplace.unitLabel", { unit: listing.seller_unit }) : t("marketplace.communityMember")}
                 {" · "}
                 {formatMemberSince(listing.seller_member_since)}
               </Text>
               <Text style={styles.sellerMeta}>
-                {listing.seller_listings_count ?? 0} listing
-                {(listing.seller_listings_count ?? 0) === 1 ? "" : "s"}
+                {t("marketplace.listingCount", { count: listing.seller_listings_count ?? 0 })}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+            <Ionicons name={chevronForward()} size={16} color="#CBD5E1" />
           </TouchableOpacity>
 
           <View style={styles.alertCardYellow}>
@@ -536,9 +539,8 @@ export default function ListingDetailScreen() {
               <Ionicons name="shield-checkmark" size={16} color="#D97706" />
             </View>
             <Text style={styles.alertText}>
-              <Text style={styles.alertBoldYellow}>Stay safe · </Text>
-              Meet in public areas within the community. Never share banking details or pay before
-              seeing the item.
+              <Text style={styles.alertBoldYellow}>{t("marketplace.staySafe")}</Text>
+              {t("marketplace.staySafeItem")}
             </Text>
           </View>
 
@@ -547,9 +549,8 @@ export default function ListingDetailScreen() {
               <Ionicons name="information-circle" size={16} color="#14B8A6" />
             </View>
             <Text style={styles.alertText}>
-              <Text style={styles.alertBoldBlue}>About reviews · </Text>
-              Reviews are collected after completed transactions to help neighbors buy and sell with
-              confidence.
+              <Text style={styles.alertBoldBlue}>{t("marketplace.aboutReviews")}</Text>
+              {t("marketplace.aboutReviewsMsg")}
             </Text>
           </View>
         </View>
@@ -563,7 +564,7 @@ export default function ListingDetailScreen() {
         />
         <View style={styles.headerRow} pointerEvents="box-none">
           <HeaderBtn onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={20} color="#FFFFFF" />
+            <Ionicons name={chevronBack()} size={20} color="#FFFFFF" />
           </HeaderBtn>
 
           <View style={styles.headerRight}>
@@ -598,7 +599,7 @@ export default function ListingDetailScreen() {
                 disabled={ownerBusy}
               >
                 <Ionicons name="create-outline" size={16} color="#14B8A6" />
-                <Text style={styles.ownerActionText}>Edit</Text>
+                <Text style={styles.ownerActionText}>{t("common.edit")}</Text>
               </TouchableOpacity>
             ) : null}
             {canMarkSold ? (
@@ -609,7 +610,7 @@ export default function ListingDetailScreen() {
                 disabled={ownerBusy}
               >
                 <Ionicons name="checkmark-done-outline" size={16} color="#059669" />
-                <Text style={[styles.ownerActionText, { color: "#059669" }]}>Mark sold</Text>
+                <Text style={[styles.ownerActionText, { color: "#059669" }]}>{t("marketplace.markSold")}</Text>
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity
@@ -619,7 +620,7 @@ export default function ListingDetailScreen() {
               disabled={ownerBusy}
             >
               <Ionicons name="trash-outline" size={16} color="#DC2626" />
-              <Text style={[styles.ownerActionText, { color: "#DC2626" }]}>Delete</Text>
+              <Text style={[styles.ownerActionText, { color: "#DC2626" }]}>{t("common.delete")}</Text>
             </TouchableOpacity>
           </>
         ) : (
@@ -635,7 +636,7 @@ export default function ListingDetailScreen() {
               ) : (
                 <>
                   <Ionicons name="chatbubble-outline" size={16} color="#14B8A6" />
-                  <Text style={styles.messageBtnText}>Message</Text>
+                  <Text style={styles.messageBtnText}>{t("marketplace.message")}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -653,7 +654,7 @@ export default function ListingDetailScreen() {
               >
                 <Ionicons name="logo-usd" size={16} color="#FFFFFF" />
                 <Text style={styles.offerBtnText}>
-                  {isSold ? "Sold" : isServiceListing ? "Request Quote" : "Make Offer"}
+                  {isSold ? t("marketplace.sold") : isServiceListing ? t("marketplace.requestQuote") : t("marketplace.makeOffer")}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -728,8 +729,8 @@ const styles = StyleSheet.create({
   heroStats: {
     position: "absolute",
     bottom: SHEET_OVERLAP + 14,
-    left: 16,
-    right: 16,
+    start: 16,
+    end: 16,
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
@@ -919,7 +920,7 @@ const styles = StyleSheet.create({
   },
   detailRowValue: {
     flex: 1,
-    textAlign: "right",
+    textAlign: "auto",
     fontFamily: Fonts.bold,
     fontSize: 13,
     color: "#111827",

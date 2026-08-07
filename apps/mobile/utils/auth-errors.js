@@ -1,3 +1,4 @@
+import i18n from "../i18n";
 import { describeApiConnectionHint, isDevTestPhone } from "../constants/api-config";
 import { setBlockedAccountNotice } from "../services/auth-session";
 import { getApiErrorCode, getApiErrorMessage } from "./api-error-core";
@@ -50,18 +51,18 @@ export async function handleAuthApiError(error, dialog, router, { phone } = {}) 
   if (code === "ACCOUNT_EXISTS_USE_LOGIN") {
     await dialog.showDialog({
       type: "warning",
-      title: "Already registered",
-      message: "This phone number belongs to an existing account. Please log in instead of signing up.",
+      title: i18n.t("auth.alreadyRegistered"),
+      message: i18n.t("auth.alreadyRegisteredMsg"),
       actions: [
         {
           key: "cancel",
-          label: "Cancel",
+          label: i18n.t("common.cancel"),
           variant: "secondary",
           onPress: () => {},
         },
         {
           key: "login",
-          label: "Go to Login",
+          label: i18n.t("auth.goToLogin"),
           variant: "primary",
           onPress: () => router.replace("/screens/login"),
         },
@@ -73,18 +74,18 @@ export async function handleAuthApiError(error, dialog, router, { phone } = {}) 
   if (code === "ACCOUNT_NOT_FOUND_USE_SIGNUP") {
     await dialog.showDialog({
       type: "info",
-      title: "No account found",
-      message: "We couldn't find an account with this phone number. Would you like to sign up?",
+      title: i18n.t("auth.noAccountFound"),
+      message: i18n.t("auth.noAccountFoundMsg"),
       actions: [
         {
           key: "cancel",
-          label: "Cancel",
+          label: i18n.t("common.cancel"),
           variant: "secondary",
           onPress: () => {},
         },
         {
           key: "signup",
-          label: "Sign Up",
+          label: i18n.t("auth.signUp"),
           variant: "primary",
           onPress: () => router.push("/screens/roles"),
         },
@@ -99,32 +100,32 @@ export async function handleAuthApiError(error, dialog, router, { phone } = {}) 
   }
 
   if (code === "RATE_LIMITED") {
-    await dialog.showError("Too many attempts", message);
+    await dialog.showError(i18n.t("auth.tooManyAttempts"), message);
     return;
   }
 
   if (code === "INVALID_OTP") {
-    await dialog.showError("Invalid code", message);
+    await dialog.showError(i18n.t("auth.invalidCode"), message);
     return;
   }
 
   if (code === "INVALID_PHONE") {
-    await dialog.showError("Invalid phone number", message);
+    await dialog.showError(i18n.t("auth.invalidPhoneNumber"), message);
     return;
   }
 
   if (code === "ACCESS_NOT_STARTED") {
-    await dialog.showError("Guest access not started", message);
+    await dialog.showError(i18n.t("guest.accessNotStartedTitle"), message);
     return;
   }
 
   if (code === "GUEST_ACCESS_EXPIRED") {
-    await dialog.showError("Guest access expired", message);
+    await dialog.showError(i18n.t("guest.guestAccessExpired"), message);
     return;
   }
 
   if (code === "GUEST_ACCESS_REVOKED" || code === "GUEST_ACCESS_REJECTED") {
-    await dialog.showError("Guest access revoked", message);
+    await dialog.showError(i18n.t("guest.guestAccessRevoked"), message);
     return;
   }
 
@@ -135,12 +136,12 @@ export async function handleAuthApiError(error, dialog, router, { phone } = {}) 
       layout: "status",
       title: resolved.title,
       message: resolved.message,
-      statusLabel: "Not included",
+      statusLabel: i18n.t("auth.notIncluded"),
       highlight: {
-        label: "What you can do",
-        value: "Contact the resident or community admin who invited you. They can update guest permissions on your invitation.",
+        label: i18n.t("auth.whatYouCanDo"),
+        value: i18n.t("auth.contactResidentOrAdmin"),
       },
-      actions: [{ key: "ok", label: "Got it", variant: "primary" }],
+      actions: [{ key: "ok", label: i18n.t("blockedAccount.gotIt"), variant: "primary" }],
     });
     return;
   }
@@ -151,13 +152,13 @@ export async function handleAuthApiError(error, dialog, router, { phone } = {}) 
         ? "\n\nEnsure `npm run backend` is running. Android emulator uses http://10.0.2.2:8000 automatically."
         : "";
     await dialog.showError(
-      "Connection problem",
+      i18n.t("auth.connectionProblem"),
       `${message}\n\n${describeApiConnectionHint()}${devHint}`,
     );
     return;
   }
 
-  await dialog.showError("Something went wrong", message || "Please try again.");
+  await dialog.showError(i18n.t("common.error"), message || i18n.t("auth.pleaseTryAgain"));
 }
 
 export async function showApiSuccess(dialog, title, message) {

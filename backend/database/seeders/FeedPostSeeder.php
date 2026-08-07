@@ -26,14 +26,46 @@ class FeedPostSeeder extends Seeder
         }
 
         $samples = [
-            ['general', 'Does anyone know a good pediatrician nearby?'],
-            ['help', 'Free moving boxes available in the lobby — first come first served!'],
-            ['help', 'Looking for a dog walker for weekday mornings. Any recommendations?'],
-            ['event', 'Reminder: Yoga in the Park this Sunday at 7 AM near the east garden.'],
-            ['announcement', 'Pool maintenance scheduled for Thursday 9 AM–12 PM.'],
-            ['update', 'New recycling bins have been installed near Building C.'],
-            ['general', 'Great turnout at last weekend\'s community BBQ — thanks everyone!'],
-            ['help', 'Anyone have a ladder I could borrow for an hour this afternoon?'],
+            ['general',
+                'Does anyone know a good pediatrician nearby?',
+                '¿Alguien conoce un buen pediatra cerca?',
+                'هل يعرف أحد طبيب أطفال جيد بالقرب من هنا؟',
+            ],
+            ['help',
+                'Free moving boxes available in the lobby — first come first served!',
+                '¡Cajas de mudanza gratis disponibles en el vestíbulo — se atiende por orden de llegada!',
+                'صناديق نقل مجانية متوفرة في الاستقبال — الأسبقية لمن يأتي أولاً!',
+            ],
+            ['help',
+                'Looking for a dog walker for weekday mornings. Any recommendations?',
+                'Busco a alguien que pasee a mi perro por las mañanas entre semana. ¿Alguna recomendación?',
+                'أبحث عن شخص لتمشية الكلب صباحاً خلال أيام الأسبوع. هل من توصيات؟',
+            ],
+            ['event',
+                'Reminder: Yoga in the Park this Sunday at 7 AM near the east garden.',
+                'Recordatorio: Yoga en el Parque este domingo a las 7 AM cerca del jardín este.',
+                'تذكير: يوغا في الحديقة يوم الأحد الساعة ٧ صباحاً بالقرب من الحديقة الشرقية.',
+            ],
+            ['announcement',
+                'Pool maintenance scheduled for Thursday 9 AM–12 PM.',
+                'Mantenimiento de la piscina programado para el jueves de 9 AM a 12 PM.',
+                'صيانة المسبح مجدولة يوم الخميس من ٩ صباحاً حتى ١٢ ظهراً.',
+            ],
+            ['update',
+                'New recycling bins have been installed near Building C.',
+                'Se han instalado nuevos contenedores de reciclaje cerca del Edificio C.',
+                'تم تركيب حاويات إعادة تدوير جديدة بالقرب من المبنى C.',
+            ],
+            ['general',
+                'Great turnout at last weekend\'s community BBQ — thanks everyone!',
+                '¡Gran asistencia en la parrillada comunitaria del fin de semana pasado — ¡gracias a todos!',
+                'حضور رائع في حفلة الشواء المجتمعية نهاية الأسبوع الماضي — شكراً للجميع!',
+            ],
+            ['help',
+                'Anyone have a ladder I could borrow for an hour this afternoon?',
+                '¿Alguien tiene una escalera que me pueda prestar por una hora esta tarde?',
+                'هل لدى أحد سلّم يمكنني استعارته لمدة ساعة بعد الظهر؟',
+            ],
         ];
 
         $created = 0;
@@ -64,7 +96,7 @@ class FeedPostSeeder extends Seeder
                 continue;
             }
 
-            foreach ($samples as $index => [$category, $body]) {
+            foreach ($samples as $index => [$category, $body, $bodyEs, $bodyAr]) {
                 $userId = $memberIds[$index % $memberIds->count()];
 
                 $exists = DB::table('posts')
@@ -81,6 +113,8 @@ class FeedPostSeeder extends Seeder
                     'community_id'   => $community->id,
                     'user_id'        => $userId,
                     'body'           => $body,
+                    'body_es'        => $bodyEs,
+                    'body_ar'        => $bodyAr,
                     'category'       => $category,
                     'status'         => 'approved',
                     'approved_at'    => now(),

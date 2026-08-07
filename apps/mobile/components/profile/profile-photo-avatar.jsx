@@ -52,7 +52,7 @@ export default function ProfilePhotoAvatar({
             width: badgeSize,
             height: badgeSize,
             borderRadius: badgeSize / 2,
-            right: -1,
+            end: -1,
             bottom: -1,
           },
         ]}

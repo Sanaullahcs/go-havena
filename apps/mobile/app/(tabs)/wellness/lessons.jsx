@@ -20,9 +20,11 @@ import GuestFeatureErrorState from "../../../components/guest/guest-permission-d
 import { isFeatureAccessBlockedError } from "../../../utils/guest-permission-errors";
 import { resolveLoadRestriction } from "../../../utils/account-access-sync";
 import { sf, sw } from "../../../utils/responsive";
+import { useTranslation } from 'react-i18next';
 
 export default function Lessons() {
   const router = useRouter();
+  const { t, i18n } = useTranslation();
   const { title, type, courseId, categoryKey: categoryKeyParam } = useLocalSearchParams();
   const { showFailure } = useApiAction();
   const [course, setCourse] = useState(null);
@@ -54,7 +56,7 @@ export default function Lessons() {
         setError(restricted);
         return;
       }
-      await showFailure("Could not load lessons", err);
+      await showFailure(t('wellness.couldNotLoadLessons'), err);
     } finally {
       setLoading(false);
     }
@@ -78,7 +80,7 @@ export default function Lessons() {
     <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
       <WellnessScreenHeader
         title={course?.title ?? title}
-        subtitle={`${decodedType || "Wellness"} · WELLS`}
+        subtitle={`${decodedType || t('wellness.wellness')} · ${t('wellness.wells')}`}
         categoryKey={categoryKey}
         onBack={() => router.back()}
       />
@@ -92,7 +94,7 @@ export default function Lessons() {
           <GuestFeatureErrorState
             error={error}
             fallbackFeature="wellness"
-            defaultTitle="Could not load lessons"
+            defaultTitle={t('wellness.couldNotLoadLessons')}
             onRetry={load}
           />
         ) : (
@@ -107,9 +109,8 @@ export default function Lessons() {
               lessonCount={playlistDetails.length}
               progress={progress}
             />
-
-            {playlistDetails.length > 0 ? (
-              <MenuGroup label="Lessons" style={styles.menuGroup}>
+{playlistDetails.length > 0 ? (
+              <MenuGroup label={t('wellness.lessons')} style={styles.menuGroup}>
                 {playlistDetails.map((item, index) => (
                   <WellnessLessonRow
                     key={item.id}
@@ -134,7 +135,7 @@ export default function Lessons() {
                 ))}
               </MenuGroup>
             ) : (
-              <Text style={styles.emptyText}>No lessons in this course yet.</Text>
+              <Text style={styles.emptyText}>{t('wellness.noLessonsYet')}</Text>
             )}
           </ScrollView>
         )}

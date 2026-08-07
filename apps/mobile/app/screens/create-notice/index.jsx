@@ -30,9 +30,11 @@ import { fetchMe } from "../../../services/profile-api";
 import { getUser } from "../../../services/auth-session";
 import { isCommunityAdmin } from "../../../services/community-access";
 import { fetchAdminMembers } from "../../../services/admin-api";
+import { useTranslation } from 'react-i18next';
 
 export default function CreateNoticeScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { submitting, run } = useSubmitLock();
   const { runAction } = useApiAction();
   const [isAdmin, setIsAdmin] = useState(false);
@@ -146,7 +148,7 @@ export default function CreateNoticeScreen() {
         delete next.event_time_end;
         return next;
       }
-      return { ...prev, event_time_end: "End time must be after start time." };
+      return { ...prev, event_time_end: t('notices.endTimeAfterStart') };
     });
   }, [startTime, endTime, setErrors]);
 
@@ -182,12 +184,12 @@ export default function CreateNoticeScreen() {
                   }
                 : {}),
             }),
-          successTitle: scheduleLater && isAdmin ? "Scheduled" : "Published",
+          successTitle: scheduleLater && isAdmin ? t('notices.scheduled') : t('notices.published'),
           successMessage:
             scheduleLater && isAdmin
-              ? "Your notice was saved and will publish at the scheduled time."
-              : "Your notice was published.",
-          errorTitle: "Could not publish",
+              ? t('notices.noticeScheduledMessage')
+              : t('notices.noticePublishedMessage'),
+          errorTitle: t('notices.couldNotPublish'),
           onSuccess: () => router.back(),
         });
       } finally {
@@ -225,12 +227,12 @@ export default function CreateNoticeScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
-      <ScreenHeader layout="inline" title="Create Notice" iconOnly />
+      <ScreenHeader layout="inline" title={t('notices.createNotice')} iconOnly />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.formWrap}>
           <Text style={styles.label}>
-            Title <Text style={styles.required}>*</Text>
+            {t('notices.title')} <Text style={styles.required}>*</Text>
           </Text>
           <TextInput
             value={title}
@@ -239,7 +241,7 @@ export default function CreateNoticeScreen() {
               touch("title");
               clearError("title");
             }}
-            placeholder="Enter title"
+            placeholder={t('notices.enterTitle')}
             placeholderTextColor="rgba(10, 10, 10, 0.5)"
             style={[styles.input, showError("title", fieldErrorsLive) && styles.inputError]}
             maxLength={LIMITS.noticeTitle}
@@ -249,7 +251,7 @@ export default function CreateNoticeScreen() {
           ) : null}
 
           <Text style={[styles.label, styles.sectionGap]}>
-            Description <Text style={styles.required}>*</Text>
+            {t('notices.description')} <Text style={styles.required}>*</Text>
           </Text>
           <TextInput
             value={description}
@@ -258,7 +260,7 @@ export default function CreateNoticeScreen() {
               touch("body");
               clearError("body");
             }}
-            placeholder="Add details about this notice..."
+            placeholder={t('notices.noticeDescriptionPlaceholder')}
             placeholderTextColor="rgba(10, 10, 10, 0.5)"
             style={[styles.textArea, showError("body", fieldErrorsLive) && styles.inputError]}
             multiline
@@ -270,7 +272,7 @@ export default function CreateNoticeScreen() {
           ) : null}
 
           <Text style={[styles.label, styles.sectionGap]}>
-            Category <Text style={styles.required}>*</Text>
+            {t('notices.category')} <Text style={styles.required}>*</Text>
           </Text>
           <ScrollView
             horizontal
@@ -291,7 +293,7 @@ export default function CreateNoticeScreen() {
                   }}
                 >
                   <Text style={[styles.chipText, selected && styles.chipTextActive]}>
-                    {option.label}
+                    {t(option.labelKey)}
                   </Text>
                 </TouchableOpacity>
               );
@@ -301,7 +303,7 @@ export default function CreateNoticeScreen() {
             <Text style={styles.errorText}>{showError("category", fieldErrorsLive)}</Text>
           ) : null}
 
-          <View style={styles.sectionGap}>{renderFieldLabel("location-outline", "Location", false)}</View>
+          <View style={styles.sectionGap}>{renderFieldLabel("location-outline", t('notices.location'), false)}</View>
           <TextInput
             value={location}
             onChangeText={(t) => {
@@ -309,7 +311,7 @@ export default function CreateNoticeScreen() {
               touch("location");
               clearError("location");
             }}
-            placeholder="e.g., Community Center, Block A"
+            placeholder={t('notices.locationPlaceholder')}
             placeholderTextColor="rgba(10, 10, 10, 0.5)"
             style={[styles.input, showError("location", fieldErrorsLive) && styles.inputError]}
             maxLength={LIMITS.location}
@@ -324,10 +326,10 @@ export default function CreateNoticeScreen() {
             uploading={uploadingImage}
           />
 
-          <Text style={[styles.sectionTitle, styles.sectionGap]}>Notice schedule</Text>
-          <Text style={styles.sectionHint}>When is this notice relevant for residents?</Text>
+          <Text style={[styles.sectionTitle, styles.sectionGap]}>{t('notices.noticeSchedule')}</Text>
+          <Text style={styles.sectionHint}>{t('notices.noticeScheduleHint')}</Text>
 
-          <View style={styles.sectionGap}>{renderFieldLabel("calendar-outline", "Notice Date", true)}</View>
+          <View style={styles.sectionGap}>{renderFieldLabel("calendar-outline", t('notices.noticeDate'), true)}</View>
           <SchedulePickerField
             mode="date"
             value={noticeDate}
@@ -336,14 +338,14 @@ export default function CreateNoticeScreen() {
               touch("event_date");
               clearError("event_date");
             }}
-            placeholder="Select date"
+            placeholder={t('notices.selectDate')}
             inputStyle={[styles.input, showError("event_date", fieldErrorsLive) && styles.inputError]}
           />
           {showError("event_date", fieldErrorsLive) ? (
             <Text style={styles.errorText}>{showError("event_date", fieldErrorsLive)}</Text>
           ) : null}
 
-          <View style={styles.sectionGap}>{renderFieldLabel("time-outline", "Start Time", true)}</View>
+          <View style={styles.sectionGap}>{renderFieldLabel("time-outline", t('notices.startTime'), true)}</View>
           <SchedulePickerField
             mode="time"
             value={startTime}
@@ -360,14 +362,14 @@ export default function CreateNoticeScreen() {
                 }
               }
             }}
-            placeholder="Start time"
+            placeholder={t('notices.startTimePlaceholder')}
             inputStyle={[styles.input, showError("event_time", fieldErrorsLive) && styles.inputError]}
           />
           {showError("event_time", fieldErrorsLive) ? (
             <Text style={styles.errorText}>{showError("event_time", fieldErrorsLive)}</Text>
           ) : null}
 
-          <View style={styles.sectionGap}>{renderFieldLabel("time-outline", "End Time", true)}</View>
+          <View style={styles.sectionGap}>{renderFieldLabel("time-outline", t('notices.endTime'), true)}</View>
           <SchedulePickerField
             mode="time"
             value={endTime}
@@ -376,7 +378,7 @@ export default function CreateNoticeScreen() {
               touch("event_time_end");
               clearError("event_time_end");
             }}
-            placeholder="End time (after start)"
+            placeholder={t('notices.endTimePlaceholder')}
             inputStyle={[styles.input, showError("event_time_end", fieldErrorsLive) && styles.inputError]}
           />
           {showError("event_time_end", fieldErrorsLive) ? (
@@ -386,11 +388,11 @@ export default function CreateNoticeScreen() {
           {isAdmin ? (
             <>
               <View style={styles.adminHeaderRow}>
-                <Text style={styles.adminOptionsTitle}>ADMIN OPTIONS</Text>
+                <Text style={styles.adminOptionsTitle}>{t('notices.adminOptions')}</Text>
               </View>
 
               <View style={styles.scheduleCard}>
-                <Text style={styles.optionTitle}>Send to</Text>
+                <Text style={styles.optionTitle}>{t('notices.sendTo')}</Text>
                 <View style={styles.chipRow}>
                   <TouchableOpacity
                     style={[styles.chip, audienceType === "all" && styles.chipActive]}
@@ -401,7 +403,7 @@ export default function CreateNoticeScreen() {
                     }}
                   >
                     <Text style={[styles.chipText, audienceType === "all" && styles.chipTextActive]}>
-                      All Residents
+                      {t('notices.allResidents')}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -409,7 +411,7 @@ export default function CreateNoticeScreen() {
                     onPress={() => setAudienceType("selected")}
                   >
                     <Text style={[styles.chipText, audienceType === "selected" && styles.chipTextActive]}>
-                      Selected Residents
+                      {t('notices.selectedResidents')}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -419,12 +421,12 @@ export default function CreateNoticeScreen() {
                     <TextInput
                       value={residentSearch}
                       onChangeText={setResidentSearch}
-                      placeholder="Search residents by name or unit"
+                      placeholder={t('notices.searchResidents')}
                       style={styles.input}
                     />
                     {selectedResidentIds.length > 0 ? (
                       <Text style={styles.optionSubtitle}>
-                        {selectedResidentIds.length} resident(s) selected
+                        {t('notices.residentsSelected', { count: selectedResidentIds.length })}
                       </Text>
                     ) : null}
                     {residentsLoading ? (
@@ -436,7 +438,7 @@ export default function CreateNoticeScreen() {
                     ) : (
                       <View style={styles.residentList}>
                         {residents.map((member) => {
-                          const name = member.display_name || member.name || "Resident";
+                          const name = member.display_name || member.name || t('notices.resident');
                           const selected = selectedResidentIds.includes(member.id);
 
                           return (
@@ -457,7 +459,7 @@ export default function CreateNoticeScreen() {
                               <View style={styles.residentMeta}>
                                 <Text style={styles.residentName}>{name}</Text>
                                 {member.unit_number ? (
-                                  <Text style={styles.optionSubtitle}>Unit {member.unit_number}</Text>
+                                  <Text style={styles.optionSubtitle}>{t('notices.unitNumber', { unit: member.unit_number })}</Text>
                                 ) : null}
                               </View>
                             </TouchableOpacity>
@@ -465,7 +467,7 @@ export default function CreateNoticeScreen() {
                         })}
                         {!residentsLoading && residents.length === 0 ? (
                           <View style={styles.residentListEmpty}>
-                            <Text style={styles.residentEmptyText}>No residents found.</Text>
+                            <Text style={styles.residentEmptyText}>{t('notices.noResidentsFound')}</Text>
                           </View>
                         ) : null}
                       </View>
@@ -481,8 +483,8 @@ export default function CreateNoticeScreen() {
 
               <View style={styles.optionCard}>
                 <View style={styles.optionTextWrap}>
-                  <Text style={styles.optionTitle}>Pin to Top</Text>
-                  <Text style={styles.optionSubtitle}>Keep this notice at the top until it expires</Text>
+                  <Text style={styles.optionTitle}>{t('notices.pinToTop')}</Text>
+                  <Text style={styles.optionSubtitle}>{t('notices.pinToTopDescription')}</Text>
                 </View>
                 <CustomToggle value={pinToTop} onValueChange={setPinToTop} />
               </View>
@@ -490,8 +492,8 @@ export default function CreateNoticeScreen() {
               <View style={styles.scheduleCard}>
                 <View style={styles.scheduleHeaderRow}>
                   <View>
-                    <Text style={styles.optionTitle}>Schedule for Later</Text>
-                    <Text style={styles.optionSubtitle}>Publish at a specific date and time</Text>
+                    <Text style={styles.optionTitle}>{t('notices.scheduleForLater')}</Text>
+                    <Text style={styles.optionSubtitle}>{t('notices.publishAtSpecificDateTime')}</Text>
                   </View>
                   <CustomToggle
                     value={scheduleLater}
@@ -518,7 +520,7 @@ export default function CreateNoticeScreen() {
                         touch("scheduled_date");
                         clearError("scheduled_date");
                       }}
-                      placeholder="Publish date"
+                      placeholder={t('notices.publishDate')}
                       inputStyle={[styles.input, showError("scheduled_date", fieldErrorsLive) && styles.inputError]}
                     />
                     {showError("scheduled_date", fieldErrorsLive) ? (
@@ -532,7 +534,7 @@ export default function CreateNoticeScreen() {
                         touch("scheduled_time");
                         clearError("scheduled_time");
                       }}
-                      placeholder="Publish time"
+                      placeholder={t('notices.publishTime')}
                       inputStyle={[
                         styles.input,
                         styles.scheduleTimeInput,
@@ -561,7 +563,7 @@ export default function CreateNoticeScreen() {
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <Text style={styles.publishButtonText}>
-                {isAdmin && scheduleLater ? "Schedule" : "Publish"}
+                {isAdmin && scheduleLater ? t('notices.schedule') : t('notices.publish')}
               </Text>
             )}
           </TouchableOpacity>
@@ -698,7 +700,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   scheduleTimeInput: { marginTop: 10 },
-  optionTextWrap: { flex: 1, paddingRight: 12 },
+  optionTextWrap: { flex: 1, paddingEnd: 12 },
   optionTitle: {
     fontFamily: Fonts.bold,
     fontSize: 13,

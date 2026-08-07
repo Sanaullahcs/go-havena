@@ -22,7 +22,9 @@ import {
   likePost,
   applyLikeToPost,
   FEED_TOPICS,
+  TOPIC_LABEL_KEY,
 } from "../../services/feed-api";
+import { useTranslation } from "react-i18next";
 import { getUser } from "../../services/auth-session";
 import { useApiAction } from "../../hooks/use-api-action";
 import { getFeedEmptyMessage } from "../../hooks/use-community-feed";
@@ -36,6 +38,7 @@ import { resolveLoadRestriction } from "../../utils/account-access-sync";
 
 /** Embedded community feed — used inside the Community tab and full feed screen. */
 export default function CommunityFeedPanel() {
+  const { t } = useTranslation();
   const router = useRouter();
   const now = useNow(30000);
   const [activeTopic, setActiveTopic] = useState(null);
@@ -115,7 +118,7 @@ export default function CommunityFeedPanel() {
         );
       } catch (err) {
         if (previous) setPosts(previous);
-        await showFailure("Could not update like", err);
+        await showFailure(t("feed.couldNotLike"), err);
       }
     },
     [showFailure],
@@ -126,7 +129,7 @@ export default function CommunityFeedPanel() {
       const text = post.content || post.body || "";
       const preview = text.length > 80 ? text.slice(0, 80) + "..." : text;
       await Share.share({
-        message: preview || "Check out this post on Havena!",
+        message: preview || t("feed.shareMessage"),
       });
     } catch (_) {}
   }, []);
@@ -137,7 +140,7 @@ export default function CommunityFeedPanel() {
   }, [posts, activeTopic]);
 
   const displayName =
-    currentUser?.profile?.display_name ?? currentUser?.name ?? "You";
+    currentUser?.profile?.display_name ?? currentUser?.name ?? t("common.you");
 
   const accessBlocked = Boolean(error && isFeatureAccessBlockedError(error));
 
@@ -169,7 +172,7 @@ export default function CommunityFeedPanel() {
               size={sw(38)}
             />
             <View style={styles.composerInput}>
-              <Text style={styles.composerPlaceholder}>What's on your mind?</Text>
+              <Text style={styles.composerPlaceholder}>{t("feed.createPost.placeholder")}</Text>
             </View>
             <View style={styles.composerBtn}>
               <Feather name="edit-3" size={sf(16)} color={T.white} />
@@ -187,7 +190,7 @@ export default function CommunityFeedPanel() {
               onPress={() => setActiveTopic(null)}
             >
               <Text style={[styles.chipText, !activeTopic && styles.chipTextActive]}>
-                All
+                {t("common.all")}
               </Text>
             </Pressable>
             {FEED_TOPICS.map((topic) => {
@@ -215,7 +218,7 @@ export default function CommunityFeedPanel() {
                       },
                     ]}
                   >
-                    {topic}
+                    {TOPIC_LABEL_KEY[topic] ? t(TOPIC_LABEL_KEY[topic]) : topic}
                   </Text>
                 </Pressable>
               );
@@ -226,7 +229,7 @@ export default function CommunityFeedPanel() {
 
       {!loading && !accessBlocked && filtered.length > 0 ? (
         <View style={styles.sectionHead}>
-          <Text style={styles.sectionTitle}>Recent Posts</Text>
+          <Text style={styles.sectionTitle}>{t("feed.recentPosts")}</Text>
           <View style={styles.countBadge}>
             <Text style={styles.countText}>{filtered.length}</Text>
           </View>
@@ -239,7 +242,7 @@ export default function CommunityFeedPanel() {
         <GuestFeatureErrorState
           error={error}
           fallbackFeature="feed"
-          defaultTitle="Could not load feed"
+          defaultTitle={t("feed.couldNotLoadFeed")}
           onRetry={() => load()}
         />
       ) : filtered.length === 0 ? (
@@ -248,7 +251,7 @@ export default function CommunityFeedPanel() {
             <Feather name="message-square" size={sf(28)} color={T.teal} />
           </View>
           <Text style={styles.emptyTitle}>
-            {emptyReason === "no_approved_membership" ? "Join your community" : "No posts yet"}
+            {emptyReason === "no_approved_membership" ? t("feed.joinCommunity") : t("feed.noPostsYet")}
           </Text>
           <Text style={styles.emptyText}>{getFeedEmptyMessage(emptyReason)}</Text>
           <Pressable
@@ -262,7 +265,7 @@ export default function CommunityFeedPanel() {
             }
           >
             <Text style={styles.emptyBtnText}>
-              {emptyReason === "no_approved_membership" ? "Select region" : "Create Post"}
+              {emptyReason === "no_approved_membership" ? t("feed.selectRegion") : t("feed.createPostBtn")}
             </Text>
           </Pressable>
         </View>

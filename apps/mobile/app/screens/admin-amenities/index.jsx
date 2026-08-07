@@ -19,6 +19,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { StatusBar } from "expo-status-bar";
 import { useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 
 import {
   Building2,
@@ -35,6 +36,7 @@ import { Fonts } from "../../../constants/font";
 import { Colors } from "../../../constants/tokens";
 import { AdminTheme } from "../../../constants/admin-theme";
 import { sf, sw } from "../../../utils/responsive";
+import { chevronForward } from "../../../utils/rtl";
 import {
   fetchAdminAmenities,
   createAmenity,
@@ -59,29 +61,29 @@ import useOverlayChrome from "../../../hooks/use-overlay-chrome";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 
 const STATUS_OPTIONS = [
-  { key: "bookable", label: "Timed slots", short: "Slots", hint: "Users pick a generated time slot" },
-  { key: "open", label: "Open availability", short: "Open", hint: "Request access without a slot" },
-  { key: "closed", label: "Closed", short: "Closed", hint: "Hidden from booking" },
+  { key: "bookable", labelKey: "admin.timedSlots", shortKey: "admin.slotsShort", hintKey: "admin.timedSlotsHint" },
+  { key: "open", labelKey: "admin.openAvailability", shortKey: "admin.openShort", hintKey: "admin.openAvailabilityHint" },
+  { key: "closed", labelKey: "admin.closed", shortKey: "admin.closedShort", hintKey: "admin.closedHint" },
 ];
 
 const FILTERS = [
-  { key: "all", label: "All" },
-  { key: "mine", label: "Yours" },
-  { key: "my_bookings", label: "My booking" },
-  { key: "pending", label: "Need approval" },
-  { key: "bookable", label: "Slots" },
-  { key: "open", label: "Open" },
-  { key: "closed", label: "Closed" },
+  { key: "all", labelKey: "admin.all" },
+  { key: "mine", labelKey: "admin.yours" },
+  { key: "my_bookings", labelKey: "admin.myBooking" },
+  { key: "pending", labelKey: "admin.needApproval" },
+  { key: "bookable", labelKey: "admin.slotsShort" },
+  { key: "open", labelKey: "admin.openShort" },
+  { key: "closed", labelKey: "admin.closedShort" },
 ];
 
 const BOOKING_STATUS_META = {
-  pending: { label: "Pending", color: "#B45309", bg: "#FEF3C7" },
-  confirmed: { label: "Approved", color: "#047857", bg: "#ECFDF5" },
-  rejected: { label: "Rejected", color: "#B91C1C", bg: "#FEF2F2" },
+  pending: { label: "admin.pending", color: "#B45309", bg: "#FEF3C7" },
+  confirmed: { label: "admin.approved", color: "#047857", bg: "#ECFDF5" },
+  rejected: { label: "admin.rejected", color: "#B91C1C", bg: "#FEF2F2" },
 };
 
 function bookingStatusMeta(status) {
-  return BOOKING_STATUS_META[status] ?? { label: "Booked", color: AdminTheme.accent, bg: AdminTheme.accentSoft };
+  return BOOKING_STATUS_META[status] ?? { label: "admin.booked", color: AdminTheme.accent, bg: AdminTheme.accentSoft };
 }
 
 const EMPTY_FORM = {
@@ -96,8 +98,10 @@ const EMPTY_FORM = {
   icon_key: "",
 };
 
-function shortStatusLabel(status) {
-  return STATUS_OPTIONS.find((o) => o.key === status)?.short ?? getAmenityStatus(status).label;
+function shortStatusLabel(status, t) {
+  const opt = STATUS_OPTIONS.find((o) => o.key === status);
+  if (opt) return t(opt.shortKey);
+  return getAmenityStatus(status).label;
 }
 
 function MetaChip({ icon: Icon, label }) {
@@ -131,7 +135,7 @@ function StatChip({ label, value, tone = "default" }) {
   );
 }
 
-function AmenityCard({ item, onOpen, onApprove, onReject, busy }) {
+function AmenityCard({ item, onOpen, onApprove, onReject, busy, t }) {
   const visual = getAmenityVisual(item.name, item.icon_key);
   const status = getAmenityStatus(item.status);
   const reviewPending = item.review_status === "pending";
@@ -158,28 +162,28 @@ function AmenityCard({ item, onOpen, onApprove, onReject, busy }) {
             <View style={[styles.statusPill, { backgroundColor: "#FEF3C7" }]}>
               <View style={[styles.statusDot, { backgroundColor: "#F59E0B" }]} />
               <Text style={[styles.statusText, { color: "#B45309" }]} numberOfLines={1}>
-                Pending
+                {t("admin.pending")}
               </Text>
             </View>
           ) : reviewRejected ? (
             <View style={[styles.statusPill, { backgroundColor: "#FEF2F2" }]}>
               <View style={[styles.statusDot, { backgroundColor: "#EF4444" }]} />
               <Text style={[styles.statusText, { color: "#B91C1C" }]} numberOfLines={1}>
-                Rejected
+                {t("admin.rejected")}
               </Text>
             </View>
           ) : (
             <View style={[styles.statusPill, { backgroundColor: status.bg }]}>
               <View style={[styles.statusDot, { backgroundColor: status.dot }]} />
               <Text style={[styles.statusText, { color: status.color }]} numberOfLines={1}>
-                {shortStatusLabel(item.status)}
+                {shortStatusLabel(item.status, t)}
               </Text>
             </View>
           )}
         </View>
         {item.creator_name ? (
           <Text style={styles.cardDesc} numberOfLines={1}>
-            {isMine ? "Your amenity" : `By ${item.creator_name}`}
+            {isMine ? t("admin.yourAmenity") : t("admin.byCreator", { name: item.creator_name })}
           </Text>
         ) : item.description ? (
           <Text style={styles.cardDesc} numberOfLines={1}>
@@ -189,7 +193,7 @@ function AmenityCard({ item, onOpen, onApprove, onReject, busy }) {
         {item.user_has_upcoming_booking && item.user_next_booking_date ? (
           <View style={styles.bookingRow}>
             <Text style={styles.bookingHint} numberOfLines={1}>
-              Your booking · {item.user_next_booking_date}
+              {t("admin.yourBookingLabel")} · {item.user_next_booking_date}
               {item.user_next_booking_time_slot ? ` · ${item.user_next_booking_time_slot}` : ""}
             </Text>
             {item.user_next_booking_status ? (
@@ -205,7 +209,7 @@ function AmenityCard({ item, onOpen, onApprove, onReject, busy }) {
                     { color: bookingStatusMeta(item.user_next_booking_status).color },
                   ]}
                 >
-                  {bookingStatusMeta(item.user_next_booking_status).label}
+                  {t(bookingStatusMeta(item.user_next_booking_status).label)}
                 </Text>
               </View>
             ) : null}
@@ -226,7 +230,7 @@ function AmenityCard({ item, onOpen, onApprove, onReject, busy }) {
                 onReject?.(item);
               }}
             >
-              <Text style={styles.reviewRejectText}>Reject</Text>
+              <Text style={styles.reviewRejectText}>{t("admin.reject")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.reviewBtn, styles.reviewApprove]}
@@ -236,13 +240,13 @@ function AmenityCard({ item, onOpen, onApprove, onReject, busy }) {
                 onApprove?.(item);
               }}
             >
-              <Text style={styles.reviewApproveText}>Approve</Text>
+              <Text style={styles.reviewApproveText}>{t("admin.approve")}</Text>
             </TouchableOpacity>
           </View>
         ) : null}
       </View>
 
-      <Feather name="chevron-right" size={sf(16)} color="#CBD5E1" />
+      <Feather name={chevronForward()} size={sf(16)} color="#CBD5E1" />
     </TouchableOpacity>
   );
 }
@@ -261,7 +265,7 @@ function FieldError({ message }) {
   return <Text style={styles.fieldError}>{message}</Text>;
 }
 
-function IconSelectField({ value, error, onChange }) {
+function IconSelectField({ value, error, onChange, t }) {
   const [open, setOpen] = useState(false);
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -290,7 +294,7 @@ function IconSelectField({ value, error, onChange }) {
           style={[styles.selectLabel, !selected && styles.selectPlaceholder]}
           numberOfLines={1}
         >
-          {selected ? selected.label : "Select category"}
+          {selected ? selected.label : t("admin.selectCategory")}
         </Text>
         <ChevronDown size={sf(16)} color="#94A3B8" strokeWidth={2} />
       </TouchableOpacity>
@@ -310,7 +314,7 @@ function IconSelectField({ value, error, onChange }) {
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle} numberOfLines={1}>
-                Select category
+                {t("admin.selectCategory")}
               </Text>
               <TouchableOpacity onPress={() => setOpen(false)} hitSlop={8} style={styles.sheetClose}>
                 <Feather name="x" size={sf(16)} color="#64748B" />
@@ -359,6 +363,7 @@ function IconSelectField({ value, error, onChange }) {
 }
 
 export default function AdminAmenitiesScreen() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const isWide = width >= 640;
@@ -411,11 +416,11 @@ export default function AdminAmenitiesScreen() {
       setAmenities(result.data ?? []);
       setPendingReview(result.pendingReview ?? 0);
     } catch (err) {
-      await showFailure("Could not load amenities", err);
+      await showFailure(t("admin.couldNotLoadAmenities"), err);
     } finally {
       setLoading(false);
     }
-  }, [showFailure]);
+  }, [showFailure, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -531,11 +536,11 @@ export default function AdminAmenitiesScreen() {
       await runAction({
         action: () =>
           editing ? updateAmenity(editing.id, payload) : createAmenity(payload),
-        successTitle: editing ? "Amenity updated" : "Amenity created",
+        successTitle: editing ? t("admin.amenityUpdated") : t("admin.amenityCreated"),
         successMessage: editing
-          ? `${name} was saved.`
-          : `${name} is now available to residents.`,
-        errorTitle: editing ? "Update failed" : "Could not create amenity",
+          ? t("admin.amenitySaved", { name })
+          : t("admin.amenityNowAvailable", { name }),
+        errorTitle: editing ? t("admin.updateFailed") : t("admin.couldNotCreateAmenity"),
         onSuccess: () => {
           closeForm();
           load();
@@ -551,9 +556,9 @@ export default function AdminAmenitiesScreen() {
     try {
       await runAction({
         action: () => approveAmenity(item.id),
-        successTitle: "Amenity approved",
-        successMessage: `${item.name} is now live for the community.`,
-        errorTitle: "Could not approve",
+        successTitle: t("admin.amenityApproved"),
+        successMessage: t("admin.amenityNowLive", { name: item.name }),
+        errorTitle: t("admin.couldNotApprove"),
         onSuccess: () => load(),
       });
     } finally {
@@ -563,9 +568,9 @@ export default function AdminAmenitiesScreen() {
 
   const handleRejectAmenity = async (item) => {
     const confirmed = await showConfirm(
-      "Reject amenity?",
-      `Reject "${item.name}"? The creator will be notified.`,
-      { confirmLabel: "Reject", cancelLabel: "Keep", destructive: true },
+      t("admin.rejectAmenity"),
+      t("admin.rejectAmenityMessage", { name: item.name }),
+      { confirmLabel: t("admin.reject"), cancelLabel: t("admin.keep"), destructive: true },
     );
     if (confirmed !== "confirm") return;
 
@@ -573,9 +578,9 @@ export default function AdminAmenitiesScreen() {
     try {
       await runAction({
         action: () => rejectAmenity(item.id),
-        successTitle: "Amenity rejected",
-        successMessage: "The creator has been notified.",
-        errorTitle: "Could not reject",
+        successTitle: t("admin.amenityRejected"),
+        successMessage: t("admin.creatorNotified"),
+        errorTitle: t("admin.couldNotReject"),
         onSuccess: () => load(),
       });
     } finally {
@@ -587,9 +592,9 @@ export default function AdminAmenitiesScreen() {
     if (!editing?.is_mine) return;
     if (!editing) return;
     const confirmed = await showConfirm(
-      "Delete amenity?",
-      `Remove "${editing.name}" from your community? Residents will no longer see it.`,
-      { confirmLabel: "Delete", cancelLabel: "Keep", destructive: true },
+      t("admin.deleteAmenity"),
+      t("admin.deleteAmenityMessage", { name: editing.name }),
+      { confirmLabel: t("admin.delete"), cancelLabel: t("admin.keep"), destructive: true },
     );
     if (confirmed !== "confirm") return;
 
@@ -597,9 +602,9 @@ export default function AdminAmenitiesScreen() {
     try {
       await runAction({
         action: () => deleteAmenity(editing.id),
-        successTitle: "Amenity deleted",
-        successMessage: `${editing.name} was removed.`,
-        errorTitle: "Could not delete",
+        successTitle: t("admin.amenityDeleted"),
+        successMessage: t("admin.amenityRemoved", { name: editing.name }),
+        errorTitle: t("admin.couldNotDelete"),
         onSuccess: () => {
           closeForm();
           load();
@@ -611,16 +616,16 @@ export default function AdminAmenitiesScreen() {
   };
 
   const subtitle = useMemo(() => {
-    if (loading) return "Loading…";
+    if (loading) return t("admin.loading");
     const n = amenities.length;
-    return `${n} facilit${n === 1 ? "y" : "ies"} · manage access & hours`;
-  }, [amenities.length, loading]);
+    return t("admin.amenitiesSubtitle", { count: n });
+  }, [amenities.length, loading, t]);
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <ScreenHeader
         layout="inline"
-        title="Amenities"
+        title={t("admin.amenities")}
         subtitle={subtitle}
         iconOnly
         right={
@@ -650,10 +655,10 @@ export default function AdminAmenitiesScreen() {
           ListHeaderComponent={
             <View style={styles.headerBlock}>
               <View style={[styles.statsRow, isWide && styles.statsRowWide]}>
-                <StatChip label="Total" value={stats.total} />
-                <StatChip label="Pending" value={stats.pending} tone="bookable" />
-                <StatChip label="Slots" value={stats.bookable} tone="bookable" />
-                <StatChip label="Open" value={stats.open} tone="open" />
+                <StatChip label={t("admin.total")} value={stats.total} />
+                <StatChip label={t("admin.pending")} value={stats.pending} tone="bookable" />
+                <StatChip label={t("admin.slotsShort")} value={stats.bookable} tone="bookable" />
+                <StatChip label={t("admin.openShort")} value={stats.open} tone="open" />
               </View>
 
               <ScrollView
@@ -685,7 +690,7 @@ export default function AdminAmenitiesScreen() {
                       onPress={() => setFilter(f.key)}
                     >
                       <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
-                        {f.label}
+                        {t(f.labelKey)}
                       </Text>
                       <View style={[styles.filterCount, active && styles.filterCountActive]}>
                         <Text style={[styles.filterCountText, active && styles.filterCountTextActive]}>
@@ -706,6 +711,7 @@ export default function AdminAmenitiesScreen() {
                 onApprove={handleApproveAmenity}
                 onReject={handleRejectAmenity}
                 busy={busyId === item.id}
+                t={t}
               />
             </View>
           )}
@@ -716,24 +722,24 @@ export default function AdminAmenitiesScreen() {
               </View>
               <Text style={styles.emptyTitle}>
                 {filter === "all"
-                  ? "No amenities yet"
+                  ? t("admin.noAmenitiesYet")
                   : filter === "pending"
-                    ? "No amenities waiting"
+                    ? t("admin.noAmenitiesWaiting")
                     : filter === "my_bookings"
-                      ? "No upcoming bookings"
-                      : `No ${filter} facilities`}
+                      ? t("admin.noUpcomingBookings")
+                      : t("admin.noFilterFacilities", { filter })}
               </Text>
               <Text style={styles.emptyText}>
                 {filter === "all"
-                  ? "Add pools, gyms, halls, and more so residents can view hours and request bookings."
+                  ? t("admin.addAmenitiesHint")
                   : filter === "my_bookings"
-                    ? "Book a facility you don't manage to track it here."
-                    : "Try another filter, or add a new facility."}
+                    ? t("admin.bookFacilityHint")
+                    : t("admin.tryAnotherFilter")}
               </Text>
               {filter === "all" ? (
                 <TouchableOpacity style={styles.emptyBtn} onPress={openCreate} activeOpacity={0.9}>
                   <Feather name="plus" size={sf(16)} color="#FFFFFF" />
-                  <Text style={styles.emptyBtnText}>Add first facility</Text>
+                  <Text style={styles.emptyBtnText}>{t("admin.addFirstFacility")}</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -746,7 +752,6 @@ export default function AdminAmenitiesScreen() {
         animationType="fade"
         presentationStyle="fullScreen"
         onRequestClose={closeForm}
-        // Opaque form — do not toggle overlay/status-bar chrome (that jumps the list).
       >
         <View style={[styles.formScreen, { paddingTop: formTopPad }]}>
           {formOpen ? <StatusBar style="dark" /> : null}
@@ -766,10 +771,10 @@ export default function AdminAmenitiesScreen() {
               </TouchableOpacity>
               <View style={styles.formHeaderCopy}>
                 <Text style={styles.formTitle} numberOfLines={1}>
-                  {editing ? "Edit amenity" : "New amenity"}
+                  {editing ? t("admin.editAmenity") : t("admin.newAmenity")}
                 </Text>
                 <Text style={styles.formHint} numberOfLines={1}>
-                  Fields marked * are required
+                  {t("admin.fieldsRequired")}
                 </Text>
               </View>
             </View>
@@ -791,20 +796,20 @@ export default function AdminAmenitiesScreen() {
             >
               <View style={styles.formCard}>
                 <FieldLabel required first>
-                  Name
+                  {t("admin.name")}
                 </FieldLabel>
                 <TextInput
                   style={[styles.input, errorFor("name") && styles.inputError]}
                   value={form.name}
-                  onChangeText={(t) => setField("name", t)}
+                  onChangeText={(v) => setField("name", v)}
                   onBlur={() => setTouched((prev) => ({ ...prev, name: true }))}
-                  placeholder="e.g. Swimming Pool"
+                  placeholder={t("admin.namePlaceholder")}
                   placeholderTextColor="#94A3B8"
                   maxLength={100}
                 />
                 <FieldError message={errorFor("name")} />
 
-                <FieldLabel>Description</FieldLabel>
+                <FieldLabel>{t("admin.description")}</FieldLabel>
                 <TextInput
                   style={[
                     styles.input,
@@ -813,16 +818,16 @@ export default function AdminAmenitiesScreen() {
                     errorFor("description") && styles.inputError,
                   ]}
                   value={form.description}
-                  onChangeText={(t) => setField("description", t)}
+                  onChangeText={(v) => setField("description", v)}
                   onBlur={() => setTouched((prev) => ({ ...prev, description: true }))}
-                  placeholder="Optional details for residents"
+                  placeholder={t("admin.descriptionPlaceholder")}
                   placeholderTextColor="#94A3B8"
                   multiline
                   maxLength={2000}
                 />
                 <FieldError message={errorFor("description")} />
 
-                <FieldLabel required>Availability</FieldLabel>
+                <FieldLabel required>{t("admin.availability")}</FieldLabel>
                 <View style={styles.statusChips}>
                   {STATUS_OPTIONS.map((opt) => {
                     const active = form.status === opt.key;
@@ -837,7 +842,7 @@ export default function AdminAmenitiesScreen() {
                           style={[styles.statusChipText, active && styles.statusChipTextActive]}
                           numberOfLines={1}
                         >
-                          {opt.short}
+                          {t(opt.shortKey)}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -847,27 +852,27 @@ export default function AdminAmenitiesScreen() {
 
                 <View style={[styles.twoCol, stackFields && styles.twoColStack]}>
                   <View style={[styles.col, stackFields && styles.colStacked]}>
-                    <FieldLabel required>Capacity</FieldLabel>
+                    <FieldLabel required>{t("admin.capacity")}</FieldLabel>
                     <TextInput
                       style={[styles.input, errorFor("capacity") && styles.inputError]}
                       value={form.capacity}
-                      onChangeText={(t) => setField("capacity", t.replace(/[^0-9]/g, ""))}
+                      onChangeText={(v) => setField("capacity", v.replace(/[^0-9]/g, ""))}
                       onBlur={() => setTouched((prev) => ({ ...prev, capacity: true }))}
                       keyboardType="number-pad"
-                      placeholder="e.g. 10"
+                      placeholder={t("admin.capacityPlaceholder")}
                       placeholderTextColor="#94A3B8"
                       maxLength={4}
                     />
                     <FieldError message={errorFor("capacity")} />
                   </View>
                   <View style={[styles.col, stackFields && styles.colStacked]}>
-                    <FieldLabel required>Location</FieldLabel>
+                    <FieldLabel required>{t("admin.location")}</FieldLabel>
                     <TextInput
                       style={[styles.input, errorFor("floor") && styles.inputError]}
                       value={form.floor}
-                      onChangeText={(t) => setField("floor", t)}
+                      onChangeText={(v) => setField("floor", v)}
                       onBlur={() => setTouched((prev) => ({ ...prev, floor: true }))}
-                      placeholder="e.g. Ground floor"
+                      placeholder={t("admin.locationPlaceholder")}
                       placeholderTextColor="#94A3B8"
                       maxLength={40}
                     />
@@ -875,7 +880,7 @@ export default function AdminAmenitiesScreen() {
                   </View>
                 </View>
 
-                <FieldLabel required>Daily hours</FieldLabel>
+                <FieldLabel required>{t("admin.dailyHours")}</FieldLabel>
                 <BusinessHoursInput
                   key={editing?.id ?? "create"}
                   value={form.hours}
@@ -889,8 +894,8 @@ export default function AdminAmenitiesScreen() {
 
                 <View style={styles.switchRow}>
                   <View style={styles.switchCopy}>
-                    <Text style={styles.switchTitle}>Available on weekends</Text>
-                    <Text style={styles.switchHint}>Turn off to close Sat & Sun</Text>
+                    <Text style={styles.switchTitle}>{t("admin.availableOnWeekends")}</Text>
+                    <Text style={styles.switchHint}>{t("admin.turnOffWeekends")}</Text>
                   </View>
                   <Switch
                     value={Boolean(form.weekends_available)}
@@ -903,7 +908,7 @@ export default function AdminAmenitiesScreen() {
 
                 {form.status === "bookable" ? (
                   <>
-                    <FieldLabel required>Slot duration</FieldLabel>
+                    <FieldLabel required>{t("admin.slotDuration")}</FieldLabel>
                     <View style={styles.durationRow}>
                       {SLOT_DURATION_OPTIONS.map((opt) => {
                         const active = Number(form.slot_duration_minutes) === opt.value;
@@ -929,7 +934,7 @@ export default function AdminAmenitiesScreen() {
                     <FieldError message={errorFor("slot_duration_minutes")} />
                     {previewSlots.length > 0 ? (
                       <View style={styles.previewCard}>
-                        <Text style={styles.previewTitle}>Generated slots preview</Text>
+                        <Text style={styles.previewTitle}>{t("admin.generatedSlotsPreview")}</Text>
                         {previewSlots.map((slot) => (
                           <Text key={slot.value} style={styles.previewSlot}>
                             {slot.value}
@@ -940,11 +945,12 @@ export default function AdminAmenitiesScreen() {
                   </>
                 ) : null}
 
-                <FieldLabel required>Category</FieldLabel>
+                <FieldLabel required>{t("admin.category")}</FieldLabel>
                 <IconSelectField
                   value={form.icon_key}
                   error={errorFor("icon_key")}
                   onChange={(key) => setField("icon_key", key)}
+                  t={t}
                 />
                 <FieldError message={errorFor("icon_key")} />
               </View>
@@ -978,7 +984,7 @@ export default function AdminAmenitiesScreen() {
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <Text style={styles.saveBtnText} numberOfLines={1}>
-                    {editing ? "Save changes" : "Create amenity"}
+                    {editing ? t("admin.saveChanges") : t("admin.createAmenity")}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -1007,12 +1013,11 @@ export default function AdminAmenitiesScreen() {
                 </View>
                 <Text style={styles.viewMeta}>
                   {viewing.creator_name
-                    ? `Created by ${viewing.creator_name}`
-                    : "Community amenity"}
+                    ? t("admin.createdBy", { name: viewing.creator_name })
+                    : t("admin.communityAmenity")}
                 </Text>
                 <Text style={styles.viewNote}>
-                  Only the creator can edit this amenity. You can approve pending submissions or
-                  book it once published.
+                  {t("admin.onlyCreatorCanEdit")}
                 </Text>
                 {viewing.description ? (
                   <Text style={styles.viewDescription}>{viewing.description}</Text>
@@ -1028,7 +1033,7 @@ export default function AdminAmenitiesScreen() {
                         handleRejectAmenity(item);
                       }}
                     >
-                      <Text style={styles.reviewRejectText}>Reject</Text>
+                      <Text style={styles.reviewRejectText}>{t("admin.reject")}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.reviewBtn, styles.reviewApprove]}
@@ -1039,7 +1044,7 @@ export default function AdminAmenitiesScreen() {
                         handleApproveAmenity(item);
                       }}
                     >
-                      <Text style={styles.reviewApproveText}>Approve</Text>
+                      <Text style={styles.reviewApproveText}>{t("admin.approve")}</Text>
                     </TouchableOpacity>
                   </View>
                 ) : viewing.user_has_upcoming_booking ? (
@@ -1051,7 +1056,7 @@ export default function AdminAmenitiesScreen() {
                       setTrackingBooking(item);
                     }}
                   >
-                    <Text style={styles.trackBtnText}>Track booking</Text>
+                    <Text style={styles.trackBtnText}>{t("admin.trackBooking")}</Text>
                   </TouchableOpacity>
                 ) : null}
               </>
@@ -1072,7 +1077,7 @@ export default function AdminAmenitiesScreen() {
               <>
                 <View style={styles.viewHeader}>
                   <Text style={styles.viewTitle} numberOfLines={1}>
-                    Track booking
+                    {t("admin.trackBooking")}
                   </Text>
                   <TouchableOpacity onPress={() => setTrackingBooking(null)} hitSlop={12}>
                     <Feather name="x" size={sf(20)} color="#64748B" />
@@ -1093,14 +1098,14 @@ export default function AdminAmenitiesScreen() {
                       { color: bookingStatusMeta(trackingBooking.user_next_booking_status).color },
                     ]}
                   >
-                    {bookingStatusMeta(trackingBooking.user_next_booking_status).label}
+                    {t(bookingStatusMeta(trackingBooking.user_next_booking_status).label)}
                   </Text>
                   <Text style={styles.bookingStatusHint}>
                     {trackingBooking.user_next_booking_status === "pending"
-                      ? "Waiting for the amenity creator to review your request."
+                      ? t("admin.bookingStatusPendingHint")
                       : trackingBooking.user_next_booking_status === "rejected"
-                        ? "Your booking request was declined."
-                        : "Your reservation is confirmed."}
+                        ? t("admin.bookingStatusRejectedHint")
+                        : t("admin.bookingStatusConfirmedHint")}
                   </Text>
                 </View>
                 <View style={styles.trackDetails}>
@@ -1118,16 +1123,14 @@ export default function AdminAmenitiesScreen() {
                     <View style={styles.trackRow}>
                       <Feather name="users" size={sf(14)} color={AdminTheme.accent} />
                       <Text style={styles.trackRowText}>
-                        {trackingBooking.user_next_booking_guests} guest
-                        {trackingBooking.user_next_booking_guests === 1 ? "" : "s"}
+                        {t("admin.guestCount", { count: trackingBooking.user_next_booking_guests })}
                       </Text>
                     </View>
                   ) : null}
                 </View>
                 {trackingBooking.creator_name ? (
                   <Text style={styles.viewNote}>
-                    Managed by {trackingBooking.creator_name}. Only the amenity creator approves
-                    booking requests.
+                    {t("admin.managedBy", { name: trackingBooking.creator_name })}
                   </Text>
                 ) : null}
               </>
@@ -1186,13 +1189,13 @@ const styles = StyleSheet.create({
   filterRow: {
     gap: sw(8),
     alignItems: "center",
-    paddingRight: sw(4),
+    paddingEnd: sw(4),
     minHeight: sw(36),
   },
   filterChip: {
     height: sw(34),
-    paddingLeft: sw(12),
-    paddingRight: sw(6),
+    paddingStart: sw(12),
+    paddingEnd: sw(6),
     borderRadius: 999,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,

@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { MarketplaceType } from "../../../constants/marketplace-type";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Image } from "expo-image";
@@ -10,10 +11,9 @@ import InternalScreenHeader from "../../../components/layout/internal-screen-hea
 import { MarketplaceRoutes } from "../../../constants/marketplace-routes";
 import { MARKETPLACE_FEATURES } from "../../../constants/marketplace-features";
 
-function formatCouponTitle(rawTitle) {
-  const router = useRouter();
+function formatCouponTitle(rawTitle, t) {
   if (!rawTitle) {
-    return { primary: "COUPON", secondary: "Offer" };
+    return { primary: t("deals.couponFallback"), secondary: t("deals.offerFallback") };
   }
 
   const normalized = String(rawTitle).trim();
@@ -44,9 +44,10 @@ function formatCouponTitle(rawTitle) {
 }
 
 export default function RedeemCoupon() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { title = "", vendor = "" } = useLocalSearchParams();
-  const { primary, secondary } = formatCouponTitle(title);
+  const { primary, secondary } = formatCouponTitle(title, t);
 
   useEffect(() => {
     if (!MARKETPLACE_FEATURES.coupons) {
@@ -61,8 +62,8 @@ export default function RedeemCoupon() {
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <InternalScreenHeader
-        title="Redeem Coupon"
-        subtitle="Confirm to activate this offer"
+        title={t("deals.redeemCoupon")}
+        subtitle={t("deals.confirmToActivate")}
       />
 
       <View style={styles.contentWrap}>
@@ -79,14 +80,13 @@ export default function RedeemCoupon() {
 
           <View style={styles.cardDivider} />
 
-          <Text style={styles.vendorText}>{vendor || "Partner Store"}</Text>
+          <Text style={styles.vendorText}>{vendor || t("deals.partnerStore")}</Text>
         </View>
 
         <View style={styles.infoWrap}>
-          <Text style={styles.readyTitle}>Ready to Redeem?</Text>
+          <Text style={styles.readyTitle}>{t("deals.readyToRedeem")}</Text>
           <Text style={styles.readySubTitle}>
-            Once redeemed, you'll receive a code to show the staff. This action
-            cannot be undone.
+            {t("deals.readyToRedeemMsg")}
           </Text>
         </View>
 
@@ -101,7 +101,7 @@ export default function RedeemCoupon() {
               })
             }
           >
-            <Text style={styles.confirmBtnText}>Confirm Redemption</Text>
+            <Text style={styles.confirmBtnText}>{t("deals.confirmRedemption")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -109,7 +109,7 @@ export default function RedeemCoupon() {
             activeOpacity={0.85}
             onPress={() => router.back()}
           >
-            <Text style={styles.cancelBtnText}>Cancel</Text>
+            <Text style={styles.cancelBtnText}>{t("common.cancel")}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
   },
   ticketNotchLeft: {
     position: "absolute",
-    left: -10,
+    start: -10,
     top: "50%",
     marginTop: -9,
     width: 18,
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
   },
   ticketNotchRight: {
     position: "absolute",
-    right: -10,
+    end: -10,
     top: "50%",
     marginTop: -9,
     width: 18,

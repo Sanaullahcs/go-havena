@@ -1,18 +1,21 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable, Platform } from "react-native";
+import { useTranslation } from "react-i18next";
 import { Feather } from "@expo/vector-icons";
 import ThemedIconBox from "../ui/themed-icon-box";
 import { Fonts } from "../../constants/font";
 import { MarketplaceTheme } from "../../constants/marketplace-theme";
 import { sf, sw } from "../../utils/responsive";
+import { chevronForward } from "../../utils/rtl";
 
 export default function CommunityListingsBanner({ onPress }) {
+  const { t } = useTranslation();
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.touch, pressed && styles.pressed]}
       accessibilityRole="button"
-      accessibilityLabel="Community Listings"
+      accessibilityLabel={t("marketplace.communityListings")}
     >
       <View style={styles.banner}>
         <ThemedIconBox
@@ -23,11 +26,11 @@ export default function CommunityListingsBanner({ onPress }) {
         />
 
         <View style={styles.textWrap}>
-          <Text style={styles.title}>Community Listings</Text>
-          <Text style={styles.subtitle}>Buy, sell & trade with neighbors</Text>
+          <Text style={styles.title}>{t("marketplace.communityListings")}</Text>
+          <Text style={styles.subtitle}>{t("marketplace.communityListingsSub")}</Text>
         </View>
 
-        <Feather name="chevron-right" size={sf(16)} color={MarketplaceTheme.caption} />
+        <Feather name={chevronForward()} size={sf(16)} color={MarketplaceTheme.caption} />
       </View>
     </Pressable>
   );

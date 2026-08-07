@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { MarketplaceType } from "../../../constants/marketplace-type";
 import {
   View,
@@ -31,18 +32,14 @@ import AdminRowActionsMenu from "../../../components/admin/admin-row-actions-men
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 
 const BUSINESS_STATUS_FILTERS = [
-  { key: "all", label: "All" },
-  { key: "pending", label: "Pending" },
-  { key: "approved", label: "Active" },
-  { key: "rejected", label: "Rejected" },
+  { key: "all" },
+  { key: "pending" },
+  { key: "approved" },
+  { key: "rejected" },
 ];
 
-function dealsAffectedLabel(count, verb) {
-  if (!count) return `No deals were ${verb}`;
-  return `${count} deal${count === 1 ? "" : "s"} ${verb}`;
-}
-
 export default function ManageAllMarketplace() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { role: roleParam, tab: tabParam } = useLocalSearchParams();
   const activeRole =
@@ -66,6 +63,16 @@ export default function ManageAllMarketplace() {
   const [currentUserId, setCurrentUserId] = useState(null);
   const { runAction, showFailure } = useApiAction();
   const { showConfirm } = useAppDialog();
+
+  const filterLabel = (key) => {
+    const map = {
+      all: t("marketplace.allFilter"),
+      pending: t("marketplace.pendingFilter"),
+      approved: t("marketplace.activeFilter"),
+      rejected: t("marketplace.rejectedFilter"),
+    };
+    return map[key] ?? key;
+  };
 
   const dealsForBusiness = useCallback(
     (business) =>
@@ -108,7 +115,7 @@ export default function ManageAllMarketplace() {
       setMyBusiness(mine);
       setCurrentUserId(user?.id ?? null);
     } catch (err) {
-      await showFailure("Could not load marketplace", err);
+      await showFailure(t("marketplace.couldNotLoad"), err);
     } finally {
       setLoading(false);
     }
@@ -121,7 +128,7 @@ export default function ManageAllMarketplace() {
   );
 
   const listData = activeTab === "businesses" ? businesses : deals;
-  const headerTitle = activeTab === "businesses" ? "Businesses" : "Deals";
+  const headerTitle = activeTab === "businesses" ? t("marketplace.businesses") : t("marketplace.deals");
 
   const goTo = (pathname, params = {}) => {
     router.push({
@@ -140,12 +147,12 @@ export default function ManageAllMarketplace() {
 
   const promptAddBusinessFirst = () => {
     Alert.alert(
-      myBusiness ? "Edit Business First" : "Add a Business First",
-      "You need to register your business before you can create a deal.",
+      myBusiness ? t("marketplace.editBusinessFirst") : t("marketplace.addBusinessFirst"),
+      t("marketplace.needBusinessForDeal"),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: myBusiness ? "Edit Business" : "Add Business",
+          text: myBusiness ? t("marketplace.editMyBusiness") : t("marketplace.addNewBusiness"),
           onPress: goToAddOrEditBusiness,
         },
       ],
@@ -167,8 +174,8 @@ export default function ManageAllMarketplace() {
     if (activeTab === "businesses") {
       if (!canEditBusiness(item)) {
         Alert.alert(
-          "View only",
-          "You can approve, reject, re-approve, or delete resident businesses. Only the owner can edit the profile.",
+          t("marketplace.viewOnly"),
+          t("marketplace.viewOnlyBusinessMsg"),
         );
         return;
       }
@@ -177,8 +184,8 @@ export default function ManageAllMarketplace() {
     }
     if (!canEditDeal(item)) {
       Alert.alert(
-        "View only",
-        "You can delete resident deals, but only the owner can edit them.",
+        t("marketplace.viewOnly"),
+        t("marketplace.viewOnlyDealMsg"),
       );
       return;
     }
@@ -225,28 +232,28 @@ export default function ManageAllMarketplace() {
           return { result, isReject, isReapprove, item };
         },
         successTitle: isReject
-          ? "Business rejected"
+          ? t("marketplace.businessRejected")
           : isReapprove
-            ? "Business re-approved"
-            : "Business approved",
+            ? t("marketplace.businessReapproved")
+            : t("marketplace.businessApproved"),
         successMessage: isReject
-          ? `${item.name} is hidden from the marketplace.`
+          ? t("marketplace.rejectedMsg", { name: item.name })
           : isReapprove
-            ? `${item.name} is live again.`
-            : `${item.name} is now visible in the marketplace.`,
-        errorTitle: isReject ? "Rejection failed" : "Approval failed",
+            ? t("marketplace.reapprovedMsg", { name: item.name })
+            : t("marketplace.approvedMsg", { name: item.name }),
+        errorTitle: isReject ? t("marketplace.rejectionFailed") : t("marketplace.approvalFailed"),
         onSuccess: ({ result } = {}) => {
           const disabled = result?.meta?.deals_disabled ?? 0;
           const restored = result?.meta?.deals_reactivated ?? 0;
           if (isReject && disabled > 0) {
             Alert.alert(
-              "Deals disabled",
-              `${disabled} deal${disabled === 1 ? "" : "s"} ${disabled === 1 ? "was" : "were"} set to inactive.`,
+              t("marketplace.dealsDisabled"),
+              t("marketplace.dealsDisabledMsg", { count: disabled }),
             );
           } else if (!isReject && restored > 0) {
             Alert.alert(
-              "Deals restored",
-              `${restored} deal${restored === 1 ? "" : "s"} ${restored === 1 ? "is" : "are"} active again.`,
+              t("marketplace.dealsRestored"),
+              t("marketplace.dealsRestoredMsg", { count: restored }),
             );
           }
           setModerationSheet(null);
@@ -261,9 +268,9 @@ export default function ManageAllMarketplace() {
   const handleDelete = async (item) => {
     const label = activeTab === "businesses" ? item.name : item.title;
     const confirmed = await showConfirm(
-      `Delete ${activeTab === "businesses" ? "business" : "deal"}?`,
-      `"${label}" will be removed permanently.`,
-      { confirmLabel: "Delete", destructive: true },
+      activeTab === "businesses" ? t("marketplace.deleteBusiness") : t("marketplace.deleteDeal"),
+      t("marketplace.deleteConfirmMsg", { label }),
+      { confirmLabel: t("common.delete"), destructive: true },
     );
     if (confirmed !== "confirm") return;
 
@@ -274,9 +281,9 @@ export default function ManageAllMarketplace() {
           activeTab === "businesses"
             ? deleteBusiness(item.id)
             : deleteDeal(item.id, { asAdmin: isAdmin }),
-        successTitle: "Deleted",
-        successMessage: `${label} was removed.`,
-        errorTitle: "Delete failed",
+        successTitle: t("marketplace.deleted"),
+        successMessage: t("marketplace.deletedMsg", { label }),
+        errorTitle: t("marketplace.deleteFailed"),
         onSuccess: () => load(),
       });
     } finally {
@@ -302,8 +309,8 @@ export default function ManageAllMarketplace() {
         title={headerTitle}
         subtitle={
           isAdmin && activeTab === "businesses"
-            ? "Moderate resident businesses — edit only your own profile"
-            : "View and manage businesses and deals"
+            ? t("marketplace.moderateSubtitle")
+            : t("marketplace.manageSubtitle")
         }
       />
 
@@ -334,7 +341,7 @@ export default function ManageAllMarketplace() {
                 activeTab === "businesses" && styles.segmentTextActive,
               ]}
             >
-              Businesses
+              {t("marketplace.businesses")}
             </Text>
           </TouchableOpacity>
 
@@ -357,7 +364,7 @@ export default function ManageAllMarketplace() {
                 activeTab === "deals" && styles.segmentTextActive,
               ]}
             >
-              Deals
+              {t("marketplace.deals")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -385,15 +392,15 @@ export default function ManageAllMarketplace() {
               }
               if (!isAdmin && myBusiness?.status === "rejected") {
                 Alert.alert(
-                  "Business rejected",
-                  "Your business was rejected. You cannot add deals until it is approved.",
+                  t("marketplace.businessRejected"),
+                  t("marketplace.businessRejectedMsg"),
                 );
                 return;
               }
               if (!isAdmin && myBusiness?.status === "pending") {
                 Alert.alert(
-                  "Pending approval",
-                  "Your business is still pending approval. You can add deals once it is approved.",
+                  t("marketplace.pendingApproval"),
+                  t("marketplace.pendingApprovalMsg"),
                 );
                 return;
               }
@@ -425,8 +432,8 @@ export default function ManageAllMarketplace() {
             ]}
           >
             {activeTab === "businesses"
-            ? (myBusiness ? "Edit My Business" : "Add New Business")
-            : "Add New Deal"}
+            ? (myBusiness ? t("marketplace.editMyBusiness") : t("marketplace.addNewBusiness"))
+            : t("marketplace.addNewDeal")}
           </Text>
         </TouchableOpacity>
 
@@ -458,7 +465,7 @@ export default function ManageAllMarketplace() {
                       businessStatusFilter === filter.key && styles.filterChipTextActive,
                     ]}
                   >
-                    {filter.label}
+                    {filterLabel(filter.key)}
                     {count != null ? ` (${count})` : ""}
                   </Text>
                 </TouchableOpacity>
@@ -468,7 +475,9 @@ export default function ManageAllMarketplace() {
         ) : null}
 
         <Text style={styles.countText}>
-          {listData.length} {activeTab}
+          {activeTab === "businesses"
+            ? t("marketplace.businessCount", { count: listData.length })
+            : t("marketplace.dealCount", { count: listData.length })}
         </Text>
 
         {loading ? (
@@ -477,9 +486,9 @@ export default function ManageAllMarketplace() {
           <Text style={styles.emptyText}>
             {activeTab === "businesses"
               ? isAdmin
-                ? "No resident businesses in this community yet."
-                : "No businesses yet. Add your first business above."
-              : "No deals yet. Add your first deal above."}
+                ? t("marketplace.noBusinessesAdmin")
+                : t("marketplace.noBusinessesResident")
+              : t("marketplace.noDealsYet")}
           </Text>
         ) : (
           <View style={styles.listWrap}>
@@ -488,7 +497,7 @@ export default function ManageAllMarketplace() {
               const subtitle =
                 activeTab === "businesses"
                   ? isAdmin && item.ownerName
-                    ? `${item.category || "Other"} · ${item.ownerName}`
+                    ? `${item.category || t("common.other")} · ${item.ownerName}`
                     : item.category
                   : item.offerTag;
               const status = activeTab === "businesses" ? item.statusLabel : item.statusLabel;
@@ -523,16 +532,16 @@ export default function ManageAllMarketplace() {
                         <Text style={styles.cardTitle}>{title}</Text>
                         {isMine ? (
                           <View style={styles.myBadge}>
-                            <Text style={styles.myBadgeText}>My Business</Text>
+                            <Text style={styles.myBadgeText}>{t("marketplace.myBusiness")}</Text>
                           </View>
                         ) : null}
                       </View>
                       {subtitle ? <Text style={styles.cardSubtitle}>{subtitle}</Text> : null}
                       {isAdmin && activeTab === "businesses" && relatedDealStats?.total ? (
                         <Text style={styles.dealCountText}>
-                          {relatedDealStats.total} deal{relatedDealStats.total === 1 ? "" : "s"}
+                          {t("marketplace.dealCount", { count: relatedDealStats.total })}
                           {relatedDealStats.inactive
-                            ? ` · ${relatedDealStats.inactive} disabled`
+                            ? ` · ${t("marketplace.disabledCount", { count: relatedDealStats.inactive })}`
                             : ""}
                         </Text>
                       ) : null}
@@ -543,27 +552,27 @@ export default function ManageAllMarketplace() {
                         disabled={isBusy}
                         actions={[
                           {
-                            label: "Edit",
+                            label: t("common.edit"),
                             icon: "create-outline",
                             hidden: !showEdit,
                             onPress: () => handleEdit(item),
                           },
                           {
-                            label: "Delete",
+                            label: t("common.delete"),
                             icon: "trash-outline",
                             tone: "danger",
                             hidden: !showDelete,
                             onPress: () => handleDelete(item),
                           },
                           {
-                            label: item.status === "rejected" ? "Re-approve" : "Approve",
+                            label: item.status === "rejected" ? t("marketplace.reApprove") : t("marketplace.approve"),
                             icon: "checkmark-circle-outline",
                             tone: "success",
                             hidden: !(showModeration && (item.status === "pending" || item.status === "rejected")),
                             onPress: () => handleApprove(item),
                           },
                           {
-                            label: "Reject",
+                            label: t("marketplace.reject"),
                             icon: "close-circle-outline",
                             tone: "danger",
                             hidden: !(showModeration && (item.status === "pending" || item.status === "approved")),
@@ -581,7 +590,7 @@ export default function ManageAllMarketplace() {
                         <View style={styles.metaChip}>
                           <Ionicons name="calendar-outline" size={11} color="#6B7280" />
                           <Text style={styles.metaChipText}>
-                            {isExpired ? "Expired " : "Valid until "}{item.validUntil}
+                            {isExpired ? t("marketplace.expired") : t("marketplace.validUntil")}{item.validUntil}
                           </Text>
                         </View>
                       ) : null}
@@ -726,7 +735,7 @@ const styles = StyleSheet.create({
   },
   cardTextWrap: {
     flex: 1,
-    paddingRight: 12,
+    paddingEnd: 12,
   },
   cardTitle: {
     fontFamily: Fonts.bold,

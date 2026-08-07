@@ -45,10 +45,10 @@ export const headerChromeStyles = StyleSheet.create({
   textBlock: {
     flex: 1,
     minWidth: 0,
-    paddingRight: sw(4),
+    paddingEnd: sw(4),
   },
   right: {
-    marginLeft: "auto",
+    marginStart: "auto",
     flexShrink: 0,
     flexDirection: "row",
     alignItems: "center",
@@ -75,8 +75,8 @@ const styles = StyleSheet.create({
   statusBarFill: {
     position: "absolute",
     top: 0,
-    left: 0,
-    right: 0,
+    start: 0,
+    end: 0,
     backgroundColor: SYSTEM_CHROME_COLOR,
   },
   shell: {

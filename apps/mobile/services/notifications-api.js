@@ -1,6 +1,8 @@
 import { apiRequest } from "./api-client";
 import { getNoticeDetailRoute } from "./notices-api";
 import { getNotificationIconSource } from "../utils/notification-visual";
+import i18n from "../i18n";
+import { getLocaleForLang } from "../hooks/use-app-locale";
 
 export function getNotificationIcon(raw) {
   return getNotificationIconSource(raw);
@@ -186,13 +188,13 @@ export function formatNotificationTime(dateStr) {
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins} minute${diffMins === 1 ? "" : "s"} ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
-    if (diffDays === 1) return "1 day ago";
-    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffMins < 1) return i18n.t("time.justNow");
+    if (diffMins < 60) return i18n.t("time.minutesAgo", { count: diffMins });
+    if (diffHours < 24) return i18n.t("time.hoursAgo", { count: diffHours });
+    if (diffDays === 1) return i18n.t("time.daysAgo", { count: 1 });
+    if (diffDays < 7) return i18n.t("time.daysAgo", { count: diffDays });
 
-    return date.toLocaleDateString("en-US", {
+    return date.toLocaleDateString(getLocaleForLang(i18n.language), {
       month: "short",
       day: "numeric",
       year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,

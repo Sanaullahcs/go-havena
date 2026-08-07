@@ -1,40 +1,54 @@
 /** Guest feature access toggles — keep in sync with GuestAccessService::PERMISSION_KEYS. */
 
+import i18n from "../i18n";
+
 export const GUEST_PERMISSION_OPTIONS = [
   {
     key: "feed",
-    label: "Community feed",
-    description: "Posts, updates, and neighborhood conversations",
+    label: i18n.t("guestPermissions.feedLabel"),
+    labelKey: "guestPermissions.feedLabel",
+    description: i18n.t("guestPermissions.feedDesc"),
+    descriptionKey: "guestPermissions.feedDesc",
     icon: "message-circle",
   },
   {
     key: "notices",
-    label: "Notice board",
-    description: "General, maintenance, security, and finance notices",
+    label: i18n.t("guestPermissions.noticesLabel"),
+    labelKey: "guestPermissions.noticesLabel",
+    description: i18n.t("guestPermissions.noticesDesc"),
+    descriptionKey: "guestPermissions.noticesDesc",
     icon: "clipboard",
   },
   {
     key: "events",
-    label: "Events",
-    description: "Community events and RSVPs",
+    label: i18n.t("guestPermissions.eventsLabel"),
+    labelKey: "guestPermissions.eventsLabel",
+    description: i18n.t("guestPermissions.eventsDesc"),
+    descriptionKey: "guestPermissions.eventsDesc",
     icon: "calendar",
   },
   {
     key: "marketplace",
-    label: "Marketplace",
-    description: "Listings, deals, and resident offers",
+    label: i18n.t("guestPermissions.marketplaceLabel"),
+    labelKey: "guestPermissions.marketplaceLabel",
+    description: i18n.t("guestPermissions.marketplaceDesc"),
+    descriptionKey: "guestPermissions.marketplaceDesc",
     icon: "shopping-bag",
   },
   {
     key: "businesses",
-    label: "Local businesses",
-    description: "Business directory and provider profiles",
+    label: i18n.t("guestPermissions.businessesLabel"),
+    labelKey: "guestPermissions.businessesLabel",
+    description: i18n.t("guestPermissions.businessesDesc"),
+    descriptionKey: "guestPermissions.businessesDesc",
     icon: "briefcase",
   },
   {
     key: "wellness",
-    label: "Wellness",
-    description: "Wellness programs, courses, and lessons",
+    label: i18n.t("guestPermissions.wellnessLabel"),
+    labelKey: "guestPermissions.wellnessLabel",
+    description: i18n.t("guestPermissions.wellnessDesc"),
+    descriptionKey: "guestPermissions.wellnessDesc",
     icon: "heart",
   },
 ];

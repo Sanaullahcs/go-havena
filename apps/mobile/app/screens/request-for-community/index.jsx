@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
 import { Ionicons } from "@expo/vector-icons";
 import { MapPin } from "lucide-react-native";
@@ -28,6 +29,7 @@ import { HomeTheme as T } from "../../../constants/home-theme";
 import { ScreenBrand as B } from "../../../constants/screen-brand";
 
 export default function RequestForCommunityScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const dialog = useAppDialog();
   const {
@@ -97,10 +99,10 @@ export default function RequestForCommunityScreen() {
           regionId: selectedRegionId,
         });
         await dialog.showSuccess(
-          "Request sent",
+          t('guests.requestSentTitle'),
           isAdminRequest
-            ? "Your community admin application and community details were sent to the system administrator for review."
-            : "Your request has been sent to the admin. You will be notified once your community is approved.",
+            ? t('guests.requestSentAdminMessage')
+            : t('guests.requestSentResidentMessage'),
         );
         if (isAdminRequest) {
           goToCompleteProfile(router, {
@@ -120,7 +122,7 @@ export default function RequestForCommunityScreen() {
           communityRequest: "1",
         });
       } catch (err) {
-        await showApiFailure(dialog, "Request failed", err);
+        await showApiFailure(dialog, t('guests.requestFailedTitle'), err);
       }
     });
   };
@@ -132,7 +134,7 @@ export default function RequestForCommunityScreen() {
       <View style={styles.headerRow}>
         <BackButton iconOnly compact />
         <Text style={styles.headerTitle} numberOfLines={1}>
-          Request to Add Community
+          {t('guests.requestAddCommunity')}
         </Text>
       </View>
 
@@ -145,9 +147,9 @@ export default function RequestForCommunityScreen() {
           <View style={styles.rejectedBanner}>
             <Ionicons name="alert-circle-outline" size={20} color="#B91C1C" />
             <View style={styles.rejectedTextWrap}>
-              <Text style={styles.rejectedTitle}>Previous request declined</Text>
+              <Text style={styles.rejectedTitle}>{t('guests.previousRequestDeclined')}</Text>
               <Text style={styles.rejectedText}>
-                Submit updated community details below for another review.
+                {t('guests.submitUpdatedDetails')}
               </Text>
             </View>
           </View>
@@ -155,13 +157,13 @@ export default function RequestForCommunityScreen() {
 
         <Text style={styles.subtitle}>
           {isAdminRequest
-            ? "Tell us about the community you will manage. A system administrator will review your application and community details."
-            : "Select your region and tell us about your community. Our admin team will review and activate it."}
+            ? t('guests.requestSubtitleAdmin')
+            : t('guests.requestSubtitleResident')}
         </Text>
 
         <View style={styles.formWrap}>
           <Text style={styles.label}>
-            Region <Text style={styles.required}>*</Text>
+            {t('guests.regionLabel')} <Text style={styles.required}>*</Text>
           </Text>
           <TouchableOpacity
             style={[
@@ -189,7 +191,7 @@ export default function RequestForCommunityScreen() {
                   ) : null}
                 </>
               ) : (
-                <Text style={styles.selectPlaceholder}>Select your region</Text>
+                <Text style={styles.selectPlaceholder}>{t('guests.selectRegion')}</Text>
               )}
             </View>
             <Ionicons name="chevron-down" size={18} color={T.gray} />
@@ -198,15 +200,15 @@ export default function RequestForCommunityScreen() {
             <Text style={styles.errorText}>{showError("regionId", liveErrors)}</Text>
           ) : null}
           {loadingRegions ? (
-            <Text style={styles.fieldHint}>Loading regions…</Text>
+            <Text style={styles.fieldHint}>{t('guests.loadingRegions')}</Text>
           ) : (
             <Text style={styles.fieldHint}>
-              Your community will appear under this region once approved.
+              {t('guests.regionHint')}
             </Text>
           )}
 
           <Text style={[styles.label, styles.labelSpacing]}>
-            Community Name <Text style={styles.required}>*</Text>
+            {t('guests.communityNameLabel')} <Text style={styles.required}>*</Text>
           </Text>
           <TextInput
             value={communityName}
@@ -215,7 +217,7 @@ export default function RequestForCommunityScreen() {
               clearError("communityName");
             }}
             onBlur={() => touch("communityName")}
-            placeholder="e.g. Maple Grove Apartments"
+            placeholder={t('guests.communityNamePlaceholder')}
             placeholderTextColor={T.gray}
             style={[styles.input, showError("communityName", liveErrors) && styles.inputError]}
             maxLength={LIMITS.communityName}
@@ -225,7 +227,7 @@ export default function RequestForCommunityScreen() {
           ) : null}
 
           <Text style={[styles.label, styles.labelSpacing]}>
-            Address <Text style={styles.required}>*</Text>
+            {t('guests.addressLabel')} <Text style={styles.required}>*</Text>
           </Text>
           <View style={[styles.addressInputWrap, showError("address", liveErrors) && styles.inputError]}>
             <MapPin size={16} color={T.gray} strokeWidth={1.75} />
@@ -236,7 +238,7 @@ export default function RequestForCommunityScreen() {
                 clearError("address");
               }}
               onBlur={() => touch("address")}
-              placeholder="123 Main Street, City, State ZIP"
+              placeholder={t('guests.addressPlaceholder')}
               placeholderTextColor={T.gray}
               style={styles.addressInput}
               maxLength={LIMITS.communityAddress}
@@ -247,28 +249,28 @@ export default function RequestForCommunityScreen() {
           ) : null}
 
           <View style={styles.stepsCard}>
-            <Text style={styles.stepsTitle}>What happens next</Text>
+            <Text style={styles.stepsTitle}>{t('guests.whatHappensNext')}</Text>
             <View style={styles.stepRow}>
               <View style={styles.stepDot}>
                 <Text style={styles.stepNum}>1</Text>
               </View>
               <Text style={styles.stepText}>
                 {isAdminRequest
-                  ? "System admin reviews your admin application and community request"
-                  : "Admin reviews your community request"}
+                  ? t('guests.step1Admin')
+                  : t('guests.step1Resident')}
               </Text>
             </View>
             <View style={styles.stepRow}>
               <View style={styles.stepDot}>
                 <Text style={styles.stepNum}>2</Text>
               </View>
-              <Text style={styles.stepText}>You complete your profile while waiting</Text>
+              <Text style={styles.stepText}>{t('guests.step2')}</Text>
             </View>
             <View style={styles.stepRow}>
               <View style={styles.stepDot}>
                 <Text style={styles.stepNum}>3</Text>
               </View>
-              <Text style={styles.stepText}>Once approved, others can find and join your community</Text>
+              <Text style={styles.stepText}>{t('guests.step3')}</Text>
             </View>
           </View>
 
@@ -281,12 +283,12 @@ export default function RequestForCommunityScreen() {
             {submitting ? (
               <ActivityIndicator color={T.white} />
             ) : (
-              <Text style={styles.ctaText}>Submit request</Text>
+              <Text style={styles.ctaText}>{t('guests.submitRequest')}</Text>
             )}
           </TouchableOpacity>
 
           <Text style={styles.bottomHint}>
-            You'll complete your profile next while your request is reviewed
+            {t('guests.completeProfileHint')}
           </Text>
         </View>
       </ScrollView>

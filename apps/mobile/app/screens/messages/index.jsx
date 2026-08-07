@@ -12,9 +12,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 
 import { useRouter, useFocusEffect } from "expo-router";
-import { Image } from "expo-image";
+import CrispImage from "../../../components/ui/crisp-image";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import UserAvatar from "../../../components/ui/user-avatar";
 import SearchInput from "../../../components/ui/search-input";
@@ -26,19 +27,26 @@ import { useApiAction } from "../../../hooks/use-api-action";
 import { useMessageUnread } from "../../../hooks/use-message-unread";
 import { useNow } from "../../../hooks/use-now";
 import NewChatSheet from "../../../components/messages/new-chat-sheet";
-import { resolveMediaUrl } from "../../../utils/profile-display";
 import { parseApiDate, timeAgo as formatRelativeTime } from "../../../services/feed-api";
 import { sw, sf } from "../../../utils/responsive";
 import GuestFeatureErrorState from "../../../components/guest/guest-permission-denied-state";
 import { isFeatureAccessBlockedError } from "../../../utils/guest-permission-errors";
 import { resolveLoadRestriction } from "../../../utils/account-access-sync";
+import { chevronForward } from "../../../utils/rtl";
 
 const FILTERS = [
-  { id: "all", label: "All", icon: "chatbubbles-outline" },
-  { id: "neighbors", label: "Neighbors", icon: "people-outline" },
-  { id: "listings", label: "Listings", icon: "storefront-outline" },
-  { id: "unread", label: "Unread", icon: "mail-unread-outline" },
+  { id: "all", icon: "chatbubbles-outline" },
+  { id: "neighbors", icon: "people-outline" },
+  { id: "listings", icon: "storefront-outline" },
+  { id: "unread", icon: "mail-unread-outline" },
 ];
+
+const FILTER_KEYS = {
+  all: "messages.filterAll",
+  neighbors: "messages.filterNeighbors",
+  listings: "messages.filterListings",
+  unread: "messages.filterUnread",
+};
 
 const CARD_RADIUS = sw(16);
 const BRAND_BLUE = Colors.brandPrimaryDeep;
@@ -107,7 +115,6 @@ function matchesSearchQuery(conversation, rawQuery) {
   const q = rawQuery.trim().toLowerCase();
   if (!q) return true;
   const haystack = conversationSearchText(conversation);
-  // Every token must match so partial names / listing words work while typing.
   return q.split(/\s+/).every((token) => haystack.includes(token));
 }
 
@@ -115,21 +122,21 @@ function filterCount(conversations, filterId) {
   return conversations.filter((c) => matchesFilter(c, filterId)).length;
 }
 
-function previewText(item) {
+function previewText(item, t) {
   if (item.last_message_type === "offer") {
-    return item.last_message ?? "Sent an offer";
+    return item.last_message ?? t("messages.sentAnOffer");
   }
   return item.last_message ?? "";
 }
 
-function listingImageUri(listing) {
+function listingImageSource(listing) {
   if (!listing) return null;
   const raw = listing.image_url ?? listing.images?.[0];
   if (!raw || typeof raw !== "string") return null;
-  return resolveMediaUrl(raw);
+  return raw;
 }
 
-function TypeBadge({ type, isOffer }) {
+function TypeBadge({ type, isOffer, t }) {
   const listing = type === "listing";
   return (
     <View style={[styles.typeBadge, listing ? styles.typeBadgeListing : styles.typeBadgeNeighbor]}>
@@ -139,7 +146,7 @@ function TypeBadge({ type, isOffer }) {
         color={listing ? "#059669" : Colors.brandPrimaryDeep}
       />
       <Text style={[styles.typeBadgeText, listing ? styles.typeBadgeTextListing : styles.typeBadgeTextNeighbor]}>
-        {listing ? (isOffer ? "Offer" : "Listing") : "Neighbor"}
+        {listing ? (isOffer ? t("messages.offerBadge") : t("messages.listingBadge")) : t("messages.neighborBadge")}
       </Text>
     </View>
   );
@@ -170,9 +177,9 @@ function UnreadBadge({ count, variant = "neighbor" }) {
   );
 }
 
-function NeighborCard({ item, onPress, now }) {
-  const name = item.other_name ?? "Neighbor";
-  const lastMsg = previewText(item);
+function NeighborCard({ item, onPress, now, t }) {
+  const name = item.other_name ?? t("messages.neighbor");
+  const lastMsg = previewText(item, t);
   const unread = item.unread_count ?? 0;
   const time = item.last_message_at;
   const admin = isPeerAdmin(item.other_role);
@@ -213,27 +220,27 @@ function NeighborCard({ item, onPress, now }) {
           </Text>
         ) : (
           <Text style={styles.previewMuted} numberOfLines={1}>
-            Tap to continue the conversation
+            {t("messages.tapToContinue")}
           </Text>
         )}
       </View>
       {unread > 0 ? (
         <UnreadBadge count={unread} />
       ) : (
-        <Feather name="chevron-right" size={16} color="#CBD5E1" style={styles.cardChevron} />
+        <Feather name={chevronForward()} size={16} color="#CBD5E1" style={styles.cardChevron} />
       )}
     </TouchableOpacity>
   );
 }
 
-function ListingCard({ item, onPress, now }) {
-  const name = item.other_name ?? "Neighbor";
-  const lastMsg = previewText(item);
+function ListingCard({ item, onPress, now, t }) {
+  const name = item.other_name ?? t("messages.neighbor");
+  const lastMsg = previewText(item, t);
   const unread = item.unread_count ?? 0;
   const time = item.last_message_at;
   const listing = item.listing;
   const isOffer = item.last_message_type === "offer";
-  const imageUri = listingImageUri(listing);
+  const imageSource = listingImageSource(listing);
 
   return (
     <TouchableOpacity
@@ -255,7 +262,7 @@ function ListingCard({ item, onPress, now }) {
             ) : null}
           </View>
           <View style={styles.metaRow}>
-            <TypeBadge type="listing" isOffer={isOffer} />
+            <TypeBadge type="listing" isOffer={isOffer} t={t} />
           </View>
           {lastMsg ? (
             <Text style={[styles.preview, unread > 0 && styles.previewUnread]} numberOfLines={2}>
@@ -266,21 +273,21 @@ function ListingCard({ item, onPress, now }) {
         {unread > 0 ? (
           <UnreadBadge count={unread} variant="listing" />
         ) : (
-          <Feather name="chevron-right" size={16} color="#CBD5E1" style={styles.cardChevron} />
+          <Feather name={chevronForward()} size={16} color="#CBD5E1" style={styles.cardChevron} />
         )}
       </View>
 
       {listing?.title ? (
         <View style={styles.listingStrip}>
-          {imageUri ? (
-            <Image source={{ uri: imageUri }} style={styles.listingStripImage} contentFit="cover" />
+          {imageSource ? (
+            <CrispImage source={imageSource} style={styles.listingStripImage} contentFit="cover" />
           ) : (
             <View style={[styles.listingStripImage, styles.listingStripImagePlaceholder]}>
               <Ionicons name="image-outline" size={18} color="#059669" />
             </View>
           )}
           <View style={styles.listingStripCopy}>
-            <Text style={styles.listingStripLabel}>Marketplace listing</Text>
+            <Text style={styles.listingStripLabel}>{t("messages.marketplaceListing")}</Text>
             <Text style={styles.listingStripTitle} numberOfLines={1}>
               {listing.title}
             </Text>
@@ -295,25 +302,25 @@ function ListingCard({ item, onPress, now }) {
   );
 }
 
-function ConversationRow({ item, onPress, now }) {
+function ConversationRow({ item, onPress, now, t }) {
   if (isListingChat(item)) {
-    return <ListingCard item={item} onPress={onPress} now={now} />;
+    return <ListingCard item={item} onPress={onPress} now={now} t={t} />;
   }
-  return <NeighborCard item={item} onPress={onPress} now={now} />;
+  return <NeighborCard item={item} onPress={onPress} now={now} t={t} />;
 }
 
-function EmptyState({ query, filter, onNewChat }) {
+function EmptyState({ query, filter, onNewChat, t }) {
   const title =
-    query.trim() || filter !== "all" ? "No conversations found" : "No messages yet";
+    query.trim() || filter !== "all" ? t("messages.noConversationsFound") : t("messages.noMessagesYet");
   const message = query.trim()
-    ? "Try a different search term"
+    ? t("messages.tryDifferentSearch")
     : filter === "neighbors"
-      ? "Tap + to message a neighbor. Chats show up here after your first message."
+      ? t("messages.emptyNeighborsHint")
       : filter === "listings"
-        ? "Message a seller from a listing. The chat appears here once you send a message."
+        ? t("messages.emptyListingsHint")
         : filter === "unread"
-          ? "You're all caught up — no unread messages."
-          : "Start a conversation with a neighbor or from a marketplace listing.";
+          ? t("messages.emptyUnreadHint")
+          : t("messages.emptyDefaultHint");
 
   const showNewChat = filter === "neighbors" || filter === "all";
 
@@ -334,7 +341,7 @@ function EmptyState({ query, filter, onNewChat }) {
             style={styles.emptyBtnGradient}
           >
             <Ionicons name="create-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.emptyBtnText}>Start a chat</Text>
+            <Text style={styles.emptyBtnText}>{t("messages.startChat")}</Text>
           </View>
         </TouchableOpacity>
       ) : null}
@@ -342,14 +349,14 @@ function EmptyState({ query, filter, onNewChat }) {
   );
 }
 
-function MessagesToolbar({ query, onQueryChange, filter, onFilterChange, conversations }) {
+function MessagesToolbar({ query, onQueryChange, filter, onFilterChange, conversations, t }) {
   return (
     <View style={styles.toolbar}>
       <View style={styles.searchWrap}>
         <SearchInput
           value={query}
           onChangeText={onQueryChange}
-          placeholder="Search by name, listing, or message..."
+          placeholder={t("messages.searchPlaceholder")}
         />
       </View>
       <ScrollView
@@ -369,7 +376,7 @@ function MessagesToolbar({ query, onQueryChange, filter, onFilterChange, convers
             >
               <Ionicons name={item.icon} size={13} color={active ? "#FFFFFF" : "#64748B"} />
               <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
-                {item.label}
+                {t(FILTER_KEYS[item.id])}
               </Text>
               {count > 0 ? (
                 <View style={[styles.filterCountBubble, active && styles.filterCountBubbleActive]}>
@@ -388,6 +395,7 @@ function MessagesToolbar({ query, onQueryChange, filter, onFilterChange, convers
 
 export default function MessagesScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const now = useNow(30000);
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -420,12 +428,12 @@ export default function MessagesScreen() {
         setError(restricted);
         return;
       }
-      if (!silent) await showFailure("Could not load conversations", err);
+      if (!silent) await showFailure(t("messages.couldNotLoadConversations"), err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [showFailure, refreshUnread]);
+  }, [showFailure, refreshUnread, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -482,8 +490,8 @@ export default function MessagesScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <InternalScreenHeader
-        title="Messages"
-        subtitle={unreadCount > 0 ? `${unreadCount} unread` : "Community conversations"}
+        title={t("messages.title")}
+        subtitle={unreadCount > 0 ? t("messages.unreadCount", { count: unreadCount }) : t("messages.communityConversations")}
         compact
         right={
           accessBlocked ? null : (
@@ -508,6 +516,7 @@ export default function MessagesScreen() {
           filter={filter}
           onFilterChange={setFilter}
           conversations={conversations}
+          t={t}
         />
       ) : null}
 
@@ -516,7 +525,7 @@ export default function MessagesScreen() {
           <GuestFeatureErrorState
             error={error}
             fallbackFeature="feed"
-            defaultTitle="Could not load messages"
+            defaultTitle={t("messages.couldNotLoadMessages")}
             onRetry={() => load()}
           />
         ) : showInitialLoader ? (
@@ -526,13 +535,14 @@ export default function MessagesScreen() {
             data={filtered}
             keyExtractor={(item) => String(item.id)}
             renderItem={({ item }) => (
-              <ConversationRow item={item} onPress={handleOpen} now={now} />
+              <ConversationRow item={item} onPress={handleOpen} now={now} t={t} />
             )}
             ListEmptyComponent={
               <EmptyState
                 query={query}
                 filter={filter}
                 onNewChat={() => setNewChatVisible(true)}
+                t={t}
               />
             }
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.brandPrimaryDeep} />}
@@ -675,7 +685,7 @@ const styles = StyleSheet.create({
   },
   neighborRoleDot: {
     position: "absolute",
-    right: -sw(2),
+    end: -sw(2),
     bottom: -sw(2),
     width: sw(18),
     height: sw(18),
@@ -696,16 +706,16 @@ const styles = StyleSheet.create({
     gap: sw(12),
   },
   cardUnreadNeighbor: {
-    borderLeftWidth: 3,
-    borderLeftColor: BRAND_BLUE,
-    paddingLeft: sw(12),
+    borderStartWidth: 3,
+    borderStartColor: BRAND_BLUE,
+    paddingStart: sw(12),
     backgroundColor: "#EEF4FF",
     borderColor: "rgba(20, 184, 166, 0.18)",
   },
   cardUnreadListing: {
-    borderLeftWidth: 3,
-    borderLeftColor: "#059669",
-    paddingLeft: sw(12),
+    borderStartWidth: 3,
+    borderStartColor: "#059669",
+    paddingStart: sw(12),
     backgroundColor: "#F0FDF9",
     borderColor: "rgba(5, 150, 105, 0.15)",
   },

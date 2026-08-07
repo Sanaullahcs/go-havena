@@ -11,12 +11,15 @@ import {
   RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import { useKeyboardBottomOffset } from "../../../components/layout/keyboard-safe-screen";
 import UserAvatar from "../../../components/ui/user-avatar";
+import CrispImage from "../../../components/ui/crisp-image";
 import { Feather, Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import i18n from "../../../i18n";
+import { getLocaleForLang } from "../../../hooks/use-app-locale";
 
 import { Fonts } from "../../../constants/font";
 import { Colors, Layout } from "../../../constants/tokens";
@@ -27,18 +30,18 @@ import { useNow } from "../../../hooks/use-now";
 import { formatListingPrice } from "../../../components/marketplace/listing-grid-card";
 import { formatCommentTime, parseApiDate } from "../../../services/feed-api";
 import { sw, sf } from "../../../utils/responsive";
-import { resolveMediaUrl } from "../../../utils/profile-display";
+import { chevronForward } from "../../../utils/rtl";
 
 const NEIGHBOR_QUICK_REPLIES = [
-  "Hi neighbor! How are you?",
-  "Are you free to chat?",
-  "Thanks for reaching out!",
+  "messages.chat.quickHiNeighbor",
+  "messages.chat.quickFreeToChat",
+  "messages.chat.quickThanks",
 ];
 
 const LISTING_QUICK_REPLIES = [
-  "Is this still available?",
-  "What's your best price?",
-  "Can I pick it up today?",
+  "messages.chat.quickStillAvailable",
+  "messages.chat.quickBestPrice",
+  "messages.chat.quickPickUpToday",
 ];
 
 const KEYBOARD_SCROLL_RETRY_MS = 120;
@@ -60,7 +63,7 @@ function timeLabel(dateStr, now = Date.now()) {
   return formatCommentTime(dateStr, { now });
 }
 
-function dateDividerLabel(dateStr, now = Date.now()) {
+function dateDividerLabel(dateStr, now = Date.now(), t) {
   const date = parseApiDate(dateStr);
   if (!date) return "";
 
@@ -73,9 +76,9 @@ function dateDividerLabel(dateStr, now = Date.now()) {
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate();
 
-  if (sameDay(date, today)) return "Today";
-  if (sameDay(date, yesterday)) return "Yesterday";
-  return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  if (sameDay(date, today)) return t("messages.chat.today");
+  if (sameDay(date, yesterday)) return t("messages.chat.yesterday");
+  return date.toLocaleDateString(getLocaleForLang(i18n.language), { weekday: "short", month: "short", day: "numeric" });
 }
 
 function offerNote(body) {
@@ -84,12 +87,12 @@ function offerNote(body) {
   return parts.length > 1 ? parts.slice(1).join("\n\n").trim() : "";
 }
 
-function buildChatItems(messages, now = Date.now()) {
+function buildChatItems(messages, now = Date.now(), t) {
   const items = [];
   let lastDate = "";
 
   messages.forEach((message) => {
-    const divider = dateDividerLabel(message.created_at, now);
+    const divider = dateDividerLabel(message.created_at, now, t);
     if (divider && divider !== lastDate) {
       items.push({ type: "divider", id: `divider-${divider}-${message.id}`, label: divider });
       lastDate = divider;
@@ -100,15 +103,15 @@ function buildChatItems(messages, now = Date.now()) {
   return items;
 }
 
-function ListingContextBanner({ listing, onPress }) {
+function ListingContextBanner({ listing, onPress, t }) {
   if (!listing?.id) return null;
 
-  const imageUri = resolveMediaUrl(listing.image_url ?? listing.images?.[0]);
+  const imageSource = listing.image_url ?? listing.images?.[0] ?? null;
 
   return (
     <TouchableOpacity style={styles.listingBanner} activeOpacity={0.88} onPress={onPress}>
-      {imageUri ? (
-        <Image source={{ uri: imageUri }} style={styles.listingBannerThumb} contentFit="cover" />
+      {imageSource ? (
+        <CrispImage source={imageSource} style={styles.listingBannerThumb} contentFit="cover" />
       ) : (
         <View style={[styles.listingBannerThumb, styles.listingBannerThumbPlaceholder]}>
           <Ionicons name="storefront-outline" size={22} color="#059669" />
@@ -117,7 +120,7 @@ function ListingContextBanner({ listing, onPress }) {
       <View style={styles.listingBannerCopy}>
         <View style={styles.listingBannerTag}>
           <Ionicons name="pricetag" size={11} color="#059669" />
-          <Text style={styles.listingBannerLabel}>Marketplace listing</Text>
+          <Text style={styles.listingBannerLabel}>{t("messages.chat.marketplaceListing")}</Text>
         </View>
         <Text style={styles.listingBannerTitle} numberOfLines={1}>
           {listing.title}
@@ -125,8 +128,8 @@ function ListingContextBanner({ listing, onPress }) {
         <Text style={styles.listingBannerPrice}>{formatListingPrice(listing.price)}</Text>
       </View>
       <View style={styles.viewListingBtn}>
-        <Text style={styles.viewListingText}>View</Text>
-        <Ionicons name="chevron-forward" size={14} color="#059669" />
+        <Text style={styles.viewListingText}>{t("messages.chat.view")}</Text>
+        <Ionicons name={chevronForward()} size={14} color="#059669" />
       </View>
     </TouchableOpacity>
   );
@@ -169,6 +172,7 @@ function getOldestMessageId(messages) {
 
 export default function ChatScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const now = useNow(30000);
   const { bottomOffset, safeBottom } = useKeyboardBottomOffset();
   const {
@@ -203,7 +207,7 @@ export default function ChatScreen() {
   const { showFailure } = useApiAction();
   const keyboardOpen = bottomOffset > 0;
   const composerBottomPad = keyboardOpen ? sw(10) : safeBottom;
-  const chatTitle = displayName || "Chat";
+  const chatTitle = displayName || t("messages.chat.defaultTitle");
 
   const applyPeerMeta = useCallback((peer) => {
     if (peer?.role) setPeerRole(peer.role);
@@ -255,11 +259,11 @@ export default function ChatScreen() {
       setMessages([]);
       setListingContext(null);
       setHasMoreOlder(false);
-      await showFailure("Could not load messages", err);
+      await showFailure(t("messages.chat.couldNotLoadMessages"), err);
     } finally {
       setLoading(false);
     }
-  }, [conversationId, showFailure, applyPeerMeta]);
+  }, [conversationId, showFailure, applyPeerMeta, t]);
 
   const refreshLatest = useCallback(async () => {
     try {
@@ -306,11 +310,11 @@ export default function ChatScreen() {
       });
       setHasMoreOlder((prev) => prev || hasMore);
     } catch (err) {
-      await showFailure("Could not refresh messages", err);
+      await showFailure(t("messages.chat.couldNotRefreshMessages"), err);
     } finally {
       setRefreshing(false);
     }
-  }, [conversationId, showFailure, applyPeerMeta]);
+  }, [conversationId, showFailure, applyPeerMeta, t]);
 
   const loadOlder = useCallback(async () => {
     if (loadingOlderRef.current || !hasMoreOlder || messages.length === 0) return;
@@ -330,12 +334,12 @@ export default function ChatScreen() {
       }
       setHasMoreOlder(hasMore);
     } catch (err) {
-      await showFailure("Could not load older messages", err);
+      await showFailure(t("messages.chat.couldNotLoadOlderMessages"), err);
     } finally {
       loadingOlderRef.current = false;
       setLoadingOlder(false);
     }
-  }, [conversationId, hasMoreOlder, messages, showFailure]);
+  }, [conversationId, hasMoreOlder, messages, showFailure, t]);
 
   const handleScroll = useCallback(
     (event) => {
@@ -384,21 +388,21 @@ export default function ChatScreen() {
     if (recipientRoleParam) setPeerRole(recipientRoleParam);
   }, [recipientRoleParam]);
 
-  const chatItems = useMemo(() => buildChatItems(messages, now), [messages, now]);
+  const chatItems = useMemo(() => buildChatItems(messages, now, t), [messages, now, t]);
   const isListingChat = Boolean(listingContext?.id);
   const roleLabel = peerRoleLabel(peerRole);
 
   const headerSubtitle = isListingChat
-    ? `Listing · ${listingContext.title}`
+    ? t("messages.chat.listingSubtitle", { title: listingContext.title })
     : roleLabel;
 
   const quickReplies = isListingChat ? LISTING_QUICK_REPLIES : NEIGHBOR_QUICK_REPLIES;
   const emptyHint = isListingChat
-    ? "Ask about availability, condition, or pickup."
-    : "Send a message to start the conversation.";
+    ? t("messages.chat.listingEmptyHint")
+    : t("messages.chat.neighborEmptyHint");
   const inputPlaceholder = isListingChat
-    ? "Message about this listing..."
-    : "Write a message...";
+    ? t("messages.chat.listingPlaceholder")
+    : t("messages.chat.neighborPlaceholder");
 
   const handleSend = useCallback(async (textOverride) => {
     const text = (textOverride ?? draft).trim();
@@ -420,40 +424,40 @@ export default function ChatScreen() {
       setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? saved : m)));
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
-      await showFailure("Could not send message", err);
+      await showFailure(t("messages.chat.couldNotSendMessage"), err);
     } finally {
       setSending(false);
     }
-  }, [conversationId, currentUser?.id, draft, sending, showFailure, markScrollToLatest]);
+  }, [conversationId, currentUser?.id, draft, sending, showFailure, markScrollToLatest, t]);
 
   const olderMessagesHeader = useMemo(() => {
     if (!loadingOlder) return null;
     return (
       <View style={styles.olderLoader}>
         <ActivityIndicator size="small" color={Colors.brandPrimaryDeep} />
-        <Text style={styles.olderLoaderText}>Loading older messages…</Text>
+        <Text style={styles.olderLoaderText}>{t("messages.chat.loadingOlder")}</Text>
       </View>
     );
-  }, [loadingOlder]);
+  }, [loadingOlder, t]);
 
   const quickReplyFooter = useMemo(() => {
     if (loading || messages.length > 0) return null;
 
     return (
       <View style={styles.quickReplyRow}>
-        {quickReplies.map((reply) => (
+        {quickReplies.map((replyKey) => (
           <TouchableOpacity
-            key={reply}
+            key={replyKey}
             style={[styles.quickReplyChip, isListingChat && styles.quickReplyChipListing]}
-            onPress={() => handleSend(reply)}
+            onPress={() => handleSend(t(replyKey))}
             disabled={sending}
           >
-            <Text style={styles.quickReplyText}>{reply}</Text>
+            <Text style={styles.quickReplyText}>{t(replyKey)}</Text>
           </TouchableOpacity>
         ))}
       </View>
     );
-  }, [handleSend, loading, messages.length, quickReplies, isListingChat, sending]);
+  }, [handleSend, loading, messages.length, quickReplies, isListingChat, sending, t]);
 
   const openListing = () => {
     const id = listingContext?.id ?? listingId;
@@ -491,7 +495,7 @@ export default function ChatScreen() {
             <View style={styles.offerHeader}>
               <Ionicons name="pricetag" size={14} color={isMine ? "#FFFFFF" : "#059669"} />
               <Text style={[styles.offerLabel, isMine && styles.offerLabelMine]}>
-                {isMine ? "Your offer" : "Offer received"}
+                {isMine ? t("messages.chat.yourOffer") : t("messages.chat.offerReceived")}
               </Text>
             </View>
             <Text style={[styles.offerAmount, isMine && styles.offerAmountMine]}>
@@ -499,7 +503,7 @@ export default function ChatScreen() {
             </Text>
             {listingContext?.price != null ? (
               <Text style={[styles.offerCompare, isMine && styles.offerCompareMine]}>
-                Listed at {formatListingPrice(listingContext.price)}
+                {t("messages.chat.listedAt", { price: formatListingPrice(listingContext.price) })}
               </Text>
             ) : null}
             {note ? (
@@ -551,7 +555,7 @@ export default function ChatScreen() {
       <View style={styles.chatBody}>
         {isListingChat ? (
           <View style={styles.contextWrap}>
-            <ListingContextBanner listing={listingContext} onPress={openListing} />
+            <ListingContextBanner listing={listingContext} onPress={openListing} t={t} />
           </View>
         ) : null}
 
@@ -595,7 +599,7 @@ export default function ChatScreen() {
                     />
                   </View>
                 </View>
-                <Text style={styles.emptyTitle}>Start the conversation</Text>
+                <Text style={styles.emptyTitle}>{t("messages.chat.startConversation")}</Text>
                 <Text style={styles.emptyText}>{emptyHint}</Text>
               </View>
             }
@@ -607,7 +611,6 @@ export default function ChatScreen() {
             styles.composerShell,
             {
               paddingBottom: composerBottomPad,
-              // iOS overlays keyboard; Android usually resizes (bottomOffset=0).
               marginBottom: bottomOffset,
             },
           ]}
@@ -829,14 +832,14 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   bubbleMine: {
-    borderBottomRightRadius: sw(5),
+    borderBottomEndRadius: sw(5),
     backgroundColor: Colors.brandPrimary,
   },
   bubbleOther: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "rgba(20, 184, 166, 0.1)",
-    borderBottomLeftRadius: sw(5),
+    borderBottomStartRadius: sw(5),
   },
   offerBubble: {
     maxWidth: "78%",
@@ -850,7 +853,7 @@ const styles = StyleSheet.create({
   },
   offerBubbleMine: {
     borderColor: "transparent",
-    borderBottomRightRadius: sw(5),
+    borderBottomEndRadius: sw(5),
   },
   offerBubbleOther: {
     backgroundColor: "#ECFDF5",

@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import i18n from "../i18n";
 import { pickImage } from "../utils/pickImage";
 import { fetchMe, uploadAvatar } from "../services/profile-api";
 import { useAppDialog } from "../providers/app-dialog-provider";
@@ -11,8 +12,8 @@ export function useProfilePhoto({ onUpdated } = {}) {
     try {
       const picked = await pickImage(undefined, {
         allowCamera: true,
-        promptTitle: "Profile photo",
-        promptMessage: "Take a new photo or choose one from your library.",
+        promptTitle: i18n.t("profile.profilePhoto"),
+        promptMessage: i18n.t("profile.takeOrChoose"),
         showError: (title, message) =>
           dialog.showError(title, message),
       });
@@ -25,18 +26,18 @@ export function useProfilePhoto({ onUpdated } = {}) {
 
       await dialog.showDialog({
         type: "success",
-        title: "Profile photo updated",
-        message: "Your profile photo has been saved.",
-        actions: [{ label: "OK", variant: "primary" }],
+        title: i18n.t("profile.photoUpdated"),
+        message: i18n.t("profile.photoSaved"),
+        actions: [{ label: i18n.t("common.ok"), variant: "primary" }],
       });
 
       return data;
     } catch (err) {
       await dialog.showDialog({
         type: "error",
-        title: "Upload failed",
-        message: err?.message ?? "Could not update your profile photo.",
-        actions: [{ label: "OK", variant: "primary" }],
+        title: i18n.t("profile.uploadFailed"),
+        message: err?.message ?? i18n.t("profile.couldNotUpdatePhoto"),
+        actions: [{ label: i18n.t("common.ok"), variant: "primary" }],
       });
       return null;
     } finally {

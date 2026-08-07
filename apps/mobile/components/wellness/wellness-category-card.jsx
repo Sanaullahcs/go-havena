@@ -6,6 +6,7 @@ import { getWellnessCategoryMeta, WellnessTheme } from "../../constants/wellness
 import WellnessCategoryIcon from "./wellness-category-icon";
 import WellnessProgressBar from "./wellness-progress-bar";
 import { sf, sw } from "../../utils/responsive";
+import { chevronForward } from "../../utils/rtl";
 
 /** Hub pillar card — white surface, soft accent icon only. */
 export default function WellnessCategoryCard({
@@ -43,7 +44,7 @@ export default function WellnessCategoryCard({
               ) : null}
             </View>
             <View style={styles.chevronWrap}>
-              <Feather name="chevron-right" size={sf(16)} color={WellnessTheme.caption} />
+              <Feather name={chevronForward()} size={sf(16)} color={WellnessTheme.caption} />
             </View>
           </View>
 
@@ -101,8 +102,8 @@ const styles = StyleSheet.create({
   cardText: {
     flex: 1,
     minWidth: 0,
-    marginLeft: sw(12),
-    marginRight: sw(8),
+    marginStart: sw(12),
+    marginEnd: sw(8),
     justifyContent: "center",
   },
   cardTitle: {

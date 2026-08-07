@@ -2,9 +2,10 @@ import { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import AuthLogo from "../components/ui/auth-logo";
 import { useRouter, useRootNavigationState } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../constants/font";
 import { SolidFills } from "../constants/tokens";
-import { isAuthenticated, getUser, clearSession } from "../services/auth-session";
+import { getUser, getToken, clearSession } from "../services/auth-session";
 import { fetchMe } from "../services/auth-api";
 import { navigateFromColdStart, Routes } from "../constants/onboarding-routes";
 import { isAccountSuspendedError, loginRouteWithSuspendedNotice, persistBlockedAccountNotice } from "../utils/auth-errors";
@@ -12,11 +13,9 @@ import { handleGuestAccessScheduleError } from "../utils/guest-access-schedule";
 import ScreenStatusBar from "../components/layout/screen-status-bar";
 import { prepareAuthScreenChrome } from "../components/layout/chrome-manager";
 
-const MIN_SPLASH_MS = 1400;
-const AUTH_CHECK_MS = 3500;
-const STORAGE_READ_MS = 3500;
-const PROFILE_FETCH_MS = 6000;
-const HARD_STOP_MS = 10000;
+const MIN_SPLASH_MS = 600;
+const PROFILE_FETCH_MS = 5000;
+const HARD_STOP_MS = 8000;
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -33,6 +32,7 @@ function withTimeout(promise, ms, label) {
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const rootNavigationState = useRootNavigationState();
   const loaderSpin = useRef(new Animated.Value(0)).current;
   const navigatedRef = useRef(false);
@@ -75,29 +75,18 @@ export default function WelcomeScreen() {
     const hardStop = setTimeout(() => goLogin(false, { force: true }), HARD_STOP_MS);
 
     (async () => {
-      const started = Date.now();
+      const minSplash = delay(MIN_SPLASH_MS);
 
       try {
-        let authed = false;
+        let token = null;
         try {
-          authed = await withTimeout(isAuthenticated(), AUTH_CHECK_MS, "auth");
+          token = await getToken();
         } catch {
-          authed = false;
+          token = null;
         }
 
-        const elapsed = Date.now() - started;
-        await delay(Math.max(0, MIN_SPLASH_MS - elapsed));
-        if (cancelled) return;
-
-        if (!authed) {
-          goLogin();
-          return;
-        }
-
-        try {
-          await withTimeout(getUser(), STORAGE_READ_MS, "user");
-        } catch {
-          await clearSession();
+        if (!token) {
+          await minSplash;
           if (cancelled) return;
           goLogin();
           return;
@@ -105,7 +94,11 @@ export default function WelcomeScreen() {
 
         let user;
         try {
-          user = await withTimeout(fetchMe(), PROFILE_FETCH_MS, "profile");
+          const [, fetched] = await Promise.all([
+            minSplash,
+            withTimeout(fetchMe(), PROFILE_FETCH_MS, "profile"),
+          ]);
+          user = fetched;
         } catch (err) {
           if (await handleGuestAccessScheduleError(err, router)) {
             return;
@@ -115,10 +108,15 @@ export default function WelcomeScreen() {
           if (suspended) {
             await persistBlockedAccountNotice(err);
           }
-          await clearSession();
-          if (cancelled) return;
-          goLogin(suspended);
-          return;
+
+          // Offline / slow API — use cached session when possible.
+          user = await getUser();
+          if (!user) {
+            await clearSession();
+            if (cancelled) return;
+            goLogin(suspended);
+            return;
+          }
         }
 
         if (cancelled) return;
@@ -150,7 +148,7 @@ export default function WelcomeScreen() {
         <View style={styles.brand}>
           <AuthLogo size={86} compact variant="splash" />
           <Text style={styles.title}>Havena</Text>
-          <Text style={styles.subtitle}>Community & Wellness Platform</Text>
+          <Text style={styles.subtitle}>{t("nav.tagline")}</Text>
         </View>
         <Animated.View style={[styles.loader, { transform: [{ rotate: loaderRotation }] }]} />
       </View>

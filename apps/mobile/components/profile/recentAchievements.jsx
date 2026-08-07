@@ -1,7 +1,9 @@
 import React, { useMemo } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
+import { ionChevronForward } from "../../utils/rtl";
 import { Colors, Layout } from "../../constants/tokens";
 import { useRouter } from "expo-router";
 import { sw, sf } from "../../utils/responsive";
@@ -13,13 +15,14 @@ const PALETTE = [
 ];
 
 const FALLBACK_ACHIEVEMENTS = [
-  { id: 1, title: "First Steps", icon: "footsteps-outline" },
-  { id: 2, title: "Consistency", icon: "flame-outline" },
-  { id: 3, title: "Week Warrior", icon: "trophy-outline" },
+  { id: 1, titleKey: "profile.fallbackBadges.firstSteps", icon: "footsteps-outline" },
+  { id: 2, titleKey: "profile.fallbackBadges.consistency", icon: "flame-outline" },
+  { id: 3, titleKey: "profile.fallbackBadges.weekWarrior", icon: "trophy-outline" },
 ];
 
 export default function RecentAchievements({ achievements }) {
   const router = useRouter();
+  const { t } = useTranslation();
 
   const displayItems = useMemo(() => {
     const recent = achievements?.recent ?? [];
@@ -30,25 +33,25 @@ export default function RecentAchievements({ achievements }) {
 
     return source.map((item, index) => ({
       id: item.id ?? item.key ?? index + 1,
-      title: item.title,
+      title: item.titleKey ? t(item.titleKey) : item.title,
       icon: item.icon || "ribbon-outline",
       ...PALETTE[index % PALETTE.length],
     }));
-  }, [achievements]);
+  }, [achievements, t]);
 
   return (
     <View style={styles.container}>
       <View style={styles.headingRow}>
-        <Text style={styles.heading}>Achievements</Text>
+        <Text style={styles.heading}>{t("profile.achievements")}</Text>
         <Pressable
           onPress={() => router.push("/screens/achievements")}
           hitSlop={8}
           style={styles.viewAllBtn}
         >
           <Text style={styles.viewAll} numberOfLines={1}>
-            See all
+            {t("common.seeAll")}
           </Text>
-          <Ionicons name="chevron-forward" size={sf(12)} color={Colors.brandPrimaryDeep} />
+          <Ionicons name={ionChevronForward()} size={sf(12)} color={Colors.brandPrimaryDeep} />
         </Pressable>
       </View>
 

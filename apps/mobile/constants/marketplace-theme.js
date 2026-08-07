@@ -28,10 +28,10 @@ export const MarketplaceTheme = {
 };
 
 export const exploreCategoryTheme = {
-  "Deals & Offers": { soft: T.mint, border: T.border, icon: T.navy, feather: "tag" },
-  "Local Businesses": { soft: T.mint, border: T.border, icon: T.navy, feather: "map-pin" },
-  "My Coupons": { soft: T.mint, border: T.border, icon: T.navy, feather: "bookmark" },
-  Recommendation: { soft: T.mint, border: T.border, icon: T.navy, feather: "star" },
+  "Deals & Offers": { soft: T.mint, border: T.border, icon: T.navy, feather: "tag", labelKey: "marketplace.dealsOffers" },
+  "Local Businesses": { soft: T.mint, border: T.border, icon: T.navy, feather: "map-pin", labelKey: "marketplace.localBusinesses" },
+  "My Coupons": { soft: T.mint, border: T.border, icon: T.navy, feather: "bookmark", labelKey: "marketplace.myCoupons" },
+  Recommendation: { soft: T.mint, border: T.border, icon: T.navy, feather: "star", labelKey: "marketplace.recommendation" },
 };
 
 /** Item vs service — shared mint wells. */
@@ -40,7 +40,9 @@ export const listingTypeTheme = {
     id: "item",
     label: "Item for Sale",
     shortLabel: "For Sale",
+    shortLabelKey: "marketplace.forSale",
     subtitle: "Furniture, electronics & more",
+    subtitleKey: "marketplace.itemSubtitle",
     soft: T.mint,
     border: T.border,
     accent: T.navy,
@@ -52,7 +54,9 @@ export const listingTypeTheme = {
     id: "service",
     label: "Offer Service",
     shortLabel: "Service",
+    shortLabelKey: "marketplace.service",
     subtitle: "Tutoring, repairs, cleaning & more",
+    subtitleKey: "marketplace.serviceSubtitle",
     soft: T.mint,
     border: T.border,
     accent: T.navy,

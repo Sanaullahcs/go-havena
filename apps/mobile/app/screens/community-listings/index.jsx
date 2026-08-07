@@ -35,6 +35,7 @@ import {
   withMarketplaceRole,
 } from "../../../constants/marketplace-routes";
 import { MarketplaceTheme } from "../../../constants/marketplace-theme";
+import { useTranslation } from "react-i18next";
 
 const M = MarketplaceTheme;
 const H_PADDING = 20;
@@ -42,6 +43,7 @@ const CARD_GAP = 12;
 const SCROLL_COLLAPSE_THRESHOLD = 14;
 
 export default function CommunityListingsScreen({ embedded = false }) {
+  const { t } = useTranslation();
   const router = useRouter();
   const { role: roleParam } = useLocalSearchParams();
   const activeRole =
@@ -50,7 +52,7 @@ export default function CommunityListingsScreen({ embedded = false }) {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const [viewMode, setViewMode] = useState("grid");
   const [search, setSearch] = useState("");
   const [searchDraft, setSearchDraft] = useState("");
@@ -123,9 +125,9 @@ export default function CommunityListingsScreen({ embedded = false }) {
     const fromData = Array.from(
       new Set(listings.map((l) => l.category).filter(Boolean)),
     ).sort();
-    if (fromData.length) return ["All", ...fromData];
-    return ["All", "Furniture", "Electronics", "Services", "Other"];
-  }, [listings]);
+    if (fromData.length) return [t("common.all"), ...fromData];
+    return [t("common.all"), t("listings.categoryFurniture"), t("listings.categoryElectronics"), t("listings.categoryServices"), t("listings.categoryOther")];
+  }, [listings, t]);
 
   const savedCount = useMemo(
     () => listings.filter((l) => l.is_saved).length,
@@ -141,7 +143,7 @@ export default function CommunityListingsScreen({ embedded = false }) {
     if (filterMode === "saved") {
       rows = rows.filter((l) => l.is_saved);
     }
-    if (selectedCategory !== "All") {
+    if (selectedCategory && selectedCategory !== categories[0]) {
       rows = rows.filter(
         (l) => String(l.category ?? "").toLowerCase() === selectedCategory.toLowerCase(),
       );
@@ -173,10 +175,10 @@ export default function CommunityListingsScreen({ embedded = false }) {
   );
 
   const listingCountHint = useMemo(() => {
-    if (search.trim()) return "Matching your search";
-    if (activeFilterCount > 0) return "With filters applied";
-    return "Available now";
-  }, [search, activeFilterCount]);
+    if (search.trim()) return t("marketplace.matchingSearch");
+    if (activeFilterCount > 0) return t("marketplace.filtersApplied");
+    return t("marketplace.availableNow");
+  }, [search, activeFilterCount, t]);
 
   const isGrid = viewMode === "grid";
 
@@ -371,30 +373,30 @@ export default function CommunityListingsScreen({ embedded = false }) {
   const listBottomInset = 72;
 
   const emptyTitle = useMemo(() => {
-    if (filterMode === "saved") return "No saved listings yet";
+    if (filterMode === "saved") return t("marketplace.emptyTitleSaved");
     if (filterMode === "mine") {
       return typeFilter === "service"
-        ? "You haven't offered a service yet"
+        ? t("marketplace.emptyTitleMineService")
         : typeFilter === "item"
-          ? "You haven't listed an item yet"
-          : "You haven't posted anything yet";
+          ? t("marketplace.emptyTitleMineItem")
+          : t("marketplace.emptyTitleMine");
     }
-    if (typeFilter === "service") return "No services found";
-    if (typeFilter === "item") return "No items for sale";
-    return "No listings found";
-  }, [filterMode, typeFilter]);
+    if (typeFilter === "service") return t("marketplace.emptyTitleService");
+    if (typeFilter === "item") return t("marketplace.emptyTitleItem");
+    return t("marketplace.emptyTitleAll");
+  }, [filterMode, typeFilter, t]);
 
   const emptySubtitle = useMemo(() => {
     if (filterMode === "mine") {
       return typeFilter === "service"
-        ? "Offer tutoring, repairs, cleaning, and more to neighbors."
-        : "Post items for sale or offer services to neighbors.";
+        ? t("marketplace.emptySubtitleMineService")
+        : t("marketplace.emptySubtitleMine");
     }
-    return "Try another filter or check back soon for new posts.";
-  }, [filterMode, typeFilter]);
+    return t("marketplace.emptySubtitleAll");
+  }, [filterMode, typeFilter, t]);
 
   const emptyCtaLabel =
-    typeFilter === "service" ? "Offer a service" : typeFilter === "item" ? "List an item" : "Post listing";
+    typeFilter === "service" ? t("marketplace.ctaOfferService") : typeFilter === "item" ? t("marketplace.ctaListItem") : t("marketplace.ctaPostListing");
 
   const openFilters = useCallback(() => {
     setFilterSession((count) => count + 1);
@@ -408,7 +410,7 @@ export default function CommunityListingsScreen({ embedded = false }) {
       </View>
       <View style={styles.listingCountTextWrap}>
         <Text style={styles.listingCountLabel}>
-          {visible.length === 1 ? "Listing" : "Listings"}
+          {t("marketplace.listingCount", { count: visible.length })}
         </Text>
         <Text style={styles.listingCountHint} numberOfLines={1}>
           {listingCountHint}
@@ -426,7 +428,7 @@ export default function CommunityListingsScreen({ embedded = false }) {
       onPress={toggleSearch}
       activeOpacity={0.85}
       accessibilityRole="button"
-      accessibilityLabel={searchExpanded ? "Close search" : "Search listings"}
+      accessibilityLabel={searchExpanded ? t("marketplace.closeSearch") : t("marketplace.searchListings")}
       accessibilityState={{ expanded: searchExpanded }}
     >
       <Ionicons name="search-outline" size={20} color={searchExpanded ? M.teal : M.navy} />
@@ -439,11 +441,11 @@ export default function CommunityListingsScreen({ embedded = false }) {
       onPress={openFilters}
       activeOpacity={0.92}
       accessibilityRole="button"
-      accessibilityLabel="Open listing filters"
+      accessibilityLabel={t("marketplace.openFilters")}
     >
       <View style={styles.floatingFilterInner}>
         <Ionicons name="options-outline" size={20} color={M.navy} />
-        <Text style={styles.floatingFilterText}>Filters</Text>
+        <Text style={styles.floatingFilterText}>{t("marketplace.filters")}</Text>
         {activeFilterCount > 0 ? (
           <View style={styles.filterBadge}>
             <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
@@ -487,7 +489,7 @@ export default function CommunityListingsScreen({ embedded = false }) {
                 <BackButton iconOnly compact />
                 <View style={styles.headerTitleWrap}>
                   <Text style={styles.headerTitle} numberOfLines={1}>
-                    Community Listings
+                    {t("marketplace.communityListings")}
                   </Text>
                   <View style={styles.headerSubtitleWrap}>
                     {renderListingCount()}
@@ -514,7 +516,7 @@ export default function CommunityListingsScreen({ embedded = false }) {
                   ref={searchInputRef}
                   value={searchDraft}
                   onChangeText={setSearchDraft}
-                  placeholder="Search by title or category..."
+                  placeholder={t("marketplace.searchPlaceholder")}
                   placeholderTextColor={M.caption}
                   style={styles.searchInput}
                   returnKeyType="search"
@@ -527,7 +529,7 @@ export default function CommunityListingsScreen({ embedded = false }) {
                   <TouchableOpacity
                     onPress={clearSearch}
                     hitSlop={8}
-                    accessibilityLabel="Clear search"
+                    accessibilityLabel={t("marketplace.clearSearch")}
                   >
                     <Ionicons name="close-circle" size={18} color="#CBD5E1" />
                   </TouchableOpacity>
@@ -543,7 +545,7 @@ export default function CommunityListingsScreen({ embedded = false }) {
           {loading && listings.length === 0 ? (
             <View style={styles.centered}>
               <ActivityIndicator size="large" color={M.teal} />
-              <Text style={styles.loadingText}>Loading listings…</Text>
+              <Text style={styles.loadingText}>{t("marketplace.loadingListings")}</Text>
             </View>
           ) : (
             <FlatList
@@ -708,7 +710,7 @@ const styles = StyleSheet.create({
     color: M.textMuted,
   },
   listingCountSpinner: {
-    marginLeft: 4,
+    marginStart: 4,
   },
   embeddedHeader: {
     flexDirection: "row",
@@ -734,7 +736,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   searchIcon: {
-    marginRight: 2,
+    marginEnd: 2,
   },
   searchInput: {
     flex: 1,
@@ -844,7 +846,7 @@ const styles = StyleSheet.create({
   floatingFilter: {
     position: "absolute",
     bottom: 24,
-    right: H_PADDING,
+    end: H_PADDING,
     borderRadius: 999,
     overflow: "hidden",
     zIndex: 10,

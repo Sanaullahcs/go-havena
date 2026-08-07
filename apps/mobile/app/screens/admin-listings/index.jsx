@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { useRouter, useFocusEffect } from "expo-router";
+import { useTranslation } from "react-i18next";
 import ScreenHeader from "../../../components/layout/screen-header";
 import { Fonts } from "../../../constants/font";
 import { Colors } from "../../../constants/tokens";
@@ -23,22 +24,22 @@ import {
 import { useApiAction } from "../../../hooks/use-api-action";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 
-function formatPrice(price) {
-  if (price == null || price === "") return "Free / Contact";
+function formatPrice(price, t) {
+  if (price == null || price === "") return t("admin.freeContact");
   const n = Number(price);
   if (Number.isNaN(n)) return String(price);
   return `$${n.toFixed(n % 1 === 0 ? 0 : 2)}`;
 }
 
-function ListingRow({ item, busy, onApprove, onReject }) {
+function ListingRow({ item, busy, onApprove, onReject, t }) {
   return (
     <View style={styles.card}>
       <View style={{ flex: 1 }}>
         <Text style={styles.title}>{item.title}</Text>
         <Text style={styles.meta}>
-          {item.type?.replace("_", " ")} · {formatPrice(item.price)}
+          {item.type?.replace("_", " ")} · {formatPrice(item.price, t)}
         </Text>
-        <Text style={styles.seller}>By {item.seller_name ?? "Resident"}</Text>
+        <Text style={styles.seller}>{t("admin.bySeller", { name: item.seller_name ?? t("admin.resident") })}</Text>
         {item.description ? (
           <Text style={styles.description} numberOfLines={3}>
             {item.description}
@@ -51,7 +52,7 @@ function ListingRow({ item, busy, onApprove, onReject }) {
           disabled={busy}
           onPress={() => onReject(item.id)}
         >
-          <Text style={styles.rejectBtnText}>Reject</Text>
+          <Text style={styles.rejectBtnText}>{t("admin.reject")}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.approveBtn}
@@ -61,7 +62,7 @@ function ListingRow({ item, busy, onApprove, onReject }) {
           {busy ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text style={styles.approveBtnText}>Approve</Text>
+            <Text style={styles.approveBtnText}>{t("admin.approve")}</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -70,6 +71,7 @@ function ListingRow({ item, busy, onApprove, onReject }) {
 }
 
 export default function AdminListingsScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -84,7 +86,7 @@ export default function AdminListingsScreen() {
       const res = await fetchAdminListings({ status: "pending", per_page: 50 });
       setListings(res.data);
     } catch (err) {
-      await showFailure("Could not load listings", err);
+      await showFailure(t("admin.couldNotLoadListings"), err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -104,9 +106,9 @@ export default function AdminListingsScreen() {
 
   const handleApprove = async (id) => {
     const confirmed = await showConfirm(
-      "Approve listing",
-      "This listing will go live in the marketplace.",
-      { confirmLabel: "Approve" },
+      t("admin.approveListing"),
+      t("admin.listingGoLive"),
+      { confirmLabel: t("admin.approve") },
     );
     if (confirmed !== "confirm") return;
 
@@ -114,9 +116,9 @@ export default function AdminListingsScreen() {
     try {
       await runAction({
         action: () => approveListing(id),
-        successTitle: "Listing approved",
-        successMessage: "The listing is now live in the marketplace.",
-        errorTitle: "Approval failed",
+        successTitle: t("admin.listingApproved"),
+        successMessage: t("admin.listingNowLive"),
+        errorTitle: t("admin.approvalFailed"),
         onSuccess: () => setListings((prev) => prev.filter((l) => l.id !== id)),
       });
     } finally {
@@ -126,9 +128,9 @@ export default function AdminListingsScreen() {
 
   const handleReject = async (id) => {
     const confirmed = await showConfirm(
-      "Reject listing",
-      "The seller will be notified.",
-      { confirmLabel: "Reject", destructive: true },
+      t("admin.rejectListing"),
+      t("admin.sellerWillBeNotified"),
+      { confirmLabel: t("admin.reject"), destructive: true },
     );
     if (confirmed !== "confirm") return;
 
@@ -136,9 +138,9 @@ export default function AdminListingsScreen() {
     try {
       await runAction({
         action: () => rejectListing(id),
-        successTitle: "Listing rejected",
-        successMessage: "The seller has been notified.",
-        errorTitle: "Reject failed",
+        successTitle: t("admin.listingRejected"),
+        successMessage: t("admin.sellerHasBeenNotified"),
+        errorTitle: t("admin.rejectFailed"),
         onSuccess: () => setListings((prev) => prev.filter((l) => l.id !== id)),
       });
     } finally {
@@ -148,7 +150,7 @@ export default function AdminListingsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
-      <ScreenHeader layout="inline" title="Pending Listings" iconOnly />
+      <ScreenHeader layout="inline" title={t("admin.pendingListings")} iconOnly />
 
       {loading && listings.length === 0 ? (
         <View style={styles.centered}>
@@ -161,7 +163,7 @@ export default function AdminListingsScreen() {
           contentContainerStyle={styles.listContent}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>No listings waiting for approval.</Text>
+            <Text style={styles.emptyText}>{t("admin.noListingsWaiting")}</Text>
           }
           renderItem={({ item }) => (
             <ListingRow
@@ -169,6 +171,7 @@ export default function AdminListingsScreen() {
               busy={busyId === item.id}
               onApprove={handleApprove}
               onReject={handleReject}
+              t={t}
             />
           )}
         />

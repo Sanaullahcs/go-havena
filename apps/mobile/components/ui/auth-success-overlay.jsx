@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { View, Text, Modal, StyleSheet, Animated } from "react-native";
-
+import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 
@@ -9,11 +9,14 @@ import { Fonts } from "../../constants/font";
  */
 export default function AuthSuccessOverlay({
   visible,
-  title = "You're in!",
-  subtitle = "Welcome back to Havena",
+  title: titleProp,
+  subtitle: subtitleProp,
   onComplete,
   delayMs = 1400,
 }) {
+  const { t } = useTranslation();
+  const title = titleProp ?? t("auth.youreIn");
+  const subtitle = subtitleProp ?? t("auth.welcomeBackToHavena");
   const scale = useRef(new Animated.Value(0.6)).current;
   const fade = useRef(new Animated.Value(0)).current;
   const onCompleteRef = useRef(onComplete);

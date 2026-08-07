@@ -3,6 +3,7 @@ import React, { useState, useCallback } from "react";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
 import { Colors, Layout } from "../../../constants/tokens";
 import ScreenHeader from "../../../components/layout/screen-header";
@@ -20,6 +21,7 @@ import { sw, sf, hp } from "../../../utils/responsive";
 
 export default function Profile() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [profile, setProfile] = useState(null);
   const [pointsStats, setPointsStats] = useState(null);
   const [achievements, setAchievements] = useState(null);
@@ -56,22 +58,23 @@ export default function Profile() {
   });
 
   const fields = getProfileFields(profile);
-  const unitLine = fields.unitNumber ? `Unit ${fields.unitNumber}` : null;
+  const unitLine = fields.unitNumber ? t("profile.unit", { number: fields.unitNumber }) : null;
   const regionLine = fields.regionTitle || null;
-  const roleLabel = getRoleLabel(profile);
+  const roleKey = fields.role === "guest" ? "guest" : fields.role === "community_admin" || fields.role === "admin" ? "admin" : "resident";
+  const roleLabel = t(`profile.roles.${roleKey}`);
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <ScreenHeader
         layout="inline"
-        title="Profile"
+        title={t("profile.title")}
         showBack={false}
         iconOnly
         right={
           <Pressable
             onPress={() => router.push("/screens/settings")}
             style={styles.headerBtn}
-            accessibilityLabel="Settings"
+            accessibilityLabel={t("profile.settings")}
           >
             <Feather name="settings" size={sf(17)} color={Colors.textPrimary} />
           </Pressable>
@@ -129,13 +132,13 @@ export default function Profile() {
                 >
                   <Feather name="star" size={sf(12)} color={Colors.brandPrimaryDeep} />
                   <Text style={styles.pointsPillText}>
-                    {formatPoints(pointsStats?.total_points ?? 0)} pts
+                    {formatPoints(pointsStats?.total_points ?? 0)} {t("points.ptsLabel")}
                   </Text>
                 </Pressable>
               </View>
 
               <Text style={styles.photoHint}>
-                {fields.avatarUrl ? "Tap photo to update" : "Add a profile photo"}
+                {fields.avatarUrl ? t("profile.tapPhotoUpdate") : t("profile.addPhoto")}
               </Text>
 
               <View style={styles.divider} />
@@ -145,7 +148,7 @@ export default function Profile() {
                   <Feather name="map-pin" size={sf(16)} color={Colors.brandPrimaryDeep} />
                 </View>
                 <View style={styles.placeCopy}>
-                  <Text style={styles.placeEyebrow}>Your community</Text>
+                  <Text style={styles.placeEyebrow}>{t("profile.yourCommunity")}</Text>
                   <Text style={styles.placeTitle} numberOfLines={1}>
                     {fields.communityName}
                   </Text>

@@ -27,10 +27,12 @@ import {
   likePost,
   parsePostDisplayContent,
   isSensitivePost,
+  TOPIC_LABEL_KEY,
 } from "../../../../services/feed-api";
 import FeedSensitiveContent from "../../../../components/feed/feed-sensitive-content";
 import { fetchMe } from "../../../../services/profile-api";
 import { getProfileFields, mediaImageSource } from "../../../../utils/profile-display";
+import { useTranslation } from "react-i18next";
 import { useApiAction } from "../../../../hooks/use-api-action";
 import { useAppDialog } from "../../../../providers/app-dialog-provider";
 import { sw, sf, hp } from "../../../../utils/responsive";
@@ -38,6 +40,7 @@ import { sw, sf, hp } from "../../../../utils/responsive";
 const PER_PAGE = 10;
 
 function MyPostCard({ post, profileFields, onLike, onComment, onEdit, onDelete }) {
+  const { t } = useTranslation();
   const theme = getFeedTagTheme(post.tag);
   const display = parsePostDisplayContent(post);
   const sensitive = isSensitivePost(post);
@@ -56,13 +59,13 @@ function MyPostCard({ post, profileFields, onLike, onComment, onEdit, onDelete }
               {profileFields.displayName}
             </Text>
             <View style={styles.metaRow}>
-              <Text style={styles.timeText}>{post.user?.time ?? "Recently"}</Text>
+              <Text style={styles.timeText}>{post.user?.time ?? t("profile.recently")}</Text>
               {sensitive ? (
                 <>
                   <View style={styles.metaDot} />
                   <View style={[styles.tagChip, { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" }]}>
                     <Feather name="alert-triangle" size={10} color="#B45309" />
-                    <Text style={[styles.tagText, { color: "#B45309" }]}>Sensitive</Text>
+                    <Text style={[styles.tagText, { color: "#B45309" }]}>{t("profile.sensitive")}</Text>
                   </View>
                 </>
               ) : post.tag ? (
@@ -70,7 +73,7 @@ function MyPostCard({ post, profileFields, onLike, onComment, onEdit, onDelete }
                   <View style={styles.metaDot} />
                   <View style={[styles.tagChip, { backgroundColor: theme.bg, borderColor: theme.border }]}>
                     <Feather name={theme.icon} size={10} color={theme.text} />
-                    <Text style={[styles.tagText, { color: theme.text }]}>{post.tag}</Text>
+                    <Text style={[styles.tagText, { color: theme.text }]}>{TOPIC_LABEL_KEY[post.tag] ? t(TOPIC_LABEL_KEY[post.tag]) : post.tag}</Text>
                   </View>
                 </>
               ) : null}
@@ -81,7 +84,7 @@ function MyPostCard({ post, profileFields, onLike, onComment, onEdit, onDelete }
             actions={[
               {
                 id: "edit",
-                label: "Edit post",
+                label: t("profile.editPost"),
                 icon: "create-outline",
                 tone: "primary",
                 onPress: () => onEdit(post),
@@ -89,7 +92,7 @@ function MyPostCard({ post, profileFields, onLike, onComment, onEdit, onDelete }
               },
               {
                 id: "delete",
-                label: "Delete post",
+                label: t("profile.deletePost"),
                 icon: "trash-outline",
                 tone: "danger",
                 onPress: () => onDelete(post),
@@ -107,7 +110,7 @@ function MyPostCard({ post, profileFields, onLike, onComment, onEdit, onDelete }
             ) : display.isPhotoOnly ? (
               <View style={styles.photoOnlyRow}>
                 <Feather name="image" size={14} color={Colors.textMuted} />
-                <Text style={styles.photoOnlyText}>Photo post</Text>
+                <Text style={styles.photoOnlyText}>{t("profile.myPosts.photoPost")}</Text>
               </View>
             ) : null}
 
@@ -157,24 +160,26 @@ function MyPostCard({ post, profileFields, onLike, onComment, onEdit, onDelete }
 }
 
 function PostsEmptyState({ onCreate }) {
+  const { t } = useTranslation();
   return (
     <View style={styles.empty}>
       <View style={styles.emptyIconWrap}>
         <Feather name="message-square" size={28} color={Colors.brandPrimaryDeep} />
       </View>
-      <Text style={styles.emptyTitle}>No posts yet</Text>
+      <Text style={styles.emptyTitle}>{t("profile.myPosts.emptyTitle")}</Text>
       <Text style={styles.emptyText}>
-        Share updates, photos, and recommendations with your neighbors.
+        {t("profile.myPosts.emptySubtitle")}
       </Text>
       <TouchableOpacity style={styles.emptyBtn} activeOpacity={0.85} onPress={onCreate}>
         <Feather name="edit-3" size={14} color="#FFFFFF" />
-        <Text style={styles.emptyBtnText}>Create Post</Text>
+        <Text style={styles.emptyBtnText}>{t("profile.myPosts.createPost")}</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 export default function MyPosts() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { showFailure } = useApiAction();
   const { showConfirm } = useAppDialog();
@@ -306,9 +311,9 @@ export default function MyPosts() {
   const handleDelete = useCallback(
     async (post) => {
       const confirmed = await showConfirm(
-        "Delete this post?",
-        "It will be removed from the community feed permanently.",
-        { confirmLabel: "Delete post", cancelLabel: "Keep post", destructive: true },
+        t("profile.myPosts.deleteTitle"),
+        t("profile.myPosts.deleteMessage"),
+        { confirmLabel: t("profile.myPosts.deleteConfirm"), cancelLabel: t("profile.myPosts.deleteCancel"), destructive: true },
       );
 
       if (confirmed !== "confirm") return;
@@ -318,7 +323,7 @@ export default function MyPosts() {
         setPosts((prev) => prev.filter((p) => p.id !== post.id));
         setTotalPosts((prev) => Math.max(0, prev - 1));
       } catch (err) {
-        await showFailure("Could not delete post", err);
+        await showFailure(t("profile.myPosts.deleteFailed"), err);
       }
     },
     [showConfirm, showFailure],
@@ -340,8 +345,7 @@ export default function MyPosts() {
     [fields, handleLike, handleComment, handleEdit, handleDelete],
   );
 
-  const postCountLabel =
-    totalPosts === 1 ? "1 post shared" : `${totalPosts} posts shared`;
+  const postCountLabel = t("profile.myPosts.postCount", { count: totalPosts });
 
   const listHeader = useMemo(
     () => (
@@ -365,22 +369,22 @@ export default function MyPosts() {
             style={styles.createBtn}
             activeOpacity={0.85}
             onPress={() => router.push("/screens/create-post")}
-            accessibilityLabel="Create new post"
+            accessibilityLabel={t("profile.myPosts.createPost")}
           >
             <Feather name="plus" size={18} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionLabel}>Your posts</Text>
+        <Text style={styles.sectionLabel}>{t("profile.myPosts.yourPosts")}</Text>
       </>
     ),
-    [fields.avatarUrl, fields.displayName, fields.communityName, postCountLabel, router],
+    [fields.avatarUrl, fields.displayName, fields.communityName, postCountLabel, router, t],
   );
 
   return (
     <InternalPageShell
-      title="My Posts"
-      subtitle="Posts you've shared with the community"
+      title={t("profile.myPosts.title")}
+      subtitle={t("profile.myPosts.subtitle")}
       scroll={false}
     >
       {loading ? (
@@ -408,7 +412,7 @@ export default function MyPosts() {
             loadingMore ? (
               <View style={styles.footerLoader}>
                 <ActivityIndicator size="small" color={Colors.brandPrimaryDeep} />
-                <Text style={styles.footerLoaderText}>Loading more posts…</Text>
+                <Text style={styles.footerLoaderText}>{t("profile.myPosts.loadingMore")}</Text>
               </View>
             ) : null
           }

@@ -6,12 +6,14 @@ import {
   StyleSheet,
   Pressable,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { Image } from "expo-image";
 import { Fonts } from "../../constants/font";
 import { useRouter } from "expo-router";
 import AppModal from "../layout/app-modal";
 
 export default function NoticeDrawer({ visible, onClose, onBackToCreate }) {
+  const { t } = useTranslation();
   const router = useRouter();
   return (
     <AppModal visible={visible} onRequestClose={onClose}>
@@ -44,8 +46,8 @@ export default function NoticeDrawer({ visible, onClose, onBackToCreate }) {
               />
             </TouchableOpacity>
             <View>
-              <Text style={styles.title}>Notice Options</Text>
-              <Text style={styles.subtitle}>Choose notice type</Text>
+              <Text style={styles.title}>{t("notices.options")}</Text>
+              <Text style={styles.subtitle}>{t("notices.chooseType")}</Text>
             </View>
           </View>
 
@@ -64,9 +66,9 @@ export default function NoticeDrawer({ visible, onClose, onBackToCreate }) {
             </View>
 
             <View>
-              <Text style={styles.optionTitle}>Notice</Text>
+              <Text style={styles.optionTitle}>{t("notices.notice")}</Text>
               <Text style={styles.optionSubtitle}>
-                General community notice
+                {t("notices.generalNotice")}
               </Text>
             </View>
           </TouchableOpacity>
@@ -86,8 +88,8 @@ export default function NoticeDrawer({ visible, onClose, onBackToCreate }) {
             </View>
 
             <View>
-              <Text style={styles.optionTitle}>Alert</Text>
-              <Text style={styles.optionSubtitle}>Urgent community alert</Text>
+              <Text style={styles.optionTitle}>{t("notices.alert")}</Text>
+              <Text style={styles.optionSubtitle}>{t("notices.urgentAlert")}</Text>
             </View>
           </TouchableOpacity>
         </Pressable>
@@ -105,8 +107,8 @@ const styles = StyleSheet.create({
 
   container: {
     backgroundColor: "rgba(255, 255, 255, 1)",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopStartRadius: 24,
+    borderTopEndRadius: 24,
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 20,

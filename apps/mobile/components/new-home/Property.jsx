@@ -2,6 +2,7 @@ import { Text, View, StyleSheet, Pressable, useWindowDimensions, FlatList, Platf
 import React, { useMemo } from "react";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { Home, homeStyles } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
@@ -14,6 +15,8 @@ import {
 } from "../../constants/property-management-routes";
 import { getAmenityVisual, getAmenityStatus } from "../../utils/amenity-display";
 import { sw, sf } from "../../utils/responsive";
+import { chevronForward } from "../../utils/rtl";
+import { localizedField } from "../../i18n";
 
 const CARD_GAP = sw(10);
 const PEEK = sw(24);
@@ -22,16 +25,9 @@ const ICON_WELL = sw(42);
 
 function mapAmenityToCard(amenity) {
   const visual = getAmenityVisual(amenity.name, amenity.icon_key);
-  const status = getAmenityStatus(amenity.status);
-  const subtitle =
-    amenity.hours?.trim() || amenity.floor?.trim() || status.label;
 
   return {
     id: String(amenity.id),
-    title: amenity.name ?? "Amenity",
-    subTitle: subtitle,
-    statusLabel: status.label,
-    statusOpen: status.open !== false,
     iconKey: amenity.icon_key,
     iconColor: visual.tint,
     iconBg: visual.soft,
@@ -40,6 +36,12 @@ function mapAmenityToCard(amenity) {
 }
 
 function AmenityCard({ item, width, onPress }) {
+  const { t, i18n } = useTranslation();
+  const amenity = item.amenity;
+  const status = getAmenityStatus(amenity.status);
+  const title = localizedField(amenity, "name");
+  const subtitle = amenity.hours?.trim() || amenity.floor?.trim() || status.label;
+
   return (
     <Pressable
       onPress={onPress}
@@ -54,7 +56,7 @@ function AmenityCard({ item, width, onPress }) {
         <View style={[styles.iconWell, { backgroundColor: item.iconBg }]}>
           <AmenityIcon
             iconKey={item.iconKey}
-            name={item.title}
+            name={title}
             size={sf(20)}
             color={item.iconColor}
           />
@@ -62,13 +64,13 @@ function AmenityCard({ item, width, onPress }) {
 
         {/* Info */}
         <View style={styles.infoCol}>
-          <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
-          <Text style={styles.sub} numberOfLines={1}>{item.subTitle}</Text>
+          <Text style={styles.title} numberOfLines={1}>{title}</Text>
+          <Text style={styles.sub} numberOfLines={1}>{subtitle}</Text>
         </View>
 
         {/* Arrow */}
         <View style={styles.arrowCircle}>
-          <Feather name="chevron-right" size={sf(14)} color={T.teal} />
+          <Feather name={chevronForward()} size={sf(14)} color={T.teal} />
         </View>
       </View>
     </Pressable>
@@ -77,6 +79,7 @@ function AmenityCard({ item, width, onPress }) {
 
 export default function PropertyNew({ items = [] }) {
   const router = useRouter();
+  const { t } = useTranslation();
   const { width: screenWidth } = useWindowDimensions();
 
   const layout = useMemo(() => {
@@ -108,13 +111,13 @@ export default function PropertyNew({ items = [] }) {
   return (
     <View style={homeStyles.sectionLast}>
       <HomeSectionHeader
-        label="Property & Amenities"
+        label={t("home.services")}
         onPress={() => router.push(PropertyManagementRoutes.HOME)}
       />
       {cards.length === 0 ? (
         <HomeSectionEmpty
-          message="No amenities yet"
-          hint="Community facilities will appear here once published."
+          message={t("home.noAmenities")}
+          hint={t("home.noAmenitiesHint")}
         />
       ) : (
         <FlatList
@@ -144,7 +147,7 @@ export default function PropertyNew({ items = [] }) {
 
 const styles = StyleSheet.create({
   carousel: { flexGrow: 0, alignSelf: "stretch" },
-  listContent: { paddingRight: PEEK, alignItems: "flex-start" },
+  listContent: { paddingEnd: PEEK, alignItems: "flex-start" },
   card: {
     borderRadius: RADIUS,
     ...(Platform.OS === "ios"
@@ -190,6 +193,8 @@ const styles = StyleSheet.create({
     lineHeight: sf(17),
     color: T.navy,
     fontWeight: "700",
+    writingDirection: "auto",
+    flexShrink: 1,
   },
   sub: {
     fontFamily: Fonts.regular,
@@ -197,6 +202,8 @@ const styles = StyleSheet.create({
     lineHeight: sf(14),
     color: T.gray,
     marginTop: sw(2),
+    writingDirection: "auto",
+    flexShrink: 1,
   },
   arrowCircle: {
     width: sw(28),

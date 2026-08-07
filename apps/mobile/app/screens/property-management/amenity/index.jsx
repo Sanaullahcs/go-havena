@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import React, { useCallback, useMemo, useState } from "react";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import ScreenHeader from "../../../../components/layout/screen-header";
@@ -28,20 +29,24 @@ import {
   enrichAmenityBookingState,
   formatLongDate,
 } from "../../../../utils/amenity-display";
+import { chevronForward } from "../../../../utils/rtl";
+import { localizedField } from "../../../../i18n";
 
 function AmenityCard({ amenity, onPress, alreadyBooked = false }) {
+  const { t, i18n } = useTranslation();
+  const name = localizedField(amenity, "name");
   const visual = getAmenityVisual(amenity.name, amenity.icon_key);
   const status = getAmenityStatus(amenity.status);
   const reviewPending = amenity.review_status === "pending";
   const reviewRejected = amenity.review_status === "rejected";
   const pill = alreadyBooked
-    ? { bg: "#F1F5F9", dot: "#64748B", color: "#475569", label: "Already Booked" }
+    ? { bg: "#F1F5F9", dot: "#64748B", color: "#475569", label: t("propertyMgmt.alreadyBooked") }
     : reviewPending
-      ? { bg: "#FEF3C7", dot: "#F59E0B", color: "#B45309", label: "Pending review" }
+      ? { bg: "#FEF3C7", dot: "#F59E0B", color: "#B45309", label: t("propertyMgmt.pendingReview") }
       : reviewRejected
-        ? { bg: "#FEF2F2", dot: "#EF4444", color: "#B91C1C", label: "Rejected" }
+        ? { bg: "#FEF2F2", dot: "#EF4444", color: "#B91C1C", label: t("propertyMgmt.rejected") }
         : amenity.is_mine
-          ? { bg: "#D1FAF5", dot: "#0A2A43", color: "#0A2A43", label: "Yours" }
+          ? { bg: "#D1FAF5", dot: "#0A2A43", color: "#0A2A43", label: t("propertyMgmt.yours") }
           : { bg: status.bg, dot: status.dot, color: status.color, label: status.label };
 
   return (
@@ -53,7 +58,7 @@ function AmenityCard({ amenity, onPress, alreadyBooked = false }) {
       <View style={[styles.iconTile, { backgroundColor: visual.soft }]}>
         <AmenityIcon
           iconKey={amenity.icon_key}
-          name={amenity.name}
+          name={name}
           size={sf(22)}
           color={visual.tint}
         />
@@ -62,7 +67,7 @@ function AmenityCard({ amenity, onPress, alreadyBooked = false }) {
       <View style={styles.cardBody}>
         <View style={styles.cardTopRow}>
           <Text style={styles.cardTitle} numberOfLines={1}>
-            {amenity.name}
+            {name}
           </Text>
           <View style={[styles.statusPill, { backgroundColor: pill.bg }]}>
             <View style={[styles.statusDot, { backgroundColor: pill.dot }]} />
@@ -74,19 +79,21 @@ function AmenityCard({ amenity, onPress, alreadyBooked = false }) {
 
         {alreadyBooked && amenity.user_next_booking_date ? (
           <Text style={styles.reservedHint} numberOfLines={1}>
-            Reserved for {formatLongDate(amenity.user_next_booking_date)}
+            {t("propertyMgmt.reservedFor", { date: formatLongDate(amenity.user_next_booking_date) })}
           </Text>
         ) : amenity.description ? (
-          <Text style={styles.cardDesc} numberOfLines={2}>
-            {amenity.description}
-          </Text>
+          <>
+            <Text style={styles.cardDesc} numberOfLines={2}>
+              {amenity.description}
+            </Text>
+</>
         ) : null}
 
         <View style={styles.metaRow}>
           {amenity.capacity ? (
             <View style={styles.metaItem}>
               <Feather name="users" size={sf(12)} color={Colors.textMuted} />
-              <Text style={styles.metaText}>Up to {amenity.capacity}</Text>
+              <Text style={styles.metaText}>{t("propertyMgmt.upTo", { capacity: amenity.capacity })}</Text>
             </View>
           ) : null}
           {amenity.floor ? (
@@ -98,12 +105,13 @@ function AmenityCard({ amenity, onPress, alreadyBooked = false }) {
         </View>
       </View>
 
-      <Feather name="chevron-right" size={sf(18)} color="#CBD5E1" />
+      <Feather name={chevronForward()} size={sf(18)} color="#CBD5E1" />
     </TouchableOpacity>
   );
 }
 
 export default function Amenity() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [amenities, setAmenities] = useState([]);
   const [myBookings, setMyBookings] = useState([]);
@@ -168,8 +176,8 @@ export default function Amenity() {
       <ScreenHeader
         layout="inline"
         titleAlign="center"
-        title="Amenities"
-        subtitle={loading ? " " : `${amenities.length} facilities available`}
+        title={t("propertyMgmt.amenityTitle")}
+        subtitle={loading ? " " : t("propertyMgmt.facilitiesAvailable", { count: amenities.length })}
         iconOnly
       />
 
@@ -192,18 +200,18 @@ export default function Amenity() {
               <View style={styles.emptyIcon}>
                 <Feather name="home" size={sf(28)} color="#94A3B8" />
               </View>
-              <Text style={styles.emptyTitle}>No facilities yet</Text>
+              <Text style={styles.emptyTitle}>{t("propertyMgmt.noFacilities")}</Text>
               <Text style={styles.emptyText}>
-                Your community admin hasn't published amenities. Check back soon, or contact the management office.
+                {t("propertyMgmt.noFacilitiesDesc")}
               </Text>
             </View>
           ) : (
             <>
               {mine.length > 0 ? (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Your Amenities</Text>
+                  <Text style={styles.sectionTitle}>{t("propertyMgmt.yourAmenities")}</Text>
                   <Text style={styles.sectionHint}>
-                    You manage booking requests for these. You can’t book your own.
+                    {t("propertyMgmt.manageBookingHint")}
                   </Text>
                   <View style={styles.list}>
                     {mine.map((amenity) => (
@@ -219,9 +227,9 @@ export default function Amenity() {
 
               {alreadyBooked.length > 0 ? (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Already booked</Text>
+                  <Text style={styles.sectionTitle}>{t("propertyMgmt.alreadyBookedSection")}</Text>
                   <Text style={styles.sectionHint}>
-                    These return to the booking list after your reservation date passes.
+                    {t("propertyMgmt.alreadyBookedHint")}
                   </Text>
                   <View style={styles.list}>
                     {alreadyBooked.map((amenity) => (
@@ -238,7 +246,7 @@ export default function Amenity() {
 
               {bookable.length > 0 ? (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Timed slots</Text>
+                  <Text style={styles.sectionTitle}>{t("propertyMgmt.timedSlots")}</Text>
                   <View style={styles.list}>
                     {bookable.map((amenity) => (
                       <AmenityCard
@@ -255,7 +263,7 @@ export default function Amenity() {
                 <View style={styles.section}>
                   <View style={styles.sectionHead}>
                     <View style={styles.liveDot} />
-                    <Text style={styles.sectionTitle}>Open availability</Text>
+                    <Text style={styles.sectionTitle}>{t("propertyMgmt.openAvailability")}</Text>
                   </View>
                   <View style={styles.list}>
                     {openAccess.map((amenity) => (
@@ -271,7 +279,7 @@ export default function Amenity() {
 
               {others.filter((a) => a.status === "closed").length > 0 ? (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Closed</Text>
+                  <Text style={styles.sectionTitle}>{t("propertyMgmt.closed")}</Text>
                   <View style={styles.list}>
                     {others
                       .filter((a) => a.status === "closed")

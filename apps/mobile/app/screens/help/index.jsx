@@ -11,6 +11,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import UserAvatar from "../../../components/ui/user-avatar";
 import CrispImage from "../../../components/ui/crisp-image";
@@ -21,13 +22,14 @@ import { getFeedTagTheme } from "../../../constants/feed-theme";
 import { Fonts } from "../../../constants/font";
 import { Colors, Layout } from "../../../constants/tokens";
 import { sw, sf, hp } from "../../../utils/responsive";
+import { arrowForward } from "../../../utils/rtl";
 
 const HELP_THEME = getFeedTagTheme("Help");
 
-function HelpCard({ post, onPress }) {
-  const authorName = post.user?.display_name ?? post.user?.name ?? "Neighbor";
+function HelpCard({ post, onPress, t }) {
+  const authorName = post.user?.display_name ?? post.user?.name ?? t('achievements.help.neighbor');
   const isPending = post.status === "pending";
-  const statusLabel = isPending ? "Pending" : "Open";
+  const statusLabel = isPending ? t('achievements.help.pending') : t('achievements.help.open');
   const statusStyle = isPending ? styles.statusPending : styles.statusOpen;
   const statusTextStyle = isPending ? styles.statusPendingText : styles.statusOpenText;
 
@@ -46,8 +48,8 @@ function HelpCard({ post, onPress }) {
                   {authorName}
                 </Text>
                 <Text style={styles.authorMeta} numberOfLines={1}>
-                  {post.user?.time ?? "Recently"}
-                  {post.user?.location ? ` · ${post.user.location}` : ""}
+                  {post.user?.time ?? t('achievements.help.recently')}
+                  {post.author_unit ? ` · ${t("nav.unit", { number: post.author_unit })}` : ""}
                 </Text>
               </View>
             </View>
@@ -62,7 +64,7 @@ function HelpCard({ post, onPress }) {
 
           <View style={[styles.helpTag, { backgroundColor: HELP_THEME.bg, borderColor: HELP_THEME.border }]}>
             <Feather name="life-buoy" size={sf(11)} color={HELP_THEME.text} />
-            <Text style={[styles.helpTagText, { color: HELP_THEME.text }]}>Help request</Text>
+            <Text style={[styles.helpTagText, { color: HELP_THEME.text }]}>{t('achievements.help.helpRequest')}</Text>
           </View>
 
           {post.content ? (
@@ -81,8 +83,8 @@ function HelpCard({ post, onPress }) {
 
           <View style={styles.cardFooter}>
             <View style={[styles.respondBtn, { backgroundColor: HELP_THEME.bg }]}>
-              <Text style={[styles.respondBtnText, { color: HELP_THEME.text }]}>Respond</Text>
-              <Feather name="arrow-right" size={sf(14)} color={HELP_THEME.text} />
+              <Text style={[styles.respondBtnText, { color: HELP_THEME.text }]}>{t('achievements.help.respond')}</Text>
+              <Feather name={arrowForward()} size={sf(14)} color={HELP_THEME.text} />
             </View>
           </View>
         </View>
@@ -92,6 +94,7 @@ function HelpCard({ post, onPress }) {
 }
 
 export default function HelpScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [posts, setPosts] = useState([]);
@@ -134,10 +137,10 @@ export default function HelpScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
-      <InternalScreenHeader title="Neighborhood Help" subtitle="Ask neighbors or lend a hand" />
+      <InternalScreenHeader title={t('achievements.help.title')} subtitle={t('achievements.help.subtitle')} />
 
       <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>Recent requests</Text>
+        <Text style={styles.sectionTitle}>{t('achievements.help.recentRequests')}</Text>
         {posts.length > 0 ? (
           <View style={styles.countBadge}>
             <Text style={styles.countText}>{posts.length}</Text>
@@ -149,7 +152,7 @@ export default function HelpScreen() {
         style={styles.list}
         data={posts}
         keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => <HelpCard post={item} onPress={() => openPost(item)} />}
+        renderItem={({ item }) => <HelpCard post={item} onPress={() => openPost(item)} t={t} />}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.listContent,
@@ -167,9 +170,9 @@ export default function HelpScreen() {
               <View style={styles.emptyIcon}>
                 <Feather name="inbox" size={sf(28)} color={Colors.brandPrimaryDeep} />
               </View>
-              <Text style={styles.emptyTitle}>No help requests yet</Text>
+              <Text style={styles.emptyTitle}>{t('achievements.help.noRequestsTitle')}</Text>
               <Text style={styles.emptyText}>
-                Be the first to ask. Use the button below to post a request.
+                {t('achievements.help.noRequestsText')}
               </Text>
             </View>
           )
@@ -185,7 +188,7 @@ export default function HelpScreen() {
             style={styles.ctaGradient}
           >
             <Feather name="edit-3" size={sf(16)} color="#FFFFFF" />
-            <Text style={styles.ctaText}>Ask for help</Text>
+            <Text style={styles.ctaText}>{t('achievements.help.askForHelp')}</Text>
           </View>
         </Pressable>
       </View>

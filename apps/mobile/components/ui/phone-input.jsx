@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Platform, TextInput, View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { authStyles } from "../../constants/auth-styles";
 import { Fonts } from "../../constants/font";
 import { DEFAULT_PHONE_COUNTRY, formatDialLabel } from "../../constants/phone-countries";
@@ -25,9 +26,10 @@ import {
 } from "../../utils/phone";
 
 function PhoneFieldMessage({ digits, country, showError }) {
+  const { t } = useTranslation();
   if (!digits) {
     if (showError) {
-      return <Text style={authStyles.inputErrorText}>Enter your phone number</Text>;
+      return <Text style={authStyles.inputErrorText}>{t("auth.enterPhoneShort")}</Text>;
     }
     return null;
   }
@@ -40,13 +42,13 @@ function PhoneFieldMessage({ digits, country, showError }) {
   return null;
 }
 
-function ClearButton({ onPress }) {
+function ClearButton({ onPress, label }) {
   return (
     <Pressable
       onPress={onPress}
       style={authStyles.phoneClearBtn}
       hitSlop={8}
-      accessibilityLabel="Clear phone number"
+      accessibilityLabel={label}
     >
       <Ionicons name="close-circle" size={22} color="#9CA3AF" />
     </Pressable>
@@ -54,6 +56,7 @@ function ClearButton({ onPress }) {
 }
 
 function CountryCodeButton({ country, variant, onPress }) {
+  const { t } = useTranslation();
   const label = formatDialLabel(country);
 
   if (variant === "signup") {
@@ -62,7 +65,7 @@ function CountryCodeButton({ country, variant, onPress }) {
         style={[authStyles.countryCode, styles.countryCodeWide]}
         onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel={`Country code ${label}`}
+        accessibilityLabel={t("auth.countryCodeLabel", { code: label })}
       >
         <Text style={authStyles.countryCodeText}>{label}</Text>
         <Ionicons name="chevron-down" size={14} color="#6B7280" style={styles.chevron} />
@@ -75,7 +78,7 @@ function CountryCodeButton({ country, variant, onPress }) {
       style={styles.loginPrefixBtn}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`Country code ${label}`}
+      accessibilityLabel={t("auth.countryCodeLabel", { code: label })}
     >
       <Text style={authStyles.loginPhonePrefix}>{label}</Text>
       <Ionicons name="chevron-down" size={14} color="#6B7280" />
@@ -132,6 +135,7 @@ export default function LoginPhoneInput({
   placeholder,
   containerStyle,
 }) {
+  const { t } = useTranslation();
   const {
     pickerOpen,
     setPickerOpen,
@@ -166,7 +170,7 @@ export default function LoginPhoneInput({
           clearButtonMode="never"
           {...iosPhonePadProps}
         />
-        {digits.length > 0 ? <ClearButton onPress={() => onChangeDigits("")} /> : null}
+        {digits.length > 0 ? <ClearButton onPress={() => onChangeDigits("")} label={t("common.clear")} /> : null}
       </View>
       {showHints ? <PhoneFieldMessage digits={digits} country={country} showError={showError} /> : null}
       <PhoneKeyboardAccessory mode="hidden" />
@@ -192,6 +196,7 @@ export function FormPhoneInput({
   containerStyle,
   onFocus,
 }) {
+  const { t } = useTranslation();
   const {
     pickerOpen,
     setPickerOpen,
@@ -212,7 +217,7 @@ export function FormPhoneInput({
           style={formStyles.countryBtn}
           onPress={() => setPickerOpen(true)}
           accessibilityRole="button"
-          accessibilityLabel={`Country code ${formatDialLabel(country)}`}
+          accessibilityLabel={t("auth.countryCodeLabel", { code: formatDialLabel(country) })}
         >
           <Text style={formStyles.countryText}>{formatDialLabel(country)}</Text>
           <Feather name="chevron-down" size={sf(12)} color="#64748B" />
@@ -237,7 +242,7 @@ export function FormPhoneInput({
             onPress={() => onChangeDigits("")}
             style={formStyles.clearBtn}
             hitSlop={8}
-            accessibilityLabel="Clear phone number"
+            accessibilityLabel={t("common.clear")}
           >
             <Feather name="x-circle" size={sf(16)} color="#94A3B8" />
           </Pressable>
@@ -266,6 +271,7 @@ export function SignupPhoneInput({
   containerStyle,
   rowStyle,
 }) {
+  const { t } = useTranslation();
   const {
     pickerOpen,
     setPickerOpen,
@@ -301,7 +307,7 @@ export function SignupPhoneInput({
             clearButtonMode="never"
             {...iosPhonePadProps}
           />
-          {digits.length > 0 ? <ClearButton onPress={() => onChangeDigits("")} /> : null}
+          {digits.length > 0 ? <ClearButton onPress={() => onChangeDigits("")} label={t("common.clear")} /> : null}
         </View>
       </View>
       {showHints ? <PhoneFieldMessage digits={digits} country={country} showError={showError} /> : null}
@@ -322,7 +328,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 2,
-    marginRight: 8,
+    marginEnd: 8,
     flexShrink: 0,
   },
   countryCodeWide: {
@@ -342,8 +348,8 @@ const styles = StyleSheet.create({
     borderColor: "#E6E9EE",
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
-    paddingLeft: 16,
-    paddingRight: 8,
+    paddingStart: 16,
+    paddingEnd: 8,
   },
   signupField: {
     flex: 1,
@@ -374,7 +380,7 @@ const formStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: sw(4),
-    paddingRight: sw(10),
+    paddingEnd: sw(10),
     flexShrink: 0,
   },
   countryText: {
@@ -387,7 +393,7 @@ const formStyles = StyleSheet.create({
     alignSelf: "stretch",
     backgroundColor: "#E2E8F0",
     marginVertical: sw(10),
-    marginRight: sw(10),
+    marginEnd: sw(10),
   },
   field: {
     flex: 1,
@@ -397,6 +403,6 @@ const formStyles = StyleSheet.create({
     paddingVertical: sw(12),
   },
   clearBtn: {
-    paddingLeft: sw(6),
+    paddingStart: sw(6),
   },
 });

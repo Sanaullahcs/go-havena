@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import { Image } from "expo-image";
+import { useTranslation } from "react-i18next";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { resolveSeedMediaSource } from "../../constants/seed-media";
-import { mediaImageSource, resolveMediaUrl } from "../../utils/profile-display";
+import { resolveAppImageSource, resolveMediaUrl } from "../../utils/profile-display";
 import { imageProps } from "../../constants/typography";
 import { sw } from "../../utils/responsive";
 
@@ -19,10 +20,8 @@ export function resolveNoticeCoverUrl(imageUrl) {
 }
 
 function resolveCoverSource(imageUrl) {
-  if (!imageUrl && imageUrl !== 0) return null;
-  const seed = resolveSeedMediaSource(imageUrl);
-  if (seed != null) return seed;
-  return mediaImageSource(imageUrl);
+  if (imageUrl == null || imageUrl === "") return null;
+  return resolveAppImageSource(imageUrl);
 }
 
 /** Blank surface when no cover image is available. */
@@ -33,6 +32,7 @@ export function NoticeCoverPlaceholder({
   fill = false,
   backgroundColor,
 }) {
+  const { t } = useTranslation();
   const frameStyle = fill
     ? StyleSheet.absoluteFillObject
     : { width: size, height: size, borderRadius };
@@ -48,7 +48,7 @@ export function NoticeCoverPlaceholder({
         frameStyle,
         style,
       ]}
-      accessibilityLabel="Notice cover placeholder"
+      accessibilityLabel={t("notices.coverPlaceholder")}
     />
   );
 }
@@ -67,6 +67,7 @@ export function NoticeCoverMedia({
   const [failed, setFailed] = useState(false);
   const source = useMemo(() => resolveCoverSource(imageUrl), [imageUrl]);
   const showImage = Boolean(source != null && !failed);
+  const isBundled = typeof source === "number";
 
   useEffect(() => {
     setFailed(false);
@@ -77,8 +78,8 @@ export function NoticeCoverMedia({
     : [styles.frame, { width: size, height: size, borderRadius }, style];
 
   const imageStyle = fill
-    ? styles.fillImage
-    : { width: size, height: size };
+    ? [styles.fillImage, styles.imageLayer]
+    : [styles.imageLayer, { width: size, height: size }];
 
   return (
     <View style={frameStyle}>
@@ -91,7 +92,7 @@ export function NoticeCoverMedia({
       />
       {showImage ? (
         <Image
-          {...imageProps}
+          {...(isBundled ? {} : imageProps)}
           source={source}
           style={imageStyle}
           contentFit="cover"
@@ -124,6 +125,10 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     width: "100%",
     height: "100%",
+  },
+  imageLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
   },
   placeholder: {
     overflow: "hidden",

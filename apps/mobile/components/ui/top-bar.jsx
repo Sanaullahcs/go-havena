@@ -5,6 +5,7 @@ import BurgerButton from "./burger-button";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import React, { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useFocusEffect } from "expo-router";
 import { getProfileFields, getRoleLabel } from "../../utils/profile-display";
 import { isGuestUser } from "../../services/community-access";
@@ -18,6 +19,7 @@ import NotificationCountBadge from "./notification-count-badge";
 
 export default function TopBar({ onMenuPress }) {
   const router = useRouter();
+  const { t } = useTranslation();
   const [user, setUser] = useState(null);
   const { unread } = useNotificationUnread();
   const { unread: messageUnread } = useMessageUnread();
@@ -34,13 +36,13 @@ export default function TopBar({ onMenuPress }) {
   const { communityName, regionTitle, unitNumber } = getProfileFields(user);
   const roleLabel = getRoleLabel(user);
   const hasCommunity = Boolean(user?.memberships?.some((m) => m?.community?.name));
-  const title = hasCommunity ? communityName : "Choose your community";
+  const title = hasCommunity ? communityName : t("topBar.chooseYourCommunity");
   const subtitle = hasCommunity
     ? guestUser
-      ? regionTitle || "Temporary community access"
-      : [unitNumber ? `Unit ${unitNumber}` : null, regionTitle].filter(Boolean).join(" · ") ||
-        "Your neighborhood"
-    : "Complete setup to personalize home";
+      ? regionTitle || t("topBar.temporaryAccess")
+      : [unitNumber ? t("topBar.unit", { number: unitNumber }) : null, regionTitle].filter(Boolean).join(" · ") ||
+        t("topBar.yourNeighborhood")
+    : t("topBar.completeSetup");
 
   return (
     <HeaderShell padded dense>
@@ -49,7 +51,7 @@ export default function TopBar({ onMenuPress }) {
           <BurgerButton onPress={onMenuPress} compact plain iconColor={T.navy} />
           <Pressable
             style={styles.location}
-            accessibilityLabel={`Community location: ${title}`}
+            accessibilityLabel={t("topBar.communityLocation", { name: title })}
             onPress={() => router.push("/(tabs)/profile")}
           >
             <View style={styles.pinWrap}>
@@ -78,7 +80,7 @@ export default function TopBar({ onMenuPress }) {
           <Pressable
             style={styles.iconBtn}
             onPress={() => router.push("/screens/messages")}
-            accessibilityLabel="Messages"
+            accessibilityLabel={t("messages.title")}
           >
             <Feather name="message-circle" size={sf(17)} color={T.navy} />
             <NotificationCountBadge count={messageUnread} size="sm" label="messages" />
@@ -87,7 +89,7 @@ export default function TopBar({ onMenuPress }) {
           <Pressable
             style={styles.iconBtn}
             onPress={() => router.push("/screens/notification")}
-            accessibilityLabel="Notifications"
+            accessibilityLabel={t("notifications.title")}
           >
             <Feather name="bell" size={sf(17)} color={T.navy} />
             <NotificationCountBadge count={unread} size="sm" label="notifications" />

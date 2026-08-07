@@ -1,19 +1,22 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { Home } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { sw, sf, hp } from "../../utils/responsive";
+import { chevronForward } from "../../utils/rtl";
 
 const STEPS = [
-  { id: "feed", label: "Explore the feed", route: "/screens/community-feed" },
-  { id: "wellness", label: "Browse wellness", route: "/wellness" },
-  { id: "profile", label: "Complete profile", route: "/(tabs)/profile" },
+  { id: "feed", labelKey: "home.ftb.exploreFeed", route: "/screens/community-feed" },
+  { id: "wellness", labelKey: "home.ftb.browseWellness", route: "/wellness" },
+  { id: "profile", labelKey: "home.ftb.completeProfile", route: "/(tabs)/profile" },
 ];
 
 export default function FirstTimeBanner({ onDismiss }) {
+  const { t } = useTranslation();
   const router = useRouter();
 
   return (
@@ -21,12 +24,12 @@ export default function FirstTimeBanner({ onDismiss }) {
       <View style={styles.card}>
         <View style={styles.head}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Welcome to Havena!</Text>
+            <Text style={styles.title}>{t("home.welcomeToHavena")}</Text>
             <Text style={styles.sub}>
-              Your community hub is ready. Here&apos;s how to get started.
+              {t("home.ftb.subtitle")}
             </Text>
           </View>
-          <Pressable onPress={onDismiss} hitSlop={12} accessibilityLabel="Dismiss">
+          <Pressable onPress={onDismiss} hitSlop={12} accessibilityLabel={t("common.dismiss")}>
             <Ionicons name="close" size={sf(20)} color={T.gray} />
           </Pressable>
         </View>
@@ -38,14 +41,14 @@ export default function FirstTimeBanner({ onDismiss }) {
               style={styles.step}
               onPress={() => router.push(step.route)}
             >
-              <Text style={styles.stepText}>{step.label}</Text>
-              <Ionicons name="chevron-forward" size={sf(16)} color={T.teal} />
+              <Text style={styles.stepText}>{t(step.labelKey)}</Text>
+              <Feather name={chevronForward()} size={sf(16)} color={T.teal} />
             </Pressable>
           ))}
         </View>
 
         <Pressable style={styles.cta} onPress={onDismiss}>
-          <Text style={styles.ctaText}>Got it — explore home</Text>
+          <Text style={styles.ctaText}>{t("home.gotItExplore")}</Text>
         </Pressable>
       </View>
     </View>

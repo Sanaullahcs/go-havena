@@ -4,6 +4,9 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Fonts } from "../../../../constants/font";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
+import i18n, { localizedField } from "../../../../i18n";
+import { getLocaleForLang } from "../../../../hooks/use-app-locale";
 import InternalScreenHeader from "../../../../components/layout/internal-screen-header";
 import { pageStyles } from "../../../../constants/page-styles";
 import { Property, propertyStyles } from "../../../../constants/property-styles";
@@ -13,26 +16,26 @@ import { useAppDialog } from "../../../../providers/app-dialog-provider";
 import { sw, sf } from "../../../../utils/responsive";
 
 const STATUS_META = {
-  pending: { label: "Pending", color: "#B45309", bg: "#FEF3C7", icon: "clock" },
-  confirmed: { label: "Confirmed", color: "#047857", bg: "#ECFDF5", icon: "check-circle" },
-  rejected: { label: "Declined", color: "#B91C1C", bg: "#FEF2F2", icon: "x-circle" },
-  cancelled: { label: "Cancelled", color: "#64748B", bg: "#F1F5F9", icon: "slash" },
+  pending: { label: "propertyMgmt.statusPending", color: "#B45309", bg: "#FEF3C7", icon: "clock" },
+  confirmed: { label: "propertyMgmt.statusConfirmed", color: "#047857", bg: "#ECFDF5", icon: "check-circle" },
+  rejected: { label: "propertyMgmt.statusDeclined", color: "#B91C1C", bg: "#FEF2F2", icon: "x-circle" },
+  cancelled: { label: "propertyMgmt.statusCancelled", color: "#64748B", bg: "#F1F5F9", icon: "slash" },
 };
 
 function formatDateTime(dateStr, timeStr) {
   if (!dateStr) return "";
   try {
-    // Parse YYYY-MM-DD as a local date to avoid UTC day-shift.
     const [y, m, d] = String(dateStr).slice(0, 10).split("-").map(Number);
     const date = new Date(y, m - 1, d);
-    const dateLabel = date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-    return timeStr ? `${dateLabel} at ${timeStr}` : dateLabel;
+    const dateLabel = date.toLocaleDateString(getLocaleForLang(i18n.language), { month: "short", day: "numeric", year: "numeric" });
+    return timeStr ? `${dateLabel} · ${timeStr}` : dateLabel;
   } catch {
     return dateStr;
   }
 }
 
 export default function MyBooking() {
+  const { t } = useTranslation();
   const [selectedTab, setSelectedTab] = useState("upcoming");
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -46,7 +49,7 @@ export default function MyBooking() {
       const data = await fetchMyBookings();
       setBookings(data);
     } catch (err) {
-      await showFailure("Could not load bookings", err);
+      await showFailure(t("propertyMgmt.couldNotLoadBookings"), err);
       setBookings([]);
     } finally {
       setLoading(false);
@@ -61,30 +64,30 @@ export default function MyBooking() {
   const handleCancel = async (reservation) => {
     const isPending = reservation?.status === "pending";
     const confirmed = await showConfirm(
-      isPending ? "Cancel Request" : "Cancel Reservation",
+      isPending ? t("propertyMgmt.cancelRequest") : t("propertyMgmt.cancelReservation"),
       isPending
-        ? "Withdraw this booking request? You can request again later."
-        : "Are you sure you want to cancel this booking?",
-      { confirmLabel: isPending ? "Withdraw" : "Cancel Booking", cancelLabel: "Keep It", destructive: true },
+        ? t("propertyMgmt.withdrawMsg")
+        : t("propertyMgmt.cancelBookingMsg"),
+      { confirmLabel: isPending ? t("propertyMgmt.withdrawBtn") : t("propertyMgmt.cancelBookingBtn"), cancelLabel: t("propertyMgmt.keepIt"), destructive: true },
     );
     if (confirmed !== "confirm") return;
 
     await runAction({
       action: () => cancelBooking(reservation.id),
-      successTitle: isPending ? "Request withdrawn" : "Reservation cancelled",
+      successTitle: isPending ? t("propertyMgmt.requestWithdrawn") : t("propertyMgmt.reservationCancelled"),
       successMessage: isPending
-        ? "Your booking request was withdrawn."
-        : "Your booking was cancelled successfully.",
-      errorTitle: "Could not cancel booking",
+        ? t("propertyMgmt.withdrawnMsg")
+        : t("propertyMgmt.cancelledMsg"),
+      errorTitle: t("propertyMgmt.couldNotCancelBooking"),
       onSuccess: () => load(true),
     });
   };
 
   // Compare as YYYY-MM-DD strings to stay timezone-safe (avoids UTC parsing
   // pushing today's/tomorrow's bookings into the past).
-  const t = new Date();
-  const todayKey = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(
-    t.getDate(),
+  const now = new Date();
+  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+    now.getDate(),
   ).padStart(2, "0")}`;
 
   const categorized = bookings.map((b) => {
@@ -98,16 +101,16 @@ export default function MyBooking() {
 
   const upcomingCount = categorized.filter((b) => b.timeframe === "upcoming").length;
   const tabs = [
-    { id: "upcoming", title: `Upcoming (${upcomingCount})` },
-    { id: "past", title: "Past" },
-    { id: "all", title: "All" },
+    { id: "upcoming", title: t("propertyMgmt.upcomingTab", { count: upcomingCount }) },
+    { id: "past", title: t("propertyMgmt.pastTab") },
+    { id: "all", title: t("propertyMgmt.allTab") },
   ];
 
   const filtered = selectedTab === "all" ? categorized : categorized.filter((b) => b.timeframe === selectedTab);
 
   return (
     <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
-      <InternalScreenHeader title="My Reservations" subtitle={`${upcomingCount} upcoming reservations`} />
+      <InternalScreenHeader title={t("propertyMgmt.bookingsTitle")} subtitle={t("propertyMgmt.upcomingSubtitle", { count: upcomingCount })} />
 
       <ScrollView
         horizontal
@@ -140,20 +143,21 @@ export default function MyBooking() {
               <View style={styles.emptyIcon}>
                 <Feather name="calendar" size={sf(28)} color="#94A3B8" />
               </View>
-              <Text style={styles.emptyTitle}>No reservations</Text>
-              <Text style={styles.emptyText}>Book an amenity to see it here.</Text>
+              <Text style={styles.emptyTitle}>{t("propertyMgmt.noReservations")}</Text>
+              <Text style={styles.emptyText}>{t("propertyMgmt.bookAmenityHint")}</Text>
             </View>
           ) : (
             filtered.map((reservation) => {
               const isPast = reservation.timeframe === "past";
               const meta = STATUS_META[reservation.status] ?? STATUS_META.pending;
-              const amenityName = reservation.amenity?.name ?? reservation.amenity_name ?? "Amenity";
+              const amenityObj = reservation.amenity ?? reservation;
+              const amenityName = localizedField(amenityObj, "name") || (reservation.amenity_name ?? t("propertyMgmt.amenityFallback"));
               const dateLabel = formatDateTime(reservation.date ?? reservation.starts_at, null);
               const canCancel =
                 reservation.timeframe === "upcoming" &&
                 (reservation.status === "pending" || reservation.status === "confirmed");
               const cancelLabel =
-                reservation.status === "pending" ? "Cancel Request" : "Cancel Reservation";
+                reservation.status === "pending" ? t("propertyMgmt.cancelRequest") : t("propertyMgmt.cancelReservation");
 
               return (
                 <View key={reservation.id} style={[styles.card, isPast && styles.cardPast]}>
@@ -163,13 +167,13 @@ export default function MyBooking() {
                         {amenityName}
                       </Text>
                       {reservation.status === "pending" ? (
-                        <Text style={styles.pendingNote}>Awaiting owner approval</Text>
+                        <Text style={styles.pendingNote}>{t("propertyMgmt.awaitingOwnerApproval")}</Text>
                       ) : null}
                     </View>
                     <View style={[styles.statusPill, { backgroundColor: meta.bg }]}>
                       <Feather name={meta.icon} size={sf(11)} color={meta.color} />
                       <Text style={[styles.statusText, { color: meta.color }]}>
-                        {meta.label}
+                        {t(meta.label)}
                       </Text>
                     </View>
                   </View>
@@ -179,7 +183,7 @@ export default function MyBooking() {
                       <View style={styles.detailIcon}>
                         <Feather name="calendar" size={sf(14)} color="#0A2A43" />
                       </View>
-                      <Text style={styles.detailText}>{dateLabel || "Date TBD"}</Text>
+                      <Text style={styles.detailText}>{dateLabel || t("propertyMgmt.dateTBD")}</Text>
                     </View>
                     {reservation.time_slot ? (
                       <View style={styles.detailRow}>
@@ -214,9 +218,9 @@ export default function MyBooking() {
               <Feather name="bell" size={sf(18)} color="#047857" />
             </View>
             <View style={styles.reminderBody}>
-              <Text style={styles.reminderTitle}>Automatic Reminders</Text>
+              <Text style={styles.reminderTitle}>{t("propertyMgmt.autoReminders")}</Text>
               <Text style={styles.reminderText}>
-                You'll receive push notifications 1 hour before each reservation
+                {t("propertyMgmt.autoRemindersMsg")}
               </Text>
             </View>
           </View>

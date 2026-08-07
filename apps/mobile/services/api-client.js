@@ -1,3 +1,4 @@
+import i18n from "../i18n";
 import { API_BASE_URL } from "../constants/api-config";
 import { getCommunityId, getToken, getUser, clearSession, notifyGuestSessionTerminated } from "./auth-session";
 import { isGuestUser } from "./community-access";
@@ -138,14 +139,14 @@ function apiErrorMessage(body, response) {
   }
 
   if (response.status === 401) {
-    return "Your session expired. Please sign in again.";
+    return i18n.t("apiErrors.sessionExpired");
   }
 
   if (response.status >= 500) {
-    return "The server encountered an error. Please try again in a moment.";
+    return i18n.t("apiErrors.serverError");
   }
 
-  return "Request failed";
+  return i18n.t("apiErrors.requestFailed");
 }
 
 export async function apiRequest(path, { method = "GET", body, auth = true, community = true, timeoutMs = 25000 } = {}) {
@@ -185,7 +186,7 @@ export async function apiRequest(path, { method = "GET", body, auth = true, comm
     } catch (err) {
       if (isNetworkFailure(err)) {
         throw new ApiError(
-          "Could not reach the server. Check your internet connection and try again.",
+          i18n.t("apiErrors.networkError"),
           { status: 0, code: "NETWORK_ERROR" },
         );
       }
@@ -196,7 +197,7 @@ export async function apiRequest(path, { method = "GET", body, auth = true, comm
   const timeoutPromise = new Promise((_, reject) => {
     timeoutId = setTimeout(() => {
       reject(
-        new ApiError("Connection timed out. Check your network and try again.", {
+        new ApiError(i18n.t("apiErrors.timeout"), {
           status: 408,
           code: "TIMEOUT",
         }),

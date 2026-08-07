@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { View, Text, StyleSheet, Platform, PixelRatio } from "react-native";
+import { useTranslation } from "react-i18next";
 import { formatUnreadBadgeCount } from "../../hooks/use-notification-unread";
 import { Fonts } from "../../constants/font";
 import { sf, sw } from "../../utils/responsive";
@@ -45,7 +46,9 @@ function getBadgeMetrics(label, isCompact) {
   };
 }
 
-export default function NotificationCountBadge({ count, size = "md", style, label = "notifications" }) {
+export default function NotificationCountBadge({ count, size = "md", style, label }) {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t("common.notifications");
   const badgeLabel = count > 0 ? formatUnreadBadgeCount(count) : "";
   const isCompact = size === "sm";
   const metrics = useMemo(
@@ -63,7 +66,7 @@ export default function NotificationCountBadge({ count, size = "md", style, labe
         styles.badge,
         {
           top: -inset,
-          right: -inset,
+          end: -inset,
           width,
           height,
           minWidth: width,
@@ -74,7 +77,7 @@ export default function NotificationCountBadge({ count, size = "md", style, labe
         },
         style,
       ]}
-      accessibilityLabel={`${count} unread ${label}`}
+      accessibilityLabel={t("common.unreadCount", { count, label: resolvedLabel })}
     >
       <Text
         allowFontScaling={false}

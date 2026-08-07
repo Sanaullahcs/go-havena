@@ -2,6 +2,7 @@ import { Text, View, StyleSheet, Pressable, useWindowDimensions, FlatList, Platf
 import React, { useCallback, useMemo } from "react";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { Home, homeStyles } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
@@ -12,11 +13,12 @@ import { formatEventTimeRange, formatLongDate, getNoticeDetailRoute } from "../.
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
 import { navigateAppRoute } from "../../utils/app-navigation";
 import { sw, sf } from "../../utils/responsive";
+import { localizedField } from "../../i18n";
 
 const CARD_GAP = sw(12);
 const PEEK = sw(32);
 const CARD_RADIUS = sw(16);
-const BODY_MIN_H = sw(98);
+const BODY_MIN_H = sw(110);
 
 function mapEventToCard(notice) {
   return {
@@ -33,32 +35,37 @@ function mapEventToCard(notice) {
 }
 
 function EventCard({ item, width, imageH, cardHeight, onPress }) {
+  const { i18n } = useTranslation();
+  const displayTitle = localizedField(item.notice, "title") || item.title;
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
-        { width, height: cardHeight },
+        { width, minHeight: cardHeight },
         pressed && styles.cardPressed,
       ]}
     >
-      <View style={[styles.cardInner, { height: cardHeight }]}>
+      <View style={[styles.cardInner, { minHeight: cardHeight }]}>
         <View style={[styles.imageWrap, { height: imageH }]}>
           <NoticeCoverMedia
             fill
             imageUrl={item.imageUrl}
+            backgroundColor={T.mint}
           />
           {item.date ? (
             <View style={styles.dateBadge}>
               <Feather name="calendar" size={sf(10)} color={T.navy} />
-              <Text style={styles.dateBadgeText}>{item.date}</Text>
+              <Text style={styles.dateBadgeText} numberOfLines={1}>
+                {item.date}
+              </Text>
             </View>
           ) : null}
         </View>
 
-        <View style={[styles.body, { height: cardHeight - imageH }]}>
-          <Text style={styles.title} numberOfLines={2}>
-            {item.title}
+        <View style={styles.body}>
+          <Text style={styles.title} numberOfLines={3}>
+            {displayTitle}
           </Text>
           <View style={styles.metaBlock}>
             {item.time ? (
@@ -86,9 +93,10 @@ function EventCard({ item, width, imageH, cardHeight, onPress }) {
 
 export default function HappeningSoon({ items = [] }) {
   const router = useRouter();
+  const { t, i18n } = useTranslation();
   const { width: screenWidth } = useWindowDimensions();
 
-  const events = useMemo(() => items.map(mapEventToCard), [items]);
+  const events = useMemo(() => items.map(mapEventToCard), [items, i18n.language]);
 
   const layout = useMemo(() => {
     const contentWidth = screenWidth - Home.gutter * 2;
@@ -108,7 +116,7 @@ export default function HappeningSoon({ items = [] }) {
 
   const renderItem = useCallback(
     ({ item }) => (
-      <View style={{ width: layout.cardWidth, height: layout.cardHeight, flexShrink: 0 }}>
+      <View style={{ width: layout.cardWidth, minHeight: layout.cardHeight, flexShrink: 0 }}>
         <EventCard
           item={item}
           width={layout.cardWidth}
@@ -125,10 +133,10 @@ export default function HappeningSoon({ items = [] }) {
     return (
       <View style={homeStyles.section}>
         <HomeSectionHeader
-          label="Happening Soon"
+          label={t("home.happeningSoon")}
           onPress={() => navigateAppRoute(router, PropertyManagementRoutes.NOTICES)}
         />
-        <HomeSectionEmpty message="No upcoming events" hint="Community events will appear here." />
+        <HomeSectionEmpty message={t("home.noEvents")} />
       </View>
     );
   }
@@ -136,13 +144,13 @@ export default function HappeningSoon({ items = [] }) {
   return (
     <View style={homeStyles.section}>
       <HomeSectionHeader
-        label="Happening Soon"
+        label={t("home.happeningSoon")}
         onPress={() => navigateAppRoute(router, PropertyManagementRoutes.NOTICES)}
       />
       <FlatList
         data={events}
         horizontal
-        style={[styles.carousel, { height: layout.cardHeight }]}
+        style={[styles.carousel, { minHeight: layout.cardHeight }]}
         showsHorizontalScrollIndicator={false}
         decelerationRate="fast"
         snapToInterval={layout.snap}
@@ -161,7 +169,7 @@ export default function HappeningSoon({ items = [] }) {
 
 const styles = StyleSheet.create({
   carousel: { flexGrow: 0, alignSelf: "stretch" },
-  listContent: { paddingRight: PEEK, alignItems: "flex-start" },
+  listContent: { paddingEnd: PEEK, alignItems: "flex-start" },
   card: {
     borderRadius: CARD_RADIUS,
     ...(Platform.OS === "ios"
@@ -193,7 +201,7 @@ const styles = StyleSheet.create({
   dateBadge: {
     position: "absolute",
     bottom: sw(8),
-    left: sw(8),
+    start: sw(8),
     flexDirection: "row",
     alignItems: "center",
     gap: sw(4),
@@ -201,14 +209,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(8),
     paddingVertical: sw(4),
     borderRadius: 999,
+    maxWidth: "85%",
   },
   dateBadgeText: {
     fontFamily: Fonts.semiBold,
-    fontSize: sf(9.5),
+    fontSize: sf(9),
     color: T.navy,
     fontWeight: "600",
+    flexShrink: 1,
+    writingDirection: "auto",
   },
   body: {
+    flex: 1,
     paddingHorizontal: sw(10),
     paddingTop: sw(10),
     paddingBottom: sw(10),
@@ -216,10 +228,12 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: Fonts.bold,
-    fontSize: sf(13),
+    fontSize: sf(12.5),
     lineHeight: sf(17),
     color: T.navy,
     fontWeight: "700",
+    flexShrink: 1,
+    writingDirection: "auto",
   },
   metaBlock: {
     gap: sw(3),
@@ -231,9 +245,11 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontFamily: Fonts.regular,
-    fontSize: sf(11),
+    fontSize: sf(10.5),
     lineHeight: sf(14),
     color: T.gray,
     flex: 1,
+    flexShrink: 1,
+    writingDirection: "auto",
   },
 });

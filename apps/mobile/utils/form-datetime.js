@@ -1,4 +1,9 @@
-const DISPLAY_LOCALE = "en-US";
+import i18n from "../i18n";
+import { getLocaleForLang } from "../hooks/use-app-locale";
+
+function getDisplayLocale() {
+  return getLocaleForLang(i18n.language);
+}
 
 function toValidDate(date) {
   if (!date) return null;
@@ -10,7 +15,7 @@ function toValidDate(date) {
 export function formatDisplayDate(date) {
   const d = toValidDate(date);
   if (!d) return "";
-  return d.toLocaleDateString(DISPLAY_LOCALE, {
+  return d.toLocaleDateString(getDisplayLocale(), {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -21,7 +26,7 @@ export function formatDisplayDate(date) {
 export function formatDisplayTime(date) {
   const d = toValidDate(date);
   if (!d) return "";
-  return d.toLocaleTimeString(DISPLAY_LOCALE, {
+  return d.toLocaleTimeString(getDisplayLocale(), {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
@@ -32,7 +37,7 @@ export function formatDisplayTime(date) {
 export function formatAccessDay(date) {
   const d = toValidDate(date);
   if (!d) return "—";
-  return d.toLocaleDateString(DISPLAY_LOCALE, {
+  return d.toLocaleDateString(getDisplayLocale(), {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -43,7 +48,7 @@ export function formatAccessDay(date) {
 export function formatDisplayDateTime(date) {
   const d = toValidDate(date);
   if (!d) return "—";
-  return d.toLocaleString(DISPLAY_LOCALE, {
+  return d.toLocaleString(getDisplayLocale(), {
     month: "short",
     day: "numeric",
     year: "numeric",

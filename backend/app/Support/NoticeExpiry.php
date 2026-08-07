@@ -37,13 +37,13 @@ class NoticeExpiry
         $today = $now->toDateString();
         $time = $now->format('H:i');
 
+        // Undated notices are ongoing announcements — always visible.
+        // Dated notices expire after their schedule window (see applyActiveScheduleConstraints).
         $query->where(function ($q) use ($table, $today, $time) {
-            $q->where(function ($q2) use ($table) {
-                $q2->whereNull("{$table}.event_date")
-                    ->where("{$table}.category", 'emergency');
-            })->orWhere(function ($q2) use ($table, $today, $time) {
-                self::applyActiveScheduleConstraints($q2, $table, $today, $time);
-            });
+            $q->whereNull("{$table}.event_date")
+                ->orWhere(function ($q2) use ($table, $today, $time) {
+                    self::applyActiveScheduleConstraints($q2, $table, $today, $time);
+                });
         });
     }
 
@@ -102,7 +102,7 @@ SQL;
         $eventDate = $notice->event_date ?? null;
 
         if ($eventDate === null || trim((string) $eventDate) === '') {
-            return $category !== 'emergency';
+            return false;
         }
 
         $moment = $now instanceof Carbon

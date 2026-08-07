@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { MarketplaceType } from "../../../constants/marketplace-type";
 import {
   View,
@@ -27,6 +28,7 @@ import { fetchManageDeals } from "../../../services/deals-api";
 import { MarketplaceTheme as MT } from "../../../constants/marketplace-theme";
 
 export default function ManageMarketplace() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { role: roleParam } = useLocalSearchParams();
   const activeRole =
@@ -55,7 +57,7 @@ export default function ManageMarketplace() {
       setDealCount(dealRes.meta?.total ?? dealRes.deals.length);
       setMyBusiness(mine);
     } catch (err) {
-      setLoadError(err?.message || "Could not load marketplace dashboard.");
+      setLoadError(err?.message || t("marketplace.couldNotLoad"));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -71,9 +73,9 @@ export default function ManageMarketplace() {
   const overViewItems = [
     {
       id: 1,
-      title: "Businesses",
+      title: t("marketplace.businesses"),
       value: bizCount != null ? String(bizCount) : "—",
-      subtitle: isAdmin ? "Community total" : "My business",
+      subtitle: isAdmin ? t("marketplace.communityTotal") : t("marketplace.myBusiness"),
       gradient: ["rgba(239, 246, 255, 1)", "rgba(219, 234, 254, 1)"],
       source: require("../../../assets/images/over-business.png"),
       fontColor: "rgba(28, 57, 142, 1)",
@@ -82,9 +84,9 @@ export default function ManageMarketplace() {
     },
     {
       id: 2,
-      title: "Active Deals",
+      title: t("marketplace.activeDeals"),
       value: dealCount != null ? String(dealCount) : "—",
-      subtitle: isAdmin ? "Community total" : "My deals",
+      subtitle: isAdmin ? t("marketplace.communityTotal") : t("marketplace.myDeals"),
       gradient: ["rgba(255, 251, 235, 1)", "rgba(254, 243, 198, 1)"],
       source: require("../../../assets/images/over-deal.png"),
       fontColor: "rgba(123, 51, 6, 1)",
@@ -93,18 +95,18 @@ export default function ManageMarketplace() {
     },
     {
       id: 3,
-      title: "Total Reviews",
+      title: t("marketplace.totalReviews"),
       value: "—",
-      subtitle: "Coming soon",
+      subtitle: t("marketplace.comingSoon"),
       gradient: ["rgba(240, 253, 244, 1)", "rgba(220, 252, 231, 1)"],
       source: require("../../../assets/images/over-review.png"),
       fontColor: "rgba(13, 84, 43, 1)",
     },
     {
       id: 4,
-      title: "Engagement",
+      title: t("marketplace.engagement"),
       value: "—",
-      subtitle: "Coming soon",
+      subtitle: t("marketplace.comingSoon"),
       gradient: ["rgba(250, 245, 255, 1)", "rgba(243, 232, 255, 1)"],
       source: require("../../../assets/images/over-engagment.png"),
       fontColor: "rgba(89, 22, 139, 1)",
@@ -114,23 +116,23 @@ export default function ManageMarketplace() {
   const managementTools = [
     {
       id: 1,
-      title: "All Businesses",
-      subtitle: "View and manage businesses",
+      title: t("marketplace.allBusinesses"),
+      subtitle: t("marketplace.viewAndManageBusinesses"),
       source: require("../../../assets/images/add-new-business.png"),
       route: MarketplaceRoutes.ALL_BUSINESSES,
     },
     {
       id: 2,
-      title: "All Deals",
-      subtitle: "Manage active and inactive deals",
+      title: t("marketplace.allDeals"),
+      subtitle: t("marketplace.manageActiveInactiveDeals"),
       source: require("../../../assets/images/add-new-deal.png"),
       route: MarketplaceRoutes.ALL_BUSINESSES,
       params: { tab: "deals" },
     },
     {
       id: 3,
-      title: "Review Moderation",
-      subtitle: "Monitor and moderate reviews",
+      title: t("marketplace.reviewModeration"),
+      subtitle: t("marketplace.monitorAndModerateReviews"),
       source: require("../../../assets/images/add-moderation.png"),
       route: MarketplaceRoutes.REVIEWS,
     },
@@ -154,11 +156,11 @@ export default function ManageMarketplace() {
   const handleCreateDeal = () => {
     if (!myBusiness) {
       Alert.alert(
-        "Add a Business First",
-        "You need to register your business before you can create a deal.",
+        t("marketplace.addBusinessFirst"),
+        t("marketplace.needBusinessForDeal"),
         [
-          { text: "Cancel", style: "cancel" },
-          { text: "Add Business", onPress: goToAddOrEditBusiness },
+          { text: t("common.cancel"), style: "cancel" },
+          { text: t("marketplace.addBusiness"), onPress: goToAddOrEditBusiness },
         ],
       );
       return;
@@ -169,8 +171,8 @@ export default function ManageMarketplace() {
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <InternalScreenHeader
-        title="Manage Marketplace"
-        subtitle={isAdmin ? "Admin controls and analytics" : "Your marketplace tools"}
+        title={t("marketplace.manageMarketplace")}
+        subtitle={isAdmin ? t("marketplace.adminControlsSubtitle") : t("marketplace.yourToolsSubtitle")}
       />
 
       <ScrollView
@@ -186,16 +188,16 @@ export default function ManageMarketplace() {
         {loading ? (
           <View style={styles.stateWrap}>
             <ActivityIndicator size="large" color="#0A2A43" />
-            <Text style={styles.stateText}>Loading dashboard...</Text>
+            <Text style={styles.stateText}>{t("marketplace.loadingDashboard")}</Text>
           </View>
         ) : null}
 
         {loadError ? (
           <View style={styles.errorCard}>
-            <Text style={styles.errorTitle}>Dashboard unavailable</Text>
+            <Text style={styles.errorTitle}>{t("marketplace.dashboardUnavailable")}</Text>
             <Text style={styles.errorText}>{loadError}</Text>
             <TouchableOpacity style={styles.retryBtn} onPress={() => load()}>
-              <Text style={styles.retryBtnText}>Try again</Text>
+              <Text style={styles.retryBtnText}>{t("marketplace.tryAgain")}</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -203,7 +205,7 @@ export default function ManageMarketplace() {
         {!loading ? (
           <View>
             <View style={styles.section}>
-              <Text style={styles.listTitle}>Overview</Text>
+              <Text style={styles.listTitle}>{t("marketplace.overview")}</Text>
               <View style={styles.overviewGrid}>
                 {overViewItems.map((item) => (
                   <TouchableOpacity
@@ -244,7 +246,7 @@ export default function ManageMarketplace() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.listTitle}>Quick Actions</Text>
+              <Text style={styles.listTitle}>{t("marketplace.quickActions")}</Text>
               <View style={styles.quickActions}>
                 <TouchableOpacity activeOpacity={0.9} onPress={goToAddOrEditBusiness}>
                   <View style={styles.businessBtnPrimary}>
@@ -255,10 +257,10 @@ export default function ManageMarketplace() {
                       />
                       <View style={styles.quickCopy}>
                         <Text style={styles.quickTitle}>
-                          {myBusiness ? "Edit My Business" : "Add New Business"}
+                          {myBusiness ? t("marketplace.editMyBusiness") : t("marketplace.addNewBusiness")}
                         </Text>
                         <Text style={styles.quickSubtitlePrimary}>
-                          {myBusiness ? "Update your registered business" : "Register a local business"}
+                          {myBusiness ? t("marketplace.updateRegisteredBusiness") : t("marketplace.registerLocalBusiness")}
                         </Text>
                       </View>
                       <Image
@@ -277,8 +279,8 @@ export default function ManageMarketplace() {
                         style={styles.quickIcon}
                       />
                       <View style={styles.quickCopy}>
-                        <Text style={styles.quickTitleDark}>Create New Deal</Text>
-                        <Text style={styles.quickSubtitleDark}>Add promotional offer</Text>
+                        <Text style={styles.quickTitleDark}>{t("marketplace.createNewDeal")}</Text>
+                        <Text style={styles.quickSubtitleDark}>{t("marketplace.addPromotionalOffer")}</Text>
                       </View>
                       <Image
                         source={require("../../../assets/images/black-arrow-right.png")}
@@ -291,7 +293,7 @@ export default function ManageMarketplace() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.listTitle}>Management Tools</Text>
+              <Text style={styles.listTitle}>{t("marketplace.managementTools")}</Text>
               <View style={styles.toolsList}>
                 {managementTools.map((tool) => (
                   <TouchableOpacity

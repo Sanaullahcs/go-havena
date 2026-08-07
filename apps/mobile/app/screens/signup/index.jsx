@@ -5,6 +5,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useTranslation } from "react-i18next";
 import BackButton from "../../../components/ui/back-button";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
 import { SignupPhoneInput } from "../../../components/ui/phone-input";
@@ -43,6 +44,7 @@ const ROLE_BUTTON = {
 };
 
 export default function SignupScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const dialog = useAppDialog();
   const { role: roleParam = "resident" } = useLocalSearchParams();
@@ -82,7 +84,7 @@ export default function SignupScreen() {
     run(async () => {
       try {
         await requestOtp(e164, { intent: "signup" });
-        await showApiSuccess(dialog, "Code sent", "We sent a verification code to your phone.");
+        await showApiSuccess(dialog, t("auth.codeSent"), t("auth.codeSentMsg"));
         router.push({
           pathname: "/screens/verifyregistration",
           params: { role, phone: encodeRoutePhone(e164) },
@@ -117,7 +119,7 @@ export default function SignupScreen() {
             { color: ROLE_BADGE[role]?.text ?? ROLE_BADGE.resident.text },
           ]}
         >
-          {role === "admin" ? "Community Admin" : "Resident"}
+          {role === "admin" ? t("auth.communityAdmin") : t("auth.resident")}
         </Text>
       </View>
 
@@ -129,8 +131,8 @@ export default function SignupScreen() {
         footer={
           <View style={styles.footerInner}>
             <AuthSubmitButton
-              label="Send Code"
-              loadingLabel="Sending…"
+              label={t("auth.sendCode")}
+              loadingLabel={t("auth.sending")}
               enabled={isValid}
               loading={submitting}
               onPress={handleSendCode}
@@ -139,21 +141,21 @@ export default function SignupScreen() {
               loadingColor={ROLE_BUTTON.loading}
             />
             <Text style={styles.footerText}>
-              {"We'll send you a one-time verification code"}
+              {t("auth.verificationCodeHint")}
             </Text>
           </View>
         }
       >
         <View style={styles.logoContainer}>
           <AuthLogo compact size={56} tileColor={ScreenBrand.primary} />
-          <Text style={styles.title}>Create your account</Text>
+          <Text style={styles.title}>{t("auth.createAccount")}</Text>
           <Text style={styles.subtitle}>
-            Enter your phone number to get started
+            {t("auth.enterPhoneToStart")}
           </Text>
         </View>
 
         <View style={styles.formSection}>
-          <Text style={styles.inputLabel}>Phone number</Text>
+          <Text style={styles.inputLabel}>{t("auth.phoneNumber")}</Text>
           <SignupPhoneInput
             digits={phoneDigits}
             onChangeDigits={handlePhoneChange}

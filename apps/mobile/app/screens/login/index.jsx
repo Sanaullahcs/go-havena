@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LoginPhoneInput from "../../../components/ui/phone-input";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
@@ -39,6 +40,7 @@ import { Fonts } from "../../../constants/font";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 
 export default function LoginScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const dialog = useAppDialog();
   const { suspended } = useLocalSearchParams();
@@ -90,9 +92,9 @@ export default function LoginScreen() {
   const showBiometricUnavailable = async (result) => {
     await dialog.showDialog({
       type: "info",
-      title: "Biometric sign-in unavailable",
+      title: t("auth.biometricUnavailable"),
       message: result.message,
-      actions: [{ label: "OK", variant: "primary" }],
+      actions: [{ label: t("common.ok"), variant: "primary" }],
     });
   };
 
@@ -179,8 +181,8 @@ export default function LoginScreen() {
           footer={
             <View style={layout.footerInner}>
               <AuthSubmitButton
-                label="Send Code"
-                loadingLabel="Sending…"
+                label={t("auth.sendCode")}
+                loadingLabel={t("auth.sending")}
                 enabled={isValid && !submitting}
                 loading={submitting}
                 onPress={handleSendCode}
@@ -189,18 +191,18 @@ export default function LoginScreen() {
                 style={ScreenBrand.buttonShadow}
               />
               <Text style={layout.footerNote}>
-                {"Don't have an account? "}
+                {t("auth.noAccount") + " "}
                 <Text style={[layout.footerLink, styles.brandLink]} onPress={handleSignUp}>
-                  Sign up
+                  {t("auth.signUp")}
                 </Text>
               </Text>
               <Text style={layout.footerNote}>
-                Have a guest invitation?{" "}
+                {t("auth.haveInvitation") + " "}
                 <Text
                   style={[layout.footerLink, styles.brandLink]}
                   onPress={() => router.push("/screens/guest-login")}
                 >
-                  Login as Guest
+                  {t("auth.loginAsGuest")}
                 </Text>
               </Text>
             </View>
@@ -208,13 +210,13 @@ export default function LoginScreen() {
         >
           <View style={layout.formBlock}>
             <AuthHeroText
-              eyebrow="Sign in"
-              title={welcomeReady && isReturningUser ? "Welcome back" : "Sign in"}
-              subtitle="Enter your phone number to continue to your community."
+              eyebrow={t("auth.signIn")}
+              title={welcomeReady && isReturningUser ? t("auth.welcomeBack") : t("auth.signIn")}
+              subtitle={t("auth.enterPhone")}
             />
 
             <View style={layout.fieldBlock}>
-              <Text style={layout.fieldLabel}>Phone number</Text>
+              <Text style={layout.fieldLabel}>{t("auth.phoneNumber")}</Text>
               <LoginPhoneInput
                 digits={phoneDigits}
                 onChangeDigits={handlePhoneChange}
@@ -234,7 +236,7 @@ export default function LoginScreen() {
               <View style={styles.biometricSection}>
                 <View style={styles.dividerRow}>
                   <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>or use biometrics</Text>
+                  <Text style={styles.dividerText}>{t("auth.orUseBiometrics")}</Text>
                   <View style={styles.dividerLine} />
                 </View>
                 <BiometricAuthButtons

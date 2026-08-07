@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { DEFAULT_PHONE_COUNTRY, formatDialLabel, getCountryByCode } from "../../constants/phone-countries";
 import CountryCodePicker from "./country-code-picker";
@@ -27,6 +28,7 @@ export default function BusinessPhoneInput({
   onChangePhone,     // called with { digits, country, e164, valid }
   showError = false,
 }) {
+  const { t } = useTranslation();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [touched, setTouched] = useState(false);
 
@@ -104,11 +106,11 @@ export default function BusinessPhoneInput({
       {shouldShowError ? (
         <Text style={styles.errorText}>{validationError}</Text>
       ) : isValid ? (
-        <Text style={styles.successText}>Saved as {dial} {display}</Text>
+        <Text style={styles.successText}>{t("businessPhone.savedAs", { dial, display })}</Text>
       ) : value ? (
-        <Text style={styles.hintText}>Keep entering your {getCountryByCode(country).name} number</Text>
+        <Text style={styles.hintText}>{t("businessPhone.keepEntering", { country: getCountryByCode(country).name })}</Text>
       ) : (
-        <Text style={styles.hintText}>{getCountryByCode(country).name} format · {dial}</Text>
+        <Text style={styles.hintText}>{t("businessPhone.countryFormat", { country: getCountryByCode(country).name, dial })}</Text>
       )}
 
       <CountryCodePicker
@@ -173,14 +175,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#D1FAE5",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    marginEnd: 10,
   },
   pendingDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: "#FCD34D",
-    marginRight: 12,
+    marginEnd: 12,
   },
   hintText: {
     marginTop: 4,

@@ -1,3 +1,4 @@
+import i18n from "../i18n";
 import { GUEST_PERMISSION_OPTIONS } from "../constants/guest-permissions";
 import { getApiErrorCode, getApiErrorMessage } from "./api-error-core";
 import { buildBlockedAccountDialogOptions } from "./blocked-account-dialog";
@@ -13,14 +14,14 @@ export const ACCOUNT_RESTRICTED_CODES = new Set([
 
 function permissionLabel(feature) {
   const option = GUEST_PERMISSION_OPTIONS.find((item) => item.key === feature);
-  return option?.label ?? "This feature";
+  return option?.label ?? i18n.t("guestPermissions.thisFeature");
 }
 
 function featureMeta(feature) {
   const option = GUEST_PERMISSION_OPTIONS.find((item) => item.key === feature);
   return {
-    label: option?.label ?? "Community content",
-    description: option?.description ?? "Community content for residents",
+    label: option?.label ?? i18n.t("guestPermissions.communityContent"),
+    description: option?.description ?? i18n.t("guestPermissions.communityContentDesc"),
     icon: option?.icon ?? "lock",
   };
 }
@@ -61,8 +62,7 @@ export function createLocalAccountRestrictedError(user, feature) {
 
   return {
     name: "ApiError",
-    message:
-      "Your account has been suspended. Please contact your community administrator or support.",
+    message: i18n.t("blockedAccount.message"),
     code: "ACCOUNT_SUSPENDED",
     status: 403,
     statusKind: "suspended",
@@ -74,7 +74,9 @@ export function createLocalAccountRestrictedError(user, feature) {
 }
 
 /** Map API / screen errors to user-facing permission copy. */
-export function resolveGuestFeatureError(error, fallbackFeature, defaultTitle = "Could not load content") {
+export function resolveGuestFeatureError(error, fallbackFeature, defaultTitle) {
+  if (!defaultTitle) defaultTitle = i18n.t("guestPermissions.couldNotLoadContent");
+
   if (typeof error === "string") {
     return {
       isPermissionDenied: false,
@@ -95,10 +97,10 @@ export function resolveGuestFeatureError(error, fallbackFeature, defaultTitle = 
       isPermissionDenied: true,
       isAccountRestricted: false,
       feature,
-      title: `${label} not allowed`,
+      title: i18n.t("guestPermissions.featureNotAllowed", { feature: label }),
       message:
         getApiErrorMessage(error) ||
-        `The resident or community admin who invited you did not enable ${label.toLowerCase()} for this guest visit.`,
+        i18n.t("guestPermissions.featureDeniedMsg", { feature: label.toLowerCase() }),
       icon: "lock",
       hideRetry: true,
     };
@@ -131,7 +133,7 @@ export function resolveGuestFeatureError(error, fallbackFeature, defaultTitle = 
     isPermissionDenied: false,
     isAccountRestricted: false,
     title: defaultTitle,
-    message: getApiErrorMessage(error) || "Something went wrong. Please try again.",
+    message: getApiErrorMessage(error) || i18n.t("guestPermissions.somethingWentWrong"),
     icon: "wifi-off",
     hideRetry: false,
   };

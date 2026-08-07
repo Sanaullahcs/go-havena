@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { MarketplaceType } from "../../../constants/marketplace-type";
 import {
   View,
@@ -64,12 +65,7 @@ const INITIAL_REVIEWS = [
   },
 ];
 
-const FILTERS = [
-  { key: "all", label: "All" },
-  { key: "pending", label: "Pending" },
-  { key: "flagged", label: "Flagged" },
-  { key: "approved", label: "Approved" },
-];
+const FILTER_KEYS = ["all", "pending", "flagged", "approved"];
 
 function StarRow({ rating, size = 14 }) {
   return (
@@ -86,15 +82,17 @@ function StarRow({ rating, size = 14 }) {
   );
 }
 
-function statusMeta(status) {
-  if (status === "flagged") return { label: "Flagged", bg: "#FEE2E2", color: "#B91C1C" };
-  if (status === "pending") return { label: "Pending", bg: "#FEF3C7", color: "#92400E" };
-  return { label: "Approved", bg: "#DCFCE7", color: "#166534" };
+function statusMetaColors(status) {
+  if (status === "flagged") return { bg: "#FEE2E2", color: "#B91C1C" };
+  if (status === "pending") return { bg: "#FEF3C7", color: "#92400E" };
+  return { bg: "#DCFCE7", color: "#166534" };
 }
 
 export default function ReviewsScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
-  const { vendor = "Community Reviews", role: roleParam } = useLocalSearchParams();
+  const { vendor: vendorParam, role: roleParam } = useLocalSearchParams();
+  const vendor = vendorParam || t("marketplace.communityReviews");
   const activeRole =
     roleParam === "admin" || roleParam === "resident"
       ? roleParam
@@ -103,6 +101,19 @@ export default function ReviewsScreen() {
 
   const [reviews, setReviews] = useState(INITIAL_REVIEWS);
   const [filter, setFilter] = useState("all");
+
+  const FILTER_LABELS = {
+    all: t("marketplace.allFilter"),
+    pending: t("marketplace.pendingFilter"),
+    flagged: t("deals.flagged"),
+    approved: t("deals.approved"),
+  };
+
+  const getStatusLabel = (status) => {
+    if (status === "flagged") return t("deals.flagged");
+    if (status === "pending") return t("marketplace.pendingFilter");
+    return t("deals.approved");
+  };
 
   const filtered =
     filter === "all" ? reviews : reviews.filter((r) => r.status === filter);
@@ -126,17 +137,17 @@ export default function ReviewsScreen() {
   };
 
   const handleFlag = (review) => {
-    Alert.alert("Flag review?", "This review will be marked for moderation.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Flag", style: "destructive", onPress: () => updateStatus(review.id, "flagged") },
+    Alert.alert(t("deals.flagReview"), t("deals.flagReviewMsg"), [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("deals.flag"), style: "destructive", onPress: () => updateStatus(review.id, "flagged") },
     ]);
   };
 
   const handleRemove = (review) => {
-    Alert.alert("Remove review?", "This review will be hidden from the marketplace.", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t("deals.removeReview"), t("deals.removeReviewMsg"), [
+      { text: t("common.cancel"), style: "cancel" },
       {
-        text: "Remove",
+        text: t("deals.remove"),
         style: "destructive",
         onPress: () => setReviews((prev) => prev.filter((r) => r.id !== review.id)),
       },
@@ -147,7 +158,7 @@ export default function ReviewsScreen() {
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <ScreenHeader
         layout="stacked"
-        title="Review Moderation"
+        title={t("marketplace.reviewModeration")}
         subtitle={String(vendor)}
         iconOnly
         right={
@@ -161,7 +172,7 @@ export default function ReviewsScreen() {
                 })
               }
             >
-              <Text style={styles.writeBtnText}>Write</Text>
+              <Text style={styles.writeBtnText}>{t("deals.write")}</Text>
             </TouchableOpacity>
           ) : null
         }
@@ -173,12 +184,12 @@ export default function ReviewsScreen() {
         >
           <View style={styles.heroTop}>
             <View>
-              <Text style={styles.heroLabel}>Average Rating</Text>
+              <Text style={styles.heroLabel}>{t("deals.averageRating")}</Text>
               <View style={styles.heroRatingRow}>
                 <Text style={styles.ratingBig}>{stats.avg}</Text>
                 <StarRow rating={Math.round(Number(stats.avg))} size={18} />
               </View>
-              <Text style={styles.heroSub}>Based on {stats.total} reviews</Text>
+              <Text style={styles.heroSub}>{t("deals.basedOnReviews", { count: stats.total })}</Text>
             </View>
             <View style={styles.heroIconWrap}>
               <Ionicons name="chatbubbles-outline" size={28} color="#14B8A6" />
@@ -188,17 +199,17 @@ export default function ReviewsScreen() {
           <View style={styles.statsRow}>
             <View style={styles.statChip}>
               <Text style={styles.statValue}>{stats.pending}</Text>
-              <Text style={styles.statLabel}>Pending</Text>
+              <Text style={styles.statLabel}>{t("marketplace.pendingFilter")}</Text>
             </View>
             <View style={styles.statChip}>
               <Text style={[styles.statValue, { color: "#B91C1C" }]}>{stats.flagged}</Text>
-              <Text style={styles.statLabel}>Flagged</Text>
+              <Text style={styles.statLabel}>{t("deals.flagged")}</Text>
             </View>
             <View style={styles.statChip}>
               <Text style={[styles.statValue, { color: "#166534" }]}>
                 {reviews.filter((r) => r.status === "approved").length}
               </Text>
-              <Text style={styles.statLabel}>Approved</Text>
+              <Text style={styles.statLabel}>{t("deals.approved")}</Text>
             </View>
           </View>
         </View>
@@ -208,20 +219,20 @@ export default function ReviewsScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterRow}
         >
-          {FILTERS.map((item) => {
-            const active = filter === item.key;
+          {FILTER_KEYS.map((key) => {
+            const active = filter === key;
             const count =
-              item.key === "all"
+              key === "all"
                 ? reviews.length
-                : reviews.filter((r) => r.status === item.key).length;
+                : reviews.filter((r) => r.status === key).length;
             return (
               <TouchableOpacity
-                key={item.key}
+                key={key}
                 style={[styles.filterChip, active && styles.filterChipActive]}
-                onPress={() => setFilter(item.key)}
+                onPress={() => setFilter(key)}
               >
                 <Text style={[styles.filterText, active && styles.filterTextActive]}>
-                  {item.label} ({count})
+                  {FILTER_LABELS[key]} ({count})
                 </Text>
               </TouchableOpacity>
             );
@@ -231,12 +242,12 @@ export default function ReviewsScreen() {
         {filtered.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="document-text-outline" size={36} color="#9CA3AF" />
-            <Text style={styles.emptyTitle}>No reviews in this filter</Text>
-            <Text style={styles.emptySub}>Try another tab to see more reviews.</Text>
+            <Text style={styles.emptyTitle}>{t("deals.noReviewsInFilter")}</Text>
+            <Text style={styles.emptySub}>{t("deals.tryAnotherTab")}</Text>
           </View>
         ) : (
           filtered.map((review) => {
-            const st = statusMeta(review.status);
+            const st = statusMetaColors(review.status);
             return (
               <View key={review.id} style={styles.reviewCard}>
                 <View style={styles.reviewHead}>
@@ -250,7 +261,7 @@ export default function ReviewsScreen() {
                     </View>
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: st.bg }]}>
-                    <Text style={[styles.statusText, { color: st.color }]}>{st.label}</Text>
+                    <Text style={[styles.statusText, { color: st.color }]}>{getStatusLabel(review.status)}</Text>
                   </View>
                 </View>
 
@@ -264,7 +275,7 @@ export default function ReviewsScreen() {
                 <View style={styles.cardFooter}>
                   <View style={styles.helpfulRow}>
                     <Ionicons name="thumbs-up-outline" size={14} color="#6B7280" />
-                    <Text style={styles.helpfulText}>{review.helpful} found helpful</Text>
+                    <Text style={styles.helpfulText}>{t("deals.foundHelpful", { count: review.helpful })}</Text>
                   </View>
 
                   {isAdmin ? (
@@ -272,13 +283,13 @@ export default function ReviewsScreen() {
                       {review.status !== "approved" ? (
                         <TouchableOpacity style={styles.approveBtn} onPress={() => handleApprove(review)}>
                           <Ionicons name="checkmark" size={14} color="#166534" />
-                          <Text style={styles.approveBtnText}>Approve</Text>
+                          <Text style={styles.approveBtnText}>{t("marketplace.approve")}</Text>
                         </TouchableOpacity>
                       ) : null}
                       {review.status !== "flagged" ? (
                         <TouchableOpacity style={styles.flagBtn} onPress={() => handleFlag(review)}>
                           <Ionicons name="flag-outline" size={14} color="#B45309" />
-                          <Text style={styles.flagBtnText}>Flag</Text>
+                          <Text style={styles.flagBtnText}>{t("deals.flag")}</Text>
                         </TouchableOpacity>
                       ) : null}
                       <TouchableOpacity style={styles.removeBtn} onPress={() => handleRemove(review)}>

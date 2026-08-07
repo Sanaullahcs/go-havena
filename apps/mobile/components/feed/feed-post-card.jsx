@@ -8,6 +8,7 @@ import {
   Animated,
 } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import UserAvatar from "../ui/user-avatar";
 import FeedPostContent from "./feed-post-content";
 import FeedPostImage from "./feed-post-image";
@@ -17,7 +18,7 @@ import { FeedCardFooter, LIKE_HEART_RED } from "./feed-engagement";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { getFeedTagTheme } from "../../constants/feed-theme";
-import { formatCount, isSensitivePost, timeAgo } from "../../services/feed-api";
+import { formatCount, isSensitivePost, timeAgo, TOPIC_LABEL_KEY } from "../../services/feed-api";
 import { sw, sf } from "../../utils/responsive";
 
 export default function FeedPostCard({
@@ -32,7 +33,8 @@ export default function FeedPostCard({
   style,
   contentTextStyle,
 }) {
-  const authorName = post.user?.display_name ?? post.user?.name ?? "Neighbor";
+  const { t } = useTranslation();
+  const authorName = post.user?.display_name ?? post.user?.name ?? t("feed.neighbor");
   const isLiked = post.liked_by_me ?? false;
   const likeCount = formatCount(post.likes_count ?? post.likes);
   const commentCount = formatCount(post.comments_count ?? post.comments);
@@ -81,7 +83,7 @@ export default function FeedPostCard({
               </Text>
               <Text style={styles.userMeta} numberOfLines={1}>
                 {relativeTime}
-                {post.user?.location ? ` · ${post.user.location}` : ""}
+                {post.author_unit ? ` · ${t("nav.unit", { number: post.author_unit })}` : ""}
               </Text>
             </View>
           </Pressable>
@@ -89,15 +91,15 @@ export default function FeedPostCard({
           <View style={styles.headerActions}>
             {post.status === "pending" ? (
               <View style={[styles.tag, styles.tagWarn]}>
-                <Text style={[styles.tagText, { color: "#B45309" }]}>Pending</Text>
+                <Text style={[styles.tagText, { color: "#B45309" }]}>{t("feed.pending")}</Text>
               </View>
             ) : isSensitive ? (
               <View style={[styles.tag, styles.tagWarn]}>
-                <Text style={[styles.tagText, { color: "#B45309" }]}>Sensitive</Text>
+                <Text style={[styles.tagText, { color: "#B45309" }]}>{t("feed.sensitive")}</Text>
               </View>
             ) : post.tag ? (
               <View style={[styles.tag, { backgroundColor: theme.bg }]}>
-                <Text style={[styles.tagText, { color: theme.text }]}>{post.tag}</Text>
+                <Text style={[styles.tagText, { color: theme.text }]}>{TOPIC_LABEL_KEY[post.tag] ? t(TOPIC_LABEL_KEY[post.tag]) : post.tag}</Text>
               </View>
             ) : null}
             {showOptions && !isSensitive ? <FeedPostOptions post={post} /> : null}
@@ -128,7 +130,7 @@ export default function FeedPostCard({
             liked={isLiked}
             onLike={isSensitive ? undefined : handleLike}
             onComment={isSensitive ? undefined : handleComment}
-            likeLabel={isLiked ? "Liked" : "Like"}
+            likeLabel={isLiked ? t("feed.liked") : t("feed.like")}
             disabled={isSensitive}
             style={styles.engagementFooter}
           />
@@ -157,7 +159,7 @@ export default function FeedPostCard({
                     isSensitive && styles.actionTextDisabled,
                   ]}
                 >
-                  {likeCount || "Like"}
+                  {likeCount || t("feed.like")}
                 </Text>
               </Pressable>
 
@@ -174,7 +176,7 @@ export default function FeedPostCard({
                   color={isSensitive ? T.border : T.gray}
                 />
                 <Text style={[styles.actionText, isSensitive && styles.actionTextDisabled]}>
-                  {commentCount || "Comment"}
+                  {commentCount || t("feed.comment")}
                 </Text>
               </Pressable>
 
@@ -185,7 +187,7 @@ export default function FeedPostCard({
                 hitSlop={4}
               >
                 <Feather name="share-2" size={sf(15)} color={T.gray} />
-                <Text style={styles.actionText}>Share</Text>
+                <Text style={styles.actionText}>{t("feed.share")}</Text>
               </Pressable>
             </View>
           </View>
@@ -229,7 +231,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   avatar: {
-    marginRight: sw(10),
+    marginEnd: sw(10),
   },
   userText: { flex: 1, minWidth: 0 },
   userName: {

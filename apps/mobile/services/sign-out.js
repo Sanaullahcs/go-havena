@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import { logout } from "./auth-api";
 import { setCurrentRole } from "../constants/role-session";
 import { unregisterPushDeviceOnSignOut } from "./push-notifications";
+import i18n from "../i18n";
 
 /** Clear auth state and reset navigation to the login screen. */
 export async function performSignOut() {
@@ -36,6 +37,6 @@ export async function confirmSignOut(dialog) {
 
   if (result === "confirm") {
     await performSignOut();
-    await dialog.showSuccess("Logged out", "You have been signed out successfully.");
+    await dialog.showSuccess(i18n.t("auth.loggedOut"), i18n.t("auth.loggedOutMessage"));
   }
 }

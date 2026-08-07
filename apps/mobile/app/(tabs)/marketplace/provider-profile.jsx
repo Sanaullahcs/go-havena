@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { MarketplaceType } from "../../../constants/marketplace-type";
 import {
   View,
@@ -17,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { MarketplaceRoutes, withMarketplaceRole } from "../../../constants/marketplace-routes";
 import { fetchBusiness } from "../../../services/businesses-api";
 import { fetchBusinessDeals } from "../../../services/deals-api";
+import { chevronForward } from "../../../utils/rtl";
 
 const BIZ_PLACEHOLDER = require("../../../assets/images/ok-resturant.png");
 
@@ -36,17 +38,18 @@ function InfoTile({ icon, label, value, isLast = false }) {
 }
 
 function statusStyles(status) {
-  if (status === "approved") return { bg: "#ECFDF5", text: "#047857", label: "Active" };
-  if (status === "pending") return { bg: "#FFFBEB", text: "#B45309", label: "Pending" };
-  if (status === "rejected") return { bg: "#FEF2F2", text: "#B91C1C", label: "Rejected" };
-  return { bg: "#F3F4F6", text: "#4B5563", label: status ?? "Unknown" };
+  if (status === "approved") return { bg: "#ECFDF5", text: "#047857" };
+  if (status === "pending") return { bg: "#FFFBEB", text: "#B45309" };
+  if (status === "rejected") return { bg: "#FEF2F2", text: "#B91C1C" };
+  return { bg: "#F3F4F6", text: "#4B5563" };
 }
 
 export default function ProviderProfileScreen() {
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const {
     id,
-    vendor: vendorParam = "Local Business",
+    vendor: vendorParam = "",
     service: serviceParam = "",
     role,
   } = useLocalSearchParams();
@@ -57,6 +60,13 @@ export default function ProviderProfileScreen() {
   const [dealCount, setDealCount] = useState(null);
   const [loading, setLoading] = useState(!!id);
   const [error, setError] = useState(null);
+
+  const getStatusLabel = (status) => {
+    if (status === "approved") return t("marketplace.statusActive");
+    if (status === "pending") return t("marketplace.statusPending");
+    if (status === "rejected") return t("marketplace.statusRejected");
+    return t("marketplace.statusUnknown");
+  };
 
   const loadBusiness = useCallback(async () => {
     if (!id) return;
@@ -70,7 +80,7 @@ export default function ProviderProfileScreen() {
       setBusiness(data);
       setDealCount(dealsRes.meta?.total ?? dealsRes.deals?.length ?? 0);
     } catch (err) {
-      setError(err?.message || "Could not load business.");
+      setError(err?.message || t("marketplace.couldNotLoadBusiness"));
     } finally {
       setLoading(false);
     }
@@ -82,7 +92,7 @@ export default function ProviderProfileScreen() {
     }, [loadBusiness]),
   );
 
-  const name = business?.name ?? vendorParam;
+  const name = business?.name ?? (vendorParam || t("marketplace.localBusiness"));
   const category = business?.category ?? serviceParam;
   const address = business?.address ?? "";
   const phone = business?.phone ?? "";
@@ -109,7 +119,7 @@ export default function ProviderProfileScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
-      <InternalScreenHeader title="Business Profile" />
+      <InternalScreenHeader title={t("marketplace.businessProfile")} />
 
       {loading ? (
         <View style={styles.centeredState}>
@@ -120,7 +130,7 @@ export default function ProviderProfileScreen() {
           <Ionicons name="alert-circle-outline" size={40} color="#EF4444" />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity onPress={loadBusiness} style={styles.retryLink}>
-            <Text style={styles.retryLinkText}>Tap to retry</Text>
+            <Text style={styles.retryLinkText}>{t("marketplace.tapToRetry")}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -152,7 +162,7 @@ export default function ProviderProfileScreen() {
                   <View style={[styles.statusPill, { backgroundColor: statusPalette.bg }]}>
                     <View style={[styles.statusDot, { backgroundColor: statusPalette.text }]} />
                     <Text style={[styles.statusPillText, { color: statusPalette.text }]}>
-                      {statusPalette.label}
+                      {getStatusLabel(business?.status)}
                     </Text>
                   </View>
                 ) : null}
@@ -161,35 +171,34 @@ export default function ProviderProfileScreen() {
 
             <Text style={styles.name}>{name}</Text>
             {ownerName ? (
-              <Text style={styles.ownerText}>Listed by {ownerName}</Text>
+              <Text style={styles.ownerText}>{t("marketplace.listedBy", { name: ownerName })}</Text>
             ) : null}
             {description ? (
               <Text style={styles.descText}>{description}</Text>
             ) : null}
-
-            <View style={styles.statsRow}>
+<View style={styles.statsRow}>
               <View style={styles.statBox}>
                 <Text style={styles.statValue}>{dealCount ?? "—"}</Text>
-                <Text style={styles.statLabel}>Active deals</Text>
+                <Text style={styles.statLabel}>{t("marketplace.activeDeals")}</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statBox}>
                 <Text style={styles.statValue}>{amenityList.length || "—"}</Text>
-                <Text style={styles.statLabel}>Highlights</Text>
+                <Text style={styles.statLabel}>{t("marketplace.highlights")}</Text>
               </View>
             </View>
           </View>
 
           <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Contact & hours</Text>
-            <InfoTile icon="location-outline" label="Address" value={address} />
-            <InfoTile icon="call-outline" label="Phone" value={phone} />
-            <InfoTile icon="time-outline" label="Hours" value={hours} isLast />
+            <Text style={styles.sectionTitle}>{t("marketplace.contactAndHours")}</Text>
+            <InfoTile icon="location-outline" label={t("marketplace.address")} value={address} />
+            <InfoTile icon="call-outline" label={t("marketplace.phone")} value={phone} />
+            <InfoTile icon="time-outline" label={t("marketplace.hours")} value={hours} isLast />
           </View>
 
           {amenityList.length > 0 ? (
             <View style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>Amenities & services</Text>
+              <Text style={styles.sectionTitle}>{t("marketplace.amenitiesAndServices")}</Text>
               <View style={styles.chipRow}>
                 {amenityList.map((item) => (
                   <View key={item} style={styles.chip}>
@@ -210,14 +219,14 @@ export default function ProviderProfileScreen() {
                 <Ionicons name="pricetags" size={20} color="#FFFFFF" />
               </View>
               <View style={styles.dealsBtnCopy}>
-                <Text style={styles.dealsBtnText}>View Active Deals</Text>
+                <Text style={styles.dealsBtnText}>{t("marketplace.viewActiveDeals")}</Text>
                 <Text style={styles.dealsBtnSubtext}>
                   {dealCount != null
-                    ? `${dealCount} offer${dealCount === 1 ? "" : "s"} from this business`
-                    : "Browse offers from this business"}
+                    ? t("marketplace.offersFromBusiness", { count: dealCount })
+                    : t("marketplace.browseOffers")}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+              <Ionicons name={chevronForward()} size={20} color="#FFFFFF" />
             </View>
           </TouchableOpacity>
         </ScrollView>

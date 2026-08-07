@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { getWellnessCategoryMeta, WellnessTheme } from "../../constants/wellness-theme";
 import WellnessCategoryIcon from "./wellness-category-icon";
@@ -13,6 +14,7 @@ export default function WellnessCategoryHero({
   courseCount = 0,
   avgProgress = 0,
 }) {
+  const { t } = useTranslation();
   const meta = getWellnessCategoryMeta(categoryKey);
   const progress = Math.min(100, Math.max(0, avgProgress));
 
@@ -28,9 +30,9 @@ export default function WellnessCategoryHero({
           ) : null}
           <Text style={styles.meta}>
             <Text style={{ color: meta.color }}>
-              {courseCount} course{courseCount === 1 ? "" : "s"}
+              {t("wellness.courseCount", { count: courseCount })}
             </Text>
-            <Text style={styles.metaMuted}> · {progress}% complete</Text>
+            <Text style={styles.metaMuted}> · {t("wellness.percentDone", { pct: progress })}</Text>
           </Text>
           <WellnessProgressBar
             categoryKey={categoryKey}
@@ -59,7 +61,7 @@ const styles = StyleSheet.create({
   copy: {
     flex: 1,
     minWidth: 0,
-    marginLeft: sw(14),
+    marginStart: sw(14),
   },
   subtitle: {
     fontFamily: Fonts.regular,

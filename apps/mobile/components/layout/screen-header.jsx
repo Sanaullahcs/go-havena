@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import BackButton from "../ui/back-button";
 import { Fonts } from "../../constants/font";
 import { HeaderShell, headerChromeStyles } from "./header-chrome";
@@ -19,7 +20,7 @@ export default function ScreenHeader({
   onBack,
   right,
   layout = "stacked",
-  backLabel = "Back",
+  backLabel,
   showBackLabel = false,
   showBack = true,
   iconOnly = true,
@@ -29,7 +30,9 @@ export default function ScreenHeader({
   titleAlign = "left",
 }) {
   const router = useRouter();
+  const { t } = useTranslation();
   const handleBack = onBack ?? (() => router.back());
+  const resolvedBackLabel = backLabel ?? t("common.back");
 
   const titleStyle = [styles.title, compact && styles.titleCompact];
   const subtitleStyle = [styles.subtitle, compact && styles.subtitleCompact];
@@ -37,7 +40,7 @@ export default function ScreenHeader({
   const backControl = showBack ? (
     <BackButton
       onPress={handleBack}
-      label={backLabel}
+      label={resolvedBackLabel}
       showLabel={showBackLabel}
       iconOnly={iconOnly}
       compact
@@ -106,7 +109,7 @@ const styles = StyleSheet.create({
   inlineTitle: {
     flex: 1,
     minWidth: 0,
-    paddingRight: sw(4),
+    paddingEnd: sw(4),
   },
   title: {
     fontFamily: Fonts.bold,

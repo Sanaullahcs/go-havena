@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
 import { Colors, SolidFills } from "../../../constants/tokens";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
@@ -28,6 +29,7 @@ import {
 } from "../../../services/community-access";
 
 export default function PendingCommunityAdminScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const dialog = useAppDialog();
   const [loading, setLoading] = useState(true);
@@ -90,20 +92,20 @@ export default function PendingCommunityAdminScreen() {
 
   const timelineSteps = useMemo(
     () => [
-      { label: "Application submitted", status: "done" },
+      { label: t('guests.applicationSubmitted'), status: "done" },
       {
         label: awaitingCommunityApproval
-          ? "Admin account approved"
-          : "Admin account review",
+          ? t('guests.adminAccountApproved')
+          : t('guests.adminAccountReview'),
         status: awaitingCommunityApproval ? "done" : "current",
       },
       {
-        label: "Community request review",
+        label: t('guests.communityRequestReview'),
         status: awaitingCommunityApproval ? "current" : "upcoming",
       },
-      { label: "Dashboard access", status: "upcoming" },
+      { label: t('guests.dashboardAccess'), status: "upcoming" },
     ],
-    [awaitingCommunityApproval],
+    [awaitingCommunityApproval, t],
   );
 
   if (loading) {
@@ -111,7 +113,7 @@ export default function PendingCommunityAdminScreen() {
       <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
         <View style={styles.center}>
           <ActivityIndicator size="large" color={Colors.brandPrimaryDeep} />
-          <Text style={styles.loadingText}>Checking approval status…</Text>
+          <Text style={styles.loadingText}>{t('guests.checkingApprovalStatus')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -136,15 +138,13 @@ export default function PendingCommunityAdminScreen() {
           </View>
           <View style={styles.statusBadge}>
             <View style={styles.statusDot} />
-            <Text style={styles.statusBadgeText}>Under review</Text>
+            <Text style={styles.statusBadgeText}>{t('guests.underReview')}</Text>
           </View>
-          <Text style={styles.title}>Awaiting system approval</Text>
+          <Text style={styles.title}>{t('guests.awaitingSystemApproval')}</Text>
           <Text style={styles.subtitle}>
-            Your application has been submitted. A system administrator must approve
             {awaitingCommunityApproval
-              ? " your community request"
-              : " your community admin account and community request"}
-            {" "}before you can access the dashboard.
+              ? t('guests.adminSubtitleCommunityOnly')
+              : t('guests.adminSubtitleFullReview')}
           </Text>
         </View>
 
@@ -155,7 +155,7 @@ export default function PendingCommunityAdminScreen() {
                 <Ionicons name="business-outline" size={20} color={Colors.brandPrimaryDeep} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardLabel}>Selected community</Text>
+                <Text style={styles.cardLabel}>{t('guests.selectedCommunity')}</Text>
                 <Text style={styles.cardTitle}>{communityName}</Text>
               </View>
             </View>
@@ -169,7 +169,7 @@ export default function PendingCommunityAdminScreen() {
         ) : null}
 
         <View style={styles.timelineCard}>
-          <Text style={styles.sectionTitle}>Review progress</Text>
+          <Text style={styles.sectionTitle}>{t('guests.reviewProgress')}</Text>
           {timelineSteps.map((step, index) => {
             const isLast = index === timelineSteps.length - 1;
             const iconName =
@@ -220,15 +220,15 @@ export default function PendingCommunityAdminScreen() {
         <View style={styles.infoCard}>
           <Ionicons name="notifications-outline" size={18} color={Colors.brandPrimaryDeep} />
           <Text style={styles.infoText}>
-            Pull down to refresh. You'll receive a notification once everything is approved.
+            {t('guests.pullToRefreshNotification')}
           </Text>
         </View>
       </ScrollView>
 
       <View style={styles.footer}>
         <AuthSubmitButton
-          label={refreshing ? "Checking…" : "Check status"}
-          loadingLabel="Checking…"
+          label={refreshing ? t('guests.checking') : t('guests.checkStatus')}
+          loadingLabel={t('guests.checking')}
           enabled={!refreshing}
           loading={refreshing}
           variant="solid"
@@ -236,7 +236,7 @@ export default function PendingCommunityAdminScreen() {
           onPress={() => refresh(true)}
         />
         <TouchableOpacity style={styles.linkBtn} onPress={handleSignOut}>
-          <Text style={styles.linkBtnText}>Sign out</Text>
+          <Text style={styles.linkBtnText}>{t('guests.signOut')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

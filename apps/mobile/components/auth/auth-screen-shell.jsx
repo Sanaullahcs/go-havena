@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
   orbTop: {
     position: "absolute",
     top: -48,
-    right: -32,
+    end: -32,
     width: 180,
     height: 180,
     borderRadius: 90,
@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
   orbBottom: {
     position: "absolute",
     bottom: 120,
-    left: -64,
+    start: -64,
     width: 220,
     height: 220,
     borderRadius: 110,

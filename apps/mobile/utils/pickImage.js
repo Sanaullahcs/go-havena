@@ -3,6 +3,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { promptImageSourceAsync } from "../providers/image-source-picker-provider";
 import { persistUploadAsset } from "./upload-form-data";
+import i18n from "../i18n";
 
 function notifyError(showError, title, message) {
   if (showError) {
@@ -63,8 +64,8 @@ async function finalizeDocumentAsset(asset, defaultBaseName, showError) {
   } catch (err) {
     await notifyError(
       showError,
-      "Could not save photo",
-      err?.message || "Please try taking or choosing the photo again.",
+      i18n.t("imagePicker.couldNotSave"),
+      err?.message || i18n.t("imagePicker.tryAgainPhoto"),
     );
     return null;
   }
@@ -83,8 +84,8 @@ async function ensureLibraryPermission(showError) {
   if (status !== "granted") {
     await notifyError(
       showError,
-      "Permission required",
-      "Allow access to your photo library to upload a photo.",
+      i18n.t("imagePicker.permissionRequired"),
+      i18n.t("imagePicker.allowLibrary"),
     );
     return false;
   }
@@ -96,8 +97,8 @@ async function ensureCameraPermission(showError) {
   if (status !== "granted") {
     await notifyError(
       showError,
-      "Permission required",
-      "Allow camera access to take a photo.",
+      i18n.t("imagePicker.permissionRequired"),
+      i18n.t("imagePicker.allowCamera"),
     );
     return false;
   }
@@ -135,8 +136,8 @@ export async function takePhoto(onSuccess, options = {}) {
   } catch (err) {
     await notifyError(
       showError,
-      "Unable to open camera",
-      err?.message || "Please try again.",
+      i18n.t("imagePicker.unableCamera"),
+      err?.message || i18n.t("imagePicker.tryAgain"),
     );
     return null;
   }
@@ -165,10 +166,10 @@ export async function pickImageFile(onSuccess, options = {}) {
     if (allowPdf ? !isImage && !isPdf : !isImage) {
       await notifyError(
         showError,
-        "Unsupported file",
+        i18n.t("imagePicker.unsupportedFile"),
         allowPdf
-          ? "Please choose an image or PDF file."
-          : "Please choose an image file (JPG, PNG, or similar).",
+          ? i18n.t("imagePicker.chooseImageOrPdf")
+          : i18n.t("imagePicker.chooseImage"),
       );
       return null;
     }
@@ -192,8 +193,8 @@ export async function pickImageFile(onSuccess, options = {}) {
   } catch (err) {
     await notifyError(
       showError,
-      "Unable to open files",
-      err?.message || "Please try again.",
+      i18n.t("imagePicker.unableFiles"),
+      err?.message || i18n.t("imagePicker.tryAgain"),
     );
     return null;
   }
@@ -266,8 +267,8 @@ export const pickImage = async (onSuccess, options = {}) => {
   } catch (err) {
     await notifyError(
       showError,
-      "Unable to open gallery",
-      err?.message || "Please try again.",
+      i18n.t("imagePicker.unableGallery"),
+      err?.message || i18n.t("imagePicker.tryAgain"),
     );
     return null;
   }
@@ -285,8 +286,8 @@ export async function pickImages(onSuccess, options = {}) {
   if (remaining <= 0) {
     await notifyError(
       showError,
-      "Limit reached",
-      `You can add up to ${max} photos.`,
+      i18n.t("imagePicker.limitReached"),
+      i18n.t("imagePicker.maxPhotos", { max }),
     );
     return [];
   }
@@ -312,8 +313,8 @@ export async function pickImages(onSuccess, options = {}) {
   } catch (err) {
     await notifyError(
       showError,
-      "Unable to open gallery",
-      err?.message || "Please try again.",
+      i18n.t("imagePicker.unableGallery"),
+      err?.message || i18n.t("imagePicker.tryAgain"),
     );
     return [];
   }

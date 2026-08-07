@@ -8,6 +8,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 
 import ProfilePhotoAvatar from "../profile/profile-photo-avatar";
 import { Fonts } from "../../constants/font";
@@ -34,6 +35,7 @@ function resolveStatus(member) {
 }
 
 function MemberActionsDropdown({ actions, disabled = false }) {
+  const { t } = useTranslation();
   const triggerRef = useRef(null);
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [open, setOpen] = useState(false);
@@ -86,7 +88,7 @@ function MemberActionsDropdown({ actions, disabled = false }) {
           onPress={toggleMenu}
           disabled={disabled}
           hitSlop={8}
-          accessibilityLabel="Member options"
+          accessibilityLabel={t("family.memberOptions")}
         >
           <Feather name="more-horizontal" size={sf(16)} color={open ? "#0A2A43" : "#64748B"} />
         </Pressable>
@@ -109,7 +111,7 @@ function MemberActionsDropdown({ actions, disabled = false }) {
               },
             ]}
             onPress={closeMenu}
-            accessibilityLabel="Close member options"
+            accessibilityLabel={t("family.closeMemberOptions")}
           />
 
           <View style={[styles.dropdown, { top, left, width: menuWidth }]}>
@@ -149,6 +151,7 @@ export default function FamilyMemberCard({
   onViewProfile,
   busy = false,
 }) {
+  const { t } = useTranslation();
   const user = member.user ?? {};
   const statusKey = resolveStatus(member);
   const status = STATUS_META[statusKey] ?? STATUS_META.active;
@@ -162,44 +165,52 @@ export default function FamilyMemberCard({
       statusKey === "suspended"
         ? {
             id: "restore",
-            label: "Restore",
+            label: t("family.memberCard.restore"),
             icon: "play-circle",
             tone: "success",
             onPress: () => onUnsuspend?.(member),
           }
         : {
             id: "suspend",
-            label: "Suspend",
+            label: t("family.memberCard.suspend"),
             icon: "pause-circle",
             tone: "default",
             onPress: () => onSuspend?.(member),
           },
       {
         id: "profile",
-        label: "Profile",
+        label: t("family.memberCard.profile"),
         icon: "user",
         tone: "primary",
         onPress: () => onViewProfile?.(member),
       },
       {
         id: "remove",
-        label: "Remove",
+        label: t("family.memberCard.remove"),
         icon: "user-minus",
         tone: "danger",
         onPress: () => onRemove?.(member),
       },
       {
         id: "block",
-        label: "Block",
+        label: t("family.memberCard.block"),
         icon: "slash",
         tone: "danger",
         onPress: () => onBlock?.(member),
       },
     ];
-  }, [canManage, statusKey, member, onSuspend, onUnsuspend, onRemove, onBlock, onViewProfile]);
+  }, [canManage, statusKey, member, onSuspend, onUnsuspend, onRemove, onBlock, onViewProfile, t]);
+
+  const statusLabels = {
+    head: t("family.memberCard.statusHead"),
+    active: t("family.memberCard.statusActive"),
+    pending: t("family.memberCard.statusPending"),
+    suspended: t("family.memberCard.statusSuspended"),
+    blocked: t("family.memberCard.statusBlocked"),
+  };
 
   const metaParts = [
-    user.unit_number ? `Unit ${user.unit_number}` : null,
+    user.unit_number ? t("family.memberCard.unit", { number: user.unit_number }) : null,
     member.relationship || null,
   ].filter(Boolean);
 
@@ -209,7 +220,7 @@ export default function FamilyMemberCard({
         <ProfilePhotoAvatar avatarUrl={user.avatar_url} size={sw(36)} />
         <View style={styles.copy}>
           <Text style={styles.name} numberOfLines={1}>
-            {user.name ?? "Member"}
+            {user.name ?? t("family.member")}
           </Text>
           {metaParts.length > 0 ? (
             <Text style={styles.meta} numberOfLines={1}>
@@ -219,7 +230,7 @@ export default function FamilyMemberCard({
         </View>
         <View style={styles.trailing}>
           <View style={[styles.badge, { backgroundColor: status.bg, borderColor: status.border }]}>
-            <Text style={[styles.badgeText, { color: status.color }]}>{status.label}</Text>
+            <Text style={[styles.badgeText, { color: status.color }]}>{statusLabels[statusKey] ?? status.label}</Text>
           </View>
           {canManage ? (
             <MemberActionsDropdown actions={menuActions} disabled={busy} />
@@ -229,7 +240,7 @@ export default function FamilyMemberCard({
               onPress={() => onViewProfile(member)}
               disabled={busy}
               hitSlop={8}
-              accessibilityLabel="View profile"
+              accessibilityLabel={t("family.viewProfile")}
             >
               <Feather name="user" size={sf(14)} color="#0A2A43" />
             </Pressable>
@@ -241,6 +252,7 @@ export default function FamilyMemberCard({
 }
 
 export function FamilyHeroCard({ familyNumber, onCopy, onShare }) {
+  const { t } = useTranslation();
   return (
     <View
       style={styles.hero}
@@ -248,19 +260,19 @@ export function FamilyHeroCard({ familyNumber, onCopy, onShare }) {
       <View style={styles.heroIcon}>
         <Feather name="users" size={sf(22)} color="#0A2A43" />
       </View>
-      <Text style={styles.heroLabel}>Family Number</Text>
+      <Text style={styles.heroLabel}>{t("family.heroCard.familyNumber")}</Text>
       <Text style={styles.heroNumber} selectable>
         {familyNumber}
       </Text>
-      <Text style={styles.heroHint}>Share this code so neighbors can request to join your family.</Text>
+      <Text style={styles.heroHint}>{t("family.heroCard.shareHint")}</Text>
       <View style={styles.heroActions}>
         <Pressable style={styles.heroBtn} onPress={onCopy}>
           <Feather name="copy" size={sf(14)} color="#0A2A43" />
-          <Text style={styles.heroBtnText}>Copy</Text>
+          <Text style={styles.heroBtnText}>{t("family.heroCard.copy")}</Text>
         </Pressable>
         <Pressable style={[styles.heroBtn, styles.heroBtnGhost]} onPress={onShare}>
           <Feather name="share-2" size={sf(14)} color="#FFFFFF" />
-          <Text style={[styles.heroBtnText, styles.heroBtnTextGhost]}>Share</Text>
+          <Text style={[styles.heroBtnText, styles.heroBtnTextGhost]}>{t("family.heroCard.share")}</Text>
         </Pressable>
       </View>
     </View>

@@ -5,6 +5,7 @@ import { Fonts } from "../../constants/font";
 import { PropertyHubTheme } from "../../constants/property-management-theme";
 import PropertyServiceIcon from "./property-service-icon";
 import { sf, sw } from "../../utils/responsive";
+import { chevronForward } from "../../utils/rtl";
 
 function ServiceRow({ item, onPress }) {
   return (
@@ -24,7 +25,7 @@ function ServiceRow({ item, onPress }) {
             {item.subtitle}
           </Text>
         </View>
-        <Feather name="chevron-right" size={sf(15)} color={PropertyHubTheme.caption} />
+        <Feather name={chevronForward()} size={sf(15)} color={PropertyHubTheme.caption} />
       </View>
     </Pressable>
   );
@@ -80,8 +81,8 @@ const styles = StyleSheet.create({
   copy: {
     flex: 1,
     minWidth: 0,
-    marginLeft: sw(10),
-    marginRight: sw(6),
+    marginStart: sw(10),
+    marginEnd: sw(6),
   },
   title: {
     fontFamily: Fonts.semiBold,

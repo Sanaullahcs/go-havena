@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { MarketplaceType } from "../../../constants/marketplace-type";
 import {
   View,
@@ -34,6 +35,7 @@ import { validateDealForm, LIMITS, hasFieldErrors } from "../../../utils/form-va
 
 export default function CreateDeal() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { role: roleParam, editId } = useLocalSearchParams();
   const activeRole =
     roleParam === "admin" || roleParam === "resident"
@@ -94,7 +96,7 @@ export default function CreateDeal() {
           }
         }
       } catch (err) {
-        if (!cancelled) await showFailure("Could not load data", err);
+        if (!cancelled) await showFailure(t("deals.couldNotLoadData"), err);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -103,9 +105,9 @@ export default function CreateDeal() {
     return () => { cancelled = true; };
   }, [dealId, isAdmin]);
 
-  const previewTitle = dealTitle.trim() || "Your deal title";
-  const previewDescription = description.trim() || "Your deal description will appear here.";
-  const previewDiscount = discountLabel.trim() || "Discount";
+  const previewTitle = dealTitle.trim() || t("deals.yourDealTitle");
+  const previewDescription = description.trim() || t("deals.yourDealDescription");
+  const previewDiscount = discountLabel.trim() || t("deals.discount");
 
   const liveErrors = useMemo(
     () =>
@@ -130,15 +132,15 @@ export default function CreateDeal() {
     if (!validateOnSubmit(liveErrors)) return;
     if (ownBusiness?.status === "rejected") {
       Alert.alert(
-        "Business Rejected",
-        "Your business has been rejected. You cannot create deals until it is approved.",
+        t("deals.businessRejectedTitle"),
+        t("deals.businessRejectedMsg"),
       );
       return;
     }
     if (ownBusiness?.status === "pending") {
       Alert.alert(
-        "Business Pending",
-        "Your business is still pending approval. You can create deals once it is approved.",
+        t("deals.businessPendingTitle"),
+        t("deals.businessPendingMsg"),
       );
       return;
     }
@@ -163,9 +165,9 @@ export default function CreateDeal() {
           isEdit
             ? updateDeal(dealId, payload, { asAdmin: isAdmin })
             : publishDealWithImage(selectedFile, payload, { asAdmin: isAdmin }),
-        successTitle: isEdit ? "Deal updated" : "Deal published!",
-        successMessage: isEdit ? "Your deal was saved." : "Your deal is now live in the marketplace.",
-        errorTitle: isEdit ? "Update failed" : "Could not create deal",
+        successTitle: isEdit ? t("deals.dealUpdated") : t("deals.dealPublished"),
+        successMessage: isEdit ? t("deals.dealSaved") : t("deals.dealLive"),
+        errorTitle: isEdit ? t("deals.updateFailed") : t("deals.couldNotCreateDeal"),
         onSuccess: () => router.back(),
       });
     });
@@ -174,7 +176,7 @@ export default function CreateDeal() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={["left", "right"]}>
-        <InternalScreenHeader title={isEdit ? "Edit Deal" : "Create Deal"} subtitle="Loading…" />
+        <InternalScreenHeader title={isEdit ? t("deals.editDeal") : t("deals.createDeal")} subtitle={t("common.loading")} />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <ActivityIndicator size="large" color="#0A2A43" />
         </View>
@@ -185,8 +187,8 @@ export default function CreateDeal() {
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <InternalScreenHeader
-        title={isEdit ? "Edit Deal" : "Create Deal"}
-        subtitle={isEdit ? "Update your deal details" : "Add a new deal to the marketplace"}
+        title={isEdit ? t("deals.editDeal") : t("deals.createDeal")}
+        subtitle={isEdit ? t("deals.updateDealSubtitle") : t("deals.addDealSubtitle")}
       />
 
       <KeyboardSafeScreen
@@ -202,13 +204,13 @@ export default function CreateDeal() {
             disabled={!canSubmit || submitting}
           >
             <Text style={styles.createButtonText}>
-              {submitting ? "Saving..." : isEdit ? "Save Deal" : "Create Deal"}
+              {submitting ? t("deals.saving") : isEdit ? t("deals.saveDeal") : t("deals.createDeal")}
             </Text>
           </TouchableOpacity>
         }
       >
         <Text style={styles.label}>
-          Deal Image <Text style={styles.required}>*</Text>
+          {t("deals.dealImage")} <Text style={styles.required}>*</Text>
         </Text>
         <TouchableOpacity
           activeOpacity={0.85}
@@ -239,14 +241,14 @@ export default function CreateDeal() {
                 source={require("../../../assets/images/download-image-icon.png")}
                 style={{ width: 32, height: 32 }}
               />
-              <Text style={styles.uploadText}>Upload image</Text>
+              <Text style={styles.uploadText}>{t("deals.uploadImage")}</Text>
             </>
           )}
         </TouchableOpacity>
         {showError("image", liveErrors) ? <Text style={styles.errorText}>{showError("image", liveErrors)}</Text> : null}
 
         <Text style={[styles.label, styles.sectionTop]}>
-          Business <Text style={styles.required}>*</Text>
+          {t("deals.business")} <Text style={styles.required}>*</Text>
         </Text>
         <View style={[styles.businessPill, !ownBusiness && styles.businessPillEmpty]}>
           <Image
@@ -254,23 +256,23 @@ export default function CreateDeal() {
             style={{ width: 16, height: 16 }}
           />
           <Text style={styles.businessPillText} numberOfLines={1}>
-            {business || "No business registered yet"}
+            {business || t("deals.noBusinessRegistered")}
           </Text>
           {ownBusiness?.status === "pending" ? (
             <View style={styles.pendingBadge}>
-              <Text style={styles.pendingBadgeText}>Pending approval</Text>
+              <Text style={styles.pendingBadgeText}>{t("deals.pendingApproval")}</Text>
             </View>
           ) : null}
         </View>
         {showError("business", liveErrors) ? <Text style={styles.errorText}>{showError("business", liveErrors)}</Text> : null}
 
         <Text style={[styles.label, styles.sectionTop]}>
-          Deal Title <Text style={styles.required}>*</Text>
+          {t("deals.dealTitle")} <Text style={styles.required}>*</Text>
         </Text>
         <TextInput
           value={dealTitle}
-          onChangeText={(t) => { setDealTitle(t); touch("dealTitle"); clearError("dealTitle"); }}
-          placeholder="e.g. 20% off all coffee"
+          onChangeText={(v) => { setDealTitle(v); touch("dealTitle"); clearError("dealTitle"); }}
+          placeholder={t("deals.placeholderTitle")}
           placeholderTextColor="rgba(153, 161, 175, 1)"
           style={[styles.input, showError("dealTitle", liveErrors) && styles.inputError]}
         />
@@ -288,46 +290,46 @@ export default function CreateDeal() {
             style={{ width: 16, height: 16 }}
           />
           <Text style={styles.label}>
-            Discount Label <Text style={styles.required}>*</Text>
+            {t("deals.discountLabel")} <Text style={styles.required}>*</Text>
           </Text>
         </View>
         <TextInput
           value={discountLabel}
-          onChangeText={(t) => { setDiscountLabel(t); touch("discountLabel"); clearError("discountLabel"); }}
-          placeholder="30% OFF"
+          onChangeText={(v) => { setDiscountLabel(v); touch("discountLabel"); clearError("discountLabel"); }}
+          placeholder={t("deals.placeholderDiscount")}
           placeholderTextColor="rgba(153, 161, 175, 1)"
           style={[styles.input, showError("discountLabel", liveErrors) && styles.inputError]}
         />
         {showError("discountLabel", liveErrors) ? <Text style={styles.errorText}>{showError("discountLabel", liveErrors)}</Text> : null}
 
         <Text style={[styles.label, styles.sectionTop]}>
-          Category <Text style={styles.required}>*</Text>
+          {t("deals.category")} <Text style={styles.required}>*</Text>
         </Text>
         <TextInput
           value={category}
-          onChangeText={(t) => { setCategory(t); touch("category"); clearError("category"); }}
-          placeholder="e.g. Food & Beverage, Fitness, Retail"
+          onChangeText={(v) => { setCategory(v); touch("category"); clearError("category"); }}
+          placeholder={t("deals.placeholderCategory")}
           placeholderTextColor="rgba(153, 161, 175, 1)"
           style={[styles.input, showError("category", liveErrors) && styles.inputError]}
         />
         {showError("category", liveErrors) ? <Text style={styles.errorText}>{showError("category", liveErrors)}</Text> : null}
 
-        <Text style={[styles.label, styles.sectionTop]}>Location</Text>
+        <Text style={[styles.label, styles.sectionTop]}>{t("deals.location")}</Text>
         <TextInput
           value={location}
           onChangeText={setLocation}
-          placeholder="e.g. 123 Main St, Miami, FL"
+          placeholder={t("deals.placeholderLocation")}
           placeholderTextColor="rgba(153, 161, 175, 1)"
           style={styles.input}
         />
 
         <Text style={[styles.label, styles.sectionTop]}>
-          Description <Text style={styles.required}>*</Text>
+          {t("deals.description")} <Text style={styles.required}>*</Text>
         </Text>
         <TextInput
           value={description}
-          onChangeText={(t) => { setDescription(t); touch("description"); clearError("description"); }}
-          placeholder="Describe the deal and how customers can use it..."
+          onChangeText={(v) => { setDescription(v); touch("description"); clearError("description"); }}
+          placeholder={t("deals.placeholderDescription")}
           placeholderTextColor="rgba(153, 161, 175, 1)"
           style={[styles.textArea, showError("description", liveErrors) && styles.inputError]}
           multiline
@@ -340,7 +342,7 @@ export default function CreateDeal() {
         </Text>
 
         <Text style={[styles.label, styles.sectionTop]}>
-          Valid Until
+          {t("deals.validUntil")}
         </Text>
         <TouchableOpacity
           activeOpacity={0.75}
@@ -356,7 +358,7 @@ export default function CreateDeal() {
             color={validUntilDate ? "#0A2A43" : "#9CA3AF"}
           />
           <Text style={[styles.datePickerText, validUntilDate && styles.datePickerTextFilled]}>
-            {formatDisplayDate(validUntilDate) || "Select expiry date"}
+            {formatDisplayDate(validUntilDate) || t("deals.selectExpiryDate")}
           </Text>
           {validUntilDate ? (
             <TouchableOpacity
@@ -395,14 +397,14 @@ export default function CreateDeal() {
             <View style={styles.dateModalSheet}>
               <View style={styles.dateModalToolbar}>
                 <TouchableOpacity onPress={() => setDatePickerOpen(false)}>
-                  <Text style={styles.dateModalCancel}>Cancel</Text>
+                  <Text style={styles.dateModalCancel}>{t("common.cancel")}</Text>
                 </TouchableOpacity>
-                <Text style={styles.dateModalTitle}>Expiry Date</Text>
+                <Text style={styles.dateModalTitle}>{t("deals.expiryDate")}</Text>
                 <TouchableOpacity onPress={() => {
                   setValidUntilDate(tempPickerDate);
                   setDatePickerOpen(false);
                 }}>
-                  <Text style={styles.dateModalDone}>Done</Text>
+                  <Text style={styles.dateModalDone}>{t("common.done")}</Text>
                 </TouchableOpacity>
               </View>
               <DateTimePicker
@@ -420,7 +422,7 @@ export default function CreateDeal() {
         ) : null}
 
         <View style={styles.previewCard}>
-          <Text style={styles.previewLabel}>Preview</Text>
+          <Text style={styles.previewLabel}>{t("deals.preview")}</Text>
           <View style={styles.previewRow}>
             <View style={styles.previewTextWrap}>
               <Text style={styles.previewTitle}>{previewTitle}</Text>

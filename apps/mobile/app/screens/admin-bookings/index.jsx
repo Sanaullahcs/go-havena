@@ -12,6 +12,7 @@ import {
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import AmenityIcon from "../../../components/property/amenity-icon";
 import { Fonts } from "../../../constants/font";
@@ -26,18 +27,19 @@ import {
 import { getAmenityVisual, formatLongDate } from "../../../utils/amenity-display";
 import { useApiAction } from "../../../hooks/use-api-action";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
+import { localizedField } from "../../../i18n";
 
 const TABS = [
-  { id: "pending", label: "Pending" },
-  { id: "confirmed", label: "Approved" },
-  { id: "all", label: "All" },
+  { id: "pending", labelKey: "admin.pending" },
+  { id: "confirmed", labelKey: "admin.approved" },
+  { id: "all", labelKey: "admin.all" },
 ];
 
 const STATUS_META = {
-  pending: { label: "Pending", color: "#B45309", bg: "#FEF3C7" },
-  confirmed: { label: "Approved", color: "#047857", bg: "#ECFDF5" },
-  rejected: { label: "Declined", color: "#B91C1C", bg: "#FEF2F2" },
-  cancelled: { label: "Cancelled", color: "#64748B", bg: "#F1F5F9" },
+  pending: { label: "admin.pending", color: "#B45309", bg: "#FEF3C7" },
+  confirmed: { label: "admin.approved", color: "#047857", bg: "#ECFDF5" },
+  rejected: { label: "admin.declined", color: "#B91C1C", bg: "#FEF2F2" },
+  cancelled: { label: "admin.cancelled", color: "#64748B", bg: "#F1F5F9" },
 };
 
 function initials(name) {
@@ -46,8 +48,9 @@ function initials(name) {
   return (parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "");
 }
 
-function BookingInfoSheet({ booking, onClose }) {
+function BookingInfoSheet({ booking, onClose, t }) {
   if (!booking) return null;
+  const amenityName = localizedField(booking, "amenity_name");
   const visual = getAmenityVisual(booking.amenity_name, booking.amenity_icon_key);
   const status = STATUS_META[booking.status] ?? STATUS_META.pending;
 
@@ -56,29 +59,29 @@ function BookingInfoSheet({ booking, onClose }) {
       <Pressable style={styles.sheetBackdrop} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>Booking details</Text>
+            <Text style={styles.sheetTitle}>{t("admin.bookingDetails")}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={12}>
               <Feather name="x" size={sf(20)} color="#64748B" />
             </TouchableOpacity>
           </View>
 
           <View style={[styles.statusPill, { backgroundColor: status.bg, alignSelf: "flex-start" }]}>
-            <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
+            <Text style={[styles.statusText, { color: status.color }]}>{t(status.label)}</Text>
           </View>
 
           <View style={styles.infoSection}>
-            <Text style={styles.infoLabel}>Amenity</Text>
+            <Text style={styles.infoLabel}>{t("admin.amenity")}</Text>
             <View style={styles.infoRow}>
               <View style={[styles.detailIcon, { backgroundColor: visual.soft }]}>
                 <AmenityIcon
                   iconKey={booking.amenity_icon_key}
-                  name={booking.amenity_name}
+                  name={amenityName}
                   size={sf(16)}
                   color={visual.tint}
                 />
               </View>
               <View style={styles.infoCopy}>
-                <Text style={styles.infoTitle}>{booking.amenity_name}</Text>
+                <Text style={styles.infoTitle}>{amenityName}</Text>
                 {booking.amenity_description ? (
                   <Text style={styles.infoText}>{booking.amenity_description}</Text>
                 ) : null}
@@ -90,15 +93,15 @@ function BookingInfoSheet({ booking, onClose }) {
           </View>
 
           <View style={styles.infoSection}>
-            <Text style={styles.infoLabel}>Member</Text>
+            <Text style={styles.infoLabel}>{t("admin.member")}</Text>
             <View style={styles.infoRow}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>{initials(booking.user_name).toUpperCase()}</Text>
               </View>
               <View style={styles.infoCopy}>
-                <Text style={styles.infoTitle}>{booking.user_name || "Resident"}</Text>
+                <Text style={styles.infoTitle}>{booking.user_name || t("admin.resident")}</Text>
                 <Text style={styles.infoMeta}>
-                  {booking.user_unit ? `Unit ${booking.user_unit}` : "No unit on file"}
+                  {booking.user_unit ? t("admin.unitLabel", { unit: booking.user_unit }) : t("admin.noUnitOnFile")}
                 </Text>
               </View>
             </View>
@@ -111,12 +114,12 @@ function BookingInfoSheet({ booking, onClose }) {
             </View>
             <View style={styles.detailRow}>
               <Feather name="clock" size={sf(14)} color={Colors.brandPrimaryDeep} />
-              <Text style={styles.detailText}>{booking.time_slot || "Open access request"}</Text>
+              <Text style={styles.detailText}>{booking.time_slot || t("admin.openAccessRequest")}</Text>
             </View>
             <View style={styles.detailRow}>
               <Feather name="users" size={sf(14)} color={Colors.brandPrimaryDeep} />
               <Text style={styles.detailText}>
-                {booking.guests} guest{booking.guests === 1 ? "" : "s"}
+                {t("admin.guestCount", { count: booking.guests })}
               </Text>
             </View>
             {booking.notes ? <Text style={styles.notesText}>{booking.notes}</Text> : null}
@@ -128,6 +131,7 @@ function BookingInfoSheet({ booking, onClose }) {
 }
 
 export default function AdminBookings() {
+  const { t } = useTranslation();
   const [selectedTab, setSelectedTab] = useState("pending");
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -144,13 +148,13 @@ export default function AdminBookings() {
       const data = await fetchBookingInbox();
       setBookings(data ?? []);
     } catch (err) {
-      await showFailure("Could not load bookings", err);
+      await showFailure(t("admin.couldNotLoadBookings"), err);
       setBookings([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [showFailure]);
+  }, [showFailure, t]);
 
   useEffect(() => {
     load();
@@ -177,9 +181,9 @@ export default function AdminBookings() {
     try {
       await runAction({
         action: () => approveBooking(booking.id),
-        successTitle: "Booking approved",
-        successMessage: `${booking.user_name}'s reservation is confirmed.`,
-        errorTitle: "Could not approve",
+        successTitle: t("admin.bookingApproved"),
+        successMessage: t("admin.reservationConfirmed", { name: booking.user_name }),
+        errorTitle: t("admin.couldNotApprove"),
         onSuccess: () => load(true),
       });
     } finally {
@@ -190,9 +194,9 @@ export default function AdminBookings() {
   const handleReject = async (booking) => {
     setMenuBooking(null);
     const confirmed = await showConfirm(
-      "Decline reservation",
-      `Decline ${booking.user_name}'s request for ${booking.amenity_name}?`,
-      { confirmLabel: "Decline", cancelLabel: "Keep", destructive: true },
+      t("admin.declineReservation"),
+      t("admin.declineMessage", { name: booking.user_name, amenity: booking.amenity_name }),
+      { confirmLabel: t("admin.decline"), cancelLabel: t("admin.keep"), destructive: true },
     );
     if (confirmed !== "confirm") return;
 
@@ -200,9 +204,9 @@ export default function AdminBookings() {
     try {
       await runAction({
         action: () => rejectBooking(booking.id),
-        successTitle: "Reservation declined",
-        successMessage: "The resident has been notified.",
-        errorTitle: "Could not decline",
+        successTitle: t("admin.reservationDeclined"),
+        successMessage: t("admin.residentNotified"),
+        errorTitle: t("admin.couldNotDecline"),
         onSuccess: () => load(true),
       });
     } finally {
@@ -213,8 +217,8 @@ export default function AdminBookings() {
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <InternalScreenHeader
-        title="Booking Request"
-        subtitle={`Requests for amenities you created · ${pendingCount} pending`}
+        title={t("admin.bookingRequests")}
+        subtitle={t("admin.bookingSubtitle", { count: pendingCount })}
       />
 
       <View style={styles.toolbar}>
@@ -238,7 +242,7 @@ export default function AdminBookings() {
                   numberOfLines={1}
                   includeFontPadding={false}
                 >
-                  {tab.label}
+                  {t(tab.labelKey)}
                   {tab.id === "pending" && pendingCount > 0 ? ` (${pendingCount})` : ""}
                 </Text>
               </Pressable>
@@ -261,15 +265,16 @@ export default function AdminBookings() {
           {filtered.length === 0 ? (
             <View style={styles.empty}>
               <Feather name="calendar" size={sf(38)} color="#CBD5E1" />
-              <Text style={styles.emptyTitle}>No requests</Text>
+              <Text style={styles.emptyTitle}>{t("admin.noRequests")}</Text>
               <Text style={styles.emptyText}>
                 {selectedTab === "pending"
-                  ? "There are no pending reservation requests for amenities you created."
-                  : "Nothing to show here yet."}
+                  ? t("admin.noPendingReservations")
+                  : t("admin.nothingToShow")}
               </Text>
             </View>
           ) : (
             filtered.map((booking) => {
+              const bookingAmenityName = localizedField(booking, "amenity_name");
               const visual = getAmenityVisual(
                 booking.amenity_name,
                 booking.amenity_icon_key,
@@ -289,12 +294,12 @@ export default function AdminBookings() {
                         {booking.user_name}
                       </Text>
                       <Text style={styles.userUnit} numberOfLines={1}>
-                        {booking.user_unit ? `Unit ${booking.user_unit}` : "Resident"}
+                        {booking.user_unit ? t("admin.unitLabel", { unit: booking.user_unit }) : t("admin.resident")}
                       </Text>
                     </View>
                     <View style={[styles.statusPill, { backgroundColor: status.bg }]}>
                       <Text style={[styles.statusText, { color: status.color }]}>
-                        {status.label}
+                        {t(status.label)}
                       </Text>
                     </View>
                     <Pressable
@@ -311,12 +316,12 @@ export default function AdminBookings() {
                       <View style={[styles.detailIcon, { backgroundColor: visual.soft }]}>
                         <AmenityIcon
                           iconKey={booking.amenity_icon_key}
-                          name={booking.amenity_name}
+                          name={bookingAmenityName}
                           size={sf(16)}
                           color={visual.tint}
                         />
                       </View>
-                      <Text style={styles.detailText}>{booking.amenity_name}</Text>
+                      <Text style={styles.detailText}>{bookingAmenityName}</Text>
                     </View>
                     <View style={styles.detailRow}>
                       <Feather name="calendar" size={sf(14)} color={Colors.brandPrimaryDeep} />
@@ -342,7 +347,7 @@ export default function AdminBookings() {
       >
         <Pressable style={styles.sheetBackdrop} onPress={() => setMenuBooking(null)}>
           <View style={styles.actionSheet}>
-            <Text style={styles.actionSheetTitle}>Actions</Text>
+            <Text style={styles.actionSheetTitle}>{t("admin.actions")}</Text>
             <Pressable
               style={styles.actionSheetItem}
               onPress={() => {
@@ -351,7 +356,7 @@ export default function AdminBookings() {
               }}
             >
               <Feather name="info" size={sf(16)} color={Colors.brandPrimaryDeep} />
-              <Text style={styles.actionSheetText}>View info</Text>
+              <Text style={styles.actionSheetText}>{t("admin.viewInfo")}</Text>
             </Pressable>
             {menuBooking?.status === "pending" ? (
               <>
@@ -360,25 +365,25 @@ export default function AdminBookings() {
                   onPress={() => handleApprove(menuBooking)}
                 >
                   <Feather name="check" size={sf(16)} color="#047857" />
-                  <Text style={[styles.actionSheetText, { color: "#047857" }]}>Approve</Text>
+                  <Text style={[styles.actionSheetText, { color: "#047857" }]}>{t("admin.approve")}</Text>
                 </Pressable>
                 <Pressable
                   style={styles.actionSheetItem}
                   onPress={() => handleReject(menuBooking)}
                 >
                   <Feather name="x" size={sf(16)} color="#E11D48" />
-                  <Text style={[styles.actionSheetText, { color: "#E11D48" }]}>Reject</Text>
+                  <Text style={[styles.actionSheetText, { color: "#E11D48" }]}>{t("admin.reject")}</Text>
                 </Pressable>
               </>
             ) : null}
             <Pressable style={styles.actionSheetCancel} onPress={() => setMenuBooking(null)}>
-              <Text style={styles.actionSheetCancelText}>Cancel</Text>
+              <Text style={styles.actionSheetCancelText}>{t("admin.cancel")}</Text>
             </Pressable>
           </View>
         </Pressable>
       </Modal>
 
-      <BookingInfoSheet booking={viewing} onClose={() => setViewing(null)} />
+      <BookingInfoSheet booking={viewing} onClose={() => setViewing(null)} t={t} />
     </SafeAreaView>
   );
 }
@@ -397,7 +402,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: Layout.screenPadding,
-    paddingRight: Layout.screenPadding + sw(12),
+    paddingEnd: Layout.screenPadding + sw(12),
     paddingVertical: sw(12),
     gap: sw(8),
     minHeight: sw(52),

@@ -16,14 +16,17 @@ import {
   wellnessDetailRouteParams,
 } from "../../../constants/wellness-categories";
 import { fetchWellnessHub } from "../../../services/wellness-api";
+import { getWellnessCategoryMeta } from "../../../constants/wellness-theme";
 import GuestFeatureErrorState from "../../../components/guest/guest-permission-denied-state";
 import { isFeatureAccessBlockedError } from "../../../utils/guest-permission-errors";
 import { resolveLoadRestriction } from "../../../utils/account-access-sync";
 import { WellnessTheme } from "../../../constants/wellness-theme";
 import { sf, sw } from "../../../utils/responsive";
+import { useTranslation } from 'react-i18next';
 
 export default function Wellness() {
   const router = useRouter();
+  const { t, i18n } = useTranslation();
   const [hub, setHub] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -64,17 +67,17 @@ export default function Wellness() {
   const stats = [
     {
       key: "courses",
-      label: "Total Courses",
+      label: t('wellness.totalCourses'),
       value: loading && !hub ? "—" : String(hub?.stats?.totalCourses ?? 0),
     },
     {
       key: "progress",
-      label: "Avg Progress",
+      label: t('wellness.avgProgress'),
       value: loading && !hub ? "—" : `${hub?.stats?.avgProgress ?? 0}%`,
     },
     {
       key: "week",
-      label: "This Week",
+      label: t('wellness.thisWeek'),
       value: loading && !hub ? "—" : (hub?.stats?.weekLabel ?? "—"),
     },
   ];
@@ -85,8 +88,8 @@ export default function Wellness() {
   return (
     <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
       <WellnessScreenHeader
-        title="Wellness Hub"
-        subtitle="WELLS Framework for holistic health"
+        title={t('wellness.hubTitle')}
+        subtitle={t('wellness.hubSubtitle')}
         onBack={() => router.back()}
       />
 
@@ -101,7 +104,7 @@ export default function Wellness() {
           <GuestFeatureErrorState
             error={error}
             fallbackFeature="wellness"
-            defaultTitle="Could not load wellness"
+            defaultTitle={t('wellness.couldNotLoadWellness')}
             onRetry={load}
           />
         ) : (
@@ -113,7 +116,7 @@ export default function Wellness() {
               <WellnessCategoryCard
                 key={item.key}
                 categoryKey={item.iconKey ?? item.key}
-                title={item.title}
+                title={getWellnessCategoryMeta(item.key).titleKey ? t(getWellnessCategoryMeta(item.key).titleKey) : item.title}
                 subtitle={item.subtitle}
                 progressPercent={item.progressPercent}
                 progressLabel={item.progressLabel}
@@ -130,7 +133,7 @@ export default function Wellness() {
             ))}
 
             {categories.length === 0 ? (
-              <Text style={styles.emptyText}>No wellness content available yet.</Text>
+              <Text style={styles.emptyText}>{t('wellness.noContentYet')}</Text>
             ) : null}
           </ScrollView>
         )}

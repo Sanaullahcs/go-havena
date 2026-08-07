@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useSegments, usePathname } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { sw, sf } from "../../utils/responsive";
@@ -25,35 +26,35 @@ const LABEL_SIZE = sf(9);
 
 const HOME_TAB = {
   name: "home",
-  label: "Home",
+  labelKey: "nav.home",
   href: "/home",
   icon: { set: "ion", active: "home", inactive: "home-outline" },
 };
 
 const COMMUNITY_TAB = {
   name: "community",
-  label: "Community",
+  labelKey: "nav.community",
   href: "/community",
   icon: { set: "ion", active: "people", inactive: "people-outline" },
 };
 
 const SERVICES_TAB = {
   name: "services",
-  label: "Services",
-  href: "/services",
+  labelKey: "nav.services",
+  href: "/(tabs)/services",
   icon: { set: "ion", active: "grid", inactive: "grid-outline" },
 };
 
 const PROFILE_TAB = {
   name: "profile",
-  label: "Profile",
-  href: "/profile",
+  labelKey: "nav.profile",
+  href: "/(tabs)/profile",
   icon: { set: "ion", active: "person", inactive: "person-outline" },
 };
 
 const ADMIN_TAB = {
   name: "admin",
-  label: "Admin",
+  labelKey: "nav.admin",
   href: "/screens/admin-dashboard",
   icon: { set: "ion", active: "shield", inactive: "shield-outline" },
 };
@@ -114,6 +115,7 @@ function getActiveTab(segments, pathname) {
  * Admin    — Home | Community | Create | Admin | Services
  */
 export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = false }) {
+  const { t } = useTranslation();
   const [guestUser, setGuestUser] = useState(null);
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -182,6 +184,11 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
         navigateAppRoute(router, item.href);
         return;
       }
+      // Prefer hub root for Services so nested amenity/docs screens don't stick.
+      if (item.name === "services") {
+        router.navigate("/(tabs)/services");
+        return;
+      }
       router.navigate(item.href);
     },
     [haptic, router],
@@ -194,17 +201,18 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
 
   const renderTab = (item) => {
     const focused = activeTab === item.name;
+    const label = t(item.labelKey);
     return (
       <Pressable
         key={item.name}
         style={styles.tab}
         onPress={() => onTabPress(item)}
         accessibilityRole="tab"
-        accessibilityLabel={item.label}
+        accessibilityLabel={label}
       >
         <NavIcon item={item} focused={focused} />
         <Text style={[styles.label, focused && styles.labelActive]} numberOfLines={1}>
-          {item.label}
+          {label}
         </Text>
       </Pressable>
     );
@@ -219,12 +227,12 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
           style={styles.fabTab}
           onPress={onCenterPress}
           accessibilityRole="button"
-          accessibilityLabel="Create new"
+          accessibilityLabel={t("nav.create")}
         >
           <View style={styles.fab}>
             <Ionicons name="add" size={sf(26)} color="#FFFFFF" />
           </View>
-          <Text style={styles.fabLabel}>Create</Text>
+          <Text style={styles.fabLabel}>{t("nav.create")}</Text>
         </Pressable>
 
         {rightTabs.map(renderTab)}

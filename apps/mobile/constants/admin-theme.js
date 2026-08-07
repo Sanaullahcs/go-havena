@@ -57,7 +57,7 @@ export const adminSharedStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: sw(8),
-    paddingRight: sw(20),
+    paddingEnd: sw(20),
   },
   sectionHead: {
     flexDirection: "row",

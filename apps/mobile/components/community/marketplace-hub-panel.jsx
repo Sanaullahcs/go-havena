@@ -14,6 +14,7 @@ import { Fonts } from "../../constants/font";
 import CrispImage from "../ui/crisp-image";
 import { Feather } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { ScrollView } from "react-native";
 
 import CommunityListingsBanner from "../marketplace/community-listings-banner";
@@ -64,25 +65,25 @@ const DEAL_PALETTES = [
   },
 ];
 
-function formatDealDistance(deal) {
+function formatDealDistance(deal, t) {
   const raw = String(deal.distance || deal.location || "").trim();
   if (!raw) return "";
   if (/away/i.test(raw)) return raw;
-  if (/mi|km/i.test(raw)) return `${raw} away`;
+  if (/mi|km/i.test(raw)) return t("marketplace.distanceAway", { distance: raw });
   return raw;
 }
 
-function formatDealValidLabel(endsAt, validUntil) {
+function formatDealValidLabel(endsAt, validUntil, t) {
   if (endsAt) {
     const date = new Date(String(endsAt).replace(" ", "T"));
     if (!Number.isNaN(date.getTime())) {
       const days = Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
       if (days > 0 && days <= 60) {
-        return `Valid ${days} day${days === 1 ? "" : "s"}`;
+        return t("marketplace.validDays", { count: days });
       }
     }
   }
-  return validUntil ? `Valid until ${validUntil}` : "";
+  return validUntil ? t("marketplace.validUntilDate", { date: validUntil }) : "";
 }
 
 const DEFAULT_EXPLORE_TINT = {
@@ -92,7 +93,7 @@ const DEFAULT_EXPLORE_TINT = {
   feather: "grid",
 };
 
-function ExploreCard({ category, onPress }) {
+function ExploreCard({ category, onPress, t }) {
   const tint = exploreCategoryTheme[category.title] ?? DEFAULT_EXPLORE_TINT;
   return (
     <TouchableOpacity
@@ -106,9 +107,9 @@ function ExploreCard({ category, onPress }) {
         color={tint.icon}
         backgroundColor={tint.soft}
       />
-      <Text style={styles.cardTitle}>{category.title}</Text>
+      <Text style={styles.cardTitle}>{tint.labelKey ? t(tint.labelKey) : category.title}</Text>
       <Text style={styles.cardSubtitle} numberOfLines={2}>
-        {category.subtitle}
+        {category.subtitleKey ? t(category.subtitleKey) : category.subtitle}
       </Text>
     </TouchableOpacity>
   );
@@ -122,11 +123,11 @@ function SectionLoader() {
   );
 }
 
-function FeaturedDealCard({ deal, variantIndex, isLast, onPress }) {
+function FeaturedDealCard({ deal, variantIndex, isLast, onPress, t }) {
   const palette = DEAL_PALETTES[variantIndex % DEAL_PALETTES.length];
   const offerTag = deal.offerTag ?? deal.discount_label ?? "";
-  const distanceText = formatDealDistance(deal);
-  const validText = formatDealValidLabel(deal.endsAt, deal.validUntil);
+  const distanceText = formatDealDistance(deal, t);
+  const validText = formatDealValidLabel(deal.endsAt, deal.validUntil, t);
   const displayTitle = deal.vendor || deal.title;
 
   return (
@@ -190,7 +191,8 @@ function FeaturedDealCard({ deal, variantIndex, isLast, onPress }) {
 }
 
 function PopularBusinessCard({ business, onPress }) {
-  const categoryLabel = business.category || "Business";
+  const { t } = useTranslation();
+  const categoryLabel = business.category || t("deals.business");
   const metaLine = business.address
     ? `${categoryLabel} • ${business.address}`
     : categoryLabel;
@@ -229,6 +231,7 @@ function PopularBusinessCard({ business, onPress }) {
 
 export default function MarketplaceHubPanel() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { role: roleParam } = useLocalSearchParams();
   const resolvedRoleParam =
     roleParam === "community_admin" ? "admin" : roleParam;
@@ -308,22 +311,25 @@ export default function MarketplaceHubPanel() {
   const residentCategories = [
     {
       id: 1,
-      title: "Deals & Offers",
-      subtitle: "Save with local deals",
+      title: t("marketplace.dealsOffers"),
+      subtitle: t("marketplace.saveWithLocalDeals"),
+      subtitleKey: "marketplace.saveWithLocalDeals",
       feather: "tag",
       route: MarketplaceRoutes.DEALS,
     },
     {
       id: 2,
-      title: "Local Businesses",
-      subtitle: "Discover nearby places",
+      title: t("marketplace.localBusinesses"),
+      subtitle: t("marketplace.discoverNearby"),
+      subtitleKey: "marketplace.discoverNearby",
       feather: "map-pin",
       route: MarketplaceRoutes.ALL_BUSINESSES,
     },
     {
       id: 3,
-      title: "Recommendation",
-      subtitle: "Community favorites",
+      title: t("marketplace.recommendation"),
+      subtitle: t("marketplace.communityFavorites"),
+      subtitleKey: "marketplace.communityFavorites",
       feather: "star",
       route: MarketplaceRoutes.DEALS,
     },
@@ -333,8 +339,9 @@ export default function MarketplaceHubPanel() {
     ...residentCategories.slice(0, 2),
     {
       id: 3,
-      title: "My Coupons",
-      subtitle: "Saved offers",
+      title: t("marketplace.myCoupons"),
+      subtitle: t("marketplace.savedOffers"),
+      subtitleKey: "marketplace.savedOffers",
       feather: "bookmark",
       route: MarketplaceRoutes.MY_COUPONS,
     },
@@ -344,15 +351,17 @@ export default function MarketplaceHubPanel() {
   const adminCategories = [
     {
       id: 1,
-      title: "Deals & Offers",
-      subtitle: "Save with local deals",
+      title: t("marketplace.dealsOffers"),
+      subtitle: t("marketplace.saveWithLocalDeals"),
+      subtitleKey: "marketplace.saveWithLocalDeals",
       feather: "tag",
       route: MarketplaceRoutes.DEALS,
     },
     {
       id: 2,
-      title: "Local Businesses",
-      subtitle: "Discover nearby places",
+      title: t("marketplace.localBusinesses"),
+      subtitle: t("marketplace.discoverNearby"),
+      subtitleKey: "marketplace.discoverNearby",
       feather: "briefcase",
       route: MarketplaceRoutes.ALL_BUSINESSES,
     },
@@ -381,7 +390,7 @@ export default function MarketplaceHubPanel() {
           <GuestFeatureErrorState
             error={restrictionError}
             fallbackFeature="marketplace"
-            defaultTitle="Could not load marketplace"
+            defaultTitle={t("marketplace.couldNotLoad")}
             onRetry={loadMarketplaceData}
           />
         ) : (
@@ -391,13 +400,14 @@ export default function MarketplaceHubPanel() {
           />
 
           <View style={styles.exploreSection}>
-            <MarketplaceSectionHeader title="Explore" />
+            <MarketplaceSectionHeader title={t("marketplace.explore")} />
             <View style={styles.exploreGrid}>
               {exploreCategories.map((category) => (
                 <ExploreCard
                   key={category.id}
                   category={category}
                   onPress={() => category.route && goTo(category.route)}
+                  t={t}
                 />
               ))}
             </View>
@@ -405,8 +415,8 @@ export default function MarketplaceHubPanel() {
 
           <View style={styles.sectionBlock}>
             <MarketplaceSectionHeader
-              title="Featured Deals"
-              actionLabel="See all"
+              title={t("deals.featured")}
+              actionLabel={t("common.seeAll")}
               onAction={() => goTo(MarketplaceRoutes.DEALS)}
             />
 
@@ -414,7 +424,7 @@ export default function MarketplaceHubPanel() {
               {loadingData ? (
                 <SectionLoader />
               ) : featuredDeals.length === 0 ? (
-                <Text style={marketplaceSharedStyles.emptyHint}>No deals yet</Text>
+                <Text style={marketplaceSharedStyles.emptyHint}>{t("deals.noneYet")}</Text>
               ) : (
                 featuredDeals.map((deal, index) => (
                   <FeaturedDealCard
@@ -422,6 +432,7 @@ export default function MarketplaceHubPanel() {
                     deal={deal}
                     variantIndex={index}
                     isLast={index === featuredDeals.length - 1}
+                    t={t}
                     onPress={() =>
                       goTo(MarketplaceRoutes.DEAL_DETAILS, dealDetailsParams(deal, activeRole))
                     }
@@ -433,8 +444,8 @@ export default function MarketplaceHubPanel() {
 
           <View style={styles.sectionBlock}>
             <MarketplaceSectionHeader
-              title="Popular Nearby"
-              actionLabel="See all"
+              title={t("marketplace.popularNearby")}
+              actionLabel={t("common.seeAll")}
               onAction={() => goTo(MarketplaceRoutes.ALL_BUSINESSES)}
             />
 
@@ -442,7 +453,7 @@ export default function MarketplaceHubPanel() {
               {loadingData ? (
                 <SectionLoader />
               ) : popularBiz.length === 0 ? (
-                <Text style={marketplaceSharedStyles.emptyHint}>No businesses yet</Text>
+                <Text style={marketplaceSharedStyles.emptyHint}>{t("marketplace.noBusinesses")}</Text>
               ) : (
                 popularBiz.map((business) => (
                   <PopularBusinessCard
@@ -462,7 +473,7 @@ export default function MarketplaceHubPanel() {
 
           {isAdmin && (
             <View style={styles.sectionBlock}>
-              <MarketplaceSectionHeader title="Admin Tools" />
+              <MarketplaceSectionHeader title={t("admin.adminTools")} />
 
               <TouchableOpacity
                 activeOpacity={0.85}
@@ -479,9 +490,9 @@ export default function MarketplaceHubPanel() {
                     backgroundColor={MarketplaceTheme.mint}
                   />
                   <View style={styles.adminCopy}>
-                    <Text style={styles.adminTitle}>Manage Marketplace</Text>
+                    <Text style={styles.adminTitle}>{t("admin.manageMarketplace")}</Text>
                     <Text style={styles.adminSubtitle}>
-                      Add businesses, create deals, manage content
+                      {t("admin.manageMarketplaceSub")}
                     </Text>
                   </View>
                 </View>
@@ -623,7 +634,7 @@ const styles = StyleSheet.create({
   dealBadge: {
     position: "absolute",
     top: 12,
-    right: 12,
+    end: 12,
     maxWidth: 110,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -640,7 +651,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
-    paddingRight: 72,
+    paddingEnd: 72,
   },
   dealImageFrame: {
     width: 72,

@@ -1,14 +1,26 @@
 import { apiRequest } from "./api-client";
 import { getCommunityId } from "./auth-session";
+import i18n from "../i18n";
 
-export const REPORT_TYPES = [
-  { value: "spam", label: "Spam or misleading" },
-  { value: "harassment", label: "Harassment or bullying" },
-  { value: "safety", label: "Safety concern" },
-  { value: "damage", label: "Property damage" },
-  { value: "noise", label: "Noise or disturbance" },
-  { value: "other", label: "Other" },
-];
+export function getReportTypes() {
+  return [
+    { value: "spam", label: i18n.t("feed.reportSpam") },
+    { value: "harassment", label: i18n.t("feed.reportHarassment") },
+    { value: "safety", label: i18n.t("feed.reportSafety") },
+    { value: "damage", label: i18n.t("feed.reportDamage") },
+    { value: "noise", label: i18n.t("feed.reportNoise") },
+    { value: "other", label: i18n.t("feed.reportOther") },
+  ];
+}
+
+/** @deprecated Use getReportTypes() instead for translated labels */
+export const REPORT_TYPES = new Proxy([], {
+  get(target, prop) {
+    const types = getReportTypes();
+    if (prop === Symbol.iterator) return types[Symbol.iterator].bind(types);
+    return Reflect.get(types, prop);
+  },
+});
 
 /**
  * POST /v1/reports — file a moderation report against a neighbor or post.

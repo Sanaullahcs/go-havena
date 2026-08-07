@@ -29,9 +29,11 @@ import NoticeCoverImageField from "../../../components/forms/notice-cover-image-
 import { fetchMe } from "../../../services/profile-api";
 import { getUser } from "../../../services/auth-session";
 import { isCommunityAdmin } from "../../../services/community-access";
+import { useTranslation } from 'react-i18next';
 
 export default function CreateAlertScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { submitting, run } = useSubmitLock();
   const { runAction, showFailure } = useApiAction();
   const [accessChecked, setAccessChecked] = useState(false);
@@ -89,14 +91,14 @@ export default function CreateAlertScreen() {
       try {
         const user = await fetchMe();
         if (!cancelled && !isCommunityAdmin(user)) {
-          await showFailure("Access denied", { message: "Only community admins can create alerts." });
+          await showFailure(t('alerts.accessDenied'), { message: t('alerts.onlyAdminsCanCreateAlerts') });
           router.back();
           return;
         }
       } catch {
         const user = await getUser();
         if (!cancelled && !isCommunityAdmin(user)) {
-          await showFailure("Access denied", { message: "Only community admins can create alerts." });
+          await showFailure(t('alerts.accessDenied'), { message: t('alerts.onlyAdminsCanCreateAlerts') });
           router.back();
           return;
         }
@@ -149,7 +151,7 @@ export default function CreateAlertScreen() {
         delete next.event_time_end;
         return next;
       }
-      return { ...prev, event_time_end: "End time must be after start time." };
+      return { ...prev, event_time_end: t('alerts.endTimeAfterStart') };
     });
   }, [startTime, endTime, setErrors]);
 
@@ -175,11 +177,11 @@ export default function CreateAlertScreen() {
                 ? toApiScheduleDateTime(schedulePublishDate, schedulePublishTime)
                 : undefined,
             }),
-          successTitle: scheduleLater ? "Scheduled" : "Published",
+          successTitle: scheduleLater ? t('alerts.scheduled') : t('alerts.published'),
           successMessage: scheduleLater
-            ? "Your alert was saved and will publish at the scheduled time."
-            : "Your alert was published and residents were notified.",
-          errorTitle: "Could not publish",
+            ? t('alerts.alertScheduledMessage')
+            : t('alerts.alertPublishedMessage'),
+          errorTitle: t('alerts.couldNotPublish'),
           onSuccess: () => router.back(),
         });
       } finally {
@@ -224,12 +226,12 @@ export default function CreateAlertScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
-      <ScreenHeader layout="inline" title="Create Alert" iconOnly />
+      <ScreenHeader layout="inline" title={t('alerts.createAlert')} iconOnly />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.formWrap}>
           <Text style={styles.formLabel}>
-            Title <Text style={styles.required}>*</Text>
+            {t('alerts.title')} <Text style={styles.required}>*</Text>
           </Text>
           <TextInput
             value={title}
@@ -238,7 +240,7 @@ export default function CreateAlertScreen() {
               touch("title");
               clearError("title");
             }}
-            placeholder="e.g., Power outage notice"
+            placeholder={t('alerts.alertTitlePlaceholder')}
             placeholderTextColor="rgba(10, 10, 10, 0.5)"
             style={[styles.input, showError("title", fieldErrorsLive) && styles.inputError]}
             maxLength={LIMITS.noticeTitle}
@@ -246,7 +248,7 @@ export default function CreateAlertScreen() {
           {showError("title", fieldErrorsLive) ? <Text style={styles.errorText}>{showError("title", fieldErrorsLive)}</Text> : null}
 
           <Text style={[styles.formLabel, styles.sectionGap]}>
-            Description <Text style={styles.required}>*</Text>
+            {t('alerts.description')} <Text style={styles.required}>*</Text>
           </Text>
           <TextInput
             value={description}
@@ -255,7 +257,7 @@ export default function CreateAlertScreen() {
               touch("body");
               clearError("body");
             }}
-            placeholder="Add details about this alert..."
+            placeholder={t('alerts.alertDescriptionPlaceholder')}
             placeholderTextColor="rgba(10, 10, 10, 0.5)"
             style={[styles.textArea, showError("body", fieldErrorsLive) && styles.inputError]}
             multiline
@@ -270,16 +272,16 @@ export default function CreateAlertScreen() {
             uploading={uploadingImage}
           />
 
-          <Text style={[styles.sectionTitle, styles.sectionGap]}>Alert schedule</Text>
-          <Text style={styles.sectionHint}>Alert date is required. Start and end times are optional.</Text>
+          <Text style={[styles.sectionTitle, styles.sectionGap]}>{t('alerts.alertSchedule')}</Text>
+          <Text style={styles.sectionHint}>{t('alerts.alertScheduleHint')}</Text>
 
-          <View style={styles.sectionGap}>{renderFieldLabel("calendar-outline", "Alert Date", true)}</View>
+          <View style={styles.sectionGap}>{renderFieldLabel("calendar-outline", t('alerts.alertDate'), true)}</View>
           <View style={styles.chipRow}>
             <TouchableOpacity style={styles.chip} onPress={() => applyQuickDate(0)} activeOpacity={0.85}>
-              <Text style={styles.chipText}>Today</Text>
+              <Text style={styles.chipText}>{t('alerts.today')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.chip} onPress={() => applyQuickDate(1)} activeOpacity={0.85}>
-              <Text style={styles.chipText}>Tomorrow</Text>
+              <Text style={styles.chipText}>{t('alerts.tomorrow')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.chip}
@@ -289,7 +291,7 @@ export default function CreateAlertScreen() {
               }}
               activeOpacity={0.85}
             >
-              <Text style={styles.chipText}>Fill schedule</Text>
+              <Text style={styles.chipText}>{t('alerts.fillSchedule')}</Text>
             </TouchableOpacity>
           </View>
           <SchedulePickerField
@@ -300,30 +302,30 @@ export default function CreateAlertScreen() {
               touch("event_date");
               clearError("event_date");
             }}
-            placeholder="Select date"
+            placeholder={t('alerts.selectDate')}
             inputStyle={[styles.input, showError("event_date", fieldErrorsLive) && styles.inputError]}
           />
           {showError("event_date", fieldErrorsLive) ? <Text style={styles.errorText}>{showError("event_date", fieldErrorsLive)}</Text> : null}
 
-          <View style={styles.sectionGap}>{renderFieldLabel("time-outline", "Start Time", false)}</View>
+          <View style={styles.sectionGap}>{renderFieldLabel("time-outline", t('alerts.startTime'), false)}</View>
           <View style={styles.chipRow}>
             <TouchableOpacity style={styles.chip} onPress={() => applyQuickStartInHours(0)} activeOpacity={0.85}>
-              <Text style={styles.chipText}>Now</Text>
+              <Text style={styles.chipText}>{t('alerts.now')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.chip} onPress={() => applyQuickStartInHours(1)} activeOpacity={0.85}>
-              <Text style={styles.chipText}>In 1 hour</Text>
+              <Text style={styles.chipText}>{t('alerts.inOneHour')}</Text>
             </TouchableOpacity>
           </View>
           <SchedulePickerField
             mode="time"
             value={startTime}
             onChange={(v) => applyStartTime(v)}
-            placeholder="Start time"
+            placeholder={t('alerts.startTimePlaceholder')}
             inputStyle={[styles.input, showError("event_time", fieldErrorsLive) && styles.inputError]}
           />
           {showError("event_time", fieldErrorsLive) ? <Text style={styles.errorText}>{showError("event_time", fieldErrorsLive)}</Text> : null}
 
-          <View style={styles.sectionGap}>{renderFieldLabel("time-outline", "End Time", false)}</View>
+          <View style={styles.sectionGap}>{renderFieldLabel("time-outline", t('alerts.endTime'), false)}</View>
           <SchedulePickerField
             mode="time"
             value={endTime}
@@ -332,7 +334,7 @@ export default function CreateAlertScreen() {
               touch("event_time_end");
               clearError("event_time_end");
             }}
-            placeholder="End time (after start)"
+            placeholder={t('alerts.endTimePlaceholder')}
             inputStyle={[styles.input, showError("event_time_end", fieldErrorsLive) && styles.inputError]}
           />
           {showError("event_time_end", fieldErrorsLive) ? (
@@ -340,14 +342,14 @@ export default function CreateAlertScreen() {
           ) : null}
 
           <View style={styles.adminHeaderRow}>
-            <Text style={styles.adminOptionsTitle}>ADMIN OPTIONS</Text>
+            <Text style={styles.adminOptionsTitle}>{t('alerts.adminOptions')}</Text>
           </View>
 
           <View style={styles.scheduleCard}>
             <View style={styles.scheduleHeaderRow}>
               <View>
-                <Text style={styles.optionTitle}>Schedule for Later</Text>
-                <Text style={styles.optionSubtitle}>Publish at a specific date and time</Text>
+                <Text style={styles.optionTitle}>{t('alerts.scheduleForLater')}</Text>
+                <Text style={styles.optionSubtitle}>{t('alerts.publishAtSpecificDateTime')}</Text>
               </View>
               <CustomToggle
                 value={scheduleLater}
@@ -374,7 +376,7 @@ export default function CreateAlertScreen() {
                     touch("scheduled_date");
                     clearError("scheduled_date");
                   }}
-                  placeholder="Publish date"
+                    placeholder={t('alerts.publishDate')}
                   inputStyle={[styles.input, showError("scheduled_date", fieldErrorsLive) && styles.inputError]}
                 />
                 {showError("scheduled_date", fieldErrorsLive) ? (
@@ -388,7 +390,7 @@ export default function CreateAlertScreen() {
                     touch("scheduled_time");
                     clearError("scheduled_time");
                   }}
-                  placeholder="Publish time"
+                    placeholder={t('alerts.publishTime')}
                   inputStyle={[styles.input, styles.scheduleTimeInput, showError("scheduled_time", fieldErrorsLive) && styles.inputError]}
                 />
                 {showError("scheduled_time", fieldErrorsLive) ? (
@@ -410,7 +412,7 @@ export default function CreateAlertScreen() {
             {submitting || uploadingImage ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.publishButtonText}>{scheduleLater ? "Schedule" : "Publish"}</Text>
+              <Text style={styles.publishButtonText}>{scheduleLater ? t('alerts.schedule') : t('alerts.publish')}</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -517,7 +519,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   scheduleTimeInput: { marginTop: 10 },
-  optionTextWrap: { flex: 1, paddingRight: 12 },
+  optionTextWrap: { flex: 1, paddingEnd: 12 },
   optionTitle: {
     fontFamily: Fonts.bold,
     fontSize: 13,
@@ -560,7 +562,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#D1FAF5",
     borderWidth: 1,
     borderColor: "rgba(20, 184, 166, 0.28)",
-    marginRight: 10,
+    marginEnd: 10,
     marginBottom: 8,
   },
   chipText: {

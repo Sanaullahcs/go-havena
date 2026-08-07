@@ -13,25 +13,27 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import UserAvatar from "../../../components/ui/user-avatar";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
 import { Colors, Layout, Shadows } from "../../../constants/tokens";
 import { fetchNeighbor } from "../../../services/profile-api";
 import { sw, sf } from "../../../utils/responsive";
 
-function roleLabel(role) {
-  if (role === "community_admin" || role === "admin") return "Community admin";
-  if (role === "guest") return "Guest";
-  return "Resident";
+function roleLabel(role, t) {
+  if (role === "community_admin" || role === "admin") return t("profile.roles.admin");
+  if (role === "guest") return t("profile.roles.guest");
+  return t("profile.roles.resident");
 }
 
-function residenceLabel(type) {
-  if (type === "homeowner") return "Homeowner";
-  if (type === "tenant") return "Tenant";
+function residenceLabel(type, t) {
+  if (type === "homeowner") return t("residentProfile.homeowner");
+  if (type === "tenant") return t("residentProfile.tenant");
   return null;
 }
 
 export default function ResidentProfileScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { width } = useWindowDimensions();
   const { userId } = useLocalSearchParams();
   const [neighbor, setNeighbor] = useState(null);
@@ -46,7 +48,7 @@ export default function ResidentProfileScreen() {
 
   const load = useCallback(async () => {
     if (!userId) {
-      setError("Neighbor not found.");
+      setError(t("residentProfile.profileUnavailable"));
       setLoading(false);
       return;
     }
@@ -62,7 +64,7 @@ export default function ResidentProfileScreen() {
       setNeighbor(data);
     } catch (err) {
       setNeighbor(null);
-      setError(err?.message || "Could not load this profile.");
+      setError(err?.message || t("profile.couldNotLoad"));
     } finally {
       setLoading(false);
     }
@@ -74,16 +76,16 @@ export default function ResidentProfileScreen() {
     }, [load]),
   );
 
-  const unitLine = neighbor?.unitNumber ? `Unit ${neighbor.unitNumber}` : null;
-  const residence = residenceLabel(neighbor?.residence_type);
+  const unitLine = neighbor?.unitNumber ? t("nav.unit", { number: neighbor.unitNumber }) : null;
+  const residence = residenceLabel(neighbor?.residence_type, t);
   const chips = [
-    { key: "role", label: roleLabel(neighbor?.role), tone: "brand" },
+    { key: "role", label: roleLabel(neighbor?.role, t), tone: "brand" },
     residence ? { key: "residence", label: residence, tone: "neutral" } : null,
   ].filter(Boolean);
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
-      <InternalScreenHeader title="Neighbor profile" compact />
+      <InternalScreenHeader title={t("residentProfile.neighborProfile")} compact />
 
       {loading ? (
         <View style={styles.centered}>
@@ -94,10 +96,10 @@ export default function ResidentProfileScreen() {
           <View style={styles.errorIcon}>
             <Feather name="user-x" size={sf(28)} color="#94A3B8" />
           </View>
-          <Text style={styles.errorTitle}>Profile unavailable</Text>
+          <Text style={styles.errorTitle}>{t("residentProfile.profileUnavailable")}</Text>
           <Text style={styles.errorText}>{error}</Text>
           <Pressable style={styles.retryBtn} onPress={load}>
-            <Text style={styles.retryText}>Try again</Text>
+            <Text style={styles.retryText}>{t("common.retry")}</Text>
           </Pressable>
         </View>
       ) : neighbor ? (
@@ -151,7 +153,7 @@ export default function ResidentProfileScreen() {
                   {neighbor.bio.trim()}
                 </Text>
               ) : (
-                <Text style={styles.bioEmpty}>This neighbor hasn’t added a bio yet.</Text>
+                <Text style={styles.bioEmpty}>{t("residentProfile.noBioYet")}</Text>
               )}
             </View>
 
@@ -162,9 +164,9 @@ export default function ResidentProfileScreen() {
                 <Feather name="map-pin" size={sf(16)} color={Colors.brandPrimaryDeep} />
               </View>
               <View style={styles.placeCopy}>
-                <Text style={styles.placeEyebrow}>Community</Text>
+                <Text style={styles.placeEyebrow}>{t("residentProfile.communityLabel")}</Text>
                 <Text style={styles.placeTitle} numberOfLines={1}>
-                  {neighbor.communityName || "Your community"}
+                  {neighbor.communityName || t("community.yourCommunity")}
                 </Text>
                 {(unitLine || residence) ? (
                   <Text style={styles.placeMeta} numberOfLines={1}>
@@ -176,17 +178,17 @@ export default function ResidentProfileScreen() {
           </View>
 
           <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>About this neighbor</Text>
+            <Text style={styles.infoTitle}>{t("residentProfile.aboutThisNeighbor")}</Text>
             <View style={styles.infoGrid}>
               <InfoTile
                 icon="home"
-                label="Home"
-                value={unitLine || "Unit not shared"}
+                label={t("nav.home")}
+                value={unitLine || t("residentProfile.unitNotShared")}
               />
               <InfoTile
                 icon="users"
-                label="Role"
-                value={roleLabel(neighbor.role)}
+                label={t("residentProfile.role")}
+                value={roleLabel(neighbor.role, t)}
               />
             </View>
           </View>

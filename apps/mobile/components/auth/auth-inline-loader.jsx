@@ -1,14 +1,17 @@
 import React, { useEffect, useRef } from "react";
 import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { Colors } from "../../constants/tokens";
 
 /** Minimal inline loader for OTP send / resend states */
-export default function AuthInlineLoader({ text = "Sending code…" }) {
+export default function AuthInlineLoader({ text }) {
+  const { t } = useTranslation();
+  const label = text ?? t("auth.sendingCode");
   return (
     <View style={styles.wrap}>
       <ActivityIndicator size="small" color={Colors.brandPrimaryDeep} />
-      <Text style={styles.text}>{text}</Text>
+      <Text style={styles.text}>{label}</Text>
     </View>
   );
 }

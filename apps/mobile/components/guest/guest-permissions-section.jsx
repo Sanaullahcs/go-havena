@@ -1,11 +1,13 @@
 import React from "react";
 import { View, Text, StyleSheet, Switch } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { sf, sw } from "../../utils/responsive";
 import { GUEST_PERMISSION_OPTIONS } from "../../constants/guest-permissions";
 
 export default function GuestPermissionsSection({ permissions, onChange }) {
+  const { t } = useTranslation();
   const enabledCount = GUEST_PERMISSION_OPTIONS.filter((option) => permissions?.[option.key]).length;
 
   return (
@@ -15,9 +17,9 @@ export default function GuestPermissionsSection({ permissions, onChange }) {
           <Feather name="shield" size={sf(14)} color="#0A2A43" />
         </View>
         <View style={styles.headerCopy}>
-          <Text style={styles.title}>Guest permissions</Text>
+          <Text style={styles.title}>{t('guests.permissionsTitle')}</Text>
           <Text style={styles.subtitle}>
-            Choose what this guest can view in the app. {enabledCount} of {GUEST_PERMISSION_OPTIONS.length} enabled.
+            {t('guests.permissionsSubtitle', { enabled: enabledCount, total: GUEST_PERMISSION_OPTIONS.length })}
           </Text>
         </View>
       </View>
@@ -127,6 +129,6 @@ const styles = StyleSheet.create({
     fontSize: sf(11),
     lineHeight: sf(16),
     color: "#64748B",
-    paddingLeft: sw(22),
+    paddingStart: sw(22),
   },
 });

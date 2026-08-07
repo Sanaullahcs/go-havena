@@ -4,12 +4,14 @@ import { mediaImageSource } from "../../utils/profile-display";
 
 export default function CrispImage({ source, style, contentFit = "cover", ...props }) {
   const resolvedSource = mediaImageSource(source);
+  const finalSource = resolvedSource ?? source;
+  const isBundled = typeof finalSource === "number";
 
   return (
     <Image
-      {...imageProps}
+      {...(isBundled ? {} : imageProps)}
       {...props}
-      source={resolvedSource ?? source}
+      source={finalSource}
       style={style}
       contentFit={contentFit}
     />

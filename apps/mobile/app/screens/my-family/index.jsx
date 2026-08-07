@@ -18,6 +18,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
+import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import FamilyMemberCard, { FamilyHeroCard } from "../../../components/family/family-member-card";
 import {
@@ -48,14 +49,16 @@ import { formatDisplayDateTime } from "../../../utils/form-datetime";
 import { confirmSignOut } from "../../../services/sign-out";
 import { getCompleteProfileParams, Routes } from "../../../constants/onboarding-routes";
 import { getUser } from "../../../services/auth-session";
+import { chevronForward } from "../../../utils/rtl";
 
-function roleLabel(role) {
-  if (role === "head") return "Family Head";
-  return "Member";
+function roleLabel(role, t) {
+  if (role === "head") return t("family.familyHead");
+  return t("family.member");
 }
 
 export default function MyFamilyScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { dialog, showFailure, showSuccess } = useApiAction();
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -76,12 +79,12 @@ export default function MyFamilyScreen() {
       const data = await fetchMyFamily();
       setPayload(data);
     } catch (err) {
-      await showFailure("Could not load family", err);
+      await showFailure(t("family.couldNotLoadFamily"), err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [showFailure]);
+  }, [showFailure, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -95,14 +98,14 @@ export default function MyFamilyScreen() {
   const handleCopy = async () => {
     if (!family?.family_number) return;
     await Clipboard.setStringAsync(family.family_number);
-    await showSuccess("Copied", "Family number copied to clipboard.");
+    await showSuccess(t("family.copied"), t("family.familyNumberCopied"));
   };
 
   const handleShare = async () => {
     if (!family?.family_number) return;
     try {
       await Share.share({
-        message: `Join my Havena family with number ${family.family_number}.`,
+        message: t("family.shareMessage", { number: family.family_number }),
       });
     } catch {
       // user dismissed
@@ -127,7 +130,7 @@ export default function MyFamilyScreen() {
         }
       } catch {
         if (!cancelled) {
-          setCreateNumberError("Could not generate a family number. Try again.");
+          setCreateNumberError(t("family.couldNotGenerateNumber"));
         }
       } finally {
         if (!cancelled) setCreateNumberLoading(false);
@@ -137,7 +140,7 @@ export default function MyFamilyScreen() {
     return () => {
       cancelled = true;
     };
-  }, [createOpen]);
+  }, [createOpen, t]);
 
   useEffect(() => {
     if (!createOpen) return undefined;
@@ -160,13 +163,13 @@ export default function MyFamilyScreen() {
         }
 
         if (!result.available) {
-          setCreateNumberError(result.message || "This Family Number already exists.");
+          setCreateNumberError(result.message || t("family.numberAlreadyExists"));
         } else {
           setCreateNumberError(null);
         }
       } catch {
         if (seq === createCheckSeq.current) {
-          setCreateNumberError("Could not verify this family number.");
+          setCreateNumberError(t("family.couldNotVerifyNumber"));
         }
       } finally {
         if (seq === createCheckSeq.current) {
@@ -176,7 +179,7 @@ export default function MyFamilyScreen() {
     }, 450);
 
     return () => clearTimeout(timer);
-  }, [createNumber, createOpen]);
+  }, [createNumber, createOpen, t]);
 
   const regenerateCreateNumber = async () => {
     setCreateNumberLoading(true);
@@ -187,7 +190,7 @@ export default function MyFamilyScreen() {
         setCreateNumberError(null);
       }
     } catch {
-      setCreateNumberError("Could not generate a new family number.");
+      setCreateNumberError(t("family.couldNotGenerateNewNumber"));
     } finally {
       setCreateNumberLoading(false);
     }
@@ -196,7 +199,7 @@ export default function MyFamilyScreen() {
   const confirmCreate = async () => {
     const number = createNumber.trim();
     if (!number) {
-      await dialog.showError("Family number required", "Enter or generate a family number.");
+      await dialog.showError(t("family.familyNumberRequired"), t("family.enterOrGenerateNumber"));
       return;
     }
     if (createNumberError || createNumberChecking || createNumberLoading) {
@@ -210,12 +213,12 @@ export default function MyFamilyScreen() {
       setCreateNumber("");
       setCreateNumberError(null);
       await showSuccess(
-        "Family created",
-        "Share your family number so others can request to join.",
+        t("family.familyCreated"),
+        t("family.shareNumberHint"),
       );
       load();
     } catch (err) {
-      await showFailure("Could not create family", err);
+      await showFailure(t("family.couldNotCreateFamily"), err);
     } finally {
       setCreatingFamily(false);
     }
@@ -224,7 +227,7 @@ export default function MyFamilyScreen() {
   const confirmJoin = async () => {
     const number = joinNumber.trim();
     if (!number) {
-      await dialog.showError("Family number required", "Enter the family number from your family head.");
+      await dialog.showError(t("family.familyNumberRequired"), t("family.enterNumberFromHead"));
       return;
     }
 
@@ -232,27 +235,27 @@ export default function MyFamilyScreen() {
       await requestJoinFamily(number);
       setJoinOpen(false);
       setJoinNumber("");
-      await showSuccess("Request sent", "The family head must approve your request.");
+      await showSuccess(t("family.requestSent"), t("family.headMustApprove"));
       load();
     } catch (err) {
-      await showFailure("Could not send request", err);
+      await showFailure(t("family.couldNotSendRequest"), err);
     }
   };
 
   const handleLeave = async () => {
     const result = await dialog.showConfirm(
-      "Leave family?",
-      "You will lose access to family features until you join again.",
-      { confirmLabel: "Leave", destructive: true },
+      t("family.leaveFamily"),
+      t("family.leaveFamilyMessage"),
+      { confirmLabel: t("family.leaveAction"), destructive: true },
     );
     if (result !== "confirm") return;
 
     try {
       await leaveFamily();
-      await showSuccess("Left family", "You are no longer part of this family.");
+      await showSuccess(t("family.leftFamily"), t("family.leftFamilyMessage"));
       load();
     } catch (err) {
-      await showFailure("Could not leave family", err);
+      await showFailure(t("family.couldNotLeaveFamily"), err);
     }
   };
 
@@ -261,19 +264,19 @@ export default function MyFamilyScreen() {
     if (!requestId) return;
 
     const result = await dialog.showConfirm(
-      "Cancel join request?",
-      "You can request to join again later with a family number.",
-      { confirmLabel: "Cancel request", destructive: true },
+      t("family.cancelJoinRequest"),
+      t("family.cancelJoinRequestMessage"),
+      { confirmLabel: t("family.cancelRequestAction"), destructive: true },
     );
     if (result !== "confirm") return;
 
     setActionUserId("cancel-join");
     try {
       await cancelFamilyJoinRequest(requestId);
-      await showSuccess("Request cancelled", "Your family join request was cancelled.");
+      await showSuccess(t("family.requestCancelled"), t("family.requestCancelledMessage"));
       load();
     } catch (err) {
-      await showFailure("Could not cancel request", err);
+      await showFailure(t("family.couldNotCancelRequest"), err);
     } finally {
       setActionUserId(null);
     }
@@ -282,7 +285,7 @@ export default function MyFamilyScreen() {
   const runMemberAction = async ({ member, title, message, confirmLabel, action, successTitle, successMessage }) => {
     const result = await dialog.showConfirm(title, message, {
       confirmLabel,
-      destructive: confirmLabel !== "Restore",
+      destructive: confirmLabel !== t("family.restoreAction"),
     });
     if (result !== "confirm") return;
 
@@ -292,7 +295,7 @@ export default function MyFamilyScreen() {
       await showSuccess(successTitle, successMessage);
       load();
     } catch (err) {
-      await showFailure("Action failed", err);
+      await showFailure(t("family.actionFailed"), err);
     } finally {
       setActionUserId(null);
     }
@@ -301,7 +304,7 @@ export default function MyFamilyScreen() {
   const headerRight =
     state === "member" && payload?.membership?.role !== "head" ? (
       <Pressable onPress={handleLeave} hitSlop={8}>
-        <Text style={styles.leaveLink}>Leave</Text>
+        <Text style={styles.leaveLink}>{t("family.leaveAction")}</Text>
       </Pressable>
     ) : state === "member" && payload?.membership?.role === "head" ? (
       <Pressable
@@ -321,7 +324,7 @@ export default function MyFamilyScreen() {
   if (loading) {
     return (
       <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
-        <InternalScreenHeader title="My Family" />
+        <InternalScreenHeader title={t("family.myFamily")} />
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#0A2A43" />
         </View>
@@ -332,8 +335,8 @@ export default function MyFamilyScreen() {
   if (state === "suspended") {
     return (
       <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
-        <InternalScreenHeader title="My Family" />
-        <FamilySuspendedState familyName={family?.name || family?.family_number} />
+        <InternalScreenHeader title={t("family.myFamily")} />
+        <FamilySuspendedState familyName={family?.name || family?.family_number} t={t} />
       </SafeAreaView>
     );
   }
@@ -341,10 +344,11 @@ export default function MyFamilyScreen() {
   if (state === "blocked") {
     return (
       <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
-        <InternalScreenHeader title="My Family" />
+        <InternalScreenHeader title={t("family.myFamily")} />
         <FamilyBlockedState
           familyNumber={payload?.family?.family_number}
           communityName={payload?.family?.community_name}
+          t={t}
         />
       </SafeAreaView>
     );
@@ -353,7 +357,7 @@ export default function MyFamilyScreen() {
   if (state === "pending") {
     return (
       <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
-        <InternalScreenHeader title="My Family" />
+        <InternalScreenHeader title={t("family.myFamily")} />
         <ScrollView
           contentContainerStyle={styles.stateScroll}
           refreshControl={
@@ -376,6 +380,7 @@ export default function MyFamilyScreen() {
             }}
             onCancel={handleCancelJoinRequest}
             cancelling={actionUserId === "cancel-join"}
+            t={t}
           />
         </ScrollView>
       </SafeAreaView>
@@ -385,7 +390,7 @@ export default function MyFamilyScreen() {
   if (state === "awaiting_admin") {
     return (
       <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
-        <InternalScreenHeader title="My Family" />
+        <InternalScreenHeader title={t("family.myFamily")} />
         <ScrollView
           contentContainerStyle={styles.stateScroll}
           refreshControl={
@@ -407,6 +412,7 @@ export default function MyFamilyScreen() {
               setRefreshing(true);
               load();
             }}
+            t={t}
           />
         </ScrollView>
       </SafeAreaView>
@@ -416,7 +422,7 @@ export default function MyFamilyScreen() {
   if (state === "rejected") {
     return (
       <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
-        <InternalScreenHeader title="My Family" />
+        <InternalScreenHeader title={t("family.myFamily")} />
         <ScrollView contentContainerStyle={styles.stateScroll} showsVerticalScrollIndicator={false}>
           <FamilyRejectedState
             request={payload?.rejected_request}
@@ -431,6 +437,7 @@ export default function MyFamilyScreen() {
                 },
               });
             }}
+            t={t}
           />
         </ScrollView>
       </SafeAreaView>
@@ -440,12 +447,13 @@ export default function MyFamilyScreen() {
   if (state === "none") {
     return (
       <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
-        <InternalScreenHeader title="My Family" />
+        <InternalScreenHeader title={t("family.myFamily")} />
         <FamilyEmptyState
           canCreate={payload?.can_create}
           canJoin={payload?.can_join}
           onCreate={handleCreate}
           onJoin={() => setJoinOpen(true)}
+          t={t}
         />
         <CreateFamilyModal
           visible={createOpen}
@@ -462,6 +470,7 @@ export default function MyFamilyScreen() {
           loading={createNumberLoading}
           checking={createNumberChecking}
           submitting={creatingFamily}
+          t={t}
         />
         <JoinModal
           visible={joinOpen}
@@ -469,6 +478,7 @@ export default function MyFamilyScreen() {
           onChange={setJoinNumber}
           onClose={() => setJoinOpen(false)}
           onSubmit={confirmJoin}
+          t={t}
         />
       </SafeAreaView>
     );
@@ -480,8 +490,8 @@ export default function MyFamilyScreen() {
   return (
     <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
       <InternalScreenHeader
-        title="My Family"
-        subtitle={family?.name || family?.community_name || "Your household"}
+        title={t("family.myFamily")}
+        subtitle={family?.name || family?.community_name || t("family.yourHousehold")}
         right={headerRight}
       />
 
@@ -496,36 +506,37 @@ export default function MyFamilyScreen() {
           familyNumber={family?.family_number}
           onCopy={handleCopy}
           onShare={handleShare}
+          t={t}
         />
 
         <View style={styles.statsRow}>
-          <StatCard icon="award" label="Your role" value={roleLabel(payload?.membership?.role)} />
-          <StatCard icon="users" label="Members" value={String(family?.member_count ?? members.length)} />
+          <StatCard icon="award" label={t("family.yourRole")} value={roleLabel(payload?.membership?.role, t)} />
+          <StatCard icon="users" label={t("family.membersLabel")} value={String(family?.member_count ?? members.length)} />
         </View>
 
         <View style={styles.metaCard}>
-          <MetaRow icon="user" label="Family head" value={family?.head?.name ?? "—"} />
+          <MetaRow icon="user" label={t("family.familyHeadLabel")} value={family?.head?.name ?? "—"} />
           {family?.created_at ? (
-            <MetaRow icon="calendar" label="Created" value={formatDisplayDateTime(family.created_at)} last={!isHead} />
+            <MetaRow icon="calendar" label={t("family.created")} value={formatDisplayDateTime(family.created_at)} last={!isHead} />
           ) : null}
           {isHead ? (
             <Pressable style={styles.requestsRow} onPress={() => router.push("/screens/my-family/requests")}>
               <Feather name="inbox" size={sf(14)} color="#64748B" />
-              <Text style={styles.metaLabel}>Family requests</Text>
+              <Text style={styles.metaLabel}>{t("family.familyRequests")}</Text>
               <View style={styles.requestsRowRight}>
                 {(family?.pending_requests_count ?? 0) > 0 ? (
                   <View style={styles.requestsCountBadge}>
                     <Text style={styles.requestsCountText}>{family.pending_requests_count}</Text>
                   </View>
                 ) : null}
-                <Feather name="chevron-right" size={sf(16)} color="#94A3B8" />
+                <Feather name={chevronForward()} size={sf(16)} color="#94A3B8" />
               </View>
             </Pressable>
           ) : null}
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Members</Text>
+          <Text style={styles.sectionTitle}>{t("family.membersSection")}</Text>
           <View style={styles.sectionActions}>
             {isHead ? (
               <Pressable
@@ -533,19 +544,19 @@ export default function MyFamilyScreen() {
                 onPress={() => router.push("/screens/my-family/add-member")}
               >
                 <Feather name="user-plus" size={sf(14)} color="#FFFFFF" />
-                <Text style={styles.addMemberText}>Add member</Text>
+                <Text style={styles.addMemberText}>{t("family.addMember")}</Text>
               </Pressable>
             ) : null}
             <Pressable style={styles.treeLink} onPress={() => router.push("/screens/my-family/tree")}>
               <Feather name="git-branch" size={sf(14)} color="#0A2A43" />
-              <Text style={styles.treeLinkText}>Family tree</Text>
+              <Text style={styles.treeLinkText}>{t("family.familyTree")}</Text>
             </Pressable>
           </View>
         </View>
 
         <View style={styles.memberList}>
           {members.length === 0 ? (
-            <Text style={styles.noMembers}>No members yet.</Text>
+            <Text style={styles.noMembers}>{t("family.noMembersYet")}</Text>
           ) : (
             members.map((member) => (
               <FamilyMemberCard
@@ -562,45 +573,45 @@ export default function MyFamilyScreen() {
                 onSuspend={(m) =>
                   runMemberAction({
                     member: m,
-                    title: `Suspend ${m.user?.name}?`,
-                    message: "They will lose access to family features until you restore them.",
-                    confirmLabel: "Suspend",
+                    title: t("family.suspendMember", { name: m.user?.name }),
+                    message: t("family.suspendMemberMessage"),
+                    confirmLabel: t("family.suspendAction"),
                     action: () => suspendFamilyMember(m.user_id),
-                    successTitle: "Member suspended",
-                    successMessage: `${m.user?.name} can no longer access family features.`,
+                    successTitle: t("family.memberSuspended"),
+                    successMessage: t("family.memberSuspendedMessage", { name: m.user?.name }),
                   })
                 }
                 onUnsuspend={(m) =>
                   runMemberAction({
                     member: m,
-                    title: `Restore ${m.user?.name}?`,
-                    message: "They will regain access to family features.",
-                    confirmLabel: "Restore",
+                    title: t("family.restoreMember", { name: m.user?.name }),
+                    message: t("family.restoreMemberMessage"),
+                    confirmLabel: t("family.restoreAction"),
                     action: () => unsuspendFamilyMember(m.user_id),
-                    successTitle: "Access restored",
-                    successMessage: `${m.user?.name} can access family features again.`,
+                    successTitle: t("family.accessRestored"),
+                    successMessage: t("family.accessRestoredMessage", { name: m.user?.name }),
                   })
                 }
                 onRemove={(m) =>
                   runMemberAction({
                     member: m,
-                    title: `Remove ${m.user?.name}?`,
-                    message: "They will be removed from your family immediately.",
-                    confirmLabel: "Remove",
+                    title: t("family.removeMember", { name: m.user?.name }),
+                    message: t("family.removeMemberMessage"),
+                    confirmLabel: t("family.removeAction"),
                     action: () => removeFamilyMember(m.user_id),
-                    successTitle: "Member removed",
-                    successMessage: `${m.user?.name} was removed from your family.`,
+                    successTitle: t("family.memberRemoved"),
+                    successMessage: t("family.memberRemovedMessage", { name: m.user?.name }),
                   })
                 }
                 onBlock={(m) =>
                   runMemberAction({
                     member: m,
-                    title: `Block ${m.user?.name}?`,
-                    message: "They will be removed and cannot request to join again.",
-                    confirmLabel: "Block",
+                    title: t("family.blockMember", { name: m.user?.name }),
+                    message: t("family.blockMemberMessage"),
+                    confirmLabel: t("family.blockAction"),
                     action: () => blockFamilyMember(m.user_id),
-                    successTitle: "Member blocked",
-                    successMessage: `${m.user?.name} was blocked from your family.`,
+                    successTitle: t("family.memberBlocked"),
+                    successMessage: t("family.memberBlockedMessage", { name: m.user?.name }),
                   })
                 }
               />
@@ -645,20 +656,21 @@ function CreateFamilyModal({
   loading,
   checking,
   submitting,
+  t,
 }) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.modalOverlay} onPress={onClose}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalKeyboard}>
           <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Create My Family</Text>
+            <Text style={styles.modalTitle}>{t("family.createMyFamily")}</Text>
             <Text style={styles.modalHint}>
-              A unique family number is generated for you. Edit it if you like, then create your household.
+              {t("family.createFamilyHint")}
             </Text>
             <View style={styles.modalLabelRow}>
-              <Text style={styles.modalFieldLabel}>Family Number</Text>
+              <Text style={styles.modalFieldLabel}>{t("family.familyNumberLabel")}</Text>
               <TouchableOpacity onPress={onRegenerate} disabled={loading || submitting} hitSlop={8}>
-                <Text style={styles.modalLinkText}>Refresh code</Text>
+                <Text style={styles.modalLinkText}>{t("family.refreshCode")}</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.modalInputWrap}>
@@ -679,7 +691,7 @@ function CreateFamilyModal({
             {error ? <Text style={styles.modalError}>{error}</Text> : null}
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalCancel} onPress={onClose} disabled={submitting}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
+                <Text style={styles.modalCancelText}>{t("family.cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalSubmit, (submitting || loading || checking || error) && styles.modalSubmitDisabled]}
@@ -689,7 +701,7 @@ function CreateFamilyModal({
                 {submitting ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.modalSubmitText}>Create family</Text>
+                  <Text style={styles.modalSubmitText}>{t("family.createFamilyAction")}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -700,14 +712,14 @@ function CreateFamilyModal({
   );
 }
 
-function JoinModal({ visible, value, onChange, onClose, onSubmit }) {
+function JoinModal({ visible, value, onChange, onClose, onSubmit, t }) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.modalOverlay} onPress={onClose}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalKeyboard}>
           <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>Join Existing Family</Text>
-            <Text style={styles.modalHint}>Enter the family number from your family head. Approval is required.</Text>
+            <Text style={styles.modalTitle}>{t("family.joinExistingFamily")}</Text>
+            <Text style={styles.modalHint}>{t("family.joinFamilyHint")}</Text>
             <TextInput
               value={value}
               onChangeText={onChange}
@@ -719,10 +731,10 @@ function JoinModal({ visible, value, onChange, onClose, onSubmit }) {
             />
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalCancel} onPress={onClose}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
+                <Text style={styles.modalCancelText}>{t("family.cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalSubmit} onPress={onSubmit}>
-                <Text style={styles.modalSubmitText}>Send request</Text>
+                <Text style={styles.modalSubmitText}>{t("family.sendRequest")}</Text>
               </TouchableOpacity>
             </View>
           </Pressable>
@@ -895,7 +907,7 @@ const styles = StyleSheet.create({
   requestsBadge: {
     position: "absolute",
     top: -2,
-    right: -4,
+    end: -4,
     minWidth: sw(16),
     height: sw(16),
     borderRadius: sw(8),
@@ -1002,7 +1014,7 @@ const styles = StyleSheet.create({
   },
   modalInputSpinner: {
     position: "absolute",
-    right: sw(14),
+    end: sw(14),
     top: sw(14),
   },
   modalError: {

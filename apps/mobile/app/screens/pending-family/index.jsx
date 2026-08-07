@@ -13,6 +13,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
 import { Colors, SolidFills } from "../../../constants/tokens";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
@@ -38,25 +39,25 @@ async function persistSessionUser(user) {
   }
 }
 
-function buildTimeline(reviewState) {
+function buildTimeline(reviewState, t) {
   if (reviewState === "rejected") {
     return [
-      { id: "profile", label: "Profile submitted", status: "done" },
-      { id: "family", label: "Family head review", status: "failed" },
-      { id: "admin", label: "Community admin review", status: "upcoming" },
-      { id: "access", label: "Community access", status: "upcoming" },
+      { id: "profile", label: t("family.profileSubmitted"), status: "done" },
+      { id: "family", label: t("family.familyHeadReview"), status: "failed" },
+      { id: "admin", label: t("family.communityAdminReview"), status: "upcoming" },
+      { id: "access", label: t("family.communityAccess"), status: "upcoming" },
     ];
   }
 
   return [
-    { id: "profile", label: "Profile submitted", status: "done" },
-    { id: "family", label: "Family head review", status: "current" },
-    { id: "admin", label: "Community admin review", status: "upcoming" },
-    { id: "access", label: "Community access", status: "upcoming" },
+    { id: "profile", label: t("family.profileSubmitted"), status: "done" },
+    { id: "family", label: t("family.familyHeadReview"), status: "current" },
+    { id: "admin", label: t("family.communityAdminReview"), status: "upcoming" },
+    { id: "access", label: t("family.communityAccess"), status: "upcoming" },
   ];
 }
 
-function ReviewTimeline({ steps, reviewState }) {
+function ReviewTimeline({ steps, reviewState, t }) {
   return (
     <View
       style={[
@@ -64,7 +65,7 @@ function ReviewTimeline({ steps, reviewState }) {
         reviewState === "rejected" && styles.timelineCardRejected,
       ]}
     >
-      <Text style={styles.sectionTitle}>Review progress</Text>
+      <Text style={styles.sectionTitle}>{t("family.reviewProgress")}</Text>
       {steps.map((step, index) => {
         const isLast = index === steps.length - 1;
         const iconName =
@@ -113,10 +114,10 @@ function ReviewTimeline({ steps, reviewState }) {
             <View style={styles.timelineContent}>
               <Text style={[styles.timelineLabel, labelStyle]}>{step.label}</Text>
               {step.status === "current" ? (
-                <Text style={styles.timelineHint}>Waiting for your Family Head</Text>
+                <Text style={styles.timelineHint}>{t("family.waitingForFamilyHead")}</Text>
               ) : null}
               {step.status === "failed" ? (
-                <Text style={styles.timelineFailedHint}>Requires your attention</Text>
+                <Text style={styles.timelineFailedHint}>{t("family.requiresAttention")}</Text>
               ) : null}
             </View>
           </View>
@@ -129,6 +130,7 @@ function ReviewTimeline({ steps, reviewState }) {
 export default function PendingFamilyScreen() {
   const router = useRouter();
   const dialog = useAppDialog();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [reviewState, setReviewState] = useState("pending");
@@ -263,25 +265,27 @@ export default function PendingFamilyScreen() {
     });
   }, [currentUser, router]);
 
-  const timelineSteps = useMemo(() => buildTimeline(reviewState), [reviewState]);
+  const timelineSteps = useMemo(() => buildTimeline(reviewState, t), [reviewState, t]);
 
   const familyNumber = request?.family?.family_number;
   const communityName = request?.family?.community_name;
   const rejectionReason = request?.rejection_reason;
 
   const screenTitle =
-    reviewState === "rejected" ? "Family request declined" : "Family approval pending";
+    reviewState === "rejected"
+      ? t("family.familyRequestDeclined")
+      : t("family.familyApprovalPending");
   const screenSubtitle =
     reviewState === "rejected"
-      ? "Your Family Head declined your join request. Create your own family or sign out."
+      ? t("family.rejectedSubtitle")
       : familyNumber
-        ? `Your request to join family ${familyNumber} is waiting for Family Head approval. You cannot use family features until they approve.`
-        : "Your family join request is waiting for Family Head approval.";
+        ? t("family.pendingSubtitleWithNumber", { number: familyNumber })
+        : t("family.pendingSubtitle");
 
   const statusBadge =
     reviewState === "rejected"
-      ? { label: "Declined", tone: "danger" }
-      : { label: "Under review", tone: "pending" };
+      ? { label: t("family.declined"), tone: "danger" }
+      : { label: t("family.underReview"), tone: "pending" };
 
   const heroBg =
     reviewState === "rejected" ? "#FEF2F2" : SolidFills.authWash;
@@ -291,7 +295,7 @@ export default function PendingFamilyScreen() {
       <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
         <View style={styles.center}>
           <ActivityIndicator size="large" color={Colors.brandPrimaryDeep} />
-          <Text style={styles.loadingText}>Checking family request status…</Text>
+          <Text style={styles.loadingText}>{t("family.checkingFamilyStatus")}</Text>
         </View>
       </SafeAreaView>
     );
@@ -373,8 +377,8 @@ export default function PendingFamilyScreen() {
                 />
               </View>
               <View style={styles.communityCardHeaderText}>
-                <Text style={styles.cardLabel}>Family request</Text>
-                <Text style={styles.cardTitle}>{familyNumber || "Family join"}</Text>
+                <Text style={styles.cardLabel}>{t("family.familyRequest")}</Text>
+                <Text style={styles.cardTitle}>{familyNumber || t("family.familyJoin")}</Text>
               </View>
             </View>
             {communityName ? (
@@ -386,12 +390,12 @@ export default function PendingFamilyScreen() {
             {reviewState === "pending" ? (
               <View style={styles.reviewPill}>
                 <Ionicons name="time-outline" size={14} color="#14B8A6" />
-                <Text style={styles.reviewPillText}>Waiting for Family Head approval</Text>
+                <Text style={styles.reviewPillText}>{t("family.waitingForApproval")}</Text>
               </View>
             ) : (
               <View style={styles.declinedPill}>
                 <Ionicons name="close-circle" size={14} color="#DC2626" />
-                <Text style={styles.declinedPillText}>Family Head declined</Text>
+                <Text style={styles.declinedPillText}>{t("family.familyHeadDeclined")}</Text>
               </View>
             )}
           </View>
@@ -401,51 +405,51 @@ export default function PendingFamilyScreen() {
           <View style={styles.statusDetailCard}>
             <View style={styles.statusDetailHeader}>
               <Ionicons name="alert-circle" size={20} color="#DC2626" />
-              <Text style={styles.statusDetailTitle}>Decline details</Text>
+              <Text style={styles.statusDetailTitle}>{t("family.declineDetails")}</Text>
             </View>
             <View style={styles.reasonBox}>
-              <Text style={styles.reasonLabel}>Reason for decline</Text>
+              <Text style={styles.reasonLabel}>{t("family.reasonForDecline")}</Text>
               <Text style={styles.reasonText}>
                 {rejectionReason?.trim()
                   ? rejectionReason
-                  : "No reason was provided. You can create your own family to continue."}
+                  : t("family.noReasonProvided")}
               </Text>
             </View>
           </View>
         ) : null}
 
-        <ReviewTimeline steps={timelineSteps} reviewState={reviewState} />
+        <ReviewTimeline steps={timelineSteps} reviewState={reviewState} t={t} />
 
         <View style={styles.helpSection}>
-          <Text style={styles.sectionTitle}>What to know</Text>
+          <Text style={styles.sectionTitle}>{t("family.whatToKnow")}</Text>
           {(reviewState === "rejected"
             ? [
                 {
                   icon: "people-outline",
-                  title: "Create My Family",
-                  body: "Start a new household as Family Head with a unique Family Number.",
+                  title: t("family.createMyFamily"),
+                  body: t("family.createMyFamilyBody"),
                 },
                 {
                   icon: "shield-checkmark-outline",
-                  title: "Community admin still reviews",
-                  body: "After you create a family, your community admin approves your membership as usual.",
+                  title: t("family.adminStillReviews"),
+                  body: t("family.adminStillReviewsBody"),
                 },
               ]
             : [
                 {
                   icon: "notifications-outline",
-                  title: "We'll notify you",
-                  body: "You'll get a notification when your Family Head approves or declines.",
+                  title: t("family.wellNotifyYou"),
+                  body: t("family.wellNotifyYouBody"),
                 },
                 {
                   icon: "lock-closed-outline",
-                  title: "Family features locked",
-                  body: "My Family stays unavailable until your Family Head approves this request.",
+                  title: t("family.familyFeaturesLocked"),
+                  body: t("family.familyFeaturesLockedBody"),
                 },
                 {
                   icon: "shield-outline",
-                  title: "Next: community admin",
-                  body: "After Family Head approval, your request goes to the community admin for membership review.",
+                  title: t("family.nextCommunityAdmin"),
+                  body: t("family.nextCommunityAdminBody"),
                 },
               ]
           ).map((item) => (
@@ -465,7 +469,7 @@ export default function PendingFamilyScreen() {
       <View style={styles.footer}>
         {reviewState === "rejected" ? (
           <AuthSubmitButton
-            label="Create My Family"
+            label={t("family.createMyFamilyBtn")}
             enabled
             variant="solid"
             style={styles.footerButton}
@@ -473,8 +477,8 @@ export default function PendingFamilyScreen() {
           />
         ) : (
           <AuthSubmitButton
-            label={refreshing ? "Checking…" : "Check status"}
-            loadingLabel="Checking…"
+            label={refreshing ? t("family.checking") : t("family.checkStatus")}
+            loadingLabel={t("family.checking")}
             enabled={!refreshing}
             loading={refreshing}
             variant="solid"
@@ -484,7 +488,7 @@ export default function PendingFamilyScreen() {
         )}
 
         <TouchableOpacity style={styles.linkBtn} onPress={handleSignOut}>
-          <Text style={styles.linkBtnText}>Sign out</Text>
+          <Text style={styles.linkBtnText}>{t("family.signOut")}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

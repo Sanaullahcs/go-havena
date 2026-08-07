@@ -14,6 +14,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import { useTranslation } from "react-i18next";
+import i18n from "../../../../i18n";
+import { getLocaleForLang } from "../../../../hooks/use-app-locale";
 import InternalScreenHeader from "../../../../components/layout/internal-screen-header";
 import { pageStyles } from "../../../../constants/page-styles";
 import { PropertyType } from "../../../../constants/property-management-type";
@@ -39,10 +42,11 @@ function getCategoryMeta(name) {
 
 function formatDocDate(value) {
   if (!value) return "—";
-  return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return new Date(value).toLocaleDateString(getLocaleForLang(i18n.language), { month: "short", day: "numeric", year: "numeric" });
 }
 
 function DocumentRow({ doc, onPress, showDownloads, actionIcon = "download" }) {
+  const { i18n } = useTranslation();
   const meta = getCategoryMeta(doc.category);
   return (
     <Pressable style={styles.docCard} onPress={onPress}>
@@ -52,7 +56,7 @@ function DocumentRow({ doc, onPress, showDownloads, actionIcon = "download" }) {
         </View>
         <View style={styles.docBody}>
           <Text style={styles.docTitle} numberOfLines={2}>{doc.title}</Text>
-          <Text style={styles.docCategory} numberOfLines={1}>{doc.category}</Text>
+<Text style={styles.docCategory} numberOfLines={1}>{doc.category}</Text>
           <View style={styles.docMeta}>
             <Text style={styles.docMetaText}>{doc.file_size_label}</Text>
             <Text style={styles.docMetaText}>•</Text>
@@ -73,6 +77,7 @@ function DocumentRow({ doc, onPress, showDownloads, actionIcon = "download" }) {
 }
 
 export default function Documents() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { width: screenWidth } = useWindowDimensions();
   const tileWidth = useMemo(() => twoColumnWidth(screenWidth), [screenWidth]);
@@ -98,7 +103,7 @@ export default function Documents() {
       setRecent(data.recent);
       setCategories(data.categories);
     } catch (err) {
-      setError(err?.message ?? "Could not load documents.");
+      setError(err?.message ?? t("propertyMgmt.couldNotLoadDocs"));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -147,7 +152,7 @@ export default function Documents() {
   if (loading && !hasLoadedOnce.current) {
     return (
       <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
-        <InternalScreenHeader title="Documents" subtitle="Loading…" />
+        <InternalScreenHeader title={t("propertyMgmt.documentsTitle")} subtitle={t("common.loading")} />
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#0A2A43" />
         </View>
@@ -155,12 +160,12 @@ export default function Documents() {
     );
   }
 
-  const subtitle = `${documents.length} document${documents.length !== 1 ? "s" : ""}`;
+  const subtitle = t("propertyMgmt.documentCount", { count: documents.length });
 
   return (
     <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
       <InternalScreenHeader
-        title="Documents"
+        title={t("propertyMgmt.documentsTitle")}
         subtitle={subtitle}
         right={
           <View style={styles.headerActions}>
@@ -170,7 +175,7 @@ export default function Documents() {
             {isAdmin ? (
               <Pressable onPress={openAddDocument} style={styles.addBtn}>
                 <Feather name="plus" size={sf(16)} color="#0A2A43" />
-                <Text style={styles.addBtnText}>Add</Text>
+                <Text style={styles.addBtnText}>{t("propertyMgmt.addBtn")}</Text>
               </Pressable>
             ) : null}
           </View>
@@ -188,7 +193,7 @@ export default function Documents() {
               <Feather name="search" size={sf(16)} color="#9CA3AF" />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search documents…"
+                placeholder={t("propertyMgmt.searchDocuments")}
                 placeholderTextColor="#9CA3AF"
                 value={search}
                 onChangeText={setSearch}
@@ -205,7 +210,7 @@ export default function Documents() {
         {error && (
           <View style={[propertyStyles.sectionBlock, styles.errorBox]}>
             <Text style={styles.errorText}>{error}</Text>
-            <Pressable onPress={() => load()}><Text style={styles.retryText}>Retry</Text></Pressable>
+            <Pressable onPress={() => load()}><Text style={styles.retryText}>{t("propertyMgmt.retryBtn")}</Text></Pressable>
           </View>
         )}
 
@@ -214,7 +219,7 @@ export default function Documents() {
             <View style={styles.categoriesCard}>
               <View style={styles.headingRow}>
                 <Image source={require("../../../../assets/images/document-categories.svg")} style={styles.headingIcon} contentFit="contain" />
-                <Text style={propertyStyles.sectionTitle}>Categories</Text>
+                <Text style={propertyStyles.sectionTitle}>{t("propertyMgmt.categoriesTitle")}</Text>
               </View>
               <View style={[propertyStyles.grid, styles.categoryGrid]}>
                 {categories.map((cat) => {
@@ -248,7 +253,7 @@ export default function Documents() {
 
         {recent.length > 0 && selectedCategory === "all" && !search.trim() && (
           <View style={propertyStyles.sectionBlock}>
-            <Text style={propertyStyles.sectionTitle}>Recent Documents</Text>
+            <Text style={propertyStyles.sectionTitle}>{t("propertyMgmt.recentDocuments")}</Text>
             {recent.map((doc) => (
               <DocumentRow key={`recent-${doc.id}`} doc={doc} onPress={() => openDocument(doc)} actionIcon="download" />
             ))}
@@ -257,9 +262,9 @@ export default function Documents() {
 
         <View style={[propertyStyles.sectionBlock, styles.lastSection]}>
           <View style={styles.sectionHeader}>
-            <Text style={propertyStyles.sectionTitle}>All Documents</Text>
+            <Text style={propertyStyles.sectionTitle}>{t("propertyMgmt.allDocuments")}</Text>
             <Text style={styles.sectionSub}>
-              {filteredDocuments.length} of {documents.length}
+              {t("propertyMgmt.filteredCount", { filtered: filteredDocuments.length, total: documents.length })}
               {selectedCategory !== "all" ? ` · ${selectedCategory}` : ""}
             </Text>
           </View>
@@ -270,7 +275,7 @@ export default function Documents() {
                 onPress={() => setSelectedCategory("all")}
                 style={[styles.filterChip, selectedCategory === "all" && styles.filterChipActive]}
               >
-                <Text style={[styles.filterChipText, selectedCategory === "all" && styles.filterChipTextActive]}>All</Text>
+                <Text style={[styles.filterChipText, selectedCategory === "all" && styles.filterChipTextActive]}>{t("propertyMgmt.allFilter")}</Text>
               </Pressable>
               {categories.map((cat) => (
                 <Pressable
@@ -289,16 +294,16 @@ export default function Documents() {
           {documents.length === 0 && !error && (
             <View style={styles.empty}>
               <Feather name="folder" size={sf(32)} color="#D1D5DB" />
-              <Text style={styles.emptyText}>No documents yet</Text>
-              {isAdmin && <Text style={styles.emptyHint}>Tap Add to upload your first document.</Text>}
+              <Text style={styles.emptyText}>{t("propertyMgmt.noDocuments")}</Text>
+              {isAdmin && <Text style={styles.emptyHint}>{t("propertyMgmt.addFirstDocument")}</Text>}
             </View>
           )}
 
           {documents.length > 0 && filteredDocuments.length === 0 && (
             <View style={styles.empty}>
-              <Text style={styles.emptyText}>No documents match</Text>
+              <Text style={styles.emptyText}>{t("propertyMgmt.noDocumentsMatch")}</Text>
               <Pressable onPress={() => { setSelectedCategory("all"); setSearch(""); }}>
-                <Text style={styles.retryText}>Clear filters</Text>
+                <Text style={styles.retryText}>{t("propertyMgmt.clearFilters")}</Text>
               </Pressable>
             </View>
           )}

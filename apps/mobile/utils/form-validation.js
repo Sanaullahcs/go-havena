@@ -5,6 +5,7 @@
 
 import { getPhoneValidationError } from "./phone";
 import { normalizeGuestPermissions } from "../constants/guest-permissions";
+import i18n from "../i18n";
 
 export const LIMITS = {
   noticeTitle: 200,
@@ -57,12 +58,12 @@ export function formatDisplayEmail(email) {
 
 export function validateUserEmail(email) {
   const value = String(email ?? "").trim();
-  if (!value) return "Email address is required.";
+  if (!value) return i18n.t("validation.emailRequired");
   if (value.length > LIMITS.profileEmail) {
-    return `Email must be ${LIMITS.profileEmail} characters or less.`;
+    return i18n.t("validation.maxChars", { field: i18n.t("validation.fields.email"), max: LIMITS.profileEmail });
   }
-  if (!EMAIL_RE.test(value)) return "Enter a valid email address.";
-  if (isPlaceholderEmail(value)) return "Enter a personal email address.";
+  if (!EMAIL_RE.test(value)) return i18n.t("validation.emailInvalid");
+  if (isPlaceholderEmail(value)) return i18n.t("validation.emailPersonal");
   return null;
 }
 
@@ -70,14 +71,15 @@ export function hasFieldErrors(errors) {
   return Object.values(errors).some(Boolean);
 }
 
-function requiredText(value, label, { min, max } = {}) {
+function requiredText(value, labelKey, { min, max } = {}) {
   const trimmed = String(value ?? "").trim();
-  if (!trimmed) return `${label} is required.`;
+  const label = i18n.t(labelKey);
+  if (!trimmed) return i18n.t("validation.required", { field: label });
   if (min != null && trimmed.length < min) {
-    return `${label} must be at least ${min} characters.`;
+    return i18n.t("validation.minChars", { field: label, min });
   }
   if (max != null && trimmed.length > max) {
-    return `${label} must be ${max} characters or less.`;
+    return i18n.t("validation.maxChars", { field: label, max });
   }
   return null;
 }
@@ -116,13 +118,13 @@ export function validateNoticeForm(form, opts = {}) {
   const errors = {};
   const kind = opts.kind ?? "notice";
 
-  const titleErr = requiredText(form.title, "Title", {
+  const titleErr = requiredText(form.title, "validation.fields.title", {
     min: LIMITS.noticeTitleMin,
     max: LIMITS.noticeTitle,
   });
   if (titleErr) errors.title = titleErr;
 
-  const bodyErr = requiredText(form.body, "Description", {
+  const bodyErr = requiredText(form.body, "validation.fields.description", {
     min: LIMITS.noticeBodyMin,
     max: LIMITS.noticeBody,
   });
@@ -130,56 +132,56 @@ export function validateNoticeForm(form, opts = {}) {
 
   const location = String(form.location ?? "").trim();
   if (location.length > LIMITS.location) {
-    errors.location = `Location must be ${LIMITS.location} characters or less.`;
+    errors.location = i18n.t("validation.maxChars", { field: i18n.t("validation.fields.location"), max: LIMITS.location });
   }
   if (opts.requireLocation && !location) {
-    errors.location = "Location is required.";
+    errors.location = i18n.t("validation.locationRequired");
   }
 
   if (kind === "notice") {
     const allowed = new Set(["general", "maintenance", "security", "finance"]);
     const category = String(form.category ?? "").trim();
     if (!category || !allowed.has(category)) {
-      errors.category = "Category is required.";
+      errors.category = i18n.t("validation.categoryRequired");
     }
   }
 
   if (opts.requireSchedule) {
     if (!String(form.event_date ?? "").trim()) {
-      errors.event_date = "Date is required when scheduling.";
+      errors.event_date = i18n.t("validation.dateRequiredSchedule");
     }
     if (kind !== "alert") {
       if (!String(form.event_time ?? "").trim()) {
-        errors.event_time = "Start time is required when scheduling.";
+        errors.event_time = i18n.t("validation.startTimeRequiredSchedule");
       }
       if (!String(form.event_time_end ?? "").trim()) {
-        errors.event_time_end = "End time is required when scheduling.";
+        errors.event_time_end = i18n.t("validation.endTimeRequiredSchedule");
       }
     }
   }
 
   if (opts.requirePublishSchedule) {
     if (!String(form.scheduled_date ?? "").trim()) {
-      errors.scheduled_date = "Publish date is required when scheduling.";
+      errors.scheduled_date = i18n.t("validation.publishDateRequired");
     }
     if (!String(form.scheduled_time ?? "").trim()) {
-      errors.scheduled_time = "Publish time is required when scheduling.";
+      errors.scheduled_time = i18n.t("validation.publishTimeRequired");
     }
   }
 
   const scheduleKinds = ["notice", "event", "alert"];
   if (opts.publishNow && scheduleKinds.includes(kind)) {
-    const dateLabel =
-      kind === "event" ? "Event date" : kind === "alert" ? "Alert date" : "Notice date";
+    const dateLabelKey =
+      kind === "event" ? "validation.fields.eventDate" : kind === "alert" ? "validation.fields.alertDate" : "validation.fields.noticeDate";
     if (!String(form.event_date ?? "").trim()) {
-      errors.event_date = `${dateLabel} is required.`;
+      errors.event_date = i18n.t("validation.required", { field: i18n.t(dateLabelKey) });
     }
     if (kind !== "alert") {
       if (!String(form.event_time ?? "").trim()) {
-        errors.event_time = "Start time is required.";
+        errors.event_time = i18n.t("validation.startTimeRequired");
       }
       if (!String(form.event_time_end ?? "").trim()) {
-        errors.event_time_end = "End time is required.";
+        errors.event_time_end = i18n.t("validation.endTimeRequired");
       }
     }
   }
@@ -188,11 +190,10 @@ export function validateNoticeForm(form, opts = {}) {
     const startMin = parseTimeMinutes(form.event_time);
     const endMin = parseTimeMinutes(form.event_time_end);
     if (startMin != null && endMin != null && startMin >= endMin) {
-      errors.event_time_end = "End time must be after start time.";
+      errors.event_time_end = i18n.t("validation.endAfterStart");
     }
   }
 
-  // Prevent publishing a same-day event/notice that already ended.
   if (
     (kind === "event" || kind === "notice") &&
     String(form.event_date ?? "").trim() &&
@@ -205,13 +206,13 @@ export function validateNoticeForm(form, opts = {}) {
     if (day === today && endMin != null) {
       const nowMin = now.getHours() * 60 + now.getMinutes();
       if (endMin <= nowMin) {
-        errors.event_time_end = "End time must be later than now for today's date.";
+        errors.event_time_end = i18n.t("validation.endAfterNow");
       }
     }
   }
 
   if (kind === "notice" && form.audience_type === "selected" && (form.recipient_user_ids?.length ?? 0) === 0) {
-    errors.recipient_user_ids = "Select at least one resident.";
+    errors.recipient_user_ids = i18n.t("validation.selectResident");
   }
 
   return errors;
@@ -235,7 +236,7 @@ export function validateCompleteProfileForm({
 }) {
   const errors = {};
 
-  const nameErr = requiredText(name, "Full name", { min: 2, max: LIMITS.profileName });
+  const nameErr = requiredText(name, "validation.fields.fullName", { min: 2, max: LIMITS.profileName });
   if (nameErr) errors.name = nameErr;
 
   const emailErr = validateUserEmail(email);
@@ -243,34 +244,34 @@ export function validateCompleteProfileForm({
 
   const bioText = String(bio ?? "").trim();
   if (bioText.length > LIMITS.profileBio) {
-    errors.bio = `Bio must be ${LIMITS.profileBio} characters or less.`;
+    errors.bio = i18n.t("validation.maxChars", { field: i18n.t("validation.fields.bio"), max: LIMITS.profileBio });
   }
 
   if (guestMode) {
     const unitText = String(unitNumber ?? "").trim();
     if (unitText.length > LIMITS.profileUnit) {
-      errors.unitNumber = `Unit number must be ${LIMITS.profileUnit} characters or less.`;
+      errors.unitNumber = i18n.t("validation.maxChars", { field: i18n.t("validation.fields.unitNumber"), max: LIMITS.profileUnit });
     }
     return errors;
   }
 
-  const unitErr = requiredText(unitNumber, "Unit number", { max: LIMITS.profileUnit });
+  const unitErr = requiredText(unitNumber, "validation.fields.unitNumber", { max: LIMITS.profileUnit });
   if (unitErr) errors.unitNumber = unitErr;
 
   if (!residenceType) {
-    errors.residenceType = "Residence type is required.";
+    errors.residenceType = i18n.t("validation.residenceTypeRequired");
   } else if (!["homeowner", "tenant"].includes(residenceType)) {
-    errors.residenceType = "Select homeowner or tenant.";
+    errors.residenceType = i18n.t("validation.selectResidenceType");
   }
 
   if (requireUtilityFile) {
     if (!utilityFile?.uri) {
-      errors.utilityFile = "Lease or utility bill is required.";
+      errors.utilityFile = i18n.t("validation.utilityRequired");
     } else if (utilityFile.fileSize && utilityFile.fileSize > LIMITS.utilityBillMaxBytes) {
-      errors.utilityFile = "File must be 10 MB or smaller.";
+      errors.utilityFile = i18n.t("validation.fileTooBig");
     }
   } else if (utilityFile?.uri && utilityFile.fileSize && utilityFile.fileSize > LIMITS.utilityBillMaxBytes) {
-    errors.utilityFile = "File must be 10 MB or smaller.";
+    errors.utilityFile = i18n.t("validation.fileTooBig");
   }
 
   return errors;
@@ -281,10 +282,10 @@ export function validateFeedPostForm({ body, hasImage }) {
   const text = String(body ?? "").trim();
 
   if (!text && !hasImage) {
-    errors.body = "Write something or add a photo before posting.";
+    errors.body = i18n.t("validation.postEmpty");
   }
   if (text.length > LIMITS.feedPost) {
-    errors.body = `Post must be ${LIMITS.feedPost} characters or less.`;
+    errors.body = i18n.t("validation.maxChars", { field: i18n.t("validation.fields.post"), max: LIMITS.feedPost });
   }
   return errors;
 }
@@ -292,9 +293,9 @@ export function validateFeedPostForm({ body, hasImage }) {
 export function validateFeedCommentForm(body) {
   const errors = {};
   const text = String(body ?? "").trim();
-  if (!text) errors.body = "Comment cannot be empty.";
+  if (!text) errors.body = i18n.t("validation.commentEmpty");
   else if (text.length > LIMITS.feedComment) {
-    errors.body = `Comment must be ${LIMITS.feedComment} characters or less.`;
+    errors.body = i18n.t("validation.maxChars", { field: i18n.t("validation.fields.comment"), max: LIMITS.feedComment });
   }
   return errors;
 }
@@ -302,25 +303,25 @@ export function validateFeedCommentForm(body) {
 export function validateBusinessForm(form, { phoneDigits, phoneCountry, isValidPhoneFn }) {
   const errors = {};
 
-  const nameErr = requiredText(form.business, "Business name", { max: LIMITS.businessName });
+  const nameErr = requiredText(form.business, "validation.fields.businessName", { max: LIMITS.businessName });
   if (nameErr) errors.business = nameErr;
 
-  const catErr = requiredText(form.category, "Category", { max: LIMITS.businessCategory });
+  const catErr = requiredText(form.category, "validation.fields.category", { max: LIMITS.businessCategory });
   if (catErr) errors.category = catErr;
 
-  const addrErr = requiredText(form.address, "Address", { max: LIMITS.businessAddress });
+  const addrErr = requiredText(form.address, "validation.fields.address", { max: LIMITS.businessAddress });
   if (addrErr) errors.address = addrErr;
 
   if (!String(phoneDigits ?? "").trim()) {
-    errors.phone = "Phone number is required.";
+    errors.phone = i18n.t("validation.phoneRequired");
   } else if (isValidPhoneFn && !isValidPhoneFn(phoneDigits, phoneCountry)) {
-    errors.phone = "Enter a valid phone number.";
+    errors.phone = i18n.t("validation.phoneInvalid");
   }
 
-  const hoursErr = requiredText(form.hours, "Business hours", { max: LIMITS.businessHours });
+  const hoursErr = requiredText(form.hours, "validation.fields.businessHours", { max: LIMITS.businessHours });
   if (hoursErr) errors.hours = hoursErr;
 
-  const descErr = requiredText(form.description, "Description", { max: LIMITS.businessDescription });
+  const descErr = requiredText(form.description, "validation.fields.description", { max: LIMITS.businessDescription });
   if (descErr) errors.description = descErr;
 
   return errors;
@@ -329,33 +330,33 @@ export function validateBusinessForm(form, { phoneDigits, phoneCountry, isValidP
 export function validateListingForm(form, { listingType }) {
   const errors = {};
 
-  const titleErr = requiredText(form.title, "Title", { max: LIMITS.listingTitle });
+  const titleErr = requiredText(form.title, "validation.fields.title", { max: LIMITS.listingTitle });
   if (titleErr) errors.title = titleErr;
 
-  const descErr = requiredText(form.description, "Description");
+  const descErr = requiredText(form.description, "validation.fields.description");
   if (descErr) errors.description = descErr;
 
   const priceRaw = String(form.price ?? "").trim();
   if (!priceRaw) {
-    errors.price = "Price is required.";
+    errors.price = i18n.t("validation.priceRequired");
   } else if (Number.isNaN(Number(priceRaw)) || Number(priceRaw) < 0) {
-    errors.price = "Enter a valid price (0 or greater).";
+    errors.price = i18n.t("validation.priceInvalid");
   }
 
-  const catErr = requiredText(form.category, "Category", { max: LIMITS.listingCategory });
+  const catErr = requiredText(form.category, "validation.fields.category", { max: LIMITS.listingCategory });
   if (catErr) errors.category = catErr;
 
   if (listingType === "item" && !form.condition) {
-    errors.condition = "Item condition is required.";
+    errors.condition = i18n.t("validation.conditionRequired");
   }
 
   const loc = String(form.location ?? "").trim();
   if (loc.length > LIMITS.listingLocation) {
-    errors.location = `Location must be ${LIMITS.listingLocation} characters or less.`;
+    errors.location = i18n.t("validation.maxChars", { field: i18n.t("validation.fields.location"), max: LIMITS.listingLocation });
   }
 
   if ((form.photos?.length ?? 0) > 6) {
-    errors.photos = "You can add up to 6 photos.";
+    errors.photos = i18n.t("validation.maxPhotos");
   }
 
   return errors;
@@ -365,27 +366,27 @@ export function validateDealForm(form, { businessStatus } = {}) {
   const errors = {};
 
   if (businessStatus === "rejected") {
-    errors.business = "Your business was rejected. Re-submit it before creating deals.";
+    errors.business = i18n.t("validation.businessRejected");
   } else if (businessStatus === "pending") {
-    errors.business = "Your business is pending approval.";
+    errors.business = i18n.t("validation.businessPending");
   } else if (!form.hasBusiness) {
-    errors.business = "Add a business profile before creating a deal.";
+    errors.business = i18n.t("validation.businessRequired");
   }
 
-  const titleErr = requiredText(form.dealTitle, "Deal title", { max: LIMITS.dealTitle });
+  const titleErr = requiredText(form.dealTitle, "validation.fields.dealTitle", { max: LIMITS.dealTitle });
   if (titleErr) errors.dealTitle = titleErr;
 
-  const discountErr = requiredText(form.discountLabel, "Discount label", { max: LIMITS.dealDiscount });
+  const discountErr = requiredText(form.discountLabel, "validation.fields.discountLabel", { max: LIMITS.dealDiscount });
   if (discountErr) errors.discountLabel = discountErr;
 
-  const categoryErr = requiredText(form.category, "Category", { max: LIMITS.dealCategory });
+  const categoryErr = requiredText(form.category, "validation.fields.category", { max: LIMITS.dealCategory });
   if (categoryErr) errors.category = categoryErr;
 
-  const descErr = requiredText(form.description, "Description", { max: LIMITS.dealDescription });
+  const descErr = requiredText(form.description, "validation.fields.description", { max: LIMITS.dealDescription });
   if (descErr) errors.description = descErr;
 
   if (!form.hasImage) {
-    errors.image = "Deal image is required.";
+    errors.image = i18n.t("validation.dealImageRequired");
   }
 
   return errors;
@@ -394,36 +395,22 @@ export function validateDealForm(form, { businessStatus } = {}) {
 export function validateCommunityRequestForm({ communityName, address, regionId }) {
   const errors = {};
 
-  const name = String(communityName ?? "").trim();
-  if (!name) errors.communityName = "Community name is required.";
-  else if (name.length < 2) errors.communityName = "Community name must be at least 2 characters.";
-  else if (name.length > LIMITS.communityName) {
-    errors.communityName = `Community name must be ${LIMITS.communityName} characters or less.`;
-  }
+  const nameErr = requiredText(communityName, "validation.fields.communityName", { min: 2, max: LIMITS.communityName });
+  if (nameErr) errors.communityName = nameErr;
 
-  const addr = String(address ?? "").trim();
-  if (!addr) errors.address = "Address is required.";
-  else if (addr.length < 5) errors.address = "Address must be at least 5 characters.";
-  else if (addr.length > LIMITS.communityAddress) {
-    errors.address = `Address must be ${LIMITS.communityAddress} characters or less.`;
-  }
+  const addrErr = requiredText(address, "validation.fields.address", { min: 5, max: LIMITS.communityAddress });
+  if (addrErr) errors.address = addrErr;
 
-  if (!regionId) errors.regionId = "Region is required.";
+  if (!regionId) errors.regionId = i18n.t("validation.regionRequired");
 
   return errors;
 }
 
 export function validateInviteCodeForm(inviteCode) {
   const errors = {};
-  const code = String(inviteCode ?? "").trim();
 
-  if (!code) {
-    errors.inviteCode = "Invite code is required.";
-  } else if (code.length < 6) {
-    errors.inviteCode = "Invite code must be at least 6 characters.";
-  } else if (code.length > LIMITS.inviteCode) {
-    errors.inviteCode = `Invite code must be ${LIMITS.inviteCode} characters or less.`;
-  }
+  const codeErr = requiredText(inviteCode, "validation.fields.inviteCode", { min: 6, max: LIMITS.inviteCode });
+  if (codeErr) errors.inviteCode = codeErr;
 
   return errors;
 }
@@ -431,17 +418,17 @@ export function validateInviteCodeForm(inviteCode) {
 export function validateInviteMemberForm({ name, email, unit }) {
   const errors = {};
 
-  const nameErr = requiredText(name, "Full name", { min: 2, max: 100 });
+  const nameErr = requiredText(name, "validation.fields.fullName", { min: 2, max: 100 });
   if (nameErr) errors.name = nameErr;
 
   const emailValue = String(email ?? "").trim();
-  if (!emailValue) errors.email = "Email address is required.";
-  else if (emailValue.length > 255) errors.email = "Email must be 255 characters or less.";
-  else if (!EMAIL_RE.test(emailValue)) errors.email = "Enter a valid email address.";
+  if (!emailValue) errors.email = i18n.t("validation.emailRequired");
+  else if (emailValue.length > 255) errors.email = i18n.t("validation.maxChars", { field: i18n.t("validation.fields.email"), max: 255 });
+  else if (!EMAIL_RE.test(emailValue)) errors.email = i18n.t("validation.emailInvalid");
 
   const unitStr = String(unit ?? "").trim();
   if (unitStr.length > LIMITS.inviteUnit) {
-    errors.unit = `Unit must be ${LIMITS.inviteUnit} characters or less.`;
+    errors.unit = i18n.t("validation.maxChars", { field: i18n.t("validation.fields.unit"), max: LIMITS.inviteUnit });
   }
 
   return errors;
@@ -450,17 +437,17 @@ export function validateInviteMemberForm({ name, email, unit }) {
 export function validateCommunityRuleForm(form) {
   const errors = {};
 
-  const titleErr = requiredText(form.title, "Title", { max: LIMITS.ruleTitle });
+  const titleErr = requiredText(form.title, "validation.fields.title", { max: LIMITS.ruleTitle });
   if (titleErr) errors.title = titleErr;
 
-  const catErr = requiredText(form.category, "Category", { max: LIMITS.ruleCategory });
+  const catErr = requiredText(form.category, "validation.fields.category", { max: LIMITS.ruleCategory });
   if (catErr) errors.category = catErr;
 
-  const descErr = requiredText(form.description, "Description");
+  const descErr = requiredText(form.description, "validation.fields.description");
   if (descErr) errors.description = descErr;
 
   if (form.severity && !["important", "standard", "info"].includes(form.severity)) {
-    errors.severity = "Select a valid severity.";
+    errors.severity = i18n.t("validation.severityInvalid");
   }
 
   return errors;
@@ -469,13 +456,13 @@ export function validateCommunityRuleForm(form) {
 export function validateDocumentForm(form, { hasFile }) {
   const errors = {};
 
-  const titleErr = requiredText(form.title, "Title", { max: LIMITS.documentTitle });
+  const titleErr = requiredText(form.title, "validation.fields.title", { max: LIMITS.documentTitle });
   if (titleErr) errors.title = titleErr;
 
-  const catErr = requiredText(form.category, "Category", { max: LIMITS.documentCategory });
+  const catErr = requiredText(form.category, "validation.fields.category", { max: LIMITS.documentCategory });
   if (catErr) errors.category = catErr;
 
-  if (!hasFile) errors.file = "Choose a file to upload.";
+  if (!hasFile) errors.file = i18n.t("validation.fileRequired");
 
   return errors;
 }
@@ -483,12 +470,12 @@ export function validateDocumentForm(form, { hasFile }) {
 export function validateGuestInviteForm(form, { phoneCountry } = {}) {
   const errors = {};
 
-  const nameErr = requiredText(form.guest_name, "Guest name", { min: 2, max: LIMITS.profileName });
+  const nameErr = requiredText(form.guest_name, "validation.fields.guestName", { min: 2, max: LIMITS.profileName });
   if (nameErr) errors.guest_name = nameErr;
 
   const digits = String(form.phone_digits ?? "").trim();
   if (!digits) {
-    errors.guest_phone = "Phone number is required.";
+    errors.guest_phone = i18n.t("validation.phoneRequired");
   } else {
     const phoneErr = getPhoneValidationError(digits, phoneCountry);
     if (phoneErr) errors.guest_phone = phoneErr;
@@ -499,19 +486,19 @@ export function validateGuestInviteForm(form, { phoneCountry } = {}) {
   if (emailErr) errors.guest_email = emailErr;
 
   if (!form.starts_at) {
-    errors.starts_at = "Pick a start date and time.";
+    errors.starts_at = i18n.t("validation.startDateRequired");
   }
   if (!form.ends_at) {
-    errors.ends_at = "Pick an end date and time.";
+    errors.ends_at = i18n.t("validation.endDateRequired");
   }
   if (form.starts_at && form.ends_at && new Date(form.ends_at).getTime() <= new Date(form.starts_at).getTime()) {
-    errors.ends_at = "End must be after the start time.";
+    errors.ends_at = i18n.t("validation.endAfterStart");
   }
 
   if (form.permissions) {
     const enabled = Object.values(normalizeGuestPermissions(form.permissions)).some(Boolean);
     if (!enabled) {
-      errors.permissions = "Enable at least one permission for the guest.";
+      errors.permissions = i18n.t("validation.guestPermissionRequired");
     }
   }
 

@@ -13,6 +13,9 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import i18n from "../../../i18n";
+import { getLocaleForLang } from "../../../hooks/use-app-locale";
 import { Fonts } from "../../../constants/font";
 import { Colors, SolidFills } from "../../../constants/tokens";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
@@ -59,11 +62,12 @@ async function persistSessionUser(user) {
 }
 
 function formatGuestAccessWindow(startsAt, endsAt) {
+  const locale = getLocaleForLang(i18n.language);
   const start = startsAt
-    ? new Date(startsAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    ? new Date(startsAt).toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric" })
     : "—";
   const end = endsAt
-    ? new Date(endsAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    ? new Date(endsAt).toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric" })
     : "—";
   return `${start} → ${end}`;
 }
@@ -73,7 +77,7 @@ function guestHostLabel(invitation) {
   if (invitation.resident) {
     const name = invitation.resident.display_name || invitation.resident.name;
     return invitation.resident.unit_number
-      ? `${name} · Unit ${invitation.resident.unit_number}`
+      ? `${name} · ${i18n.t("guests.unitLabel", { unit: invitation.resident.unit_number })}`
       : name;
   }
   if (invitation.invited_by) {
@@ -82,21 +86,21 @@ function guestHostLabel(invitation) {
   return null;
 }
 
-function buildGuestTimeline(reviewState) {
+function buildGuestTimeline(reviewState, t) {
   if (reviewState === "rejected") {
     return [
-      { id: "phone", label: "Phone verified", status: "done" },
-      { id: "invite", label: "Invite code verified", status: "done" },
-      { id: "approval", label: "Host approval", status: "failed" },
-      { id: "access", label: "Community access", status: "upcoming" },
+      { id: "phone", label: t("guests.phoneVerified"), status: "done" },
+      { id: "invite", label: t("guests.inviteCodeVerified"), status: "done" },
+      { id: "approval", label: t("guests.hostApproval"), status: "failed" },
+      { id: "access", label: t("guests.communityAccess"), status: "upcoming" },
     ];
   }
 
   return [
-    { id: "phone", label: "Phone verified", status: "done" },
-    { id: "invite", label: "Invite code verified", status: "done" },
-    { id: "approval", label: "Host approval", status: "current" },
-    { id: "access", label: "Community access", status: "upcoming" },
+    { id: "phone", label: t("guests.phoneVerified"), status: "done" },
+    { id: "invite", label: t("guests.inviteCodeVerified"), status: "done" },
+    { id: "approval", label: t("guests.hostApproval"), status: "current" },
+    { id: "access", label: t("guests.communityAccess"), status: "upcoming" },
   ];
 }
 
@@ -106,75 +110,77 @@ function buildTimeline({
   isAdminApplicant,
   adminApprovedAwaitingCommunity,
   rejectedBy,
+  t,
 }) {
   if (reviewState === "approved" && approvalKind === "membership_approval") {
     return [
-      { id: "region", label: "Region & community selected", status: "done" },
-      { id: "profile", label: "Profile submitted", status: "done" },
-      { id: "approval", label: "Community admin approval", status: "done" },
-      { id: "access", label: "Full community access", status: "done" },
+      { id: "region", label: t("guests.regionCommunitySelected"), status: "done" },
+      { id: "profile", label: t("guests.profileSubmitted"), status: "done" },
+      { id: "approval", label: t("guests.communityAdminApproval"), status: "done" },
+      { id: "access", label: t("guests.fullCommunityAccess"), status: "done" },
     ];
   }
 
   if (reviewState === "rejected") {
     if (approvalKind === "membership_approval") {
       return [
-        { id: "profile", label: "Profile submitted", status: "done" },
+        { id: "profile", label: t("guests.profileSubmitted"), status: "done" },
         {
           id: "review",
           label:
             rejectedBy === "system_admin"
-              ? "System admin review"
-              : "Community admin review",
+              ? t("guests.systemAdminReview")
+              : t("guests.communityAdminReview"),
           status: "failed",
         },
-        { id: "access", label: "Community access", status: "upcoming" },
+        { id: "access", label: t("guests.communityAccess"), status: "upcoming" },
       ];
     }
 
     return [
-      { id: "submitted", label: "Request submitted", status: "done" },
-      { id: "review", label: "System admin review", status: "failed" },
-      { id: "active", label: "Community activated", status: "upcoming" },
+      { id: "submitted", label: t("guests.requestSubmitted"), status: "done" },
+      { id: "review", label: t("guests.systemAdminReview"), status: "failed" },
+      { id: "active", label: t("guests.communityActivated"), status: "upcoming" },
     ];
   }
 
   if (approvalKind === "membership_approval") {
     return [
-      { id: "region", label: "Region & community selected", status: "done" },
-      { id: "profile", label: "Profile submitted", status: "done" },
-      { id: "approval", label: "Community admin approval", status: "current" },
-      { id: "access", label: "Full community access", status: "upcoming" },
+      { id: "region", label: t("guests.regionCommunitySelected"), status: "done" },
+      { id: "profile", label: t("guests.profileSubmitted"), status: "done" },
+      { id: "approval", label: t("guests.communityAdminApproval"), status: "current" },
+      { id: "access", label: t("guests.fullCommunityAccess"), status: "upcoming" },
     ];
   }
 
   if (isAdminApplicant) {
     if (adminApprovedAwaitingCommunity) {
       return [
-        { id: "submitted", label: "Application submitted", status: "done" },
-        { id: "account", label: "Admin account approved", status: "done" },
-        { id: "community", label: "Community request review", status: "current" },
-        { id: "dashboard", label: "Dashboard access", status: "upcoming" },
+        { id: "submitted", label: t("guests.applicationSubmitted"), status: "done" },
+        { id: "account", label: t("guests.adminAccountApproved"), status: "done" },
+        { id: "community", label: t("guests.communityRequestReview"), status: "current" },
+        { id: "dashboard", label: t("guests.dashboardAccess"), status: "upcoming" },
       ];
     }
 
     return [
-      { id: "submitted", label: "Application submitted", status: "done" },
-      { id: "account", label: "Admin account review", status: "current" },
-      { id: "community", label: "Community request review", status: "current" },
-      { id: "dashboard", label: "Dashboard access", status: "upcoming" },
+      { id: "submitted", label: t("guests.applicationSubmitted"), status: "done" },
+      { id: "account", label: t("guests.adminAccountReview"), status: "current" },
+      { id: "community", label: t("guests.communityRequestReview"), status: "current" },
+      { id: "dashboard", label: t("guests.dashboardAccess"), status: "upcoming" },
     ];
   }
 
   return [
-    { id: "submitted", label: "Request submitted", status: "done" },
-    { id: "review", label: "System admin review", status: "current" },
-    { id: "active", label: "Community activated", status: "upcoming" },
-    { id: "join", label: "Residents can join", status: "upcoming" },
+    { id: "submitted", label: t("guests.requestSubmitted"), status: "done" },
+    { id: "review", label: t("guests.systemAdminReview"), status: "current" },
+    { id: "active", label: t("guests.communityActivated"), status: "upcoming" },
+    { id: "join", label: t("guests.residentsCanJoin"), status: "upcoming" },
   ];
 }
 
 function ReviewTimeline({ steps, reviewState }) {
+  const { t } = useTranslation();
   const allDone = reviewState === "approved";
 
   return (
@@ -186,7 +192,7 @@ function ReviewTimeline({ steps, reviewState }) {
       ]}
     >
       <Text style={styles.sectionTitle}>
-        {reviewState === "approved" ? "All steps complete" : "Review progress"}
+        {reviewState === "approved" ? t("guests.allStepsComplete") : t("guests.reviewProgress")}
       </Text>
       {steps.map((step, index) => {
         const isLast = index === steps.length - 1;
@@ -248,13 +254,13 @@ function ReviewTimeline({ steps, reviewState }) {
             <View style={styles.timelineContent}>
               <Text style={[styles.timelineLabel, labelStyle]}>{step.label}</Text>
               {step.status === "current" ? (
-                <Text style={styles.timelineHint}>In progress — usually 1–2 business days</Text>
+                <Text style={styles.timelineHint}>{t("guests.inProgressHint")}</Text>
               ) : null}
               {step.status === "failed" ? (
-                <Text style={styles.timelineFailedHint}>Requires your attention</Text>
+                <Text style={styles.timelineFailedHint}>{t("guests.requiresAttention")}</Text>
               ) : null}
               {step.status === "done" && allDone ? (
-                <Text style={styles.timelineApprovedHint}>Complete</Text>
+                <Text style={styles.timelineApprovedHint}>{t("guests.complete")}</Text>
               ) : null}
             </View>
           </View>
@@ -265,6 +271,7 @@ function ReviewTimeline({ steps, reviewState }) {
 }
 
 export default function PendingCommunityScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const dialog = useAppDialog();
   const { role = "resident", guest: guestParam } = useLocalSearchParams();
@@ -352,7 +359,7 @@ export default function PendingCommunityScreen() {
       }
 
       setReviewState("pending");
-      setGuestStatusNote("Complete invite verification to continue.");
+      setGuestStatusNote(t("guests.completeInviteVerification"));
       return true;
     },
     [router],
@@ -621,69 +628,70 @@ export default function PendingCommunityScreen() {
   const screenTitle = isGuestMode
     ? reviewState === "rejected"
       ? guestStatusNote?.includes("expired")
-        ? "Guest access expired"
+        ? t("guests.guestAccessExpired")
         : guestStatusNote?.includes("revoked")
-          ? "Guest access revoked"
-          : "Guest access declined"
+          ? t("guests.guestAccessRevoked")
+          : t("guests.guestAccessDeclined")
       : guestStatusNote === GUEST_ACCESS_NOT_STARTED_MESSAGE
-        ? "Guest access not started"
-      : "Guest access under review"
+        ? t("guests.guestAccessNotStarted")
+      : t("guests.guestAccessUnderReview")
     : reviewState === "approved"
-      ? "Membership approved"
+      ? t("guests.membershipApproved")
       : reviewState === "rejected"
         ? approvalKind === "membership_approval"
-          ? "Application declined"
-          : "Community request declined"
+          ? t("guests.applicationDeclined")
+          : t("guests.communityRequestDeclined")
         : approvalKind === "membership_approval"
-          ? "Membership under review"
+          ? t("guests.membershipUnderReview")
           : isAdminApplicant
-            ? "Application under review"
-            : "Community under review";
+            ? t("guests.applicationUnderReview")
+            : t("guests.communityUnderReview");
 
   const screenSubtitle = isGuestMode
     ? reviewState === "rejected"
       ? guestStatusNote ||
         (rejectionReason?.trim()
-          ? "Your host or community admin declined your guest access request. See the reason below."
-          : "Your host or community admin declined your guest access request.")
+          ? t("guests.guestDeclinedWithReason")
+          : t("guests.guestDeclinedNoReason"))
       : guestStatusNote === GUEST_ACCESS_NOT_STARTED_MESSAGE
         ? GUEST_ACCESS_NOT_STARTED_MESSAGE
       : guestInvitation?.invitation_type === "admin"
-        ? "Your phone and invite code are verified. Your host will approve your temporary guest access shortly."
-        : "Your phone and invite code are verified. The resident who invited you needs to approve your guest access."
+        ? t("guests.guestPendingAdminApproval")
+        : t("guests.guestPendingResidentApproval")
     : reviewState === "approved"
-      ? "You're all set! Your community admin approved your membership. Tap below to enter your community."
+      ? t("guests.membershipApprovedSubtitle")
       : reviewState === "rejected"
         ? approvalKind === "membership_approval"
           ? rejectedBy === "system_admin"
-            ? "Your account was rejected by a system administrator. Contact support if you believe this was a mistake."
-            : "Your community admin declined your membership request. See the reason below and reach out to your community office if you have questions."
-          : "Your community request was not approved. You can submit a new request with updated details."
+            ? t("guests.rejectedBySystemAdmin")
+            : t("guests.rejectedByCommunityAdmin")
+          : t("guests.communityRequestNotApproved")
         : approvalKind === "membership_approval"
-          ? "Your community admin is reviewing your request to join. You'll get full access once they approve your membership."
+          ? t("guests.membershipUnderReviewSubtitle")
           : isAdminApplicant
             ? adminApprovedAwaitingCommunity
-              ? "Your admin account is approved. We're now reviewing your community request before unlocking the dashboard."
-              : "A system administrator is reviewing your admin application and community details. You'll get access once both are approved."
-            : "We're reviewing your community request. You'll be notified as soon as an admin approves it.";
+              ? t("guests.adminApprovedAwaitingCommunity")
+              : t("guests.adminApplicationUnderReview")
+            : t("guests.communityRequestUnderReview");
 
   const statusBadge =
     reviewState === "approved"
-      ? { label: "Approved", tone: "success" }
+      ? { label: t("guests.approved"), tone: "success" }
       : reviewState === "rejected"
-        ? { label: "Declined", tone: "danger" }
-        : { label: "Under review", tone: "pending" };
+        ? { label: t("guests.declined"), tone: "danger" }
+        : { label: t("guests.underReview"), tone: "pending" };
 
   const timelineSteps = useMemo(
     () =>
       isGuestMode
-        ? buildGuestTimeline(reviewState)
+        ? buildGuestTimeline(reviewState, t)
         : buildTimeline({
             reviewState,
             approvalKind,
             isAdminApplicant,
             adminApprovedAwaitingCommunity,
             rejectedBy,
+            t,
           }),
     [
       isGuestMode,
@@ -700,73 +708,73 @@ export default function PendingCommunityScreen() {
       ? [
           {
             icon: "mail-outline",
-            title: "Contact your host",
-            body: "Reach out to the resident or admin who invited you if you believe this was a mistake.",
+            title: t("guests.contactYourHost"),
+            body: t("guests.contactYourHostBody"),
           },
           {
             icon: "log-in-outline",
-            title: "Need a new invite?",
-            body: "Ask your host to send a fresh guest invitation if you still need access.",
+            title: t("guests.needNewInvite"),
+            body: t("guests.needNewInviteBody"),
           },
         ]
       : [
           {
             icon: "notifications-outline",
-            title: "We'll notify you",
-            body: "You'll get a notification as soon as your guest access is approved.",
+            title: t("guests.wellNotifyYou"),
+            body: t("guests.guestNotifyBody"),
           },
           {
             icon: "refresh-outline",
-            title: "Check status anytime",
-            body: "Pull down or tap Check status to see if your access has been approved.",
+            title: t("guests.checkStatusAnytime"),
+            body: t("guests.checkStatusAnytimeBody"),
           },
           {
             icon: "eye-outline",
-            title: "Read-only guest access",
-            body: "Once approved, you can browse community content for the dates on your invitation.",
+            title: t("guests.readOnlyGuestAccess"),
+            body: t("guests.readOnlyGuestAccessBody"),
           },
         ]
     : reviewState === "approved"
       ? [
           {
             icon: "home-outline",
-            title: "Welcome to your community",
-            body: "Explore announcements, connect with neighbors, and access community services.",
+            title: t("guests.welcomeToCommunity"),
+            body: t("guests.welcomeToCommunityBody"),
           },
           {
             icon: "person-outline",
-            title: "Complete your profile anytime",
-            body: "Add a photo and bio from your profile settings to help neighbors recognize you.",
+            title: t("guests.completeProfileAnytime"),
+            body: t("guests.completeProfileAnytimeBody"),
           },
         ]
       : reviewState === "rejected"
         ? [
             {
               icon: "create-outline",
-              title: "Update your details",
-              body: "Fix any issues mentioned in the reason below, then submit a fresh request.",
+              title: t("guests.updateYourDetails"),
+              body: t("guests.updateYourDetailsBody"),
             },
             {
               icon: "mail-outline",
-              title: "Need help?",
-              body: "Contact your community office or Havena support if you think this was a mistake.",
+              title: t("guests.needHelp"),
+              body: t("guests.needHelpBody"),
             },
           ]
         : [
             {
               icon: "notifications-outline",
-              title: "We'll notify you",
-              body: "You'll receive a push notification and can return here to check your status anytime.",
+              title: t("guests.wellNotifyYou"),
+              body: t("guests.notifyBody"),
             },
             {
               icon: "refresh-outline",
-              title: "Pull to refresh",
-              body: "Status updates appear here automatically. Pull down or tap Check status for the latest.",
+              title: t("guests.pullToRefresh"),
+              body: t("guests.pullToRefreshBody"),
             },
             {
               icon: "time-outline",
-              title: "Typical review time",
-              body: "Most reviews are completed within 1–2 business days.",
+              title: t("guests.typicalReviewTime"),
+              body: t("guests.typicalReviewTimeBody"),
             },
           ];
 
@@ -824,7 +832,7 @@ export default function PendingCommunityScreen() {
         : styles.statusBadgeTextPending;
 
   const rejectedByLabel =
-    rejectedBy === "system_admin" ? "System administrator" : "Community admin";
+    rejectedBy === "system_admin" ? t("guests.systemAdministrator") : t("guests.communityAdmin");
 
   if (loading) {
     return (
@@ -832,7 +840,7 @@ export default function PendingCommunityScreen() {
         <View style={styles.center}>
           <ActivityIndicator size="large" color={Colors.brandPrimaryDeep} />
           <Text style={styles.loadingText}>
-            {isGuestMode ? "Checking guest access status…" : "Checking application status…"}
+            {isGuestMode ? t("guests.checkingGuestStatus") : t("guests.checkingApplicationStatus")}
           </Text>
         </View>
       </SafeAreaView>
@@ -900,9 +908,9 @@ export default function PendingCommunityScreen() {
               </View>
               <View style={styles.communityCardHeaderText}>
                 <Text style={styles.cardLabel}>
-                  {isGuestMode ? "Guest invitation" : approvalKind === "membership_approval"
-                    ? "Selected community"
-                    : "Requested community"}
+                  {isGuestMode ? t("guests.guestInvitation") : approvalKind === "membership_approval"
+                    ? t("guests.selectedCommunity")
+                    : t("guests.requestedCommunity")}
                 </Text>
                 <Text style={styles.cardTitle}>
                   {community.name || community.title}
@@ -915,18 +923,18 @@ export default function PendingCommunityScreen() {
                 {guestHostLabel(guestInvitation) ? (
                   <View style={styles.metaRow}>
                     <Ionicons name="person-outline" size={16} color="#667085" />
-                    <Text style={styles.metaText}>Invited by {guestHostLabel(guestInvitation)}</Text>
+                    <Text style={styles.metaText}>{t("guests.invitedBy", { name: guestHostLabel(guestInvitation) })}</Text>
                   </View>
                 ) : null}
                 <View style={styles.metaRow}>
                   <Ionicons name="calendar-outline" size={16} color="#667085" />
                   <Text style={styles.metaText}>
-                    Access window: {formatGuestAccessWindow(guestInvitation.starts_at, guestInvitation.ends_at)}
+                    {t("guests.accessWindowLabel", { window: formatGuestAccessWindow(guestInvitation.starts_at, guestInvitation.ends_at) })}
                   </Text>
                 </View>
                 <View style={styles.metaRow}>
                   <Ionicons name="key-outline" size={16} color="#667085" />
-                  <Text style={styles.metaText}>Invite code: {guestInvitation.invite_code}</Text>
+                  <Text style={styles.metaText}>{t("guests.inviteCodeMeta", { code: guestInvitation.invite_code })}</Text>
                 </View>
               </>
             ) : null}
@@ -949,7 +957,7 @@ export default function PendingCommunityScreen() {
               <View style={styles.reviewPill}>
                 <Ionicons name="time-outline" size={14} color="#14B8A6" />
                 <Text style={styles.reviewPillText}>
-                  {isGuestMode ? "Waiting for host approval" : "Review in progress"}
+                  {isGuestMode ? t("guests.waitingForHostApproval") : t("guests.reviewInProgress")}
                 </Text>
               </View>
             ) : null}
@@ -957,7 +965,7 @@ export default function PendingCommunityScreen() {
             {reviewState === "approved" ? (
               <View style={styles.approvedPill}>
                 <Ionicons name="checkmark-circle" size={14} color="#059669" />
-                <Text style={styles.approvedPillText}>Membership approved</Text>
+                <Text style={styles.approvedPillText}>{t("guests.membershipApproved")}</Text>
               </View>
             ) : null}
 
@@ -965,7 +973,7 @@ export default function PendingCommunityScreen() {
               <View style={styles.declinedPill}>
                 <Ionicons name="close-circle" size={14} color="#DC2626" />
                 <Text style={styles.declinedPillText}>
-                  {isGuestMode ? "Guest access declined" : "Membership declined"}
+                  {isGuestMode ? t("guests.guestAccessDeclined") : t("guests.membershipDeclined")}
                 </Text>
               </View>
             ) : null}
@@ -977,18 +985,18 @@ export default function PendingCommunityScreen() {
             <View style={styles.statusDetailHeader}>
               <Ionicons name="alert-circle" size={20} color="#DC2626" />
               <Text style={styles.statusDetailTitle}>
-                {guestStatusNote ? "Access unavailable" : "Decline details"}
+                {guestStatusNote ? t("guests.accessUnavailable") : t("guests.declineDetails")}
               </Text>
             </View>
             {guestStatusNote ? (
               <Text style={styles.reasonText}>{guestStatusNote}</Text>
             ) : (
               <View style={styles.reasonBox}>
-                <Text style={styles.reasonLabel}>Reason for decline</Text>
+                <Text style={styles.reasonLabel}>{t("guests.reasonForDecline")}</Text>
                 <Text style={styles.reasonText}>
                   {rejectionReason?.trim()
                     ? rejectionReason
-                    : "No reason was provided. Contact the person who invited you for more information."}
+                    : t("guests.noReasonGuestDefault")}
                 </Text>
               </View>
             )}
@@ -999,22 +1007,22 @@ export default function PendingCommunityScreen() {
           <View style={styles.statusDetailCard}>
             <View style={styles.statusDetailHeader}>
               <Ionicons name="alert-circle" size={20} color="#DC2626" />
-              <Text style={styles.statusDetailTitle}>Decline details</Text>
+              <Text style={styles.statusDetailTitle}>{t("guests.declineDetails")}</Text>
             </View>
             <View style={styles.statusDetailRow}>
-              <Text style={styles.statusDetailLabel}>Status</Text>
-              <Text style={styles.statusDetailValueDanger}>Declined</Text>
+              <Text style={styles.statusDetailLabel}>{t("guests.statusLabel")}</Text>
+              <Text style={styles.statusDetailValueDanger}>{t("guests.declined")}</Text>
             </View>
             <View style={styles.statusDetailRow}>
-              <Text style={styles.statusDetailLabel}>Reviewed by</Text>
+              <Text style={styles.statusDetailLabel}>{t("guests.reviewedBy")}</Text>
               <Text style={styles.statusDetailValue}>{rejectedByLabel}</Text>
             </View>
             <View style={styles.reasonBox}>
-              <Text style={styles.reasonLabel}>Reason for decline</Text>
+              <Text style={styles.reasonLabel}>{t("guests.reasonForDecline")}</Text>
               <Text style={styles.reasonText}>
                 {rejectionReason?.trim()
                   ? rejectionReason
-                  : "No reason was provided. Contact your community office for more information."}
+                  : t("guests.noReasonCommunityDefault")}
               </Text>
             </View>
           </View>
@@ -1024,15 +1032,15 @@ export default function PendingCommunityScreen() {
           <View style={styles.statusDetailCardApproved}>
             <View style={styles.statusDetailHeader}>
               <Ionicons name="checkmark-circle" size={20} color="#059669" />
-              <Text style={styles.statusDetailTitleApproved}>Approval details</Text>
+              <Text style={styles.statusDetailTitleApproved}>{t("guests.approvalDetails")}</Text>
             </View>
             <View style={styles.statusDetailRow}>
-              <Text style={styles.statusDetailLabel}>Status</Text>
-              <Text style={styles.statusDetailValueSuccess}>Approved</Text>
+              <Text style={styles.statusDetailLabel}>{t("guests.statusLabel")}</Text>
+              <Text style={styles.statusDetailValueSuccess}>{t("guests.approved")}</Text>
             </View>
             <View style={styles.statusDetailRow}>
-              <Text style={styles.statusDetailLabel}>Access</Text>
-              <Text style={styles.statusDetailValue}>Full community access granted</Text>
+              <Text style={styles.statusDetailLabel}>{t("guests.accessLabel")}</Text>
+              <Text style={styles.statusDetailValue}>{t("guests.fullAccessGranted")}</Text>
             </View>
           </View>
         ) : null}
@@ -1040,7 +1048,7 @@ export default function PendingCommunityScreen() {
         <ReviewTimeline steps={timelineSteps} reviewState={reviewState} />
 
         <View style={styles.helpSection}>
-          <Text style={styles.sectionTitle}>What to know</Text>
+          <Text style={styles.sectionTitle}>{t("guests.whatToKnow")}</Text>
           {helpItems.map((item) => (
             <View key={item.title} style={styles.helpRow}>
               <View style={styles.helpIconWrap}>
@@ -1058,7 +1066,7 @@ export default function PendingCommunityScreen() {
       <View style={styles.footer}>
         {reviewState === "approved" ? (
           <AuthSubmitButton
-            label="Enter community"
+            label={t("guests.enterCommunity")}
             enabled
             variant="solid"
             style={styles.footerButton}
@@ -1066,7 +1074,7 @@ export default function PendingCommunityScreen() {
           />
         ) : reviewState === "rejected" && isAdminApplicant ? (
           <AuthSubmitButton
-            label="Submit new request"
+            label={t("guests.submitNewRequest")}
             enabled
             variant="solid"
             style={styles.footerButton}
@@ -1079,8 +1087,8 @@ export default function PendingCommunityScreen() {
           />
         ) : reviewState === "pending" ? (
           <AuthSubmitButton
-            label={refreshing ? "Checking…" : "Check status"}
-            loadingLabel="Checking…"
+            label={refreshing ? t("guests.checking") : t("guests.checkStatus")}
+            loadingLabel={t("guests.checking")}
             enabled={!refreshing}
             loading={refreshing}
             variant="solid"
@@ -1090,7 +1098,7 @@ export default function PendingCommunityScreen() {
         ) : null}
 
         <TouchableOpacity style={styles.linkBtn} onPress={handleSignOut}>
-          <Text style={styles.linkBtnText}>Sign out</Text>
+          <Text style={styles.linkBtnText}>{t("guests.signOut")}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

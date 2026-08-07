@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { PropertyType } from "../../../../../../../constants/property-management-type";
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../../../../../constants/font";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -9,6 +10,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import ScreenHeader from "../../../../../../../components/layout/screen-header";
 
 export default function RuleDetails() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [isAcknowledged, setIsAcknowledged] = useState(false);
 
@@ -17,7 +19,7 @@ export default function RuleDetails() {
       <ScreenHeader
         layout="inline"
         titleAlign="center"
-        title="Rule Details"
+        title={t("propertyMgmt.ruleDetailsTitle")}
         iconOnly
       />
 
@@ -49,7 +51,7 @@ export default function RuleDetails() {
                 fontWeight: 700,
               }}
             >
-              Acknowledgment Required
+              {t("propertyMgmt.ackRequired")}
             </Text>
             <Text
               style={{
@@ -60,7 +62,7 @@ export default function RuleDetails() {
                 fontWeight: 400,
               }}
             >
-              Please read carefully and acknowledge this rule to continue
+              {t("propertyMgmt.ackRequiredDesc")}
             </Text>
           </View>
         </View>
@@ -82,7 +84,7 @@ export default function RuleDetails() {
               fontWeight: 700,
             }}
           >
-            Parking & Vehicle Guidelines
+            {t("propertyMgmt.demoRuleTitle")}
           </Text>
 
           <View
@@ -110,7 +112,7 @@ export default function RuleDetails() {
                   color: "#6A7282",
                 }}
               >
-                Parking
+                {t("propertyMgmt.demoCategoryParking")}
               </Text>
             </View>
             <View
@@ -133,7 +135,7 @@ export default function RuleDetails() {
                   color: "#6A7282",
                 }}
               >
-                Updated Feb 1, 2026
+                {t("propertyMgmt.demoUpdatedDate")}
               </Text>
             </View>
 
@@ -154,7 +156,7 @@ export default function RuleDetails() {
                   color: "#0A2A43",
                 }}
               >
-                Version 2.1
+                {t("propertyMgmt.demoVersion")}
               </Text>
             </View>
           </View>
@@ -178,7 +180,7 @@ export default function RuleDetails() {
               fontWeight: 700,
             }}
           >
-            Effective Date:{" "}
+            {t("propertyMgmt.effectiveDate")}{" "}
             <Text
               style={{
                 fontWeight: 400,
@@ -186,7 +188,7 @@ export default function RuleDetails() {
                 color: "#1C398E",
               }}
             >
-              March 1, 2026
+              {t("propertyMgmt.demoEffectiveDate")}
             </Text>
           </Text>
         </View>
@@ -201,9 +203,7 @@ export default function RuleDetails() {
               fontWeight: 400,
             }}
           >
-            **Assigned Parking** • Each unit is allocated one designated parking
-            spot • Spot numbers correspond to unit numbers • Unauthorized use of
-            assigned spots will result in towing
+            {t("propertyMgmt.demoRuleBody")}
           </Text>
         </View>
 
@@ -260,8 +260,7 @@ export default function RuleDetails() {
                 flex: 1,
               }}
             >
-              I have read and understood the Parking & Vehicle Guidelines and
-              agree to comply with all guidelines outlined above.
+              {t("propertyMgmt.ackAgree")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -286,7 +285,7 @@ export default function RuleDetails() {
                 fontWeight: 600,
               }}
             >
-              Acknowledge & Confirm
+              {t("propertyMgmt.ackConfirm")}
             </Text>
           </TouchableOpacity>
         </View>

@@ -1,10 +1,13 @@
 import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { parsePostDisplayContent } from "../../services/feed-api";
 import { FEED_TEXT_COLLAPSED_LINES } from "../../constants/feed-layout";
 import { sw, sf } from "../../utils/responsive";
+import { useLanguage } from "../../providers/language-provider";
+import { localizedField } from "../../i18n";
 
 function isLongText(text) {
   const value = String(text ?? "").trim();
@@ -19,14 +22,17 @@ export default function FeedPostContent({
   collapsedLines = FEED_TEXT_COLLAPSED_LINES,
   allowExpand = true,
 }) {
+  const { t } = useTranslation();
+  const { language } = useLanguage();
   const [expanded, setExpanded] = useState(false);
   const display = useMemo(() => parsePostDisplayContent(post), [post]);
 
   const bodyText = useMemo(() => {
     if (display.mainText) return display.mainText;
     if (display.isPhotoOnly) return null;
-    return post?.content ?? post?.body ?? null;
-  }, [display, post]);
+    const localized = localizedField(post, "body");
+    return localized || (post?.content ?? post?.body ?? null);
+  }, [display, post, language]);
 
   const showToggle = allowExpand && isLongText(bodyText);
 
@@ -34,7 +40,7 @@ export default function FeedPostContent({
     if (display.isPhotoOnly) {
       return (
         <View style={styles.photoOnlyRow}>
-          <Text style={[styles.photoOnlyText, textStyle]}>Shared a photo</Text>
+          <Text style={[styles.photoOnlyText, textStyle]}>{t("feed.sharedPhoto")}</Text>
         </View>
       );
     }
@@ -53,10 +59,10 @@ export default function FeedPostContent({
           </Text>
           {showToggle ? (
             <Pressable onPress={() => setExpanded((prev) => !prev)} hitSlop={8}>
-              <Text style={styles.toggle}>{expanded ? "See less" : "See more"}</Text>
+              <Text style={styles.toggle}>{expanded ? t("feed.seeLess") : t("feed.seeMore")}</Text>
             </Pressable>
           ) : null}
-        </>
+</>
       ) : null}
 
       {(display.feeling || display.location) ? (

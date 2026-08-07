@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { pickImage } from "../../utils/pickImage";
 import { useApiAction } from "../../hooks/use-api-action";
@@ -10,9 +11,12 @@ export default function NoticeCoverImageField({
   value,
   onChange,
   uploading = false,
-  label = "Cover image",
-  hint = "Optional — shown on the notice board and home screen.",
+  label,
+  hint,
 }) {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t("notices.coverImage");
+  const resolvedHint = hint ?? t("notices.coverImageHint");
   const { showFailure } = useApiAction();
 
   const handlePick = async () => {
@@ -30,8 +34,8 @@ export default function NoticeCoverImageField({
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.label}>{label}</Text>
-      <Text style={styles.hint}>{hint}</Text>
+      <Text style={styles.label}>{resolvedLabel}</Text>
+      <Text style={styles.hint}>{resolvedHint}</Text>
 
       <TouchableOpacity
         activeOpacity={0.85}
@@ -42,14 +46,14 @@ export default function NoticeCoverImageField({
         {uploading ? (
           <View style={styles.uploadingWrap}>
             <ActivityIndicator color="#0A2A43" />
-            <Text style={styles.uploadingText}>Uploading image…</Text>
+            <Text style={styles.uploadingText}>{t("common.uploadingImage")}</Text>
           </View>
         ) : value?.uri ? (
           <>
             <Image source={{ uri: value.uri }} style={styles.preview} contentFit="cover" />
             <View style={styles.previewOverlay}>
               <Ionicons name="camera" size={18} color="#FFFFFF" />
-              <Text style={styles.changeText}>Change photo</Text>
+              <Text style={styles.changeText}>{t("common.changePhoto")}</Text>
             </View>
           </>
         ) : (
@@ -57,8 +61,8 @@ export default function NoticeCoverImageField({
             <View style={styles.iconCircle}>
               <Ionicons name="image-outline" size={22} color="#0A2A43" />
             </View>
-            <Text style={styles.placeholderTitle}>Add cover image</Text>
-            <Text style={styles.placeholderSub}>Tap to choose from your gallery</Text>
+            <Text style={styles.placeholderTitle}>{t("notices.addCoverImage")}</Text>
+            <Text style={styles.placeholderSub}>{t("notices.tapToChoose")}</Text>
           </View>
         )}
       </TouchableOpacity>
@@ -66,7 +70,7 @@ export default function NoticeCoverImageField({
       {value && !uploading ? (
         <TouchableOpacity activeOpacity={0.8} onPress={handleRemove} style={styles.removeBtn}>
           <Ionicons name="trash-outline" size={14} color="#B91C1C" />
-          <Text style={styles.removeText}>Remove image</Text>
+          <Text style={styles.removeText}>{t("common.removeImage")}</Text>
         </TouchableOpacity>
       ) : null}
     </View>
@@ -139,7 +143,7 @@ const styles = StyleSheet.create({
   previewOverlay: {
     position: "absolute",
     bottom: 10,
-    right: 10,
+    end: 10,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,

@@ -1,5 +1,6 @@
 import { Text, View, StyleSheet, Pressable, useWindowDimensions, FlatList, Platform } from "react-native";
 import React, { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
@@ -11,6 +12,7 @@ import WellnessCategoryIcon from "../wellness/wellness-category-icon";
 import { wellnessDetailRouteParams } from "../../constants/wellness-categories";
 import { getWellnessCategoryMeta } from "../../constants/wellness-theme";
 import { sw, sf } from "../../utils/responsive";
+import { arrowForward } from "../../utils/rtl";
 
 const CARD_GAP = sw(12);
 const PEEK = sw(32);
@@ -18,6 +20,7 @@ const RADIUS = sw(16);
 const ICON_WELL = sw(44);
 
 function WellnessCard({ item, width, onPress }) {
+  const { t } = useTranslation();
   const meta = getWellnessCategoryMeta(item.iconKey ?? item.key);
   const accent = item.color ?? meta.color;
   const progress = Math.min(100, Math.max(0, item.progressPercent ?? 0));
@@ -61,8 +64,8 @@ function WellnessCard({ item, width, onPress }) {
 
           {/* CTA */}
           <View style={styles.ctaRow}>
-            <Text style={[styles.ctaText, { color: accent }]}>Continue</Text>
-            <Feather name="arrow-right" size={sf(12)} color={accent} />
+            <Text style={[styles.ctaText, { color: accent }]}>{t("common.continue")}</Text>
+            <Feather name={arrowForward()} size={sf(12)} color={accent} />
           </View>
         </View>
       </View>
@@ -71,6 +74,7 @@ function WellnessCard({ item, width, onPress }) {
 }
 
 export default function WellnessNew({ items = [] }) {
+  const { t } = useTranslation();
   const router = useRouter();
   const { width: screenWidth } = useWindowDimensions();
 
@@ -99,10 +103,10 @@ export default function WellnessNew({ items = [] }) {
   if (!items.length) {
     return (
       <View style={homeStyles.section}>
-        <HomeSectionHeader label="Wellness" onPress={() => router.push("/wellness")} />
+        <HomeSectionHeader label={t("wellness.title")} onPress={() => router.push("/wellness")} />
         <HomeSectionEmpty
-          message="No wellness programs yet"
-          hint="Programs from your community will appear here."
+          message={t("home.noWellnessPrograms")}
+          hint={t("home.noWellnessHint")}
         />
       </View>
     );
@@ -110,7 +114,7 @@ export default function WellnessNew({ items = [] }) {
 
   return (
     <View style={homeStyles.section}>
-      <HomeSectionHeader label="Wellness" onPress={() => router.push("/wellness")} />
+      <HomeSectionHeader label={t("wellness.title")} onPress={() => router.push("/wellness")} />
       <FlatList
         data={items}
         horizontal
@@ -137,7 +141,7 @@ export default function WellnessNew({ items = [] }) {
 
 const styles = StyleSheet.create({
   carousel: { flexGrow: 0, alignSelf: "stretch" },
-  listContent: { paddingRight: PEEK, alignItems: "flex-start" },
+  listContent: { paddingEnd: PEEK, alignItems: "flex-start" },
   card: {
     borderRadius: RADIUS,
     ...(Platform.OS === "ios"
@@ -226,7 +230,7 @@ const styles = StyleSheet.create({
     fontSize: sf(10),
     fontWeight: "700",
     minWidth: sw(26),
-    textAlign: "right",
+    textAlign: "auto",
   },
   ctaRow: {
     flexDirection: "row",

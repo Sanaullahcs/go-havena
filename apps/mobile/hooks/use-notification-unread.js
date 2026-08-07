@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { AppState } from "react-native";
 import { useFocusEffect } from "expo-router";
+import i18n from "../i18n";
 import { fetchNotificationUnreadCount } from "../services/notifications-api";
 import { subscribeNotificationRefresh } from "../services/notification-events";
 
 export function formatUnreadNotificationLabel(count) {
-  if (!count || count <= 0) return "No new notifications";
-  if (count === 1) return "1 new notification";
-  return `${count} new notifications`;
+  if (!count || count <= 0) return i18n.t("notifications.noNew");
+  if (count === 1) return i18n.t("notifications.oneNew");
+  return i18n.t("notifications.countNew", { count });
 }
 
 export function formatUnreadBadgeCount(count) {

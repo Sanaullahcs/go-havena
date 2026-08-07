@@ -76,7 +76,7 @@ export default function SectionCarousel({
       ItemSeparatorComponent={fullPageSnap ? undefined : separator}
       contentContainerStyle={[
         styles.content,
-        !fullPageSnap && peek > 0 ? { paddingRight: peek } : null,
+        !fullPageSnap && peek > 0 ? { paddingEnd: peek } : null,
       ]}
     />
   );

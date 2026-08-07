@@ -106,7 +106,8 @@ export function normalizeBusiness(b) {
     statusLabel: businessStatusLabel(b.status),
     ownerId: b.owner_id,
     ownerName: b.owner_name ?? "",
-    imageUrl: resolveMediaUrl(b.image_url) || null,
+    // Keep raw path so CrispImage / mediaImageSource can use bundled seed art.
+    imageUrl: b.image_url ?? null,
     createdAt: b.created_at,
   };
 }

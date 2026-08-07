@@ -9,6 +9,7 @@ import {
   Keyboard,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -27,6 +28,7 @@ import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
 
 export default function InviteCodeScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const dialog = useAppDialog();
   const [inviteCode, setInviteCode] = useState("");
@@ -49,7 +51,6 @@ export default function InviteCodeScreen() {
     scrollTimersRef.current = [];
   }, []);
 
-  /** Scroll the invite field toward the top of the ScrollView so it stays above the keyboard. */
   const scrollFieldAboveKeyboard = useCallback(() => {
     const scroll = scrollRef.current;
     const form = formSectionRef.current;
@@ -77,7 +78,6 @@ export default function InviteCodeScreen() {
 
   const scheduleScrollAboveKeyboard = useCallback(() => {
     clearScrollTimers();
-    // First pass after padding/layout, second after Android adjustResize settles
     const delays =
       Platform.OS === "android" ? [60, 180, 360] : [40, 180];
     scrollTimersRef.current = delays.map((ms) =>
@@ -91,8 +91,6 @@ export default function InviteCodeScreen() {
 
     const onShow = (event) => {
       const height = event?.endCoordinates?.height ?? 0;
-      // Extra scroll room so the field can move up into the visible area.
-      // iOS overlays the keyboard; Android resize still needs pad for sticky footer.
       setKeyboardPad(
         Platform.OS === "ios"
           ? Math.max(height - 24, 220)
@@ -140,8 +138,8 @@ export default function InviteCodeScreen() {
         const data = await joinByInviteCode(normalizedCode);
         await showApiSuccess(
           dialog,
-          "Invite verified",
-          `You're joining ${data.community.name}. Complete your profile next.`,
+          t('guests.inviteVerified'),
+          t('guests.joiningCommunity', { name: data.community.name }),
         );
         router.push({
           pathname: "/screens/complete-profile",
@@ -152,7 +150,7 @@ export default function InviteCodeScreen() {
           },
         });
       } catch (err) {
-        await showApiFailure(dialog, "Invalid code", err, "invite_code");
+        await showApiFailure(dialog, t('guests.invalidCode'), err, "invite_code");
       }
     });
   };
@@ -183,8 +181,8 @@ export default function InviteCodeScreen() {
             }}
             footer={
               <AuthSubmitButton
-                label="Verify Code"
-                loadingLabel="Verifying…"
+                label={t('guests.verifyCode')}
+                loadingLabel={t('guests.verifying')}
                 enabled={canVerify}
                 loading={submitting}
                 onPress={handleVerify}
@@ -200,9 +198,9 @@ export default function InviteCodeScreen() {
           >
             <View ref={contentRef} collapsable={false}>
               <View style={styles.header}>
-                <Text style={styles.headerTitle}>Enter Invite Code</Text>
+                <Text style={styles.headerTitle}>{t('guests.enterInviteCode')}</Text>
                 <Text style={styles.headerSubtitle}>
-                  Your property manager should have provided a unique code.
+                  {t('guests.inviteCodeSubtitle')}
                 </Text>
               </View>
 
@@ -214,9 +212,9 @@ export default function InviteCodeScreen() {
                   style={styles.qrIconWrap}
                 />
 
-                <Text style={styles.qrTitle}>Scan QR Code</Text>
+                <Text style={styles.qrTitle}>{t('guests.scanQrCode')}</Text>
                 <Text style={styles.qrSubtitle}>
-                  Quick join by scanning your invite QR code
+                  {t('guests.scanQrSubtitle')}
                 </Text>
 
                 <TouchableOpacity
@@ -225,13 +223,13 @@ export default function InviteCodeScreen() {
                   onPress={handleScan}
                 >
                   <Ionicons name="scan-outline" size={16} color="#FFFFFF" />
-                  <Text style={styles.scanButtonText}>Tap to scan</Text>
+                  <Text style={styles.scanButtonText}>{t('guests.tapToScan')}</Text>
                 </TouchableOpacity>
               </View>
 
               <View style={styles.dividerRow}>
                 <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>OR ENTER MANUALLY</Text>
+                <Text style={styles.dividerText}>{t('guests.orEnterManually')}</Text>
                 <View style={styles.dividerLine} />
               </View>
 
@@ -241,7 +239,7 @@ export default function InviteCodeScreen() {
                 style={styles.formSection}
               >
                 <Text style={styles.label}>
-                  Invite Code <Text style={styles.required}>*</Text>
+                  {t('guests.inviteCodeLabel')} <Text style={styles.required}>*</Text>
                 </Text>
                 <TextInput
                   value={inviteCode}
@@ -257,7 +255,7 @@ export default function InviteCodeScreen() {
                     fieldFocusedRef.current = false;
                     touch("inviteCode");
                   }}
-                  placeholder="MAPLE-2024-XYZ"
+                  placeholder={t("guests.inviteCodePlaceholder")}
                   placeholderTextColor="#9CA3AF"
                   style={[
                     styles.input,
@@ -275,10 +273,9 @@ export default function InviteCodeScreen() {
                 ) : null}
 
                 <View style={styles.infoCard}>
-                  <Text style={styles.infoTitle}>Don't have an invite code?</Text>
+                  <Text style={styles.infoTitle}>{t('guests.noInviteCodeTitle')}</Text>
                   <Text style={styles.infoText}>
-                    Contact your property manager or building administration to
-                    request access to your community.
+                    {t('guests.noInviteCodeText')}
                   </Text>
                 </View>
               </View>

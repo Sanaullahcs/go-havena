@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { getWellnessCategoryMeta, WellnessTheme } from "../../constants/wellness-theme";
 import WellnessProgressBar from "./wellness-progress-bar";
@@ -25,20 +26,21 @@ export default function WellnessCourseSummary({
   lessonCount = 0,
   progress = 0,
 }) {
+  const { t } = useTranslation();
   const meta = getWellnessCategoryMeta(categoryKey);
   const pct = Math.min(100, Math.max(0, progress));
 
   return (
     <View style={styles.card}>
       <Text style={styles.description} numberOfLines={3}>
-        {description || "Explore lessons at your own pace."}
+        {description || t("wellness.defaultLessonDescription")}
       </Text>
 
       <View style={styles.chipRow}>
         {durationMin > 0 ? (
           <StatChip
             icon="clock"
-            label={`${durationMin} min`}
+            label={t("wellness.minDuration", { minutes: durationMin })}
             color={meta.color}
             bg={meta.bg}
           />
@@ -46,14 +48,14 @@ export default function WellnessCourseSummary({
         {lessonCount > 0 ? (
           <StatChip
             icon="layers"
-            label={`${lessonCount} lessons`}
+            label={t("wellness.lessonCount", { count: lessonCount })}
             color={meta.color}
             bg={meta.bg}
           />
         ) : null}
         <StatChip
           icon="trending-up"
-          label={`${pct}% done`}
+          label={t("wellness.percentDone", { pct })}
           color={meta.color}
           bg={meta.bg}
         />
@@ -95,7 +97,7 @@ const styles = StyleSheet.create({
     paddingVertical: sw(6),
     paddingHorizontal: sw(10),
     borderRadius: 999,
-    marginRight: sw(8),
+    marginEnd: sw(8),
     marginBottom: sw(4),
   },
   chipText: {
@@ -103,7 +105,7 @@ const styles = StyleSheet.create({
     fontSize: sf(10),
     lineHeight: sf(14),
     fontWeight: "600",
-    marginLeft: sw(5),
+    marginStart: sw(5),
     includeFontPadding: false,
   },
   bar: {

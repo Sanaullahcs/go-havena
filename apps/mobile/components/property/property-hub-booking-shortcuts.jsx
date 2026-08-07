@@ -1,9 +1,11 @@
 import React from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { PropertyHubTheme } from "../../constants/property-management-theme";
 import { sf, sw } from "../../utils/responsive";
+import { chevronForward } from "../../utils/rtl";
 
 function BookingTile({ icon, title, hint, count, showCount = true, onPress }) {
   return (
@@ -23,7 +25,7 @@ function BookingTile({ icon, title, hint, count, showCount = true, onPress }) {
               <Text style={styles.countText}>{count}</Text>
             </View>
           ) : (
-            <Feather name="chevron-right" size={sf(14)} color={PropertyHubTheme.caption} />
+            <Feather name={chevronForward()} size={sf(14)} color={PropertyHubTheme.caption} />
           )}
         </View>
         <Text style={styles.title} numberOfLines={1}>
@@ -42,16 +44,17 @@ export default function PropertyHubBookingShortcuts({
   approveRequestCount = 0,
   onAction,
 }) {
+  const { t } = useTranslation();
   return (
     <View style={styles.row}>
       <View style={[styles.col, styles.colGap]}>
         <BookingTile
-          icon="calendar"
-          title="My Bookings"
+          icon="bookmark"
+          title={t("property.myReservations")}
           hint={
             myReservationCount > 0
-              ? `${myReservationCount} active`
-              : "Upcoming reservations"
+              ? t("property.upcomingCount", { count: myReservationCount })
+              : t("property.amenitiesYouBooked")
           }
           showCount={false}
           onPress={() => onAction("MY_BOOKING")}
@@ -60,8 +63,8 @@ export default function PropertyHubBookingShortcuts({
       <View style={styles.col}>
         <BookingTile
           icon="inbox"
-          title="Approvals"
-          hint="Requests for your amenities"
+          title={t("property.bookingRequests")}
+          hint={t("property.forYourListedServices")}
           count={approveRequestCount}
           onPress={() => onAction("ADMIN_BOOKINGS")}
         />
@@ -80,7 +83,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   colGap: {
-    marginRight: sw(10),
+    marginEnd: sw(10),
   },
   pressable: {
     width: "100%",

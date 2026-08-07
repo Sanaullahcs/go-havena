@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Modal, TouchableOpacity, StyleSheet, Text } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { navigateAfterAuth } from "../../constants/onboarding-routes";
 import AuthSuccessOverlay from "../ui/auth-success-overlay";
 import { Fonts } from "../../constants/font";
@@ -9,6 +10,7 @@ import { verifyBiometricLogin, BIOMETRIC_ERROR } from "./biometric-service";
 import { useAppDialog } from "../../providers/app-dialog-provider";
 
 export default function FingerprintDialog({ visible, onClose }) {
+  const { t } = useTranslation();
   const dialog = useAppDialog();
   const [showSuccess, setShowSuccess] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -30,7 +32,7 @@ export default function FingerprintDialog({ visible, onClose }) {
     setFailed(false);
     finishingRef.current = false;
 
-    const result = await verifyBiometricLogin("Sign in with fingerprint");
+    const result = await verifyBiometricLogin(t("auth.signInFingerprint"));
 
     setBusy(false);
 
@@ -53,15 +55,15 @@ export default function FingerprintDialog({ visible, onClose }) {
       onClose?.();
       await dialog.showDialog({
         type: "info",
-        title: "Biometric sign-in unavailable",
+        title: t("auth.biometricUnavailableTitle"),
         message: result.message,
-        actions: [{ label: "OK", variant: "primary" }],
+        actions: [{ label: t("common.ok"), variant: "primary" }],
       });
       return;
     }
 
     setFailed(true);
-  }, [dialog, onClose]);
+  }, [dialog, onClose, t]);
 
   useEffect(() => {
     if (!visible) {
@@ -84,8 +86,8 @@ export default function FingerprintDialog({ visible, onClose }) {
     <>
       <AuthSuccessOverlay
         visible={showSuccess}
-        title="Authenticated"
-        subtitle="Opening Havena…"
+        title={t("auth.authenticated")}
+        subtitle={t("auth.openingHavena")}
         onComplete={finishSignIn}
       />
       <Modal visible={showSheet} transparent animationType="fade">
@@ -97,17 +99,17 @@ export default function FingerprintDialog({ visible, onClose }) {
             <View style={styles.iconRing}>
               <Ionicons name="finger-print" size={44} color="#0A2A43" />
             </View>
-            <Text style={styles.title}>Fingerprint Login</Text>
+            <Text style={styles.title}>{t("auth.fingerprintLogin")}</Text>
             <Text style={styles.sub}>
-              {busy ? "Waiting for fingerprint…" : "Try again or use phone sign-in"}
+              {busy ? t("auth.waitingFingerprint") : t("auth.tryAgainOrPhone")}
             </Text>
             {!busy ? (
               <TouchableOpacity onPress={runAuth} style={styles.retryWrap}>
-                <Text style={styles.retry}>Try Again</Text>
+                <Text style={styles.retry}>{t("common.tryAgain")}</Text>
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity onPress={onClose} style={styles.cancelWrap}>
-              <Text style={styles.cancel}>Cancel</Text>
+              <Text style={styles.cancel}>{t("common.cancel")}</Text>
             </TouchableOpacity>
           </View>
         </View>

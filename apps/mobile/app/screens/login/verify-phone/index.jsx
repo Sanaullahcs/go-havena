@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AuthFlowTopBar from "../../../../components/auth/auth-flow-top-bar";
 import AuthHeroText from "../../../../components/auth/auth-hero-text";
@@ -30,6 +31,7 @@ import { ScreenBrand as B } from "../../../../constants/screen-brand";
 import { DEV_OTP_HINT } from "../../../../constants/api-config";
 
 export default function VerifyPhoneScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const dialog = useAppDialog();
   const {
@@ -50,7 +52,7 @@ export default function VerifyPhoneScreen() {
   const { canResend, countdownLabel, resetCountdown } = useOtpCountdown();
   const otpDigits = otp.replace(/[^0-9]/g, "");
   const isValid = otpDigits.length === 6;
-  const phoneDisplay = toDisplayPhone(phone) || "your phone";
+  const phoneDisplay = toDisplayPhone(phone) || t("auth.yourPhone");
   const verifyLockRef = useRef(false);
   const initialSendRef = useRef(false);
 
@@ -149,20 +151,20 @@ export default function VerifyPhoneScreen() {
   const busy = submitting || otpSending;
 
   const successSubtitle = verifiedUser && isCommunityAdminRole(verifiedUser)
-    ? "Opening your admin dashboard…"
-    : "You're signed in to Havena";
+    ? t("auth.openingAdminDashboard")
+    : t("auth.signedInToHavena");
 
   const resendFooter = resendNotice ? (
-    <Text style={[layout.footerNote, layout.resendSuccess]}>New code sent</Text>
+    <Text style={[layout.footerNote, layout.resendSuccess]}>{t("auth.newCodeSent")}</Text>
   ) : canResend ? (
     <TouchableOpacity onPress={handleResend} disabled={busy}>
       <Text style={[layout.footerNote, layout.resendHighlight, busy && styles.resendMuted]}>
-        {otpSending ? "Sending…" : "Resend code"}
+        {otpSending ? t("auth.sending") : t("auth.resendCode")}
       </Text>
     </TouchableOpacity>
   ) : (
     <Text style={layout.footerNote}>
-      Resend available in{" "}
+      {t("auth.resendAvailableIn") + " "}
       <Text style={layout.resendHighlight}>{countdownLabel}</Text>
     </Text>
   );
@@ -171,7 +173,7 @@ export default function VerifyPhoneScreen() {
     <>
       <AuthSuccessOverlay
         visible={showSuccess}
-        title="Welcome back!"
+        title={t("auth.welcomeBackSuccess")}
         subtitle={successSubtitle}
         onComplete={() => {
           setShowSuccess(false);
@@ -192,8 +194,8 @@ export default function VerifyPhoneScreen() {
           footer={
             <View style={layout.footerInner}>
               <AuthSubmitButton
-                label="Verify & Sign In"
-                loadingLabel="Verifying…"
+                label={t("auth.verifySignIn")}
+                loadingLabel={t("auth.verifying")}
                 enabled={isValid && !otpSending}
                 loading={submitting}
                 onPress={handleVerify}
@@ -207,14 +209,14 @@ export default function VerifyPhoneScreen() {
         >
           <View style={layout.formBlock}>
             <AuthHeroText
-              eyebrow="Step 2 of 2"
-              title="Enter verification code"
+              eyebrow={t("auth.step2of2")}
+              title={t("auth.enterVerificationCode")}
               subtitle={
                 otpSending ? (
-                  "Sending a 6-digit code to your phone…"
+                  t("auth.sendingCodeToPhone")
                 ) : (
                   <>
-                    We sent a code to{" "}
+                    {t("auth.weSentCodeTo") + " "}
                     <Text style={layout.phoneHighlight}>{phoneDisplay}</Text>
                   </>
                 )
@@ -223,10 +225,10 @@ export default function VerifyPhoneScreen() {
 
             <View style={layout.fieldBlock}>
               {otpSending ? (
-                <AuthInlineLoader text={`Sending to ${phoneDisplay}…`} />
+                <AuthInlineLoader text={t("auth.sendingTo", { phone: phoneDisplay })} />
               ) : (
                 <>
-                  <Text style={layout.fieldLabel}>Verification code</Text>
+                  <Text style={layout.fieldLabel}>{t("auth.verificationCode")}</Text>
                   <OTPInput
                     length={6}
                     onOTPChange={handleOtpChange}
@@ -237,7 +239,7 @@ export default function VerifyPhoneScreen() {
                   />
                   {showOtpError ? (
                     <Text style={authStyles.inputErrorText}>
-                      Enter the 6-digit verification code
+                      {t("auth.enter6DigitCode")}
                     </Text>
                   ) : null}
                   {__DEV__ ? (

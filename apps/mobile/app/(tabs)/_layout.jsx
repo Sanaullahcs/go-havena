@@ -1,6 +1,7 @@
 import { Tabs, useRouter } from "expo-router";
 
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { View, StyleSheet, ActivityIndicator } from "react-native";
 
@@ -38,6 +39,7 @@ function withTimeout(promise, ms) {
 
 export default function TabLayout() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [accessChecked, setAccessChecked] = useState(false);
   const [communityAdminUser, setCommunityAdminUser] = useState(false);
@@ -63,6 +65,44 @@ export default function TabLayout() {
       }
 
       let user = await getUser();
+
+      // Show tabs immediately when cached profile already grants access.
+      if (user && canAccessDashboard(user)) {
+        syncRoleFromUser(user);
+        setCommunityAdminUser(isCommunityAdmin(user));
+        setAccessChecked(true);
+
+        withTimeout(fetchMe(), 8000)
+          .then((fresh) => {
+            if (cancelled) return;
+            if (!canAccessDashboard(fresh)) {
+              const route = getPostAuthRoute(fresh);
+              router.replace({ pathname: route.pathname, params: route.params });
+              return;
+            }
+            syncRoleFromUser(fresh);
+            setCommunityAdminUser(isCommunityAdmin(fresh));
+          })
+          .catch(async (err) => {
+            if (cancelled) return;
+            if (await handleGuestAccessTerminationError(err, router)) return;
+            if (await handleGuestAccessScheduleError(err, router)) return;
+            if (await handleGuestUnauthorized(err, router)) return;
+
+            if (err?.status === 401) {
+              await clearSession();
+              goLogin();
+              return;
+            }
+
+            if (isAccountSuspendedError(err)) {
+              await persistBlockedAccountNotice(err);
+              await clearSession();
+              goLogin(true);
+            }
+          });
+        return;
+      }
 
       try {
         user = await withTimeout(fetchMe(), 8000);
@@ -164,14 +204,14 @@ export default function TabLayout() {
           tabBarHideOnKeyboard: true,
         }}
       >
-        <Tabs.Screen name="home" options={{ title: "Home" }} />
-        <Tabs.Screen name="community" options={{ title: "Community" }} />
-        <Tabs.Screen name="marketplace" options={{ href: null, title: "Marketplace" }} />
-        <Tabs.Screen name="services" options={{ title: "Services" }} />
-        <Tabs.Screen name="profile" options={{ title: "Profile" }} />
+        <Tabs.Screen name="home" options={{ title: t("nav.home") }} />
+        <Tabs.Screen name="community" options={{ title: t("nav.community") }} />
+        <Tabs.Screen name="marketplace" options={{ href: null, title: t("nav.marketplace") }} />
+        <Tabs.Screen name="services" options={{ title: t("nav.services") }} />
+        <Tabs.Screen name="profile" options={{ title: t("nav.profile") }} />
         <Tabs.Screen name="create-post" options={{ href: null }} />
         <Tabs.Screen name="wellness" options={{ href: null }} />
-        <Tabs.Screen name="notices" options={{ href: null, title: "Updates" }} />
+        <Tabs.Screen name="notices" options={{ href: null, title: t("nav.updates") }} />
       </Tabs>
       <CreateNewModal
         visible={showCreateModal}

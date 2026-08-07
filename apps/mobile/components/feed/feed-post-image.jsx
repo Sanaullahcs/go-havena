@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import { Image } from "expo-image";
-import { mediaImageSource } from "../../utils/profile-display";
+import { resolveAppImageSource } from "../../utils/profile-display";
 import {
   FEED_IMAGE_DEFAULT_ASPECT,
   FEED_IMAGE_MAX_HEIGHT,
@@ -36,7 +36,7 @@ export default function FeedPostImage({ uri, style, imageStyle, borderRadius = s
       }}
     >
       <Image
-        source={mediaImageSource(uri)}
+        source={resolveAppImageSource(uri)}
         style={[
           styles.image,
           { height, borderRadius },

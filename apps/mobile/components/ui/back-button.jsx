@@ -1,14 +1,15 @@
 import React from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { I18nManager, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { sw } from "../../utils/responsive";
 
 const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
 
 export default function BackButton({
-  label = "Back",
+  label,
   showLabel = false,
   iconOnly = true,
   compact = true,
@@ -16,6 +17,8 @@ export default function BackButton({
   style,
 }) {
   const router = useRouter();
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t("common.back");
   const showText = showLabel && !iconOnly;
 
   const handlePress = (e) => {
@@ -30,7 +33,7 @@ export default function BackButton({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={resolvedLabel}
       hitSlop={HIT_SLOP}
       onPress={handlePress}
       style={({ pressed }) => [styles.button, pressed && styles.pressed, style]}
@@ -47,10 +50,14 @@ export default function BackButton({
             source={require("../../assets/images/new-back-icon.png")}
             contentFit="contain"
             contentPosition="center"
-            style={[styles.icon, compact && styles.iconCompact]}
+            style={[
+              styles.icon,
+              compact && styles.iconCompact,
+              I18nManager.isRTL && styles.iconFlipped,
+            ]}
           />
         </View>
-        {showText ? <Text style={styles.label}>{label}</Text> : null}
+        {showText ? <Text style={styles.label}>{resolvedLabel}</Text> : null}
       </View>
     </Pressable>
   );
@@ -101,6 +108,9 @@ const styles = StyleSheet.create({
   iconCompact: {
     width: 17,
     height: 17,
+  },
+  iconFlipped: {
+    transform: [{ scaleX: -1 }],
   },
   label: {
     flexShrink: 0,

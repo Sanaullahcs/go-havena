@@ -2,6 +2,7 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import * as WebBrowser from "expo-web-browser";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Image } from "expo-image";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 
 /* ── YouTube helpers ──────────────────────────────────────────── */
@@ -15,6 +16,7 @@ function extractYouTubeId(url) {
 }
 
 function YouTubePlayer({ videoId, url, style }) {
+  const { t } = useTranslation();
   const thumb = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
 
   const open = async () => {
@@ -30,7 +32,7 @@ function YouTubePlayer({ videoId, url, style }) {
         <View style={styles.ytPlayBtn}>
           <Text style={styles.ytPlayIcon}>▶</Text>
         </View>
-        <Text style={styles.ytLabel}>Tap to watch on YouTube</Text>
+        <Text style={styles.ytLabel}>{t("common.watchOnYouTube")}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -38,13 +40,14 @@ function YouTubePlayer({ videoId, url, style }) {
 
 /* ── Direct video fallback ─────────────────────────────────────── */
 function VideoFallback({ poster, style, message }) {
+  const { t } = useTranslation();
   return (
     <View style={[styles.fallback, style]}>
       {poster ? (
         <Image source={poster} style={StyleSheet.absoluteFill} contentFit="cover" />
       ) : null}
       <View style={styles.fallbackOverlay}>
-        <Text style={styles.fallbackText}>{message ?? "Video unavailable."}</Text>
+        <Text style={styles.fallbackText}>{message ?? t("video.unavailable")}</Text>
       </View>
     </View>
   );
@@ -83,11 +86,12 @@ function DirectVideoPlayer({ uri, style, onPlayStateChange }) {
  *  - No URL        → fallback placeholder
  */
 export default function LazyVideoPlayer({ source, style, poster, onPlayStateChange }) {
+  const { t } = useTranslation();
   const uri = source?.uri ?? (typeof source === "string" ? source : null);
   const ytId = extractYouTubeId(uri);
 
   if (!uri) {
-    return <VideoFallback poster={poster} style={style} message="No video provided." />;
+    return <VideoFallback poster={poster} style={style} message={t("video.noVideoProvided")} />;
   }
 
   if (ytId) {
@@ -151,7 +155,7 @@ const styles = StyleSheet.create({
   ytPlayIcon: {
     color: "#FFFFFF",
     fontSize: 22,
-    marginLeft: 4,
+    marginStart: 4,
   },
   ytLabel: {
     fontFamily: Fonts.medium,

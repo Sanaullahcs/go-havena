@@ -9,6 +9,8 @@ import {
   isNoticeExpiredForHome,
   isCarouselNotice,
 } from "../utils/notice-home-expiry";
+import i18n from "../i18n";
+import { getLocaleForLang } from "../hooks/use-app-locale";
 
 export { isNoticeExpiredForHome, isCarouselNotice };
 
@@ -23,10 +25,10 @@ export const NOTICE_CATEGORIES = [
 
 /** Categories available on the create-notice form (excludes event & alert). */
 export const NOTICE_FORM_CATEGORIES = [
-  { value: "general", label: "General" },
-  { value: "maintenance", label: "Maintenance" },
-  { value: "security", label: "Security" },
-  { value: "finance", label: "Finance" },
+  { value: "general", labelKey: "categories.general" },
+  { value: "maintenance", labelKey: "categories.maintenance" },
+  { value: "security", labelKey: "categories.security" },
+  { value: "finance", labelKey: "categories.finance" },
 ];
 
 export const CATEGORY_THEME = {
@@ -77,9 +79,8 @@ export const CATEGORY_THEME = {
 const DEFAULT_THEME = CATEGORY_THEME.general;
 
 function resolveNoticeImageUrl(path) {
-  const resolved = resolveMediaUrl(path);
-  if (!resolved) return null;
-  const trimmed = String(resolved).trim();
+  if (!path) return null;
+  const trimmed = String(path).trim();
   if (!trimmed || trimmed === "null" || trimmed === "undefined") return null;
   return trimmed;
 }
@@ -96,13 +97,14 @@ export function formatNoticeDate(dateStr) {
     const diffMs = now - date;
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
+    const locale = getLocaleForLang(i18n.language);
     if (diffDays === 0) {
-      return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+      return date.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
     }
-    if (diffDays === 1) return "Yesterday";
-    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffDays === 1) return i18n.t("time.yesterday");
+    if (diffDays < 7) return i18n.t("time.daysShort", { count: diffDays });
 
-    return date.toLocaleDateString("en-US", {
+    return date.toLocaleDateString(locale, {
       month: "short",
       day: "numeric",
       year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
@@ -126,7 +128,7 @@ export function formatEventSchedule(notice) {
   if (notice.event_date) {
     try {
       parts.push(
-        new Date(notice.event_date).toLocaleDateString("en-US", {
+        new Date(notice.event_date).toLocaleDateString(getLocaleForLang(i18n.language), {
           weekday: "short",
           month: "short",
           day: "numeric",
@@ -193,7 +195,11 @@ export function normalizeNotice(raw) {
   return {
     id: raw.id,
     title: raw.title ?? "",
+    title_es: raw.title_es ?? null,
+    title_ar: raw.title_ar ?? null,
     body: raw.body ?? raw.description ?? "",
+    body_es: raw.body_es ?? null,
+    body_ar: raw.body_ar ?? null,
     category: raw.category ?? "general",
     categoryLabel: theme.label,
     location: raw.location ?? null,
@@ -205,7 +211,7 @@ export function normalizeNotice(raw) {
     status: raw.status ?? "published",
     publishedAt: raw.published_at ?? raw.created_at,
     createdAt: raw.created_at,
-    authorName: raw.author_name ?? "Community Admin",
+    authorName: raw.author_name ?? i18n.t("auth.communityAdmin"),
     authorAvatar: resolveMediaUrl(raw.author_avatar) ?? null,
     authorId: raw.author_id ?? null,
     rsvpCount: raw.rsvp_count ?? 0,
@@ -215,12 +221,12 @@ export function normalizeNotice(raw) {
     isFull: Boolean(raw.is_full),
     attendees: (raw.attendees ?? []).map((row) => ({
       id: row.id,
-      name: row.name ?? "Neighbor",
+      name: row.name ?? i18n.t("feed.neighbor"),
       avatarUrl: resolveMediaUrl(row.avatar_url) ?? null,
     })),
     waitlist: (raw.waitlist ?? []).map((row) => ({
       id: row.id,
-      name: row.name ?? "Neighbor",
+      name: row.name ?? i18n.t("feed.neighbor"),
       avatarUrl: resolveMediaUrl(row.avatar_url) ?? null,
       joinedAt: row.joined_at ?? null,
       position: row.position ?? null,
@@ -263,7 +269,7 @@ export function formatShortDate(dateStr) {
   if (!dateStr) return "";
   try {
     const d = new Date(`${String(dateStr).slice(0, 10)}T12:00:00`);
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return d.toLocaleDateString(getLocaleForLang(i18n.language), { month: "short", day: "numeric" });
   } catch {
     return dateStr;
   }
@@ -274,7 +280,7 @@ export function formatLongDate(dateStr) {
   if (!dateStr) return "";
   try {
     const d = new Date(`${String(dateStr).slice(0, 10)}T12:00:00`);
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    return d.toLocaleDateString(getLocaleForLang(i18n.language), { month: "short", day: "numeric", year: "numeric" });
   } catch {
     return dateStr;
   }
@@ -310,12 +316,16 @@ export function formatDisplayTime12h(timeStr) {
   return `${hour}:${minute} ${suffix}`;
 }
 
-/** Latest published notices for the home hero carousel (excludes events, alerts, and past events). */
+/** Latest published notices for the home hero carousel (excludes events and past schedules). */
 export function pickNeighborhoodCarousel(notices, limit = HOME_SECTION_CARD_LIMIT) {
   return [...notices]
     .filter(isCarouselNotice)
     .filter((n) => !isNoticeExpiredForHome(n))
     .sort((a, b) => {
+      const aAlert = a.isAlert ? 1 : 0;
+      const bAlert = b.isAlert ? 1 : 0;
+      if (aAlert !== bAlert) return bAlert - aAlert;
+
       const aPin = a.isPinned ? 1 : 0;
       const bPin = b.isPinned ? 1 : 0;
       if (aPin !== bPin) return bPin - aPin;

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { MarketplaceType } from "../../../constants/marketplace-type";
 import {
   View,
@@ -8,11 +8,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
 import { Feather } from "@expo/vector-icons";
-import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
-import ScreenHeader from "../../../components/layout/screen-header";
+import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
@@ -36,11 +36,13 @@ import {
 import { hasFieldErrors, LIMITS, validateListingForm } from "../../../utils/form-validation";
 import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import ListingTypePicker from "../../../components/marketplace/listing-type-picker";
-import { getListingTypeTheme } from "../../../constants/marketplace-theme";
+import { MarketplaceTheme as M } from "../../../constants/marketplace-theme";
+import CrispImage from "../../../components/ui/crisp-image";
 
 const MAX_PHOTOS = MAX_LISTING_PHOTOS;
 
 export default function CreateListingScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { editId, type: typeParam } = useLocalSearchParams();
   const listingId = editId ? String(editId) : null;
@@ -97,8 +99,8 @@ export default function CreateListingScreen() {
         );
       } catch {
         if (!cancelled) {
-          showFailure("Could not load listing", {
-            message: "This listing may have been removed.",
+          showFailure(t("marketplace.couldNotLoadListing"), {
+            message: t("marketplace.listingMayBeRemoved"),
           });
           router.back();
         }
@@ -121,14 +123,13 @@ export default function CreateListingScreen() {
   }, [listingId, typeParam]);
 
   const isService = listingType === "service";
-  const typeTheme = getListingTypeTheme(listingType);
   const categorySuggestions = isService
     ? SERVICE_CATEGORY_SUGGESTIONS
     : ITEM_CATEGORY_SUGGESTIONS;
 
   const handleAddPhoto = () => {
     if (photos.length >= MAX_PHOTOS) {
-      showFailure("Limit reached", { message: `You can add up to ${MAX_PHOTOS} photos.` });
+      showFailure(t("marketplace.limitReached"), { message: t("marketplace.maxPhotosMsg", { max: MAX_PHOTOS }) });
       return;
     }
     pickImages(
@@ -136,7 +137,7 @@ export default function CreateListingScreen() {
         setPhotos((prev) => [...prev, ...assets].slice(0, MAX_PHOTOS));
       },
       {
-        showError: (t, m) => showFailure(t, { message: m }),
+        showError: (title, m) => showFailure(title, { message: m }),
         max: MAX_PHOTOS,
         currentCount: photos.length,
       },
@@ -174,26 +175,26 @@ export default function CreateListingScreen() {
                   onProgress: setUploadProgress,
                 }),
           silentSuccess: true,
-          errorTitle: isEditing ? "Could not update listing" : "Could not post listing",
+          errorTitle: isEditing ? t("marketplace.couldNotUpdateListing") : t("marketplace.couldNotPostListing"),
           onSuccess: async (result) => {
             const status = result?.data?.status ?? result?.status;
             if (isEditing) {
               await showSuccess(
-                "Listing updated",
+                t("marketplace.listingUpdated"),
                 status === "approved"
-                  ? "Your changes are now live in the marketplace."
-                  : "Your changes have been submitted for admin review.",
+                  ? t("marketplace.changesLive")
+                  : t("marketplace.changesForReview"),
               );
             } else {
               await showSuccess(
-                isService ? "Service posted!" : "Listed!",
+                isService ? t("marketplace.servicePosted") : t("marketplace.listed"),
                 status === "approved"
                   ? isService
-                    ? "Your service is now live in the marketplace."
-                    : "Your listing is now live in the marketplace."
+                    ? t("marketplace.serviceLive")
+                    : t("marketplace.listingLive")
                   : isService
-                    ? "Your service has been submitted for review."
-                    : "Your listing has been submitted for review.",
+                    ? t("marketplace.serviceForReview")
+                    : t("marketplace.listingForReview"),
               );
             }
             router.back();
@@ -209,54 +210,55 @@ export default function CreateListingScreen() {
     return (
       <SafeAreaView style={styles.container} edges={["left", "right"]}>
         <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color="#14B8A6" />
+          <ActivityIndicator size="large" color={M.teal} />
         </View>
       </SafeAreaView>
     );
   }
 
+  const ctaLabel = uploadProgress
+    ? t("marketplace.uploadingProgress", { done: uploadProgress.done, total: uploadProgress.total })
+    : submitting
+      ? isEditing
+        ? t("marketplace.savingSubmit")
+        : t("marketplace.postingSubmit")
+      : isEditing
+        ? t("marketplace.saveChanges")
+        : isService
+          ? t("marketplace.postService")
+          : t("marketplace.postListing");
+
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
-      <ScreenHeader
-        layout="inline"
+      <InternalScreenHeader
         title={
           isEditing
-            ? "Edit Listing"
-            : listingType === "service"
-              ? "Offer Service"
-              : "List Item for Sale"
+            ? t("marketplace.editListing")
+            : isService
+              ? t("marketplace.offerService")
+              : t("marketplace.sellAnItem")
         }
-        iconOnly
+        subtitle={
+          isEditing
+            ? t("marketplace.updateListingSubtitle")
+            : isService
+              ? t("marketplace.postServiceSubtitle")
+              : t("marketplace.listForCommunity")
+        }
       />
 
       <KeyboardSafeScreen
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.content}
         footerBorderless
         footerStyle={styles.bottomWrap}
         footer={
           <TouchableOpacity
-            activeOpacity={0.9}
-            style={[
-              styles.postButton,
-              { backgroundColor: typeTheme.accent },
-              (!canPost || submitting) && styles.postButtonDisabled,
-            ]}
+            activeOpacity={0.88}
+            style={[styles.postButton, (!canPost || submitting) && styles.postButtonDisabled]}
             onPress={handlePost}
             disabled={!canPost || submitting}
           >
-            <Text style={styles.postButtonText}>
-              {uploadProgress
-                ? `Uploading ${uploadProgress.done}/${uploadProgress.total}…`
-                : submitting
-                  ? isEditing
-                    ? "Saving..."
-                    : "Posting..."
-                  : isEditing
-                    ? "Save changes"
-                    : isService
-                      ? "Post service"
-                      : "Post listing"}
-            </Text>
+            <Text style={styles.postButtonText}>{ctaLabel}</Text>
           </TouchableOpacity>
         }
       >
@@ -266,156 +268,151 @@ export default function CreateListingScreen() {
           disabled={isEditing}
         />
 
-        <View style={{ marginTop: 24 }}>
-          <View style={styles.photosHeaderRow}>
-            <Text style={[styles.label]}>Photos</Text>
-            <Text style={styles.photoCount}>
-              {photos.length}/{MAX_PHOTOS}
-            </Text>
+        <View style={styles.sectionTop}>
+          <View style={styles.rowBetween}>
+            <Text style={styles.label}>{t("marketplace.photos")}</Text>
+            <Text style={styles.meta}>{photos.length}/{MAX_PHOTOS}</Text>
           </View>
+
           <View style={styles.photosRow}>
             {photos.map((photo, index) => (
-              <View key={`${photo.uri}-${index}`} style={styles.photoBoxFilled}>
-                <Image
-                  source={{ uri: photo.uri }}
-                  style={styles.photoPreview}
+              <View key={`${photo.uri}-${index}`} style={styles.photoThumb}>
+                <CrispImage
+                  source={photo.uri}
+                  style={styles.photoImage}
                   contentFit="cover"
                 />
+                {index === 0 ? (
+                  <View style={styles.coverBadge}>
+                    <Text style={styles.coverBadgeText}>{t("marketplace.cover")}</Text>
+                  </View>
+                ) : null}
                 <TouchableOpacity
-                  style={styles.photoRemoveBtn}
+                  style={styles.removeBtn}
                   activeOpacity={0.85}
                   onPress={() => handleRemovePhoto(index)}
+                  hitSlop={6}
                 >
-                  <Text style={styles.photoRemoveText}>×</Text>
+                  <Feather name="x" size={12} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
             ))}
+
             {photos.length < MAX_PHOTOS ? (
               <TouchableOpacity
                 activeOpacity={0.85}
-                style={[
-                  styles.photoBox,
-                  photos.length === 0 && styles.photoBoxPrimary,
-                ]}
+                style={[styles.addPhoto, photos.length === 0 && styles.addPhotoEmpty]}
                 onPress={handleAddPhoto}
               >
-                <Image
-                  source={require("../../../assets/images/gallary-icon.png")}
-                  style={{ width: 32, height: 32 }}
-                />
-                {photos.length > 0 ? (
-                  <Text style={styles.addMoreText}>Add</Text>
-                ) : null}
+                <Feather name="camera" size={20} color={M.textMuted} />
+                <Text style={styles.addPhotoText}>
+                  {photos.length === 0 ? t("marketplace.addPhotos") : t("marketplace.addMore")}
+                </Text>
               </TouchableOpacity>
             ) : null}
           </View>
-          <Text style={styles.helperText}>
-            {photos.length >= MAX_PHOTOS
-              ? "Maximum photos added"
-              : `Tap to add up to ${MAX_PHOTOS} photos (select multiple at once)`}
+          <Text style={styles.helper}>
+            {t("marketplace.photoCoverHint")}
           </Text>
         </View>
 
-   
-
-        <Text style={[styles.label, styles.fieldGap]}>
-          Title <Text style={styles.required}>*</Text>
+        <Text style={[styles.label, styles.sectionTop]}>
+          {t("marketplace.title_label")} <Text style={styles.required}>*</Text>
         </Text>
         <TextInput
           value={title}
-          onChangeText={(t) => {
-            setTitle(t);
+          onChangeText={(v) => {
+            setTitle(v);
             clearError("title");
           }}
           onBlur={() => touch("title")}
           placeholder={
-            isService ? "e.g., Lawn Mowing & Yard Cleanup" : "e.g., Vintage Dining Table"
+            isService ? "e.g. Lawn mowing & yard cleanup" : "e.g. Vintage dining table"
           }
-          placeholderTextColor="rgba(3, 2, 19, 0.5)"
+          placeholderTextColor="#99A1AF"
           style={[styles.input, showError("title", liveErrors) && styles.inputError]}
           maxLength={LIMITS.listingTitle}
         />
-        {showError("title", liveErrors) ? <Text style={styles.errorText}>{showError("title", liveErrors)}</Text> : null}
+        {showError("title", liveErrors) ? (
+          <Text style={styles.errorText}>{showError("title", liveErrors)}</Text>
+        ) : null}
 
-        <Text style={[styles.label, styles.fieldGap]}>
-          Description <Text style={styles.required}>*</Text>
+        <Text style={[styles.label, styles.sectionTop]}>
+          {t("marketplace.description")} <Text style={styles.required}>*</Text>
         </Text>
         <TextInput
           value={description}
-          onChangeText={(t) => {
-            setDescription(t);
+          onChangeText={(v) => {
+            setDescription(v);
             clearError("description");
           }}
           onBlur={() => touch("description")}
           placeholder={
             isService
-              ? "Describe what you offer, experience, availability, and what's included."
-              : "Describe the item, its condition, dimensions, etc."
+              ? t("marketplace.descriptionPlaceholderService")
+              : t("marketplace.descriptionPlaceholderItem")
           }
-          placeholderTextColor="rgba(3, 2, 19, 0.5)"
+          placeholderTextColor="#99A1AF"
           style={[styles.textArea, showError("description", liveErrors) && styles.inputError]}
           multiline
           textAlignVertical="top"
         />
-        {showError("description", liveErrors) ? <Text style={styles.errorText}>{showError("description", liveErrors)}</Text> : null}
+        {showError("description", liveErrors) ? (
+          <Text style={styles.errorText}>{showError("description", liveErrors)}</Text>
+        ) : null}
 
-        <View style={[styles.labelRow, styles.fieldGap]}>
-          <Image
-            source={require("../../../assets/images/mini-dollar.png")}
-            style={{ width: 16, height: 16 }}
-          />
-          <Text style={styles.label}>
-            {isService ? "Starting price (USD)" : "Price (USD)"}{" "}
-            <Text style={styles.required}>*</Text>
-          </Text>
-        </View>
+        <Text style={[styles.label, styles.sectionTop]}>
+          {isService ? t("marketplace.startingPriceUsd") : t("marketplace.priceUsd")}{" "}
+          <Text style={styles.required}>*</Text>
+        </Text>
         <TextInput
           value={price}
-          onChangeText={(t) => {
-            setPrice(t);
+          onChangeText={(v) => {
+            setPrice(v);
             clearError("price");
           }}
           onBlur={() => touch("price")}
-          placeholder={isService ? "$ 25.00 / visit" : "$ 0.00"}
-          placeholderTextColor="rgba(3, 2, 19, 0.5)"
+          placeholder={isService ? "25.00" : "0.00"}
+          placeholderTextColor="#99A1AF"
           style={[styles.input, showError("price", liveErrors) && styles.inputError]}
           keyboardType="decimal-pad"
         />
-        {showError("price", liveErrors) ? <Text style={styles.errorText}>{showError("price", liveErrors)}</Text> : null}
+        {showError("price", liveErrors) ? (
+          <Text style={styles.errorText}>{showError("price", liveErrors)}</Text>
+        ) : null}
 
-        <View style={[styles.labelRow, styles.fieldGap]}>
-          <Image
-            source={require("../../../assets/images/mini-category.png")}
-            style={{ width: 16, height: 16 }}
-          />
-          <Text style={styles.label}>
-            Category <Text style={styles.required}>*</Text>
-          </Text>
-        </View>
+        <Text style={[styles.label, styles.sectionTop]}>
+          {t("marketplace.category")} <Text style={styles.required}>*</Text>
+        </Text>
         <TextInput
           value={category}
-          onChangeText={(t) => {
-            setCategory(t);
+          onChangeText={(v) => {
+            setCategory(v);
             clearError("category");
           }}
           onBlur={() => touch("category")}
-          placeholder={isService ? "e.g., Cleaning, Tutoring, Repairs" : "e.g., Furniture, Electronics"}
-          placeholderTextColor="rgba(3, 2, 19, 0.5)"
+          placeholder={isService ? "e.g. Cleaning, Tutoring" : "e.g. Furniture, Electronics"}
+          placeholderTextColor="#99A1AF"
           style={[styles.input, showError("category", liveErrors) && styles.inputError]}
           maxLength={LIMITS.listingCategory}
         />
-        {showError("category", liveErrors) ? <Text style={styles.errorText}>{showError("category", liveErrors)}</Text> : null}
-        <View style={styles.categorySuggestions}>
+        {showError("category", liveErrors) ? (
+          <Text style={styles.errorText}>{showError("category", liveErrors)}</Text>
+        ) : null}
+        <View style={styles.chipRow}>
           {categorySuggestions.map((option) => {
             const active = category.toLowerCase() === option.toLowerCase();
             return (
               <TouchableOpacity
                 key={option}
                 activeOpacity={0.85}
-                style={[styles.categoryChip, active && { borderColor: typeTheme.accent, backgroundColor: typeTheme.soft }]}
-                onPress={() => setCategory(option)}
+                style={[styles.chip, active && styles.chipActive]}
+                onPress={() => {
+                  setCategory(option);
+                  clearError("category");
+                }}
               >
-                <Text style={[styles.categoryChipText, active && { color: typeTheme.accent, fontFamily: Fonts.bold, fontWeight: "700" }]}>
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>
                   {option}
                 </Text>
               </TouchableOpacity>
@@ -425,79 +422,64 @@ export default function CreateListingScreen() {
 
         {listingType === "item" ? (
           <>
-            <Text style={[styles.label, styles.fieldGap]}>
-              Condition <Text style={styles.required}>*</Text>
+            <Text style={[styles.label, styles.sectionTop]}>
+              {t("marketplace.condition")} <Text style={styles.required}>*</Text>
             </Text>
-            <View style={styles.conditionWrap}>
+            <View style={styles.chipRow}>
               {LISTING_CONDITIONS.map((option) => {
                 const active = condition === option;
                 return (
                   <TouchableOpacity
                     key={option}
                     activeOpacity={0.9}
-                    style={[styles.conditionChip, active && { borderColor: typeTheme.accent, backgroundColor: typeTheme.soft }]}
-                onPress={() => {
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() => {
                       setCondition(option);
                       touch("condition");
                       clearError("condition");
                     }}
                   >
-                    <Text
-                      style={[styles.conditionChipText, active && { color: typeTheme.accent, fontFamily: Fonts.bold, fontWeight: "700" }]}
-                    >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
                       {option}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
-            {showError("condition", liveErrors) ? <Text style={styles.errorText}>{showError("condition", liveErrors)}</Text> : null}
+            {showError("condition", liveErrors) ? (
+              <Text style={styles.errorText}>{showError("condition", liveErrors)}</Text>
+            ) : null}
           </>
         ) : null}
 
-        <View style={[styles.labelRow, styles.fieldGap]}>
-          <Image
-            source={require("../../../assets/images/mini-location.png")}
-            style={{ width: 16, height: 16 }}
-          />
-          <Text style={styles.label}>Location (Optional)</Text>
-        </View>
+        <Text style={[styles.label, styles.sectionTop]}>{t("marketplace.location")}</Text>
         <TextInput
           value={location}
-          onChangeText={(t) => {
-            setLocation(t);
+          onChangeText={(v) => {
+            setLocation(v);
             clearError("location");
           }}
           onBlur={() => touch("location")}
           placeholder={
-            isService ? "e.g., Serving Maple Ridge community" : "e.g., Building A, Unit 304"
+            isService
+              ? "e.g. Serving Maple Ridge community"
+              : "e.g. Building A lobby"
           }
-          placeholderTextColor="rgba(3, 2, 19, 0.5)"
+          placeholderTextColor="#99A1AF"
           style={[styles.input, showError("location", liveErrors) && styles.inputError]}
           maxLength={LIMITS.listingLocation}
         />
-        {showError("location", liveErrors) ? <Text style={styles.errorText}>{showError("location", liveErrors)}</Text> : null}
+        {showError("location", liveErrors) ? (
+          <Text style={styles.errorText}>{showError("location", liveErrors)}</Text>
+        ) : null}
 
-        <View style={[styles.tipCard, { borderColor: typeTheme.border, backgroundColor: typeTheme.soft }]}>
-          <View style={styles.tipHeaderRow}>
-            <View style={[styles.tipIcon, { backgroundColor: "#FFFFFF" }]}>
-              <Feather name="shield" size={14} color={typeTheme.accent} />
-            </View>
-            <Text style={styles.tipTitle}>Safety Tips</Text>
-          </View>
-          {isService ? (
-            <>
-              <Text style={styles.tipLine}>• Agree on scope and price before starting work</Text>
-              <Text style={styles.tipLine}>• Meet in public areas within the community</Text>
-              <Text style={styles.tipLine}>• Don't share personal banking details</Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.tipLine}>• Meet in public areas within the community</Text>
-              <Text style={styles.tipLine}>• Don't share personal banking details</Text>
-              <Text style={styles.tipLine}>• Trust your instincts</Text>
-            </>
-          )}
+        <View style={styles.tipCard}>
+          <Text style={styles.tipTitle}>{t("marketplace.safetyTips")}</Text>
+          <Text style={styles.tipLine}>
+            {isService
+              ? t("marketplace.safetyTipService")
+              : t("marketplace.safetyTipItem")}
+          </Text>
         </View>
       </KeyboardSafeScreen>
     </SafeAreaView>
@@ -507,268 +489,205 @@ export default function CreateListingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#FFFFFF",
   },
   loadingWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  headerWrap: {
-    paddingTop: 24,
-    paddingBottom: 20,
+  content: {
     paddingHorizontal: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    paddingTop: 8,
+    paddingBottom: 28,
   },
-  backRow: {
-    width: 24,
-    height: 24,
+  sectionTop: {
+    marginTop: 16,
+  },
+  rowBetween: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 4,
+    justifyContent: "space-between",
   },
-  titleText: {
+  label: {
     fontFamily: Fonts.bold,
-    fontSize: MarketplaceType.heading,
-    lineHeight: MarketplaceType.bodyMdLine,
-    color: "rgba(0, 0, 0, 1)",
+    fontSize: MarketplaceType.body,
+    lineHeight: MarketplaceType.bodyLine,
+    color: "#111827",
     fontWeight: "700",
   },
-  scrollContent: {
-    padding: 24,
-    paddingBottom: 40,
+  required: {
+    color: "#F04438",
   },
-  conditionWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  conditionChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(229, 231, 235, 0.9)",
-    backgroundColor: "#FFFFFF",
-  },
-  conditionChipActive: {
-    borderColor: "#14B8A6",
-    backgroundColor: "rgba(20, 184, 166, 0.08)",
-  },
-  conditionChipText: {
+  meta: {
     fontFamily: Fonts.medium,
     fontSize: MarketplaceType.caption,
-    color: "#4B5563",
+    color: "#6A7282",
   },
-  conditionChipTextActive: {
-    color: "#14B8A6",
+  helper: {
+    marginTop: 8,
+    fontFamily: Fonts.regular,
+    fontSize: MarketplaceType.caption,
+    lineHeight: MarketplaceType.captionLine,
+    color: "#6A7282",
+  },
+  photosRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  photoThumb: {
+    width: 88,
+    height: 88,
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: "#F3F4F6",
+    position: "relative",
+  },
+  photoImage: {
+    width: "100%",
+    height: "100%",
+  },
+  coverBadge: {
+    position: "absolute",
+    left: 6,
+    bottom: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: "rgba(15,61,95,0.85)",
+  },
+  coverBadgeText: {
     fontFamily: Fonts.bold,
+    fontSize: 9,
+    color: "#FFFFFF",
     fontWeight: "700",
   },
-  categorySuggestions: {
+  removeBtn: {
+    position: "absolute",
+    top: 5,
+    right: 5,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addPhoto: {
+    width: 88,
+    height: 88,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: "#D1D5DC",
+    borderStyle: "dashed",
+    backgroundColor: "#F9FAFB",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  addPhotoEmpty: {
+    width: "100%",
+    height: 108,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: "#D1D5DC",
+  },
+  addPhotoText: {
+    fontFamily: Fonts.medium,
+    fontSize: MarketplaceType.caption,
+    color: "#6A7282",
+    fontWeight: "500",
+  },
+  input: {
+    marginTop: 8,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#EEF2F6",
+    paddingHorizontal: 14,
+    fontFamily: Fonts.regular,
+    fontSize: MarketplaceType.body,
+    color: "#111827",
+  },
+  textArea: {
+    marginTop: 8,
+    minHeight: 110,
+    borderRadius: 10,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#EEF2F6",
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 12,
+    fontFamily: Fonts.regular,
+    fontSize: MarketplaceType.body,
+    color: "#111827",
+  },
+  chipRow: {
     marginTop: 10,
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
-  categoryChip: {
+  chip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "rgba(229, 231, 235, 0.9)",
+    borderColor: "#E5E7EB",
     backgroundColor: "#FFFFFF",
   },
-  categoryChipActive: {
-    borderColor: "#14B8A6",
-    backgroundColor: "rgba(20, 184, 166, 0.08)",
+  chipActive: {
+    borderColor: M.teal,
+    backgroundColor: M.mint,
   },
-  categoryChipText: {
+  chipText: {
     fontFamily: Fonts.medium,
     fontSize: MarketplaceType.caption,
     color: "#4B5563",
+    fontWeight: "500",
   },
-  categoryChipTextActive: {
-    color: "#14B8A6",
+  chipTextActive: {
     fontFamily: Fonts.bold,
+    color: M.navy,
     fontWeight: "700",
-  },
-  label: {
-    fontFamily: Fonts.bold,
-    fontSize: MarketplaceType.bodyMd,
-    lineHeight: MarketplaceType.bodyMdLine,
-    color: "rgba(0, 0, 0, 1)",
-    fontWeight: "700",
-  },
-  photosHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  photoCount: {
-    fontFamily: Fonts.medium,
-    fontSize: MarketplaceType.caption,
-    lineHeight: MarketplaceType.captionLine,
-    color: "#6A7282",
-  },
-  addMoreText: {
-    marginTop: 4,
-    fontFamily: Fonts.medium,
-    fontSize: MarketplaceType.caption,
-    color: "#14B8A6",
-  },
-  required: {
-    color: "#EF4444",
-  },
-  photosRow: {
-    marginTop: 8,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  photoBox: {
-    width: 95,
-    height: 95,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderStyle: "dashed",
-    borderColor: "rgba(209, 213, 220, 0.6)",
-    backgroundColor: "#F9FAFB",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  photoBoxFilled: {
-    width: 95,
-    height: 95,
-    borderRadius: 12,
-    overflow: "hidden",
-    position: "relative",
-  },
-  photoPreview: {
-    width: "100%",
-    height: "100%",
-  },
-  photoRemoveBtn: {
-    position: "absolute",
-    top: 4,
-    right: 4,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  photoRemoveText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    lineHeight: 18,
-    fontFamily: Fonts.bold,
-  },
-  photoBoxPrimary: {
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#E8F2FB",
-    borderColor: "rgba(20, 184, 166, 0.6)",
-    borderStyle: "solid",
-    boxShadow:
-      "0px 1px 2px -1px rgba(0, 0, 0, 0.1), 0px 1px 3px 0px rgba(0, 0, 0, 0.1)",
-  },
-  helperText: {
-    marginTop: 8,
-    fontFamily: Fonts.regular,
-    fontSize: MarketplaceType.caption,
-    lineHeight: MarketplaceType.captionLine,
-    color: "rgba(74, 85, 101, 1)",
-  },
-  fieldGap: {
-    marginTop: 24,
-  },
-  input: {
-    marginTop: 8,
-    height: 50,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "rgba(20, 184, 166, 0.6)",
-    backgroundColor: "rgba(255, 255, 255, 0.6)",
-    paddingHorizontal: 16,
-    fontFamily: Fonts.regular,
-    fontSize: MarketplaceType.body,
-    color: "#111827",
-    boxShadow:
-      "0px 1px 2px -1px rgba(0, 0, 0, 0.1), 0px 1px 3px 0px rgba(0, 0, 0, 0.1)",
-  },
-  textArea: {
-    marginTop: 8,
-    minHeight: 130,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "rgba(20, 184, 166, 0.6)",
-    backgroundColor: "rgba(255, 255, 255, 0.6)",
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    fontFamily: Fonts.regular,
-    fontSize: MarketplaceType.body,
-    color: "#111827",
-  },
-  labelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 24,
   },
   tipCard: {
-    marginTop: 24,
-    borderWidth: 1,
-    borderColor: "rgba(229, 231, 235, 0.6)",
+    marginTop: 20,
     borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 1)",
-    padding: 16,
-    boxShadow:
-      "0px 1px 2px -1px rgba(0, 0, 0, 0.1), 0px 1px 3px 0px rgba(0, 0, 0, 0.1)",
-  },
-  tipHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 8,
-  },
-  tipIcon: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    backgroundColor: "#D1FAF5",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: M.mint,
+    padding: 14,
+    gap: 6,
   },
   tipTitle: {
     fontFamily: Fonts.bold,
-    fontSize: MarketplaceType.bodyMd,
-    lineHeight: MarketplaceType.bodyMdLine,
-    color: "#111827",
+    fontSize: MarketplaceType.body,
+    color: M.navy,
     fontWeight: "700",
   },
   tipLine: {
     fontFamily: Fonts.regular,
     fontSize: MarketplaceType.caption,
     lineHeight: MarketplaceType.captionLine,
-    color: "rgba(54, 65, 83, 1)",
+    color: "#374151",
   },
   bottomWrap: {
-    paddingHorizontal: 6,
-    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingTop: 10,
     paddingBottom: 4,
     backgroundColor: "#FFFFFF",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#EEF2F6",
   },
   postButton: {
-    height: 50,
+    height: 48,
     borderRadius: 12,
-    backgroundColor: "rgba(20, 184, 166, 1)",
+    backgroundColor: M.teal,
     alignItems: "center",
     justifyContent: "center",
-    boxShadow:
-      "0px 4px 6px -4px rgba(0, 0, 0, 0.1), 0px 10px 15px -3px rgba(0, 0, 0, 0.1)",
   },
   postButtonDisabled: {
     opacity: 0.45,
@@ -776,18 +695,18 @@ const styles = StyleSheet.create({
   postButtonText: {
     fontFamily: Fonts.bold,
     fontSize: MarketplaceType.body,
-    lineHeight: MarketplaceType.headingLine,
     color: "#FFFFFF",
     fontWeight: "700",
   },
   inputError: {
-    borderColor: "#DC2626",
+    borderColor: "#F04438",
+    backgroundColor: "#FFF5F5",
   },
   errorText: {
-    marginTop: 4,
+    marginTop: 6,
     fontFamily: Fonts.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: "#DC2626",
+    color: "#F04438",
   },
 });

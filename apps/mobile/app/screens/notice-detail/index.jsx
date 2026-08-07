@@ -18,6 +18,10 @@ import { Fonts } from "../../../constants/font";
 import { Colors, Layout, Shadows } from "../../../constants/tokens";
 import { fetchNotice, getCategoryTheme, formatDisplayTime12h } from "../../../services/notices-api";
 import { sw, sf, hp } from "../../../utils/responsive";
+import { useTranslation } from 'react-i18next';
+import i18n from "../../../i18n";
+import { getLocaleForLang } from "../../../hooks/use-app-locale";
+import { arrowBack } from "../../../utils/rtl";
 
 const HERO_HEIGHT = hp(28);
 
@@ -25,7 +29,7 @@ function formatPublishedLabel(notice) {
   if (!notice?.publishedAt && !notice?.createdAt) return "";
   try {
     const date = new Date(notice.publishedAt ?? notice.createdAt);
-    return date.toLocaleDateString("en-US", {
+    return date.toLocaleDateString(getLocaleForLang(i18n.language), {
       weekday: "long",
       month: "long",
       day: "numeric",
@@ -39,7 +43,7 @@ function formatPublishedLabel(notice) {
 function formatNoticeDateLabel(dateStr) {
   if (!dateStr) return "";
   try {
-    return new Date(`${String(dateStr).slice(0, 10)}T12:00:00`).toLocaleDateString("en-US", {
+    return new Date(`${String(dateStr).slice(0, 10)}T12:00:00`).toLocaleDateString(getLocaleForLang(i18n.language), {
       weekday: "long",
       month: "long",
       day: "numeric",
@@ -78,6 +82,7 @@ function SectionHeader({ icon, title, accent }) {
 
 export default function NoticeDetailScreen() {
   const router = useRouter();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams();
   const [notice, setNotice] = useState(null);
@@ -87,7 +92,7 @@ export default function NoticeDetailScreen() {
 
   const load = useCallback(async () => {
     if (!id) {
-      setError("Notice not found.");
+      setError(t('notices.noticeNotFound'));
       setLoading(false);
       return;
     }
@@ -97,7 +102,7 @@ export default function NoticeDetailScreen() {
       const data = await fetchNotice(id);
       setNotice(data);
     } catch {
-      setError("Unable to load this notice. Please try again.");
+      setError(t('notices.unableToLoadNotice'));
     } finally {
       setLoading(false);
     }
@@ -127,10 +132,10 @@ export default function NoticeDetailScreen() {
   );
 
   const scheduleDateLabel = useMemo(() => {
-    if (notice?.isAlert) return "Alert Date";
-    if (notice?.isEvent) return "Event Date";
-    return "Notice Date";
-  }, [notice]);
+    if (notice?.isAlert) return t('notices.alertDate');
+    if (notice?.isEvent) return t('notices.eventDate');
+    return t('notices.noticeDate');
+  }, [notice, t]);
 
   const startTimeLabel = useMemo(
     () => (notice?.eventTime ? formatDisplayTime12h(notice.eventTime) : ""),
@@ -153,7 +158,7 @@ export default function NoticeDetailScreen() {
     try {
       await Share.share({
         title: notice.title,
-        message: `${notice.title}\n\n${notice.body}${notice.location ? `\n\nLocation: ${notice.location}` : ""}`,
+        message: `${notice.title}\n\n${notice.body}${notice.location ? `\n\n${t('notices.location')}: ${notice.location}` : ""}`,
       });
     } catch {
       // user dismissed
@@ -190,15 +195,15 @@ export default function NoticeDetailScreen() {
               <Pressable
                 style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
                 onPress={() => router.back()}
-                accessibilityLabel="Go back"
+                accessibilityLabel={t('notices.goBack')}
               >
-                <Feather name="arrow-left" size={sf(20)} color="#FFFFFF" />
+                <Feather name={arrowBack()} size={sf(20)} color="#FFFFFF" />
               </Pressable>
               {!loading && notice ? (
                 <Pressable
                   style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
                   onPress={onShare}
-                  accessibilityLabel="Share notice"
+                  accessibilityLabel={t('notices.shareNotice')}
                 >
                   <Feather name="share-2" size={sf(18)} color="#FFFFFF" />
                 </Pressable>
@@ -216,7 +221,7 @@ export default function NoticeDetailScreen() {
                 {notice.isEvent ? (
                   <View style={styles.heroTag}>
                     <Feather name="zap" size={sf(10)} color="#FDE68A" />
-                    <Text style={styles.heroTagText}>Community Event</Text>
+                    <Text style={styles.heroTagText}>{t('notices.communityEvent')}</Text>
                   </View>
                 ) : null}
               </View>
@@ -229,25 +234,24 @@ export default function NoticeDetailScreen() {
           {loading ? (
             <View style={styles.loadingWrap}>
               <ActivityIndicator color={Colors.brandPrimaryDeep} size="large" />
-              <Text style={styles.loadingText}>Loading notice...</Text>
+              <Text style={styles.loadingText}>{t('notices.loadingNotice')}</Text>
             </View>
           ) : error ? (
             <View style={styles.errorWrap}>
               <View style={styles.errorIcon}>
                 <Feather name="alert-circle" size={sf(28)} color="#9CA3AF" />
               </View>
-              <Text style={styles.errorTitle}>Something went wrong</Text>
+              <Text style={styles.errorTitle}>{t('notices.somethingWentWrong')}</Text>
               <Text style={styles.errorText}>{error}</Text>
               <Pressable style={({ pressed }) => [styles.retryBtn, pressed && { opacity: 0.9 }]} onPress={load}>
                 <Feather name="refresh-cw" size={sf(14)} color="#FFFFFF" />
-                <Text style={styles.retryText}>Try again</Text>
+                <Text style={styles.retryText}>{t('notices.tryAgain')}</Text>
               </Pressable>
             </View>
           ) : notice ? (
             <>
               <Text style={styles.title}>{notice.title}</Text>
-
-              <View style={styles.metaRow}>
+<View style={styles.metaRow}>
                 <View style={styles.metaChip}>
                   <Feather name="clock" size={sf(12)} color={Colors.brandPrimaryDeep} />
                   <Text style={styles.metaChipText}>{notice.timeLabel}</Text>
@@ -275,7 +279,7 @@ export default function NoticeDetailScreen() {
                   {startTimeLabel ? (
                     <InfoTile
                       icon="clock"
-                      label="Start Time"
+                      label={t('notices.startTime')}
                       value={startTimeLabel}
                       accent={theme.accent}
                       bg={theme.bg}
@@ -284,7 +288,7 @@ export default function NoticeDetailScreen() {
                   {endTimeLabel ? (
                     <InfoTile
                       icon="clock"
-                      label="End Time"
+                      label={t('notices.endTime')}
                       value={endTimeLabel}
                       accent={theme.accent}
                       bg={theme.bg}
@@ -292,7 +296,7 @@ export default function NoticeDetailScreen() {
                   ) : null}
                   <InfoTile
                     icon="map-pin"
-                    label="Location"
+                    label={t('notices.location')}
                     value={notice.location}
                     accent={theme.accent}
                     bg={theme.bg}
@@ -302,12 +306,12 @@ export default function NoticeDetailScreen() {
 
               <View style={styles.divider} />
 
-              <SectionHeader icon="file-text" title="Notice Details" accent={theme.accent} />
+              <SectionHeader icon="file-text" title={t('notices.noticeDetails')} accent={theme.accent} />
               <Text style={styles.body}>{notice.body}</Text>
 
               <View style={styles.divider} />
 
-              <SectionHeader icon="user-check" title="Posted By" accent={theme.accent} />
+              <SectionHeader icon="user-check" title={t('notices.postedBy')} accent={theme.accent} />
               <View style={styles.authorCard}>
                 <View style={[styles.authorAvatarRing, { borderColor: `${theme.accent}40` }]}>
                   <UserAvatar
@@ -319,10 +323,10 @@ export default function NoticeDetailScreen() {
                 </View>
                 <View style={styles.authorBody}>
                   <Text style={styles.authorName}>{notice.authorName}</Text>
-                  <Text style={styles.authorRole}>Community Administration</Text>
+                  <Text style={styles.authorRole}>{t('notices.communityAdministration')}</Text>
                   <View style={styles.verifiedRow}>
                     <Feather name="shield" size={sf(11)} color={Colors.brandPrimaryDeep} />
-                    <Text style={styles.verifiedText}>Official community notice</Text>
+                    <Text style={styles.verifiedText}>{t('notices.officialNotice')}</Text>
                   </View>
                 </View>
               </View>
@@ -334,10 +338,10 @@ export default function NoticeDetailScreen() {
                   </View>
                   <View style={styles.eventBannerText}>
                     <Text style={[styles.eventBannerTitle, { color: theme.text }]}>
-                      Mark your calendar
+                      {t('notices.markYourCalendar')}
                     </Text>
                     <Text style={styles.eventBannerSub}>
-                      {notice.eventSchedule || "See schedule above for event timing."}
+                      {notice.eventSchedule || t('notices.seeScheduleAbove')}
                     </Text>
                   </View>
                 </View>

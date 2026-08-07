@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { MarketplaceType } from "../../../constants/marketplace-type";
 import {
   View,
@@ -29,8 +30,8 @@ import {
 
 const DEAL_PLACEHOLDER = require("../../../assets/images/food-bowl.png");
 
-function BusinessDealCard({ deal, onPress }) {
-  const validText = deal.validUntil ? `Valid until ${deal.validUntil}` : "";
+function BusinessDealCard({ deal, onPress, t }) {
+  const validText = deal.validUntil ? `${t("marketplace.validUntil")} ${deal.validUntil}` : "";
 
   return (
     <TouchableOpacity activeOpacity={0.88} onPress={onPress} style={styles.dealCard}>
@@ -77,6 +78,7 @@ function BusinessDealCard({ deal, onPress }) {
 }
 
 export default function BusinessDealsScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { role, businessId, businessName = "Business" } = useLocalSearchParams();
   const activeRole = role === "admin" || role === "resident" ? role : getCurrentRole();
@@ -89,7 +91,7 @@ export default function BusinessDealsScreen() {
 
   const load = useCallback(async (silent = false) => {
     if (!parsedBusinessId) {
-      setError("Business not found.");
+      setError(t("marketplace.businessNotFound"));
       setLoading(false);
       return;
     }
@@ -131,7 +133,7 @@ export default function BusinessDealsScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <InternalScreenHeader
-        title="Business Deals"
+        title={t("marketplace.businessDeals")}
         subtitle={String(businessName)}
       />
 
@@ -154,8 +156,8 @@ export default function BusinessDealsScreen() {
             <Text style={styles.summaryTitle}>{businessName}</Text>
             <Text style={styles.summaryText}>
               {loading
-                ? "Loading active offers..."
-                : `${deals.length} active deal${deals.length === 1 ? "" : "s"} available`}
+                ? t("marketplace.loadingActiveOffers")
+                : t("marketplace.activeDealsAvailable", { count: deals.length })}
             </Text>
           </View>
         </View>
@@ -169,16 +171,16 @@ export default function BusinessDealsScreen() {
           <GuestFeatureErrorState
             error={error}
             fallbackFeature="marketplace"
-            defaultTitle="Could not load deals"
+            defaultTitle={t("marketplace.couldNotLoadDeals")}
             onRetry={() => load()}
             compact
           />
         ) : deals.length === 0 ? (
           <View style={styles.emptyCard}>
             <Ionicons name="ticket-outline" size={32} color="#9CA3AF" />
-            <Text style={styles.emptyTitle}>No active deals</Text>
+            <Text style={styles.emptyTitle}>{t("marketplace.noActiveDeals")}</Text>
             <Text style={styles.emptyText}>
-              This business has not published any live offers yet.
+              {t("marketplace.noActiveDealsMsg")}
             </Text>
           </View>
         ) : (
@@ -187,6 +189,7 @@ export default function BusinessDealsScreen() {
               <BusinessDealCard
                 key={deal.id}
                 deal={deal}
+                t={t}
                 onPress={() =>
                   router.push({
                     pathname: MarketplaceRoutes.DEAL_DETAILS,

@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import SearchInput from "../ui/search-input";
 import UserAvatar from "../ui/user-avatar";
@@ -29,13 +30,14 @@ const OPEN_MS = 280;
 const CLOSE_MS = 220;
 
 function MemberRow({ member, loading, onPress }) {
+  const { t } = useTranslation();
   const roleLabel =
     member.role === "admin"
-      ? "Community Admin"
+      ? t("roles.communityAdmin")
       : member.role === "moderator"
-        ? "Moderator"
-        : "Community member";
-  const subtitle = member.unit ? `Unit ${member.unit} · ${roleLabel}` : roleLabel;
+        ? t("roles.moderator")
+        : t("common.communityMember");
+  const subtitle = member.unit ? `${t("nav.unit", { number: member.unit })} · ${roleLabel}` : roleLabel;
 
   return (
     <TouchableOpacity
@@ -69,6 +71,7 @@ function MemberRow({ member, loading, onPress }) {
 }
 
 export default function NewChatSheet({ visible, onClose, onStarted }) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(false);
   const [members, setMembers] = useState([]);
@@ -293,8 +296,8 @@ export default function NewChatSheet({ visible, onClose, onStarted }) {
               <Ionicons name="people" size={20} color="#14B8A6" />
             </View>
             <View style={styles.headerCopy}>
-              <Text style={styles.title}>New message</Text>
-              <Text style={styles.subtitle}>Choose a neighbor from your community</Text>
+              <Text style={styles.title}>{t("messages.newMessage")}</Text>
+              <Text style={styles.subtitle}>{t("messages.chooseNeighbor")}</Text>
             </View>
             <Pressable
               style={styles.closeBtn}
@@ -302,7 +305,7 @@ export default function NewChatSheet({ visible, onClose, onStarted }) {
               disabled={Boolean(startingId)}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel="Close"
+              accessibilityLabel={t("common.close")}
             >
               <Ionicons name="close" size={20} color="#64748B" />
             </Pressable>
@@ -312,7 +315,7 @@ export default function NewChatSheet({ visible, onClose, onStarted }) {
             <SearchInput
               value={query}
               onChangeText={setQuery}
-              placeholder="Search by name or unit..."
+              placeholder={t("messages.searchByNameOrUnit")}
               autoFocus={false}
             />
             {searching ? (
@@ -345,7 +348,7 @@ export default function NewChatSheet({ visible, onClose, onStarted }) {
               ListEmptyComponent={
                 <View style={styles.empty}>
                   <Ionicons name="people-outline" size={32} color="#CBD5E1" />
-                  <Text style={styles.emptyTitle}>No members found</Text>
+                  <Text style={styles.emptyTitle}>{t("messages.noMembersFound")}</Text>
                   <Text style={styles.emptyText}>
                     {query.trim()
                       ? "Try a different search term"
@@ -436,7 +439,7 @@ const styles = StyleSheet.create({
   },
   searchingOverlay: {
     position: "absolute",
-    right: 34,
+    end: 34,
     top: 12,
   },
   errorText: {

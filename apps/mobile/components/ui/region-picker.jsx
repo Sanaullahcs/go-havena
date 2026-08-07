@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 
 export default function RegionPicker({
@@ -20,6 +21,7 @@ export default function RegionPicker({
   onSelect,
   onClose,
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -54,16 +56,16 @@ export default function RegionPicker({
       <Pressable style={styles.overlay} onPress={handleClose}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.handle} />
-          <Text style={styles.title}>Select region</Text>
+          <Text style={styles.title}>{t("region.selectRegion")}</Text>
           <Text style={styles.subtitle}>
-            Choose the area where your community is located
+            {t("region.chooseAreaSubtitle")}
           </Text>
 
           <View style={styles.searchRow}>
             <Ionicons name="search" size={18} color="#9CA3AF" />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search regions…"
+              placeholder={t("region.searchRegions")}
               placeholderTextColor="#9CA3AF"
               value={query}
               onChangeText={setQuery}
@@ -80,7 +82,7 @@ export default function RegionPicker({
           {loading ? (
             <View style={styles.loadingWrap}>
               <ActivityIndicator size="small" color="#14B8A6" />
-              <Text style={styles.loadingText}>Loading regions…</Text>
+              <Text style={styles.loadingText}>{t("region.loadingRegions")}</Text>
             </View>
           ) : (
             <FlatList
@@ -91,7 +93,7 @@ export default function RegionPicker({
               ListEmptyComponent={
                 <View style={styles.emptyWrap}>
                   <Ionicons name="map-outline" size={28} color="#C6CBD3" />
-                  <Text style={styles.emptyText}>No regions match your search</Text>
+                  <Text style={styles.emptyText}>{t("region.noRegionsMatch")}</Text>
                 </View>
               }
               renderItem={({ item }) => {
@@ -138,8 +140,8 @@ const styles = StyleSheet.create({
   sheet: {
     maxHeight: "82%",
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopStartRadius: 24,
+    borderTopEndRadius: 24,
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 24,

@@ -6,6 +6,7 @@ import { PropertyHubTheme } from "../../constants/property-management-theme";
 import ApprovalQueueIcon from "./approval-queue-icon";
 import PropertyServiceIcon from "./property-service-icon";
 import { sf, sw } from "../../utils/responsive";
+import { arrowForward } from "../../utils/rtl";
 
 const TONE = {
   success: {
@@ -113,7 +114,7 @@ function ApprovalActivityCard({ item, onPress, isLast }) {
             {item.linkLabel ? (
               <View style={[styles.approvalCta, { backgroundColor: tone.ctaBg }]}>
                 <Text style={styles.approvalCtaText}>{item.linkLabel}</Text>
-                <Feather name="arrow-right" size={sf(12)} color="#FFFFFF" />
+                <Feather name={arrowForward()} size={sf(12)} color="#FFFFFF" />
               </View>
             ) : null}
           </View>
@@ -173,7 +174,7 @@ function StatusActivityCard({ item, onPress, isLast }) {
                 <Text style={[styles.inlineLink, { color: tone.badgeColor }]}>
                   {item.linkLabel}
                 </Text>
-                <Feather name="arrow-right" size={sf(12)} color={tone.badgeColor} />
+                <Feather name={arrowForward()} size={sf(12)} color={tone.badgeColor} />
               </View>
             ) : null}
           </View>
@@ -202,7 +203,7 @@ function AlertActivityCard({ item, onPress, isLast }) {
             {item.linkLabel ? (
               <View style={styles.linkRow}>
                 <Text style={styles.alertLink}>{item.linkLabel}</Text>
-                <Feather name="arrow-right" size={sf(12)} color={PropertyHubTheme.alertLink} />
+                <Feather name={arrowForward()} size={sf(12)} color={PropertyHubTheme.alertLink} />
               </View>
             ) : null}
           </View>
@@ -307,8 +308,8 @@ const styles = StyleSheet.create({
   approvalLead: {
     flex: 1,
     minWidth: 0,
-    marginLeft: sw(10),
-    marginRight: sw(8),
+    marginStart: sw(10),
+    marginEnd: sw(8),
   },
   approvalTitle: {
     fontFamily: Fonts.bold,
@@ -328,7 +329,7 @@ const styles = StyleSheet.create({
     lineHeight: sf(15),
     fontWeight: "500",
     color: PropertyHubTheme.textMuted,
-    marginLeft: sw(5),
+    marginStart: sw(5),
     flex: 1,
   },
   approvalBadge: {
@@ -346,7 +347,7 @@ const styles = StyleSheet.create({
     fontSize: sf(10),
     lineHeight: sf(13),
     fontWeight: "700",
-    marginLeft: sw(4),
+    marginStart: sw(4),
     textTransform: "uppercase",
     letterSpacing: 0.3,
   },
@@ -417,8 +418,8 @@ const styles = StyleSheet.create({
   leadCopy: {
     flex: 1,
     minWidth: 0,
-    marginLeft: sw(10),
-    marginRight: sw(6),
+    marginStart: sw(10),
+    marginEnd: sw(6),
   },
   metaRow: {
     flexDirection: "row",
@@ -438,7 +439,7 @@ const styles = StyleSheet.create({
     fontSize: sf(10),
     lineHeight: sf(13),
     fontWeight: "700",
-    marginLeft: sw(3),
+    marginStart: sw(3),
   },
   activityTitle: {
     fontFamily: Fonts.bold,
@@ -452,7 +453,7 @@ const styles = StyleSheet.create({
     fontSize: sf(10),
     lineHeight: sf(14),
     color: PropertyHubTheme.textMuted,
-    marginLeft: sw(4),
+    marginStart: sw(4),
     flex: 1,
   },
   noteWrap: {
@@ -484,7 +485,7 @@ const styles = StyleSheet.create({
     backgroundColor: PropertyHubTheme.pendingBadgeBg,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: sw(10),
+    marginEnd: sw(10),
   },
   alertCopy: {
     flex: 1,
@@ -515,7 +516,7 @@ const styles = StyleSheet.create({
     fontSize: sf(11),
     lineHeight: sf(14),
     fontWeight: "700",
-    marginRight: sw(3),
+    marginEnd: sw(3),
   },
   alertLink: {
     fontFamily: Fonts.bold,
@@ -523,6 +524,6 @@ const styles = StyleSheet.create({
     lineHeight: sf(14),
     fontWeight: "700",
     color: PropertyHubTheme.alertLink,
-    marginRight: sw(3),
+    marginEnd: sw(3),
   },
 });

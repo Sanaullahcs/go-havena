@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { MarketplaceType } from "../../../constants/marketplace-type";
 import {
   View,
@@ -22,6 +23,7 @@ import { MarketplaceTheme } from "../../../constants/marketplace-theme";
 import { MARKETPLACE_FEATURES } from "../../../constants/marketplace-features";
 
 export default function MyCoupons() {
+  const { t } = useTranslation();
   const router = useRouter();
   const activeRole = "resident";
 
@@ -45,18 +47,18 @@ export default function MyCoupons() {
   const activeCoupons = [
     {
       id: 1,
-      title: "First week free trial",
+      title: t("deals.seedFreeTrialTitle"),
       vendor: "Zenith Fitness",
-      validText: "Valid until Feb 28, 2026",
-      tag: "FREE TRIAL",
+      validText: t("deals.couponValidUntil", { date: "Feb 28, 2026" }),
+      tag: t("deals.seedFreeTrialTag"),
       image: require("../../../assets/images/free-trial.svg"),
     },
     {
       id: 2,
-      title: "30% off massage",
+      title: t("deals.seedMassageTitle"),
       vendor: "Serenity Spa",
-      validText: "Valid until Feb 25, 2026",
-      tag: "30% OFF",
+      validText: t("deals.couponValidUntil", { date: "Feb 25, 2026" }),
+      tag: t("deals.seedMassageTag"),
       image: require("../../../assets/images/message-image.svg"),
     },
   ];
@@ -64,23 +66,23 @@ export default function MyCoupons() {
   const usedCoupons = [
     {
       id: 3,
-      title: "20% off all burgers",
+      title: t("deals.seedBurgerTitle"),
       vendor: "Joe's Burger Bar",
-      validText: "Used Feb 10, 2026",
-      tag: "20% OFF",
+      validText: t("deals.usedOn", { date: "Feb 10, 2026" }),
+      tag: t("deals.seedBurgerTag"),
       image: require("../../../assets/images/use-coupons.svg"),
     },
   ];
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
-      <InternalScreenHeader title="My Coupons" subtitle="2 active offers" />
+      <InternalScreenHeader title={t("deals.myCoupons")} subtitle={t("deals.activeOffersCount", { count: 2 })} />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        <Text style={styles.sectionTitle}>Active Coupons</Text>
+        <Text style={styles.sectionTitle}>{t("deals.activeCoupons")}</Text>
 
         <View style={styles.sectionList}>
           {activeCoupons.map((coupon) => (
@@ -105,7 +107,7 @@ export default function MyCoupons() {
                       source={require("../../../assets/images/active-coupon.png")}
                       style={{ width: 12, height: 12 }}
                     />
-                    <Text style={styles.activeBadgeText}>Active</Text>
+                    <Text style={styles.activeBadgeText}>{t("deals.active")}</Text>
                   </View>
                 </View>
 
@@ -129,7 +131,7 @@ export default function MyCoupons() {
           ))}
         </View>
 
-        <Text style={styles.sectionTitleUsed}>Used Coupons</Text>
+        <Text style={styles.sectionTitleUsed}>{t("deals.usedCoupons")}</Text>
 
         <View style={styles.sectionList}>
           {usedCoupons.map((coupon) => (
@@ -146,7 +148,7 @@ export default function MyCoupons() {
                     {coupon.title}
                   </Text>
                   <View style={styles.usedBadge}>
-                    <Text style={styles.usedBadgeText}>Used</Text>
+                    <Text style={styles.usedBadgeText}>{t("deals.used")}</Text>
                   </View>
                 </View>
 

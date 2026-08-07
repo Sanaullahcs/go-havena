@@ -53,7 +53,11 @@ export function amenityFacilityParams(amenity) {
   return {
     id: String(amenity.id ?? ""),
     name: amenity.name ?? "",
+    nameEs: amenity.name_es ?? "",
+    nameAr: amenity.name_ar ?? "",
     description: amenity.description ?? "",
+    descriptionEs: amenity.description_es ?? "",
+    descriptionAr: amenity.description_ar ?? "",
     capacity: amenity.capacity != null ? String(amenity.capacity) : "",
     floor: amenity.floor ?? "",
     hours: amenity.hours ?? "",

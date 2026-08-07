@@ -1,11 +1,13 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { getWellnessCategoryMeta, WellnessTheme } from "../../constants/wellness-theme";
 import WellnessCategoryIcon from "./wellness-category-icon";
 import WellnessProgressBar from "./wellness-progress-bar";
 import { sf, sw } from "../../utils/responsive";
+import { chevronForward } from "../../utils/rtl";
 
 /** Separate course card — white surface, rounded border, chevron aligned right. */
 export default function WellnessCourseCard({
@@ -16,13 +18,14 @@ export default function WellnessCourseCard({
   progressPercent = 0,
   onPress,
 }) {
+  const { t } = useTranslation();
   const meta = getWellnessCategoryMeta(categoryKey);
   const progress = Math.min(100, Math.max(0, progressPercent));
   const done = progress >= 100;
 
   const metaParts = [];
-  if (lessonCount > 0) metaParts.push(`${lessonCount} lessons`);
-  if (durationMin > 0) metaParts.push(`${durationMin} min`);
+  if (lessonCount > 0) metaParts.push(t("wellness.lessonCount", { count: lessonCount }));
+  if (durationMin > 0) metaParts.push(t("wellness.minDuration", { minutes: durationMin }));
 
   return (
     <View style={[styles.card, { borderColor: WellnessTheme.border }]}>
@@ -39,7 +42,7 @@ export default function WellnessCourseCard({
               {title}
             </Text>
             <Text style={[styles.percent, { color: meta.color }]}>
-              {done ? "Done" : `${progress}%`}
+              {done ? t("common.done") : `${progress}%`}
             </Text>
           </View>
 
@@ -58,7 +61,7 @@ export default function WellnessCourseCard({
         </View>
 
         <View style={styles.chevronSlot}>
-          <Feather name="chevron-right" size={sf(18)} color="#94A3B8" />
+          <Feather name={chevronForward()} size={sf(18)} color="#94A3B8" />
         </View>
       </TouchableOpacity>
     </View>
@@ -83,8 +86,8 @@ const styles = StyleSheet.create({
   copy: {
     flex: 1,
     minWidth: 0,
-    marginLeft: sw(12),
-    marginRight: sw(8),
+    marginStart: sw(12),
+    marginEnd: sw(8),
   },
   titleRow: {
     flexDirection: "row",
@@ -98,7 +101,7 @@ const styles = StyleSheet.create({
     lineHeight: sf(18),
     fontWeight: "600",
     color: WellnessTheme.text,
-    marginRight: sw(8),
+    marginEnd: sw(8),
   },
   percent: {
     fontFamily: Fonts.bold,

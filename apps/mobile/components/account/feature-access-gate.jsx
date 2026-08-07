@@ -1,5 +1,6 @@
 import React from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { useTranslation } from "react-i18next";
 import GuestFeatureErrorState from "../guest/guest-permission-denied-state";
 import { isFeatureAccessBlockedError } from "../../utils/guest-permission-errors";
 
@@ -12,15 +13,17 @@ export default function FeatureAccessGate({
   loading = false,
   onRetry,
   compact = false,
-  defaultTitle = "Could not load content",
+  defaultTitle,
   children,
 }) {
+  const { t } = useTranslation();
+  const resolvedTitle = defaultTitle ?? t("common.couldNotLoad");
   if (error && isFeatureAccessBlockedError(error)) {
     return (
       <GuestFeatureErrorState
         error={error}
         fallbackFeature={feature}
-        defaultTitle={defaultTitle}
+        defaultTitle={resolvedTitle}
         onRetry={onRetry}
         compact={compact}
       />

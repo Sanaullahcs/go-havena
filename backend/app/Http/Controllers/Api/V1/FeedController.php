@@ -122,6 +122,8 @@ class FeedController extends Controller
         $request->validate([
             'body'       => 'required_without:content|string|max:2000',
             'content'    => 'required_without:body|string|max:2000',
+            'body_es'    => 'nullable|string|max:2000',
+            'body_ar'    => 'nullable|string|max:2000',
             'category'   => 'nullable|in:general,event,update,help,announcement',
             'image_url'  => 'nullable|string|max:512',
         ]);
@@ -139,6 +141,8 @@ class FeedController extends Controller
             'community_id'   => $communityId,
             'user_id'        => $user->id,
             'body'           => $body,
+            'body_es'        => $request->input('body_es'),
+            'body_ar'        => $request->input('body_ar'),
             'category'       => $request->category ?? 'general',
             'image_url'      => MediaUrl::normalize($request->image_url),
             'status'         => 'approved',
@@ -223,6 +227,8 @@ class FeedController extends Controller
         $request->validate([
             'body'         => 'sometimes|required_without:content|string|max:2000',
             'content'      => 'sometimes|required_without:body|string|max:2000',
+            'body_es'      => 'nullable|string|max:2000',
+            'body_ar'      => 'nullable|string|max:2000',
             'category'     => 'nullable|in:general,event,update,help,announcement',
             'image_url'    => 'nullable|string|max:512',
             'remove_image' => 'nullable|boolean',
@@ -243,6 +249,13 @@ class FeedController extends Controller
 
         if ($request->has('body') || $request->has('content')) {
             $data['body'] = $request->input('body') ?? $request->input('content');
+        }
+
+        if ($request->has('body_es')) {
+            $data['body_es'] = $request->input('body_es');
+        }
+        if ($request->has('body_ar')) {
+            $data['body_ar'] = $request->input('body_ar');
         }
 
         if ($request->has('category')) {
@@ -1176,6 +1189,8 @@ class FeedController extends Controller
             'community_name' => $post->community_name ?? null,
             'user_id'        => (int) $post->user_id,
             'body'           => $body,
+            'body_es'        => $maskSensitive ? null : ($post->body_es ?? null),
+            'body_ar'        => $maskSensitive ? null : ($post->body_ar ?? null),
             'content'        => $body,
             'category'       => $post->category,
             'status'         => $post->status ?? 'approved',

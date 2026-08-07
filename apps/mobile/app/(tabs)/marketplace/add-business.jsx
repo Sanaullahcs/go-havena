@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { MarketplaceType } from "../../../constants/marketplace-type";
 import {
   View,
@@ -36,6 +37,7 @@ import { isValidPhone } from "../../../utils/phone";
 import { validateBusinessForm, LIMITS, hasFieldErrors } from "../../../utils/form-validation";
 
 export default function AddBusinessScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { editId } = useLocalSearchParams();
   const businessId = editId ? Number(editId) : null;
@@ -106,14 +108,13 @@ export default function AddBusinessScreen() {
         setBusiness(data.name ?? "");
         setCategory(data.category ?? "");
         setAddress(data.address ?? "");
-        // phone stored as plain string in API — load into digits field
         setPhoneDigits(data.phone ?? "");
         setPhoneE164(data.phone ?? "");
         setHours(data.hours ?? "");
         setDescription(data.description ?? "");
         setAmenities(data.amenities ?? "");
       } catch (err) {
-        if (!cancelled) await showFailure("Could not load business", err);
+        if (!cancelled) await showFailure(t("marketplace.couldNotLoadBusiness"), err);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -138,7 +139,6 @@ export default function AddBusinessScreen() {
     if (submitting) return;
     if (!validateOnSubmit(liveErrors)) return;
 
-    // Store E.164 or national digits — backend accepts either
     const phoneValue = phoneE164 || phoneDigits;
 
     const payload = {
@@ -157,11 +157,11 @@ export default function AddBusinessScreen() {
           isEdit
             ? updateBusiness(businessId, payload)
             : publishBusinessWithImage(selectedFile, payload),
-        successTitle: isEdit ? "Business updated" : "Business submitted",
+        successTitle: isEdit ? t("marketplace.businessUpdated") : t("marketplace.businessSubmitted"),
         successMessage: isEdit
-          ? "Your business details were saved."
-          : "Your business will appear after admin approval.",
-        errorTitle: isEdit ? "Update failed" : "Could not add business",
+          ? t("marketplace.businessDetailsSaved")
+          : t("marketplace.businessAfterApproval"),
+        errorTitle: isEdit ? t("marketplace.updateFailed") : t("marketplace.couldNotAddBusiness"),
         onSuccess: () => router.back(),
       });
     });
@@ -170,7 +170,7 @@ export default function AddBusinessScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={["left", "right"]}>
-        <InternalScreenHeader title={isEdit ? "Edit Business" : "Add Business"} subtitle="Loading…" />
+        <InternalScreenHeader title={isEdit ? t("marketplace.editBusiness") : t("marketplace.addBusiness")} subtitle={t("common.loading")} />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <ActivityIndicator size="large" color="#0A2A43" />
         </View>
@@ -181,20 +181,20 @@ export default function AddBusinessScreen() {
   if (editForbidden) {
     return (
       <SafeAreaView style={styles.container} edges={["left", "right"]}>
-        <InternalScreenHeader title="Business Profile" subtitle="View only" />
+        <InternalScreenHeader title={t("marketplace.businessProfile")} subtitle={t("marketplace.viewOnly")} />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 }}>
           <Text style={{ fontFamily: Fonts.bold, fontSize: 18, textAlign: "center", color: "#111827" }}>
-            You cannot edit this business
+            {t("marketplace.cannotEditBusiness")}
           </Text>
           <Text style={{ marginTop: 8, fontFamily: Fonts.regular, fontSize: 14, textAlign: "center", color: "#6B7280", lineHeight: 20 }}>
-            Admins can approve, reject, re-approve, or delete resident businesses from the business list.
+            {t("marketplace.adminEditHint")}
           </Text>
           <TouchableOpacity
             activeOpacity={0.85}
             style={{ marginTop: 20, backgroundColor: "#0A2A43", borderRadius: 12, paddingHorizontal: 18, paddingVertical: 12 }}
             onPress={() => router.back()}
           >
-            <Text style={{ color: "#FFFFFF", fontFamily: Fonts.bold }}>Go back</Text>
+            <Text style={{ color: "#FFFFFF", fontFamily: Fonts.bold }}>{t("marketplace.goBack")}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -204,8 +204,8 @@ export default function AddBusinessScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <InternalScreenHeader
-        title={isEdit ? "Edit Business" : "Add Business"}
-        subtitle={isEdit ? "Update your business details" : "Add a new local business to the marketplace"}
+        title={isEdit ? t("marketplace.editBusiness") : t("marketplace.addBusiness")}
+        subtitle={isEdit ? t("marketplace.updateBusinessSubtitle") : t("marketplace.addBusinessSubtitle")}
       />
 
       <KeyboardSafeScreen
@@ -222,12 +222,12 @@ export default function AddBusinessScreen() {
             disabled={!canSubmit || submitting}
           >
             <Text style={styles.createButtonText}>
-              {submitting ? "Saving..." : isEdit ? "Save Business" : "Add Business"}
+              {submitting ? t("marketplace.saving") : isEdit ? t("marketplace.saveBusiness") : t("marketplace.addBusiness")}
             </Text>
           </TouchableOpacity>
         }
       >
-        <Text style={styles.label}>Business Photo</Text>
+        <Text style={styles.label}>{t("marketplace.businessPhoto")}</Text>
         <TouchableOpacity
           activeOpacity={0.85}
           style={styles.uploadBox}
@@ -235,8 +235,8 @@ export default function AddBusinessScreen() {
             pickImage(setSelectedFile, {
               allowCamera: true,
               allowFile: true,
-              promptTitle: "Business photo",
-              promptMessage: "Choose Camera, Gallery, or File",
+              promptTitle: t("marketplace.businessPhotoPrompt"),
+              promptMessage: t("marketplace.businessPhotoPromptMsg"),
             })
           }
         >
@@ -252,31 +252,31 @@ export default function AddBusinessScreen() {
                 source={require("../../../assets/images/download-image-icon.png")}
                 style={{ width: 32, height: 32 }}
               />
-              <Text style={styles.uploadText}>Upload image</Text>
-              <Text style={styles.uploadHint}>Camera · Gallery · File</Text>
+              <Text style={styles.uploadText}>{t("marketplace.uploadImage")}</Text>
+              <Text style={styles.uploadHint}>{t("marketplace.cameraGalleryFile")}</Text>
             </>
           )}
         </TouchableOpacity>
 
         <Text style={[styles.label, styles.sectionTop]}>
-          Business Name <Text style={styles.required}>*</Text>
+          {t("marketplace.businessName")} <Text style={styles.required}>*</Text>
         </Text>
         <TextInput
           value={business}
-          onChangeText={(t) => { setBusiness(t); touch("business"); clearError("business"); }}
-          placeholder="e.g., The Daily Grind"
+          onChangeText={(v) => { setBusiness(v); touch("business"); clearError("business"); }}
+          placeholder={t("marketplace.placeholderBusinessName")}
           placeholderTextColor="rgba(153, 161, 175, 1)"
           style={[styles.input, showError("business", liveErrors) && styles.inputError]}
         />
         {showError("business", liveErrors) ? <Text style={styles.errorText}>{showError("business", liveErrors)}</Text> : null}
 
         <Text style={[styles.label, styles.sectionTop]}>
-          Category <Text style={styles.required}>*</Text>
+          {t("marketplace.category")} <Text style={styles.required}>*</Text>
         </Text>
         <TextInput
           value={category}
-          onChangeText={(t) => { setCategory(t); touch("category"); clearError("category"); }}
-          placeholder="e.g. Coffee Shop, Fitness, Restaurant"
+          onChangeText={(v) => { setCategory(v); touch("category"); clearError("category"); }}
+          placeholder={t("marketplace.placeholderCategory")}
           placeholderTextColor="rgba(153, 161, 175, 1)"
           style={[styles.input, showError("category", liveErrors) && styles.inputError]}
         />
@@ -294,20 +294,20 @@ export default function AddBusinessScreen() {
             style={{ width: 16, height: 16 }}
           />
           <Text style={styles.label}>
-            Address <Text style={styles.required}>*</Text>
+            {t("marketplace.address")} <Text style={styles.required}>*</Text>
           </Text>
         </View>
         <TextInput
           value={address}
-          onChangeText={(t) => { setAddress(t); touch("address"); clearError("address"); }}
-          placeholder="123 Main Street, Miami, FL 33101"
+          onChangeText={(v) => { setAddress(v); touch("address"); clearError("address"); }}
+          placeholder={t("marketplace.placeholderAddress")}
           placeholderTextColor="rgba(153, 161, 175, 1)"
           style={[styles.input, showError("address", liveErrors) && styles.inputError]}
         />
         {showError("address", liveErrors) ? <Text style={styles.errorText}>{showError("address", liveErrors)}</Text> : null}
 
         <Text style={[styles.label, styles.sectionTop]}>
-          Phone Number <Text style={styles.required}>*</Text>
+          {t("marketplace.phoneNumber")} <Text style={styles.required}>*</Text>
         </Text>
         <BusinessPhoneInput
           value={phoneDigits}
@@ -324,7 +324,7 @@ export default function AddBusinessScreen() {
         {showError("phone", liveErrors) ? <Text style={styles.errorText}>{showError("phone", liveErrors)}</Text> : null}
 
         <Text style={[styles.label, styles.sectionTop]}>
-          Business Hours <Text style={styles.required}>*</Text>
+          {t("marketplace.businessHours")} <Text style={styles.required}>*</Text>
         </Text>
         <BusinessHoursInput
           value={hours}
@@ -338,16 +338,16 @@ export default function AddBusinessScreen() {
           }}
         >
           <Text style={[styles.label, styles.sectionTop]}>
-            Description <Text style={styles.required}>*</Text>
+            {t("marketplace.description")} <Text style={styles.required}>*</Text>
           </Text>
           <TextInput
             value={description}
-            onChangeText={(t) => {
-              setDescription(t);
+            onChangeText={(v) => {
+              setDescription(v);
               touch("description");
               clearError("description");
             }}
-            placeholder="Tell customers about your business..."
+            placeholder={t("marketplace.placeholderDescription")}
             placeholderTextColor="rgba(153, 161, 175, 1)"
             style={[styles.textArea, showError("description", liveErrors) && styles.inputError]}
             multiline
@@ -364,15 +364,14 @@ export default function AddBusinessScreen() {
         </View>
 
         <Text style={[styles.label, styles.sectionTop]}>
-          Amenities (comma separated)
+          {t("marketplace.amenitiesCsv")}
         </Text>
         <TextInput
           value={amenities}
           onChangeText={setAmenities}
-          placeholder="WiFi, Outdoor Seating, Takeout, Pet Friendly"
+          placeholder={t("marketplace.placeholderAmenities")}
           placeholderTextColor="rgba(153, 161, 175, 1)"
           style={styles.input}
-          // Last field: scroll to end so it sits just above the CTA (no dead gap).
           onFocus={() => scrollFieldIntoView()}
         />
       </KeyboardSafeScreen>
