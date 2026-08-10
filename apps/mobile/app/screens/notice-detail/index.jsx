@@ -19,7 +19,7 @@ import { Colors, Layout, Shadows } from "../../../constants/tokens";
 import { fetchNotice, getCategoryTheme, formatDisplayTime12h } from "../../../services/notices-api";
 import { sw, sf, hp } from "../../../utils/responsive";
 import { useTranslation } from 'react-i18next';
-import i18n from "../../../i18n";
+import i18n, { localizedField } from "../../../i18n";
 import { getLocaleForLang } from "../../../hooks/use-app-locale";
 import { arrowBack } from "../../../utils/rtl";
 
@@ -156,9 +156,11 @@ export default function NoticeDetailScreen() {
   const onShare = useCallback(async () => {
     if (!notice) return;
     try {
+      const shareTitle = localizedField(notice, "title") || notice.title;
+      const shareBody = localizedField(notice, "body") || notice.body;
       await Share.share({
-        title: notice.title,
-        message: `${notice.title}\n\n${notice.body}${notice.location ? `\n\n${t('notices.location')}: ${notice.location}` : ""}`,
+        title: shareTitle,
+        message: `${shareTitle}\n\n${shareBody}${notice.location ? `\n\n${t('notices.location')}: ${notice.location}` : ""}`,
       });
     } catch {
       // user dismissed
@@ -216,7 +218,7 @@ export default function NoticeDetailScreen() {
               <View style={styles.heroBottom}>
                 <View style={[styles.heroBadge, { backgroundColor: `${theme.accent}33`, borderColor: `${theme.accent}55` }]}>
                   <Feather name={theme.icon} size={sf(11)} color="#FFFFFF" />
-                  <Text style={styles.heroBadgeText}>{theme.label}</Text>
+                  <Text style={styles.heroBadgeText}>{t(`categories.${notice.category ?? "general"}`, { defaultValue: theme.label })}</Text>
                 </View>
                 {notice.isEvent ? (
                   <View style={styles.heroTag}>
@@ -250,7 +252,7 @@ export default function NoticeDetailScreen() {
             </View>
           ) : notice ? (
             <>
-              <Text style={styles.title}>{notice.title}</Text>
+              <Text style={styles.title}>{localizedField(notice, "title") || notice.title}</Text>
 <View style={styles.metaRow}>
                 <View style={styles.metaChip}>
                   <Feather name="clock" size={sf(12)} color={Colors.brandPrimaryDeep} />
@@ -307,7 +309,7 @@ export default function NoticeDetailScreen() {
               <View style={styles.divider} />
 
               <SectionHeader icon="file-text" title={t('notices.noticeDetails')} accent={theme.accent} />
-              <Text style={styles.body}>{notice.body}</Text>
+              <Text style={styles.body}>{localizedField(notice, "body") || notice.body}</Text>
 
               <View style={styles.divider} />
 

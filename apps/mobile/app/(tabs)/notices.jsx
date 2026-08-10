@@ -33,6 +33,7 @@ import { resolveGuestFeatureError, isFeatureAccessBlockedError } from "../../uti
 import GuestFeatureErrorState from "../../components/guest/guest-permission-denied-state";
 import { resolveLoadRestriction } from "../../utils/account-access-sync";
 import { useTranslation } from "react-i18next";
+import { localizedField } from "../../i18n";
 
 const TABS = [
   { id: "all", labelKey: "notices.tabAll" },
@@ -178,7 +179,7 @@ export default function Notifications() {
       const isSaved = savedIds.includes(Number(notice.id));
       const rsvpLabel = isEventNotice(notice) ? formatEventRsvpLabel(notice) : null;
       const cardDate = formatCardDate(notice);
-      const categoryLabel = notice.categoryLabel || notice.theme?.label || t("notices.notice");
+      const categoryLabel = t(`categories.${notice.category ?? "general"}`, { defaultValue: notice.categoryLabel || notice.theme?.label || t("notices.notice") });
 
       return (
         <TouchableOpacity
@@ -221,11 +222,11 @@ export default function Notifications() {
               </View>
 
               <Text style={styles.cardTitle} numberOfLines={2}>
-                {notice.title}
+                {localizedField(notice, "title") || notice.title}
               </Text>
-              {notice.body ? (
+              {(localizedField(notice, "body") || notice.body) ? (
                 <Text style={styles.cardDescription} numberOfLines={2}>
-                  {notice.body}
+                  {localizedField(notice, "body") || notice.body}
                 </Text>
               ) : null}
 

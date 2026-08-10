@@ -28,6 +28,7 @@ import {
 import { MARKETPLACE_FEATURES } from "../../../constants/marketplace-features";
 import { MarketplaceTheme, marketplaceSharedStyles } from "../../../constants/marketplace-theme";
 import { DealsOfferSkeleton } from "../../../components/ui/skeleton-loader";
+import { localizedField } from "../../../i18n";
 
 const DEAL_PLACEHOLDER = require("../../../assets/images/food-bowl.png");
 
@@ -328,18 +329,18 @@ export default function DealsOffer({ embedded = false }) {
                     },
                   ]}
                 >
-                  <Text style={styles.offerTagText}>{deal.offerTag}</Text>
+                  <Text style={styles.offerTagText}>{localizedField(deal, "offerTag") || deal.offerTag}</Text>
                 </View>
               </View>
 
               <View style={styles.cardBody}>
-                <Text style={styles.cardTitle}>{deal.title}</Text>
+                <Text style={styles.cardTitle}>{localizedField(deal, "title") || deal.title}</Text>
                 {deal.vendor ? (
                   <Text style={styles.vendorText}>{t("deals.byVendor", { vendor: deal.vendor })}</Text>
                 ) : null}
-                {deal.description ? (
+                {(localizedField(deal, "description") || deal.description) ? (
                   <Text style={styles.descriptionText} numberOfLines={2}>
-                    {deal.description}
+                    {localizedField(deal, "description") || deal.description}
                   </Text>
                 ) : null}
 

@@ -35,7 +35,7 @@ import { startConversation } from "../../../services/messages-api";
 import { getUser, getToken } from "../../../services/auth-session";
 import { getApiErrorMessage, getApiErrorCode } from "../../../utils/auth-errors";
 import { useTranslation } from 'react-i18next';
-import i18n from "../../../i18n";
+import i18n, { localizedField } from "../../../i18n";
 import { getLocaleForLang } from "../../../hooks/use-app-locale";
 
 function formatEventDateLabel(dateStr, t) {
@@ -363,16 +363,18 @@ export default function EventDetailScreen() {
     const dateLabel = formatEventDateLabel(event.eventDate, t);
     const timeRange = formatEventTimeRange(event);
     const schedule = [dateLabel, timeRange].filter(Boolean).join(" · ");
+    const evTitle = localizedField(event, "title") || event.title;
+    const evBody = localizedField(event, "body") || event.body;
     const lines = [
-      event.title,
+      evTitle,
       schedule || null,
       event.location?.trim() ? `${t('events.location')}: ${event.location.trim()}` : null,
-      event.body?.trim() || null,
+      evBody?.trim() || null,
     ].filter(Boolean);
 
     try {
       await Share.share({
-        title: event.title,
+        title: evTitle,
         message: lines.join("\n\n"),
       });
     } catch {
@@ -473,7 +475,7 @@ export default function EventDetailScreen() {
         </Pressable>
 
         <View style={styles.upcomingEvent}>
-          <Text style={styles.eventTitle}>{event.title}</Text>
+          <Text style={styles.eventTitle}>{localizedField(event, "title") || event.title}</Text>
 </View>
 
         {scheduleItems.length > 0 ? (
@@ -647,10 +649,10 @@ export default function EventDetailScreen() {
           </View>
         </View>
 
-        {event.body ? (
+        {(localizedField(event, "body") || event.body) ? (
           <View style={styles.section}>
             <Text style={styles.attendeeTitle}>{t('events.aboutThisEvent')}</Text>
-            <Text style={styles.eventDescription}>{event.body}</Text>
+            <Text style={styles.eventDescription}>{localizedField(event, "body") || event.body}</Text>
           </View>
         ) : null}
 

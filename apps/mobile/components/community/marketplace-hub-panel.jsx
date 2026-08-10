@@ -40,6 +40,7 @@ import { MARKETPLACE_FEATURES } from "../../constants/marketplace-features";
 import GuestFeatureErrorState from "../guest/guest-permission-denied-state";
 import { isFeatureAccessBlockedError } from "../../utils/guest-permission-errors";
 import { resolveLoadRestriction } from "../../utils/account-access-sync";
+import { localizedField } from "../../i18n";
 
 const DEAL_PLACEHOLDER = require("../../assets/images/food-new.png");
 const BIZ_PLACEHOLDER = require("../../assets/images/ok-resturant.png");
@@ -125,10 +126,10 @@ function SectionLoader() {
 
 function FeaturedDealCard({ deal, variantIndex, isLast, onPress, t }) {
   const palette = DEAL_PALETTES[variantIndex % DEAL_PALETTES.length];
-  const offerTag = deal.offerTag ?? deal.discount_label ?? "";
+  const offerTag = localizedField(deal, "offerTag") || deal.offerTag || deal.discount_label || "";
   const distanceText = formatDealDistance(deal, t);
   const validText = formatDealValidLabel(deal.endsAt, deal.validUntil, t);
-  const displayTitle = deal.vendor || deal.title;
+  const displayTitle = deal.vendor || localizedField(deal, "title") || deal.title;
 
   return (
     <TouchableOpacity activeOpacity={0.88} onPress={onPress} style={!isLast && styles.dealCardSpacing}>
@@ -158,9 +159,9 @@ function FeaturedDealCard({ deal, variantIndex, isLast, onPress, t }) {
             <Text style={styles.dealTitle} numberOfLines={1}>
               {displayTitle}
             </Text>
-            {deal.description ? (
+            {(localizedField(deal, "description") || deal.description) ? (
               <Text style={styles.dealDescription} numberOfLines={2}>
-                {deal.description}
+                {localizedField(deal, "description") || deal.description}
               </Text>
             ) : null}
             {distanceText || validText ? (

@@ -27,6 +27,7 @@ import {
   dealDetailsParams,
   withMarketplaceRole,
 } from "../../../constants/marketplace-routes";
+import { localizedField } from "../../../i18n";
 
 const DEAL_PLACEHOLDER = require("../../../assets/images/food-bowl.png");
 
@@ -47,20 +48,20 @@ function BusinessDealCard({ deal, onPress, t }) {
       <View style={styles.dealBody}>
         <View style={styles.dealTitleRow}>
           <Text style={styles.dealTitle} numberOfLines={2}>
-            {deal.title}
+            {localizedField(deal, "title") || deal.title}
           </Text>
-          {deal.offerTag ? (
+          {(localizedField(deal, "offerTag") || deal.offerTag) ? (
             <View style={styles.offerPill}>
               <Text style={styles.offerPillText} numberOfLines={1}>
-                {deal.offerTag}
+                {localizedField(deal, "offerTag") || deal.offerTag}
               </Text>
             </View>
           ) : null}
         </View>
 
-        {deal.description ? (
+        {(localizedField(deal, "description") || deal.description) ? (
           <Text style={styles.dealDescription} numberOfLines={2}>
-            {deal.description}
+            {localizedField(deal, "description") || deal.description}
           </Text>
         ) : null}
 

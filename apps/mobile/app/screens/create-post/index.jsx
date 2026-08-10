@@ -34,7 +34,8 @@ import GuestFeatureErrorState from "../../../components/guest/guest-permission-d
 import { isFeatureAccessBlockedError } from "../../../utils/guest-permission-errors";
 import { resolveLoadRestriction } from "../../../utils/account-access-sync";
 import { useLanguage } from "../../../providers/language-provider";
-import { SUPPORTED } from "../../../i18n";
+import { useInputLocale } from "../../../hooks/use-input-locale";
+import { setNativeAppLocale } from "../../../utils/native-app-locale";
 
 const TYPE_ICONS = {
   Recommendations: "star",
@@ -63,15 +64,10 @@ const FEELINGS = [
 
 const VALID_CATEGORIES = new Set(["general", "event", "help", "update", "announcement"]);
 
-const POST_LANG_OPTIONS = [
-  { code: "en", flag: "🇺🇸" },
-  { code: "es", flag: "🇪🇸" },
-  { code: "ar", flag: "🇸🇦" },
-];
-
 export default function CreatePost() {
   const router = useRouter();
   const { t } = useTranslation();
+  const inputLocale = useInputLocale();
   const { category: categoryParam, postId: postIdParam } = useLocalSearchParams();
   const editPostId = postIdParam ? String(Array.isArray(postIdParam) ? postIdParam[0] : postIdParam) : null;
   const isEditing = Boolean(editPostId);
@@ -81,7 +77,6 @@ export default function CreatePost() {
   const { language: appLanguage } = useLanguage();
   const { submitting, run } = useSubmitLock();
   const { showFailure } = useApiAction();
-  const [postLanguage, setPostLanguage] = useState(appLanguage);
   const [postText, setPostText] = useState("");
   const [showDone, setShowDone] = useState(false);
   const [successModal, setSuccessModal] = useState(false);
@@ -100,7 +95,9 @@ export default function CreatePost() {
   useFocusEffect(
     useCallback(() => {
       resolveLoadRestriction("feed").then(setRestrictionError);
-    }, []),
+      // Keep OS keyboard locale in sync with the active app language.
+      setNativeAppLocale(appLanguage);
+    }, [appLanguage]),
   );
 
   useEffect(() => {
@@ -269,7 +266,7 @@ export default function CreatePost() {
         const { message } = await updatePost(editPostId, {
           content,
           category: selectedCategory,
-          language: postLanguage,
+          language: appLanguage,
           imageUrl,
           removeImage,
         });
@@ -278,7 +275,7 @@ export default function CreatePost() {
         const { message } = await createPost({
           content,
           category: selectedCategory,
-          language: postLanguage,
+          language: appLanguage,
           imageUrl,
         });
         setSuccessMessage(message);
@@ -371,6 +368,7 @@ export default function CreatePost() {
             </View>
 
             <TextInput
+              {...inputLocale}
               placeholder={t("feed.createPost.placeholder")}
               placeholderTextColor={Colors.textMuted}
               multiline
@@ -381,7 +379,7 @@ export default function CreatePost() {
                 setShowDone(text.trim().length > 0 || Boolean(attachedImage));
               }}
               onBlur={() => touch("body")}
-              style={[styles.postInput, showError("body", liveErrors) && styles.inputError]}
+              style={[styles.postInput, showError("body", liveErrors) && styles.inputError, inputLocale.style]}
               maxLength={LIMITS.feedPost}
             />
 
@@ -459,35 +457,6 @@ export default function CreatePost() {
                       ]}
                     >
                       {t(option.labelKey)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-
-          <View style={styles.card}>
-            <Text style={styles.sectionLabel}>{t("feed.createPost.postLanguage")}</Text>
-            <View style={styles.typeChips}>
-              {POST_LANG_OPTIONS.map((opt) => {
-                const selected = postLanguage === opt.code;
-                return (
-                  <Pressable
-                    key={opt.code}
-                    style={[
-                      styles.langChip,
-                      selected && styles.langChipActive,
-                    ]}
-                    onPress={() => setPostLanguage(opt.code)}
-                  >
-                    <Text style={styles.langChipFlag}>{opt.flag}</Text>
-                    <Text
-                      style={[
-                        styles.typeChipText,
-                        { color: selected ? Colors.brandPrimaryDeep : Colors.textBody },
-                      ]}
-                    >
-                      {t(`languages.${opt.code}`)}
                     </Text>
                   </Pressable>
                 );
@@ -748,24 +717,6 @@ const styles = StyleSheet.create({
     lineHeight: sf(14),
   },
 
-  langChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: sw(6),
-    paddingHorizontal: sw(12),
-    paddingVertical: sw(8),
-    borderRadius: sw(999),
-    borderWidth: 1,
-    borderColor: Colors.borderSubtle,
-    backgroundColor: "#FFFFFF",
-  },
-  langChipActive: {
-    borderColor: Colors.brandPrimaryDeep,
-    backgroundColor: "#D1FAF5",
-  },
-  langChipFlag: {
-    fontSize: sf(14),
-  },
   attachRow: {
     flexDirection: "row",
     gap: sw(10),

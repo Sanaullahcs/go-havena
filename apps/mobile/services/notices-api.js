@@ -14,14 +14,16 @@ import { getLocaleForLang } from "../hooks/use-app-locale";
 
 export { isNoticeExpiredForHome, isCarouselNotice };
 
-export const NOTICE_CATEGORIES = [
-  { id: "all", label: "All", category: null, icon: "layers" },
-  { id: "events", label: "Events", category: "event", icon: "calendar" },
-  { id: "alerts", label: "Alerts", category: "emergency", icon: "alert-triangle" },
-  { id: "maintenance", label: "Maintenance", category: "maintenance", icon: "tool" },
-  { id: "security", label: "Security", category: "security", icon: "shield" },
-  { id: "announcements", label: "General", category: "general", icon: "bell" },
-];
+export function getNoticeCategories() {
+  return [
+    { id: "all", label: i18n.t("notices.filterAll"), category: null, icon: "layers" },
+    { id: "events", label: i18n.t("categories.event"), category: "event", icon: "calendar" },
+    { id: "alerts", label: i18n.t("categories.emergency"), category: "emergency", icon: "alert-triangle" },
+    { id: "maintenance", label: i18n.t("categories.maintenance"), category: "maintenance", icon: "tool" },
+    { id: "security", label: i18n.t("categories.security"), category: "security", icon: "shield" },
+    { id: "announcements", label: i18n.t("categories.general"), category: "general", icon: "bell" },
+  ];
+}
 
 /** Categories available on the create-notice form (excludes event & alert). */
 export const NOTICE_FORM_CATEGORIES = [
@@ -201,7 +203,7 @@ export function normalizeNotice(raw) {
     body_es: raw.body_es ?? null,
     body_ar: raw.body_ar ?? null,
     category: raw.category ?? "general",
-    categoryLabel: theme.label,
+    categoryLabel: i18n.t(`categories.${raw.category ?? "general"}`, { defaultValue: theme.label }),
     location: raw.location ?? null,
     imageUrl: resolveNoticeImageUrl(raw.image_url),
     eventDate: raw.event_date ?? null,
@@ -291,17 +293,19 @@ export function formatEventRsvpLabel(notice) {
   const count = notice?.rsvpCount ?? 0;
   const capacity = notice?.eventCapacity;
   const waiting = notice?.waitlistCount ?? 0;
-  const waitingSuffix = waiting > 0 ? ` · ${waiting} waiting` : "";
+  const goingLabel = i18n.t("events.going");
+  const waitingLabel = i18n.t("events.waitingCount", { count: waiting });
+  const fullLabel = i18n.t("events.full");
+  const waitingSuffix = waiting > 0 ? ` · ${waitingLabel}` : "";
 
   if (capacity != null && capacity > 0) {
-    const base = `${count} / ${capacity} going`;
-    return notice?.isFull ? `${base} · Full${waitingSuffix}` : `${base}${waitingSuffix}`;
+    const base = `${count} / ${capacity} ${goingLabel}`;
+    return notice?.isFull ? `${base} · ${fullLabel}${waitingSuffix}` : `${base}${waitingSuffix}`;
   }
 
   if (count <= 0 && waiting <= 0) return null;
-  if (count <= 0) return `${waiting} waiting`;
-  if (count === 1) return `1 going${waitingSuffix}`;
-  return `${count} going${waitingSuffix}`;
+  if (count <= 0) return waitingLabel;
+  return `${count} ${goingLabel}${waitingSuffix}`;
 }
 
 /** "09:00:00" or "09:00" → "9:00 AM" */
@@ -389,13 +393,13 @@ export async function fetchNotices({ category, categoryGroup, search, perPage = 
 export async function fetchNotice(id) {
   const noticeId = resolveNoticeId(id);
   if (!noticeId) {
-    throw new ApiError("Notice not found.", { status: 404, code: "NOTICE_NOT_FOUND" });
+    throw new ApiError(i18n.t("notices.noticeNotFound"), { status: 404, code: "NOTICE_NOT_FOUND" });
   }
 
   const res = await apiRequest(`/notices/${noticeId}`);
   const notice = normalizeNotice(res?.data);
   if (!notice) {
-    throw new ApiError("Notice not found.", { status: 404, code: "NOTICE_NOT_FOUND" });
+    throw new ApiError(i18n.t("notices.noticeNotFound"), { status: 404, code: "NOTICE_NOT_FOUND" });
   }
   return notice;
 }
@@ -403,7 +407,7 @@ export async function fetchNotice(id) {
 export async function joinEvent(noticeId) {
   const id = resolveNoticeId(noticeId);
   if (!id) {
-    throw new ApiError("Event not found.", { status: 404, code: "NOTICE_NOT_FOUND" });
+    throw new ApiError(i18n.t("events.eventNoLongerAvailable"), { status: 404, code: "NOTICE_NOT_FOUND" });
   }
 
   const res = await apiRequest(`/notices/${id}/rsvp`, {
@@ -413,19 +417,19 @@ export async function joinEvent(noticeId) {
 
   const event = normalizeNotice(res?.data);
   if (!event) {
-    throw new ApiError("Could not join this event. Please try again.", {
+    throw new ApiError(i18n.t("events.rsvpError"), {
       status: 500,
       code: "RSVP_INVALID_RESPONSE",
     });
   }
 
-  return { event, message: res?.message ?? "You joined this event" };
+  return { event, message: res?.message ?? i18n.t("events.joinedEvent") };
 }
 
 export async function leaveEvent(noticeId) {
   const id = resolveNoticeId(noticeId);
   if (!id) {
-    throw new ApiError("Event not found.", { status: 404, code: "NOTICE_NOT_FOUND" });
+    throw new ApiError(i18n.t("events.eventNoLongerAvailable"), { status: 404, code: "NOTICE_NOT_FOUND" });
   }
 
   const res = await apiRequest(`/notices/${id}/rsvp`, {
@@ -435,19 +439,19 @@ export async function leaveEvent(noticeId) {
 
   const event = normalizeNotice(res?.data);
   if (!event) {
-    throw new ApiError("Could not update your RSVP. Please try again.", {
+    throw new ApiError(i18n.t("events.couldNotUpdateRsvp"), {
       status: 500,
       code: "RSVP_INVALID_RESPONSE",
     });
   }
 
-  return { event, message: res?.message ?? "You left this event" };
+  return { event, message: res?.message ?? i18n.t("events.leftEvent") };
 }
 
 export async function uploadNoticeImage(uri, assetMeta = {}) {
   const token = await getToken();
   if (!token) {
-    throw new Error("You must be signed in to upload an image.");
+    throw new Error(i18n.t("imagePicker.signInRequired"));
   }
 
   const { mimeType } = guessImageMeta(uri, assetMeta, "notice-cover");
@@ -462,7 +466,7 @@ export async function uploadNoticeImage(uri, assetMeta = {}) {
 
   const imageUrl = resolveMediaUrl(body?.data?.image_url);
   if (!imageUrl) {
-    throw new Error("Image upload failed. Please try again.");
+    throw new Error(i18n.t("imagePicker.uploadFailed"));
   }
 
   return { image_url: imageUrl };
@@ -471,7 +475,7 @@ export async function uploadNoticeImage(uri, assetMeta = {}) {
 export async function uploadResidentEventImage(uri, assetMeta = {}) {
   const token = await getToken();
   if (!token) {
-    throw new Error("You must be signed in to upload an image.");
+    throw new Error(i18n.t("imagePicker.signInRequired"));
   }
 
   const { mimeType } = guessImageMeta(uri, assetMeta, "event-cover");
@@ -486,7 +490,7 @@ export async function uploadResidentEventImage(uri, assetMeta = {}) {
 
   const imageUrl = resolveMediaUrl(body?.data?.image_url);
   if (!imageUrl) {
-    throw new Error("Image upload failed. Please try again.");
+    throw new Error(i18n.t("imagePicker.uploadFailed"));
   }
 
   return { image_url: imageUrl };

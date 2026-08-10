@@ -157,8 +157,9 @@ export function isSensitivePost(post) {
   return flag === true || flag === 1 || flag === "1";
 }
 
-const SENSITIVE_POST_MESSAGE =
-  "This post has been reported and hidden due to community guidelines.";
+function getSensitivePostMessage() {
+  return i18n.t("feed.sensitiveContent.defaultMessage");
+}
 
 export function normalizePost(raw) {
   if (!raw) return null;
@@ -184,14 +185,14 @@ export function normalizePost(raw) {
     status: raw.status ?? "approved",
     is_sensitive: sensitive,
     sensitive_message: sensitive
-      ? (raw.sensitive_message || SENSITIVE_POST_MESSAGE)
+      ? (raw.sensitive_message || getSensitivePostMessage())
       : null,
     user: {
       name: authorName,
       display_name: authorName,
       avatar: avatarUrl,
       time: timeAgo(raw.created_at),
-      location: raw.author_unit ? `Unit ${raw.author_unit}` : raw.user?.location ?? "",
+      location: raw.author_unit ? i18n.t("marketplace.unitLabel", { unit: raw.author_unit }) : raw.user?.location ?? "",
     },
   };
 }
@@ -360,7 +361,7 @@ export async function uploadPostImage(uri, assetMeta = {}) {
 
   const token = await getToken();
   if (!token) {
-    throw new Error("You must be signed in to upload an image.");
+    throw new Error(i18n.t("imagePicker.signInRequired"));
   }
 
   const communityId = await getCommunityId();
@@ -377,7 +378,7 @@ export async function uploadPostImage(uri, assetMeta = {}) {
 
   const imageUrl = resolveMediaUrl(body?.data?.image_url);
   if (!imageUrl) {
-    throw new Error("Image upload failed. Please try again.");
+    throw new Error(i18n.t("imagePicker.uploadFailed"));
   }
 
   return { image_url: imageUrl };
@@ -398,7 +399,7 @@ export async function createPost({ content, category = "general", imageUrl } = {
 
   return {
     post: normalizePost(res.data),
-    message: res.message ?? "Post published to your community feed.",
+    message: res.message ?? i18n.t("feed.postPublished"),
   };
 }
 
@@ -428,7 +429,7 @@ export async function updatePost(
 
   return {
     post: normalizePost(res.data),
-    message: res.message ?? "Post updated.",
+    message: res.message ?? i18n.t("feed.postUpdated"),
   };
 }
 

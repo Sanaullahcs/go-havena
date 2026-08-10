@@ -38,11 +38,13 @@ import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import ListingTypePicker from "../../../components/marketplace/listing-type-picker";
 import { MarketplaceTheme as M } from "../../../constants/marketplace-theme";
 import CrispImage from "../../../components/ui/crisp-image";
+import { useInputLocale } from "../../../hooks/use-input-locale";
 
 const MAX_PHOTOS = MAX_LISTING_PHOTOS;
 
 export default function CreateListingScreen() {
   const { t } = useTranslation();
+  const inputLocale = useInputLocale();
   const router = useRouter();
   const { editId, type: typeParam } = useLocalSearchParams();
   const listingId = editId ? String(editId) : null;
@@ -330,7 +332,8 @@ export default function CreateListingScreen() {
             isService ? "e.g. Lawn mowing & yard cleanup" : "e.g. Vintage dining table"
           }
           placeholderTextColor="#99A1AF"
-          style={[styles.input, showError("title", liveErrors) && styles.inputError]}
+          style={[styles.input, showError("title", liveErrors) && styles.inputError, inputLocale.style]}
+          textAlign={inputLocale.textAlign}
           maxLength={LIMITS.listingTitle}
         />
         {showError("title", liveErrors) ? (
@@ -353,7 +356,8 @@ export default function CreateListingScreen() {
               : t("marketplace.descriptionPlaceholderItem")
           }
           placeholderTextColor="#99A1AF"
-          style={[styles.textArea, showError("description", liveErrors) && styles.inputError]}
+          style={[styles.textArea, showError("description", liveErrors) && styles.inputError, inputLocale.style]}
+          textAlign={inputLocale.textAlign}
           multiline
           textAlignVertical="top"
         />
@@ -393,7 +397,8 @@ export default function CreateListingScreen() {
           onBlur={() => touch("category")}
           placeholder={isService ? "e.g. Cleaning, Tutoring" : "e.g. Furniture, Electronics"}
           placeholderTextColor="#99A1AF"
-          style={[styles.input, showError("category", liveErrors) && styles.inputError]}
+          style={[styles.input, showError("category", liveErrors) && styles.inputError, inputLocale.style]}
+          textAlign={inputLocale.textAlign}
           maxLength={LIMITS.listingCategory}
         />
         {showError("category", liveErrors) ? (
@@ -401,19 +406,20 @@ export default function CreateListingScreen() {
         ) : null}
         <View style={styles.chipRow}>
           {categorySuggestions.map((option) => {
-            const active = category.toLowerCase() === option.toLowerCase();
+            const label = t(option.labelKey);
+            const active = category.toLowerCase() === label.toLowerCase();
             return (
               <TouchableOpacity
-                key={option}
+                key={option.labelKey}
                 activeOpacity={0.85}
                 style={[styles.chip, active && styles.chipActive]}
                 onPress={() => {
-                  setCategory(option);
+                  setCategory(label);
                   clearError("category");
                 }}
               >
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                  {option}
+                  {label}
                 </Text>
               </TouchableOpacity>
             );
@@ -427,20 +433,20 @@ export default function CreateListingScreen() {
             </Text>
             <View style={styles.chipRow}>
               {LISTING_CONDITIONS.map((option) => {
-                const active = condition === option;
+                const active = condition === option.value;
                 return (
                   <TouchableOpacity
-                    key={option}
+                    key={option.value}
                     activeOpacity={0.9}
                     style={[styles.chip, active && styles.chipActive]}
                     onPress={() => {
-                      setCondition(option);
+                      setCondition(option.value);
                       touch("condition");
                       clearError("condition");
                     }}
                   >
                     <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                      {option}
+                      {t(option.labelKey)}
                     </Text>
                   </TouchableOpacity>
                 );

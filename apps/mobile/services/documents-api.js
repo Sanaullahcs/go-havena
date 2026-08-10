@@ -2,6 +2,7 @@ import { API_BASE_URL } from "../constants/api-config";
 import { apiRequest, ApiError } from "./api-client";
 import { getCommunityId, getToken } from "./auth-session";
 import { guessImageMeta } from "../utils/upload-form-data";
+import i18n from "../i18n";
 
 /** GET /v1/documents */
 export async function fetchCommunityDocuments(params = {}) {
@@ -46,7 +47,7 @@ export async function fetchAdminCommunityDocuments(params = {}) {
 
 async function multipartRequest(path, { method = "POST", fields, fileAsset }) {
   const token = await getToken();
-  if (!token) throw new ApiError("You must be signed in.", { status: 401 });
+  if (!token) throw new ApiError(i18n.t("imagePicker.signInRequired"), { status: 401 });
 
   const communityId = await getCommunityId();
   const { mimeType, fileName } = guessImageMeta(fileAsset?.uri, fileAsset ?? {}, "document");

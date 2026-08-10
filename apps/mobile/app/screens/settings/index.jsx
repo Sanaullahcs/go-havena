@@ -1,4 +1,4 @@
-import { ActivityIndicator, I18nManager, Switch, StyleSheet, Text, View, Pressable } from "react-native";
+import { ActivityIndicator, Switch, StyleSheet, Text, View, Pressable } from "react-native";
 import React, { useState } from "react";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -16,9 +16,9 @@ import { SUPPORTED } from "../../../i18n";
 import { sw, sf } from "../../../utils/responsive";
 
 const LANGUAGE_OPTIONS = [
-  { code: "en", flag: "🇺🇸" },
-  { code: "es", flag: "🇪🇸" },
-  { code: "ar", flag: "🇸🇦" },
+  { code: "en", flag: "🇺🇸", nativeName: "English" },
+  { code: "es", flag: "🇪🇸", nativeName: "Español" },
+  { code: "ar", flag: "🇸🇦", nativeName: "العربية" },
 ];
 
 export default function ProfileSetting() {
@@ -154,50 +154,56 @@ export default function ProfileSetting() {
           iconBg={T.mint}
           onPress={() => setLangPickerOpen(!langPickerOpen)}
           right={
-            <View style={styles.langCurrent}>
-              <Text style={styles.langFlag}>{currentLang.flag}</Text>
-              <Text style={styles.langName}>{t(`languages.${language}`)}</Text>
+            <Pressable
+              style={styles.langCurrentPill}
+              onPress={() => setLangPickerOpen(!langPickerOpen)}
+            >
+              <Text style={styles.langCurrentFlag}>{currentLang.flag}</Text>
+              <Text style={styles.langCurrentName} numberOfLines={1}>
+                {currentLang.nativeName}
+              </Text>
               <Feather
                 name={langPickerOpen ? "chevron-up" : "chevron-down"}
-                size={sf(16)}
-                color={T.gray}
+                size={sf(14)}
+                color={T.deepTeal}
               />
-            </View>
+            </Pressable>
           }
         />
         {langPickerOpen && (
-          <View style={styles.langOptions}>
+          <View style={styles.langGrid}>
             {LANGUAGE_OPTIONS.map((opt) => {
               const active = opt.code === language;
-              const isRtl = opt.code === "ar";
               return (
                 <Pressable
                   key={opt.code}
                   style={({ pressed }) => [
-                    styles.langOption,
-                    active && styles.langOptionActive,
-                    pressed && styles.langOptionPressed,
+                    styles.langCard,
+                    active && styles.langCardActive,
+                    pressed && { opacity: 0.8 },
                   ]}
                   onPress={() => handleLanguageSelect(opt.code)}
                   accessibilityRole="radio"
                   accessibilityState={{ selected: active }}
                   accessibilityLabel={t(`languages.${opt.code}`)}
                 >
-                  <View style={styles.langOptionRow}>
-                    <Text style={styles.langOptionFlag}>{opt.flag}</Text>
-                    <Text
-                      style={[
-                        styles.langOptionText,
-                        active && styles.langOptionTextActive,
-                        isRtl && styles.langOptionTextRtl,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {t(`languages.${opt.code}`)}
-                    </Text>
-                  </View>
+                  <Text style={styles.langCardFlag}>{opt.flag}</Text>
+                  <Text
+                    style={[styles.langCardNative, active && styles.langCardNativeActive]}
+                    numberOfLines={1}
+                  >
+                    {opt.nativeName}
+                  </Text>
+                  <Text
+                    style={[styles.langCardTranslated, active && styles.langCardTranslatedActive]}
+                    numberOfLines={1}
+                  >
+                    {t(`languages.${opt.code}`)}
+                  </Text>
                   {active && (
-                    <Feather name="check-circle" size={sf(18)} color={T.deepTeal} />
+                    <View style={styles.langCardCheck}>
+                      <Feather name="check" size={sf(12)} color="#FFFFFF" />
+                    </View>
                   )}
                 </Pressable>
               );
@@ -263,70 +269,86 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 8,
   },
-  langCurrent: {
+  langCurrentPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: sw(8),
-    paddingVertical: sw(4),
-    paddingHorizontal: sw(10),
-    borderRadius: sw(8),
-    backgroundColor: "#F8FAFC",
-  },
-  langFlag: {
-    fontSize: sf(18),
-  },
-  langName: {
-    fontFamily: Fonts.medium,
-    fontSize: sf(13),
-    color: T.navy,
-    fontWeight: "500",
-  },
-  langOptions: {
-    paddingHorizontal: sw(16),
-    paddingTop: sw(4),
-    paddingBottom: sw(14),
-    gap: sw(10),
-  },
-  langOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    minHeight: sw(56),
-    paddingVertical: sw(14),
-    paddingHorizontal: sw(16),
-    borderRadius: sw(14),
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1.5,
-    borderColor: T.border,
-  },
-  langOptionActive: {
+    gap: sw(6),
+    paddingVertical: sw(6),
+    paddingHorizontal: sw(12),
+    borderRadius: sw(20),
     backgroundColor: T.mint,
+    borderWidth: 1,
     borderColor: T.teal,
   },
-  langOptionPressed: {
-    opacity: 0.85,
+  langCurrentFlag: {
+    fontSize: sf(16),
   },
-  langOptionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: sw(12),
-    flex: 1,
-  },
-  langOptionFlag: {
-    fontSize: sf(22),
-  },
-  langOptionText: {
-    flex: 1,
+  langCurrentName: {
     fontFamily: Fonts.semiBold,
-    fontSize: sf(15),
-    color: T.navy,
+    fontSize: sf(12),
+    color: T.deepTeal,
     fontWeight: "600",
+    maxWidth: sw(70),
   },
-  langOptionTextActive: {
+  langGrid: {
+    flexDirection: "row",
+    paddingHorizontal: sw(14),
+    paddingTop: sw(6),
+    paddingBottom: sw(16),
+    gap: sw(10),
+  },
+  langCard: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: sw(16),
+    paddingHorizontal: sw(6),
+    borderRadius: sw(16),
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    position: "relative",
+  },
+  langCardActive: {
+    backgroundColor: T.mint,
+    borderColor: T.teal,
+    borderWidth: 2,
+  },
+  langCardFlag: {
+    fontSize: sf(28),
+    marginBottom: sw(8),
+  },
+  langCardNative: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(14),
+    color: T.navy,
+    fontWeight: "700",
+    textAlign: "center",
+    writingDirection: "auto",
+  },
+  langCardNativeActive: {
     color: T.deepTeal,
   },
-  langOptionTextRtl: {
-    writingDirection: "rtl",
-    textAlign: I18nManager.isRTL ? "left" : "right",
+  langCardTranslated: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(11),
+    color: "#94A3B8",
+    marginTop: sw(2),
+    textAlign: "center",
+    writingDirection: "auto",
+  },
+  langCardTranslatedActive: {
+    color: T.teal,
+  },
+  langCardCheck: {
+    position: "absolute",
+    top: sw(8),
+    end: sw(8),
+    width: sw(20),
+    height: sw(20),
+    borderRadius: sw(10),
+    backgroundColor: T.deepTeal,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

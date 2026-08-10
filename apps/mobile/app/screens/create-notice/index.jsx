@@ -31,10 +31,12 @@ import { getUser } from "../../../services/auth-session";
 import { isCommunityAdmin } from "../../../services/community-access";
 import { fetchAdminMembers } from "../../../services/admin-api";
 import { useTranslation } from 'react-i18next';
+import { useInputLocale } from "../../../hooks/use-input-locale";
 
 export default function CreateNoticeScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const inputLocale = useInputLocale();
   const { submitting, run } = useSubmitLock();
   const { runAction } = useApiAction();
   const [isAdmin, setIsAdmin] = useState(false);
@@ -243,7 +245,8 @@ export default function CreateNoticeScreen() {
             }}
             placeholder={t('notices.enterTitle')}
             placeholderTextColor="rgba(10, 10, 10, 0.5)"
-            style={[styles.input, showError("title", fieldErrorsLive) && styles.inputError]}
+            style={[styles.input, showError("title", fieldErrorsLive) && styles.inputError, inputLocale.style]}
+            textAlign={inputLocale.textAlign}
             maxLength={LIMITS.noticeTitle}
           />
           {showError("title", fieldErrorsLive) ? (
@@ -262,7 +265,8 @@ export default function CreateNoticeScreen() {
             }}
             placeholder={t('notices.noticeDescriptionPlaceholder')}
             placeholderTextColor="rgba(10, 10, 10, 0.5)"
-            style={[styles.textArea, showError("body", fieldErrorsLive) && styles.inputError]}
+            style={[styles.textArea, showError("body", fieldErrorsLive) && styles.inputError, inputLocale.style]}
+            textAlign={inputLocale.textAlign}
             multiline
             textAlignVertical="top"
             maxLength={LIMITS.noticeBody}
@@ -313,7 +317,8 @@ export default function CreateNoticeScreen() {
             }}
             placeholder={t('notices.locationPlaceholder')}
             placeholderTextColor="rgba(10, 10, 10, 0.5)"
-            style={[styles.input, showError("location", fieldErrorsLive) && styles.inputError]}
+            style={[styles.input, showError("location", fieldErrorsLive) && styles.inputError, inputLocale.style]}
+            textAlign={inputLocale.textAlign}
             maxLength={LIMITS.location}
           />
           {showError("location", fieldErrorsLive) ? (
@@ -422,7 +427,8 @@ export default function CreateNoticeScreen() {
                       value={residentSearch}
                       onChangeText={setResidentSearch}
                       placeholder={t('notices.searchResidents')}
-                      style={styles.input}
+                      style={[styles.input, inputLocale.style]}
+                      textAlign={inputLocale.textAlign}
                     />
                     {selectedResidentIds.length > 0 ? (
                       <Text style={styles.optionSubtitle}>

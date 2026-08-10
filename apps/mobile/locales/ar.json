@@ -197,6 +197,7 @@
     "couldNotLoad": "تعذّر تحميل الصفحة الرئيسية",
     "happeningSoon": "قريباً",
     "notices": "الإعلانات",
+    "quickActions": "إجراءات سريعة",
     "communities": "المجتمعات",
     "wellness": "العافية",
     "deals": "العروض",
@@ -416,6 +417,8 @@
     "noPostsYet": "لا توجد منشورات بعد",
     "selectRegion": "اختر المنطقة",
     "createPostBtn": "إنشاء منشور",
+    "postPublished": "تم نشر المنشور في مجتمعك.",
+    "postUpdated": "تم تحديث المنشور.",
     "sensitiveContent": {
       "title": "محتوى حساس",
       "compactMessage": "تم تصنيف هذا المحتوى كمحتوى حساس.",
@@ -2996,6 +2999,8 @@
     "onePersonGoing": "شخص واحد سيحضر",
     "peopleGoing": "{{count}} أشخاص سيحضرون",
     "going": "سيحضر",
+    "full": "ممتلئ",
+    "waitingCount": "{{count}} بالانتظار",
     "neighbor": "جار",
     "moreNeighborsGoing": "{{count}} جيران آخرون سيحضرون",
     "waitingList": "قائمة الانتظار",
@@ -3036,7 +3041,9 @@
     "close": "إغلاق",
     "organizer": "المنظم",
     "shareEventAccessibility": "مشاركة الفعالية",
-    "endTimeAfterStart": "يجب أن يكون وقت الانتهاء بعد وقت البداية"
+    "endTimeAfterStart": "يجب أن يكون وقت الانتهاء بعد وقت البداية",
+    "joinedEvent": "انضممت إلى هذه الفعالية",
+    "leftEvent": "غادرت هذه الفعالية"
   },
   "alerts": {
     "createAlert": "إنشاء تنبيه",
@@ -3467,7 +3474,9 @@
     "gallery": "المعرض",
     "files": "الملفات",
     "uploadPhoto": "رفع صورة",
-    "chooseHowToAdd": "اختر طريقة إضافة الصورة"
+    "chooseHowToAdd": "اختر طريقة إضافة الصورة",
+    "signInRequired": "يجب تسجيل الدخول لرفع صورة.",
+    "uploadFailed": "فشل رفع الصورة. يرجى المحاولة مرة أخرى."
   },
   "time": {
     "justNow": "الآن",

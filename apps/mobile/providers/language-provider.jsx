@@ -4,6 +4,7 @@ import { reloadAppAsync } from "expo";
 import * as SecureStore from "expo-secure-store";
 import i18n, { initI18n, saveLanguage, SUPPORTED } from "../i18n";
 import { Colors } from "../constants/tokens";
+import { setNativeAppLocale } from "../utils/native-app-locale";
 
 const LanguageContext = createContext({
   language: "en",
@@ -17,81 +18,40 @@ export function useLanguage() {
 }
 
 const RTL_LANGUAGES = ["ar"];
-const DIRECTION_SYNC_KEY = "nbr_direction_sync_v1";
-
-/**
- * Module-level flag: once direction has been verified this JS session,
- * never touch I18nManager again until the user explicitly changes language.
- * Survives Fast Refresh (module is not re-evaluated) and prevents any
- * effect re-run, remount, or background/foreground cycle from flipping direction.
- */
-let directionLockedThisSession = false;
+const STALE_RTL_KEY = "nbr_rtl_cleared_v2";
 
 function languageNeedsRTL(lng) {
   return RTL_LANGUAGES.includes(lng);
 }
 
-async function readSyncToken() {
-  try {
-    if (Platform.OS === "web") return null;
-    return await SecureStore.getItemAsync(DIRECTION_SYNC_KEY);
-  } catch {
-    return null;
-  }
-}
-
-async function writeSyncToken(token) {
-  try {
-    if (Platform.OS === "web") return;
-    if (token == null) {
-      await SecureStore.deleteItemAsync(DIRECTION_SYNC_KEY);
-    } else {
-      await SecureStore.setItemAsync(DIRECTION_SYNC_KEY, token);
-    }
-  } catch {}
-}
-
 /**
- * Called ONCE per JS session on startup. If native direction disagrees with
- * the persisted language, attempt a single reload. The sync token prevents
- * infinite reload loops across app restarts.
+ * We drive RTL purely through the root View `direction` style.
+ * I18nManager.forceRTL must ALWAYS be false — it causes double-mirroring.
+ *
+ * Problem: forceRTL(false) only takes effect after a native reload.
+ * So if the native layer still has isRTL=true from old code, we must
+ * call forceRTL(false) + reload ONCE to flush the cached native state.
  */
-async function ensureNativeDirectionOnce(needsRTL) {
-  if (directionLockedThisSession) return false;
-  directionLockedThisSession = true;
+async function ensureNativeRtlIsOff() {
+  if (!I18nManager.isRTL) return;
 
-  if (I18nManager.isRTL === needsRTL) {
-    return false;
-  }
+  I18nManager.allowRTL(false);
+  I18nManager.forceRTL(false);
 
-  // Always force the correct direction — even if we already tried before.
-  // On Expo Go, reloadAppAsync often fails, so we must set it every startup.
-  I18nManager.allowRTL(true);
-  I18nManager.forceRTL(needsRTL);
-
-  const token = needsRTL ? "rtl" : "ltr";
-  const alreadyTried = await readSyncToken();
-  if (alreadyTried === token) {
-    // Already tried reload for this direction — don't loop, just force and continue
-    return false;
-  }
-
-  await writeSyncToken(token);
-  return true;
-}
-
-async function reloadForDirection(reason) {
   try {
-    await reloadAppAsync(reason);
-    return true;
+    const alreadyCleared = await SecureStore.getItemAsync(STALE_RTL_KEY);
+    if (alreadyCleared === "done") return;
+
+    await SecureStore.setItemAsync(STALE_RTL_KEY, "done");
+    await reloadAppAsync("Clearing stale native RTL");
   } catch {
-    return false;
+    // reload failed (Expo Go) — the forceRTL(false) will apply next cold start
   }
 }
 
 export default function LanguageProvider({ children }) {
   const [language, setLanguage] = useState("en");
-  const [isRTL, setIsRTL] = useState(() => I18nManager.isRTL);
+  const [isRTL, setIsRTL] = useState(false);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -99,22 +59,18 @@ export default function LanguageProvider({ children }) {
 
     (async () => {
       try {
+        await ensureNativeRtlIsOff();
+
         const lng = await initI18n();
         if (cancelled) return;
 
-        const needsRTL = languageNeedsRTL(lng);
         setLanguage(lng);
-        setIsRTL(needsRTL);
-
-        const shouldReload = await ensureNativeDirectionOnce(needsRTL);
-
-        if (!cancelled) setReady(true);
-
-        if (shouldReload && !cancelled) {
-          await reloadForDirection("Fix RTL direction on startup");
-        }
+        setIsRTL(languageNeedsRTL(lng));
+        // Sync OS app-locale so soft keyboards match (Arabic → Arabic keyboard).
+        setNativeAppLocale(lng);
       } catch (err) {
         console.warn("[LanguageProvider] init failed", err);
+      } finally {
         if (!cancelled) setReady(true);
       }
     })();
@@ -127,32 +83,27 @@ export default function LanguageProvider({ children }) {
   const changeLanguage = useCallback(async (lng) => {
     if (!SUPPORTED.includes(lng) || lng === language) return;
 
-    const needsRTL = languageNeedsRTL(lng);
-    const directionChanged = isRTL !== needsRTL;
-
     await saveLanguage(lng);
     await i18n.changeLanguage(lng);
     setLanguage(lng);
-    setIsRTL(needsRTL);
+    setIsRTL(languageNeedsRTL(lng));
 
-    if (directionChanged) {
-      directionLockedThisSession = false;
-      await writeSyncToken(null);
-      I18nManager.allowRTL(true);
-      I18nManager.forceRTL(needsRTL);
-      await writeSyncToken(needsRTL ? "rtl" : "ltr");
-
-      const reloaded = await reloadForDirection("Language direction changed");
-      if (!reloaded) {
-        directionLockedThisSession = true;
+    const applied = setNativeAppLocale(lng);
+    // Native locale must be applied in a rebuilt app (not Expo Go).
+    // Reload so the soft keyboard picks up Arabic / Spanish / English.
+    if (applied && Platform.OS !== "web") {
+      try {
+        await reloadAppAsync("Apply keyboard language");
+      } catch {
+        // Expo Go / reload unavailable — install the native build for keyboard sync
       }
     }
-  }, [language, isRTL]);
+  }, [language]);
 
   return (
     <LanguageContext.Provider value={{ language, isRTL, changeLanguage, ready }}>
       {ready ? (
-        <View style={[styles.directionRoot, { direction: isRTL ? "rtl" : "ltr" }]}>
+        <View style={styles.directionRoot}>
           {children}
         </View>
       ) : (

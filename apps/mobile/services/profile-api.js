@@ -4,6 +4,7 @@ import { syncUserFromApi } from "./auth-api";
 import { API_BASE_URL } from "../constants/api-config";
 import { getProfileFields, resolveMediaUrl } from "../utils/profile-display";
 import { guessImageMeta, normalizeUploadAsset, uploadMultipartFile } from "../utils/upload-form-data";
+import i18n from "../i18n";
 
 function normalizeMe(data) {
   if (!data) return null;
@@ -61,7 +62,7 @@ export async function updateMe(payload) {
 export async function uploadAvatar(uri, assetMeta = {}) {
   const token = await getToken();
   if (!token) {
-    throw new Error("You must be signed in to upload a photo.");
+    throw new Error(i18n.t("imagePicker.signInRequired"));
   }
 
   const { mimeType } = guessImageMeta(uri, assetMeta, "avatar");
@@ -90,7 +91,7 @@ export async function uploadAvatar(uri, assetMeta = {}) {
 export async function uploadUtilityBill(uri, assetMeta = {}) {
   const token = await getToken();
   if (!token) {
-    throw new Error("You must be signed in to upload a document.");
+    throw new Error(i18n.t("imagePicker.signInRequired"));
   }
 
   const normalized = normalizeUploadAsset(

@@ -1,21 +1,28 @@
-import { I18nManager } from "react-native";
+import i18n from "../i18n";
+
+const RTL_LANGUAGES = ["ar"];
+
+/** Single source of truth for layout direction — matches LanguageProvider / i18n.language. */
+export function isAppRtl() {
+  return RTL_LANGUAGES.includes(i18n.language);
+}
 
 export function chevronForward() {
-  return I18nManager.isRTL ? "chevron-left" : "chevron-right";
+  return isAppRtl() ? "chevron-left" : "chevron-right";
 }
 
 export function chevronBack() {
-  return I18nManager.isRTL ? "chevron-right" : "chevron-left";
+  return isAppRtl() ? "chevron-right" : "chevron-left";
 }
 
 export function arrowForward() {
-  return I18nManager.isRTL ? "arrow-left" : "arrow-right";
+  return isAppRtl() ? "arrow-left" : "arrow-right";
 }
 
 export function arrowBack() {
-  return I18nManager.isRTL ? "arrow-right" : "arrow-left";
+  return isAppRtl() ? "arrow-right" : "arrow-left";
 }
 
 export function ionChevronForward() {
-  return I18nManager.isRTL ? "chevron-back" : "chevron-forward";
+  return isAppRtl() ? "chevron-back" : "chevron-forward";
 }

@@ -3,6 +3,7 @@ import { getCommunityId, getToken } from "./auth-session";
 import { API_BASE_URL } from "../constants/api-config";
 import { resolveMediaUrl } from "../utils/profile-display";
 import { guessImageMeta, uploadMultipartFile } from "../utils/upload-form-data";
+import i18n from "../i18n";
 
 /** Mobile UI uses item/service; API expects for_sale/service/deal */
 export function normalizeListingType(type) {
@@ -38,7 +39,7 @@ export async function fetchListing(id) {
 
 export async function uploadListingImage(uri, assetMeta = {}) {
   const token = await getToken();
-  if (!token) throw new Error("You must be signed in to upload a photo.");
+  if (!token) throw new Error(i18n.t("imagePicker.signInRequired"));
 
   const communityId = await getCommunityId();
   const { mimeType } = guessImageMeta(uri, assetMeta, "listing-photo");
@@ -55,7 +56,7 @@ export async function uploadListingImage(uri, assetMeta = {}) {
   });
 
   const imageUrl = resolveMediaUrl(body?.data?.image_url);
-  if (!imageUrl) throw new Error("Photo upload failed. Please try again.");
+  if (!imageUrl) throw new Error(i18n.t("imagePicker.uploadFailed"));
   return { image_url: imageUrl };
 }
 

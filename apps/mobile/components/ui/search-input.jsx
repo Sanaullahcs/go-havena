@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { PageType } from "../../constants/page-styles";
 import { sw, sf } from "../../utils/responsive";
+import { useInputLocale } from "../../hooks/use-input-locale";
 
 export default function SearchInput({
   placeholder,
@@ -13,6 +14,7 @@ export default function SearchInput({
   autoFocus = false,
 }) {
   const { t } = useTranslation();
+  const inputLocale = useInputLocale();
   const [internal, setInternal] = useState("");
   const isControlled = valueProp !== undefined;
   const value = isControlled ? valueProp : internal;
@@ -26,7 +28,8 @@ export default function SearchInput({
     <View style={styles.searchContainer}>
       <Ionicons name="search-outline" size={sf(16)} color="#99A1AF" style={styles.icon} />
       <TextInput
-        style={styles.input}
+        {...inputLocale}
+        style={[styles.input, inputLocale.style]}
         placeholder={placeholder ?? t("common.search")}
         placeholderTextColor="rgba(10, 10, 10, 0.45)"
         value={value}

@@ -3,6 +3,7 @@ import { getCommunityId, getToken, getUser } from "./auth-session";
 import { API_BASE_URL } from "../constants/api-config";
 import { resolveMediaUrl } from "../utils/profile-display";
 import { guessImageMeta, uploadMultipartFile } from "../utils/upload-form-data";
+import i18n from "../i18n";
 
 export async function fetchBusinesses({ scope = "browse", status, search, page = 1, perPage = 20 } = {}) {
   const params = new URLSearchParams({
@@ -66,7 +67,7 @@ export async function reapproveBusiness(id) {
 
 export async function uploadBusinessImage(uri, assetMeta = {}) {
   const token = await getToken();
-  if (!token) throw new Error("You must be signed in to upload an image.");
+  if (!token) throw new Error(i18n.t("imagePicker.signInRequired"));
 
   const { mimeType } = guessImageMeta(uri, assetMeta, "business-cover");
   const body = await uploadMultipartFile({
@@ -78,7 +79,7 @@ export async function uploadBusinessImage(uri, assetMeta = {}) {
   });
 
   const imageUrl = resolveMediaUrl(body?.data?.image_url);
-  if (!imageUrl) throw new Error("Image upload failed. Please try again.");
+  if (!imageUrl) throw new Error(i18n.t("imagePicker.uploadFailed"));
   return { image_url: imageUrl };
 }
 

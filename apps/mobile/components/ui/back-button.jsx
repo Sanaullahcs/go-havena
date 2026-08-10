@@ -1,10 +1,11 @@
 import React from "react";
-import { I18nManager, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { sw } from "../../utils/responsive";
+import { useLanguage } from "../../providers/language-provider";
 
 const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
 
@@ -18,6 +19,7 @@ export default function BackButton({
 }) {
   const router = useRouter();
   const { t } = useTranslation();
+  const { isRTL } = useLanguage();
   const resolvedLabel = label ?? t("common.back");
   const showText = showLabel && !iconOnly;
 
@@ -53,7 +55,7 @@ export default function BackButton({
             style={[
               styles.icon,
               compact && styles.iconCompact,
-              I18nManager.isRTL && styles.iconFlipped,
+              isRTL && styles.iconFlipped,
             ]}
           />
         </View>

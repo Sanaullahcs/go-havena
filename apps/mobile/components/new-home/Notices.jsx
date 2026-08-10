@@ -184,7 +184,9 @@ function QuickActionsRow() {
 
   return (
     <View style={styles.qaWrap}>
-      <Text style={[homeStyles.sectionLabel, styles.qaHeader]}>{t("home.notices")}</Text>
+      <Text style={[homeStyles.sectionLabel, styles.qaHeader]}>
+        {t("home.quickActions", { defaultValue: "Quick Actions" })}
+      </Text>
       <FlatList
         data={QUICK_ACTIONS}
         horizontal

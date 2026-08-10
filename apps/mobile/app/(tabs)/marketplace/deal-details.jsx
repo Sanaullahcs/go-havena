@@ -33,6 +33,7 @@ import { MARKETPLACE_FEATURES } from "../../../constants/marketplace-features";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { sw, sf } from "../../../utils/responsive";
 import { chevronForward } from "../../../utils/rtl";
+import { localizedField } from "../../../i18n";
 
 const IMAGE_MAP = {
   "food-bowl": require("../../../assets/images/food-bowl.png"),
@@ -113,12 +114,12 @@ export default function DealDetails() {
     load();
   }, [load]);
 
-  const title = deal?.title || titleParam;
+  const title = localizedField(deal, "title") || deal?.title || titleParam;
   const vendor = deal?.vendor || vendorParam || business?.name || "";
-  const description = deal?.description || descriptionParam;
+  const description = localizedField(deal, "description") || deal?.description || descriptionParam;
   const distance = deal?.distance || distanceParam || business?.address || "";
   const validUntil = deal?.validUntil || validUntilParam;
-  const offerTag = deal?.offerTag || offerTagParam;
+  const offerTag = localizedField(deal, "offerTag") || deal?.offerTag || offerTagParam;
   const businessId = deal?.businessId ?? (businessIdParam ? String(businessIdParam) : null);
   const phone = business?.phone?.trim() || "";
   const recipientId = business?.ownerId ?? deal?.createdBy ?? null;
