@@ -25,12 +25,12 @@ const TYPE_META: Record<
   membership: { tone: "amber", icon: UserPlus, accent: "#F59E0B", soft: "#FFFBEB" },
   family_add_member: { tone: "amber", icon: UserPlus, accent: "#F59E0B", soft: "#FFFBEB" },
   community_admin: { tone: "violet", icon: UserPlus, accent: "#8B5CF6", soft: "#F5F3FF" },
-  post: { tone: "blue", icon: FileText, accent: "#14B8A6", soft: "#D1FAF5" },
+  post: { tone: "blue", icon: FileText, accent: "#1B4F8A", soft: "#E8F0F7" },
   listing: { tone: "green", icon: ShoppingBag, accent: "#10B981", soft: "#ECFDF5" },
   notice: { tone: "violet", icon: FileText, accent: "#7C3AED", soft: "#F5F3FF" },
   event: { tone: "cyan", icon: Calendar, accent: "#06B6D4", soft: "#ECFEFF" },
   alert: { tone: "red", icon: AlertTriangle, accent: "#EF4444", soft: "#FEF2F2" },
-  community_request: { tone: "violet", icon: Building2, accent: "#6366F1", soft: "#D1FAF5" },
+  community_request: { tone: "violet", icon: Building2, accent: "#1B4F8A", soft: "#E8F0F7" },
 };
 
 function ReviewQueueRow({
@@ -102,7 +102,7 @@ function ReviewQueueRow({
               type="button"
               disabled={busy}
               onClick={onApprove}
-              className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-full bg-gradient-to-br from-[#14B8A6] to-[#14B8A6] text-white shadow-md shadow-blue-500/25 transition hover:shadow-lg hover:shadow-blue-500/35 disabled:cursor-not-allowed disabled:opacity-45"
+              className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-full bg-gradient-to-br from-[#1B4F8A] to-[#1B4F8A] text-white shadow-md shadow-blue-500/25 transition hover:shadow-lg hover:shadow-blue-500/35 disabled:cursor-not-allowed disabled:opacity-45"
               aria-label={action.type === "post" ? `Publish ${action.title}` : `Approve ${action.title}`}
               title={action.type === "post" ? "Publish" : "Approve"}
             >

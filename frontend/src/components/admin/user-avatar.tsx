@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { resolveMediaUrl } from "@/lib/media/resolve-url";
 
 const FALLBACK_COLORS = [
-  "#14B8A6", "#7c3aed", "#059669", "#d97706", "#0891b2",
+  "#1B4F8A", "#7c3aed", "#059669", "#d97706", "#0891b2",
   "#db2777", "#dc2626", "#65a30d", "#0284c7", "#9333ea",
 ];
 

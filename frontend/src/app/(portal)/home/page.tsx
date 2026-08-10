@@ -6,7 +6,7 @@ import { ResidentEngagementChart, ResidentWellnessChart } from "@/components/sha
 
 const QUICK_LINKS = [
   { title: "Community Notices",   sub: "3 new announcements",         href: "/notices",     color: "#7c3aed", Icon: IcoNotice  },
-  { title: "Community Feed",      sub: "12 new posts today",          href: "/feed",        color: "#14B8A6", Icon: IcoFeed    },
+  { title: "Community Feed",      sub: "12 new posts today",          href: "/feed",        color: "#1B4F8A", Icon: IcoFeed    },
   { title: "Wellness Programs", sub: "2 courses in progress",       href: "/wellness",    color: "#059669", Icon: IcoHeart   },
   { title: "Marketplace",         sub: "5 deals nearby",              href: "/marketplace", color: "#0891b2", Icon: IcoMarket  },
   { title: "Property & Amenities",sub: "Pool open 6am–10pm",          href: "/property",    color: "#d97706", Icon: IcoBuild   },
@@ -21,7 +21,7 @@ const RECENT_NOTICES = [
 
 const STATS = [
   { label: "Points",           value: "482",  sub: "+24 this week",  color: "#7c3aed" },
-  { label: "Feed Posts",       value: "18",   sub: "You posted",     color: "#14B8A6" },
+  { label: "Feed Posts",       value: "18",   sub: "You posted",     color: "#1B4F8A" },
   { label: "Wellness Streak",  value: "7d",   sub: "Keep it up!",    color: "#059669" },
   { label: "Marketplace Saved",value: "5",    sub: "Saved listings", color: "#0891b2" },
 ];
@@ -34,7 +34,7 @@ export default function ResidentHomePage() {
     <div className="space-y-6">
       {/* Welcome */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="h-1.5 w-full" style={{ background: "#14B8A6" }} />
+        <div className="h-1.5 w-full" style={{ background: "#1B4F8A" }} />
         <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-5">
           <div>
             <p className="nl-eyebrow" style={{ color: "#059669" }}>Resident Portal</p>

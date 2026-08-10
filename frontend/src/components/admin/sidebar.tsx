@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getUser } from "@/lib/auth/session";
 import { fetchMessageUnreadCount } from "@/lib/api/messages";
+import { HavenaMark } from "@/components/shared/havena-mark";
 
 /* ─── Nav icons (must be defined before nav config) ─── */
 
@@ -257,11 +258,11 @@ function NavSection({
               "group relative flex items-center gap-2.5 overflow-hidden rounded-xl px-2.5 py-2 text-[13px] font-medium transition-colors duration-150",
               active
                 ? "text-white shadow-md"
-                : "text-slate-600 hover:bg-[#D1FAF5] hover:text-[#0A2A43]",
+                : "text-slate-600 hover:bg-[#E8F0F7] hover:text-[#0B1C2E]",
             ].join(" ")}
             style={
               active
-                ? { background: "#0A2A43", boxShadow: "0 4px 12px rgba(20, 184, 166, 0.28)" }
+                ? { background: "#0B1C2E", boxShadow: "0 4px 12px rgba(27, 79, 138, 0.28)" }
                 : undefined
             }
           >
@@ -270,7 +271,7 @@ function NavSection({
                 "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all duration-200",
                 active
                   ? "bg-white/15 text-white"
-                  : "text-slate-400 group-hover:scale-105 group-hover:text-[#14B8A6]",
+                  : "text-slate-400 group-hover:scale-105 group-hover:text-[#1B4F8A]",
               ].join(" ")}
             >
               <Icon />
@@ -280,7 +281,7 @@ function NavSection({
               <span
                 className={[
                   "ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
-                  active ? "bg-white text-[#14B8A6]" : "bg-[#14B8A6] text-white",
+                  active ? "bg-white text-[#1B4F8A]" : "bg-[#1B4F8A] text-white",
                 ].join(" ")}
               >
                 {item.badge > 99 ? "99+" : item.badge}
@@ -300,8 +301,8 @@ function NavSection({
 function Brand() {
   return (
     <Link href="/admin" className="nl-sidebar-brand">
-      <span className="nl-sidebar-brand-mark">
-        <NbrLogoMark size={20} />
+      <span className="nl-sidebar-brand-mark nl-sidebar-brand-mark--solid">
+        <HavenaMark size={36} />
       </span>
       <span className="flex min-w-0 flex-col justify-center gap-0">
         <span className="nl-sidebar-brand-name">Havena</span>
@@ -440,14 +441,4 @@ export function AdminSidebar({
   );
 }
 
-/* ─── Logo ─── */
-
-function NbrLogoMark({ size = 20 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M3 9l9-6 9 6v11a1 1 0 01-1 1H4a1 1 0 01-1-1V9z" stroke="#0A2A43" strokeWidth="2" strokeLinejoin="round" />
-      <path d="M9 21V12h6v9" stroke="#0A2A43" strokeWidth="2" strokeLinejoin="round" />
-    </svg>
-  );
-}
 

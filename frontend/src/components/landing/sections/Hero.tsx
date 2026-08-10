@@ -1,138 +1,103 @@
-import { Icon } from "../icons/Icon";
 import { Button } from "../ui/Button";
-import { HeroPhone } from "../ui/HeroPhone";
 import { LandingSectionButton } from "../ui/LandingSectionButton";
-import { actionLinks, site } from "@/lib/landing/site";
+import { Container } from "../ui/Container";
+import { Icon, type IconName } from "../icons/Icon";
+import { actionLinks, landingImages } from "@/lib/landing/site";
 
-const HERO_PHONES = [
-  {
-    src: "/landing/mobile-app-mockup.png",
-    alt: "Havena community post with comments and engagement",
-    label: "Community",
-    position: "left" as const,
-  },
-  {
-    src: "/landing/hero-home.png",
-    alt: "Havena home screen with neighborhood updates and quick actions",
-    label: "Havena",
-    position: "center" as const,
-  },
-  {
-    src: "/landing/hero-marketplace.png",
-    alt: "Havena neighborhood marketplace with local deals and businesses",
-    label: "Marketplace",
-    position: "right" as const,
-  },
+const HERO_BADGES: { icon: IconName; label: string; detail: string }[] = [
+  { icon: "shield-check", label: "Verified neighbors", detail: "Admin-approved access" },
+  { icon: "megaphone", label: "Notices & events", detail: "Reach the right residents" },
+  { icon: "calendar-days", label: "Amenity bookings", detail: "Shared spaces, simplified" },
 ];
 
 export function Hero() {
   return (
-    <section id="top" className="relative isolate overflow-hidden pb-16 pt-32 sm:pb-20 sm:pt-36 lg:pb-24 lg:pt-40">
-      <div aria-hidden="true" className="brand-gradient-mesh absolute inset-0 -z-20" />
-      <div
-        aria-hidden="true"
-        className="grid-mask-light pointer-events-none absolute inset-0 -z-10 opacity-50"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -left-24 top-16 -z-10 h-[480px] w-[480px] rounded-full bg-[#14B8A6]/12 blur-3xl animate-aurora"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -right-20 top-24 -z-10 h-[400px] w-[400px] rounded-full bg-[#6366f1]/10 blur-3xl animate-pulse-soft"
-      />
+    <section id="top" className="lp-hero scroll-mt-0">
+      <Container size="xl" className="relative z-10">
+        <div className="lp-hero__grid">
+          <div className="lp-hero__copy">
+            <p className="lp-hero__eyebrow animate-fade-up">Community platform for HOAs</p>
 
-      <div className="relative z-10 mx-auto w-full max-w-7xl px-5 sm:px-8 lg:px-10">
-        <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12 lg:gap-12">
-          <div className="lg:col-span-6 xl:col-span-6">
-            <div className="animate-fade-up">
-              <span className="hero-eyebrow inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-semibold text-brand-deep">
-                <span className="grid h-5 w-5 place-items-center rounded-full bg-brand-deep text-white">
-                  <Icon name="sparkles" className="h-3 w-3" />
-                </span>
-                {site.tagline}
+            <h1 className="animate-fade-up delay-100">
+              <span className="lp-hero__brand">Havena</span>
+              <span className="lp-hero__headline">
+                <span className="lp-hero__headline-main">Neighborhood life,</span>
+                <span className="lp-hero__headline-sub">organized with calm clarity.</span>
               </span>
-            </div>
-
-            <h1 className="hero-title animate-fade-up delay-100 mt-7 max-w-[640px]">
-              Build stronger neighborhoods with{" "}
-              <span className="gradient-text">one connected platform.</span>
             </h1>
 
-            <p className="animate-fade-up delay-200 mt-6 max-w-xl text-[16px] leading-[1.7] text-ink-body sm:text-[17px]">
-              {site.description} Manage notices, events, wellness, marketplace, and community life, all in one place residents actually love using.
+            <p className="lp-hero__lede animate-fade-up delay-200">
+              Notices, amenity bookings, wellness, and local deals in one verified platform for
+              residents and admins.
             </p>
 
-            <div className="animate-fade-up delay-300 mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="lp-hero__actions animate-fade-up delay-300">
               <Button
                 href={actionLinks.signUp}
-                variant="primary"
+                variant="white"
                 size="lg"
                 iconTrailing="arrow-right"
-                className="w-full sm:w-auto"
+                className="lp-hero__cta"
               >
-                Get started free
+                Get started
               </Button>
               <LandingSectionButton
-                sectionId="features"
+                sectionId="how-it-works"
                 variant="secondary"
                 size="lg"
-                icon="play-circle"
-                className="w-full sm:w-auto"
+                className="lp-hero__ghost"
               >
-                Explore features
+                See how it works
               </LandingSectionButton>
             </div>
           </div>
 
-          <div className="relative lg:col-span-6 xl:col-span-6">
-            <div className="hero-phones-wrap relative mx-auto w-full max-w-[620px]">
-              <div className="hero-phones animate-fade-up delay-200">
-                {HERO_PHONES.map((phone) => (
-                  <HeroPhone
-                    key={phone.label}
-                    src={phone.src}
-                    alt={phone.alt}
-                    label={phone.label}
-                    position={phone.position}
-                  />
-                ))}
-              </div>
+          <div className="lp-hero__visual animate-fade-up delay-200">
+            <div className="lp-hero__visual-frame">
+              <div className="lp-hero__visual-glow" aria-hidden="true" />
 
-              <div className="absolute -bottom-5 -left-5 hidden rounded-2xl border border-white/90 bg-white px-4 py-3 shadow-elevated lg:block animate-float-slow">
-                <div className="flex items-center gap-2.5">
-                  <span className="grid h-9 w-9 place-items-center rounded-full bg-emerald-500 text-white shadow-sm">
-                    <Icon name="shield-check" className="h-4 w-4" />
+              <div className="lp-hero__image-shell">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={landingImages.heroCommunity}
+                  alt="Neighbors connecting in a welcoming residential community"
+                  className="lp-hero__image"
+                  fetchPriority="high"
+                />
+
+                <div className="lp-hero__float-card">
+                  <span className="lp-hero__float-icon" aria-hidden="true">
+                    <Icon name="users" className="h-4 w-4" />
                   </span>
-                  <div>
-                    <p className="text-[12px] font-bold text-ink-primary">Verified residents only</p>
-                    <p className="text-[11px] text-ink-muted">Safe & trusted access</p>
+                  <div className="lp-hero__float-text">
+                    <span className="lp-hero__float-title">Residents + admins</span>
+                    <span className="lp-hero__float-sub">One shared community hub</span>
                   </div>
                 </div>
-              </div>
 
-              <div className="absolute -right-3 top-8 hidden rounded-2xl border border-white/90 bg-white/95 px-3 py-2 shadow-card lg:block animate-float-card">
-                <div className="flex items-center gap-2">
-                  <span className="flex -space-x-2">
-                    {["#14B8A6", "#14B8A6", "#6366f1"].map((color) => (
-                      <span
-                        key={color}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold text-white"
-                        style={{ backgroundColor: color }}
-                      >
-                        NL
-                      </span>
-                    ))}
-                  </span>
-                  <p className="text-[11px] font-semibold text-ink-body">
-                    <span className="text-ink-primary">2.4k</span> online now
-                  </p>
-                </div>
+                <p className="lp-hero__image-caption">
+                  <span className="lp-hero__caption-dot" aria-hidden="true" />
+                  Built for verified neighborhoods
+                </p>
               </div>
+            </div>
+
+            <div className="lp-hero__badge-panel" aria-label="Community platform highlights">
+              {HERO_BADGES.map((badge) => (
+                <article key={badge.label} className="lp-hero__badge">
+                  <span className="lp-hero__badge-icon" aria-hidden="true">
+                    <Icon name={badge.icon} className="h-4 w-4" />
+                  </span>
+                  <div className="lp-hero__badge-copy">
+                    <span className="lp-hero__badge-label">{badge.label}</span>
+                    <span className="lp-hero__badge-detail">{badge.detail}</span>
+                  </div>
+                </article>
+              ))}
             </div>
           </div>
         </div>
-      </div>
+      </Container>
     </section>
   );
 }

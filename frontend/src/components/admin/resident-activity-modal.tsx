@@ -58,26 +58,26 @@ function statusStyle(status: string) {
     return { bg: "#FEF2F2", color: "#DC2626", border: "rgba(220, 38, 38, 0.25)" };
   }
   if (key === "sold") {
-    return { bg: "#D1FAF5", color: "#14B8A6", border: "rgba(37, 99, 235, 0.25)" };
+    return { bg: "#E8F0F7", color: "#1B4F8A", border: "rgba(27, 79, 138, 0.25)" };
   }
   return { bg: NL.chipBg, color: NL.brandPrimaryDeep, border: NL.borderCard };
 }
 
 const ACTION_VISUAL: Record<string, { bg: string; color: string; icon: string }> = {
-  login: { bg: "#D1FAF5", color: "#14B8A6", icon: "login" },
+  login: { bg: "#E8F0F7", color: "#1B4F8A", icon: "login" },
   logout: { bg: "#F8FAFC", color: "#64748B", icon: "login" },
   post_created: { bg: "#ECFDF5", color: "#059669", icon: "post" },
   post_deleted: { bg: "#FEF2F2", color: "#DC2626", icon: "post" },
   post_liked: { bg: "#FFF1F2", color: "#E11D48", icon: "heart" },
   post_commented: { bg: "#F5F3FF", color: "#7C3AED", icon: "comment" },
-  listing_created: { bg: "#FFF7ED", color: "#EA580C", icon: "tag" },
-  listing_updated: { bg: "#FFF7ED", color: "#EA580C", icon: "tag" },
+  listing_created: { bg: "#E8F0F7", color: "#EA580C", icon: "tag" },
+  listing_updated: { bg: "#E8F0F7", color: "#EA580C", icon: "tag" },
   listing_approved: { bg: "#ECFDF5", color: "#059669", icon: "check" },
   listing_rejected: { bg: "#FEF2F2", color: "#DC2626", icon: "x" },
-  listing_sold: { bg: "#D1FAF5", color: "#14B8A6", icon: "tag" },
+  listing_sold: { bg: "#E8F0F7", color: "#1B4F8A", icon: "tag" },
   business_created: { bg: "#ECFEFF", color: "#0891B2", icon: "store" },
   deal_created: { bg: "#FEF3C7", color: "#B45309", icon: "deal" },
-  notice_created: { bg: "#D1FAF5", color: "#0A2A43", icon: "megaphone" },
+  notice_created: { bg: "#E8F0F7", color: "#0B1C2E", icon: "megaphone" },
   event_created: { bg: "#F5F3FF", color: "#7C3AED", icon: "calendar" },
   alert_created: { bg: "#FEF2F2", color: "#DC2626", icon: "alert" },
   profile_updated: { bg: "#F8FAFC", color: "#475569", icon: "user" },

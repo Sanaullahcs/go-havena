@@ -18,7 +18,7 @@ export function DashboardMockup({ className = "" }: { className?: string }) {
           </div>
         </div>
 
-        <div className="bg-[#f8fafc]">
+        <div className="bg-[#F6F8FB]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={DASHBOARD_SRC}

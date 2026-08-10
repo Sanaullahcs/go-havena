@@ -237,7 +237,7 @@ export default function ResidentLoginPage() {
       </div>
 
       <style>{`
-        .resident-auth-hero { background: #0A2A43; }
+        .resident-auth-hero { background: #0B1C2E; }
         .resident-auth-hero-pattern {
           pointer-events: none; opacity: 0.45;
           background-image: linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px);
@@ -255,7 +255,7 @@ export default function ResidentLoginPage() {
         .resident-auth-input:focus { border-color: #059669; box-shadow: 0 0 0 3px rgba(5,150,105,0.1); }
         .resident-auth-btn {
           border-radius: 0.75rem; padding: 0.75rem 1rem; font-size: 0.875rem; font-weight: 600;
-          color: #fff; background: #14B8A6;
+          color: #fff; background: #1B4F8A;
           box-shadow: 0 4px 14px rgba(5,150,105,0.25); transition: box-shadow 200ms, filter 150ms;
           outline: none; cursor: pointer; width: 100%;
         }

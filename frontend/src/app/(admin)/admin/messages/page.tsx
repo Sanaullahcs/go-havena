@@ -233,7 +233,7 @@ export default function AdminMessagesPage() {
       <ChatShell
         myId={myId}
         myName={myName}
-        accentColor="#14B8A6"
+        accentColor="#1B4F8A"
         conversations={conversations}
         messages={activeMessages}
         activeId={activeId}

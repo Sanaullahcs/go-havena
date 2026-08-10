@@ -97,7 +97,7 @@ export function AdminMembersBarChart({
           <Tooltip content={<NlTooltip />} cursor={{ fill: "#f8fafc" }} />
           <Bar dataKey="new" name="New Members" radius={[4, 4, 0, 0]}>
             {chartData.map((_, i) => (
-              <Cell key={i} fill={i === chartData.length - 1 ? CHART_PRIMARY : "rgba(20, 184, 166, 0.28)"} />
+              <Cell key={i} fill={i === chartData.length - 1 ? CHART_PRIMARY : "rgba(27, 79, 138, 0.28)"} />
             ))}
           </Bar>
         </BarChart>
@@ -221,7 +221,7 @@ export function AdminModerationTrendChart({
 }
 
 /* ─── Admin: Communities by region (ranked bar list) ─── */
-const REGION_BAR_COLORS = [CHART_PRIMARY_DEEP, CHART_PRIMARY, "#0D9488", "#0891b2", NL.success, NL.warning];
+const REGION_BAR_COLORS = [CHART_PRIMARY_DEEP, CHART_PRIMARY, "#163A66", "#0891b2", NL.success, NL.warning];
 
 export function AdminCommunitiesRegionChart({
   data,

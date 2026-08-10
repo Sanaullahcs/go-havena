@@ -20,24 +20,24 @@ import {
 const VISUALS = [
   { key: "pool", match: ["pool", "swim"], tint: "#0284C7", soft: "#E0F2FE", label: "Pool" },
   { key: "gym", match: ["gym", "fitness", "workout"], tint: "#DB2777", soft: "#FCE7F3", label: "Gym" },
-  { key: "hall", match: ["hall", "party", "event", "lounge", "community", "clubhouse"], tint: "#6366F1", soft: "#D1FAF5", label: "Hall" },
-  { key: "meeting", match: ["meeting", "conference", "business", "office", "co-work", "cowork"], tint: "#0A2A43", soft: "#D1FAF5", label: "Meeting" },
-  { key: "dining", match: ["bbq", "grill", "kitchen", "dining", "cafe", "restaurant"], tint: "#EA580C", soft: "#FFF7ED", label: "Dining" },
+  { key: "hall", match: ["hall", "party", "event", "lounge", "community", "clubhouse"], tint: "#1B4F8A", soft: "#E8F0F7", label: "Hall" },
+  { key: "meeting", match: ["meeting", "conference", "business", "office", "co-work", "cowork"], tint: "#0B1C2E", soft: "#E8F0F7", label: "Meeting" },
+  { key: "dining", match: ["bbq", "grill", "kitchen", "dining", "cafe", "restaurant"], tint: "#EA580C", soft: "#E8F0F7", label: "Dining" },
   { key: "sports", match: ["tennis", "court", "sport", "basketball"], tint: "#059669", soft: "#ECFDF5", label: "Sports" },
   { key: "playground", match: ["kid", "playground", "child", "play"], tint: "#D97706", soft: "#FEF3C7", label: "Play" },
   { key: "terrace", match: ["garden", "park", "green", "roof", "terrace", "outdoor"], tint: "#16A34A", soft: "#F0FDF4", label: "Outdoor" },
   { key: "spa", match: ["spa", "sauna", "wellness", "yoga"], tint: "#BE185D", soft: "#FDF2F8", label: "Wellness" },
-  { key: "library", match: ["library", "study", "reading"], tint: "#4F46E5", soft: "#D1FAF5", label: "Study" },
+  { key: "library", match: ["library", "study", "reading"], tint: "#163A66", soft: "#E8F0F7", label: "Study" },
   { key: "parking", match: ["parking", "garage", "car"], tint: "#475569", soft: "#F1F5F9", label: "Parking" },
-  { key: "laundry", match: ["laundry", "wash"], tint: "#0D9488", soft: "#F0FDFA", label: "Laundry" },
+  { key: "laundry", match: ["laundry", "wash"], tint: "#163A66", soft: "#F0FDFA", label: "Laundry" },
   { key: "cinema", match: ["cinema", "theater", "theatre", "movie"], tint: "#7C3AED", soft: "#F5F3FF", label: "Cinema" },
-  { key: "bike", match: ["bike", "cycle", "bicycle"], tint: "#14B8A6", soft: "#D1FAF5", label: "Bike" },
+  { key: "bike", match: ["bike", "cycle", "bicycle"], tint: "#1B4F8A", soft: "#E8F0F7", label: "Bike" },
 ] as const;
 
 const DEFAULT_VISUAL = {
   key: "building",
-  tint: "#0A2A43",
-  soft: "#D1FAF5",
+  tint: "#0B1C2E",
+  soft: "#E8F0F7",
   label: "Building",
 } as const;
 

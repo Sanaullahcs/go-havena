@@ -70,16 +70,16 @@ function defaultInviteWindow() {
 }
 
 const GUEST_ACTION_VISUAL: Record<string, { bg: string; color: string; label: string }> = {
-  login: { bg: "#D1FAF5", color: "#14B8A6", label: "Logged in" },
+  login: { bg: "#E8F0F7", color: "#1B4F8A", label: "Logged in" },
   verification_complete: { bg: "#FFFBEB", color: "#D97706", label: "Verified invite" },
   access_activated: { bg: "#ECFDF5", color: "#059669", label: "Access activated" },
   access_rejected: { bg: "#FEF2F2", color: "#DC2626", label: "Access rejected" },
   access_revoked: { bg: "#FEF2F2", color: "#DC2626", label: "Access revoked" },
   access_extended: { bg: "#F5F3FF", color: "#7C3AED", label: "Access extended" },
   viewed_posts: { bg: "#F0FDF4", color: "#16A34A", label: "Viewed posts" },
-  viewed_notices: { bg: "#D1FAF5", color: "#14B8A6", label: "Viewed notices" },
+  viewed_notices: { bg: "#E8F0F7", color: "#1B4F8A", label: "Viewed notices" },
   viewed_events: { bg: "#F5F3FF", color: "#7C3AED", label: "Viewed events" },
-  viewed_marketplace: { bg: "#FFF7ED", color: "#EA580C", label: "Viewed marketplace" },
+  viewed_marketplace: { bg: "#E8F0F7", color: "#EA580C", label: "Viewed marketplace" },
   viewed_businesses: { bg: "#ECFEFF", color: "#0891B2", label: "Viewed businesses" },
   blocked_action: { bg: "#FEF2F2", color: "#DC2626", label: "Blocked action" },
 };
@@ -474,7 +474,7 @@ export default function GuestsPage() {
                 }`}
               >
                 <div className="flex min-w-0 flex-1 items-start gap-3">
-                  <UserAvatar name={guest.guest_name} src={guest.guest_avatar_url} size={44} color={pending ? "#d97706" : "#14B8A6"} />
+                  <UserAvatar name={guest.guest_name} src={guest.guest_avatar_url} size={44} color={pending ? "#d97706" : "#1B4F8A"} />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h4 className="font-semibold text-slate-900">{guest.guest_name}</h4>
@@ -721,7 +721,7 @@ export default function GuestsPage() {
             <div className="border-b border-slate-100 px-6 py-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-4">
-                  <UserAvatar name={viewing.guest_name} src={viewing.guest_avatar_url} size={52} color={isPendingApproval(viewing) ? "#d97706" : "#14B8A6"} />
+                  <UserAvatar name={viewing.guest_name} src={viewing.guest_avatar_url} size={52} color={isPendingApproval(viewing) ? "#d97706" : "#1B4F8A"} />
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <AdminBadge tone={GUEST_STATUS_TONE[viewing.status]}>{GUEST_STATUS_LABELS[viewing.status]}</AdminBadge>

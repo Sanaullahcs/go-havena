@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { HavenaMark } from "@/components/shared/havena-mark";
 
 type NavItem = {
   href: string;
@@ -61,7 +62,7 @@ function NavSection({
             ].join(" ")}
             style={
               active
-                ? { background: "#14B8A6" }
+                ? { background: "#1B4F8A" }
                 : undefined
             }
           >
@@ -89,12 +90,8 @@ function NavSection({
 function Brand() {
   return (
     <Link href="/home" className="nl-sidebar-brand">
-      <span style={{
-        display: "flex", height: "2.25rem", width: "2.25rem", flexShrink: 0,
-        alignItems: "center", justifyContent: "center", borderRadius: "0.5rem",
-        background: "#ecfdf5", boxShadow: "0 0 0 1px rgba(5,150,105,0.12)",
-      }}>
-        <NbrLogoMark />
+      <span className="nl-sidebar-brand-mark nl-sidebar-brand-mark--solid">
+        <HavenaMark size={36} />
       </span>
       <span className="flex min-w-0 flex-col justify-center gap-0">
         <span className="nl-sidebar-brand-name">Havena</span>
@@ -168,15 +165,6 @@ export function PortalSidebar({
         </div>
       )}
     </>
-  );
-}
-
-function NbrLogoMark() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M3 9l9-6 9 6v11a1 1 0 01-1 1H4a1 1 0 01-1-1V9z" stroke="#059669" strokeWidth="2" strokeLinejoin="round" />
-      <path d="M9 21V12h6v9" stroke="#059669" strokeWidth="2" strokeLinejoin="round" />
-    </svg>
   );
 }
 

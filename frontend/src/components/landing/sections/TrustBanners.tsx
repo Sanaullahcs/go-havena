@@ -55,12 +55,12 @@ const PILLARS: Pillar[] = [
       "Real-time sync across both surfaces",
     ],
     stat: { value: "2", label: "surfaces, one account" },
-    iconBg: "bg-indigo-50",
-    iconColor: "text-indigo-600",
-    accent: "from-indigo-500 to-violet-400",
-    accentSoft: "bg-indigo-50/80",
-    accentBorder: "border-indigo-200/60",
-    accentGlow: "rgba(99, 102, 241, 0.18)",
+    iconBg: "bg-brand-soft",
+    iconColor: "text-brand-deep",
+    accent: "from-brand-deep to-brand-dark-teal",
+    accentSoft: "bg-brand-soft/80",
+    accentBorder: "border-brand/20",
+    accentGlow: "rgba(15, 23, 42, 0.12)",
   },
   {
     id: "privacy",
@@ -158,7 +158,7 @@ export function TrustBanners() {
         />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-[#14B8A6]/5 blur-3xl"
+          className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-brand/6 blur-3xl"
         />
 
         <Container size="xl">
@@ -367,7 +367,7 @@ export function TrustBanners() {
                         />
                         <div
                           aria-hidden="true"
-                          className="trust-step-fill absolute left-4 top-[18px] hidden h-0.5 rounded-full bg-gradient-to-r from-brand-deep to-[#14B8A6] sm:block"
+                          className="trust-step-fill absolute left-4 top-[18px] hidden h-0.5 rounded-full bg-gradient-to-r from-brand-deep to-brand sm:block"
                           style={{
                             width: `calc(${(activeIndex / (PILLARS.length - 1)) * 100}% - 2rem)`,
                             maxWidth: "calc(100% - 2rem)",

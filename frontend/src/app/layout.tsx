@@ -1,11 +1,25 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { DM_Sans, Plus_Jakarta_Sans, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 import { APP_NAME } from "@/lib/constants";
 
-const inter = Inter({
+const sans = DM_Sans({
   variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
+});
+
+const display = Plus_Jakarta_Sans({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: ["500", "600", "700", "800"],
+  display: "swap",
+});
+
+const brand = Source_Serif_4({
+  variable: "--font-brand",
+  subsets: ["latin"],
+  weight: ["600", "700"],
   display: "swap",
 });
 
@@ -27,7 +41,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`}>
+    <html
+      lang="en"
+      className={`${sans.variable} ${display.variable} ${brand.variable} h-full antialiased`}
+    >
       <body className="min-h-full">{children}</body>
     </html>
   );

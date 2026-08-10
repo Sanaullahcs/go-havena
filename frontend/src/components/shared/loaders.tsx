@@ -102,7 +102,7 @@ export function PageLoaderSkeleton({ rows = 4 }: { rows?: number }) {
 
 export function AuthShellSkeleton() {
   return (
-    <div className="flex min-h-screen bg-[#F8FAFC]" aria-busy aria-label="Loading portal">
+    <div className="flex min-h-screen bg-[#F6F8FB]" aria-busy aria-label="Loading portal">
       <aside className="hidden w-60 shrink-0 border-r border-slate-200/80 bg-white p-4 md:block">
         <ShimmerBlock className="mb-6 h-9 w-36" />
         <div className="space-y-2">

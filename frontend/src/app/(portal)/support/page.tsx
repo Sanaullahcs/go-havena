@@ -203,7 +203,7 @@ export default function PortalSupportPage() {
               type="submit"
               disabled={sending}
               className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[13px] font-semibold text-white shadow-sm transition"
-              style={{ background: "#14B8A6" }}
+              style={{ background: "#1B4F8A" }}
             >
               {sending ? (
                 <>

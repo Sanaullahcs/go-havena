@@ -57,8 +57,8 @@ export const COMMUNITY_QUICK_ACTIONS = {
     title: "Invite",
     hint: "Send a member invite code",
     icon: UserPlus,
-    accent: "#14B8A6",
-    soft: "#D1FAF5",
+    accent: "#1B4F8A",
+    soft: "#E8F0F7",
   },
   notice: {
     id: "notice",
@@ -82,6 +82,6 @@ export const COMMUNITY_QUICK_ACTIONS = {
     hint: "Send an urgent alert",
     icon: AlertTriangle,
     accent: "#EA580C",
-    soft: "#FFF7ED",
+    soft: "#E8F0F7",
   },
 } as const satisfies Record<string, Omit<QuickActionDef, "onClick">>;

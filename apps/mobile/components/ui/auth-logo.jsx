@@ -1,9 +1,9 @@
 import { StyleSheet, View } from "react-native";
-import Svg, { Path } from "react-native-svg";
+import Svg, { Path, Rect } from "react-native-svg";
 import { Colors, Shadows } from "../../constants/tokens";
 import { ScreenBrand } from "../../constants/screen-brand";
 
-/** Havena mark — pass tileColor={ScreenBrand.primary} on login/signup. */
+/** Havena H-monogram mark — pass tileColor={ScreenBrand.primary} on login/signup. */
 export default function AuthLogo({
   size = 62,
   style,
@@ -11,39 +11,31 @@ export default function AuthLogo({
   variant = "auth",
   tileColor,
 }) {
-  const radius = Math.round(size * (12 / 36));
-  const inset = Math.round(size * 0.14);
-  const iconSize = Math.round(size * 0.42);
+  const radius = Math.round(size * (13 / 48));
   const authTile = tileColor ?? Colors.brandPrimary;
-  const houseStroke = variant === "splash" ? Colors.brandPrimaryDeep : "#FFFFFF";
+  const stroke = variant === "splash" ? Colors.brandPrimaryDeep : "#FFFFFF";
+  const fill = variant === "splash" ? "#FFFFFF" : authTile;
 
-  const houseIcon = (
-    <Svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none">
+  const mark = (
+    <Svg width={size} height={size} viewBox="0 0 48 48">
+      <Rect width="48" height="48" rx="13" fill={fill} />
       <Path
-        d="M3 9l9-6 9 6v11a1 1 0 01-1 1H4a1 1 0 01-1-1V9z"
-        stroke={houseStroke}
-        strokeWidth={1.8}
+        d="M14 20 L24 12 L34 20"
+        fill="none"
+        stroke={stroke}
+        strokeWidth="2.6"
+        strokeLinecap="round"
         strokeLinejoin="round"
       />
       <Path
-        d="M9 21V12h6v9"
-        stroke={houseStroke}
-        strokeWidth={1.8}
+        d="M17 36 V22.5 M31 36 V22.5 M17 28.5 H31"
+        fill="none"
+        stroke={stroke}
+        strokeWidth="2.8"
+        strokeLinecap="round"
         strokeLinejoin="round"
       />
     </Svg>
-  );
-
-  const tileStyle = {
-    width: size,
-    height: size,
-    borderRadius: radius,
-  };
-
-  const iconWrap = (
-    <View style={[styles.iconWrap, { padding: inset }]}>
-      {houseIcon}
-    </View>
   );
 
   if (variant === "splash") {
@@ -51,14 +43,13 @@ export default function AuthLogo({
       <View
         style={[
           compact ? styles.markCompact : styles.mark,
-          styles.splashMark,
           Shadows.button,
-          tileStyle,
+          { width: size, height: size, borderRadius: radius },
           style,
         ]}
         accessibilityLabel="Havena logo"
       >
-        {iconWrap}
+        {mark}
       </View>
     );
   }
@@ -67,14 +58,13 @@ export default function AuthLogo({
     <View
       style={[
         compact ? styles.markCompact : styles.mark,
-        { backgroundColor: authTile },
         tileColor ? ScreenBrand.buttonShadow : Shadows.button,
-        tileStyle,
+        { width: size, height: size, borderRadius: radius, overflow: "hidden" },
         style,
       ]}
       accessibilityLabel="Havena logo"
     >
-      {iconWrap}
+      {mark}
     </View>
   );
 }
@@ -89,16 +79,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 0,
-  },
-  splashMark: {
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconWrap: {
-    flex: 1,
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "center",
   },
 });

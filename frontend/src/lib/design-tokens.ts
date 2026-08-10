@@ -1,47 +1,47 @@
 /**
- * Havena design tokens — Ocean Breeze
- * Five swatches, solid fills only.
+ * Havena design tokens — Harbor Trust
+ * Professional navy for community / HOA platforms.
  *
- *   #0A2A43  Deep Navy
- *   #0D9488  Deep Teal
- *   #14B8A6  Primary Teal
- *   #D1FAF5  Soft Mint
- *   #F4F8FD  Canvas
+ *   #0B1C2E  Deep Navy
+ *   #163A66  Mid Navy
+ *   #1B4F8A  Primary Blue
+ *   #E8F0F7  Soft Mist
+ *   #F6F8FB  Canvas
  */
 
 export const NL = {
-  navy: "#0A2A43",
-  deepTeal: "#0D9488",
-  teal: "#14B8A6",
-  mint: "#D1FAF5",
-  canvas: "#F4F8FD",
+  navy: "#0B1C2E",
+  deepTeal: "#163A66",
+  teal: "#1B4F8A",
+  mint: "#E8F0F7",
+  canvas: "#F6F8FB",
 
-  brandPrimary: "#14B8A6",
-  brandPrimaryDeep: "#0A2A43",
+  brandPrimary: "#1B4F8A",
+  brandPrimaryDeep: "#0B1C2E",
 
-  textPrimary: "#0A2A43",
-  textSecondary: "#6B7280",
-  textBody: "#0A2A43",
-  textMuted: "#6B7280",
+  textPrimary: "#0B1C2E",
+  textSecondary: "#5B6B7C",
+  textBody: "#334155",
+  textMuted: "#7C8B9A",
 
   surface: "#FFFFFF",
-  surfaceMuted: "#F4F8FD",
-  borderCard: "#E5E7EB",
-  borderInput: "rgba(20, 184, 166, 0.28)",
+  surfaceMuted: "#F6F8FB",
+  borderCard: "#E2E8F0",
+  borderInput: "rgba(27, 79, 138, 0.28)",
 
-  link: "#0A2A43",
-  success: "#0D9488",
+  link: "#1B4F8A",
+  success: "#059669",
   warning: "#D97706",
   danger: "#E7000B",
 
-  chipBg: "#D1FAF5",
+  chipBg: "#E8F0F7",
 
-  fillCta: "#0A2A43",
-  fillHero: "#0A2A43",
-  fillAuthWash: "#F4F8FD",
-  fillSoft: "#D1FAF5",
+  fillCta: "#1B4F8A",
+  fillHero: "#0B1C2E",
+  fillAuthWash: "#F6F8FB",
+  fillSoft: "#E8F0F7",
 
-  shadowCard: "0 2px 8px rgba(10, 42, 67, 0.06)",
+  shadowCard: "0 2px 8px rgba(11, 28, 46, 0.06)",
   radiusCard: "16px",
   radiusButton: "12px",
 } as const;

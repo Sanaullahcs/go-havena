@@ -1,34 +1,33 @@
 /**
- * Ocean Breeze — scoped screen brand for login, signup, and home.
- * Five swatches, solid fills, no gradients.
+ * Harbor Trust — scoped screen brand for login, signup, and home.
  */
 export const ScreenBrand = {
-  navy:       "#0F3D5F",
-  deepTeal:   "#0D9488",
-  teal:       "#14B8A6",
-  softMint:   "#D1FAF5",
-  canvas:     "#F4FBFD",
+  navy: "#0B1C2E",
+  deepTeal: "#163A66",
+  teal: "#1B4F8A",
+  softMint: "#E8F0F7",
+  canvas: "#F6F8FB",
 
-  primary:    "#0F3D5F",
-  accent:     "#14B8A6",
-  white:      "#FFFFFF",
-  text:       "#0F3D5F",
-  textSecondary: "#6B7280",
-  border:     "#E5E7EB",
+  primary: "#1B4F8A",
+  accent: "#1B4F8A",
+  white: "#FFFFFF",
+  text: "#0B1C2E",
+  textSecondary: "#5B6B7C",
+  border: "#E2E8F0",
 
-  cta:        "#0F3D5F",
-  ctaLoading: "rgba(10, 42, 67, 0.88)",
-  ctaText:    "#FFFFFF",
-  link:       "#0F3D5F",
-  success:    "#0D9488",
-  heroFill:   "#0F3D5F",
-  fab:        "#14B8A6",
-  navActive:  "#14B8A6",
+  cta: "#1B4F8A",
+  ctaLoading: "rgba(27, 79, 138, 0.88)",
+  ctaText: "#FFFFFF",
+  link: "#0B1C2E",
+  success: "#059669",
+  heroFill: "#0B1C2E",
+  fab: "#1B4F8A",
+  navActive: "#1B4F8A",
 
   buttonShadow: {
-    shadowColor: "#0F3D5F",
+    shadowColor: "#1B4F8A",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 4,
   },

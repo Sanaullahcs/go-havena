@@ -1,61 +1,61 @@
 import { sw } from "../utils/responsive";
 
 /**
- * Havena design tokens — Ocean Breeze
- * Five swatches, solid fills only.
+ * Havena design tokens — Harbor Trust
+ * Professional navy for community / HOA platforms.
  *
- *   #0F3D5F  Navy
- *   #0D9488  Deep Teal
- *   #14B8A6  Primary Teal
- *   #D1FAF5  Soft Mint
- *   #F4F8FD  Canvas
+ *   #0B1C2E  Deep Navy
+ *   #163A66  Mid Navy
+ *   #1B4F8A  Primary Blue
+ *   #E8F0F7  Soft Mist
+ *   #F6F8FB  Canvas
  */
 
-const NAVY = "#0F3D5F";
-const DEEP_TEAL = "#0D9488";
-const TEAL = "#14B8A6";
-const MINT = "#D1FAF5";
-const CANVAS = "#F4F8FD";
+const NAVY = "#0B1C2E";
+const MID = "#163A66";
+const PRIMARY = "#1B4F8A";
+const SOFT = "#E8F0F7";
+const CANVAS = "#F6F8FB";
 
 export const Colors = {
-  brandPrimary: TEAL,
+  brandPrimary: PRIMARY,
   brandPrimaryDeep: NAVY,
-  brandSecondaryTeal: DEEP_TEAL,
-  brandSeaGreen: TEAL,
-  brandFresh: DEEP_TEAL,
+  brandSecondaryTeal: MID,
+  brandSeaGreen: PRIMARY,
+  brandFresh: MID,
 
   textPrimary: NAVY,
-  textSecondary: "#6B7280",
-  textMuted: "#6B7280",
+  textSecondary: "#5B6B7C",
+  textMuted: "#7C8B9A",
   textBody: NAVY,
 
   surface: "#FFFFFF",
   surfaceMuted: CANVAS,
 
-  borderSubtle: "rgba(15, 61, 95, 0.06)",
-  borderInput: "rgba(20, 184, 166, 0.28)",
-  borderSignup: "#E5E7EB",
-  divider: "#E5E7EB",
+  borderSubtle: "rgba(11, 28, 46, 0.06)",
+  borderInput: "rgba(27, 79, 138, 0.28)",
+  borderSignup: "#E2E8F0",
+  divider: "#E2E8F0",
 
   link: NAVY,
-  footerMuted: "#6B7280",
-  disabledBg: "#E5E7EB",
+  footerMuted: "#7C8B9A",
+  disabledBg: "#E2E8F0",
   error: "#E11D48",
-  success: DEEP_TEAL,
+  success: "#059669",
 
-  roleAdminBg: MINT,
+  roleAdminBg: SOFT,
   roleAdminText: NAVY,
-  roleResidentBg: "rgba(13, 148, 136, 0.12)",
-  roleResidentText: DEEP_TEAL,
+  roleResidentBg: "rgba(27, 79, 138, 0.12)",
+  roleResidentText: PRIMARY,
 };
 
 export const SolidFills = {
   splash: NAVY,
   notice: NAVY,
-  cta: NAVY,
+  cta: PRIMARY,
   authScreen: "#FFFFFF",
   authWash: CANVAS,
-  softAqua: MINT,
+  softAqua: SOFT,
 };
 
 export const Layout = {
@@ -74,9 +74,9 @@ export const Shadows = {
     elevation: 3,
   },
   button: {
-    shadowColor: NAVY,
+    shadowColor: PRIMARY,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 4,
   },

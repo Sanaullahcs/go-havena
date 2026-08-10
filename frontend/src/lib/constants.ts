@@ -4,14 +4,14 @@ export const APP_NAME = "Havena";
 
 export const API_BASE_URL = resolveApiV1Base();
 
-/** Ocean Breeze — five swatches */
+/** Harbor Trust — professional community palette */
 export const BRAND = {
-  navy: "#0A2A43",
-  deepTeal: "#0D9488",
-  teal: "#14B8A6",
-  mint: "#D1FAF5",
-  canvas: "#F4F8FD",
-  primary: "#14B8A6",
-  text: "#0A2A43",
-  muted: "#6B7280",
+  navy: "#0B1C2E",
+  deepTeal: "#163A66",
+  teal: "#1B4F8A",
+  mint: "#E8F0F7",
+  canvas: "#F6F8FB",
+  primary: "#1B4F8A",
+  text: "#0B1C2E",
+  muted: "#5B6B7C",
 } as const;

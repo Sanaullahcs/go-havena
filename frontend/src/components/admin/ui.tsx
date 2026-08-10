@@ -443,7 +443,7 @@ export function DtPagination({
     >
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-px"
-        style={{ background: "linear-gradient(90deg, transparent, rgba(20, 184, 166, 0.18), transparent)" }}
+        style={{ background: "linear-gradient(90deg, transparent, rgba(27, 79, 138, 0.18), transparent)" }}
         aria-hidden
       />
 
@@ -493,7 +493,7 @@ export function DtPagination({
                 style={{
                   width: `${progress}%`,
                   background: NL.fillCta,
-                  boxShadow: "0 0 10px rgba(20, 184, 166, 0.35)",
+                  boxShadow: "0 0 10px rgba(27, 79, 138, 0.35)",
                 }}
               />
             </div>
@@ -586,7 +586,7 @@ function PaginationIconBtn({
         "flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-all duration-200",
         disabled
           ? "cursor-not-allowed opacity-35"
-          : "hover:bg-[#D1FAF5] hover:text-[#0A2A43] hover:shadow-sm active:scale-95",
+          : "hover:bg-[#E8F0F7] hover:text-[#0B1C2E] hover:shadow-sm active:scale-95",
       ].join(" ")}
     >
       {children}
@@ -617,13 +617,13 @@ function PaginationPageBtn({
           ? "text-white shadow-md"
           : disabled
             ? "cursor-default text-slate-400"
-            : "text-slate-600 hover:bg-slate-50 hover:text-[#0A2A43] active:scale-95",
+            : "text-slate-600 hover:bg-slate-50 hover:text-[#0B1C2E] active:scale-95",
       ].join(" ")}
       style={
         active
           ? {
               background: NL.fillCta,
-              boxShadow: "0 4px 12px rgba(20, 184, 166, 0.28)",
+              boxShadow: "0 4px 12px rgba(27, 79, 138, 0.28)",
             }
           : undefined
       }

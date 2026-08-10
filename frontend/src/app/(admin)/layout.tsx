@@ -109,7 +109,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (accessBlocked) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] px-6">
+      <div className="flex min-h-screen items-center justify-center bg-[#F6F8FB] px-6">
         <div className="max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
           <p className="text-sm font-semibold uppercase tracking-wide text-sky-700">Community admin portal</p>
           <h1 className="mt-3 text-2xl font-bold text-slate-900">Access pending</h1>
@@ -133,7 +133,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <ForegroundNotificationProvider>
-      <div className="min-h-screen bg-[#F8FAFC]">
+      <div className="min-h-screen bg-[#F6F8FB]">
         <AdminSidebar open={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
         <div className="flex min-w-0 flex-col min-h-screen md:ml-60">

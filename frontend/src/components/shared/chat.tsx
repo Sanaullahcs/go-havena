@@ -34,7 +34,7 @@ export type ChatMessage = {
 export function ChatShell({
   myId,
   myName,
-  accentColor = "#14B8A6",
+  accentColor = "#1B4F8A",
   conversations,
   messages,
   activeId,

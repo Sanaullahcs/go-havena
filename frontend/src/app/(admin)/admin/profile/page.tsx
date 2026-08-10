@@ -238,7 +238,7 @@ export default function AdminProfilePage() {
         className="overflow-hidden rounded-2xl border bg-white"
         style={{ borderColor: NL.borderCard, boxShadow: NL.shadowCard }}
       >
-        <div className="h-20 w-full" style={{ background: "linear-gradient(135deg, #F8FAFC 0%, #D1FAF5 100%)" }} />
+        <div className="h-20 w-full" style={{ background: "linear-gradient(135deg, #F6F8FB 0%, #E8F0F7 100%)" }} />
         <div className="px-5 pb-5 sm:px-6">
           <div className="-mt-10 flex flex-wrap items-end gap-4">
             <div className="relative shrink-0">

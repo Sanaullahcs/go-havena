@@ -12,95 +12,74 @@ type LegalPageShellProps = {
 
 export function LegalPageShell({ document }: LegalPageShellProps) {
   return (
-    <div className="landing-page min-h-screen overflow-x-hidden bg-white text-ink-primary antialiased">
-      <header className="sticky top-0 z-40 border-b border-border-card bg-white/90 backdrop-blur-md">
-        <Container size="xl" className="flex h-16 items-center justify-between gap-4">
+    <div className="landing-page lp min-h-screen overflow-x-hidden bg-white text-ink-primary antialiased">
+      <header className="lp-legal-header">
+        <Container size="xl" className="lp-legal-header__inner">
           <Link href="/" aria-label="Havena home" className="shrink-0">
             <Logo tone="brand" />
           </Link>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-body transition-colors hover:text-brand-deep"
-          >
+          <Link href="/" className="lp-legal-header__back">
             <Icon name="chevron-right" className="h-4 w-4 rotate-180" />
             Back to home
           </Link>
         </Container>
       </header>
 
-      <main id="main" className="relative">
-        <div aria-hidden="true" className="soft-section absolute inset-0 -z-10" />
-        <div
-          aria-hidden="true"
-          className="grid-mask-light pointer-events-none absolute inset-0 -z-10 opacity-40"
-        />
+      <main id="main" className="lp-legal">
+        <Container size="md" className="lp-legal__container">
+          <div className="lp-legal__intro">
+            <p className="lp-label lp-label--plain">Legal</p>
+            <h1 className="lp-legal__title">{document.title}</h1>
+            <p className="lp-body lp-legal__description">{document.description}</p>
+            <p className="lp-legal__updated">Last updated: {document.lastUpdated}</p>
+          </div>
 
-        <Container size="md" className="relative py-12 sm:py-16 lg:py-20">
-          <div className="mx-auto max-w-3xl">
-            <p className="section-label">Legal</p>
-            <h1 className="page-title mt-3">{document.title}</h1>
-            <p className="mt-3 text-[15px] leading-relaxed text-ink-body">{document.description}</p>
-            <p className="mt-2 text-[13px] font-medium text-ink-muted">
-              Last updated: {document.lastUpdated}
-            </p>
-
-            <nav
-              aria-label="Table of contents"
-              className="legal-toc mt-10 rounded-2xl border border-border-card bg-white/80 p-5 shadow-card backdrop-blur-sm"
-            >
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand-deep">
-                On this page
-              </p>
-              <ol className="mt-3 grid gap-2 sm:grid-cols-2">
-                {document.sections.map((section, index) => (
-                  <li key={section.id}>
-                    <a href={`#${section.id}`} className="legal-toc-link">
-                      <span className="text-ink-muted">{String(index + 1).padStart(2, "0")}</span>
-                      {section.title}
-                    </a>
-                  </li>
-                ))}
-              </ol>
-            </nav>
-
-            <article className="legal-body mt-10 space-y-10">
-              {document.sections.map((section) => (
-                <section key={section.id} id={section.id} className="legal-section scroll-mt-28">
-                  <h2 className="text-[20px] font-bold tracking-tight text-ink-primary sm:text-[22px]">
+          <nav aria-label="Table of contents" className="lp-legal__toc">
+            <p className="lp-legal__toc-label">On this page</p>
+            <ol className="lp-legal__toc-list">
+              {document.sections.map((section, index) => (
+                <li key={section.id}>
+                  <a href={`#${section.id}`} className="lp-legal__toc-link">
+                    <span className="lp-legal__toc-num">{String(index + 1).padStart(2, "0")}</span>
                     {section.title}
-                  </h2>
-                  <div className="mt-4 space-y-4">
-                    {section.paragraphs.map((paragraph) => (
-                      <p key={paragraph} className="text-[15px] leading-[1.75] text-ink-body">
-                        {paragraph}
-                      </p>
-                    ))}
-                    {section.bullets?.length ? (
-                      <ul className="space-y-2.5 pl-1">
-                        {section.bullets.map((item) => (
-                          <li key={item} className="flex items-start gap-2.5 text-[15px] leading-relaxed text-ink-body">
-                            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-deep" />
-                            {item}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </div>
-                </section>
+                  </a>
+                </li>
               ))}
-            </article>
+            </ol>
+          </nav>
 
-            <div className="legal-footer-note mt-12 rounded-2xl border border-border-card bg-brand-soft/60 px-5 py-4 text-[14px] text-ink-body">
-              Questions?{" "}
-              <LandingSectionLink sectionId="contact" className="font-semibold text-brand-deep hover:underline">
-                Contact us
-              </LandingSectionLink>{" "}
-              or return to the{" "}
-              <Link href="/" className="font-semibold text-brand-deep hover:underline">
-                homepage
-              </Link>
-              .
-            </div>
+          <article className="lp-legal__body">
+            {document.sections.map((section) => (
+              <section key={section.id} id={section.id} className="lp-legal__section scroll-mt-28">
+                <h2 className="lp-legal__section-title">{section.title}</h2>
+                <div className="lp-legal__section-content">
+                  {section.paragraphs.map((paragraph) => (
+                    <p key={paragraph} className="lp-legal__paragraph">
+                      {paragraph}
+                    </p>
+                  ))}
+                  {section.bullets?.length ? (
+                    <ul className="lp-legal__bullets">
+                      {section.bullets.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              </section>
+            ))}
+          </article>
+
+          <div className="lp-legal__note">
+            Questions?{" "}
+            <LandingSectionLink sectionId="contact" className="lp-legal__note-link">
+              Contact us
+            </LandingSectionLink>{" "}
+            or return to the{" "}
+            <Link href="/" className="lp-legal__note-link">
+              homepage
+            </Link>
+            .
           </div>
         </Container>
       </main>

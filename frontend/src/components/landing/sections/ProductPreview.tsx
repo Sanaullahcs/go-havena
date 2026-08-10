@@ -30,7 +30,7 @@ export function ProductPreview() {
               Residents
             </span>
             <span aria-hidden="true" />
-            <span className={`${labelClass} justify-self-center text-indigo-700`}>
+            <span className={`${labelClass} justify-self-center text-brand-deep`}>
               <Icon name="bar-chart" className="h-3.5 w-3.5" />
               Admins
             </span>
@@ -49,14 +49,14 @@ export function ProductPreview() {
               <span className="grid h-8 w-8 place-items-center rounded-full border border-brand-deep/15 bg-brand-soft text-brand-deep">
                 <Icon name="zap" className="h-4 w-4" />
               </span>
-              <span className="h-12 w-px bg-gradient-to-b from-brand-deep/30 to-indigo-400/30" />
+              <span className="h-12 w-px bg-gradient-to-b from-brand/40 to-brand-deep/30" />
               <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-ink-muted">
                 Synced
               </span>
             </div>
 
             <div className="product-preview-dashboard">
-              <span className={`${labelClass} mb-3 text-indigo-700 lg:hidden`}>
+              <span className={`${labelClass} mb-3 text-brand-deep lg:hidden`}>
                 <Icon name="bar-chart" className="h-3.5 w-3.5" />
                 Admins
               </span>

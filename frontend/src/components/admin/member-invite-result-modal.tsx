@@ -45,7 +45,7 @@ export function MemberInviteResultModal({ result, onClose }: Props) {
     QRCode.toDataURL(result.invite_qr_value || result.invite_code, {
       width: 200,
       margin: 2,
-      color: { dark: "#0f172a", light: "#ffffff" },
+      color: { dark: "#0b1c2e", light: "#ffffff" },
     })
       .then((url) => {
         if (!cancelled) setQrDataUrl(url);

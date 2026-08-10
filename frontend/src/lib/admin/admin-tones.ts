@@ -16,10 +16,10 @@ export type AdminToneStyle = {
 export const ADMIN_TONE: Record<AdminTone, AdminToneStyle> = {
   blue: {
     accent: NL.brandPrimary,
-    iconBg: "#D1FAF5",
+    iconBg: "#E8F0F7",
     iconColor: NL.brandPrimaryDeep,
     wash: "#FFFFFF",
-    border: "rgba(20, 184, 166, 0.45)",
+    border: "rgba(27, 79, 138, 0.3)",
     soft: NL.chipBg,
     value: NL.textPrimary,
   },

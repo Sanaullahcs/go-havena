@@ -33,7 +33,7 @@ const TYPE_LABEL: Record<string, string> = {
 
 const CAT_COLOR: Record<string, string> = {
   services:    "#7c3aed",
-  electronics: "#14B8A6",
+  electronics: "#1B4F8A",
   furniture:   "#d97706",
   vehicles:    "#0891b2",
   food:        "#059669",

@@ -42,7 +42,7 @@ const TONE_CLASS: Record<AdminActionTone, string> = {
   neutral:
     "border-[#EDEDED] bg-white text-[#64748B] hover:border-[#CBD5E1] hover:bg-[#F8FAFC] hover:text-[#334155]",
   primary:
-    "border-[rgba(0,124,250,0.28)] bg-[#D1FAF5] text-[#14B8A6] hover:border-[rgba(0,124,250,0.4)] hover:bg-[rgba(20, 184, 166, 0.15)]",
+    "border-[rgba(0,124,250,0.28)] bg-[#E8F0F7] text-[#1B4F8A] hover:border-[rgba(0,124,250,0.4)] hover:bg-[rgba(27, 79, 138, 0.15)]",
   success:
     "border-[rgba(16,185,129,0.28)] bg-[#ECFDF5] text-[#059669] hover:border-[rgba(16,185,129,0.4)] hover:bg-[#D1FAE5]",
   warning:
