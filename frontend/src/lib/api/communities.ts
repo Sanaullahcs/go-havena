@@ -186,3 +186,29 @@ export async function assignCommunityAdmin(
     message: string;
   };
 }
+
+/** Self-serve web onboarding after community-admin OTP signup. */
+export async function selfServeCreateCommunity(payload: {
+  community_name: string;
+  address: string;
+  region_id: number;
+  estimated_residents?: number;
+}) {
+  const res = await api.post("/v1/communities/self-serve", payload);
+  return res.data as {
+    data: {
+      community: { id: number; name: string };
+      membership: { id: number; community_id: number; role: string; status: string };
+      user: Record<string, unknown>;
+    };
+    message: string;
+  };
+}
+
+export async function fetchPublicRegions() {
+  const res = await api.get("/v1/regions");
+  const payload = res.data;
+  const rows = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
+  return (rows as Array<{ type?: string; id: number; title: string; area?: string; state?: string | null; status?: string }>)
+    .filter((row) => row.type === "region" || row.type == null);
+}

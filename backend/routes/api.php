@@ -32,6 +32,8 @@ use App\Http\Controllers\Api\V1\CommunityDocumentController;
 use App\Http\Controllers\Api\V1\GuestAccessController;
 use App\Http\Controllers\Api\V1\GuestController;
 use App\Http\Controllers\Api\V1\ResidentGuestController;
+use App\Http\Controllers\Api\V1\BillingController;
+use App\Http\Controllers\Api\V1\StripeWebhookController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -40,6 +42,9 @@ Route::prefix('v1')->group(function () {
     Route::get('/health', fn() => response()->json([
         'data' => ['status' => 'ok', 'service' => 'havena-api', 'version' => '2.0.0', 'time' => now()->toIso8601String()],
     ]));
+
+    /* ── Stripe webhooks (no auth; verified by signature) ── */
+    Route::post('/billing/stripe/webhook', StripeWebhookController::class);
 
     /* ── Auth ── */
     Route::prefix('auth')->group(function () {
@@ -83,6 +88,7 @@ Route::prefix('v1')->group(function () {
         /* Communities */
         Route::post('/communities/join-by-invite', [CommunityController::class, 'joinByInvite']);
         Route::post('/communities/request',        [CommunityController::class, 'requestCommunity']);
+        Route::post('/communities/self-serve',     [CommunityController::class, 'selfServeCreate']);
         Route::post('/communities/{id}/join',      [CommunityController::class, 'join']);
 
         /* Guest invitations (resident) */
@@ -239,6 +245,8 @@ Route::prefix('v1')->group(function () {
                 Route::get('/contact-submissions', [ContactController::class, 'adminIndex']);
                 Route::get('/contact-submissions/{id}', [ContactController::class, 'adminShow']);
                 Route::patch('/contact-submissions/{id}', [ContactController::class, 'adminUpdate']);
+
+                Route::post('/billing/grant', [BillingController::class, 'grant']);
             });
 
             /* Community admin (+ system admin override) */
@@ -279,6 +287,13 @@ Route::prefix('v1')->group(function () {
                 Route::patch('/members/{id}/reject',   [MemberController::class, 'reject']);
                 Route::patch('/members/{id}/suspend',  [MemberController::class, 'suspend']);
                 Route::delete('/members/{id}',      [MemberController::class, 'destroy']);
+
+                /* Community subscription billing */
+                Route::get('/billing',                      [BillingController::class, 'show']);
+                Route::post('/billing/checkout',             [BillingController::class, 'checkout']);
+                Route::post('/billing/confirm-checkout',     [BillingController::class, 'confirmCheckout']);
+                Route::post('/billing/portal',               [BillingController::class, 'portal']);
+                Route::post('/billing/change-plan',          [BillingController::class, 'changePlan']);
 
                 Route::patch('/family-add-member-requests/{id}/approve', [FamilyController::class, 'adminApproveAddMemberRequest']);
                 Route::patch('/family-add-member-requests/{id}/reject',  [FamilyController::class, 'adminRejectAddMemberRequest']);

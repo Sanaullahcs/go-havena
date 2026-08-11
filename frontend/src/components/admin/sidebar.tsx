@@ -166,6 +166,15 @@ function NavIconMail() {
   );
 }
 
+function NavIconBilling() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <rect x="2" y="4" width="12" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M2 7h12M5 10.5h2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function NavIconMessages() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
@@ -199,6 +208,7 @@ const systemAdminNav: NavItem[] = [
 
 const communityAdminNav: NavItem[] = [
   { href: "/admin/members", label: "Members", icon: NavIconMembers },
+  { href: "/admin/billing", label: "Billing", icon: NavIconBilling },
   { href: "/admin/guests", label: "Guest Users", icon: NavIconMembers },
   { href: "/admin/messages", label: "Messages", icon: NavIconMessages },
   { href: "/admin/notices", label: "Notices", icon: NavIconNotices },

@@ -8,6 +8,7 @@ use App\Models\InviteCode;
 use App\Models\User;
 use App\Services\ActivityLogService;
 use App\Services\AdminRoleService;
+use App\Services\CommunityBillingService;
 use App\Services\CommunityLifecycleService;
 use App\Services\ContactIdentityService;
 use App\Services\FamilyService;
@@ -438,11 +439,20 @@ class MemberController extends Controller
 
         $communityId = AdminRoleService::requireManagedCommunityId($request->user(), $request);
         $password    = \Illuminate\Support\Str::random(12);
+        $role        = $request->role ?? 'member';
+        $billing     = app(CommunityBillingService::class);
+
+        // Community admin seats are not billable; resident/moderator invites consume a seat.
+        if ($role !== 'admin') {
+            $billing->releaseExpiredReservations($communityId);
+            $billing->assertCanAllocateSeat($communityId);
+        }
 
         $userId = DB::table('users')->insertGetId([
             'name'       => $request->name,
             'email'      => $request->email,
             'password'   => Hash::make($password),
+            'role'       => $role === 'admin' ? 'community_admin' : 'resident',
             'status'     => 'active',
             'created_at' => now(),
             'updated_at' => now(),
@@ -459,7 +469,7 @@ class MemberController extends Controller
         DB::table('community_memberships')->insert([
             'user_id'      => $userId,
             'community_id' => $communityId,
-            'role'         => $request->role ?? 'member',
+            'role'         => $role,
             'status'       => 'approved',
             'created_at'   => now(),
             'updated_at'   => now(),
@@ -526,6 +536,12 @@ class MemberController extends Controller
                     'code' => 'SYSTEM_REJECTION_REQUIRES_SYSTEM_ADMIN',
                 ], 403);
             }
+        }
+
+        if ($membership->status !== 'approved' && ($membership->role ?? 'member') !== 'admin') {
+            $billing = app(CommunityBillingService::class);
+            $billing->releaseExpiredReservations((int) $communityId);
+            $billing->assertCanAllocateSeat((int) $communityId);
         }
 
         $updated = DB::table('community_memberships')

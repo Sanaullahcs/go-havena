@@ -67,14 +67,35 @@ export async function loginWithEmail(email: string, password: string): Promise<{
   }
 }
 
-export async function requestCommunityAdminOtp(phone: string): Promise<void> {
+export type CommunityAdminOtpIntent = "login" | "signup";
+
+/**
+ * Unified community-admin OTP:
+ * existing phones → login; unknown phones → signup (create account).
+ */
+export async function requestCommunityAdminOtp(
+  phone: string,
+): Promise<{ intent: CommunityAdminOtpIntent }> {
   try {
     await api.post("/v1/auth/otp/request", {
       phone,
       intent: "login",
       portal: "community_admin_dashboard",
     });
+    return { intent: "login" };
   } catch (err) {
+    if (axios.isAxiosError(err) && err.response?.data?.code === "ACCOUNT_NOT_FOUND_USE_SIGNUP") {
+      try {
+        await api.post("/v1/auth/otp/request", {
+          phone,
+          intent: "signup",
+          portal: "community_admin_dashboard",
+        });
+        return { intent: "signup" };
+      } catch (signupErr) {
+        throwAuthError(signupErr);
+      }
+    }
     throwAuthError(err);
   }
 }
@@ -82,20 +103,22 @@ export async function requestCommunityAdminOtp(phone: string): Promise<void> {
 export async function verifyCommunityAdminOtp(
   phone: string,
   code: string,
-): Promise<{ token: string; user: AuthUser }> {
+  intent: CommunityAdminOtpIntent = "login",
+): Promise<{ token: string; user: AuthUser; intent: CommunityAdminOtpIntent }> {
   try {
     const res = await api.post("/v1/auth/otp/verify", {
       phone,
       code,
-      intent: "login",
+      intent,
       portal: "community_admin_dashboard",
+      ...(intent === "signup" ? { role: "admin" as const } : {}),
     });
     const data = res.data;
     const token = data.token;
     const raw = data.user ?? data.data;
     const user = mapAuthUser(raw ?? {}, { phone });
     if (!token) throw new ApiError("Login failed — no token returned.");
-    return { token, user };
+    return { token, user, intent };
   } catch (err) {
     throwAuthError(err);
   }

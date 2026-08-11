@@ -5,18 +5,18 @@ import { actionLinks } from "@/lib/landing/site";
 const STEPS = [
   {
     num: "01",
-    title: "Create your account",
-    body: "Sign in with OTP, choose resident or admin, and select your community.",
+    title: "Start your community",
+    body: "Sign up as a community admin with phone OTP and set up your neighborhood details.",
   },
   {
     num: "02",
-    title: "Verify & get approved",
-    body: "Complete your profile, upload a utility bill, and wait for admin approval.",
+    title: "Choose a subscription",
+    body: "Pick a seat pack that fits your size. One plan covers the whole community.",
   },
   {
     num: "03",
-    title: "Live in the neighborhood",
-    body: "Access notices, events, wellness, amenities, and local deals in one place.",
+    title: "Invite residents",
+    body: "Share invite codes or approve join requests. Residents use the app free — no payment from them.",
   },
 ];
 
@@ -26,9 +26,9 @@ export function HowItWorks() {
       <Container size="xl">
         <div className="lp-process__head">
           <p className="lp-label lp-label--on-dark">How it works</p>
-          <h2 className="lp-title lp-title--on-dark">Three clear steps from invite to everyday use</h2>
+          <h2 className="lp-title lp-title--on-dark">Three steps. Then the neighborhood runs itself.</h2>
           <p className="lp-body lp-process__lede">
-            Simple onboarding for residents, with admins in control of who joins.
+            You buy the seats. Residents join free. Operations stay in one place.
           </p>
         </div>
 
@@ -46,8 +46,14 @@ export function HowItWorks() {
 
         <div className="lp-process__cta">
           <Button href={actionLinks.signUp} variant="white" size="lg" iconTrailing="arrow-right">
-            Get started now
+            Start your community
           </Button>
+          <a
+            href="#pricing"
+            className="inline-flex h-12 items-center justify-center rounded-full border border-white/35 px-6 text-[15px] font-semibold text-white transition hover:bg-white/10"
+          >
+            See plans
+          </a>
         </div>
       </Container>
     </section>

@@ -33,6 +33,10 @@ const FAQS = [
     q: "How do I send a message to a resident?",
     a: "Use the Messages section to start or continue a conversation. Search by name or unit number to find the resident quickly.",
   },
+  {
+    q: "How do community subscriptions and seats work?",
+    a: "Open Billing to choose a plan for your community. Each approved resident uses one seat. Residents do not pay Havena — you invite them into your seat pool. If seats are full, upgrade your plan before inviting or approving more residents.",
+  },
 ];
 
 const CONTACTS = [

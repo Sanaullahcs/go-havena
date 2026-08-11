@@ -141,7 +141,11 @@ class OtpController extends Controller
 
             $role = $validated['role'] ?? 'resident';
             $userRole = $role === 'admin' ? 'community_admin' : 'resident';
-            $adminStatus = $role === 'admin' ? 'pending' : null;
+            // Web community-admin portal signup is self-serve (approved immediately).
+            // Mobile/other admin signups stay pending for platform review.
+            $adminStatus = $role === 'admin'
+                ? (($validated['portal'] ?? null) === 'community_admin_dashboard' ? 'approved' : 'pending')
+                : null;
 
             if (! $user) {
                 $trashed = User::withTrashed()->where('phone', $phone)->first();

@@ -54,7 +54,7 @@ export default function ResidentLoginPage() {
   const isBusy = loading || redirecting;
 
   return (
-    <main className="flex h-screen flex-col overflow-hidden bg-[#f4f6fb]">
+    <main className="flex h-screen flex-col overflow-hidden bg-[#f4f8fd]">
       {redirecting ? (
         <AuthRedirectOverlay title="Opening your portal" subtitle="Loading your resident dashboard…" />
       ) : null}
@@ -62,7 +62,7 @@ export default function ResidentLoginPage() {
       <header className="z-20 w-full shrink-0 border-b border-slate-200/70 bg-white">
         <div className="flex w-full items-center justify-between gap-4 px-5 py-3 sm:px-8">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0A2A43] text-white">
               <NbrLogoMark />
             </span>
             <div>
@@ -90,7 +90,7 @@ export default function ResidentLoginPage() {
               <p className="text-sm text-white/70">Resident Portal · Your Community Portal</p>
               <h2 className="mt-4 text-3xl font-bold tracking-tight text-white xl:text-[2.5rem]">
                 <span className="block">Connect with your</span>
-                <span className="block text-emerald-200">neighborhood community.</span>
+                <span className="block text-teal-200">neighborhood community.</span>
               </h2>
               <ul className="mt-5 flex max-w-md flex-col gap-2 list-none p-0 text-[13.5px] text-white/65">
                 <HeroBullet>Stay up to date with community notices and events.</HeroBullet>
@@ -237,7 +237,7 @@ export default function ResidentLoginPage() {
       </div>
 
       <style>{`
-        .resident-auth-hero { background: #0B1C2E; }
+        .resident-auth-hero { background: #0A2A43; }
         .resident-auth-hero-pattern {
           pointer-events: none; opacity: 0.45;
           background-image: linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px);
@@ -252,21 +252,21 @@ export default function ResidentLoginPage() {
         }
         .resident-auth-input::placeholder { color: rgba(100,116,139,0.8); }
         .resident-auth-input:hover { border-color: #cbd5e1; }
-        .resident-auth-input:focus { border-color: #059669; box-shadow: 0 0 0 3px rgba(5,150,105,0.1); }
+        .resident-auth-input:focus { border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
         .resident-auth-btn {
-          border-radius: 0.75rem; padding: 0.75rem 1rem; font-size: 0.875rem; font-weight: 600;
-          color: #fff; background: #1B4F8A;
-          box-shadow: 0 4px 14px rgba(5,150,105,0.25); transition: box-shadow 200ms, filter 150ms;
+          border-radius: 9999px; padding: 0.75rem 1rem; font-size: 0.875rem; font-weight: 600;
+          color: #fff; background: #14b8a6;
+          box-shadow: none; transition: background 150ms;
           outline: none; cursor: pointer; width: 100%;
         }
-        .resident-auth-btn:hover { box-shadow: 0 6px 20px rgba(5,150,105,0.35); filter: brightness(1.05); }
+        .resident-auth-btn:hover { background: #0d9488; }
         .resident-auth-btn:disabled { cursor: not-allowed; opacity: 0.5; }
         .resident-header-cta {
           display: inline-flex; align-items: center; gap: 0.375rem; border-radius: 9999px;
-          border: 1px solid rgba(5,150,105,0.2); background: #ecfdf5;
-          padding: 0.5rem 1rem; font-size: 0.8125rem; font-weight: 600; color: #065f46; transition: background 150ms;
+          border: 1px solid rgba(13,148,136,0.25); background: #ccfbf1;
+          padding: 0.5rem 1rem; font-size: 0.8125rem; font-weight: 600; color: #0a2a43; transition: background 150ms;
         }
-        .resident-header-cta:hover { background: #d1fae5; }
+        .resident-header-cta:hover { background: #99f6e4; }
       `}</style>
     </main>
   );

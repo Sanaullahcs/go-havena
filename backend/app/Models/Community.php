@@ -18,6 +18,7 @@ class Community extends Model
         'address',
         'timezone',
         'settings',
+        'estimated_residents',
         'status',
         'review_status',
         'rejection_reason',
@@ -28,14 +29,20 @@ class Community extends Model
     protected function casts(): array
     {
         return [
-            'settings'    => 'array',
-            'reviewed_at' => 'datetime',
+            'settings'             => 'array',
+            'estimated_residents'  => 'integer',
+            'reviewed_at'          => 'datetime',
         ];
     }
 
     public function memberships(): HasMany
     {
         return $this->hasMany(CommunityMembership::class);
+    }
+
+    public function subscription(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(CommunitySubscription::class);
     }
 
     public function inviteCodes(): HasMany

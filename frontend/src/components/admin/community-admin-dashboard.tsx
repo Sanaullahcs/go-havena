@@ -327,6 +327,13 @@ export default function CommunityAdminDashboard() {
       icon: dashIcon(Users),
     },
     {
+      label: "Billing",
+      href: "/admin/billing",
+      desc: "Plans, seats, and subscription status",
+      tone: "cyan",
+      icon: dashIcon(Building2),
+    },
+    {
       label: "Feed Moderation",
       href: "/admin/feed?status=pending",
       desc: "Review resident posts before publishing",

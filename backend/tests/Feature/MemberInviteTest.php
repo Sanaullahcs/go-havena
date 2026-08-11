@@ -6,6 +6,7 @@ use App\Models\Community;
 use App\Models\CommunityMembership;
 use App\Models\Region;
 use App\Models\User;
+use App\Services\CommunityBillingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -55,8 +56,11 @@ class MemberInviteTest extends TestCase
 
     public function test_member_invite_code_claims_placeholder_and_allows_profile_email(): void
     {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
         $community = $this->seedCommunity();
         $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
 
         $adminToken = $admin->createToken('test')->plainTextToken;
         $inviteResponse = $this->withToken($adminToken)

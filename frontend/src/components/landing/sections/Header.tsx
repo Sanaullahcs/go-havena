@@ -25,7 +25,7 @@ export function Header() {
 
   React.useEffect(() => {
     const onScroll = () => {
-      setScrolled(window.scrollY > 4);
+      setScrolled(window.scrollY > 24);
 
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
@@ -54,8 +54,10 @@ export function Header() {
     };
   }, [mobileOpen]);
 
+  const solid = scrolled || mobileOpen;
+
   return (
-    <header className={["lp-header", scrolled || mobileOpen ? "is-scrolled" : ""].filter(Boolean).join(" ")}>
+    <header className={["lp-header", solid ? "is-scrolled" : "is-over-hero"].filter(Boolean).join(" ")}>
       <div className="lp-header__inner">
         <LandingHomeLink
           className="lp-header__brand"
@@ -64,7 +66,7 @@ export function Header() {
             setMobileOpen(false);
           }}
         >
-          <Logo tone="brand" />
+          <Logo tone={solid ? "brand" : "light"} />
         </LandingHomeLink>
 
         <nav aria-label="Primary" className="lp-header__nav hidden lg:flex">
@@ -88,11 +90,11 @@ export function Header() {
         </nav>
 
         <div className="lp-header__actions">
-          <div className="hidden items-center gap-2 sm:flex">
-            <Button href={actionLinks.login} variant="ghost" size="sm">
+          <div className="lp-header__cta-group hidden items-center gap-3 sm:flex">
+            <Button href={actionLinks.login} variant="ghost" size="sm" className="lp-header__login">
               Log in
             </Button>
-            <Button href={actionLinks.signUp} variant="primary" size="sm">
+            <Button href={actionLinks.signUp} variant="primary" size="sm" className="lp-header__start">
               Get started
             </Button>
           </div>
@@ -104,7 +106,7 @@ export function Header() {
             aria-expanded={mobileOpen}
             className="lp-header__menu-btn lg:hidden"
           >
-            <Icon name={mobileOpen ? "close" : "menu"} className="h-[18px] w-[18px]" />
+            <Icon name={mobileOpen ? "close" : "menu"} className="h-5 w-5" strokeWidth={2} />
           </button>
         </div>
       </div>

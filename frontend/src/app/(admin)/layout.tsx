@@ -27,6 +27,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/contact-messages": "Contact Messages",
   "/admin/wellness": "Wellness Programs",
   "/admin/members": "Members",
+  "/admin/billing": "Billing",
+  "/admin/setup": "Community setup",
   "/admin/guests": "Guest Users",
   "/admin/notices": "Notices",
   "/admin/events": "Events",
@@ -63,8 +65,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
 
     const user = getUser();
+    // New self-serve admins land here before they have a community.
+    if (pathname.startsWith("/admin/setup") && isCommunityAdminUser(user)) {
+      setAccessBlocked(null);
+      setChecked(true);
+      return;
+    }
+
     if (!canAccessCommunityDashboard(user)) {
       if (isCommunityAdminUser(user)) {
+        if (!pathname.startsWith("/admin/setup")) {
+          router.replace("/admin/setup");
+          return;
+        }
         setAccessBlocked(
           user?.community_admin_status === "pending"
             ? "Your community admin account is pending platform approval."
@@ -87,7 +100,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .catch(() => {
         // Keep existing session if /me fails (offline / transient).
       });
-  }, [router]);
+  }, [router, pathname]);
 
   useEffect(() => {
     if (!checked || accessBlocked) return;

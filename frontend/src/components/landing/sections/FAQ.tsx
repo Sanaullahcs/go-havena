@@ -6,34 +6,34 @@ import { Icon } from "../icons/Icon";
 
 const FAQS = [
   {
-    question: "Who can join a community on Havena?",
+    question: "Who pays for Havena?",
     answer:
-      "Only verified residents and approved admins for a specific neighborhood or HOA. There is no public sign-up feed. Each person selects their community, completes verification, and waits for admin approval before gaining access.",
+      "The community admin buys a subscription with a seat pack. Residents never pay Havena — they join through invites or approval and use the app free under your plan.",
   },
   {
-    question: "How does member verification work?",
+    question: "What is a seat?",
     answer:
-      "Residents sign in with OTP, complete their profile, and upload a utility bill or proof of address. Community admins review submissions from the dashboard and approve or decline access from one queue.",
+      "One approved resident uses one seat. Guests do not count. When seats are full, upgrade your plan from Billing before inviting or approving more residents.",
+  },
+  {
+    question: "How do community admins get started?",
+    answer:
+      "Start from the website, verify with phone OTP, set up your community, choose a subscription, then invite residents by code, QR, or approval queue.",
   },
   {
     question: "Do admins need a separate tool from residents?",
     answer:
-      "No. Admins and residents can both use the mobile app. When deeper operations are needed, admins also have a web dashboard for approvals, publishing, analytics, and community management.",
+      "Admins use the web dashboard for billing, invites, and operations. Residents use the mobile app for notices, events, amenities, wellness, and neighborhood life.",
   },
   {
     question: "Is Havena only for HOAs?",
     answer:
-      "Havena is built for HOAs, property managers, and neighborhood associations that need verified membership, daily operations, and resident engagement in one calm platform.",
+      "Havena is built for HOAs, property managers, and neighborhood associations that need verified membership and day-to-day community operations in one place.",
   },
   {
-    question: "What can residents do in the app?",
+    question: "Can we change plans later?",
     answer:
-      "Residents can read notices, RSVP to events, book amenities, join wellness programs, browse local deals, and stay connected to neighborhood life without scattered group chats or email threads.",
-  },
-  {
-    question: "How fast can a community get started?",
-    answer:
-      "Most communities can invite admins, configure access, and start approving members within a single setup session. Residents typically reach their first login in minutes after approval.",
+      "Yes. Upgrade anytime from Billing. Downgrades are allowed only when your used seats still fit the new plan’s seat limit.",
   },
 ];
 

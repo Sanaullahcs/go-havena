@@ -26,8 +26,10 @@ import {
   type MembershipStatus,
 } from "@/lib/api/members";
 import { apiError } from "@/lib/api/client";
+import { fetchBilling, type BillingPayload } from "@/lib/api/billing";
 import { getManagedCommunityId, getUser, isSystemAdminUser } from "@/lib/auth/session";
 import { PageLoader, PageError } from "@/components/shared/page-states";
+import Link from "next/link";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { PhoneDisplay } from "@/components/admin/phone-display";
@@ -119,6 +121,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [billing, setBilling] = useState<BillingPayload | null>(null);
   const hasLoadedOnce = useRef(false);
   const currentUser = getUser();
 
@@ -166,6 +169,16 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
       .catch(() => setScopeCommunities([]));
   }, []);
 
+  useEffect(() => {
+    if (isSystemResidents || isSystemAdminUser()) {
+      setBilling(null);
+      return;
+    }
+    fetchBilling()
+      .then(setBilling)
+      .catch(() => setBilling(null));
+  }, [isSystemResidents, members.length]);
+
   const viewingAllCommunities = scopeCommunityId === "all";
 
   const statTiles = useMemo(() => [
@@ -183,6 +196,19 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   }));
 
   const openInviteModal = async () => {
+    if (billing && !billing.setup.can_invite_residents) {
+      if (!billing.setup.subscription_active) {
+        toastError("An active subscription is required before inviting residents.");
+      } else if (billing.seats.seats_available <= 0) {
+        toastError("All seats are in use. Upgrade your plan to invite more residents.");
+      } else if (!billing.setup.community_approved) {
+        toastError("Your community is still awaiting platform approval.");
+      } else {
+        toastError("You cannot invite residents right now. Check Billing.");
+      }
+      return;
+    }
+
     resetTouched();
     setModal(true);
     setCommunitiesLoading(true);
@@ -322,8 +348,40 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   if (initialLoading) return <PageLoader skeleton />;
   if (error) return <PageError message={error} onRetry={() => load()} />;
 
+  const seatsBanner = !isSystemResidents && billing ? (
+    <div
+      className={[
+        "flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-[13px]",
+        billing.seats.in_grace
+          ? "border-amber-200 bg-amber-50 text-amber-950"
+          : !billing.setup.subscription_active
+            ? "border-sky-200 bg-sky-50 text-sky-950"
+            : billing.seats.seats_available <= 0
+              ? "border-rose-200 bg-rose-50 text-rose-950"
+              : "border-slate-200 bg-white text-slate-700",
+      ].join(" ")}
+    >
+      <p>
+        <span className="font-semibold">
+          {billing.seats.seats_used} / {billing.seats.seat_limit || "—"} seats used
+        </span>
+        {!billing.setup.subscription_active
+          ? " — choose a plan before inviting residents."
+          : billing.seats.seats_available <= 0
+            ? " — upgrade to add more residents."
+            : billing.seats.in_grace
+              ? " — update payment to keep inviting."
+              : "."}
+      </p>
+      <Link href="/admin/billing" className="font-semibold text-[#1B4F8A] underline-offset-2 hover:underline">
+        {billing.setup.subscription_active ? "Manage billing" : "Choose a plan"}
+      </Link>
+    </div>
+  ) : null;
+
   return (
     <div className="space-y-6">
+      {seatsBanner}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="nl-eyebrow">{isSystemResidents ? "User Management" : "Community"}</p>
@@ -363,7 +421,17 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                 <IcoPlus /> Create Resident
               </button>
             ) : (
-              <button type="button" className="nl-btn-primary" onClick={openInviteModal}>
+              <button
+                type="button"
+                className="nl-btn-primary disabled:opacity-60"
+                onClick={openInviteModal}
+                disabled={Boolean(billing && !billing.setup.can_invite_residents)}
+                title={
+                  billing && !billing.setup.can_invite_residents
+                    ? "Subscription or seats required — open Billing"
+                    : undefined
+                }
+              >
                 <IcoPlus /> Invite Member
               </button>
             )}

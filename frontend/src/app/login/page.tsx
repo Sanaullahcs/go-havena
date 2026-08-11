@@ -1,12 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   requestCommunityAdminOtp,
   verifyCommunityAdminOtp,
+  type CommunityAdminOtpIntent,
 } from "@/lib/api/auth";
-import { setSession, getToken, getUser, canAccessCommunityDashboard } from "@/lib/auth/session";
+import {
+  setSession,
+  getToken,
+  getUser,
+  canAccessCommunityDashboard,
+  getManagedCommunityId,
+  isCommunityAdminUser,
+} from "@/lib/auth/session";
 import { handleLoginError } from "@/lib/auth/login-error";
 import {
   AuthBackLink,
@@ -17,18 +25,31 @@ import { OtpVerifyStep } from "@/components/auth/otp-verify-step";
 import { PhoneSignInStep } from "@/components/auth/phone-sign-in-step";
 import { AuthRedirectOverlay } from "@/components/shared/loaders";
 import { emptyPhoneField, phoneFieldFromE164, type PhoneFieldState } from "@/lib/phone/format";
+import { landingImages } from "@/lib/landing/site";
+import { Suspense } from "react";
 
 type OtpStep = "phone" | "code";
 
 const COMMUNITY_DEMO_PHONE = "+15556668888";
 
-export default function LoginPage() {
+function LoginPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const planHint = searchParams.get("plan");
+  const intervalHint = searchParams.get("interval") === "year" ? "year" : "month";
+  const planQuery = planHint
+    ? `?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
+    : "";
+  const billingReturnPath = planHint
+    ? `/admin/billing?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
+    : "/admin/billing";
+  const setupReturnPath = `/admin/setup${planQuery}`;
 
   const [phone, setPhone] = useState<PhoneFieldState>(emptyPhoneField());
   const [phoneResetKey, setPhoneResetKey] = useState(0);
   const [otp, setOtp] = useState("");
   const [otpStep, setOtpStep] = useState<OtpStep>("phone");
+  const [otpIntent, setOtpIntent] = useState<CommunityAdminOtpIntent>("login");
   const [otpSending, setOtpSending] = useState(false);
   const [loading, setLoading] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
@@ -44,15 +65,19 @@ export default function LoginPage() {
 
     const user = getUser();
     if (canAccessCommunityDashboard(user)) {
-      router.replace("/admin");
+      router.replace(planHint ? billingReturnPath : "/admin");
       return;
     }
 
-    // Keep the session — only redirect residents away from the admin login screen.
+    if (isCommunityAdminUser(user) && !getManagedCommunityId(user)) {
+      router.replace(setupReturnPath);
+      return;
+    }
+
     if (user?.role === "resident") {
       router.replace("/home");
     }
-  }, [router]);
+  }, [router, planHint, billingReturnPath, setupReturnPath]);
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,7 +87,8 @@ export default function LoginPage() {
     setOtpStep("code");
     setOtpSending(true);
     try {
-      await requestCommunityAdminOtp(phone.e164);
+      const { intent } = await requestCommunityAdminOtp(phone.e164);
+      setOtpIntent(intent);
     } catch (err) {
       setOtpStep("phone");
       await handleLoginError(err, setError);
@@ -76,10 +102,16 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await verifyCommunityAdminOtp(phone.e164!, code);
+      const res = await verifyCommunityAdminOtp(phone.e164!, code, otpIntent);
       setSession(res.token, res.user);
       setRedirecting(true);
-      router.replace("/admin");
+      const next =
+        canAccessCommunityDashboard(res.user)
+          ? planHint
+            ? billingReturnPath
+            : "/admin"
+          : setupReturnPath;
+      router.replace(next);
     } catch (err) {
       await handleLoginError(err, setError);
     } finally {
@@ -92,7 +124,8 @@ export default function LoginPage() {
     setError(null);
     setOtpSending(true);
     try {
-      await requestCommunityAdminOtp(phone.e164);
+      const { intent } = await requestCommunityAdminOtp(phone.e164);
+      setOtpIntent(intent);
     } catch (err) {
       await handleLoginError(err, setError);
     } finally {
@@ -107,12 +140,24 @@ export default function LoginPage() {
   };
 
   const headline =
-    otpStep === "code" ? <>Verify <em>code</em></> : <>Welcome <em>back</em></>;
+    otpStep === "code" ? (
+      <>
+        Verify <em>code</em>
+      </>
+    ) : (
+      <>
+        Start your <em>community</em>
+      </>
+    );
 
   const subtitle =
     otpStep === "code"
-      ? "6-digit code sent via SMS"
-      : "Sign in with your mobile number";
+      ? otpIntent === "signup"
+        ? "Enter the code to create your community admin account"
+        : "Enter the 6-digit SMS code to continue"
+      : planHint
+        ? `New or returning — after OTP you’ll set up your community and start ${planHint} checkout`
+        : "New communities create an account with phone OTP. Existing admins sign in the same way.";
 
   return (
     <>
@@ -122,9 +167,9 @@ export default function LoginPage() {
 
       <div className="nl-login-split">
         <aside className="nl-login-hero">
-          <div className="nl-auth-hero-pattern absolute inset-0" aria-hidden />
-          <span className="nl-login-hero__orb nl-login-hero__orb--1" aria-hidden />
-          <span className="nl-login-hero__orb nl-login-hero__orb--2" aria-hidden />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={landingImages.hero} alt="" className="nl-login-hero__photo" aria-hidden />
+          <div className="nl-login-hero__veil" aria-hidden />
 
           <div className="relative z-10 flex flex-1 flex-col justify-between p-10 xl:p-14">
             <div>
@@ -140,19 +185,27 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <p className="text-[13px] font-medium uppercase tracking-[0.16em] text-sky-200/80">
-                Community admin portal
+              <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-teal-200/90">
+                Community admin
               </p>
-              <h2 className="mt-3 text-[2.1rem] font-bold leading-[1.12] tracking-tight text-white xl:text-[2.75rem]">
-                Manage your
-                <span className="mt-1 block text-sky-300">neighborhood.</span>
+              <h2 className="mt-3 font-[family-name:var(--font-brand)] text-[2.35rem] font-bold leading-[1.08] tracking-tight text-white xl:text-[2.9rem]">
+                Havena
+                <span className="mt-2 block font-[family-name:var(--font-display)] text-[1.35rem] font-semibold text-teal-200 xl:text-[1.55rem]">
+                  One subscription. Invite every resident.
+                </span>
               </h2>
-              <p className="mt-5 max-w-md text-[15px] leading-relaxed text-white/55">
-                Secure sign-in for verified community operators.
+              <p className="mt-5 max-w-md text-[15px] leading-relaxed text-white/70">
+                Create your community account, choose a seat plan, and onboard neighbors — residents
+                never pay Havena.
               </p>
+              <ul className="mt-6 space-y-2 text-[13px] text-white/65">
+                <li>• Phone OTP — no password to manage</li>
+                <li>• Plans from 50 to 500 resident seats</li>
+                <li>• Billing unlocks invites after signup</li>
+              </ul>
             </div>
 
-            <p className="text-[12px] text-white/35">© Havena · Secured access</p>
+            <p className="text-[12px] text-white/40">© Havena · Community operator access</p>
           </div>
         </aside>
 
@@ -227,10 +280,27 @@ export default function LoginPage() {
                 error={Boolean(error)}
               />
             )}
+
+            <p className="mt-8 text-center text-[12px] text-slate-500">
+              {otpIntent === "signup" && otpStep === "code"
+                ? "Creating your account… next you’ll name your community, then checkout."
+                : "No account yet? Continue with your phone — we’ll create it automatically."}{" "}
+              <a href="/#pricing" className="font-semibold text-[#0d9488] hover:underline">
+                View plans
+              </a>
+            </p>
           </div>
         </div>
       </div>
     </>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#f4f8fd]" />}>
+      <LoginPageInner />
+    </Suspense>
   );
 }
 

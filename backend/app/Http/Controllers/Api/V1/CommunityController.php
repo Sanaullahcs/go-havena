@@ -9,6 +9,7 @@ use App\Models\CommunityMembership;
 use App\Models\InviteCode;
 use App\Models\Region;
 use App\Services\AdminRoleService;
+use App\Services\CommunityBillingService;
 use App\Services\CommunityLifecycleService;
 use App\Services\InviteCodeService;
 use App\Services\MembershipService;
@@ -131,6 +132,7 @@ class CommunityController extends Controller
         $status = 'pending';
         $inviteUsed = null;
         $inviteModel = null;
+        $seatAlreadyHeldByInvite = false;
 
         if ($isCommunityAdmin) {
             $status = 'pending';
@@ -148,9 +150,17 @@ class CommunityController extends Controller
 
             $status = 'approved';
             $inviteUsed = $inviteModel->code;
+            // Admin member invites already allocated a seat to the placeholder user.
+            $seatAlreadyHeldByInvite = filled($inviteModel->invited_user_id);
             $inviteModel->increment('used_count');
         } else {
             $status = MembershipService::joinStatusFor($community, $user, false);
+        }
+
+        $billing = app(CommunityBillingService::class);
+        if ($status === 'approved' && ! $isCommunityAdmin && ! $seatAlreadyHeldByInvite) {
+            $billing->releaseExpiredReservations($community->id);
+            $billing->assertCanAllocateSeat($community->id);
         }
 
         $membership = CommunityMembership::query()->create([
@@ -165,6 +175,9 @@ class CommunityController extends Controller
         if ($inviteModel) {
             $invitedProfile = InviteCodeService::claimInvitedMember($user, $inviteModel);
             $user->refresh()->load(['profile', 'memberships.community']);
+            if ($seatAlreadyHeldByInvite) {
+                $billing->consumeReservationsForUser($community->id, (int) $inviteModel->invited_user_id);
+            }
         }
 
         // Family create/join is handled by Complete Profile (ensure / join-request),
@@ -208,12 +221,112 @@ class CommunityController extends Controller
         return $this->join($request, $invite->community_id);
     }
 
+    /**
+     * Self-serve web onboarding: create an active community and approve the admin membership
+     * so the operator can subscribe immediately after OTP signup.
+     */
+    public function selfServeCreate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'community_name' => ['required', 'string', 'min:2', 'max:150'],
+            'address' => ['required', 'string', 'min:5', 'max:255'],
+            'region_id' => ['required', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
+            'estimated_residents' => ['nullable', 'integer', 'min:1', 'max:100000'],
+        ]);
+
+        $user = $request->user();
+
+        if (AdminRoleService::isCommunityAdminRejected($user)) {
+            throw ValidationException::withMessages([
+                'community_name' => ['Your community admin application was not approved. Please contact support.'],
+            ]);
+        }
+
+        if (($user->role ?? '') === 'resident') {
+            throw ValidationException::withMessages([
+                'community_name' => ['Resident accounts cannot create communities. Use community admin signup.'],
+            ]);
+        }
+
+        if (! AdminRoleService::isCommunityAdminRole($user)) {
+            $user->update([
+                'role' => 'community_admin',
+                'community_admin_status' => 'approved',
+            ]);
+            $user->refresh();
+        } elseif (! AdminRoleService::isCommunityAdminApproved($user)) {
+            $user->update(['community_admin_status' => 'approved']);
+            $user->refresh();
+        }
+
+        $lifecycle = app(CommunityLifecycleService::class);
+        $lifecycle->assertCanRequestCommunityAdmin($user);
+
+        $region = Region::query()->where('status', 'active')->findOrFail($validated['region_id']);
+
+        $existingActive = Community::query()
+            ->where('name', $validated['community_name'])
+            ->where('status', 'active')
+            ->where(function ($w) {
+                $w->whereNull('review_status')
+                    ->orWhere('review_status', 'approved');
+            })
+            ->exists();
+
+        if ($existingActive) {
+            throw ValidationException::withMessages([
+                'community_name' => ['This community already exists. Choose a different name.'],
+            ]);
+        }
+
+        $community = Community::query()->create([
+            'name' => $validated['community_name'],
+            'address' => $validated['address'],
+            'description' => $validated['address'],
+            'region_id' => $region->id,
+            'region' => $region->title,
+            'timezone' => 'America/New_York',
+            'status' => 'active',
+            'review_status' => 'approved',
+            'requested_by_user_id' => $user->id,
+            'estimated_residents' => $validated['estimated_residents'] ?? null,
+        ]);
+
+        $membership = CommunityMembership::query()->updateOrCreate(
+            [
+                'user_id' => $user->id,
+                'community_id' => $community->id,
+            ],
+            [
+                'role' => 'admin',
+                'status' => 'approved',
+            ],
+        );
+
+        $user->load(['profile.region', 'memberships.community']);
+
+        return response()->json([
+            'data' => [
+                'membership' => [
+                    'id' => $membership->id,
+                    'community_id' => $membership->community_id,
+                    'role' => $membership->role,
+                    'status' => $membership->status,
+                ],
+                'community' => $this->communityPayload($community),
+                'user' => new UserResource($user),
+            ],
+            'message' => 'Community created. You can choose a subscription next.',
+        ], 201);
+    }
+
     public function requestCommunity(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'community_name' => ['required', 'string', 'min:2', 'max:150'],
             'address' => ['required', 'string', 'min:5', 'max:255'],
             'region_id' => ['required', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
+            'estimated_residents' => ['nullable', 'integer', 'min:1', 'max:100000'],
         ]);
 
         $user = $request->user();
@@ -257,6 +370,7 @@ class CommunityController extends Controller
             'status' => 'inactive',
             'review_status' => 'pending',
             'requested_by_user_id' => $user->id,
+            'estimated_residents' => $validated['estimated_residents'] ?? null,
         ]);
 
         $membership = CommunityMembership::query()->firstOrCreate(

@@ -29,5 +29,8 @@
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
+        <env name="BILLING_ENABLED" value="true"/>
+        <env name="BILLING_ENFORCE_SEATS" value="false"/>
+        <env name="BILLING_DRIVER" value="manual"/>
     </php>
 </phpunit>

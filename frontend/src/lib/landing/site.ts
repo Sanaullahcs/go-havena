@@ -4,9 +4,9 @@
 
 export const site = {
   name: "Havena",
-  tagline: "Your neighborhood, connected.",
+  tagline: "Run your community. Invite residents. One subscription.",
   description:
-    "Havena brings community life into one smart platform — notices, amenities, wellness, marketplace, and more.",
+    "Havena is the community platform for HOAs and neighborhoods — subscribe once, invite residents, and run notices, amenities, wellness, and local life in one place.",
   url: "https://havena.app",
   contactEmail: "hello@havena.app",
   contactPhone: "+1 (555) 123-4567",
@@ -21,11 +21,9 @@ export type NavItem = {
 
 export const primaryNav: NavItem[] = [
   { label: "Platform", sectionId: "platform" },
+  { label: "Pricing", sectionId: "pricing" },
   { label: "How it works", sectionId: "how-it-works" },
-  { label: "Features", sectionId: "features" },
-  { label: "Stories", sectionId: "testimonials" },
   { label: "FAQ", sectionId: "faq" },
-  { label: "Contact", sectionId: "contact" },
 ];
 
 export const footerColumns: { title: string; links: NavItem[] }[] = [
@@ -33,18 +31,18 @@ export const footerColumns: { title: string; links: NavItem[] }[] = [
     title: "Product",
     links: [
       { label: "Platform", sectionId: "platform" },
+      { label: "Pricing", sectionId: "pricing" },
       { label: "Features", sectionId: "features" },
       { label: "How it works", sectionId: "how-it-works" },
-      { label: "Wellness", sectionId: "features" },
     ],
   },
   {
     title: "Company",
     links: [
-      { label: "Stories", sectionId: "testimonials" },
       { label: "FAQ", sectionId: "faq" },
       { label: "Contact", sectionId: "contact" },
-      { label: "Help Center", href: "#" },
+      { label: "Admin sign in", href: "/login" },
+      { label: "Resident portal", href: "/resident-login" },
     ],
   },
   {
@@ -70,17 +68,16 @@ export const actionLinks = {
   residentLogin: "/resident-login",
   home: "/home",
   profile: "/profile",
+  pricing: "/#pricing",
 } as const;
 
-/** Professional community photography. */
+/** Neighborhood atmosphere — place first, not empty luxury staging. */
 export const landingImages = {
-  /** Community/neighborhood hero visual */
   heroCommunity:
     "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1400&q=88",
-  /** Legacy full-bleed hero (unused) */
-  hero: "https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?auto=format&fit=crop&w=2200&q=88",
-  /** Modern residential neighborhood — HOA community living */
-  platform: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=85",
-  about: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=85",
+  /** Full-bleed tree-lined neighborhood street at dusk */
+  hero: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=2200&q=88",
+  platform: "https://images.unsplash.com/photo-1449844908441-8829872d2607?auto=format&fit=crop&w=1200&q=85",
+  about: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1200&q=85",
   howItWorks: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=900&q=85",
 } as const;

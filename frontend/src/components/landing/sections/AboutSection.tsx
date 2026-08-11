@@ -42,12 +42,12 @@ export function AboutSection() {
         <div className="lp-platform__intro">
           <p className="lp-label lp-label--plain">The platform</p>
           <h2 className="lp-platform__title">
-            <span className="lp-platform__title-main">Built for HOAs and neighborhoods.</span>
-            <span className="lp-platform__title-accent">Not another social feed.</span>
+            <span className="lp-platform__title-main">Built for the people who run the place.</span>
+            <span className="lp-platform__title-accent">Not another noisy social feed.</span>
           </h2>
           <p className="lp-body lp-platform__lede">
-            Havena brings verified membership, daily operations, and resident engagement into one calm
-            platform. Residents use the mobile app; admins manage the community from mobile or web.
+            Admins subscribe once and invite residents into a private hub — membership, notices,
+            amenities, and engagement without chasing people across WhatsApp threads.
           </p>
         </div>
 

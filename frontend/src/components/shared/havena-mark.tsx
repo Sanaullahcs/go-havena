@@ -1,6 +1,6 @@
 /**
- * Havena brand mark — H monogram with a roof peak.
- * Reads as “home + community” without a generic house icon.
+ * Havena brand mark — clean H monogram.
+ * Teal crossbar = the “link” between neighbors; no house-icon cliché.
  */
 export function HavenaMark({
   size = 36,
@@ -11,31 +11,34 @@ export function HavenaMark({
 }) {
   return (
     <svg
-      viewBox="0 0 48 48"
+      viewBox="0 0 40 40"
       width={size}
       height={size}
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
       className={className}
     >
-      <rect width="48" height="48" rx="13" fill="#1B4F8A" />
-      {/* Roof peak */}
+      <rect width="40" height="40" rx="11" fill="#0A2A43" />
       <path
-        d="M14 20 L24 12 L34 20"
+        d="M13 12.5 V27.5"
         fill="none"
         stroke="#FFFFFF"
-        strokeWidth="2.6"
+        strokeWidth="3.2"
         strokeLinecap="round"
-        strokeLinejoin="round"
       />
-      {/* H stems + crossbar */}
       <path
-        d="M17 36 V22.5 M31 36 V22.5 M17 28.5 H31"
+        d="M27 12.5 V27.5"
         fill="none"
         stroke="#FFFFFF"
-        strokeWidth="2.8"
+        strokeWidth="3.2"
         strokeLinecap="round"
-        strokeLinejoin="round"
+      />
+      <path
+        d="M13 20 H27"
+        fill="none"
+        stroke="#14B8A6"
+        strokeWidth="3.2"
+        strokeLinecap="round"
       />
     </svg>
   );
@@ -44,11 +47,13 @@ export function HavenaMark({
 /** Compact glyph for tinted tiles (no filled background). */
 export function HavenaHouseIcon({
   size = 20,
-  color = "#0B1C2E",
+  color = "#0A2A43",
+  accent = "#14B8A6",
   className = "",
 }: {
   size?: number;
   color?: string;
+  accent?: string;
   className?: string;
 }) {
   return (
@@ -62,18 +67,22 @@ export function HavenaHouseIcon({
       className={className}
     >
       <path
-        d="M5 10 L12 4 L19 10"
+        d="M7 5.5 V18.5"
         stroke={color}
-        strokeWidth="1.9"
+        strokeWidth="2.1"
         strokeLinecap="round"
-        strokeLinejoin="round"
       />
       <path
-        d="M7 20 V11.5 M17 20 V11.5 M7 15.5 H17"
+        d="M17 5.5 V18.5"
         stroke={color}
-        strokeWidth="2"
+        strokeWidth="2.1"
         strokeLinecap="round"
-        strokeLinejoin="round"
+      />
+      <path
+        d="M7 12 H17"
+        stroke={accent}
+        strokeWidth="2.1"
+        strokeLinecap="round"
       />
     </svg>
   );
