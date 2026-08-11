@@ -55,8 +55,6 @@ function ApprovalActivityCard({ item, onPress, isLast }) {
         accessibilityLabel={`${item.title}, ${item.badge}`}
       >
         <View style={styles.approvalCard}>
-          <View style={[styles.accentWide, { backgroundColor: tone.accent }]} />
-
           <View style={styles.approvalBody}>
             <View style={styles.approvalHeader}>
               <ApprovalQueueIcon
@@ -136,7 +134,6 @@ function StatusActivityCard({ item, onPress, isLast }) {
         accessibilityLabel={item.title}
       >
         <View style={styles.card}>
-          <View style={[styles.accentWide, { backgroundColor: tone.accent }]} />
           <View style={styles.cardBody}>
             <View style={styles.statusHeader}>
               <PropertyServiceIcon serviceKey={item.key} size={sw(36)} iconSize={sf(15)} />
@@ -262,10 +259,10 @@ const cardShadow = Platform.select({
   ios: {
     shadowColor: PropertyHubTheme.text,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
   },
-  android: { elevation: 2 },
+  android: { elevation: 1 },
 });
 
 const styles = StyleSheet.create({
@@ -281,13 +278,7 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.92,
   },
-  accentWide: {
-    width: sw(4),
-    alignSelf: "stretch",
-  },
   approvalCard: {
-    flexDirection: "row",
-    alignItems: "stretch",
     width: "100%",
     backgroundColor: PropertyHubTheme.surface,
     borderRadius: sw(16),
@@ -297,7 +288,6 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   approvalBody: {
-    flex: 1,
     paddingVertical: sw(14),
     paddingHorizontal: sw(14),
   },
@@ -396,8 +386,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   card: {
-    flexDirection: "row",
-    alignItems: "stretch",
     width: "100%",
     backgroundColor: PropertyHubTheme.surface,
     borderRadius: sw(14),
@@ -407,7 +395,6 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   cardBody: {
-    flex: 1,
     paddingVertical: sw(12),
     paddingHorizontal: sw(12),
   },

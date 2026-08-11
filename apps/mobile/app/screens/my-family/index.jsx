@@ -1,19 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-  ActivityIndicator,
-  Pressable,
-  Share,
-  Modal,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  TouchableOpacity,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, Pressable, Share, Modal, KeyboardAvoidingView, Platform, TouchableOpacity } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -674,7 +661,7 @@ function CreateFamilyModal({
               </TouchableOpacity>
             </View>
             <View style={styles.modalInputWrap}>
-              <TextInput
+              <LocaleTextInput
                 value={value}
                 onChangeText={(text) => onChange(text.toUpperCase())}
                 placeholder="FAM-XXXXXX"
@@ -720,7 +707,7 @@ function JoinModal({ visible, value, onChange, onClose, onSubmit, t }) {
           <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>{t("family.joinExistingFamily")}</Text>
             <Text style={styles.modalHint}>{t("family.joinFamilyHint")}</Text>
-            <TextInput
+            <LocaleTextInput
               value={value}
               onChangeText={onChange}
               placeholder="FAM-XXXXXX"

@@ -25,12 +25,12 @@ function languageNeedsRTL(lng) {
 }
 
 /**
- * We drive RTL purely through the root View `direction` style.
- * I18nManager.forceRTL must ALWAYS be false — it causes double-mirroring.
+ * Layout stays LTR app-wide (no I18nManager.forceRTL) so screens are not
+ * double-mirrored. Arabic RTL for typing is handled by LocaleTextInput
+ * (writingDirection + textAlign) and icon helpers in utils/rtl.js.
  *
- * Problem: forceRTL(false) only takes effect after a native reload.
- * So if the native layer still has isRTL=true from old code, we must
- * call forceRTL(false) + reload ONCE to flush the cached native state.
+ * I18nManager.forceRTL must stay false. If a previous build left native
+ * isRTL=true, clear it once with forceRTL(false) + reload.
  */
 async function ensureNativeRtlIsOff() {
   if (!I18nManager.isRTL) return;
@@ -89,13 +89,18 @@ export default function LanguageProvider({ children }) {
     setIsRTL(languageNeedsRTL(lng));
 
     const applied = setNativeAppLocale(lng);
-    // Native locale must be applied in a rebuilt app (not Expo Go).
-    // Reload so the soft keyboard picks up Arabic / Spanish / English.
+    if (!applied && __DEV__) {
+      console.warn(
+        "[LanguageProvider] Keyboard locale module missing. Expo Go cannot switch keyboards — rebuild with `npx expo run:android` or `npx expo run:ios`.",
+      );
+    }
+    // Android: recreate so application locales + IME pick up the new language.
+    // iOS: reload applies AppleLanguages preference (keyboard still user-controlled).
     if (applied && Platform.OS !== "web") {
       try {
         await reloadAppAsync("Apply keyboard language");
       } catch {
-        // Expo Go / reload unavailable — install the native build for keyboard sync
+        // Expo Go / reload unavailable
       }
     }
   }, [language]);

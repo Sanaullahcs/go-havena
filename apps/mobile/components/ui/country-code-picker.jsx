@@ -1,13 +1,6 @@
 import React, { useMemo, useState } from "react";
-import {
-  Modal,
-  View,
-  Text,
-  TextInput,
-  FlatList,
-  Pressable,
-  StyleSheet,
-} from "react-native";
+import { Modal, View, Text, FlatList, Pressable, StyleSheet } from "react-native";
+import LocaleTextInput from "./locale-text-input";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
@@ -65,7 +58,7 @@ export default function CountryCodePicker({
 
           <View style={styles.searchRow}>
             <Ionicons name="search" size={18} color="#9CA3AF" />
-            <TextInput
+            <LocaleTextInput
               style={styles.searchInput}
               placeholder={t("countryCode.searchCountryOrCode")}
               placeholderTextColor="#9CA3AF"

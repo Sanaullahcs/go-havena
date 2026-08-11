@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { InteractionManager, Platform } from "react-native";
 import AppLocale from "../modules/app-locale";
 
 const LANG_TAGS = {
@@ -8,14 +8,31 @@ const LANG_TAGS = {
 };
 
 /**
- * Tell the OS which language this app is using so soft keyboards
- * (Gboard, iOS Arabic keyboard, etc.) prefer that language on focus.
+ * Soft-keyboard language switching is OS-limited:
  *
- * Requires a native build that includes the local `app-locale` module
- * (`npx expo run:android` / APK). Expo Go returns false.
+ * Android (native build):
+ *   1) AppCompat application locales
+ *   2) EditText.setImeHintLocales + InputMethodManager.restartInput on focus
+ *   Gboard/Samsung Keyboard may switch only if that language layout is installed.
+ *
+ * iOS:
+ *   Apps cannot force the system keyboard language. We still set AppleLanguages
+ *   (best-effort after reload) and apply RTL/LTR on text fields in JS.
+ *   Users must enable Arabic/Spanish under Settings → General → Keyboard.
+ *
+ * Expo Go: native module missing → all calls return false. Use
+ * `npx expo run:android` / `npx expo run:ios`.
  */
 export function getLanguageTag(lang) {
   return LANG_TAGS[lang] ?? String(lang || "en");
+}
+
+export function isNativeAppLocaleAvailable() {
+  try {
+    return Boolean(AppLocale?.isAvailable?.());
+  } catch {
+    return false;
+  }
 }
 
 export function setNativeAppLocale(lang) {
@@ -35,12 +52,51 @@ export function setNativeAppLocale(lang) {
 
   try {
     return Boolean(AppLocale?.setAppLocale?.(tag));
-  } catch (err) {
+  } catch {
     if (__DEV__) {
       console.log(
-        "[app-locale] Native locale sync unavailable. Rebuild the app for Arabic/Spanish keyboard matching.",
+        "[app-locale] Native module unavailable (Expo Go?). Rebuild with: npx expo run:android",
       );
     }
+    return false;
+  }
+}
+
+/**
+ * Call after a TextInput is focused. On Android this applies IME hint locales
+ * to the focused EditText and restarts the input connection so Gboard can switch.
+ */
+export function syncKeyboardForFocusedInput(lang) {
+  const tag = getLanguageTag(lang);
+
+  try {
+    setNativeAppLocale(lang);
+  } catch {
+    // ignore
+  }
+
+  const applyHint = () => {
+    try {
+      return Boolean(AppLocale?.setImeHintLocales?.(tag));
+    } catch {
+      return false;
+    }
+  };
+
+  // Focus lands on the native EditText slightly after the JS onFocus event.
+  const immediate = applyHint();
+  requestAnimationFrame(applyHint);
+  setTimeout(applyHint, 32);
+  setTimeout(applyHint, 120);
+  InteractionManager.runAfterInteractions(applyHint);
+
+  return immediate;
+}
+
+export function openKeyboardLanguagePicker() {
+  try {
+    return Boolean(AppLocale?.openInputMethodPicker?.());
+  } catch {
     return false;
   }
 }

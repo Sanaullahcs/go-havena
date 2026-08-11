@@ -47,7 +47,7 @@ function catMeta(name) {
   return CAT[name] ?? { icon: "bookmark", accent: T.navy };
 }
 
-function RuleCard({ rule, isAdmin, onPress, isLast }) {
+function RuleCard({ rule, isAdmin, onPress }) {
   const { t, i18n } = useTranslation();
   const sev = SEV[rule.severity] ?? SEV.info;
   const cat = catMeta(rule.category);
@@ -57,57 +57,54 @@ function RuleCard({ rule, isAdmin, onPress, isLast }) {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.card,
-        !isLast && styles.cardGap,
-        pressed && styles.cardPressed,
-      ]}
+      style={({ pressed }) => [styles.cardPressable, pressed && styles.cardPressed]}
       accessibilityRole="button"
       accessibilityLabel={rule.title}
     >
-      <View style={[styles.cardAccent, { backgroundColor: cat.accent }]} />
-      <View style={styles.cardInner}>
-        <View style={styles.cardTop}>
-          <View style={[styles.cardIcon, { backgroundColor: `${cat.accent}14` }]}>
-            <Feather name={cat.icon} size={sf(16)} color={cat.accent} />
-          </View>
-          <View style={styles.cardTopText}>
-            <Text style={styles.cardCategory} numberOfLines={1}>
-              {rule.category}
-            </Text>
-          </View>
-          {rule.severity === "important" ? (
-            <View style={[styles.sevChip, { backgroundColor: sev.bg, borderColor: `${sev.accent}30` }]}>
-              <Feather name={sev.icon} size={sf(10)} color={sev.accent} />
-              <Text style={[styles.sevChipText, { color: sev.accent }]}>{t(sev.label)}</Text>
+      <View style={styles.card}>
+        <View style={styles.cardInner}>
+          <View style={styles.cardTop}>
+            <View style={[styles.cardIcon, { backgroundColor: `${cat.accent}14` }]}>
+              <Feather name={cat.icon} size={sf(16)} color={cat.accent} />
             </View>
+            <View style={styles.cardTopText}>
+              <Text style={styles.cardCategory} numberOfLines={1}>
+                {rule.category}
+              </Text>
+            </View>
+            {rule.severity === "important" ? (
+              <View style={[styles.sevChip, { backgroundColor: sev.bg, borderColor: `${sev.accent}30` }]}>
+                <Feather name={sev.icon} size={sf(10)} color={sev.accent} />
+                <Text style={[styles.sevChipText, { color: sev.accent }]}>{t(sev.label)}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          <Text style={styles.cardTitle} numberOfLines={2}>{rule.title}</Text>
+          {rule.description ? (
+            <Text style={styles.cardDesc} numberOfLines={2}>{rule.description}</Text>
           ) : null}
-        </View>
 
-        <Text style={styles.cardTitle} numberOfLines={2}>{rule.title}</Text>
-{rule.description ? (
-          <Text style={styles.cardDesc} numberOfLines={2}>{rule.description}</Text>
-        ) : null}
-
-        <View style={styles.cardFooter}>
-          <Text style={styles.cardDate} numberOfLines={1}>
-            {rule.updated_at
-              ? new Date(rule.updated_at).toLocaleDateString(getLocaleForLang(i18n.language), { month: "short", day: "numeric" })
-              : ""}
-          </Text>
-          {needsAck ? (
-            <View style={styles.ackBadge}>
-              <Feather name="alert-circle" size={sf(10)} color="#DC2626" />
-              <Text style={styles.ackBadgeText}>{t("propertyMgmt.reviewBadge")}</Text>
-            </View>
-          ) : acked ? (
-            <View style={styles.doneBadge}>
-              <Feather name="check-circle" size={sf(10)} color={T.deepTeal} />
-              <Text style={styles.doneBadgeText}>{t("propertyMgmt.doneBadge")}</Text>
-            </View>
-          ) : (
-            <Feather name={chevronForward()} size={sf(16)} color="#CBD5E1" />
-          )}
+          <View style={styles.cardFooter}>
+            <Text style={styles.cardDate} numberOfLines={1}>
+              {rule.updated_at
+                ? new Date(rule.updated_at).toLocaleDateString(getLocaleForLang(i18n.language), { month: "short", day: "numeric" })
+                : ""}
+            </Text>
+            {needsAck ? (
+              <View style={styles.ackBadge}>
+                <Feather name="alert-circle" size={sf(10)} color="#DC2626" />
+                <Text style={styles.ackBadgeText}>{t("propertyMgmt.reviewBadge")}</Text>
+              </View>
+            ) : acked ? (
+              <View style={styles.doneBadge}>
+                <Feather name="check-circle" size={sf(10)} color={T.deepTeal} />
+                <Text style={styles.doneBadgeText}>{t("propertyMgmt.doneBadge")}</Text>
+              </View>
+            ) : (
+              <Feather name={chevronForward()} size={sf(16)} color="#CBD5E1" />
+            )}
+          </View>
         </View>
       </View>
     </Pressable>
@@ -293,7 +290,9 @@ export default function CommunityRules() {
           <Text style={styles.sectionLabel}>
             {activeFilter === "all" ? t("propertyMgmt.allGuidelines") : activeFilter}
           </Text>
-          <Text style={styles.sectionCount}>{filtered.length}</Text>
+          <View style={styles.sectionCountBadge}>
+            <Text style={styles.sectionCount}>{filtered.length}</Text>
+          </View>
         </View>
 
         {/* ── Empty states ── */}
@@ -326,13 +325,12 @@ export default function CommunityRules() {
 
         {/* ── Rule cards ── */}
         <View style={styles.list}>
-          {filtered.map((rule, i) => (
+          {filtered.map((rule) => (
             <RuleCard
               key={rule.id}
               rule={rule}
               isAdmin={isAdmin}
               onPress={() => openRule(rule)}
-              isLast={i === filtered.length - 1}
             />
           ))}
         </View>
@@ -343,12 +341,12 @@ export default function CommunityRules() {
 
 const G = sw(18);
 const shadow = Platform.select({
-  ios: { shadowColor: T.navy, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12 },
-  android: { elevation: 3 },
+  ios: { shadowColor: T.navy, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6 },
+  android: { elevation: 1 },
 });
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: T.canvas },
+  screen: { flex: 1, backgroundColor: T.white },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   scroll: { paddingBottom: sw(48) },
 
@@ -450,23 +448,39 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     includeFontPadding: false,
   },
-  sectionCount: { fontFamily: Fonts.semiBold, fontSize: sf(12), color: T.deepTeal, fontWeight: "600" },
+  sectionCountBadge: {
+    minWidth: sw(24),
+    height: sw(24),
+    paddingHorizontal: sw(8),
+    borderRadius: sw(12),
+    backgroundColor: T.mint,
+    borderWidth: 1,
+    borderColor: "rgba(20, 184, 166, 0.24)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sectionCount: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(11),
+    color: T.deepTeal,
+    fontWeight: "700",
+    includeFontPadding: false,
+  },
 
   /* Rule card */
-  list: { paddingHorizontal: G },
+  list: { paddingHorizontal: G, gap: sw(14) },
+  cardPressable: { width: "100%" },
   card: {
-    flexDirection: "row",
+    width: "100%",
     backgroundColor: T.white,
     borderRadius: sw(14),
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: T.border,
     overflow: "hidden",
     ...shadow,
   },
-  cardGap: { marginBottom: sw(12) },
-  cardPressed: { opacity: 0.92, transform: [{ scale: 0.985 }] },
-  cardAccent: { width: sw(5) },
-  cardInner: { flex: 1, padding: sw(14) },
+  cardPressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
+  cardInner: { padding: sw(14) },
   cardTop: { flexDirection: "row", alignItems: "center", gap: sw(10), marginBottom: sw(8) },
   cardIcon: { width: sw(34), height: sw(34), borderRadius: sw(11), alignItems: "center", justifyContent: "center" },
   cardTopText: { flex: 1, minWidth: 0 },

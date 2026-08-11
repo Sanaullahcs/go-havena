@@ -1,18 +1,8 @@
 import React, { useState, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { MarketplaceType } from "../../../constants/marketplace-type";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
-  Alert,
-  Platform,
-  Modal,
-  Pressable,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Platform, Modal, Pressable } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { Image } from "expo-image";
 import CrispImage from "../../../components/ui/crisp-image";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -269,7 +259,7 @@ export default function CreateDeal() {
         <Text style={[styles.label, styles.sectionTop]}>
           {t("deals.dealTitle")} <Text style={styles.required}>*</Text>
         </Text>
-        <TextInput
+        <LocaleTextInput
           value={dealTitle}
           onChangeText={(v) => { setDealTitle(v); touch("dealTitle"); clearError("dealTitle"); }}
           placeholder={t("deals.placeholderTitle")}
@@ -293,7 +283,7 @@ export default function CreateDeal() {
             {t("deals.discountLabel")} <Text style={styles.required}>*</Text>
           </Text>
         </View>
-        <TextInput
+        <LocaleTextInput
           value={discountLabel}
           onChangeText={(v) => { setDiscountLabel(v); touch("discountLabel"); clearError("discountLabel"); }}
           placeholder={t("deals.placeholderDiscount")}
@@ -305,7 +295,7 @@ export default function CreateDeal() {
         <Text style={[styles.label, styles.sectionTop]}>
           {t("deals.category")} <Text style={styles.required}>*</Text>
         </Text>
-        <TextInput
+        <LocaleTextInput
           value={category}
           onChangeText={(v) => { setCategory(v); touch("category"); clearError("category"); }}
           placeholder={t("deals.placeholderCategory")}
@@ -315,7 +305,7 @@ export default function CreateDeal() {
         {showError("category", liveErrors) ? <Text style={styles.errorText}>{showError("category", liveErrors)}</Text> : null}
 
         <Text style={[styles.label, styles.sectionTop]}>{t("deals.location")}</Text>
-        <TextInput
+        <LocaleTextInput
           value={location}
           onChangeText={setLocation}
           placeholder={t("deals.placeholderLocation")}
@@ -326,7 +316,7 @@ export default function CreateDeal() {
         <Text style={[styles.label, styles.sectionTop]}>
           {t("deals.description")} <Text style={styles.required}>*</Text>
         </Text>
-        <TextInput
+        <LocaleTextInput
           value={description}
           onChangeText={(v) => { setDescription(v); touch("description"); clearError("description"); }}
           placeholder={t("deals.placeholderDescription")}

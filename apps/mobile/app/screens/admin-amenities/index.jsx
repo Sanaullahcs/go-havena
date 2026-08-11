@@ -1,20 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  Modal,
-  Pressable,
-  TextInput,
-  ActivityIndicator,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Switch,
-  useWindowDimensions,
-} from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Pressable, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, Switch, useWindowDimensions } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useFocusEffect } from "expo-router";
@@ -798,7 +784,7 @@ export default function AdminAmenitiesScreen() {
                 <FieldLabel required first>
                   {t("admin.name")}
                 </FieldLabel>
-                <TextInput
+                <LocaleTextInput
                   style={[styles.input, errorFor("name") && styles.inputError]}
                   value={form.name}
                   onChangeText={(v) => setField("name", v)}
@@ -810,7 +796,7 @@ export default function AdminAmenitiesScreen() {
                 <FieldError message={errorFor("name")} />
 
                 <FieldLabel>{t("admin.description")}</FieldLabel>
-                <TextInput
+                <LocaleTextInput
                   style={[
                     styles.input,
                     styles.textarea,
@@ -853,7 +839,7 @@ export default function AdminAmenitiesScreen() {
                 <View style={[styles.twoCol, stackFields && styles.twoColStack]}>
                   <View style={[styles.col, stackFields && styles.colStacked]}>
                     <FieldLabel required>{t("admin.capacity")}</FieldLabel>
-                    <TextInput
+                    <LocaleTextInput
                       style={[styles.input, errorFor("capacity") && styles.inputError]}
                       value={form.capacity}
                       onChangeText={(v) => setField("capacity", v.replace(/[^0-9]/g, ""))}
@@ -867,7 +853,7 @@ export default function AdminAmenitiesScreen() {
                   </View>
                   <View style={[styles.col, stackFields && styles.colStacked]}>
                     <FieldLabel required>{t("admin.location")}</FieldLabel>
-                    <TextInput
+                    <LocaleTextInput
                       style={[styles.input, errorFor("floor") && styles.inputError]}
                       value={form.floor}
                       onChangeText={(v) => setField("floor", v)}

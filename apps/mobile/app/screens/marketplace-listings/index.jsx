@@ -1,13 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { MarketplaceType } from "../../../constants/marketplace-type";
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
 import { Feather } from "@expo/vector-icons";
@@ -38,13 +32,11 @@ import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import ListingTypePicker from "../../../components/marketplace/listing-type-picker";
 import { MarketplaceTheme as M } from "../../../constants/marketplace-theme";
 import CrispImage from "../../../components/ui/crisp-image";
-import { useInputLocale } from "../../../hooks/use-input-locale";
 
 const MAX_PHOTOS = MAX_LISTING_PHOTOS;
 
 export default function CreateListingScreen() {
   const { t } = useTranslation();
-  const inputLocale = useInputLocale();
   const router = useRouter();
   const { editId, type: typeParam } = useLocalSearchParams();
   const listingId = editId ? String(editId) : null;
@@ -321,7 +313,7 @@ export default function CreateListingScreen() {
         <Text style={[styles.label, styles.sectionTop]}>
           {t("marketplace.title_label")} <Text style={styles.required}>*</Text>
         </Text>
-        <TextInput
+        <LocaleTextInput
           value={title}
           onChangeText={(v) => {
             setTitle(v);
@@ -332,8 +324,7 @@ export default function CreateListingScreen() {
             isService ? "e.g. Lawn mowing & yard cleanup" : "e.g. Vintage dining table"
           }
           placeholderTextColor="#99A1AF"
-          style={[styles.input, showError("title", liveErrors) && styles.inputError, inputLocale.style]}
-          textAlign={inputLocale.textAlign}
+          style={[styles.input, showError("title", liveErrors) && styles.inputError]}
           maxLength={LIMITS.listingTitle}
         />
         {showError("title", liveErrors) ? (
@@ -343,7 +334,7 @@ export default function CreateListingScreen() {
         <Text style={[styles.label, styles.sectionTop]}>
           {t("marketplace.description")} <Text style={styles.required}>*</Text>
         </Text>
-        <TextInput
+        <LocaleTextInput
           value={description}
           onChangeText={(v) => {
             setDescription(v);
@@ -356,8 +347,7 @@ export default function CreateListingScreen() {
               : t("marketplace.descriptionPlaceholderItem")
           }
           placeholderTextColor="#99A1AF"
-          style={[styles.textArea, showError("description", liveErrors) && styles.inputError, inputLocale.style]}
-          textAlign={inputLocale.textAlign}
+          style={[styles.textArea, showError("description", liveErrors) && styles.inputError]}
           multiline
           textAlignVertical="top"
         />
@@ -369,7 +359,7 @@ export default function CreateListingScreen() {
           {isService ? t("marketplace.startingPriceUsd") : t("marketplace.priceUsd")}{" "}
           <Text style={styles.required}>*</Text>
         </Text>
-        <TextInput
+        <LocaleTextInput
           value={price}
           onChangeText={(v) => {
             setPrice(v);
@@ -388,7 +378,7 @@ export default function CreateListingScreen() {
         <Text style={[styles.label, styles.sectionTop]}>
           {t("marketplace.category")} <Text style={styles.required}>*</Text>
         </Text>
-        <TextInput
+        <LocaleTextInput
           value={category}
           onChangeText={(v) => {
             setCategory(v);
@@ -397,8 +387,7 @@ export default function CreateListingScreen() {
           onBlur={() => touch("category")}
           placeholder={isService ? "e.g. Cleaning, Tutoring" : "e.g. Furniture, Electronics"}
           placeholderTextColor="#99A1AF"
-          style={[styles.input, showError("category", liveErrors) && styles.inputError, inputLocale.style]}
-          textAlign={inputLocale.textAlign}
+          style={[styles.input, showError("category", liveErrors) && styles.inputError]}
           maxLength={LIMITS.listingCategory}
         />
         {showError("category", liveErrors) ? (
@@ -459,7 +448,7 @@ export default function CreateListingScreen() {
         ) : null}
 
         <Text style={[styles.label, styles.sectionTop]}>{t("marketplace.location")}</Text>
-        <TextInput
+        <LocaleTextInput
           value={location}
           onChangeText={(v) => {
             setLocation(v);

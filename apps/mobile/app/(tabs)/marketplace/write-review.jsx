@@ -1,13 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MarketplaceType } from "../../../constants/marketplace-type";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
@@ -87,7 +82,7 @@ export default function WriteReviewScreen() {
         <Text style={[pageStyles.sectionLabel, { marginTop: 20, marginBottom: 8 }]}>
           {t("deals.yourReview")}
         </Text>
-        <TextInput
+        <LocaleTextInput
           value={review}
           onChangeText={(text) => {
             setReview(text);

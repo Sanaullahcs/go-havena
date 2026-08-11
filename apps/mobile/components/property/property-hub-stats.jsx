@@ -1,30 +1,78 @@
 import React from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
+import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { PropertyHubTheme } from "../../constants/property-management-theme";
-import ApprovalQueueIcon from "./approval-queue-icon";
 import { sf, sw } from "../../utils/responsive";
+import { chevronForward } from "../../utils/rtl";
 
-const STAT_ICON_KEYS = {
-  "pending-reviews": "amenityReview",
-  "pending-bookings": "bookingRequest",
+const STAT_ICONS = {
+  "pending-reviews": "clipboard",
+  "pending-bookings": "calendar",
 };
 
-function StatCard({ label, value, tone = "default", iconKey, onPress }) {
-  const valueColor =
-    tone === "pending"
-      ? PropertyHubTheme.pendingText
-      : tone === "success"
-        ? PropertyHubTheme.successText
-        : PropertyHubTheme.text;
+const STAT_VARIANTS = {
+  amenityReview: {
+    pendingTitle: (t, count) => t("admin.waitingForReview", { count }),
+    clearTitle: (t) => t("admin.allClear"),
+    pendingSubtitle: (t) => t("services.activity.review"),
+  },
+  bookingRequests: {
+    pendingTitle: (t, count) => t("services.bookingRequestCount", { count }),
+    clearTitle: (t) => t("admin.allClear"),
+    pendingSubtitle: (t) => t("services.bookingRequestsSub"),
+  },
+};
+
+function StatCard({ label, value, tone = "default", iconKey, variant = "amenityReview", onPress }) {
+  const { t } = useTranslation();
+  const isPending = tone === "pending";
+  const count = Number(value) || 0;
+  const iconName = STAT_ICONS[iconKey] ?? STAT_ICONS["pending-reviews"];
+  const copy = STAT_VARIANTS[variant] ?? STAT_VARIANTS.amenityReview;
+
+  const title = isPending ? copy.pendingTitle(t, count) : copy.clearTitle(t);
+  const subtitle = isPending ? copy.pendingSubtitle(t) : null;
 
   const card = (
-    <View style={styles.card}>
-      <ApprovalQueueIcon iconKey={iconKey} size={sw(40)} iconSize={sf(17)} />
-      <Text style={[styles.value, { color: valueColor }]}>{value}</Text>
-      <Text style={styles.label} numberOfLines={2}>
-        {label}
-      </Text>
+    <View style={[styles.cardOuter, isPending && styles.cardOuterPending]}>
+      <View style={styles.row}>
+        <View style={[styles.iconWrap, isPending && styles.iconWrapPending]}>
+          <Feather
+            name={iconName}
+            size={sf(16)}
+            color={isPending ? PropertyHubTheme.pendingText : PropertyHubTheme.deepTeal}
+          />
+        </View>
+
+        <View style={styles.copy}>
+          <Text style={styles.eyebrow} numberOfLines={1}>
+            {label}
+          </Text>
+          <Text
+            style={[styles.title, isPending && styles.titlePending]}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text style={styles.subtitle} numberOfLines={1}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
+
+        <View style={styles.trailing}>
+          <View style={[styles.chevron, isPending && styles.chevronPending]}>
+            <Feather
+              name={chevronForward()}
+              size={sf(14)}
+              color={isPending ? PropertyHubTheme.pendingText : PropertyHubTheme.deepTeal}
+            />
+          </View>
+        </View>
+      </View>
     </View>
   );
 
@@ -37,29 +85,27 @@ function StatCard({ label, value, tone = "default", iconKey, onPress }) {
       onPress={onPress}
       style={({ pressed }) => [styles.pressable, pressed && styles.pressed]}
       accessibilityRole="button"
-      accessibilityLabel={`${label}: ${value}`}
+      accessibilityLabel={`${label}. ${title}`}
     >
       {card}
     </Pressable>
   );
 }
 
-/** Two-column stat cards for the Property Management hub (admin view). */
+/** Admin stat cards for the Property Management hub. */
 export default function PropertyHubStats({ items = [], onAction }) {
   if (!items.length) return null;
 
   return (
     <View style={styles.grid}>
-      {items.map((item, index) => (
-        <View
-          key={item.id}
-          style={[styles.col, index < items.length - 1 && styles.colGap]}
-        >
+      {items.map((item) => (
+        <View key={item.id} style={styles.col}>
           <StatCard
             label={item.label}
             value={item.value}
             tone={item.tone}
-            iconKey={item.iconKey ?? STAT_ICON_KEYS[item.id] ?? "bookingRequest"}
+            iconKey={item.id}
+            variant={item.variant}
             onPress={
               item.routeKey && onAction ? () => onAction(item.routeKey) : undefined
             }
@@ -72,53 +118,105 @@ export default function PropertyHubStats({ items = [], onAction }) {
 
 const styles = StyleSheet.create({
   grid: {
-    flexDirection: "row",
     width: "100%",
-    alignItems: "stretch",
   },
   col: {
-    flex: 1,
-    minWidth: 0,
-  },
-  colGap: {
-    marginEnd: sw(12),
+    width: "100%",
   },
   pressable: {
     width: "100%",
   },
   pressed: {
-    opacity: 0.9,
+    opacity: 0.92,
   },
-  card: {
+  cardOuter: {
     width: "100%",
-    backgroundColor: PropertyHubTheme.surface,
-    borderRadius: sw(16),
+    backgroundColor: PropertyHubTheme.accentSoft,
+    borderRadius: sw(14),
     borderWidth: 1,
-    borderColor: PropertyHubTheme.border,
-    padding: sw(14),
-    minHeight: sw(110),
+    borderColor: PropertyHubTheme.approvalBorder,
+    overflow: "hidden",
     ...Platform.select({
       ios: {
-        shadowColor: PropertyHubTheme.text,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
+        shadowColor: PropertyHubTheme.deepTeal,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.02,
+        shadowRadius: 3,
       },
-      android: { elevation: 3 },
+      android: { elevation: 0 },
     }),
   },
-  value: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(24),
-    lineHeight: sf(28),
-    fontWeight: "700",
-    marginTop: sw(12),
+  cardOuterPending: {
+    backgroundColor: PropertyHubTheme.pendingBg,
+    borderColor: PropertyHubTheme.pendingBorder,
   },
-  label: {
-    fontFamily: Fonts.medium,
-    fontSize: sf(12),
-    lineHeight: sf(16),
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: sw(10),
+    paddingStart: sw(14),
+    paddingEnd: sw(12),
+    gap: sw(10),
+  },
+  iconWrap: {
+    width: sw(36),
+    height: sw(36),
+    borderRadius: sw(10),
+    backgroundColor: PropertyHubTheme.surface,
+    borderWidth: 1,
+    borderColor: PropertyHubTheme.approvalBorder,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  iconWrapPending: {
+    borderColor: PropertyHubTheme.pendingBorder,
+  },
+  copy: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: "center",
+  },
+  eyebrow: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(8),
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    color: PropertyHubTheme.deepTeal,
+    fontWeight: "700",
+  },
+  title: {
+    marginTop: sw(2),
+    fontFamily: Fonts.bold,
+    fontSize: sf(15),
+    lineHeight: sf(19),
+    color: PropertyHubTheme.text,
+    fontWeight: "700",
+  },
+  titlePending: {
+    color: PropertyHubTheme.pendingText,
+  },
+  subtitle: {
+    marginTop: sw(1),
+    fontFamily: Fonts.regular,
+    fontSize: sf(11),
+    lineHeight: sf(14),
     color: PropertyHubTheme.textMuted,
-    marginTop: sw(4),
+  },
+  trailing: {
+    flexShrink: 0,
+  },
+  chevron: {
+    width: sw(30),
+    height: sw(30),
+    borderRadius: sw(9),
+    backgroundColor: PropertyHubTheme.surface,
+    borderWidth: 1,
+    borderColor: PropertyHubTheme.approvalBorder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chevronPending: {
+    borderColor: PropertyHubTheme.pendingBorder,
   },
 });

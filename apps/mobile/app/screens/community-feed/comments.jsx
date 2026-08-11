@@ -1,17 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  RefreshControl,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, RefreshControl } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
-import { useInputLocale } from "../../../hooks/use-input-locale";
 
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
@@ -109,7 +102,6 @@ function buildCommentDisplayRows(comments, expandedThreads) {
 export default function FeedCommentsScreen() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
-  const inputLocale = useInputLocale();
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
   const { postId = "1" } = useLocalSearchParams();
@@ -425,9 +417,8 @@ export default function FeedCommentsScreen() {
                 size={sw(32)}
               />
               <View style={[styles.inputWrap, showError("body", liveErrors) && styles.inputError]}>
-                <TextInput
+                <LocaleTextInput
                   ref={inputRef}
-                  {...inputLocale}
                   value={draft}
                   onChangeText={(text) => {
                     setDraft(text);
@@ -435,7 +426,7 @@ export default function FeedCommentsScreen() {
                   }}
                   placeholder={replyTo ? t("feed.comments.replyPlaceholder", { name: replyTo.name }) : t("feed.comments.placeholder")}
                   placeholderTextColor="#9CA3AF"
-                  style={[styles.input, inputLocale.style]}
+                  style={[styles.input]}
                   multiline
                   maxLength={LIMITS.feedComment}
                 />

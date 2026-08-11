@@ -1,15 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  Pressable,
-  StyleSheet,
-  TextInput,
-  ActivityIndicator,
-  ScrollView,
-} from "react-native";
+import { Modal, View, Text, TouchableOpacity, Pressable, StyleSheet, ActivityIndicator, ScrollView } from "react-native";
+import LocaleTextInput from "../ui/locale-text-input";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
@@ -94,7 +85,7 @@ export default function FeedPostReportSheet({
             </View>
 
             <Text style={styles.label}>{t("feed.report.details")}</Text>
-            <TextInput
+            <LocaleTextInput
               value={description}
               onChangeText={setDescription}
               placeholder={t("feed.report.placeholder")}

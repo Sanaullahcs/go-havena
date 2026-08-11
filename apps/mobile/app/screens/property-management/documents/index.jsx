@@ -1,27 +1,18 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  ScrollView,
-  RefreshControl,
-  ActivityIndicator,
-  useWindowDimensions,
-  TextInput,
-} from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, ActivityIndicator } from "react-native";
+import LocaleTextInput from "../../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { Image } from "expo-image";
 import { useTranslation } from "react-i18next";
 import i18n from "../../../../i18n";
 import { getLocaleForLang } from "../../../../hooks/use-app-locale";
 import InternalScreenHeader from "../../../../components/layout/internal-screen-header";
 import { pageStyles } from "../../../../constants/page-styles";
 import { PropertyType } from "../../../../constants/property-management-type";
-import { Property, propertyStyles, twoColumnWidth } from "../../../../constants/property-styles";
+import { propertyStyles } from "../../../../constants/property-styles";
 import { Fonts } from "../../../../constants/font";
+import { HomeTheme as T } from "../../../../constants/home-theme";
 import { sw, sf } from "../../../../utils/responsive";
 import { PropertyManagementRoutes } from "../../../../constants/property-management-routes";
 import { fetchCommunityDocuments } from "../../../../services/documents-api";
@@ -79,8 +70,6 @@ function DocumentRow({ doc, onPress, showDownloads, actionIcon = "download" }) {
 export default function Documents() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { width: screenWidth } = useWindowDimensions();
-  const tileWidth = useMemo(() => twoColumnWidth(screenWidth), [screenWidth]);
   const isAdmin = getCurrentRole() === "admin";
 
   const [documents, setDocuments] = useState([]);
@@ -191,7 +180,7 @@ export default function Documents() {
           <View style={propertyStyles.sectionBlock}>
             <View style={styles.searchWrap}>
               <Feather name="search" size={sf(16)} color="#9CA3AF" />
-              <TextInput
+              <LocaleTextInput
                 style={styles.searchInput}
                 placeholder={t("propertyMgmt.searchDocuments")}
                 placeholderTextColor="#9CA3AF"
@@ -214,42 +203,39 @@ export default function Documents() {
           </View>
         )}
 
-        {categories.length > 0 && (
-          <View style={propertyStyles.sectionBlock}>
-            <View style={styles.categoriesCard}>
-              <View style={styles.headingRow}>
-                <Image source={require("../../../../assets/images/document-categories.svg")} style={styles.headingIcon} contentFit="contain" />
-                <Text style={propertyStyles.sectionTitle}>{t("propertyMgmt.categoriesTitle")}</Text>
-              </View>
-              <View style={[propertyStyles.grid, styles.categoryGrid]}>
-                {categories.map((cat) => {
-                  const meta = getCategoryMeta(cat.name);
-                  const isSelected = selectedCategory === cat.name;
-                  return (
-                    <Pressable
-                      key={cat.name}
-                      onPress={() => setSelectedCategory(isSelected ? "all" : cat.name)}
-                      style={({ pressed }) => [
-                        styles.categoryTile,
-                        { width: tileWidth },
-                        isSelected && styles.categoryTileActive,
-                        pressed && { opacity: 0.92 },
-                      ]}
-                    >
-                      <View style={[styles.categoryIcon, { backgroundColor: meta.bg }]}>
-                        <Feather name={meta.icon} size={sf(16)} color={meta.color} />
-                      </View>
-                      <Text style={[styles.categoryTitle, isSelected && styles.categoryTitleActive]} numberOfLines={2}>
-                        {cat.name}
-                        <Text style={styles.categoryCount}> ({cat.count})</Text>
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          </View>
-        )}
+        {categories.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipRail}
+            style={styles.chipWrap}
+          >
+            <Pressable
+              onPress={() => setSelectedCategory("all")}
+              style={[styles.chip, selectedCategory === "all" && styles.chipOn]}
+            >
+              <Text style={[styles.chipLabel, selectedCategory === "all" && styles.chipLabelOn]}>
+                {t("propertyMgmt.allFilter")}
+              </Text>
+            </Pressable>
+            {categories.map((cat) => {
+              const on = selectedCategory === cat.name;
+              const meta = getCategoryMeta(cat.name);
+              return (
+                <Pressable
+                  key={cat.name}
+                  onPress={() => setSelectedCategory(on ? "all" : cat.name)}
+                  style={[styles.chip, on && styles.chipOn]}
+                >
+                  <Feather name={meta.icon} size={sf(12)} color={on ? "#FFF" : meta.color} />
+                  <Text style={[styles.chipLabel, on && styles.chipLabelOn]} numberOfLines={1}>
+                    {cat.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : null}
 
         {recent.length > 0 && selectedCategory === "all" && !search.trim() && (
           <View style={propertyStyles.sectionBlock}>
@@ -268,28 +254,6 @@ export default function Documents() {
               {selectedCategory !== "all" ? ` · ${selectedCategory}` : ""}
             </Text>
           </View>
-
-          {categories.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipsScroll}>
-              <Pressable
-                onPress={() => setSelectedCategory("all")}
-                style={[styles.filterChip, selectedCategory === "all" && styles.filterChipActive]}
-              >
-                <Text style={[styles.filterChipText, selectedCategory === "all" && styles.filterChipTextActive]}>{t("propertyMgmt.allFilter")}</Text>
-              </Pressable>
-              {categories.map((cat) => (
-                <Pressable
-                  key={cat.name}
-                  onPress={() => setSelectedCategory(cat.name)}
-                  style={[styles.filterChip, selectedCategory === cat.name && styles.filterChipActive]}
-                >
-                  <Text style={[styles.filterChipText, selectedCategory === cat.name && styles.filterChipTextActive]} numberOfLines={1}>
-                    {cat.name}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          )}
 
           {documents.length === 0 && !error && (
             <View style={styles.empty}>
@@ -352,61 +316,30 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   searchInput: { flex: 1, fontFamily: Fonts.regular, fontSize: sf(13), color: "#101828", padding: 0 },
-  categoriesCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: sw(16),
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: sw(14),
-  },
-  headingRow: { flexDirection: "row", alignItems: "center", gap: sw(8), marginBottom: sw(12) },
-  headingIcon: { width: sw(20), height: sw(20) },
-  categoryGrid: { marginTop: sw(2) },
-  categoryTile: {
-    borderRadius: sw(14),
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#FAFAFA",
-    padding: sw(12),
-    minHeight: sw(96),
-    justifyContent: "space-between",
-  },
-  categoryTileActive: {
-    borderColor: "#0A2A43",
-    backgroundColor: "#D1FAF5",
-  },
-  categoryIcon: {
-    width: sw(34),
-    height: sw(34),
-    borderRadius: sw(10),
+  chipWrap: { flexGrow: 0, marginTop: sw(16), marginBottom: sw(14) },
+  chipRail: { paddingHorizontal: sw(18), gap: sw(8) },
+  chip: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-  },
-  categoryTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(12),
-    lineHeight: sf(16),
-    color: "#101828",
-    fontWeight: "700",
-    marginTop: sw(10),
-  },
-  categoryTitleActive: { color: "#0A2A43" },
-  categoryCount: { fontFamily: Fonts.medium, fontSize: sf(11), color: "#9CA3AF", fontWeight: "600" },
-  sectionHeader: { marginBottom: sw(8) },
-  sectionSub: { fontFamily: Fonts.regular, fontSize: sf(12), color: "#9CA3AF", marginTop: 2 },
-  filterChipsScroll: { gap: sw(8), paddingBottom: sw(12) },
-  filterChip: {
+    gap: sw(5),
     paddingVertical: sw(8),
-    paddingHorizontal: sw(12),
+    paddingHorizontal: sw(14),
     borderRadius: sw(999),
+    backgroundColor: T.white,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#FFFFFF",
-    maxWidth: sw(180),
+    borderColor: T.border,
   },
-  filterChipActive: { borderColor: "#0A2A43", backgroundColor: "#0A2A43" },
-  filterChipText: { fontFamily: Fonts.medium, fontSize: sf(12), color: "#4A5565", fontWeight: "600" },
-  filterChipTextActive: { color: "#FFFFFF" },
+  chipOn: { backgroundColor: T.navy, borderColor: T.navy },
+  chipLabel: {
+    fontFamily: Fonts.medium,
+    fontSize: sf(12),
+    color: T.navy,
+    fontWeight: "600",
+    includeFontPadding: false,
+  },
+  chipLabelOn: { color: "#FFFFFF" },
+  sectionHeader: { marginBottom: sw(8) },
+  sectionSub: { fontFamily: Fonts.regular, fontSize: sf(12), color: "#9CA3AF", marginTop: sw(2) },
   lastSection: { borderBottomWidth: 0 },
   docCard: {
     marginTop: sw(12),

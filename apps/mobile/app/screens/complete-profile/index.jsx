@@ -1,13 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  Platform,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -711,7 +704,7 @@ export default function CompleteProfile() {
               <Text style={styles.inputText}>
                 {t("onboarding.fullName")} <Text style={styles.requiredMark}>*</Text>
               </Text>
-              <TextInput
+              <LocaleTextInput
                 style={[styles.input, showError("name", liveErrors) && styles.inputError]}
                 placeholder={t("onboarding.namePlaceholder")}
                 placeholderTextColor={T.gray}
@@ -730,7 +723,7 @@ export default function CompleteProfile() {
               <Text style={styles.inputText}>
                 {t("onboarding.emailAddress")} <Text style={styles.requiredMark}>*</Text>
               </Text>
-              <TextInput
+              <LocaleTextInput
                 style={[styles.input, showError("email", liveErrors) && styles.inputError]}
                 placeholder="you@example.com"
                 placeholderTextColor={T.gray}
@@ -752,7 +745,7 @@ export default function CompleteProfile() {
 
             <View style={styles.fieldGroup}>
               <Text style={styles.inputText}>{t("onboarding.bio")}</Text>
-              <TextInput
+              <LocaleTextInput
                 style={[styles.input, styles.textArea, showError("bio", liveErrors) && styles.inputError]}
                 placeholder={t("onboarding.bioPlaceholder")}
                 placeholderTextColor={T.gray}
@@ -775,7 +768,7 @@ export default function CompleteProfile() {
                 {t("onboarding.unitNumber")}
                 {!isGuestProfile ? <Text style={styles.requiredMark}> *</Text> : null}
               </Text>
-              <TextInput
+              <LocaleTextInput
                 style={[styles.input, showError("unitNumber", liveErrors) && styles.inputError]}
                 placeholder={t("onboarding.unitPlaceholder")}
                 placeholderTextColor={T.gray}
@@ -923,7 +916,7 @@ export default function CompleteProfile() {
                 </View>
 
                 <View style={styles.familyInputWrap}>
-                  <TextInput
+                  <LocaleTextInput
                     style={[
                       styles.input,
                       styles.familyInput,

@@ -1,14 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  Pressable,
-  Switch,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Switch, ActivityIndicator } from "react-native";
+import LocaleTextInput from "../../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -143,7 +135,7 @@ export default function AmenityFormScreen() {
       >
         <View style={styles.field}>
           <RequiredLabel>{t("propertyMgmt.nameLabel")}</RequiredLabel>
-          <TextInput
+          <LocaleTextInput
             style={[styles.input, nameError && styles.inputError]}
             value={form.name}
             onChangeText={(v) => setF("name", v)}
@@ -157,7 +149,7 @@ export default function AmenityFormScreen() {
 
         <View style={styles.field}>
           <Text style={styles.label}>{t("propertyMgmt.descriptionLabel")}</Text>
-          <TextInput
+          <LocaleTextInput
             style={[styles.input, styles.textArea, descriptionError && styles.inputError]}
             value={form.description}
             onChangeText={(v) => setF("description", v)}
@@ -287,7 +279,7 @@ export default function AmenityFormScreen() {
 
         <View style={styles.field}>
           <RequiredLabel>{t("propertyMgmt.capacityLabel")}</RequiredLabel>
-          <TextInput
+          <LocaleTextInput
             style={[styles.input, capacityError && styles.inputError]}
             value={String(form.capacity)}
             onChangeText={(v) => setF("capacity", v.replace(/[^0-9]/g, ""))}
@@ -301,7 +293,7 @@ export default function AmenityFormScreen() {
 
         <View style={styles.field}>
           <RequiredLabel>{t("propertyMgmt.locationLabel")}</RequiredLabel>
-          <TextInput
+          <LocaleTextInput
             style={[styles.input, floorError && styles.inputError]}
             value={form.floor}
             onChangeText={(v) => setF("floor", v)}

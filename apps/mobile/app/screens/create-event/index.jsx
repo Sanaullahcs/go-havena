@@ -1,13 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { Fonts } from "../../../constants/font";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -261,7 +254,7 @@ export default function CreateEventScreen() {
           <Text style={styles.formLabel}>
             {t('events.title')} <Text style={styles.required}>*</Text>
           </Text>
-          <TextInput
+          <LocaleTextInput
             value={title}
             onChangeText={(t) => {
               setTitle(t);
@@ -278,7 +271,7 @@ export default function CreateEventScreen() {
           <Text style={[styles.formLabel, styles.sectionGap]}>
             {t('events.description')} <Text style={styles.required}>*</Text>
           </Text>
-          <TextInput
+          <LocaleTextInput
             value={description}
             onChangeText={(t) => {
               setDescription(t);
@@ -375,7 +368,7 @@ export default function CreateEventScreen() {
           <View style={styles.sectionGap}>
             {renderFieldLabel("location-outline", t('events.location'), true)}
           </View>
-          <TextInput
+          <LocaleTextInput
             value={location}
             onChangeText={(t) => {
               setLocation(t);
@@ -392,7 +385,7 @@ export default function CreateEventScreen() {
           <View style={styles.sectionGap}>
             {renderFieldLabel("people-outline", t('events.capacity'), false)}
           </View>
-          <TextInput
+          <LocaleTextInput
             value={capacity}
             onChangeText={(t) => setCapacity(t.replace(/[^\d]/g, ""))}
             placeholder={t('events.unlimitedIfEmpty')}

@@ -1,21 +1,25 @@
 const {
   withMainApplication,
+  withAppDelegate,
+  withAndroidManifest,
+  AndroidConfig,
   createRunOncePlugin,
 } = require("@expo/config-plugins");
 
+const LOCALE_MODULE = "expo.modules.applocale.AppLocaleModule";
+
 /**
- * Injects early app-locale application in MainApplication.onCreate so
- * soft keyboards (Gboard etc.) match the in-app language on cold start.
+ * Injects early app-locale application so soft keyboards (Gboard etc.)
+ * match the in-app language on cold start.
  */
 function withAppLocaleMainApplication(config) {
   return withMainApplication(config, (config) => {
     let contents = config.modResults.contents;
 
-    if (!contents.includes("expo.modules.applocale.AppLocaleModule")) {
+    if (!contents.includes(LOCALE_MODULE)) {
       contents = contents.replace(
         /package [^\n]+\n/,
-        (pkg) =>
-          `${pkg}\nimport expo.modules.applocale.AppLocaleModule\n`,
+        (pkg) => `${pkg}\nimport ${LOCALE_MODULE}\n`,
       );
     }
 
@@ -34,8 +38,67 @@ function withAppLocaleMainApplication(config) {
   });
 }
 
+function withAppLocaleAppDelegate(config) {
+  return withAppDelegate(config, (config) => {
+    let contents = config.modResults.contents;
+
+    if (!contents.includes("AppLocaleModule.applySavedLocale")) {
+      contents = contents.replace(
+        /(func application\([\s\S]*?didFinishLaunchingWithOptions[\s\S]*?\) -> Bool \{\n)/,
+        `$1    AppLocaleModule.applySavedLocale()\n`,
+      );
+    }
+
+    config.modResults.contents = contents;
+    return config;
+  });
+}
+
+function withAppLocaleAndroidManifest(config) {
+  return withAndroidManifest(config, (config) => {
+    const manifest = config.modResults;
+    const mainApplication = AndroidConfig.Manifest.getMainApplicationOrThrow(manifest);
+
+    const serviceName =
+      "androidx.appcompat.app.AppLocalesMetadataHolderService";
+    const services = mainApplication.service ?? [];
+    const hasService = services.some(
+      (entry) => entry?.$?.["android:name"] === serviceName,
+    );
+
+    if (!hasService) {
+      mainApplication.service = [
+        ...services,
+        {
+          $: {
+            "android:name": serviceName,
+            "android:enabled": "false",
+            "android:exported": "false",
+          },
+          "meta-data": [
+            {
+              $: {
+                "android:name": "autoStoreLocales",
+                "android:value": "true",
+              },
+            },
+          ],
+        },
+      ];
+    }
+
+    config.modResults = manifest;
+    return config;
+  });
+}
+
 module.exports = createRunOncePlugin(
-  withAppLocaleMainApplication,
+  (config) => {
+    config = withAppLocaleMainApplication(config);
+    config = withAppLocaleAppDelegate(config);
+    config = withAppLocaleAndroidManifest(config);
+    return config;
+  },
   "with-app-locale",
-  "1.0.0",
+  "1.1.0",
 );

@@ -1,13 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { Fonts } from "../../../constants/font";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -233,7 +226,7 @@ export default function CreateAlertScreen() {
           <Text style={styles.formLabel}>
             {t('alerts.title')} <Text style={styles.required}>*</Text>
           </Text>
-          <TextInput
+          <LocaleTextInput
             value={title}
             onChangeText={(t) => {
               setTitle(t);
@@ -250,7 +243,7 @@ export default function CreateAlertScreen() {
           <Text style={[styles.formLabel, styles.sectionGap]}>
             {t('alerts.description')} <Text style={styles.required}>*</Text>
           </Text>
-          <TextInput
+          <LocaleTextInput
             value={description}
             onChangeText={(t) => {
               setDescription(t);

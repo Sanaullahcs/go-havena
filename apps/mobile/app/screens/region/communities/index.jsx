@@ -1,14 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  TextInput,
-  ActivityIndicator,
-  RefreshControl,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
+import LocaleTextInput from "../../../../components/ui/locale-text-input";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../../constants/font";
@@ -168,7 +160,7 @@ export default function RegionCommunitiesScreen() {
 
         <View style={styles.searchWrap}>
           <Ionicons name="search-outline" size={18} color={T.gray} />
-          <TextInput
+          <LocaleTextInput
             value={searchText}
             onChangeText={setSearchText}
             placeholder={t("region.searchCommunities")}

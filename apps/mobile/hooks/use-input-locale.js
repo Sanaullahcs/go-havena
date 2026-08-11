@@ -1,23 +1,31 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { Platform } from "react-native";
 import { useLanguage } from "../providers/language-provider";
-import { getLanguageTag } from "../utils/native-app-locale";
+import { getLanguageTag, syncKeyboardForFocusedInput } from "../utils/native-app-locale";
 
 /**
- * TextInput props that align typing with the active app language.
- * Pair with `setNativeAppLocale` (native builds) so the OS keyboard
- * opens in Arabic / Spanish / English to match.
+ * Locale-aware TextInput helpers tied to LanguageProvider (en / es / ar).
  *
- * Usage:
- *   const inputLocale = useInputLocale();
- *   <TextInput {...inputLocale} style={[styles.input, inputLocale.style]} />
+ * - Arabic → RTL writing direction + right alignment
+ * - English / Spanish → LTR + left alignment
+ *
+ * Soft-keyboard language switching uses the native `app-locale` module
+ * (Android AppCompat application locales / iOS AppleLanguages). That requires
+ * a rebuilt native app — Expo Go cannot force the system keyboard language.
+ *
+ * Prefer `LocaleTextInput` for automatic focus sync.
  */
-export function useInputLocale() {
+export function useInputLocale({ forceLtr = false } = {}) {
   const { language, isRTL } = useLanguage();
 
-  return useMemo(() => {
-    const writingDirection = isRTL ? "rtl" : "ltr";
-    const textAlign = isRTL ? "right" : "left";
+  const syncKeyboardLocale = useCallback(() => {
+    syncKeyboardForFocusedInput(language);
+  }, [language]);
+
+  const textInputProps = useMemo(() => {
+    const rtl = !forceLtr && isRTL;
+    const writingDirection = rtl ? "rtl" : "ltr";
+    const textAlign = rtl ? "right" : "left";
     const languageTag = getLanguageTag(language);
 
     return {
@@ -30,11 +38,18 @@ export function useInputLocale() {
       },
       ...(Platform.OS === "web" ? { lang: language } : null),
     };
-  }, [language, isRTL]);
+  }, [language, isRTL, forceLtr]);
+
+  return {
+    ...textInputProps,
+    textInputProps,
+    syncKeyboardLocale,
+  };
 }
 
-export function getInputLocaleProps(lang) {
-  const rtl = lang === "ar";
+/** Pure helper when a component cannot use hooks. */
+export function getInputLocaleProps(lang, { forceLtr = false } = {}) {
+  const rtl = !forceLtr && lang === "ar";
   const writingDirection = rtl ? "rtl" : "ltr";
   const textAlign = rtl ? "right" : "left";
   return {

@@ -1,18 +1,6 @@
 import React, { useCallback, useEffect, useState, useMemo } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-  TextInput,
-  Modal,
-  ActivityIndicator,
-  Pressable,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, Pressable, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -261,7 +249,7 @@ export default function AdminMembersScreen() {
       <View style={styles.toolbar}>
         <View style={styles.searchWrap}>
           <Ionicons name="search" size={sf(17)} color="#99A1AF" />
-          <TextInput
+          <LocaleTextInput
             value={search}
             onChangeText={setSearch}
             placeholder={t("admin.searchPlaceholderMembers")}
@@ -359,7 +347,7 @@ export default function AdminMembersScreen() {
               ) : (
                 <>
                   <Text style={styles.label}>{t("admin.fullName")}</Text>
-                  <TextInput
+                  <LocaleTextInput
                     value={inviteForm.name}
                     onChangeText={(v) => {
                       setInviteForm((f) => ({ ...f, name: v }));
@@ -371,7 +359,7 @@ export default function AdminMembersScreen() {
                   />
                   {showError("name", inviteLiveErrors) ? <Text style={styles.errorText}>{showError("name", inviteLiveErrors)}</Text> : null}
                   <Text style={styles.label}>{t("admin.emailLabel")}</Text>
-                  <TextInput
+                  <LocaleTextInput
                     value={inviteForm.email}
                     onChangeText={(v) => {
                       setInviteForm((f) => ({ ...f, email: v }));
@@ -385,7 +373,7 @@ export default function AdminMembersScreen() {
                   />
                   {showError("email", inviteLiveErrors) ? <Text style={styles.errorText}>{showError("email", inviteLiveErrors)}</Text> : null}
                   <Text style={styles.label}>{t("admin.unitOptional")}</Text>
-                  <TextInput
+                  <LocaleTextInput
                     value={inviteForm.unit}
                     onChangeText={(v) => {
                       setInviteForm((f) => ({ ...f, unit: v }));
@@ -426,7 +414,7 @@ export default function AdminMembersScreen() {
                 {t("admin.rejectHintMessage", { name: rejectTarget?.display_name || rejectTarget?.name || t("admin.thisResident") })}
               </Text>
               <Text style={styles.label}>{t("admin.reasonLabel")}</Text>
-              <TextInput
+              <LocaleTextInput
                 value={rejectReason}
                 onChangeText={setRejectReason}
                 style={[styles.input, styles.rejectInput]}

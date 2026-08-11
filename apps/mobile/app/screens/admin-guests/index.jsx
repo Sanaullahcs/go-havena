@@ -1,15 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  Pressable,
-  ActivityIndicator,
-  RefreshControl,
-  TextInput,
-  ScrollView,
-} from "react-native";
+import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, RefreshControl, ScrollView } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -398,7 +389,7 @@ export default function AdminGuestsScreen() {
 
             <View style={adminSharedStyles.searchWrap}>
               <Feather name="search" size={sf(16)} color={AdminTheme.textMuted} />
-              <TextInput
+              <LocaleTextInput
                 value={search}
                 onChangeText={setSearch}
                 onSubmitEditing={load}

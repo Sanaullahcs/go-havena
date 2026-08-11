@@ -4,7 +4,8 @@
  * already used throughout the app — no new libraries needed.
  */
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import LocaleTextInput from "./locale-text-input";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
@@ -79,13 +80,14 @@ export default function BusinessPhoneInput({
         <View style={styles.divider} />
 
         {/* Number input */}
-        <TextInput
+        <LocaleTextInput
           style={styles.input}
           value={display}
           onChangeText={handleChange}
           onBlur={() => setTouched(true)}
           placeholder={placeholder}
           placeholderTextColor="rgba(153,161,175,1)"
+          forceLtr
           keyboardType="phone-pad"
           textContentType="telephoneNumber"
           autoComplete="tel"

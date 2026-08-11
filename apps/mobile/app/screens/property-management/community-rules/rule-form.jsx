@@ -1,14 +1,6 @@
 import React, { useCallback, useEffect, useState, useMemo } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  Pressable,
-  ActivityIndicator,
-  Switch,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Switch } from "react-native";
+import LocaleTextInput from "../../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -159,7 +151,7 @@ export default function RuleForm() {
         {/* Title */}
         <View style={styles.field}>
           <Text style={styles.label}>{t("propertyMgmt.ruleTitleLabel")}</Text>
-          <TextInput
+          <LocaleTextInput
             style={[styles.input, showError("title", liveErrors) && styles.inputError]}
             placeholder={t("propertyMgmt.ruleTitlePlaceholder")}
             placeholderTextColor="#9CA3AF"
@@ -206,7 +198,7 @@ export default function RuleForm() {
             ))}
           </ScrollView>
           {categorySelect === RULE_OTHER_CATEGORY ? (
-            <TextInput
+            <LocaleTextInput
               style={[styles.input, { marginTop: sw(8) }, showError("category", liveErrors) && styles.inputError]}
               placeholder={t("propertyMgmt.enterCustomCategory")}
               placeholderTextColor="#9CA3AF"
@@ -257,7 +249,7 @@ export default function RuleForm() {
         {/* Description */}
         <View style={styles.field}>
           <Text style={styles.label}>{t("propertyMgmt.descriptionRequired")}</Text>
-          <TextInput
+          <LocaleTextInput
             style={[styles.input, styles.textArea, showError("description", liveErrors) && styles.inputError]}
             placeholder={t("propertyMgmt.ruleDescPlaceholder")}
             placeholderTextColor="#9CA3AF"

@@ -1,15 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  Pressable,
-  ScrollView,
-  ActivityIndicator,
-  Share,
-  Platform,
-} from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Share, Platform } from "react-native";
+import LocaleTextInput from "../ui/locale-text-input";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import SchedulePickerField from "../forms/schedule-picker-field";
@@ -552,7 +543,7 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
             required
             error={showError("guest_name", fieldErrorsLive)}
           >
-            <TextInput
+            <LocaleTextInput
               value={guestName}
               onChangeText={(value) => {
                 setGuestName(value);
@@ -594,7 +585,7 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
             required
             error={showError("guest_email", fieldErrorsLive)}
           >
-            <TextInput
+            <LocaleTextInput
               value={guestEmail}
               onChangeText={(value) => {
                 setGuestEmail(value);

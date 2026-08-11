@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
-import { View, Text, StyleSheet, TextInput, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -379,7 +380,7 @@ export default function GuestLoginScreen() {
             {step === "invite" ? (
               <View style={layout.fieldBlock}>
                 <Text style={layout.fieldLabel}>{t("guest.inviteCode")}</Text>
-                <TextInput
+                <LocaleTextInput
                   style={styles.input}
                   value={inviteCode}
                   onChangeText={setInviteCode}

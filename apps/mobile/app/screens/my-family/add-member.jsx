@@ -1,16 +1,6 @@
 import React, { useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  ScrollView,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Keyboard, KeyboardAvoidingView, Platform } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -173,7 +163,7 @@ export default function AddFamilyMemberScreen() {
             error={errors.first_name}
             onLayout={rememberFieldOffset("first_name")}
           >
-            <TextInput
+            <LocaleTextInput
               value={form.first_name}
               onChangeText={(value) => update("first_name", value)}
               onFocus={() => focusField("first_name")}
@@ -193,7 +183,7 @@ export default function AddFamilyMemberScreen() {
             error={errors.last_name}
             onLayout={rememberFieldOffset("last_name")}
           >
-            <TextInput
+            <LocaleTextInput
               value={form.last_name}
               onChangeText={(value) => update("last_name", value)}
               onFocus={() => focusField("last_name")}
@@ -220,7 +210,7 @@ export default function AddFamilyMemberScreen() {
           </Field>
 
           <Field label={t("family.addMemberForm.email")} error={errors.email} onLayout={rememberFieldOffset("email")}>
-            <TextInput
+            <LocaleTextInput
               value={form.email}
               onChangeText={(value) => update("email", value)}
               onFocus={() => focusField("email")}
@@ -237,7 +227,7 @@ export default function AddFamilyMemberScreen() {
           </Field>
 
           <Field label={t("family.addMemberForm.age")} error={errors.age} onLayout={rememberFieldOffset("age")}>
-            <TextInput
+            <LocaleTextInput
               value={form.age}
               onChangeText={(value) => update("age", value.replace(/[^0-9]/g, ""))}
               onFocus={() => focusField("age")}
@@ -256,7 +246,7 @@ export default function AddFamilyMemberScreen() {
             error={errors.unit_number}
             onLayout={rememberFieldOffset("unit_number")}
           >
-            <TextInput
+            <LocaleTextInput
               value={form.unit_number}
               onChangeText={(value) => update("unit_number", value)}
               onFocus={() => focusField("unit_number")}

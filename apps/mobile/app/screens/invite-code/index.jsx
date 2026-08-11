@@ -1,13 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  Platform,
-  Keyboard,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Keyboard } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
@@ -241,7 +234,7 @@ export default function InviteCodeScreen() {
                 <Text style={styles.label}>
                   {t('guests.inviteCodeLabel')} <Text style={styles.required}>*</Text>
                 </Text>
-                <TextInput
+                <LocaleTextInput
                   value={inviteCode}
                   onChangeText={(text) => {
                     setInviteCode(text.toUpperCase());

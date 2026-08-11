@@ -1,24 +1,57 @@
-import React, { forwardRef } from "react";
+import React, { forwardRef, useCallback, useMemo } from "react";
 import { TextInput } from "react-native";
+import { useLanguage } from "../../providers/language-provider";
 import { useInputLocale } from "../../hooks/use-input-locale";
+import { syncKeyboardForFocusedInput } from "../../utils/native-app-locale";
+
+/** Keyboard types that should stay LTR (digits / phone), even in Arabic. */
+const LTR_KEYBOARD_TYPES = new Set([
+  "number-pad",
+  "numeric",
+  "phone-pad",
+  "decimal-pad",
+]);
 
 /**
- * Drop-in TextInput that respects the active app language
- * (RTL alignment for Arabic + native keyboard locale sync).
+ * Drop-in TextInput that follows the active app language:
+ * - EN / ES → LTR + left align
+ * - AR → RTL + right align
+ * - On focus (Android native build): IME hint locales so Gboard can switch
+ *
+ * Pass `forceLtr` (or use phone/number keyboardType) for digit fields.
  */
 const LocaleTextInput = forwardRef(function LocaleTextInput(
-  { style, ...rest },
+  { style, onFocus, forceLtr = false, textAlign: textAlignProp, keyboardType, ...rest },
   ref,
 ) {
-  const inputLocale = useInputLocale();
+  const { language } = useLanguage();
+  const preferLtr = forceLtr || LTR_KEYBOARD_TYPES.has(keyboardType);
+  const { textInputProps } = useInputLocale({ forceLtr: preferLtr });
+
+  const handleFocus = useCallback(
+    (event) => {
+      syncKeyboardForFocusedInput(language);
+      onFocus?.(event);
+    },
+    [language, onFocus],
+  );
+
+  const resolvedTextAlign = useMemo(() => {
+    if (textAlignProp != null) return textAlignProp;
+    return textInputProps.textAlign;
+  }, [textAlignProp, textInputProps.textAlign]);
 
   return (
     <TextInput
       ref={ref}
-      {...inputLocale}
+      writingDirection={textInputProps.writingDirection}
+      accessibilityLanguage={textInputProps.accessibilityLanguage}
+      {...(textInputProps.lang ? { lang: textInputProps.lang } : null)}
       {...rest}
-      style={[inputLocale.style, style]}
-      textAlign={rest.textAlign ?? inputLocale.textAlign}
+      keyboardType={keyboardType}
+      onFocus={handleFocus}
+      style={[textInputProps.style, style]}
+      textAlign={resolvedTextAlign}
     />
   );
 });

@@ -151,13 +151,15 @@ export default function RuleDetail() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         {/* ── Title section ── */}
         <View style={styles.titleSection}>
-          <View style={[styles.sevPill, { backgroundColor: sev.bg }]}>
-            <Feather name={sev.icon} size={sf(11)} color={sev.accent} />
-            <Text style={[styles.sevPillText, { color: sev.accent }]}>{t(sev.label)}</Text>
-          </View>
           <Text style={styles.heroCategory}>{rule.category}</Text>
-          <Text style={styles.heroTitle}>{rule.title}</Text>
-</View>
+          <View style={styles.titleRow}>
+            <Text style={styles.heroTitle}>{rule.title}</Text>
+            <View style={[styles.sevPill, { backgroundColor: sev.bg }]}>
+              <Feather name={sev.icon} size={sf(11)} color={sev.accent} />
+              <Text style={[styles.sevPillText, { color: sev.accent }]}>{t(sev.label)}</Text>
+            </View>
+          </View>
+        </View>
 
         {/* ── Meta info ── */}
         <View style={styles.metaCard}>
@@ -255,15 +257,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: sw(4),
-    alignSelf: "flex-start",
+    flexShrink: 0,
     paddingHorizontal: sw(10),
     paddingVertical: sw(4),
     borderRadius: sw(999),
-    marginBottom: sw(10),
+    marginStart: sw(10),
+    marginTop: sw(2),
   },
   sevPillText: { fontFamily: Fonts.semiBold, fontSize: sf(10), fontWeight: "600", includeFontPadding: false },
-  heroCategory: { fontFamily: Fonts.medium, fontSize: sf(12), color: T.teal, marginBottom: sw(4), includeFontPadding: false },
-  heroTitle: { fontFamily: Fonts.bold, fontSize: sf(22), lineHeight: sf(28), color: T.navy, fontWeight: "700", includeFontPadding: false },
+  heroCategory: { fontFamily: Fonts.medium, fontSize: sf(12), color: T.teal, marginBottom: sw(6), includeFontPadding: false },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: sw(8),
+  },
+  heroTitle: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: Fonts.bold,
+    fontSize: sf(22),
+    lineHeight: sf(28),
+    color: T.navy,
+    fontWeight: "700",
+    includeFontPadding: false,
+  },
 
   metaCard: {
     marginHorizontal: G,

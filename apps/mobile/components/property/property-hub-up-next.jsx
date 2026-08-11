@@ -236,10 +236,10 @@ const cardShadow = Platform.select({
   ios: {
     shadowColor: PropertyHubTheme.text,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
   },
-  android: { elevation: 2 },
+  android: { elevation: 1 },
 });
 
 const styles = StyleSheet.create({

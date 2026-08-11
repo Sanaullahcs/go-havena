@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Platform, TextInput, View, Text, Pressable, StyleSheet } from "react-native";
+import { Platform, View, Text, Pressable, StyleSheet } from "react-native";
+import LocaleTextInput from "./locale-text-input";
 import { Ionicons } from "@expo/vector-icons";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -157,12 +158,13 @@ export default function LoginPhoneInput({
           variant="login"
           onPress={() => setPickerOpen(true)}
         />
-        <TextInput
+        <LocaleTextInput
           style={authStyles.loginPhoneField}
           placeholder={resolvedPlaceholder}
           placeholderTextColor="rgba(10, 10, 10, 0.45)"
           value={display}
           onChangeText={handleChange}
+          forceLtr
           keyboardType="phone-pad"
           textContentType="telephoneNumber"
           autoComplete="tel"
@@ -223,13 +225,14 @@ export function FormPhoneInput({
           <Feather name="chevron-down" size={sf(12)} color="#64748B" />
         </Pressable>
         <View style={formStyles.divider} />
-        <TextInput
+        <LocaleTextInput
           style={formStyles.field}
           placeholder={resolvedPlaceholder}
           placeholderTextColor="#98A2B3"
           value={display}
           onChangeText={handleChange}
           onFocus={onFocus}
+          forceLtr
           keyboardType="phone-pad"
           textContentType="telephoneNumber"
           autoComplete="tel"
@@ -294,12 +297,13 @@ export function SignupPhoneInput({
           onPress={() => setPickerOpen(true)}
         />
         <View style={[styles.signupFieldWrap, showFieldError && authStyles.signupInputError]}>
-          <TextInput
+          <LocaleTextInput
             style={styles.signupField}
             placeholder={resolvedPlaceholder}
             placeholderTextColor="#9CA3AF"
             value={display}
             onChangeText={handleChange}
+            forceLtr
             keyboardType="phone-pad"
             textContentType="telephoneNumber"
             autoComplete="tel"

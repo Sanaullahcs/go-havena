@@ -1,13 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  ScrollView,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
@@ -210,7 +203,7 @@ export default function RequestForCommunityScreen() {
           <Text style={[styles.label, styles.labelSpacing]}>
             {t('guests.communityNameLabel')} <Text style={styles.required}>*</Text>
           </Text>
-          <TextInput
+          <LocaleTextInput
             value={communityName}
             onChangeText={(text) => {
               setCommunityName(text);
@@ -231,7 +224,7 @@ export default function RequestForCommunityScreen() {
           </Text>
           <View style={[styles.addressInputWrap, showError("address", liveErrors) && styles.inputError]}>
             <MapPin size={16} color={T.gray} strokeWidth={1.75} />
-            <TextInput
+            <LocaleTextInput
               value={address}
               onChangeText={(text) => {
                 setAddress(text);

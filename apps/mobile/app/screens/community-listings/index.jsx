@@ -1,20 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-  ActivityIndicator,
-  RefreshControl,
-  TextInput,
-  Platform,
-  Animated,
-  Easing,
-  useWindowDimensions,
-  Keyboard,
-  KeyboardAvoidingView,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, RefreshControl, Platform, Animated, Easing, useWindowDimensions, Keyboard, KeyboardAvoidingView } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -512,7 +498,7 @@ export default function CommunityListingsScreen({ embedded = false }) {
             <View onLayout={onSearchBodyLayout}>
               <View style={styles.searchWrap}>
                 <Ionicons name="search-outline" size={18} color={M.caption} style={styles.searchIcon} />
-                <TextInput
+                <LocaleTextInput
                   ref={searchInputRef}
                   value={searchDraft}
                   onChangeText={setSearchDraft}

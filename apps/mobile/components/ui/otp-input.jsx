@@ -1,13 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  InteractionManager,
-  Keyboard,
-  Platform,
-  View,
-  TextInput,
-  StyleSheet,
-  useWindowDimensions,
-} from "react-native";
+import { InteractionManager, Keyboard, Platform, View, StyleSheet, useWindowDimensions } from "react-native";
+import LocaleTextInput from "./locale-text-input";
 import { Colors, Shadows } from "../../constants/tokens";
 import { Fonts } from "../../constants/font";
 import PhoneKeyboardAccessory, {
@@ -266,12 +259,14 @@ export default function OTPInput({
           {splitAt > 0 && index === splitAt ? (
             <View style={[styles.separator, { width: separatorWidth }]} />
           ) : null}
-          <TextInput
+          <LocaleTextInput
             ref={(ref) => {
               inputRefs.current[index] = ref;
             }}
             style={getCellStyle(index)}
             maxLength={1}
+            forceLtr
+            textAlign="center"
             keyboardType="number-pad"
             textContentType="oneTimeCode"
             autoComplete="sms-otp"

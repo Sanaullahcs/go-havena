@@ -1,19 +1,6 @@
 import React, { useCallback, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  Pressable,
-  ActivityIndicator,
-  RefreshControl,
-  ScrollView,
-  Modal,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  TouchableOpacity,
-} from "react-native";
+import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, RefreshControl, ScrollView, Modal, KeyboardAvoidingView, Platform, TouchableOpacity } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -424,7 +411,7 @@ export default function GuestApprovalsScreen() {
                 {t("guests.guestWillSeeReason", { name: rejectTarget?.guest_name || t("guests.thisGuest") })}
               </Text>
               <Text style={styles.rejectLabel}>{t("guests.reasonForRejection")}</Text>
-              <TextInput
+              <LocaleTextInput
                 value={rejectReason}
                 onChangeText={setRejectReason}
                 style={styles.rejectInput}

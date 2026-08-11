@@ -1,14 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  TouchableOpacity,
-  Pressable,
-  Keyboard,
-  Modal,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, Keyboard, Modal } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import ScreenHeader from "../../../components/layout/screen-header";
@@ -34,8 +26,7 @@ import GuestFeatureErrorState from "../../../components/guest/guest-permission-d
 import { isFeatureAccessBlockedError } from "../../../utils/guest-permission-errors";
 import { resolveLoadRestriction } from "../../../utils/account-access-sync";
 import { useLanguage } from "../../../providers/language-provider";
-import { useInputLocale } from "../../../hooks/use-input-locale";
-import { setNativeAppLocale } from "../../../utils/native-app-locale";
+import { syncKeyboardForFocusedInput } from "../../../utils/native-app-locale";
 
 const TYPE_ICONS = {
   Recommendations: "star",
@@ -67,7 +58,6 @@ const VALID_CATEGORIES = new Set(["general", "event", "help", "update", "announc
 export default function CreatePost() {
   const router = useRouter();
   const { t } = useTranslation();
-  const inputLocale = useInputLocale();
   const { category: categoryParam, postId: postIdParam } = useLocalSearchParams();
   const editPostId = postIdParam ? String(Array.isArray(postIdParam) ? postIdParam[0] : postIdParam) : null;
   const isEditing = Boolean(editPostId);
@@ -96,7 +86,7 @@ export default function CreatePost() {
     useCallback(() => {
       resolveLoadRestriction("feed").then(setRestrictionError);
       // Keep OS keyboard locale in sync with the active app language.
-      setNativeAppLocale(appLanguage);
+      syncKeyboardForFocusedInput(appLanguage);
     }, [appLanguage]),
   );
 
@@ -367,8 +357,7 @@ export default function CreatePost() {
               </View>
             </View>
 
-            <TextInput
-              {...inputLocale}
+            <LocaleTextInput
               placeholder={t("feed.createPost.placeholder")}
               placeholderTextColor={Colors.textMuted}
               multiline
@@ -379,7 +368,7 @@ export default function CreatePost() {
                 setShowDone(text.trim().length > 0 || Boolean(attachedImage));
               }}
               onBlur={() => touch("body")}
-              style={[styles.postInput, showError("body", liveErrors) && styles.inputError, inputLocale.style]}
+              style={[styles.postInput, showError("body", liveErrors) && styles.inputError]}
               maxLength={LIMITS.feedPost}
             />
 

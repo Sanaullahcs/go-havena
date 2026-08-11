@@ -18,7 +18,6 @@ export default function PropertyHubSectionHeader({
       <View style={styles.topRow}>
         <View style={styles.titleBlock}>
           <View style={styles.titleRow}>
-            <View style={styles.titleDot} />
             <Text style={styles.title} numberOfLines={1}>
               {title}
             </Text>
@@ -69,13 +68,6 @@ const styles = StyleSheet.create({
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  titleDot: {
-    width: sw(4),
-    height: sw(4),
-    borderRadius: sw(2),
-    backgroundColor: PropertyHubTheme.teal,
-    marginEnd: sw(6),
   },
   title: {
     fontFamily: Fonts.bold,

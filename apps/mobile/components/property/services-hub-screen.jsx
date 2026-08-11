@@ -9,6 +9,7 @@ import {
   Platform,
   useWindowDimensions,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -16,17 +17,19 @@ import ScreenHeader from "../layout/screen-header";
 import PropertyHubHero from "../property/property-hub-hero";
 import PropertyHubSectionHeader from "../property/property-hub-section-header";
 import PropertyHubStats from "../property/property-hub-stats";
-import PropertyHubUpNext from "../property/property-hub-up-next";
 import PropertyQuickGrid from "../property/property-quick-grid";
-import PropertyActivitySection from "../property/property-activity-section";
+import PropertyHubLinkCards from "../property/property-hub-link-cards";
+import PropertyHubApprovalQueue from "../property/property-hub-approval-queue";
 import { PropertyManagementRoutes, navigatePropertyHubRoute } from "../../constants/property-management-routes";
 import { getCurrentRole } from "../../constants/role-session";
 import { Fonts } from "../../constants/font";
 import { Layout } from "../../constants/tokens";
+import { HOME_SCROLL_BOTTOM_PAD } from "../../constants/home-styles";
 import { sf, sw } from "../../utils/responsive";
 import {
   PropertyHubTheme,
   getPropertyHubServices,
+  getPropertyCommunityServices,
 } from "../../constants/property-management-theme";
 import {
   fetchMyBookings,
@@ -36,6 +39,7 @@ import {
 import {
   buildPropertyHubActivity,
   buildResidentHubActivity,
+  ACTIVITY_LIMIT,
 } from "../../utils/property-hub-activity";
 
 const ROUTES = { ...PropertyManagementRoutes, HELP: "/screens/help" };
@@ -47,11 +51,38 @@ function getEmptyResidentActivity(t) {
   };
 }
 
+function getInitialHubStats(isAdmin, t) {
+  if (!isAdmin) return [];
+
+  return [
+    {
+      id: "pending-reviews",
+      label: t("services.amenityReviews"),
+      value: "0",
+      tone: "default",
+      routeKey: "ADMIN_AMENITIES",
+      variant: "amenityReview",
+    },
+  ];
+}
+
 function SectionLoader({ label }) {
   return (
     <View style={styles.loaderCard}>
       <ActivityIndicator size="small" color={PropertyHubTheme.teal} />
       <Text style={styles.loaderText}>{label}</Text>
+    </View>
+  );
+}
+
+function EmptyApprovalQueue({ title, message }) {
+  return (
+    <View style={styles.emptyQueueCard}>
+      <View style={styles.emptyQueueIcon}>
+        <Feather name="check-circle" size={sf(18)} color={PropertyHubTheme.deepTeal} />
+      </View>
+      <Text style={styles.emptyQueueTitle}>{title}</Text>
+      <Text style={styles.emptyQueueText}>{message}</Text>
     </View>
   );
 }
@@ -65,30 +96,12 @@ export default function PropertyManagment() {
 
   const [isAdmin, setIsAdmin] = useState(() => getCurrentRole() === "admin");
   const hubServices = useMemo(() => getPropertyHubServices(isAdmin, t), [isAdmin, t]);
+  const communityServices = useMemo(() => getPropertyCommunityServices(t), [t]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [adminActivity, setAdminActivity] = useState({ title: t("services.approvalQueue"), items: [] });
   const [residentActivity, setResidentActivity] = useState(() => getEmptyResidentActivity(t));
-  const [hubStats, setHubStats] = useState(() =>
-    getCurrentRole() === "admin"
-      ? [
-          {
-            id: "pending-reviews",
-            label: t("services.amenityReviews"),
-            value: "0",
-            tone: "default",
-            routeKey: "ADMIN_AMENITIES",
-          },
-          {
-            id: "pending-bookings",
-            label: t("services.bookingRequestsLabel"),
-            value: "0",
-            tone: "default",
-            routeKey: "ADMIN_BOOKINGS",
-          },
-        ]
-      : [],
-  );
+  const [hubStats, setHubStats] = useState(() => getInitialHubStats(getCurrentRole() === "admin", t));
   const [bookingCounts, setBookingCounts] = useState({
     myReservationCount: 0,
     approveRequestCount: 0,
@@ -102,12 +115,16 @@ export default function PropertyManagment() {
 
     try {
       if (admin) {
-        const [bookings, amenitiesRes] = await Promise.all([
+        const [bookings, amenitiesRes, myBookings] = await Promise.all([
           fetchBookingInbox({ status: "pending" }).catch(() => []),
           fetchAdminAmenities({ review_status: "pending" }).catch(() => ({ data: [] })),
+          fetchMyBookings().catch(() => []),
         ]);
         const pendingAmenities = amenitiesRes?.data ?? [];
         const pendingBookings = bookings ?? [];
+        const upcomingCount = (myBookings ?? []).filter((b) =>
+          ["pending", "confirmed"].includes(b?.status),
+        ).length;
         const built = buildPropertyHubActivity({
           bookings: pendingBookings,
           amenities: pendingAmenities,
@@ -115,7 +132,10 @@ export default function PropertyManagment() {
         });
         setAdminActivity(built);
         setResidentActivity(getEmptyResidentActivity(t));
-        setBookingCounts({ myReservationCount: 0, approveRequestCount: pendingBookings.length });
+        setBookingCounts({
+          myReservationCount: upcomingCount,
+          approveRequestCount: pendingBookings.length,
+        });
         setHubStats([
           {
             id: "pending-reviews",
@@ -123,13 +143,7 @@ export default function PropertyManagment() {
             value: String(pendingAmenities.length),
             tone: pendingAmenities.length ? "pending" : "default",
             routeKey: "ADMIN_AMENITIES",
-          },
-          {
-            id: "pending-bookings",
-            label: t("services.bookingRequestsLabel"),
-            value: String(pendingBookings.length),
-            tone: pendingBookings.length ? "pending" : "default",
-            routeKey: "ADMIN_BOOKINGS",
+            variant: "amenityReview",
           },
         ]);
         return;
@@ -161,30 +175,7 @@ export default function PropertyManagment() {
       setAdminActivity({ title: t("services.approvalQueue"), items: [] });
       setResidentActivity(getEmptyResidentActivity(t));
       setBookingCounts({ myReservationCount: 0, approveRequestCount: 0 });
-      if (getCurrentRole() === "admin") {
-        setHubStats((prev) =>
-          prev.length
-            ? prev
-            : [
-                {
-                  id: "pending-reviews",
-                  label: t("services.amenityReviews"),
-                  value: "0",
-                  tone: "default",
-                  routeKey: "ADMIN_AMENITIES",
-                },
-                {
-                  id: "pending-bookings",
-                  label: t("services.bookingRequestsLabel"),
-                  value: "0",
-                  tone: "default",
-                  routeKey: "ADMIN_BOOKINGS",
-                },
-              ],
-        );
-      } else {
-        setHubStats([]);
-      }
+      setHubStats(getInitialHubStats(getCurrentRole() === "admin", t));
     } finally {
       setActivityLoading(false);
       setRefreshing(false);
@@ -217,10 +208,16 @@ export default function PropertyManagment() {
     goTo(item.routeKey);
   };
 
-  const nextReservation = residentActivity.outgoing.items[0] ?? null;
   const incomingApprovals = residentActivity.incoming.items;
-  const showAdminQueue = isAdmin && (adminActivity.items.length > 0 || activityLoading);
-  const showResidentInbox = !isAdmin && incomingApprovals.length > 0;
+  const approvalItems = isAdmin ? adminActivity.items : incomingApprovals;
+  const approvalTitle = isAdmin ? adminActivity.title : t("services.requestsToApprove");
+  const approvalSubtitle = isAdmin
+    ? t("services.approvalQueueSub")
+    : t("services.bookingRequestsSub");
+  const showApprovalQueue =
+    isAdmin
+      ? adminActivity.items.length > 0 || activityLoading
+      : true;
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
@@ -247,7 +244,11 @@ export default function PropertyManagment() {
         }
       >
         <View style={styles.heroSection}>
-          <PropertyHubHero isAdmin={isAdmin} onAction={goTo} />
+          <PropertyHubHero
+            isAdmin={isAdmin}
+            onAction={goTo}
+            reservationCount={bookingCounts.myReservationCount}
+          />
         </View>
 
         {isAdmin && hubStats.length > 0 ? (
@@ -257,22 +258,6 @@ export default function PropertyManagment() {
               subtitle={t("services.needsAttentionSub")}
             />
             <PropertyHubStats items={hubStats} onAction={goTo} />
-          </View>
-        ) : null}
-
-        {!isAdmin ? (
-          <View style={styles.upNextSection}>
-            <PropertyHubSectionHeader
-              title={t("services.upNext")}
-              subtitle={t("services.upNextSub")}
-            />
-            <PropertyHubUpNext
-              nextReservation={nextReservation}
-              myReservationCount={bookingCounts.myReservationCount}
-              approveRequestCount={bookingCounts.approveRequestCount}
-              loading={activityLoading}
-              onAction={goTo}
-            />
           </View>
         ) : null}
 
@@ -295,31 +280,37 @@ export default function PropertyManagment() {
           />
         </View>
 
-        {showAdminQueue ? (
-          <View style={styles.lastSection}>
-            <PropertyHubSectionHeader
-              title={adminActivity.title}
-              count={adminActivity.items.length || undefined}
-              actionLabel={adminActivity.items.length ? t("services.seeAll") : undefined}
-              onAction={adminActivity.items.length ? () => goTo("ADMIN_BOOKINGS") : undefined}
-            />
-            {adminActivity.items.length > 0 ? (
-              <PropertyActivitySection items={adminActivity.items} onAction={handleActivity} />
-            ) : (
-              <SectionLoader label={t("services.loadingApprovalQueue")} />
-            )}
-          </View>
-        ) : null}
+        <View style={styles.section}>
+          <PropertyHubSectionHeader
+            title={t("services.rulesSection")}
+            subtitle={t("services.rulesSectionSub")}
+          />
+          <PropertyHubLinkCards items={communityServices} onAction={goTo} />
+        </View>
 
-        {showResidentInbox ? (
+        {showApprovalQueue ? (
           <View style={styles.lastSection}>
             <PropertyHubSectionHeader
-              title={residentActivity.incoming.title}
-              count={incomingApprovals.length}
-              actionLabel={t("services.seeAll")}
-              onAction={() => goTo("ADMIN_BOOKINGS")}
+              title={approvalTitle}
+              subtitle={approvalSubtitle}
+              count={approvalItems.length || undefined}
+              actionLabel={approvalItems.length ? t("services.seeAll") : undefined}
+              onAction={approvalItems.length ? () => goTo("ADMIN_BOOKINGS") : undefined}
             />
-            <PropertyActivitySection items={incomingApprovals} onAction={handleActivity} />
+            {activityLoading && approvalItems.length === 0 ? (
+              <SectionLoader label={t("services.loadingApprovalQueue")} />
+            ) : approvalItems.length > 0 ? (
+              <PropertyHubApprovalQueue
+                items={approvalItems}
+                onAction={handleActivity}
+                limit={ACTIVITY_LIMIT}
+              />
+            ) : (
+              <EmptyApprovalQueue
+                title={t("admin.allClear")}
+                message={t("propertyMgmt.noPendingReservations")}
+              />
+            )}
           </View>
         ) : null}
       </ScrollView>
@@ -330,20 +321,17 @@ export default function PropertyManagment() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: PropertyHubTheme.screenBg,
+    backgroundColor: PropertyHubTheme.surface,
   },
   scrollContent: {
     paddingHorizontal: Layout.screenPadding,
     paddingTop: sw(10),
-    paddingBottom: sw(40),
+    paddingBottom: HOME_SCROLL_BOTTOM_PAD,
   },
   heroSection: {
-    marginBottom: sw(24),
+    marginBottom: sw(20),
   },
   section: {
-    marginBottom: sw(26),
-  },
-  upNextSection: {
     marginBottom: sw(26),
   },
   lastSection: {
@@ -363,10 +351,10 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: "#101828",
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 3,
+        shadowOpacity: 0.015,
+        shadowRadius: 2,
       },
-      android: { elevation: 1 },
+      android: { elevation: 0 },
     }),
   },
   loaderText: {
@@ -375,6 +363,52 @@ const styles = StyleSheet.create({
     lineHeight: sf(16),
     color: PropertyHubTheme.textMuted,
     marginTop: sw(10),
+    textAlign: "center",
+  },
+  emptyQueueCard: {
+    borderRadius: sw(14),
+    backgroundColor: PropertyHubTheme.accentSoft,
+    borderWidth: 1,
+    borderColor: PropertyHubTheme.approvalBorder,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: sw(22),
+    paddingHorizontal: sw(20),
+    ...Platform.select({
+      ios: {
+        shadowColor: PropertyHubTheme.deepTeal,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.02,
+        shadowRadius: 3,
+      },
+      android: { elevation: 0 },
+    }),
+  },
+  emptyQueueIcon: {
+    width: sw(40),
+    height: sw(40),
+    borderRadius: sw(12),
+    backgroundColor: PropertyHubTheme.surface,
+    borderWidth: 1,
+    borderColor: PropertyHubTheme.approvalBorder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyQueueTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(14),
+    lineHeight: sf(18),
+    color: PropertyHubTheme.text,
+    fontWeight: "700",
+    marginTop: sw(12),
+    textAlign: "center",
+  },
+  emptyQueueText: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(12),
+    lineHeight: sf(17),
+    color: PropertyHubTheme.textMuted,
+    marginTop: sw(6),
     textAlign: "center",
   },
 });

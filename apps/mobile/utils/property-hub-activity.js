@@ -3,7 +3,7 @@ import i18n, { localizedField } from "../i18n";
 import { getLocaleForLang } from "../hooks/use-app-locale";
 
 const RESIDENT_STATUSES = new Set(["pending", "confirmed", "rejected"]);
-const ACTIVITY_LIMIT = 3;
+export const ACTIVITY_LIMIT = 3;
 
 function todayKey() {
   const t = new Date();

@@ -1,17 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  Modal,
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Pressable,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-} from "react-native";
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Pressable, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import LocaleTextInput from "../ui/locale-text-input";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -179,7 +168,7 @@ export default function ListingOfferSheet({
             <Text style={styles.fieldLabel}>{t("marketplace.yourOfferAmount")}</Text>
             <View style={styles.amountRow}>
               <Text style={styles.currency}>$</Text>
-              <TextInput
+              <LocaleTextInput
                 value={amount}
                 onChangeText={(value) => {
                   setAmount(value);
@@ -214,7 +203,7 @@ export default function ListingOfferSheet({
                 />
               ))}
             </View>
-            <TextInput
+            <LocaleTextInput
               value={message}
               onChangeText={setMessage}
               placeholder={t("marketplace.tellSellerInterest")}

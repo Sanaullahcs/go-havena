@@ -1,15 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TextInput,
-  TouchableOpacity,
-  Platform,
-  ActivityIndicator,
-  RefreshControl,
-} from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform, ActivityIndicator, RefreshControl } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
@@ -617,7 +608,7 @@ export default function ChatScreen() {
         >
           <View style={styles.composer}>
             <View style={styles.inputWrap}>
-              <TextInput
+              <LocaleTextInput
                 ref={inputRef}
                 value={draft}
                 onChangeText={setDraft}

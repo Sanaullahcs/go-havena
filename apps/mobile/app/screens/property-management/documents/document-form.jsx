@@ -1,14 +1,6 @@
 import React, { useCallback, useEffect, useState, useMemo } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  Pressable,
-  ActivityIndicator,
-  Switch,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Switch } from "react-native";
+import LocaleTextInput from "../../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -162,7 +154,7 @@ export default function DocumentForm() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.field}>
           <Text style={styles.label}>{t("propertyMgmt.docTitleLabel")}</Text>
-          <TextInput style={[styles.input, showError("title", liveErrors) && styles.inputError]} placeholder={t("propertyMgmt.docTitlePlaceholder")} placeholderTextColor="#9CA3AF" value={form.title} onChangeText={(v) => setF("title", v)} maxLength={LIMITS.documentTitle} />
+          <LocaleTextInput style={[styles.input, showError("title", liveErrors) && styles.inputError]} placeholder={t("propertyMgmt.docTitlePlaceholder")} placeholderTextColor="#9CA3AF" value={form.title} onChangeText={(v) => setF("title", v)} maxLength={LIMITS.documentTitle} />
           {showError("title", liveErrors) ? <Text style={styles.errorText}>{showError("title", liveErrors)}</Text> : null}
         </View>
 
@@ -195,7 +187,7 @@ export default function DocumentForm() {
             ))}
           </ScrollView>
           {categorySelect === DOCUMENT_OTHER_CATEGORY ? (
-            <TextInput
+            <LocaleTextInput
               style={[styles.input, { marginTop: sw(8) }, showError("category", liveErrors) && styles.inputError]}
               placeholder={t("propertyMgmt.enterCustomCategory")}
               placeholderTextColor="#9CA3AF"
@@ -213,7 +205,7 @@ export default function DocumentForm() {
 
         <View style={styles.field}>
           <Text style={styles.label}>{t("propertyMgmt.docDescriptionLabel")}</Text>
-          <TextInput style={[styles.input, styles.textArea]} placeholder={t("propertyMgmt.docDescPlaceholder")} placeholderTextColor="#9CA3AF" multiline value={form.description} onChangeText={(v) => setF("description", v)} textAlignVertical="top" />
+          <LocaleTextInput style={[styles.input, styles.textArea]} placeholder={t("propertyMgmt.docDescPlaceholder")} placeholderTextColor="#9CA3AF" multiline value={form.description} onChangeText={(v) => setF("description", v)} textAlignVertical="top" />
         </View>
 
         <View style={styles.field}>

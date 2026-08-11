@@ -154,20 +154,12 @@ export function getApprovalQueueIconMeta(iconKey) {
 export function getPropertyResidentServices(t) {
   return [
     {
-      id: "amenity",
+      id: "book",
       key: "amenity",
-      title: t("services.amenitiesLabel"),
-      subtitle: t("services.amenitiesSub"),
+      title: t("services.browseAmenitiesTitle"),
+      subtitle: t("services.browseAmenitiesSub"),
       routeKey: "AMENITY",
       primary: true,
-    },
-    {
-      id: "booking-requests",
-      key: "approvals",
-      title: t("services.bookingRequests"),
-      subtitle: t("services.bookingRequestsSub"),
-      routeKey: "ADMIN_BOOKINGS",
-      badgeKey: "approveRequestCount",
     },
     {
       id: "add-amenity",
@@ -177,18 +169,12 @@ export function getPropertyResidentServices(t) {
       routeKey: "AMENITY_FORM",
     },
     {
-      id: "documents",
-      key: "documents",
-      title: t("services.documents"),
-      subtitle: t("services.documentsSub"),
-      routeKey: "DOCUMENTS",
-    },
-    {
-      id: "rules",
-      key: "rules",
-      title: t("services.communityRules"),
-      subtitle: t("services.communityRulesSub"),
-      routeKey: "COMMUNITY_RULES",
+      id: "booking-requests",
+      key: "approvals",
+      title: t("services.bookingRequests"),
+      subtitle: t("services.bookingRequestsSub"),
+      routeKey: "ADMIN_BOOKINGS",
+      badgeKey: "approveRequestCount",
     },
   ];
 }
@@ -196,12 +182,11 @@ export function getPropertyResidentServices(t) {
 export function getPropertyAdminServices(t) {
   return [
     {
-      id: "amenities",
-      key: "amenity",
-      title: t("services.manageAmenities"),
-      subtitle: t("services.manageAmenitiesSub"),
-      routeKey: "ADMIN_AMENITIES",
-      primary: true,
+      id: "add-amenity",
+      key: "addAmenity",
+      title: t("services.addAmenity"),
+      subtitle: t("services.addAmenitySub"),
+      routeKey: "AMENITY_FORM",
     },
     {
       id: "approvals",
@@ -212,25 +197,19 @@ export function getPropertyAdminServices(t) {
       badgeKey: "approveRequestCount",
     },
     {
+      id: "amenities",
+      key: "amenity",
+      title: t("services.manageAmenities"),
+      subtitle: t("services.manageAmenitiesSub"),
+      routeKey: "ADMIN_AMENITIES",
+      primary: true,
+    },
+    {
       id: "book",
       key: "bookings",
       title: t("services.browseAmenitiesTitle"),
       subtitle: t("services.browseAmenitiesSub"),
       routeKey: "AMENITY",
-    },
-    {
-      id: "documents",
-      key: "documents",
-      title: t("services.documents"),
-      subtitle: t("services.documentsSub"),
-      routeKey: "DOCUMENTS",
-    },
-    {
-      id: "rules",
-      key: "rules",
-      title: t("services.communityRules"),
-      subtitle: t("services.communityRulesSub"),
-      routeKey: "COMMUNITY_RULES",
     },
   ];
 }
@@ -248,18 +227,18 @@ export function getPropertyAdminBookActions(t) {
 export function getPropertyCommunityServices(t) {
   return [
     {
-      id: "documents",
-      key: "documents",
-      title: t("services.documents"),
-      subtitle: t("services.documentsSub"),
-      routeKey: "DOCUMENTS",
-    },
-    {
       id: "rules",
       key: "rules",
       title: t("services.communityRules"),
       subtitle: t("services.communityRulesSub"),
       routeKey: "COMMUNITY_RULES",
+    },
+    {
+      id: "documents",
+      key: "documents",
+      title: t("services.documents"),
+      subtitle: t("services.documentsSub"),
+      routeKey: "DOCUMENTS",
     },
   ];
 }
@@ -294,22 +273,20 @@ export function getPropertyBookActions(isAdmin, t) {
   return getPropertyHubServices(isAdmin, t);
 }
 
-export function getPropertyHubHeroCopy(isAdmin, t) {
-  if (isAdmin) {
-    return {
-      eyebrow: t("services.heroAdminEyebrow"),
-      title: t("services.heroAdminTitle"),
-      subtitle: t("services.heroAdminSubtitle"),
-      cta: t("services.heroAdminCta"),
-      ctaRoute: "ADMIN_BOOKINGS",
-    };
-  }
+export function getPropertyHubHeroCopy(isAdmin, t, { reservationCount = 0 } = {}) {
+  const count = Number(reservationCount) || 0;
+  const subtitle =
+    count > 0
+      ? t("services.upcomingBookingCount", { count })
+      : t("services.browseAndReserve");
+
   return {
-    eyebrow: t("services.heroResidentEyebrow"),
-    title: t("services.heroResidentTitle"),
-    subtitle: t("services.heroResidentSubtitle"),
-    cta: t("services.heroResidentCta"),
-    ctaRoute: "AMENITY",
+    eyebrow: t("services.heroAdminReservationEyebrow"),
+    title: t("services.myReservations"),
+    subtitle,
+    cta: t("services.heroAdminReservationCta"),
+    ctaRoute: "MY_BOOKING",
+    icon: "calendar",
   };
 }
 

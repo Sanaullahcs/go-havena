@@ -1,14 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { MarketplaceType } from "../../../constants/marketplace-type";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { Image } from "expo-image";
 import { Fonts } from "../../../constants/font";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -261,7 +255,7 @@ export default function AddBusinessScreen() {
         <Text style={[styles.label, styles.sectionTop]}>
           {t("marketplace.businessName")} <Text style={styles.required}>*</Text>
         </Text>
-        <TextInput
+        <LocaleTextInput
           value={business}
           onChangeText={(v) => { setBusiness(v); touch("business"); clearError("business"); }}
           placeholder={t("marketplace.placeholderBusinessName")}
@@ -273,7 +267,7 @@ export default function AddBusinessScreen() {
         <Text style={[styles.label, styles.sectionTop]}>
           {t("marketplace.category")} <Text style={styles.required}>*</Text>
         </Text>
-        <TextInput
+        <LocaleTextInput
           value={category}
           onChangeText={(v) => { setCategory(v); touch("category"); clearError("category"); }}
           placeholder={t("marketplace.placeholderCategory")}
@@ -297,7 +291,7 @@ export default function AddBusinessScreen() {
             {t("marketplace.address")} <Text style={styles.required}>*</Text>
           </Text>
         </View>
-        <TextInput
+        <LocaleTextInput
           value={address}
           onChangeText={(v) => { setAddress(v); touch("address"); clearError("address"); }}
           placeholder={t("marketplace.placeholderAddress")}
@@ -340,7 +334,7 @@ export default function AddBusinessScreen() {
           <Text style={[styles.label, styles.sectionTop]}>
             {t("marketplace.description")} <Text style={styles.required}>*</Text>
           </Text>
-          <TextInput
+          <LocaleTextInput
             value={description}
             onChangeText={(v) => {
               setDescription(v);
@@ -366,7 +360,7 @@ export default function AddBusinessScreen() {
         <Text style={[styles.label, styles.sectionTop]}>
           {t("marketplace.amenitiesCsv")}
         </Text>
-        <TextInput
+        <LocaleTextInput
           value={amenities}
           onChangeText={setAmenities}
           placeholder={t("marketplace.placeholderAmenities")}
