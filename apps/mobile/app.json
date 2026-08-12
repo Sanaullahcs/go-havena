@@ -10,7 +10,7 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.zsquare.neighborlink",
+      "bundleIdentifier": "com.zsquare.havena",
       "infoPlist": {
         "NSFaceIDUsageDescription": "Havena uses Face ID to sign you in quickly and securely.",
         "NSPhotoLibraryUsageDescription": "Allow Havena to save photos from the community feed to your gallery.",
@@ -19,7 +19,12 @@
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true,
           "NSAllowsArbitraryLoads": true
-        }
+        },
+        "CFBundleLocalizations": [
+          "en",
+          "es",
+          "ar"
+        ]
       }
     },
     "android": {
@@ -37,9 +42,13 @@
         "android.permission.USE_FINGERPRINT",
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO"
       ],
-      "package": "com.neighborlink.app"
+      "package": "com.zsquare.havena"
     },
     "web": {
       "bundler": "metro",
@@ -109,8 +118,16 @@
         "expo-localization",
         {
           "supportedLocales": {
-            "ios": ["en", "es", "ar"],
-            "android": ["en", "es", "ar"]
+            "ios": [
+              "en",
+              "es",
+              "ar"
+            ],
+            "android": [
+              "en",
+              "es",
+              "ar"
+            ]
           }
         }
       ],
@@ -128,7 +145,7 @@
         "style": "dark"
       },
       "eas": {
-        "projectId": "4f72474d-95e8-4afb-b44d-7c80cd4bb03d"
+        "projectId": "23aaa527-0ab0-49ab-9f93-1aaa427e1b99"
       }
     }
   }
