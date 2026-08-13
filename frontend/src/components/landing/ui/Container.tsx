@@ -24,7 +24,7 @@ export function Container({
   } as const;
 
   return (
-    <div className={`mx-auto w-full px-5 sm:px-8 lg:px-10 ${sizes[size]} ${className}`}>
+    <div className={`mx-auto w-full px-4 sm:px-6 lg:px-8 ${sizes[size]} ${className}`}>
       {children}
     </div>
   );
