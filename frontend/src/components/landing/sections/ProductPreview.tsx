@@ -8,22 +8,22 @@ const labelClass =
 
 export function ProductPreview() {
   return (
-    <section id="preview" className="relative overflow-x-clip py-16 sm:py-20 lg:py-24">
+    <section id="preview" className="lp-section relative overflow-x-clip">
       <div aria-hidden="true" className="soft-section absolute inset-0 -z-20" />
 
       <Container size="xl">
         <div className="mx-auto max-w-xl text-center">
           <span className="section-label justify-center">Product preview</span>
-          <h2 className="section-title mt-4">
+          <h2 className="section-title mt-3">
             One platform.{" "}
             <span className="gradient-text">Four resident experiences.</span>
           </h2>
-          <p className="mx-auto mt-3 text-[15px] leading-relaxed text-ink-body">
+          <p className="mx-auto mt-2 text-[15px] leading-relaxed text-ink-body">
             Feed, home, deals, and wellness — synced live with your admin dashboard.
           </p>
         </div>
 
-        <div className="lp-product-preview__showcase mx-auto mt-10 max-w-full lg:mt-12">
+        <div className="lp-product-preview__showcase mx-auto max-w-full">
           <div className="lp-product-preview__phones">
             <div className="lp-product-preview__phone lp-product-preview__phone--left">
               <MobileAppMockup variant="feed" size="sm" tilt="left" glow={false} />
@@ -40,7 +40,7 @@ export function ProductPreview() {
           </div>
         </div>
 
-        <div className="product-preview-stage mx-auto mt-10 max-w-full lg:mt-12">
+        <div className="product-preview-stage mx-auto max-w-full">
           <div className="product-preview-labels hidden lg:grid">
             <span className={`${labelClass} justify-self-center text-brand-deep`}>
               <Icon name="phone" className="h-3.5 w-3.5" />

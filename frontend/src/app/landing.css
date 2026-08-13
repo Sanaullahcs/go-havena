@@ -2104,12 +2104,12 @@
   --lp-body: #475569;
   --lp-muted: #6b7280;
   --lp-line: rgba(10, 42, 67, 0.1);
-  --lp-section-pad: clamp(2.25rem, 4vw, 3.25rem);
-  --lp-head-gap: 0.5rem;
-  --lp-lede-gap: 0.75rem;
-  --lp-block-gap: 1.5rem;
-  --lp-grid-gap: 0.75rem;
-  --lp-grid-gap-lg: 1.15rem;
+  --lp-section-pad: clamp(1rem, 2.5vw, 1.65rem);
+  --lp-head-gap: 0.25rem;
+  --lp-lede-gap: 0.35rem;
+  --lp-block-gap: 0.65rem;
+  --lp-grid-gap: 0.4rem;
+  --lp-grid-gap-lg: 0.6rem;
   font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   background:
     radial-gradient(900px 420px at 12% -8%, rgba(10, 42, 67, 0.06), transparent 55%),
@@ -4201,7 +4201,7 @@
 .landing-page.lp .lp-hero--bleed {
   position: relative;
   isolation: isolate;
-  min-height: 100svh;
+  min-height: min(86svh, 640px);
   display: flex;
   align-items: flex-end;
   overflow: hidden;
@@ -4914,31 +4914,31 @@
 }
 
 .landing-page.lp .lp-hero--bleed .lp-hero__content {
-  padding: 5.5rem 1rem 3.75rem;
+  padding: 4rem 1rem 2.5rem;
 }
 
 @media (min-width: 768px) {
   .landing-page.lp .lp-hero--bleed .lp-hero__content {
-    padding: 6.5rem 1.5rem 4.25rem;
+    padding: 4.5rem 1.5rem 2.75rem;
   }
 }
 
 .landing-page.lp .lp-hero--bleed .lp-hero__heading {
-  margin-top: 0.65rem;
+  margin-top: 0.5rem;
 }
 
 .landing-page.lp .lp-hero--bleed .lp-hero__line {
-  margin-top: 0.85rem;
+  margin-top: 0.65rem;
 }
 
 .landing-page.lp .lp-hero--bleed .lp-hero__lede {
-  margin-top: 0.85rem;
-  line-height: 1.55;
+  margin-top: 0.65rem;
+  line-height: 1.5;
 }
 
 .landing-page.lp .lp-hero--bleed .lp-hero__actions {
-  gap: 0.6rem;
-  margin-top: 1.15rem;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
 }
 
 .landing-page.lp .lp-platform__title,
@@ -4971,7 +4971,7 @@
 
 .landing-page.lp .lp-platform__footer,
 .landing-page.lp .lp-process__cta {
-  margin-top: 1.5rem;
+  margin-top: 1rem;
 }
 
 .landing-page.lp .lp-platform__audiences,
@@ -5001,7 +5001,7 @@
   .landing-page.lp .lp-stories__layout,
   .landing-page.lp .lp-faq__layout,
   .landing-page.lp .lp-contact__grid {
-    gap: 1.75rem;
+    gap: 0.85rem;
   }
 }
 
@@ -5012,12 +5012,12 @@
 .landing-page.lp .lp-stories__featured,
 .landing-page.lp .lp-stories__card article,
 .landing-page.lp .lp-contact__form {
-  padding: 1.15rem 1.1rem;
+  padding: 0.8rem 0.75rem;
 }
 
 @media (min-width: 640px) {
   .landing-page.lp .lp-contact__form {
-    padding: 1.35rem;
+    padding: 1.1rem;
   }
 }
 
@@ -5027,8 +5027,8 @@
 }
 
 .landing-page.lp .lp-platform__audience-list {
-  margin-top: 0.85rem;
-  padding-top: 0.85rem;
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
 }
 
 .landing-page.lp .lp-platform__card-title,
@@ -5037,36 +5037,36 @@
 }
 
 .landing-page.lp .lp-stats__item {
-  padding: 1.15rem 0.85rem;
+  padding: 0.7rem 0.6rem;
 }
 
 @media (min-width: 768px) {
   .landing-page.lp .lp-stats__item {
-    padding: 1.35rem 1rem;
+    padding: 0.85rem 0.7rem;
   }
 }
 
 .landing-page.lp .lp-faq__trigger {
-  gap: 0.75rem;
-  padding: 0.85rem 1rem;
+  gap: 0.6rem;
+  padding: 0.7rem 0.85rem;
 }
 
 .landing-page.lp .lp-faq__answer {
-  padding: 0 1rem 0.85rem;
+  padding: 0 0.85rem 0.7rem;
 }
 
 .landing-page.lp .lp-cta-banner {
-  padding: clamp(1.75rem, 3vw, 2.5rem) 0;
+  padding: clamp(0.85rem, 2vw, 1.35rem) 0;
 }
 
 .landing-page.lp .lp-cta-banner__inner {
-  gap: 1.15rem;
-  padding: clamp(1rem, 2.5vw, 1.5rem);
+  gap: 0.65rem;
+  padding: clamp(0.7rem, 1.75vw, 1rem);
 }
 
 @media (min-width: 900px) {
   .landing-page.lp .lp-cta-banner__inner {
-    gap: 1.25rem;
+    gap: 0.85rem;
   }
 }
 
@@ -5084,22 +5084,22 @@
 }
 
 .landing-page.lp .lp-footer__inner {
-  padding: 2rem 1rem 1.25rem;
+  padding: 1.35rem 1rem 1rem;
 }
 
 @media (min-width: 640px) {
   .landing-page.lp .lp-footer__inner {
-    padding: 2.25rem 1.5rem 1.5rem;
+    padding: 1.5rem 1.5rem 1.15rem;
   }
 }
 
 .landing-page.lp .lp-footer__grid {
-  gap: 1.35rem;
+  gap: 1rem;
 }
 
 @media (min-width: 1024px) {
   .landing-page.lp .lp-footer__grid {
-    gap: 1.75rem;
+    gap: 1.25rem;
   }
 }
 
@@ -5177,14 +5177,14 @@
 
 .landing-page.lp .lp-hero--bleed__grid {
   display: grid;
-  gap: 2.5rem;
+  gap: 1.25rem;
   align-items: center;
 }
 
 @media (min-width: 1024px) {
   .landing-page.lp .lp-hero--bleed__grid {
     grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr);
-    gap: 2rem;
+    gap: 1rem;
     align-items: center;
   }
 }
@@ -5670,8 +5670,8 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  min-height: 340px;
-  padding: 0 0.5rem;
+  min-height: 280px;
+  padding: 0 0.25rem;
 }
 
 .landing-page.lp .lp-mockup-fan__glow {
@@ -5690,8 +5690,8 @@
 
 .landing-page.lp .lp-mockup-fan__phone--left {
   z-index: 1;
-  margin-right: -2.5rem;
-  margin-bottom: 1.25rem;
+  margin-right: -2rem;
+  margin-bottom: 0.85rem;
 }
 
 .landing-page.lp .lp-mockup-fan__phone--center {
@@ -5700,8 +5700,8 @@
 
 .landing-page.lp .lp-mockup-fan__phone--right {
   z-index: 1;
-  margin-left: -2.5rem;
-  margin-bottom: 1.25rem;
+  margin-left: -2rem;
+  margin-bottom: 0.85rem;
 }
 
 .landing-page.lp .lp-mockup-fan__chip {
@@ -6331,4 +6331,78 @@
   .landing-page.lp .lp-mockup-fan__chip--sync {
     animation: none;
   }
+}
+
+/* ── Tighter section spacing (global pass) ── */
+
+.landing-page.lp .lp-process__steps {
+  margin-top: var(--lp-block-gap);
+}
+
+.landing-page.lp .lp-process__cta {
+  margin-top: 0.85rem;
+  gap: 0.45rem;
+}
+
+.landing-page.lp .lp-platform__footer {
+  margin-top: var(--lp-block-gap);
+}
+
+.landing-page.lp .lp-stories__layout,
+.landing-page.lp .lp-faq__layout {
+  gap: var(--lp-grid-gap-lg);
+}
+
+.landing-page.lp .lp-stories__highlights {
+  margin-top: var(--lp-block-gap);
+  gap: 0.45rem;
+}
+
+.landing-page.lp .lp-stories__grid {
+  margin-top: var(--lp-block-gap);
+}
+
+.landing-page.lp .lp-stories__featured {
+  padding: 1.1rem 1rem;
+}
+
+.landing-page.lp .lp-stories__quote {
+  margin-top: 0.65rem;
+}
+
+.landing-page.lp .lp-stories__meta {
+  margin-top: 0.85rem;
+}
+
+.landing-page.lp .lp-contact__points {
+  margin-top: 0.85rem;
+  gap: 0.55rem;
+}
+
+.landing-page.lp .lp-product-preview__showcase,
+.landing-page.lp .product-preview-stage {
+  margin-top: var(--lp-block-gap);
+}
+
+.landing-page.lp .product-preview-row {
+  gap: 1rem;
+}
+
+.landing-page.lp .lp-product-preview__phone {
+  gap: 0.45rem;
+}
+
+.landing-page.lp .lp-mockup-fan {
+  min-height: 260px;
+}
+
+.landing-page.lp .lp-platform__audience-list {
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  gap: 0.45rem;
+}
+
+.landing-page.lp .lp-footer__bottom {
+  margin-top: 0.85rem;
+  padding-top: 0.65rem;
 }
