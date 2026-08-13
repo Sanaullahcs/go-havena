@@ -4611,3 +4611,188 @@
 .landing-page.lp .lp-process {
   background: #0a2a43 !important;
 }
+
+/* ── Coming soon (temporary public landing) ─────────────────────────────── */
+
+.landing-page.lp--coming-soon {
+  min-height: 100dvh;
+  background: #061a2c;
+}
+
+.lp-coming-soon {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding: clamp(1.5rem, 4vw, 3rem);
+  overflow: hidden;
+}
+
+.lp-coming-soon__media {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.lp-coming-soon__photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transform: scale(1.04);
+  animation: lp-coming-soon- ken 28s ease-in-out infinite alternate;
+}
+
+.lp-coming-soon__wash {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(6, 26, 44, 0.55) 0%, rgba(6, 26, 44, 0.72) 45%, rgba(6, 26, 44, 0.88) 100%),
+    radial-gradient(ellipse 80% 55% at 50% 18%, rgba(20, 184, 166, 0.22), transparent 60%);
+}
+
+.lp-coming-soon__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  max-width: 40rem;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  color: #f8fafc;
+}
+
+.lp-coming-soon__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  animation: lp-coming-soon-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.lp-coming-soon__mark {
+  filter: drop-shadow(0 12px 28px rgba(20, 184, 166, 0.35));
+  animation: lp-coming-soon-glow 4.5s ease-in-out infinite;
+}
+
+.lp-coming-soon__name {
+  margin: 0;
+  font-family: var(--font-brand), var(--font-display), Georgia, serif;
+  font-size: clamp(3.25rem, 10vw, 5.75rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  color: #fff;
+}
+
+.lp-coming-soon__headline {
+  margin: 1.75rem 0 0;
+  font-family: var(--font-display), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(1.05rem, 2vw, 1.35rem);
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #5eead4;
+  animation: lp-coming-soon-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+}
+
+.lp-coming-soon__lede {
+  margin: 1rem 0 0;
+  max-width: 28rem;
+  font-family: var(--font-display), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(1rem, 1.6vw, 1.15rem);
+  font-weight: 500;
+  line-height: 1.55;
+  color: rgba(248, 250, 252, 0.82);
+  animation: lp-coming-soon-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.22s both;
+}
+
+.lp-coming-soon__contact {
+  margin-top: 1.75rem;
+  font-family: var(--font-display), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: rgba(248, 250, 252, 0.92);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(94, 234, 212, 0.45);
+  padding-bottom: 0.1rem;
+  transition: color 0.2s ease, border-color 0.2s ease;
+  animation: lp-coming-soon-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.32s both;
+}
+
+.lp-coming-soon__contact:hover {
+  color: #fff;
+  border-color: #5eead4;
+}
+
+.lp-coming-soon__links {
+  position: absolute;
+  z-index: 1;
+  right: clamp(1rem, 3vw, 2rem);
+  bottom: clamp(1rem, 3vw, 2rem);
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-family: var(--font-display), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: rgba(248, 250, 252, 0.55);
+  animation: lp-coming-soon-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.42s both;
+}
+
+.lp-coming-soon__links a {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.lp-coming-soon__links a:hover {
+  color: #fff;
+}
+
+@keyframes lp-coming-soon-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes lp-coming-soon-ken {
+  from {
+    transform: scale(1.04) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.1) translate3d(-1.5%, -1%, 0);
+  }
+}
+
+@keyframes lp-coming-soon-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 12px 28px rgba(20, 184, 166, 0.28));
+  }
+  50% {
+    filter: drop-shadow(0 16px 36px rgba(20, 184, 166, 0.5));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-coming-soon__photo,
+  .lp-coming-soon__mark,
+  .lp-coming-soon__brand,
+  .lp-coming-soon__headline,
+  .lp-coming-soon__lede,
+  .lp-coming-soon__contact,
+  .lp-coming-soon__links {
+    animation: none;
+  }
+
+  .lp-coming-soon__photo {
+    transform: none;
+  }
+}

@@ -8,7 +8,7 @@ export const site = {
   description:
     "Havena is the community platform for HOAs and neighborhoods — subscribe once, invite residents, and run notices, amenities, wellness, and local life in one place.",
   url: "https://havena.app",
-  contactEmail: "hello@havena.app",
+  contactEmail: "hello@gohavena.com",
   contactPhone: "+1 (555) 123-4567",
 } as const;
 

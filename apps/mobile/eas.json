@@ -16,6 +16,9 @@
     },
     "production": {
       "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://apis.gohavena.com/api/v1"
+      },
       "ios": {
         "resourceClass": "m-medium",
         "credentialsSource": "local"
@@ -35,7 +38,7 @@
         "ascApiKeyId": "D8J758WQLT",
         "ascApiKeyIssuerId": "69a6de93-d81e-47e3-e053-5b8c7c11a4d1",
         "appleTeamId": "6X37JEX924",
-        "ascAppId": "6762253151"
+        "ascAppId": "6800697897"
       }
     }
   }
