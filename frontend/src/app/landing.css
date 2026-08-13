@@ -2164,6 +2164,7 @@
   position: sticky;
   top: 0;
   z-index: 50;
+  width: 100%;
   background: rgba(255, 255, 255, 0.92);
   border-bottom: 1px solid transparent;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
@@ -2178,7 +2179,8 @@
 .landing-page.lp .lp-header__inner {
   margin: 0 auto;
   display: flex;
-  max-width: 80rem;
+  width: 100%;
+  max-width: none;
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
@@ -3672,13 +3674,61 @@
 .landing-page.lp .lp-contact__grid {
   display: grid;
   gap: 2.5rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 @media (min-width: 1024px) {
   .landing-page.lp .lp-contact__grid {
     grid-template-columns: 0.9fr 1.1fr;
-    gap: 3.5rem;
+    gap: 2rem;
+    align-items: stretch;
+  }
+}
+
+.landing-page.lp .lp-contact__intro {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100%;
+}
+
+@media (min-width: 1024px) {
+  .landing-page.lp .lp-contact__intro {
+    justify-content: space-between;
+    padding: 1.35rem 1.25rem;
+    border-radius: 20px;
+    background: var(--lp-navy);
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  .landing-page.lp .lp-contact__intro .lp-label {
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  .landing-page.lp .lp-contact__intro .lp-title {
+    color: #ffffff;
+  }
+
+  .landing-page.lp .lp-contact__intro .lp-body {
+    color: rgba(255, 255, 255, 0.78);
+  }
+
+  .landing-page.lp .lp-contact__point-label {
+    color: rgba(255, 255, 255, 0.52);
+  }
+
+  .landing-page.lp .lp-contact__point-value {
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  .landing-page.lp .lp-contact__point:hover .lp-contact__point-value {
+    color: #ffffff;
+  }
+
+  .landing-page.lp .lp-contact__point-icon {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.14);
+    color: #ffffff;
   }
 }
 
@@ -3686,6 +3736,12 @@
   display: grid;
   gap: 1rem;
   margin-top: 2rem;
+}
+
+@media (min-width: 1024px) {
+  .landing-page.lp .lp-contact__points {
+    margin-top: auto;
+  }
 }
 
 .landing-page.lp .lp-contact__point {
@@ -3729,6 +3785,7 @@
 }
 
 .landing-page.lp .lp-contact__form {
+  height: 100%;
   border: 1px solid var(--lp-line);
   border-radius: 20px;
   background: #ffffff;
@@ -4809,12 +4866,20 @@
 
 .landing-page.lp .lp-header__inner {
   gap: 1rem;
+  width: 100%;
+  max-width: none;
   padding: 0.65rem 1rem;
 }
 
 @media (min-width: 640px) {
   .landing-page.lp .lp-header__inner {
     padding: 0.75rem 1.5rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .landing-page.lp .lp-header__inner {
+    padding: 0.75rem 2rem;
   }
 }
 
