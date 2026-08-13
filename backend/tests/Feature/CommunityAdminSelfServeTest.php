@@ -30,16 +30,16 @@ class CommunityAdminSelfServeTest extends TestCase
         ])->assertOk();
 
         $verify->assertJsonPath('user.role', 'community_admin')
-            ->assertJsonPath('user.community_admin_status', 'approved');
+            ->assertJsonPath('user.community_admin_status', 'pending');
 
         $this->assertDatabaseHas('users', [
             'phone' => $phone,
             'role' => 'community_admin',
-            'community_admin_status' => 'approved',
+            'community_admin_status' => 'pending',
         ]);
     }
 
-    public function test_self_serve_creates_active_community_and_approved_membership(): void
+    public function test_self_serve_creates_pending_community_and_membership(): void
     {
         $region = Region::query()->create([
             'title' => 'Florida',
@@ -51,8 +51,9 @@ class CommunityAdminSelfServeTest extends TestCase
 
         $admin = User::factory()->create([
             'role' => 'community_admin',
-            'community_admin_status' => 'approved',
+            'community_admin_status' => 'pending',
             'status' => 'active',
+            'name' => '',
         ]);
 
         $response = $this->actingAs($admin, 'sanctum')->postJson('/api/v1/communities/self-serve', [
@@ -65,12 +66,13 @@ class CommunityAdminSelfServeTest extends TestCase
         $response->assertCreated()
             ->assertJsonPath('data.community.name', 'Palm Court HOA')
             ->assertJsonPath('data.membership.role', 'admin')
-            ->assertJsonPath('data.membership.status', 'approved');
+            ->assertJsonPath('data.membership.status', 'pending')
+            ->assertJsonPath('data.access.next_step', 'complete_profile');
 
         $this->assertDatabaseHas('communities', [
             'name' => 'Palm Court HOA',
-            'status' => 'active',
-            'review_status' => 'approved',
+            'status' => 'inactive',
+            'review_status' => 'pending',
             'estimated_residents' => 120,
         ]);
     }

@@ -59,6 +59,8 @@ async function syncSessionFromMe(data) {
       memberships: Array.isArray(data.memberships)
         ? data.memberships
         : (existing?.memberships ?? []),
+      access: data.access ?? existing?.access ?? null,
+      family: data.family ?? existing?.family ?? null,
     },
   });
 }

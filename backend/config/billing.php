@@ -26,7 +26,19 @@ return [
 
     'grace_days' => (int) env('BILLING_GRACE_DAYS', 7),
 
+    /** Free trial length for new Community Admin subscriptions (Stripe Checkout). */
+    'trial_period_days' => (int) env('BILLING_TRIAL_PERIOD_DAYS', 30),
+
     'currency' => env('BILLING_CURRENCY', 'usd'),
+
+    /** Hosted Stripe Checkout presentation (USD card-only, Havena branding copy). */
+    'checkout' => [
+        'locale' => env('STRIPE_CHECKOUT_LOCALE', 'en'),
+        'business_name' => env('STRIPE_BUSINESS_NAME', 'Havena'),
+        'allow_promotion_codes' => (bool) env('STRIPE_CHECKOUT_ALLOW_PROMO', false),
+        /** Optional payment_method_configuration ID (card-only config from Dashboard or setup command). */
+        'payment_method_configuration' => env('STRIPE_CHECKOUT_PMC_ID'),
+    ],
 
     'stripe' => [
         'secret' => env('STRIPE_SECRET'),

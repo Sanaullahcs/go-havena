@@ -3646,6 +3646,25 @@
     "networkError": "Could not reach the server. Check your internet connection and try again.",
     "timeout": "Connection timed out. Check your network and try again."
   },
+  "billing": {
+    "checkingStatus": "Checking account status…",
+    "setupRequired": "One step left",
+    "completeSetupTitle": "Activate your community",
+    "completeSetupBody": "Community administrators complete account activation in the Havena Admin Portal. When you're done, return here and refresh your status.",
+    "howItWorks": "Next steps",
+    "stepOpenWeb": "Open the Havena Admin Portal on a desktop or tablet",
+    "stepChoosePlan": "Sign in with the same phone number you used in this app",
+    "stepReturn": "Finish community administrator activation in the portal",
+    "stepRefresh": "Return here and tap Refresh status",
+    "setupLink": "Developer portal link",
+    "copyLink": "Copy link",
+    "urlCopied": "Admin portal link copied.",
+    "refreshHint": "Your administrator access updates automatically once activation is complete. Pull down to refresh anytime.",
+    "opening": "Opening…",
+    "openWebSetup": "Open Admin Portal",
+    "iveFinished": "Refresh status",
+    "cannotOpenBrowser": "Could not open the admin portal. Try again or use a desktop browser."
+  },
   "push": {
     "requiresDevice": "Push notifications require a physical phone or tablet.",
     "expoGoAndroid": "Android Expo Go uses in-app alerts while the app is open. Install a development build for true background push.",

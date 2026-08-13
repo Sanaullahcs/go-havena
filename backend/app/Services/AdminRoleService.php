@@ -76,6 +76,33 @@ class AdminRoleService
         return (bool) self::getApprovedAdminMembership($user);
     }
 
+    /**
+     * Community admin who may call onboarding APIs (billing/setup) while pending approval.
+     * Rejected accounts are excluded.
+     */
+    public static function isOnboardingCommunityAdmin(?User $user): bool
+    {
+        if (! $user || self::isSystemAdmin($user)) {
+            return false;
+        }
+
+        if (! self::isCommunityAdminRole($user)) {
+            return false;
+        }
+
+        if (self::isCommunityAdminRejected($user)) {
+            return false;
+        }
+
+        if (($user->status ?? '') === 'suspended') {
+            return false;
+        }
+
+        return self::isCommunityAdminPending($user)
+            || self::isCommunityAdminApproved($user)
+            || (bool) self::getAdminMembershipIncludingPending($user);
+    }
+
     public static function getApprovedAdminMembership(User $user): ?object
     {
         $membership = DB::table('community_memberships')
@@ -98,6 +125,18 @@ class AdminRoleService
         }
 
         return null;
+    }
+
+    /** Admin membership including pending (web/mobile onboarding before system approval). */
+    public static function getAdminMembershipIncludingPending(User $user): ?object
+    {
+        return DB::table('community_memberships')
+            ->where('user_id', $user->id)
+            ->whereIn('role', ['admin', 'moderator'])
+            ->whereIn('status', ['approved', 'pending'])
+            ->orderByRaw("CASE WHEN status = 'approved' THEN 0 ELSE 1 END")
+            ->orderBy('id')
+            ->first();
     }
 
     public static function resolveCommunityId(User $user, ?int $requested = null): ?int
@@ -130,7 +169,8 @@ class AdminRoleService
             return $requested;
         }
 
-        $membership = self::getApprovedAdminMembership($user);
+        $membership = self::getApprovedAdminMembership($user)
+            ?? self::getAdminMembershipIncludingPending($user);
         if (! $membership) {
             abort(403, 'No managed community assigned to your account.');
         }
@@ -169,7 +209,8 @@ class AdminRoleService
             return true;
         }
 
-        $membership = self::getApprovedAdminMembership($user);
+        $membership = self::getApprovedAdminMembership($user)
+            ?? self::getAdminMembershipIncludingPending($user);
 
         return $membership && (int) $membership->community_id === $communityId;
     }

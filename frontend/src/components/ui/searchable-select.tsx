@@ -14,6 +14,7 @@ export type SearchableSelectOption = {
 };
 
 type SearchableSelectProps = {
+  id?: string;
   value: string;
   onChange: (value: string) => void;
   options: SearchableSelectOption[];
@@ -27,6 +28,7 @@ type SearchableSelectProps = {
 };
 
 export function SearchableSelect({
+  id,
   value,
   onChange,
   options,
@@ -96,10 +98,12 @@ export function SearchableSelect({
       <div className="nl-picker-wrap">
         <button
           ref={triggerRef}
+          id={id}
           type="button"
           disabled={disabled}
           aria-expanded={open}
           aria-haspopup="listbox"
+          aria-invalid={error ? true : undefined}
           onClick={() => {
             if (!disabled) setOpen((v) => !v);
           }}

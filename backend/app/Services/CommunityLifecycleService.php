@@ -412,15 +412,8 @@ class CommunityLifecycleService
             return $this->withBlockDetails($rejection);
         }
 
-        if ($portal === 'community_admin_dashboard' && AdminRoleService::isCommunityAdminPending($user)) {
-            return $this->withBlockDetails([
-                'message'     => 'Your community admin application is awaiting approval by a system administrator.',
-                'code'        => 'COMMUNITY_ADMIN_PENDING',
-                'status'      => 'pending',
-                'reason'      => null,
-                'rejected_by' => null,
-            ]);
-        }
+        // Pending community admins may authenticate to complete onboarding (profile/community/billing).
+        // Dashboard/app access itself is gated by CommunityAdminAccessService.
 
         if ($portal === 'community_admin_dashboard'
             && AdminRoleService::isCommunityAdminRole($user)

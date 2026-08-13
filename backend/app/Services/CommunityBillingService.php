@@ -12,6 +12,7 @@ use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Stripe\Exception\ApiErrorException;
 use Stripe\StripeClient;
 use Stripe\Webhook;
@@ -76,6 +77,10 @@ class CommunityBillingService
             ->where('status', 'approved')
             ->whereNotIn('role', ['guest', 'admin'])
             ->count();
+
+        if (! $this->seatReservationsAvailable()) {
+            return $approved;
+        }
 
         $reserved = CommunitySeatReservation::query()
             ->where('community_id', $communityId)
@@ -262,6 +267,7 @@ class CommunityBillingService
         User $admin,
         string $planSlug,
         string $interval = 'month',
+        ?string $returnOrigin = null,
     ): array {
         $plan = $this->plan($planSlug);
         if (! $plan) {
@@ -285,16 +291,21 @@ class CommunityBillingService
                 'mode' => 'manual',
                 'checkout_url' => null,
                 'subscription' => $subscription,
-                'message' => 'Subscription activated (manual/local billing driver).',
+                'message' => '30-day free trial started (local billing driver).',
             ];
         }
 
         $stripe = $this->stripe();
         $customerId = $this->ensureStripeCustomer($community, $admin, $stripe);
+        $this->assertUsdStripePrice($stripe, (string) $priceId);
 
-        $successUrl = (string) config('billing.checkout_success_url');
+        [$successUrl, $cancelUrl] = $this->checkoutReturnUrls($returnOrigin);
         $successUrl .= str_contains($successUrl, '?') ? '&' : '?';
         $successUrl .= 'session_id={CHECKOUT_SESSION_ID}';
+
+        $trialDays = (int) config('billing.trial_period_days', 30);
+        $planLabel = (string) ($plan['name'] ?? ucfirst($planSlug));
+        $intervalLabel = $interval === 'year' ? 'yearly' : 'monthly';
 
         $payload = [
             'mode' => 'subscription',
@@ -305,9 +316,10 @@ class CommunityBillingService
                 'quantity' => 1,
             ]],
             'success_url' => $successUrl,
-            'cancel_url' => config('billing.checkout_cancel_url'),
-            'billing_address_collection' => 'auto',
-            'allow_promotion_codes' => true,
+            'cancel_url' => $cancelUrl,
+            'locale' => config('billing.checkout.locale', 'en'),
+            'billing_address_collection' => 'required',
+            'allow_promotion_codes' => (bool) config('billing.checkout.allow_promotion_codes', false),
             'metadata' => [
                 'community_id' => (string) $community->id,
                 'plan_slug' => $planSlug,
@@ -315,13 +327,59 @@ class CommunityBillingService
                 'admin_user_id' => (string) $admin->id,
             ],
             'subscription_data' => [
+                'description' => sprintf(
+                    'Havena %s (%s) — %d-day free trial, billed in USD after trial',
+                    $planLabel,
+                    $intervalLabel,
+                    $trialDays,
+                ),
                 'metadata' => [
                     'community_id' => (string) $community->id,
                     'plan_slug' => $planSlug,
                     'billing_interval' => $interval,
                 ],
             ],
+            // Card only, USD list prices (disable local currency selector).
+            'adaptive_pricing' => ['enabled' => false],
+            'payment_method_collection' => 'always',
+            'wallet_options' => [
+                'link' => ['display' => 'never'],
+            ],
+            'custom_text' => [
+                'submit' => [
+                    'message' => sprintf(
+                        'Start free trial — $0 due today · USD billing after %d days',
+                        $trialDays,
+                    ),
+                ],
+                'after_submit' => [
+                    'message' => sprintf(
+                        'Your card is saved securely by Stripe. You will not be charged for the first %d days. Cancel anytime before billing starts.',
+                        $trialDays,
+                    ),
+                ],
+            ],
+            'customer_update' => [
+                'address' => 'auto',
+                'name' => 'auto',
+            ],
         ];
+
+        $pmcId = trim((string) config('billing.checkout.payment_method_configuration', ''));
+        if ($pmcId !== '') {
+            $payload['payment_method_configuration'] = $pmcId;
+        } else {
+            $payload['payment_method_types'] = ['card'];
+        }
+
+        if ($trialDays > 0) {
+            $payload['subscription_data']['trial_period_days'] = $trialDays;
+            $payload['subscription_data']['trial_settings'] = [
+                'end_behavior' => [
+                    'missing_payment_method' => 'cancel',
+                ],
+            ];
+        }
 
         try {
             $session = $stripe->checkout->sessions->create($payload);
@@ -458,14 +516,20 @@ class CommunityBillingService
         }
 
         $interval = $interval === 'year' ? 'year' : 'month';
-        $periodEnd = $interval === 'year' ? now()->addYear() : now()->addMonth();
+        $trialDays = (int) config('billing.trial_period_days', 30);
+        $isTrial = $trialDays > 0;
+        $periodEnd = $isTrial
+            ? now()->addDays($trialDays)
+            : ($interval === 'year' ? now()->addYear() : now()->addMonth());
 
         return CommunitySubscription::query()->updateOrCreate(
             ['community_id' => $community->id],
             [
                 'plan_slug' => $planSlug,
                 'billing_interval' => $interval,
-                'status' => CommunitySubscription::STATUS_ACTIVE,
+                'status' => $isTrial
+                    ? CommunitySubscription::STATUS_TRIALING
+                    : CommunitySubscription::STATUS_ACTIVE,
                 'seat_limit' => (int) $plan['seat_limit'],
                 'estimated_residents' => $community->estimated_residents,
                 'current_period_start' => now(),
@@ -476,6 +540,7 @@ class CommunityBillingService
                 'meta' => [
                     'activated_via' => 'manual',
                     'activated_by' => $actor?->id,
+                    'trial_days' => $isTrial ? $trialDays : 0,
                 ],
             ],
         );
@@ -508,6 +573,10 @@ class CommunityBillingService
 
     public function releaseExpiredReservations(?int $communityId = null): int
     {
+        if (! $this->seatReservationsAvailable()) {
+            return 0;
+        }
+
         $query = CommunitySeatReservation::query()
             ->where('status', CommunitySeatReservation::STATUS_RESERVED)
             ->whereNotNull('expires_at')
@@ -521,6 +590,65 @@ class CommunityBillingService
             'status' => CommunitySeatReservation::STATUS_RELEASED,
             'updated_at' => now(),
         ]);
+    }
+
+    /**
+     * Immediately cancel a community subscription (platform rejection / hard revoke).
+     * Cancels Stripe subscription when present so no future charges occur.
+     */
+    public function cancelSubscriptionImmediately(int $communityId, string $reason = 'platform_rejected'): void
+    {
+        $subscription = $this->getSubscription($communityId);
+        if (! $subscription) {
+            return;
+        }
+
+        if (
+            filled($subscription->stripe_subscription_id)
+            && $this->stripeConfigured()
+            && ! in_array($subscription->status, [CommunitySubscription::STATUS_CANCELED], true)
+        ) {
+            try {
+                $this->stripe()->subscriptions->cancel($subscription->stripe_subscription_id, [
+                    'invoice_now' => false,
+                    'prorate' => false,
+                ]);
+            } catch (ApiErrorException $e) {
+                Log::warning('Stripe subscription cancel failed on rejection', [
+                    'community_id' => $communityId,
+                    'stripe_subscription_id' => $subscription->stripe_subscription_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $meta = is_array($subscription->meta) ? $subscription->meta : [];
+        $meta['canceled_reason'] = $reason;
+        $meta['canceled_via'] = 'platform_rejection';
+
+        $subscription->update([
+            'status' => CommunitySubscription::STATUS_CANCELED,
+            'canceled_at' => now(),
+            'cancel_at_period_end' => false,
+            'grace_ends_at' => null,
+            'meta' => $meta,
+        ]);
+
+        $this->releaseExpiredReservations($communityId);
+        if ($this->seatReservationsAvailable()) {
+            CommunitySeatReservation::query()
+                ->where('community_id', $communityId)
+                ->where('status', CommunitySeatReservation::STATUS_RESERVED)
+                ->update([
+                    'status' => CommunitySeatReservation::STATUS_RELEASED,
+                    'updated_at' => now(),
+                ]);
+        }
+    }
+
+    private function seatReservationsAvailable(): bool
+    {
+        return Schema::hasTable('community_seat_reservations');
     }
 
     public function ensureStripeCustomer(Community $community, User $admin, ?StripeClient $stripe = null): string
@@ -550,6 +678,37 @@ class CommunityBillingService
         return $customer->id;
     }
 
+    /**
+     * If local status is still incomplete but we have a Checkout session id,
+     * try confirming against Stripe (covers missed return / host mismatch).
+     */
+    public function reconcileIncompleteCheckout(Community $community): void
+    {
+        if (! $this->stripeConfigured()) {
+            return;
+        }
+
+        $subscription = $this->getSubscription($community->id);
+        if (! $subscription || $subscription->status !== CommunitySubscription::STATUS_INCOMPLETE) {
+            return;
+        }
+
+        $sessionId = data_get($subscription->meta, 'checkout_session_id');
+        if (! filled($sessionId)) {
+            return;
+        }
+
+        try {
+            $this->confirmCheckoutSession($community, (string) $sessionId);
+        } catch (\Throwable $e) {
+            Log::info('Incomplete checkout reconcile skipped', [
+                'community_id' => $community->id,
+                'session_id' => $sessionId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
     /** Confirm Checkout after browser return (works even before webhook delivery). */
     public function confirmCheckoutSession(Community $community, string $sessionId): CommunitySubscription
     {
@@ -557,34 +716,163 @@ class CommunityBillingService
             throw BillingException::stripeNotConfigured();
         }
 
-        try {
-            $session = $this->stripe()->checkout->sessions->retrieve($sessionId, [
-                'expand' => ['subscription'],
-            ]);
-        } catch (ApiErrorException $e) {
-            throw new BillingException('Unable to confirm payment: '.$e->getMessage(), 'STRIPE_CONFIRM_FAILED', 502);
+        $session = null;
+        $subscriptionId = null;
+        $customerId = null;
+
+        // Stripe can briefly return complete session without subscription expanded — retry.
+        for ($attempt = 0; $attempt < 6; $attempt++) {
+            try {
+                $session = $this->stripe()->checkout->sessions->retrieve($sessionId, [
+                    'expand' => ['subscription'],
+                ]);
+            } catch (ApiErrorException $e) {
+                throw new BillingException('Unable to confirm payment: '.$e->getMessage(), 'STRIPE_CONFIRM_FAILED', 502);
+            }
+
+            $metaCommunity = (int) (data_get($session, 'metadata.community_id') ?: data_get($session, 'client_reference_id'));
+            if ($metaCommunity && $metaCommunity !== (int) $community->id) {
+                throw new BillingException('Checkout session does not belong to this community.', 'CHECKOUT_MISMATCH', 403);
+            }
+
+            $subscriptionId = data_get($session, 'subscription.id') ?: data_get($session, 'subscription');
+            $customerId = data_get($session, 'customer');
+            $sessionStatus = (string) data_get($session, 'status', '');
+
+            if ($subscriptionId) {
+                break;
+            }
+
+            if ($sessionStatus === 'open') {
+                throw new BillingException(
+                    'Checkout is still open. Finish card entry on Stripe, then return here.',
+                    'CHECKOUT_STILL_OPEN',
+                    409,
+                );
+            }
+
+            usleep(700000);
         }
 
-        $metaCommunity = (int) (data_get($session, 'metadata.community_id') ?: data_get($session, 'client_reference_id'));
-        if ($metaCommunity && $metaCommunity !== (int) $community->id) {
-            throw new BillingException('Checkout session does not belong to this community.', 'CHECKOUT_MISMATCH', 403);
-        }
-
-        $subscriptionId = data_get($session, 'subscription.id') ?: data_get($session, 'subscription');
-        $customerId = data_get($session, 'customer');
-
-        if ($subscriptionId && $this->stripeConfigured()) {
+        if ($subscriptionId) {
             $stripeSub = is_object(data_get($session, 'subscription')) && data_get($session, 'subscription.id')
                 ? data_get($session, 'subscription')
-                : $this->stripe()->subscriptions->retrieve((string) $subscriptionId);
+                : null;
 
-            return $this->syncFromStripeSubscription($stripeSub, $community->id, $customerId ? (string) $customerId : null);
+            for ($attempt = 0; $attempt < 6; $attempt++) {
+                if (! $stripeSub) {
+                    $stripeSub = $this->stripe()->subscriptions->retrieve((string) $subscriptionId);
+                }
+
+                $status = (string) data_get($stripeSub, 'status', 'incomplete');
+                if (in_array($status, ['trialing', 'active', 'past_due'], true)) {
+                    return $this->syncFromStripeSubscription(
+                        $stripeSub,
+                        $community->id,
+                        $customerId ? (string) $customerId : null,
+                    );
+                }
+
+                usleep(700000);
+                $stripeSub = $this->stripe()->subscriptions->retrieve((string) $subscriptionId);
+            }
+
+            // Last sync even if still incomplete — surface real Stripe status to the UI.
+            return $this->syncFromStripeSubscription(
+                $stripeSub,
+                $community->id,
+                $customerId ? (string) $customerId : null,
+            );
         }
 
-        $planSlug = (string) data_get($session, 'metadata.plan_slug', 'starter');
-        $interval = (string) data_get($session, 'metadata.billing_interval', 'month');
+        // Session completed without a subscription id (rare). Prefer trial activation from metadata
+        // over leaving the community stuck on "incomplete".
+        if ((string) data_get($session, 'status') === 'complete') {
+            $planSlug = (string) data_get($session, 'metadata.plan_slug', 'starter');
+            $interval = (string) data_get($session, 'metadata.billing_interval', 'month');
 
-        return $this->activateManualSubscription($community, $planSlug, $interval);
+            return $this->activateManualSubscription($community, $planSlug, $interval);
+        }
+
+        throw new BillingException(
+            'Checkout finished but no subscription was found yet. Wait a moment and refresh billing.',
+            'CHECKOUT_NO_SUBSCRIPTION',
+            409,
+        );
+    }
+
+    /**
+     * Build Stripe return URLs from the browser origin that started checkout.
+     * Falls back to config FRONTEND_ADMIN_URL.
+     *
+     * @return array{0: string, 1: string} [success, cancel]
+     */
+    protected function checkoutReturnUrls(?string $returnOrigin): array
+    {
+        $fallback = rtrim((string) env('FRONTEND_ADMIN_URL', 'http://localhost:3000'), '/');
+        $origin = $this->sanitizeReturnOrigin($returnOrigin) ?? $fallback;
+
+        return [
+            $origin.'/admin/billing?checkout=success',
+            $origin.'/admin/billing?checkout=cancel',
+        ];
+    }
+
+    protected function assertUsdStripePrice(StripeClient $stripe, string $priceId): void
+    {
+        try {
+            $price = $stripe->prices->retrieve($priceId);
+        } catch (ApiErrorException $e) {
+            throw new BillingException(
+                'Unable to load Stripe price for checkout.',
+                'STRIPE_PRICE_INVALID',
+                502,
+            );
+        }
+
+        $expected = strtolower((string) config('billing.currency', 'usd'));
+        if (strtolower((string) $price->currency) !== $expected) {
+            throw new BillingException(
+                'Checkout prices must be configured in USD. Re-run billing:setup-stripe to recreate test prices.',
+                'STRIPE_PRICE_CURRENCY',
+                502,
+            );
+        }
+    }
+
+    protected function sanitizeReturnOrigin(?string $returnOrigin): ?string
+    {
+        if (! filled($returnOrigin)) {
+            return null;
+        }
+
+        $origin = rtrim(trim($returnOrigin), '/');
+        $parts = parse_url($origin);
+        if (! is_array($parts) || empty($parts['scheme']) || empty($parts['host'])) {
+            return null;
+        }
+
+        $scheme = strtolower((string) $parts['scheme']);
+        if (! in_array($scheme, ['http', 'https'], true)) {
+            return null;
+        }
+
+        $host = strtolower((string) $parts['host']);
+        $allowed =
+            $host === 'localhost'
+            || $host === '127.0.0.1'
+            || str_ends_with($host, '.localhost')
+            || str_ends_with($host, '.gohavena.com')
+            || str_ends_with($host, '.havena.app')
+            || preg_match('/^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/', $host) === 1;
+
+        if (! $allowed) {
+            return null;
+        }
+
+        $port = isset($parts['port']) ? ':'.$parts['port'] : '';
+
+        return $scheme.'://'.$host.$port;
     }
 
     public function handleWebhook(string $payload, ?string $signature): void

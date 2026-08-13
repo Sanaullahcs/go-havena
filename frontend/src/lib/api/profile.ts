@@ -1,5 +1,5 @@
 import api from "./client";
-import type { WebUser } from "@/lib/auth/session";
+import type { CommunityAdminAccess, WebUser } from "@/lib/auth/session";
 
 export type MeProfileRegion = {
   id: number;
@@ -39,17 +39,23 @@ export type MeProfile = {
     bio?: string | null;
     unit_number?: string | null;
     residence_type?: string | null;
+    utility_bill_url?: string | null;
     region_id?: number | null;
     region?: MeProfileRegion | null;
   } | null;
   memberships?: MeProfileMembership[];
+  access?: CommunityAdminAccess | null;
 };
 
 export function meToSessionUser(me: MeProfile): Partial<WebUser> {
   const adminMembership = me.memberships?.find(
     (m) => m.status === "approved" && ["admin", "moderator"].includes(m.role),
   );
+  const pendingAdmin = me.memberships?.find(
+    (m) => m.status === "pending" && m.role === "admin",
+  );
   const approved = adminMembership ?? me.memberships?.find((m) => m.status === "approved");
+  const linked = approved ?? pendingAdmin ?? me.memberships?.[0];
   return {
     id: me.id,
     email: me.email,
@@ -57,19 +63,26 @@ export function meToSessionUser(me: MeProfile): Partial<WebUser> {
     name: me.name,
     role: me.role,
     community_admin_status: me.community_admin_status,
-    community_id: approved?.community_id ?? me.memberships?.[0]?.community_id,
+    community_id: linked?.community_id ?? me.access?.community_id ?? undefined,
     memberships: me.memberships?.map((m) => ({
       id: m.id,
       community_id: m.community_id,
       role: m.role,
       status: m.status,
-      community: m.community ? { id: m.community.id, name: m.community.name } : undefined,
+      community: m.community
+        ? {
+            id: m.community.id,
+            name: m.community.name,
+            review_status: m.community.review_status,
+          }
+        : undefined,
     })),
     profile: {
       display_name: me.profile?.display_name ?? me.name,
       avatar: me.profile?.avatar_url ?? undefined,
       avatar_url: me.profile?.avatar_url ?? undefined,
     },
+    access: me.access ?? null,
   };
 }
 
@@ -80,13 +93,25 @@ export async function fetchMe(): Promise<MeProfile> {
 
 export async function updateMe(data: {
   name?: string;
+  email?: string;
   phone?: string;
   display_name?: string;
   bio?: string;
   unit_number?: string;
+  residence_type?: string;
+  region_id?: number | null;
 }): Promise<MeProfile> {
   const res = await api.put("/v1/me", data);
   return res.data.data as MeProfile;
+}
+
+export async function uploadUtilityBill(file: File): Promise<{ utility_bill_url: string }> {
+  const form = new FormData();
+  form.append("utility_bill", file);
+  const res = await api.post("/v1/me/utility-bill", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data.data as { utility_bill_url: string };
 }
 
 export async function uploadAvatar(file: File) {

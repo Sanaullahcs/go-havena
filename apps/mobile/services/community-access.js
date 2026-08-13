@@ -92,24 +92,29 @@ export function canAccessDashboard(user) {
   }
 
   if (isCommunityAdminRole(user)) {
+    // Backend access flags are authoritative (billing + platform approval).
+    if (typeof user?.access?.can_use_mobile_app === "boolean") {
+      return user.access.can_use_mobile_app;
+    }
+    if (typeof user?.access?.can_use_dashboard === "boolean") {
+      return user.access.can_use_dashboard;
+    }
+
+    // Legacy session without `access` (API offline / old cache): keep prior membership rules.
     if (user.community_admin_status !== "approved") {
       return false;
     }
 
     return (user?.memberships ?? []).some((m) => {
       if (m.status !== "approved" || m.role !== "admin") return false;
-
       const community = m.community;
       if (!community) return false;
-
       if (community.review_status === "pending" || community.review_status === "rejected") {
         return false;
       }
-
       if (community.status && community.status !== "active") {
         return false;
       }
-
       return true;
     });
   }

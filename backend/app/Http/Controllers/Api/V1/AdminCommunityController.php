@@ -296,6 +296,9 @@ class AdminCommunityController extends Controller
                 ->where('status', 'pending')
                 ->update(['status' => 'rejected', 'updated_at' => now()]);
 
+            app(\App\Services\CommunityAdminAccessService::class)
+                ->cancelBillingOnRejection((int) $community->id, 'community_rejected');
+
             if ($community->requested_by_user_id) {
                 NotificationService::send(
                     $community->requested_by_user_id,

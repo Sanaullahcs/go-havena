@@ -226,6 +226,10 @@ export default function RootLayout() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
+          name="screens/complete-billing/index"
+          options={{ headerShown: false, contentStyle: styles.screen }}
+        />
+        <Stack.Screen
           name="screens/complete-profile/index"
           options={{
             headerShown: false,

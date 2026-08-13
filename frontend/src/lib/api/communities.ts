@@ -197,9 +197,10 @@ export async function selfServeCreateCommunity(payload: {
   const res = await api.post("/v1/communities/self-serve", payload);
   return res.data as {
     data: {
-      community: { id: number; name: string };
+      community: { id: number; name: string; review_status?: string | null };
       membership: { id: number; community_id: number; role: string; status: string };
       user: Record<string, unknown>;
+      access?: import("@/lib/auth/session").CommunityAdminAccess | null;
     };
     message: string;
   };

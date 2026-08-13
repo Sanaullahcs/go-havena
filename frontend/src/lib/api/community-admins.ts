@@ -30,6 +30,13 @@ export type CommunityAdminApplicant = {
     status?: string;
     region?: string;
   } | null;
+  billing?: {
+    subscription_status?: string | null;
+    plan_slug?: string | null;
+    card_on_file?: boolean;
+    billing_complete?: boolean;
+    trial_ends_at?: string | null;
+  } | null;
 };
 
 export type CommunityAdminStats = {

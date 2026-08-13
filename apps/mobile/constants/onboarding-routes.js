@@ -30,6 +30,7 @@ export const Routes = {
   COMPLETE_PROFILE: "/screens/complete-profile",
   PENDING_COMMUNITY: "/screens/pending-community",
   PENDING_COMMUNITY_ADMIN: "/screens/pending-community-admin",
+  COMPLETE_BILLING: "/screens/complete-billing",
   PENDING_FAMILY: "/screens/pending-family",
   TABS_HOME: "/(tabs)/home",
 };
@@ -129,6 +130,48 @@ export function getPostAuthRoute(user, { role, mode } = {}) {
 
   if (canAccessDashboard(user)) {
     return { pathname: Routes.TABS_HOME, params: { role: onboardingRole } };
+  }
+
+  // Community admin access gate from backend `/me` access payload.
+  if (isCommunityAdminRole(user) || signupRole === "admin") {
+    const nextStep = user?.access?.next_step;
+    if (nextStep === "link_community") {
+      if (user?.profile?.region_id) {
+        return {
+          pathname: Routes.REGION_COMMUNITIES,
+          params: {
+            regionId: String(user.profile.region_id),
+            role: "admin",
+            ...(user?.phone ? { phone: user.phone } : {}),
+          },
+        };
+      }
+      return {
+        pathname: Routes.REGION,
+        params: {
+          role: "admin",
+          ...(user?.phone ? { phone: user.phone } : {}),
+        },
+      };
+    }
+    if (nextStep === "complete_profile") {
+      return {
+        pathname: Routes.COMPLETE_PROFILE,
+        params: getCompleteProfileParams(user, "admin"),
+      };
+    }
+    if (nextStep === "complete_billing_web") {
+      return { pathname: Routes.COMPLETE_BILLING, params: { role: "admin" } };
+    }
+    if (nextStep === "await_approval") {
+      return { pathname: Routes.PENDING_COMMUNITY_ADMIN, params: { role: "admin" } };
+    }
+    if (nextStep === "rejected") {
+      return { pathname: Routes.PENDING_COMMUNITY_ADMIN, params: { role: "admin", rejected: "1" } };
+    }
+    if (nextStep === "ready") {
+      return { pathname: Routes.TABS_HOME, params: { role: "admin" } };
+    }
   }
 
   const familyState = user?.family?.state;

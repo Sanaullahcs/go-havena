@@ -222,8 +222,8 @@ class CommunityController extends Controller
     }
 
     /**
-     * Self-serve web onboarding: create an active community and approve the admin membership
-     * so the operator can subscribe immediately after OTP signup.
+     * Web onboarding: create a community request (pending system review) and admin membership.
+     * Admin stays pending until System Admin approval. Billing can still proceed next.
      */
     public function selfServeCreate(Request $request): JsonResponse
     {
@@ -251,12 +251,13 @@ class CommunityController extends Controller
         if (! AdminRoleService::isCommunityAdminRole($user)) {
             $user->update([
                 'role' => 'community_admin',
-                'community_admin_status' => 'approved',
+                'community_admin_status' => 'pending',
             ]);
             $user->refresh();
-        } elseif (! AdminRoleService::isCommunityAdminApproved($user)) {
-            $user->update(['community_admin_status' => 'approved']);
-            $user->refresh();
+        } elseif (AdminRoleService::isCommunityAdminRejected($user)) {
+            throw ValidationException::withMessages([
+                'community_name' => ['Your community admin application was not approved. Please contact support.'],
+            ]);
         }
 
         $lifecycle = app(CommunityLifecycleService::class);
@@ -286,8 +287,8 @@ class CommunityController extends Controller
             'region_id' => $region->id,
             'region' => $region->title,
             'timezone' => 'America/New_York',
-            'status' => 'active',
-            'review_status' => 'approved',
+            'status' => 'inactive',
+            'review_status' => 'pending',
             'requested_by_user_id' => $user->id,
             'estimated_residents' => $validated['estimated_residents'] ?? null,
         ]);
@@ -299,7 +300,7 @@ class CommunityController extends Controller
             ],
             [
                 'role' => 'admin',
-                'status' => 'approved',
+                'status' => 'pending',
             ],
         );
 
@@ -315,8 +316,9 @@ class CommunityController extends Controller
                 ],
                 'community' => $this->communityPayload($community),
                 'user' => new UserResource($user),
+                'access' => app(\App\Services\CommunityAdminAccessService::class)->accessPayload($user),
             ],
-            'message' => 'Community created. You can choose a subscription next.',
+            'message' => 'Community submitted for review. Complete billing next — access unlocks after system approval.',
         ], 201);
     }
 

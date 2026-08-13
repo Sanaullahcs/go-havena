@@ -12,7 +12,7 @@ import {
   getToken,
   getUser,
   canAccessCommunityDashboard,
-  getManagedCommunityId,
+  getCommunityAdminNextStep,
   isCommunityAdminUser,
 } from "@/lib/auth/session";
 import { handleLoginError } from "@/lib/auth/login-error";
@@ -26,6 +26,7 @@ import { PhoneSignInStep } from "@/components/auth/phone-sign-in-step";
 import { AuthRedirectOverlay } from "@/components/shared/loaders";
 import { emptyPhoneField, phoneFieldFromE164, type PhoneFieldState } from "@/lib/phone/format";
 import { landingImages } from "@/lib/landing/site";
+import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
 import { Suspense } from "react";
 
 type OtpStep = "phone" | "code";
@@ -43,8 +44,6 @@ function LoginPageInner() {
   const billingReturnPath = planHint
     ? `/admin/billing?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
     : "/admin/billing";
-  const setupReturnPath = `/admin/setup${planQuery}`;
-
   const [phone, setPhone] = useState<PhoneFieldState>(emptyPhoneField());
   const [phoneResetKey, setPhoneResetKey] = useState(0);
   const [otp, setOtp] = useState("");
@@ -69,15 +68,20 @@ function LoginPageInner() {
       return;
     }
 
-    if (isCommunityAdminUser(user) && !getManagedCommunityId(user)) {
-      router.replace(setupReturnPath);
+    if (isCommunityAdminUser(user)) {
+      const step = getCommunityAdminNextStep(user);
+      if (step === "ready" || canAccessCommunityDashboard(user)) {
+        router.replace(planHint ? billingReturnPath : "/admin");
+        return;
+      }
+      router.replace(`${communityAdminOnboardingPath(step)}${planQuery}`);
       return;
     }
 
     if (user?.role === "resident") {
       router.replace("/home");
     }
-  }, [router, planHint, billingReturnPath, setupReturnPath]);
+  }, [router, planHint, billingReturnPath, planQuery]);
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,12 +109,13 @@ function LoginPageInner() {
       const res = await verifyCommunityAdminOtp(phone.e164!, code, otpIntent);
       setSession(res.token, res.user);
       setRedirecting(true);
+      const step = getCommunityAdminNextStep(res.user);
       const next =
-        canAccessCommunityDashboard(res.user)
+        canAccessCommunityDashboard(res.user) || step === "ready"
           ? planHint
             ? billingReturnPath
             : "/admin"
-          : setupReturnPath;
+          : `${communityAdminOnboardingPath(step)}${planQuery}`;
       router.replace(next);
     } catch (err) {
       await handleLoginError(err, setError);
@@ -162,7 +167,18 @@ function LoginPageInner() {
   return (
     <>
       {redirecting ? (
-        <AuthRedirectOverlay title="Opening your dashboard" subtitle="Loading your portal…" />
+        <AuthRedirectOverlay
+          title={
+            otpIntent === "signup" ? "Creating your account" : "Signing you in"
+          }
+          subtitle={
+            otpIntent === "signup"
+              ? "Opening community setup…"
+              : canAccessCommunityDashboard(getUser())
+                ? "Loading your dashboard…"
+                : "Continuing setup…"
+          }
+        />
       ) : null}
 
       <div className="nl-login-split">
@@ -178,7 +194,7 @@ function LoginPageInner() {
               </AuthBackLink>
               <div className="nl-login-brand nl-login-brand--hero mt-8">
                 <span className="nl-login-brand__mark !h-10 !w-10 !rounded-xl">
-                  <NbrLogoMark />
+                  <HavenaLogoMark />
                 </span>
                 <span className="text-[15px] font-bold text-white">Havena</span>
               </div>
@@ -224,7 +240,7 @@ function LoginPageInner() {
           <div className="nl-login-form-wrap">
             <div className="nl-login-brand nl-login-brand--form mb-6">
               <span className="nl-login-brand__mark !h-11 !w-11 !rounded-xl">
-                <NbrLogoMark />
+                <HavenaLogoMark />
               </span>
               <span className="nl-login-brand__name">Havena</span>
             </div>
@@ -283,8 +299,15 @@ function LoginPageInner() {
 
             <p className="mt-8 text-center text-[12px] text-slate-500">
               {otpIntent === "signup" && otpStep === "code"
-                ? "Creating your account… next you’ll name your community, then checkout."
-                : "No account yet? Continue with your phone — we’ll create it automatically."}{" "}
+                ? "Creating your account… next you’ll name your community, then start your free trial."
+                : "New community admin?"}{" "}
+              <a
+                href={`/register${planQuery}`}
+                className="font-semibold text-[#0d9488] hover:underline"
+              >
+                Create an account
+              </a>
+              {" · "}
               <a href="/#pricing" className="font-semibold text-[#0d9488] hover:underline">
                 View plans
               </a>
@@ -304,7 +327,7 @@ export default function LoginPage() {
   );
 }
 
-function NbrLogoMark() {
+function HavenaLogoMark() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden className="shrink-0">
       <path d="M3 9l9-6 9 6v11a1 1 0 01-1 1H4a1 1 0 01-1-1V9z" stroke="white" strokeWidth="1.8" strokeLinejoin="round" />

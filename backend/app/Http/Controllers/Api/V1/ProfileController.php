@@ -203,7 +203,14 @@ class ProfileController extends Controller
         MembershipService::approvePendingForActiveCommunities($user);
         $user->load(['profile.region', 'memberships.community']);
 
-        return (new UserResource($user))->resolve();
+        $payload = (new UserResource($user))->resolve();
+
+        if (AdminRoleService::isCommunityAdminRole($user)) {
+            $payload['access'] = app(\App\Services\CommunityAdminAccessService::class)
+                ->accessPayload($user);
+        }
+
+        return $payload;
     }
 
     /** GET /v1/me/membership-review — explicit onboarding approval status for the mobile wait screen. */

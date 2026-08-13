@@ -45,12 +45,27 @@ export default function PendingCommunityAdminScreen() {
         return true;
       }
 
-      if (hasPendingCommunityRequest(user)) {
+      const nextStep = user?.access?.next_step;
+      if (nextStep === "complete_billing_web") {
+        navigateAfterAuth(router, user, { role: "admin" });
+        return true;
+      }
+      if (nextStep && !["await_approval", "rejected", "ready"].includes(nextStep)) {
         navigateAfterAuth(router, user, { role: "admin" });
         return true;
       }
 
-      if (!needsSystemApprovalWait(user)) {
+      // Stay on this screen while awaiting platform approval.
+      if (nextStep === "await_approval" || needsSystemApprovalWait(user)) {
+        const membership = getPrimaryMembership(user);
+        const community = membership?.community;
+        setCommunityName(community?.name || community?.title || "");
+        setCommunityAddress(community?.address || "");
+        setAwaitingCommunityApproval(hasPendingCommunityRequest(user));
+        return true;
+      }
+
+      if (hasPendingCommunityRequest(user) || !needsSystemApprovalWait(user)) {
         navigateAfterAuth(router, user, { role: "admin" });
         return true;
       }

@@ -100,6 +100,36 @@ export function PageLoaderSkeleton({ rows = 4 }: { rows?: number }) {
   );
 }
 
+/** Lightweight loader for community-admin onboarding — no dashboard sidebar. */
+export function AdminOnboardingShellSkeleton() {
+  return (
+    <div className="min-h-screen bg-[#F6F8FB]" aria-busy aria-label="Loading setup">
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4 sm:px-6">
+          <div className="space-y-2">
+            <ShimmerBlock className="h-3 w-16" />
+            <ShimmerBlock className="h-5 w-36" />
+          </div>
+          <ShimmerBlock className="h-8 w-20 rounded-lg" />
+        </div>
+      </header>
+      <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
+        <ShimmerBlock className="mb-2 h-3 w-24" />
+        <ShimmerBlock className="mb-4 h-8 w-64" />
+        <ShimmerBlock className="mb-6 h-4 w-full max-w-md" />
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="space-y-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <ShimmerBlock key={i} className="h-11 w-full rounded-xl" />
+            ))}
+            <ShimmerBlock className="mt-2 h-11 w-full rounded-xl" />
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
 export function AuthShellSkeleton() {
   return (
     <div className="flex min-h-screen bg-[#F6F8FB]" aria-busy aria-label="Loading portal">

@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api\V1\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Services\ActivityLogService;
+use App\Services\AdminRoleService;
+use App\Services\CommunityAdminAccessService;
 use App\Services\CommunityLifecycleService;
 use App\Services\LoginStreakService;
 use App\Services\PointsRewardService;
@@ -47,7 +49,7 @@ class LoginController extends Controller
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        $portal = \App\Services\AdminRoleService::isCommunityAdminRole($user)
+        $portal = AdminRoleService::isCommunityAdminRole($user)
             ? 'community_admin_dashboard'
             : null;
         $block = app(CommunityLifecycleService::class)->authenticationBlock($user, $portal);
@@ -75,9 +77,14 @@ class LoginController extends Controller
             ['channel' => $tokenName],
         );
 
+        $userPayload = (new UserResource($user))->resolve();
+        if (AdminRoleService::isCommunityAdminRole($user)) {
+            $userPayload['access'] = app(CommunityAdminAccessService::class)->accessPayload($user);
+        }
+
         return response()->json([
             'token' => $token,
-            'user'  => new UserResource($user),
+            'user'  => $userPayload,
         ]);
     }
 

@@ -1,6 +1,23 @@
 const TOKEN_KEY = "nbr_web_token";
 const USER_KEY = "nbr_web_user";
 
+export type CommunityAdminAccess = {
+  platform_approved?: boolean;
+  billing_complete?: boolean;
+  can_use_dashboard?: boolean;
+  can_use_mobile_app?: boolean;
+  has_linked_community?: boolean;
+  profile_complete?: boolean;
+  community_id?: number | null;
+  subscription_status?: string | null;
+  plan_slug?: string | null;
+  card_on_file?: boolean;
+  trial_ends_at?: string | null;
+  next_step?: string;
+  billing_url?: string;
+  blocking_reasons?: string[];
+};
+
 export type WebUser = {
   id: number;
   email?: string;
@@ -14,9 +31,10 @@ export type WebUser = {
     community_id: number;
     role: string;
     status: string;
-    community?: { id: number; name: string };
+    community?: { id: number; name: string; review_status?: string | null };
   }>;
   profile?: { display_name?: string; avatar?: string; avatar_url?: string };
+  access?: CommunityAdminAccess | null;
 };
 
 export function getToken(): string | null {
@@ -37,6 +55,9 @@ export function updateUser(partial: Partial<WebUser>) {
   const next = { ...current, ...partial };
   if (partial.profile) {
     next.profile = { ...current.profile, ...partial.profile };
+  }
+  if (partial.access) {
+    next.access = { ...current.access, ...partial.access };
   }
   localStorage.setItem(USER_KEY, JSON.stringify(next));
   window.dispatchEvent(new CustomEvent("nbr-session-updated"));
@@ -68,24 +89,58 @@ export function isCommunityAdminUser(user?: WebUser | null): boolean {
   return u?.role === "community_admin";
 }
 
-/** Approved community admin (or non–community-admin with an approved admin membership). */
+/** Full dashboard access: platform approval + billing (backend access flags preferred). */
 export function canAccessCommunityDashboard(user?: WebUser | null): boolean {
   const u = user ?? getUser();
   if (!u) return false;
   if (isSystemAdminUser(u)) return true;
   if (isCommunityAdminUser(u)) {
-    return u.community_admin_status === "approved" && Boolean(getManagedCommunityId(u));
+    if (typeof u.access?.can_use_dashboard === "boolean") {
+      return u.access.can_use_dashboard;
+    }
+    return false;
   }
   return Boolean(getManagedCommunityId(u));
+}
+
+/** Routes a community admin may open before full access (setup + billing + wait screens). */
+export function canAccessCommunityOnboarding(user?: WebUser | null): boolean {
+  const u = user ?? getUser();
+  if (!u || !isCommunityAdminUser(u)) return false;
+  if (u.community_admin_status === "rejected") return false;
+  return true;
+}
+
+export function getCommunityAdminNextStep(user?: WebUser | null): string {
+  const u = user ?? getUser();
+  if (!u || !isCommunityAdminUser(u)) return "ready";
+  return u.access?.next_step ?? "link_community";
+}
+
+/** Community admin still in setup / billing / approval — not full dashboard yet. */
+export function isCommunityAdminOnboarding(user?: WebUser | null): boolean {
+  const u = user ?? getUser();
+  if (!u || !isCommunityAdminUser(u)) return false;
+  if (u.community_admin_status === "rejected") return false;
+  return !canAccessCommunityDashboard(u);
 }
 
 export function getManagedCommunityId(user?: WebUser | null): number | undefined {
   const u = user ?? getUser();
   if (!u || isSystemAdminUser(u)) return undefined;
 
-  const membership = (u.memberships ?? []).find(
+  if (u.access?.community_id) {
+    return Number(u.access.community_id);
+  }
+
+  const approved = (u.memberships ?? []).find(
     (m) => m.status === "approved" && ["admin", "moderator"].includes(m.role),
   );
+  if (approved?.community_id) return approved.community_id;
 
-  return membership?.community_id;
+  const pending = (u.memberships ?? []).find(
+    (m) => m.status === "pending" && m.role === "admin",
+  );
+
+  return pending?.community_id ?? u.community_id;
 }

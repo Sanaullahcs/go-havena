@@ -2,14 +2,18 @@
 
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { AuthShellSkeleton } from "@/components/shared/loaders";
+import { AuthShellSkeleton, AdminOnboardingShellSkeleton } from "@/components/shared/loaders";
 import {
   getToken,
   getUser,
   clearSession,
   updateUser,
   canAccessCommunityDashboard,
+  canAccessCommunityOnboarding,
+  getCommunityAdminNextStep,
+  isCommunityAdminOnboarding,
   isCommunityAdminUser,
+  isSystemAdminUser,
 } from "@/lib/auth/session";
 import { resolveAdminPortalRedirect } from "@/lib/auth/admin-routes";
 import { fetchMe, meToSessionUser } from "@/lib/api/profile";
@@ -17,6 +21,14 @@ import { AdminSidebar } from "@/components/admin/sidebar";
 import { AdminTopBar } from "@/components/admin/top-bar";
 import { AdminPushBootstrap } from "@/components/push/admin-push-bootstrap";
 import { ForegroundNotificationProvider } from "@/components/push/foreground-notification-provider";
+
+import {
+  communityAdminOnboardingPath,
+  isCommunityAdminOnboardingPath,
+  onboardingStepFromPath,
+} from "@/lib/admin/community-admin-onboarding";
+import { AdminOnboardingTopBar } from "@/components/admin/onboarding/onboarding-top-bar";
+import { confirmAdminSignOutAndRedirect } from "@/lib/auth/sign-out";
 
 const PAGE_TITLES: Record<string, string> = {
   "/admin": "Dashboard",
@@ -29,6 +41,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/members": "Members",
   "/admin/billing": "Billing",
   "/admin/setup": "Community setup",
+  "/admin/complete-profile": "Complete profile",
+  "/admin/pending-approval": "Pending approval",
   "/admin/guests": "Guest Users",
   "/admin/notices": "Notices",
   "/admin/events": "Events",
@@ -42,81 +56,159 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/messages": "Messages",
   "/admin/activity": "Activity Logs",
   "/admin/notifications": "Notifications",
-  "/admin/support":  "Help & Support",
-  "/admin/profile":  "My Profile",
+  "/admin/support": "Help & Support",
+  "/admin/profile": "My Profile",
 };
+
+function isOnboardingPath(pathname: string) {
+  return isCommunityAdminOnboardingPath(pathname);
+}
+
+function routeForNextStep(nextStep: string): string {
+  return communityAdminOnboardingPath(nextStep);
+}
 
 function getTitle(pathname: string) {
   return PAGE_TITLES[pathname] ?? "Admin Portal";
+}
+
+/** Use cached session so onboarding admins never flash the full dashboard skeleton. */
+function readCachedAdminShell(): {
+  checked: boolean;
+  onboardingOnly: boolean;
+} {
+  if (typeof window === "undefined") {
+    return { checked: false, onboardingOnly: false };
+  }
+  const token = getToken();
+  if (!token) {
+    return { checked: false, onboardingOnly: false };
+  }
+  const user = getUser();
+  if (isCommunityAdminOnboarding(user)) {
+    return { checked: true, onboardingOnly: true };
+  }
+  return { checked: false, onboardingOnly: false };
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [checked, setChecked] = useState(false);
+  const [checked, setChecked] = useState(() => readCachedAdminShell().checked);
   const [accessBlocked, setAccessBlocked] = useState<string | null>(null);
+  const [onboardingOnly, setOnboardingOnly] = useState(
+    () => readCachedAdminShell().onboardingOnly,
+  );
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.replace("/login");
-      return;
-    }
+    let cancelled = false;
 
-    const user = getUser();
-    // New self-serve admins land here before they have a community.
-    if (pathname.startsWith("/admin/setup") && isCommunityAdminUser(user)) {
-      setAccessBlocked(null);
-      setChecked(true);
-      return;
-    }
+    (async () => {
+      const token = getToken();
+      if (!token) {
+        // Always clear the loading shell — otherwise Stripe return on a different host
+        // (localhost vs LAN IP) leaves AuthShellSkeleton spinning forever.
+        setChecked(true);
+        setOnboardingOnly(false);
+        router.replace("/login");
+        return;
+      }
 
-    if (!canAccessCommunityDashboard(user)) {
-      if (isCommunityAdminUser(user)) {
-        if (!pathname.startsWith("/admin/setup")) {
-          router.replace("/admin/setup");
-          return;
-        }
-        setAccessBlocked(
-          user?.community_admin_status === "pending"
-            ? "Your community admin account is pending platform approval."
-            : "Your account is not linked to an approved community yet.",
-        );
+      let user = getUser();
+
+      try {
+        const me = await fetchMe();
+        if (cancelled) return;
+        updateUser(meToSessionUser(me));
+        user = getUser();
+      } catch {
+        // Keep cached session if /me fails (offline / transient).
+      }
+
+      if (cancelled) return;
+
+      if (isSystemAdminUser(user)) {
+        setAccessBlocked(null);
+        setOnboardingOnly(false);
         setChecked(true);
         return;
       }
-      clearSession();
-      router.replace("/login");
-      return;
-    }
 
-    setAccessBlocked(null);
-    setChecked(true);
+      if (!isCommunityAdminUser(user)) {
+        clearSession();
+        setChecked(true);
+        setOnboardingOnly(false);
+        router.replace("/login");
+        return;
+      }
 
-    // Refresh profile (including avatar URL) so top bar stays in sync.
-    void fetchMe()
-      .then((me) => updateUser(meToSessionUser(me)))
-      .catch(() => {
-        // Keep existing session if /me fails (offline / transient).
-      });
+      if (!canAccessCommunityOnboarding(user)) {
+        setAccessBlocked("Your community admin application was not approved. Contact support for help.");
+        setOnboardingOnly(false);
+        setChecked(true);
+        return;
+      }
+
+      const nextStep = getCommunityAdminNextStep(user);
+      const fullAccess = canAccessCommunityDashboard(user);
+
+      if (!fullAccess) {
+        setOnboardingOnly(true);
+        setAccessBlocked(null);
+
+        const expected = routeForNextStep(nextStep);
+        const onAllowedOnboardingPath =
+          isOnboardingPath(pathname) &&
+          (pathname === expected ||
+            pathname.startsWith(`${expected}/`) ||
+            (nextStep === "complete_billing_web" && pathname.startsWith("/admin/billing")) ||
+            (nextStep === "await_approval" && pathname.startsWith("/admin/pending-approval")) ||
+            (nextStep === "complete_profile" && pathname.startsWith("/admin/complete-profile")) ||
+            (nextStep === "link_community" && pathname.startsWith("/admin/setup")) ||
+            (pathname.startsWith("/admin/billing") &&
+              (nextStep === "await_approval" || nextStep === "ready")) ||
+            (pathname.startsWith("/admin/pending-approval") &&
+              nextStep === "complete_billing_web"));
+
+        // Show onboarding shell immediately; redirect in background if needed.
+        setChecked(true);
+
+        if (!onAllowedOnboardingPath) {
+          router.replace(expected);
+        }
+        return;
+      }
+
+      setOnboardingOnly(false);
+      setAccessBlocked(null);
+      setChecked(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router, pathname]);
 
   useEffect(() => {
-    if (!checked || accessBlocked) return;
+    if (!checked || accessBlocked || onboardingOnly) return;
 
     const user = getUser();
     const redirect = resolveAdminPortalRedirect(pathname, user);
     if (redirect && redirect !== pathname) {
       router.replace(redirect);
     }
-  }, [checked, accessBlocked, pathname, router]);
+  }, [checked, accessBlocked, onboardingOnly, pathname, router]);
 
   useEffect(() => {
     document.title = `${getTitle(pathname)} · Havena`;
   }, [pathname]);
 
   if (!checked) {
+    const user = getUser();
+    if (getToken() && isCommunityAdminOnboarding(user)) {
+      return <AdminOnboardingShellSkeleton />;
+    }
     return <AuthShellSkeleton />;
   }
 
@@ -125,14 +217,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="flex min-h-screen items-center justify-center bg-[#F6F8FB] px-6">
         <div className="max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
           <p className="text-sm font-semibold uppercase tracking-wide text-sky-700">Community admin portal</p>
-          <h1 className="mt-3 text-2xl font-bold text-slate-900">Access pending</h1>
+          <h1 className="mt-3 text-2xl font-bold text-slate-900">Access unavailable</h1>
           <p className="mt-3 text-sm leading-relaxed text-slate-600">{accessBlocked}</p>
           <button
             type="button"
             className="mt-6 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white"
             onClick={() => {
-              clearSession();
-              router.replace("/login");
+              void confirmAdminSignOutAndRedirect(router);
             }}
           >
             Sign out
@@ -143,6 +234,35 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   const title = getTitle(pathname);
+
+  // Onboarding shell: no sidebar until full access is unlocked.
+  if (onboardingOnly) {
+    const onboardingStep = onboardingStepFromPath(pathname);
+    const onboardingShellWide = pathname.startsWith("/admin/billing");
+
+    return (
+      <ForegroundNotificationProvider>
+        <div className="min-h-screen overflow-x-hidden bg-[#F6F8FB]">
+          <AdminOnboardingTopBar
+            title={title}
+            step={onboardingStep}
+            wide={onboardingShellWide}
+            onSignOut={() => {
+              void confirmAdminSignOutAndRedirect(router);
+            }}
+          />
+          <main
+            className={[
+              "mx-auto w-full min-w-0 overflow-x-hidden px-3 py-3 sm:px-6 sm:py-5",
+              onboardingShellWide ? "max-w-6xl" : "max-w-3xl",
+            ].join(" ")}
+          >
+            {children}
+          </main>
+        </div>
+      </ForegroundNotificationProvider>
+    );
+  }
 
   return (
     <ForegroundNotificationProvider>

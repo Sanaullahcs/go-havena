@@ -35,6 +35,7 @@ export const COMMUNITY_ADMIN_ROUTE_PREFIXES = [
 const SHARED_ADMIN_ROUTES = new Set([
   "/admin",
   "/admin/setup",
+  "/admin/complete-profile",
   "/admin/profile",
   "/admin/support",
   "/admin/notifications",

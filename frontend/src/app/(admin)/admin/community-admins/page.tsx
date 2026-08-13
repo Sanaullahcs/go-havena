@@ -324,6 +324,7 @@ export default function CommunityAdminsPage() {
                 { label: "Contact" },
                 { label: "Community" },
                 { label: "Account status" },
+                { label: "Billing" },
                 { label: "Since" },
                 { label: "", right: true },
               ]}
@@ -372,6 +373,9 @@ export default function CommunityAdminsPage() {
                         needsReassign={item.needs_reassign || status === "reassign"}
                         reassignReason={item.reassign_reason}
                       />
+                    </DtCell>
+                    <DtCell>
+                      <BillingStatusBadge billing={item.billing} />
                     </DtCell>
                     <DtCell nowrap muted>{relDate(item.created_at)}</DtCell>
                     <DtCell last right>
@@ -559,6 +563,11 @@ function CommunityAdminDetailModal({
             }
           />
 
+          <ProfileRow
+            label="Billing"
+            value={<BillingStatusBadge billing={item.billing} detailed />}
+          />
+
           {!isMissingAdmin && item.community_admin_status === "rejected" && item.community_admin_rejection_reason ? (
             <ProfileRow label="Rejection reason" value={item.community_admin_rejection_reason} />
           ) : null}
@@ -614,6 +623,55 @@ function CommunityAdminDetailModal({
           </div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function BillingStatusBadge({
+  billing,
+  detailed = false,
+}: {
+  billing?: CommunityAdminApplicant["billing"];
+  detailed?: boolean;
+}) {
+  const status = billing?.subscription_status ?? null;
+  const card = Boolean(billing?.card_on_file);
+  const plan = billing?.plan_slug;
+
+  let label = "Not started";
+  let className = "bg-slate-100 text-slate-600";
+
+  if (status === "trialing") {
+    label = "Free trial";
+    className = "bg-teal-50 text-teal-700";
+  } else if (status === "active") {
+    label = "Active";
+    className = "bg-emerald-50 text-emerald-700";
+  } else if (status === "incomplete") {
+    label = billing?.card_on_file ? "Confirming checkout" : "Checkout incomplete";
+    className = "bg-amber-50 text-amber-700";
+  } else if (status === "past_due" || status === "grace") {
+    label = "Past due";
+    className = "bg-orange-50 text-orange-700";
+  } else if (status === "canceled" || status === "unpaid") {
+    label = status === "canceled" ? "Canceled" : "Unpaid";
+    className = "bg-rose-50 text-rose-700";
+  } else if (billing?.billing_complete) {
+    label = "Billing complete";
+    className = "bg-emerald-50 text-emerald-700";
+  }
+
+  return (
+    <div className="space-y-1">
+      <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${className}`}>
+        {label}
+      </span>
+      {detailed || card || plan ? (
+        <p className="text-[11px] text-slate-500">
+          {plan ? `${plan} · ` : ""}
+          Card {card ? "on file" : "not on file"}
+        </p>
+      ) : null}
     </div>
   );
 }

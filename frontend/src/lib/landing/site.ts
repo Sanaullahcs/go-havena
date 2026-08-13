@@ -42,6 +42,7 @@ export const footerColumns: { title: string; links: NavItem[] }[] = [
       { label: "FAQ", sectionId: "faq" },
       { label: "Contact", sectionId: "contact" },
       { label: "Admin sign in", href: "/login" },
+      { label: "Admin sign up", href: "/register" },
       { label: "Resident portal", href: "/resident-login" },
     ],
   },
@@ -63,7 +64,7 @@ export const socialLinks = [
 
 /** Internal dashboard routes — same Next.js app. */
 export const actionLinks = {
-  signUp: "/login",
+  signUp: "/register",
   login: "/login",
   residentLogin: "/resident-login",
   home: "/home",

@@ -1,6 +1,7 @@
 import axios from "axios";
 import api, { ApiError } from "./client";
 import { parseAccountBlockFromResponse } from "@/lib/auth/account-block";
+import type { CommunityAdminAccess } from "@/lib/auth/session";
 
 export type AuthUser = {
   id: number;
@@ -18,12 +19,20 @@ export type AuthUser = {
     community?: { id: number; name: string };
   }>;
   profile?: { display_name?: string; avatar_url?: string; unit_number?: string };
+  access?: CommunityAdminAccess | null;
 };
 
 function mapAuthUser(raw: Record<string, unknown>, fallback?: Partial<AuthUser>): AuthUser {
   const memberships = (raw?.memberships as AuthUser["memberships"]) ?? [];
   const approved = memberships.find((m) => m.status === "approved");
-  const communityId = approved?.community_id ?? memberships[0]?.community_id ?? undefined;
+  const pendingAdmin = memberships.find((m) => m.status === "pending" && m.role === "admin");
+  const access = (raw?.access as CommunityAdminAccess | undefined) ?? null;
+  const communityId =
+    access?.community_id ??
+    approved?.community_id ??
+    pendingAdmin?.community_id ??
+    memberships[0]?.community_id ??
+    undefined;
 
   return {
     id: raw?.id as number,
@@ -32,9 +41,10 @@ function mapAuthUser(raw: Record<string, unknown>, fallback?: Partial<AuthUser>)
     name: raw?.name as string | undefined,
     role: (raw?.role as string) ?? fallback?.role ?? "resident",
     community_admin_status: (raw?.community_admin_status as string | null | undefined) ?? null,
-    community_id: communityId,
+    community_id: communityId ? Number(communityId) : undefined,
     memberships,
     profile: raw?.profile as AuthUser["profile"],
+    access,
   };
 }
 
@@ -70,12 +80,28 @@ export async function loginWithEmail(email: string, password: string): Promise<{
 export type CommunityAdminOtpIntent = "login" | "signup";
 
 /**
- * Unified community-admin OTP:
- * existing phones → login; unknown phones → signup (create account).
+ * Community-admin OTP request.
+ * - mode "auto": try login first; unknown phones fall back to signup
+ * - mode "signup": force signup (register page)
+ * - mode "login": login only
  */
 export async function requestCommunityAdminOtp(
   phone: string,
+  mode: "auto" | "login" | "signup" = "auto",
 ): Promise<{ intent: CommunityAdminOtpIntent }> {
+  if (mode === "signup") {
+    try {
+      await api.post("/v1/auth/otp/request", {
+        phone,
+        intent: "signup",
+        portal: "community_admin_dashboard",
+      });
+      return { intent: "signup" };
+    } catch (err) {
+      throwAuthError(err);
+    }
+  }
+
   try {
     await api.post("/v1/auth/otp/request", {
       phone,
@@ -84,7 +110,11 @@ export async function requestCommunityAdminOtp(
     });
     return { intent: "login" };
   } catch (err) {
-    if (axios.isAxiosError(err) && err.response?.data?.code === "ACCOUNT_NOT_FOUND_USE_SIGNUP") {
+    if (
+      mode === "auto" &&
+      axios.isAxiosError(err) &&
+      err.response?.data?.code === "ACCOUNT_NOT_FOUND_USE_SIGNUP"
+    ) {
       try {
         await api.post("/v1/auth/otp/request", {
           phone,

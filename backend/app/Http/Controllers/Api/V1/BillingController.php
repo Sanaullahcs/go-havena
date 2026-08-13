@@ -23,6 +23,8 @@ class BillingController extends Controller
         $community = Community::query()->findOrFail($communityId);
         $this->billing->releaseExpiredReservations($communityId);
         $this->billing->refreshGraceIfNeeded($communityId);
+        // Heal stuck "incomplete" rows after Stripe Checkout when the return confirm was missed.
+        $this->billing->reconcileIncompleteCheckout($community);
 
         return response()->json([
             'data' => $this->billing->billingPayload($community->fresh()),
@@ -37,6 +39,9 @@ class BillingController extends Controller
             'interval' => ['nullable', 'in:month,year'],
             'estimated_residents' => ['nullable', 'integer', 'min:1', 'max:100000'],
             'community_id' => ['nullable', 'integer'],
+            // Browser origin so Stripe returns to the same host that started checkout
+            // (avoids localhost vs LAN IP session loss).
+            'return_origin' => ['nullable', 'string', 'max:255'],
         ]);
 
         $communityId = AdminRoleService::requireManagedCommunityId($request->user(), $request);
@@ -64,6 +69,7 @@ class BillingController extends Controller
             $request->user(),
             $validated['plan_slug'],
             $validated['interval'] ?? 'month',
+            $validated['return_origin'] ?? null,
         );
 
         return response()->json([

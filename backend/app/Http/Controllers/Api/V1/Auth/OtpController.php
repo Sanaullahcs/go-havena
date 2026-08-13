@@ -141,11 +141,9 @@ class OtpController extends Controller
 
             $role = $validated['role'] ?? 'resident';
             $userRole = $role === 'admin' ? 'community_admin' : 'resident';
-            // Web community-admin portal signup is self-serve (approved immediately).
-            // Mobile/other admin signups stay pending for platform review.
-            $adminStatus = $role === 'admin'
-                ? (($validated['portal'] ?? null) === 'community_admin_dashboard' ? 'approved' : 'pending')
-                : null;
+            // Self-signup (web or mobile) always starts pending — System Admin must approve.
+            // Billing + approval are both required before dashboard/app access.
+            $adminStatus = $role === 'admin' ? 'pending' : null;
 
             if (! $user) {
                 $trashed = User::withTrashed()->where('phone', $phone)->first();
@@ -199,9 +197,15 @@ class OtpController extends Controller
             );
         }
 
+        $userPayload = (new UserResource($user))->resolve();
+        if (AdminRoleService::isCommunityAdminRole($user)) {
+            $userPayload['access'] = app(\App\Services\CommunityAdminAccessService::class)
+                ->accessPayload($user);
+        }
+
         return response()->json([
             'token' => $token,
-            'user' => new UserResource($user),
+            'user' => $userPayload,
         ]);
     }
 
@@ -320,23 +324,15 @@ class OtpController extends Controller
     private function assertCanAccessCommunityAdminDashboard(User $user): void
     {
         if (AdminRoleService::isCommunityAdminRole($user)) {
-            if (! AdminRoleService::isCommunityAdminApproved($user)) {
-                if (AdminRoleService::isCommunityAdminRejected($user)) {
-                    $this->failAuthenticationBlock('phone', [
-                        'message'     => 'Your community admin application was not approved. Contact support for help.',
-                        'code'        => 'COMMUNITY_ADMIN_REJECTED',
-                        'status'      => 'rejected',
-                        'reason'      => $user->community_admin_rejection_reason,
-                        'rejected_by' => 'system_admin',
-                    ]);
-                }
-
+            // Pending admins may log in to finish profile, community, and billing.
+            // Rejected admins are blocked. Full dashboard access is enforced via /me access flags.
+            if (AdminRoleService::isCommunityAdminRejected($user)) {
                 $this->failAuthenticationBlock('phone', [
-                    'message'     => 'Your community admin application is awaiting approval by a system administrator.',
-                    'code'        => 'COMMUNITY_ADMIN_PENDING',
-                    'status'      => 'pending',
-                    'reason'      => null,
-                    'rejected_by' => null,
+                    'message'     => 'Your community admin application was not approved. Contact support for help.',
+                    'code'        => 'COMMUNITY_ADMIN_REJECTED',
+                    'status'      => 'rejected',
+                    'reason'      => $user->community_admin_rejection_reason,
+                    'rejected_by' => 'system_admin',
                 ]);
             }
 

@@ -93,12 +93,18 @@ export async function startBillingCheckout(input: {
   interval?: BillingInterval;
   estimated_residents?: number;
   community_id?: number;
+  /** Current browser origin so Stripe returns to the same host (localhost vs LAN). */
+  return_origin?: string;
 }): Promise<{
   mode: "stripe" | "manual";
   checkout_url?: string | null;
   session_id?: string;
   message?: string;
 }> {
+  const returnOrigin =
+    input.return_origin ||
+    (typeof window !== "undefined" ? window.location.origin : undefined);
+
   const { data } = await api.post(
     "/v1/admin/billing/checkout",
     {
@@ -106,6 +112,7 @@ export async function startBillingCheckout(input: {
       plan_slug: input.plan_slug,
       interval: input.interval ?? "month",
       estimated_residents: input.estimated_residents,
+      return_origin: returnOrigin,
     },
     { timeout: 45_000 },
   );

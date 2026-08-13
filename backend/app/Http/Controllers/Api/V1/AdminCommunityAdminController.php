@@ -139,6 +139,15 @@ class AdminCommunityAdminController extends Controller
             'community_admin_status' => 'rejected',
             'community_admin_rejection_reason' => $reason ? trim((string) $reason) : null,
         ]);
+
+        $user->loadMissing('memberships');
+        $access = app(\App\Services\CommunityAdminAccessService::class);
+        foreach ($user->memberships as $membership) {
+            if ($membership->community_id) {
+                $access->cancelBillingOnRejection((int) $membership->community_id, 'community_admin_rejected');
+            }
+        }
+
         $body   = $reason
             ? "Your community admin application was not approved. Reason: {$reason}"
             : 'Your community admin application was not approved. Please contact support.';
@@ -423,6 +432,8 @@ class AdminCommunityAdminController extends Controller
                 'status'        => $community->status,
                 'region'        => $community->region,
             ] : null,
+            'billing' => app(\App\Services\CommunityAdminAccessService::class)
+                ->billingSummaryForCommunity($community?->id ? (int) $community->id : null),
         ];
     }
 
