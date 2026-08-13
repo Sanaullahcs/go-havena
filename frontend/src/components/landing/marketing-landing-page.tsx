@@ -4,6 +4,7 @@ import { Header } from "@/components/landing/sections/Header";
 import { Hero } from "@/components/landing/sections/Hero";
 import { StatsStrip } from "@/components/landing/sections/StatsStrip";
 import { AboutSection } from "@/components/landing/sections/AboutSection";
+import { ProductPreview } from "@/components/landing/sections/ProductPreview";
 import { HowItWorks } from "@/components/landing/sections/HowItWorks";
 import { Features } from "@/components/landing/sections/Features";
 import { Testimonials } from "@/components/landing/sections/Testimonials";
@@ -24,6 +25,9 @@ export function MarketingLandingPage() {
         <StatsStrip />
         <Reveal>
           <AboutSection />
+        </Reveal>
+        <Reveal delay={40}>
+          <ProductPreview />
         </Reveal>
         <Reveal delay={40}>
           <HowItWorks />

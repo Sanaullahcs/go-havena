@@ -1,21 +1,33 @@
-const MOBILE_SRC = "/landing/mobile-app-mockup.png";
+import { HavenaAppScreenPreview } from "./HavenaAppScreenPreview";
 
-export function MobileAppMockup({ className = "" }: { className?: string }) {
+type MobileAppMockupProps = {
+  className?: string;
+  alt?: string;
+  size?: "default" | "hero";
+};
+
+export function MobileAppMockup({
+  className = "",
+  alt = "Havena mobile app home screen with notices, feed, and local deals",
+  size = "default",
+}: MobileAppMockupProps) {
+  const isHero = size === "hero";
+
   return (
-    <div className={`product-mockup-phone-wrap relative w-[220px] sm:w-[240px] ${className}`}>
-      <div className="product-mockup-phone rounded-[40px] border-[7px] border-[#0b1c2e] bg-[#0b1c2e] p-[6px] shadow-[0_20px_50px_-12px_rgba(0,82,223,0.35)]">
-        <div className="overflow-hidden rounded-[32px] bg-white">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={MOBILE_SRC}
-            alt="Havena mobile app showing a community post and comments"
-            width={750}
-            height={1624}
-            className="product-mockup-img block h-auto w-full"
-            loading="eager"
-            decoding="sync"
-            draggable={false}
-          />
+    <div
+      className={[
+        "lp-phone-mockup",
+        isHero ? "lp-phone-mockup--hero" : "lp-phone-mockup--default",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      role="img"
+      aria-label={alt}
+    >
+      <div className="lp-phone-mockup__frame">
+        <div className="lp-phone-mockup__screen">
+          <HavenaAppScreenPreview />
         </div>
       </div>
     </div>
