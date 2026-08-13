@@ -217,7 +217,7 @@ export function CTA() {
           <div className="lp-contact__intro">
             <p className="lp-label">Contact</p>
             <h2 className="lp-title">Let&apos;s talk about your community</h2>
-            <p className="lp-body mt-4">
+            <p className="lp-body">
               Whether you&apos;re a resident, board member, or property manager — we&apos;re here to
               help you get started with Havena.
             </p>

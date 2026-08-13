@@ -5079,8 +5079,26 @@
   margin-top: 0.85rem;
 }
 
-.lp-coming-soon__links {
-  gap: 0.45rem;
-  right: clamp(0.75rem, 2vw, 1.25rem);
-  bottom: clamp(0.75rem, 2vw, 1.25rem);
+.landing-page.lp .lp-contact__intro .lp-body {
+  margin-top: var(--lp-lede-gap);
+}
+
+.landing-page.lp .lp-title {
+  margin-top: var(--lp-head-gap);
+}
+
+.landing-page.lp .lp-contact__form .mt-5 {
+  margin-top: 0.85rem;
+}
+
+.landing-page.lp .lp-contact__form .mt-4 {
+  margin-top: 0.65rem;
+}
+
+.landing-page.lp .lp-contact__form .mt-6 {
+  margin-top: 1rem;
+}
+
+.landing-page.lp .lp-contact__form .gap-4 {
+  gap: 0.65rem;
 }
