@@ -15,11 +15,13 @@
     "test:validation": "tsx scripts/test-form-validation.ts"
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "^6.8.1",
+    "@stripe/stripe-js": "^9.13.0",
     "axios": "^1.18.0",
     "firebase": "^12.16.0",
+    "go-havena": "file:..",
     "libphonenumber-js": "^1.13.7",
     "lucide-react": "^1.23.0",
-    "go-havena": "file:..",
     "next": "16.2.9",
     "qrcode": "^1.5.4",
     "react": "19.2.4",

@@ -200,11 +200,21 @@ export default function CommunityAdminsPage() {
     }
   };
 
-  const handleReject = async (id: number) => {
+  const handleReject = async (id: number, revokeActive = false) => {
+    if (revokeActive) {
+      const ok = await confirmAction({
+        title: "Revoke this community admin?",
+        text: "This cancels their Havena subscription immediately — including an active paid plan months later. They will not be charged again.",
+        confirmText: "Revoke and cancel billing",
+        color: "red",
+      });
+      if (!ok.isConfirmed) return;
+    }
+
     setBusyId(id);
     try {
       await rejectCommunityAdmin(id);
-      toastSuccess("Application rejected");
+      toastSuccess(revokeActive ? "Admin revoked. Billing canceled." : "Application rejected");
       setViewing((current) => (current?.id === id ? null : current));
       await load(true);
     } catch (err) {
@@ -394,8 +404,8 @@ export default function CommunityAdminsPage() {
                             label: "Reject",
                             icon: "reject",
                             tone: "danger",
-                            hidden: status !== "pending",
-                            onClick: () => handleReject(item.id),
+                            hidden: status !== "pending" && status !== "approved",
+                            onClick: () => handleReject(item.id, status === "approved"),
                           },
                           {
                             label: "Suspend",
@@ -472,7 +482,12 @@ export default function CommunityAdminsPage() {
                 ? () => handleApprove(viewing.id, true)
                 : undefined
           }
-          onReject={viewing.community_admin_status === "pending" && viewing.id ? () => handleReject(viewing.id) : undefined}
+          onReject={
+            viewing.id &&
+            (viewing.community_admin_status === "pending" || viewing.community_admin_status === "approved")
+              ? () => handleReject(viewing.id, viewing.community_admin_status === "approved")
+              : undefined
+          }
           approveLabel={viewing.community_admin_status === "rejected" ? "Re-approve" : "Approve"}
           busy={busyId === viewing.id}
         />
@@ -565,7 +580,7 @@ function CommunityAdminDetailModal({
 
           <ProfileRow
             label="Billing"
-            value={<BillingStatusBadge billing={item.billing} detailed />}
+            value={<BillingStatusBadge billing={item.billing} />}
           />
 
           {!isMissingAdmin && item.community_admin_status === "rejected" && item.community_admin_rejection_reason ? (
@@ -629,14 +644,10 @@ function CommunityAdminDetailModal({
 
 function BillingStatusBadge({
   billing,
-  detailed = false,
 }: {
   billing?: CommunityAdminApplicant["billing"];
-  detailed?: boolean;
 }) {
   const status = billing?.subscription_status ?? null;
-  const card = Boolean(billing?.card_on_file);
-  const plan = billing?.plan_slug;
 
   let label = "Not started";
   let className = "bg-slate-100 text-slate-600";
@@ -647,8 +658,11 @@ function BillingStatusBadge({
   } else if (status === "active") {
     label = "Active";
     className = "bg-emerald-50 text-emerald-700";
+  } else if (status === "pending_trial") {
+    label = "Card saved";
+    className = "bg-sky-50 text-sky-700";
   } else if (status === "incomplete") {
-    label = billing?.card_on_file ? "Confirming checkout" : "Checkout incomplete";
+    label = "Checkout incomplete";
     className = "bg-amber-50 text-amber-700";
   } else if (status === "past_due" || status === "grace") {
     label = "Past due";
@@ -662,17 +676,9 @@ function BillingStatusBadge({
   }
 
   return (
-    <div className="space-y-1">
-      <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${className}`}>
-        {label}
-      </span>
-      {detailed || card || plan ? (
-        <p className="text-[11px] text-slate-500">
-          {plan ? `${plan} · ` : ""}
-          Card {card ? "on file" : "not on file"}
-        </p>
-      ) : null}
-    </div>
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${className}`}>
+      {label}
+    </span>
   );
 }
 

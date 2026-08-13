@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\OtpController;
 use App\Http\Controllers\Api\V1\Auth\GuestAuthController;
+use App\Http\Controllers\Api\V1\Auth\WebHandoffController;
 use App\Http\Controllers\Api\V1\CommunityController;
 use App\Http\Controllers\Api\V1\ActivityLogController;
 use App\Http\Controllers\Api\V1\MessageController;
@@ -34,6 +35,7 @@ use App\Http\Controllers\Api\V1\GuestController;
 use App\Http\Controllers\Api\V1\ResidentGuestController;
 use App\Http\Controllers\Api\V1\BillingController;
 use App\Http\Controllers\Api\V1\StripeWebhookController;
+use App\Http\Controllers\Api\V1\SubscriptionPlanController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -45,6 +47,7 @@ Route::prefix('v1')->group(function () {
 
     /* ── Stripe webhooks (no auth; verified by signature) ── */
     Route::post('/billing/stripe/webhook', StripeWebhookController::class);
+    Route::get('/billing/plans', [SubscriptionPlanController::class, 'publicIndex']);
 
     /* ── Auth ── */
     Route::prefix('auth')->group(function () {
@@ -52,6 +55,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/logout', [LoginController::class, 'logout'])->middleware('auth:sanctum');
         Route::post('/otp/request', [OtpController::class, 'requestOtp']);
         Route::post('/otp/verify',  [OtpController::class, 'verifyOtp']);
+        Route::post('/web-handoff', [WebHandoffController::class, 'store'])->middleware('auth:sanctum');
+        Route::post('/web-handoff/consume', [WebHandoffController::class, 'consume'])->middleware('throttle:30,1');
 
         Route::prefix('guest')->group(function () {
             Route::post('/otp/request', [GuestAuthController::class, 'requestOtp']);
@@ -247,6 +252,10 @@ Route::prefix('v1')->group(function () {
                 Route::patch('/contact-submissions/{id}', [ContactController::class, 'adminUpdate']);
 
                 Route::post('/billing/grant', [BillingController::class, 'grant']);
+                Route::get('/subscription-plans', [SubscriptionPlanController::class, 'index']);
+                Route::post('/subscription-plans', [SubscriptionPlanController::class, 'store']);
+                Route::put('/subscription-plans/{id}', [SubscriptionPlanController::class, 'update']);
+                Route::patch('/subscription-plans/{id}/status', [SubscriptionPlanController::class, 'updateStatus']);
             });
 
             /* Community admin (+ system admin override) */

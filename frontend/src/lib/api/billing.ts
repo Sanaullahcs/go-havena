@@ -10,6 +10,7 @@ export interface BillingPlan {
   seat_limit: number;
   price_monthly_cents: number;
   price_yearly_cents: number;
+  trial_period_days: number;
   currency: string;
   recommended: boolean;
   has_stripe_prices: boolean;
@@ -46,6 +47,8 @@ export interface BillingSubscription {
   grace_ends_at: string | null;
   allows_allocation: boolean;
   in_grace: boolean;
+  card_on_file?: boolean;
+  trial_pending_approval?: boolean;
 }
 
 export interface BillingSetup {
@@ -53,6 +56,8 @@ export interface BillingSetup {
   community_approved: boolean;
   subscription_active: boolean;
   can_invite_residents: boolean;
+  card_on_file?: boolean;
+  trial_pending_approval?: boolean;
 }
 
 export interface BillingPayload {
@@ -66,6 +71,7 @@ export interface BillingPayload {
   };
   plans: BillingPlan[];
   recommended_plan: string;
+  trial_period_days?: number;
   subscription: BillingSubscription | null;
   seats: BillingSeats;
   billing: {
@@ -96,9 +102,28 @@ export async function startBillingCheckout(input: {
   /** Current browser origin so Stripe returns to the same host (localhost vs LAN). */
   return_origin?: string;
 }): Promise<{
-  mode: "stripe" | "manual";
+  mode: "stripe" | "manual" | "elements" | "already_active";
   checkout_url?: string | null;
   session_id?: string;
+  client_secret?: string;
+  intent_type?: "setup" | "payment";
+  stripe_subscription_id?: string;
+  stripe_setup_intent_id?: string;
+  trial_starts_on_approval?: boolean;
+  publishable_key?: string | null;
+  trial_days?: number;
+  customer_email?: string | null;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  community_name?: string;
+  plan?: {
+    slug: string;
+    name: string;
+    seat_limit: number;
+    interval: BillingInterval;
+    price_cents: number;
+    currency: string;
+  };
   message?: string;
 }> {
   const returnOrigin =
@@ -119,12 +144,32 @@ export async function startBillingCheckout(input: {
   return data.data;
 }
 
-export async function confirmBillingCheckout(sessionId: string, communityId?: number | null): Promise<BillingPayload> {
+export async function confirmBillingCheckout(
+  sessionId: string,
+  communityId?: number | null,
+): Promise<BillingPayload> {
   const { data } = await api.post(
     "/v1/admin/billing/confirm-checkout",
     {
       ...communityParams(communityId),
       session_id: sessionId,
+    },
+    { timeout: 45_000 },
+  );
+  return data.data as BillingPayload;
+}
+
+export async function confirmElementsCheckout(
+  stripeSubscriptionId: string,
+  communityId?: number | null,
+): Promise<BillingPayload> {
+  const { data } = await api.post(
+    "/v1/admin/billing/confirm-checkout",
+    {
+      ...communityParams(communityId),
+      ...(stripeSubscriptionId.startsWith("seti_")
+        ? { stripe_setup_intent_id: stripeSubscriptionId }
+        : { stripe_subscription_id: stripeSubscriptionId }),
     },
     { timeout: 45_000 },
   );

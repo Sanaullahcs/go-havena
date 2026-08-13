@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Community;
 use App\Models\CommunityMembership;
 use App\Models\CommunitySubscription;
 use App\Models\User;
@@ -10,7 +11,7 @@ use App\Models\User;
  * Single source of truth for Community Admin platform access.
  *
  * Access requires BOTH:
- * 1. Billing complete (subscription trialing|active with card on file via Stripe)
+ * 1. Billing complete (card on file; trial starts only after platform approval)
  * 2. Platform approval (admin status + community review + membership approved)
  */
 class CommunityAdminAccessService
@@ -56,10 +57,7 @@ class CommunityAdminAccessService
             return false;
         }
 
-        return in_array($subscription->status, [
-            CommunitySubscription::STATUS_TRIALING,
-            CommunitySubscription::STATUS_ACTIVE,
-        ], true);
+        return $subscription->hasCardOnFile();
     }
 
     public function isPlatformApproved(User $user): bool
@@ -134,6 +132,16 @@ class CommunityAdminAccessService
         $communityId = $this->managedCommunityId($user);
         $subscription = $communityId ? $this->billing->getSubscription($communityId) : null;
         $platformApproved = $this->isPlatformApproved($user);
+
+        if ($communityId && $platformApproved && $subscription?->isPendingTrial()) {
+            $community = $this->managedMembership($user)?->community
+                ?? Community::query()->find($communityId);
+            if ($community) {
+                $this->billing->startTrialIfEligible($community);
+                $subscription = $this->billing->getSubscription($communityId);
+            }
+        }
+
         $billingComplete = $this->isBillingComplete($communityId);
         $profileComplete = $this->isProfileComplete($user);
         $hasCommunity = $communityId !== null;
@@ -190,12 +198,7 @@ class CommunityAdminAccessService
             'community_id' => $communityId,
             'subscription_status' => $subscription?->status,
             'plan_slug' => $subscription?->plan_slug,
-            'card_on_file' => filled($subscription?->stripe_customer_id)
-                && in_array($subscription?->status, [
-                    CommunitySubscription::STATUS_TRIALING,
-                    CommunitySubscription::STATUS_ACTIVE,
-                    CommunitySubscription::STATUS_INCOMPLETE,
-                ], true),
+            'card_on_file' => $subscription?->hasCardOnFile() ?? false,
             'trial_ends_at' => $subscription?->status === CommunitySubscription::STATUS_TRIALING
                 ? $subscription->current_period_end?->toIso8601String()
                 : null,
@@ -219,25 +222,22 @@ class CommunityAdminAccessService
         }
 
         $subscription = $this->billing->getSubscription($communityId);
+        $community = Community::query()->find($communityId);
+        if ($community && $subscription?->isPendingTrial()) {
+            $this->billing->startTrialIfEligible($community);
+            $subscription = $this->billing->getSubscription($communityId);
+        }
         // Heal stale incomplete rows so system-admin UI doesn't stay on "Checkout incomplete"
         // after a successful Stripe Checkout that missed the return confirm.
-        if ($subscription?->status === CommunitySubscription::STATUS_INCOMPLETE) {
-            $community = \App\Models\Community::query()->find($communityId);
-            if ($community) {
-                $this->billing->reconcileIncompleteCheckout($community);
-                $subscription = $this->billing->getSubscription($communityId);
-            }
+        if ($community && $subscription?->status === CommunitySubscription::STATUS_INCOMPLETE) {
+            $this->billing->reconcileIncompleteCheckout($community);
+            $subscription = $this->billing->getSubscription($communityId);
         }
 
         return [
             'subscription_status' => $subscription?->status,
             'plan_slug' => $subscription?->plan_slug,
-            'card_on_file' => filled($subscription?->stripe_customer_id)
-                && in_array($subscription?->status, [
-                    CommunitySubscription::STATUS_TRIALING,
-                    CommunitySubscription::STATUS_ACTIVE,
-                    CommunitySubscription::STATUS_INCOMPLETE,
-                ], true),
+            'card_on_file' => $subscription?->hasCardOnFile() ?? false,
             'billing_complete' => $this->isBillingComplete($communityId),
             'trial_ends_at' => $subscription?->status === CommunitySubscription::STATUS_TRIALING
                 ? $subscription->current_period_end?->toIso8601String()
@@ -246,8 +246,16 @@ class CommunityAdminAccessService
     }
 
     /**
+     * Start the Stripe trial once both the community and community admin are approved.
+     */
+    public function activateTrialIfApproved(Community $community): void
+    {
+        $this->billing->startTrialIfEligible($community);
+    }
+
+    /**
      * Cancel Stripe + local subscription when a community/admin is rejected.
-     * Trial/active → cancel immediately so no future charge occurs.
+     * Trial/active/pending-trial → cancel immediately so no future charge occurs.
      */
     public function cancelBillingOnRejection(int $communityId, string $reason = 'platform_rejected'): void
     {

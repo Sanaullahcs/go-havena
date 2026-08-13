@@ -19,8 +19,8 @@ return [
     'enforce' => (bool) env('BILLING_ENFORCE_SEATS', true),
 
     /**
-     * stripe — real Checkout + webhooks
-     * manual — system-admin grant / local activate without Stripe
+     * stripe — save card at checkout; 30-day trial starts only after platform approval
+     * manual — reserved for system-admin grants; checkout never skips the card
      */
     'driver' => env('BILLING_DRIVER', 'stripe'),
 
@@ -38,6 +38,10 @@ return [
         'allow_promotion_codes' => (bool) env('STRIPE_CHECKOUT_ALLOW_PROMO', false),
         /** Optional payment_method_configuration ID (card-only config from Dashboard or setup command). */
         'payment_method_configuration' => env('STRIPE_CHECKOUT_PMC_ID'),
+        'background_color' => env('STRIPE_CHECKOUT_BG', '#f6f8fb'),
+        'button_color' => env('STRIPE_CHECKOUT_BUTTON', '#0d9488'),
+        'font_family' => env('STRIPE_CHECKOUT_FONT', 'inter'),
+        'border_style' => env('STRIPE_CHECKOUT_BORDER', 'rounded'),
     ],
 
     'stripe' => [
@@ -62,8 +66,9 @@ return [
     ),
 
     /*
-    | Plans are defined in config. Wire Stripe Price IDs from Test mode first.
-    | Amounts are display-only (cents) when Stripe prices are not yet configured.
+    | Default catalog used to seed `subscription_plans` on first migrate.
+    | Live plans, prices, trial days, and Stripe IDs are stored in the database
+    | and managed from System Admin → Billing & Plans.
     */
     'plans' => [
         'starter' => [

@@ -40,6 +40,6 @@ export function isCommunityAdminOnboardingPath(pathname: string): boolean {
 export function onboardingStepFromPath(pathname: string): number | null {
   if (pathname.startsWith("/admin/setup")) return 2;
   if (pathname.startsWith("/admin/complete-profile")) return 3;
-  if (pathname.startsWith("/admin/billing")) return 4;
+  if (pathname === "/admin/billing" || pathname.startsWith("/admin/billing/")) return 4;
   return null;
 }

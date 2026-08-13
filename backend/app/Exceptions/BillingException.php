@@ -64,6 +64,24 @@ class BillingException extends Exception
         );
     }
 
+    public static function cardRequired(): self
+    {
+        return new self(
+            'Add a card to continue. Your 30-day free trial starts after approval, and you are not charged until that trial ends.',
+            'CARD_REQUIRED',
+            422,
+        );
+    }
+
+    public static function stripePriceMissing(): self
+    {
+        return new self(
+            'This plan has no Stripe price yet. Ask a system admin to publish prices in Billing & Plans.',
+            'STRIPE_PRICE_MISSING',
+            503,
+        );
+    }
+
     public function render(): JsonResponse
     {
         return response()->json([

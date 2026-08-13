@@ -21,6 +21,7 @@ import { AdminSidebar } from "@/components/admin/sidebar";
 import { AdminTopBar } from "@/components/admin/top-bar";
 import { AdminPushBootstrap } from "@/components/push/admin-push-bootstrap";
 import { ForegroundNotificationProvider } from "@/components/push/foreground-notification-provider";
+import { consumeWebHandoffIfPresent } from "@/lib/auth/web-handoff";
 
 import {
   communityAdminOnboardingPath,
@@ -38,8 +39,11 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/regions": "Regions",
   "/admin/contact-messages": "Contact Messages",
   "/admin/wellness": "Wellness Programs",
+  "/admin/billing-plans": "Billing & Plans",
   "/admin/members": "Members",
   "/admin/billing": "Billing",
+  "/admin/billing/pay": "Checkout",
+  "/admin/billing/done": "Return to app",
   "/admin/setup": "Community setup",
   "/admin/complete-profile": "Complete profile",
   "/admin/pending-approval": "Pending approval",
@@ -105,6 +109,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     let cancelled = false;
 
     (async () => {
+      await consumeWebHandoffIfPresent();
+      if (cancelled) return;
+
       const token = getToken();
       if (!token) {
         // Always clear the loading shell — otherwise Stripe return on a different host
@@ -162,11 +169,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           isOnboardingPath(pathname) &&
           (pathname === expected ||
             pathname.startsWith(`${expected}/`) ||
-            (nextStep === "complete_billing_web" && pathname.startsWith("/admin/billing")) ||
-            (nextStep === "await_approval" && pathname.startsWith("/admin/pending-approval")) ||
+            (nextStep === "complete_billing_web" && (pathname === "/admin/billing" || pathname.startsWith("/admin/billing/"))) ||
+            (nextStep === "await_approval" &&
+              (pathname.startsWith("/admin/pending-approval") || pathname.startsWith("/admin/billing/"))) ||
             (nextStep === "complete_profile" && pathname.startsWith("/admin/complete-profile")) ||
             (nextStep === "link_community" && pathname.startsWith("/admin/setup")) ||
-            (pathname.startsWith("/admin/billing") &&
+            ((pathname === "/admin/billing" || pathname.startsWith("/admin/billing/")) &&
               (nextStep === "await_approval" || nextStep === "ready")) ||
             (pathname.startsWith("/admin/pending-approval") &&
               nextStep === "complete_billing_web"));
@@ -238,7 +246,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Onboarding shell: no sidebar until full access is unlocked.
   if (onboardingOnly) {
     const onboardingStep = onboardingStepFromPath(pathname);
-    const onboardingShellWide = pathname.startsWith("/admin/billing");
+    const onboardingShellWide = pathname === "/admin/billing" || pathname.startsWith("/admin/billing/");
 
     return (
       <ForegroundNotificationProvider>

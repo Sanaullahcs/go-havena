@@ -175,6 +175,16 @@ export async function fetchMe() {
   return result.data;
 }
 
+/** One-time code so the in-app browser can open Billing already signed in. */
+export async function createWebHandoff() {
+  const result = await apiRequest("/auth/web-handoff", {
+    method: "POST",
+    community: false,
+  });
+  const code = String(result?.code ?? result?.data?.code ?? "").trim();
+  return code || null;
+}
+
 /** Poll explicit membership approval status for the onboarding wait screen. */
 export async function fetchMembershipReviewStatus() {
   const result = await apiRequest("/me/membership-review", { community: false });

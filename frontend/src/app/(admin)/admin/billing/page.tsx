@@ -18,7 +18,6 @@ import {
   fetchBilling,
   formatMoney,
   openBillingPortal,
-  startBillingCheckout,
   type BillingInterval,
   type BillingPayload,
   type BillingPlan,
@@ -32,8 +31,13 @@ import {
   getUser,
   updateUser,
 } from "@/lib/auth/session";
+import { cameFromMobileApp, withAppReturnParams } from "@/lib/auth/app-return";
 
 const TRIAL_DAYS = 30;
+
+function planTrialDays(plan?: Pick<BillingPlan, "trial_period_days"> | null, fallback = TRIAL_DAYS) {
+  return typeof plan?.trial_period_days === "number" ? plan.trial_period_days : fallback;
+}
 
 function statusLabel(status: string | null | undefined) {
   switch (status) {
@@ -44,8 +48,8 @@ function statusLabel(status: string | null | undefined) {
     case "grace":
     case "past_due":
       return "Payment past due";
-    case "incomplete":
-      return "Checkout incomplete";
+    case "pending_trial":
+      return "Card saved — trial starts after approval";
     case "canceled":
       return "Canceled";
     case "unpaid":
@@ -55,18 +59,15 @@ function statusLabel(status: string | null | undefined) {
   }
 }
 
-function planHighlights(plan: BillingPlan) {
-  const shared = ["Admin dashboard & invites", "Notices, events & feed", "Residents join free"];
-  if (plan.slug === "campus") return [...shared, "Built for large campuses"];
-  if (plan.slug === "growth") return [...shared, "Best fit for most HOAs"];
-  return [...shared, "Ideal for smaller communities"];
+function planHighlights(_plan: BillingPlan) {
+  return ["Admin dashboard & invites", "Notices, events & feed", "Residents join free", "Cancel anytime during trial"];
 }
 
-function CompactTrialBanner({ communityName }: { communityName: string }) {
+function CompactTrialBanner({ communityName, trialDays }: { communityName: string; trialDays: number }) {
   const steps = [
-    { label: "Today", value: "$0 due" },
-    { label: `Days 1–${TRIAL_DAYS}`, value: "Full access" },
-    { label: `Day ${TRIAL_DAYS + 1}+`, value: "Billing starts" },
+    { label: "Today", value: "Save card" },
+    { label: "After approval", value: `${trialDays}-day trial` },
+    { label: `Day ${trialDays + 1}+`, value: "Billing starts" },
   ];
 
   return (
@@ -81,7 +82,7 @@ function CompactTrialBanner({ communityName }: { communityName: string }) {
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-teal-100 ring-1 ring-white/15">
               <Sparkles className="h-3 w-3" aria-hidden />
-              {TRIAL_DAYS}-day free trial
+              {trialDays}-day free trial
             </span>
             <span className="truncate text-[12px] font-medium text-white/70">{communityName}</span>
           </div>
@@ -91,7 +92,7 @@ function CompactTrialBanner({ communityName }: { communityName: string }) {
               Start at <span className="text-teal-200">$0 today</span>
             </h2>
             <p className="mt-1 max-w-xl text-[13px] leading-relaxed text-white/75">
-              Add a card to activate your trial. You won&apos;t be charged until day {TRIAL_DAYS + 1}.
+              Add a card today. Your {trialDays}-day trial starts after a system admin approves you — you won&apos;t be charged until that trial ends.
             </p>
           </div>
 
@@ -240,7 +241,7 @@ function OnboardingPlanOption({
           <span className="font-semibold text-slate-900">
             {formatMoney(price, plan.currency)}/{periodShort}
           </span>{" "}
-          after {TRIAL_DAYS} days
+          after {planTrialDays(plan)} days
         </p>
         {yearlySavings > 0 ? (
           <p className="mt-1 text-[11px] font-semibold text-emerald-700">
@@ -271,6 +272,7 @@ function OnboardingPlanPicker({
   interval,
   selected,
   busy,
+  checkoutDisabled,
   onSelect,
   onCheckout,
   onIntervalChange,
@@ -280,6 +282,7 @@ function OnboardingPlanPicker({
   interval: BillingInterval;
   selected: string | null;
   busy: boolean;
+  checkoutDisabled: boolean;
   onSelect: (slug: string) => void;
   onCheckout: (slug: string) => void;
   onIntervalChange: (value: BillingInterval) => void;
@@ -299,7 +302,7 @@ function OnboardingPlanPicker({
           <h2 className="text-[15px] font-bold text-slate-900">Select a plan</h2>
           <p className="mt-1 text-[13px] leading-relaxed text-slate-500">
             {estimatedHint ??
-              `Every plan includes a ${TRIAL_DAYS}-day trial. You're only charged after the trial ends.`}
+              `Every plan includes a ${planTrialDays(selectedPlan)}-day trial. Add a card now — the trial clock starts only after a system admin approves you.`}
           </p>
         </div>
         <BillingIntervalToggle interval={interval} onChange={onIntervalChange} />
@@ -325,11 +328,11 @@ function OnboardingPlanPicker({
         <>
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || checkoutDisabled}
             onClick={() => onCheckout(selectedPlan.slug)}
             className="hidden h-12 w-full items-center justify-center rounded-xl bg-teal-600 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-600/30 disabled:cursor-not-allowed disabled:opacity-60 md:inline-flex"
           >
-            {busy ? "Starting checkout…" : `Start free month with ${selectedPlan.name} →`}
+            {busy ? "Starting checkout…" : `Continue to card details →`}
           </button>
 
           <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur-sm md:hidden">
@@ -343,11 +346,11 @@ function OnboardingPlanPicker({
               </div>
               <button
                 type="button"
-                disabled={busy}
+                disabled={busy || checkoutDisabled}
                 onClick={() => onCheckout(selectedPlan.slug)}
                 className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-teal-600 px-4 text-[13px] font-semibold text-white shadow-sm transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {busy ? "Starting…" : "Start free month"}
+                {busy ? "Starting…" : "Add card"}
               </button>
             </div>
           </div>
@@ -356,8 +359,8 @@ function OnboardingPlanPicker({
       ) : null}
 
       <p className="text-center text-[11px] leading-relaxed text-slate-500 sm:text-[12px]">
-        By starting a trial you authorize Havena to charge your card after {TRIAL_DAYS} days unless
-        you cancel. Secure checkout powered by Stripe.
+        By continuing you agree to enter a card. Havena charges that card after {planTrialDays(selectedPlan)} days
+        unless you cancel. Secure checkout powered by Stripe.
       </p>
     </section>
   );
@@ -419,7 +422,7 @@ function PlanCard({
                 <span className="font-semibold text-slate-800">
                   {formatMoney(price, plan.currency)}/{periodShort}
                 </span>{" "}
-                after your {TRIAL_DAYS}-day free trial
+                after your {planTrialDays(plan)}-day free trial
               </p>
             </>
           ) : (
@@ -429,7 +432,7 @@ function PlanCard({
                 <span className="text-[14px] font-medium text-slate-500">/{periodShort}</span>
               </p>
               {plan.recommended ? (
-                <p className="mt-2 text-[12px] font-medium text-teal-700">Includes {TRIAL_DAYS}-day free trial</p>
+                <p className="mt-2 text-[12px] font-medium text-teal-700">Includes {planTrialDays(plan)}-day free trial</p>
               ) : null}
             </>
           )}
@@ -463,7 +466,7 @@ function PlanCard({
                   : "bg-[#0A2A43] text-white hover:bg-[#0d3a5a]",
             ].join(" ")}
           >
-            {busy ? "Starting checkout…" : canChange ? "Switch to this plan" : onboarding ? "Start free month →" : "Start free trial"}
+            {busy ? "Starting checkout…" : canChange ? "Switch to this plan" : onboarding ? "Continue to card details →" : "Add card"}
           </button>
         )}
       </div>
@@ -491,7 +494,11 @@ function SetupChecklist({
     {
       done: billingReady,
       label: "Billing & free trial",
-      hint: billingReady ? "Trial active" : `$0 today · billed after ${TRIAL_DAYS} days`,
+      hint: data.setup.subscription_active
+        ? "Trial active"
+        : data.setup.trial_pending_approval || data.setup.card_on_file
+          ? "Card saved · trial starts after approval"
+          : `$0 today · trial starts after approval`,
       active: !billingReady,
     },
     {
@@ -568,6 +575,10 @@ function BillingPageInner() {
   const confirmAttemptedRef = useRef<string | null>(null);
 
   const load = useCallback(async (silent = false) => {
+    if (!getToken()) {
+      setLoading(false);
+      return null;
+    }
     if (!silent) setLoading(true);
     setError(null);
     try {
@@ -602,12 +613,16 @@ function BillingPageInner() {
 
     const step = getCommunityAdminNextStep(user);
     if (step !== "complete_billing_web") {
+      if (cameFromMobileApp() && (step === "await_approval" || step === "rejected")) {
+        router.replace(withAppReturnParams("/admin/billing/done"));
+        return;
+      }
       router.replace(communityAdminOnboardingPath(step));
     }
   }, [router]);
 
   const clearCheckoutQuery = useCallback(() => {
-    router.replace("/admin/billing");
+    router.replace(withAppReturnParams("/admin/billing"));
   }, [router]);
 
   const redirectAfterBillingReady = useCallback(async () => {
@@ -615,6 +630,10 @@ function BillingPageInner() {
       const me = await fetchMe();
       updateUser(meToSessionUser(me));
       const step = getCommunityAdminNextStep(getUser());
+      if (cameFromMobileApp()) {
+        router.replace(withAppReturnParams("/admin/billing/done"));
+        return;
+      }
       if (step === "await_approval" || step === "rejected") {
         router.replace("/admin/pending-approval");
         return;
@@ -636,6 +655,10 @@ function BillingPageInner() {
       setBusy(true);
       try {
         const hasActive = data.setup.subscription_active;
+        if (!hasActive && !data.billing.stripe_configured) {
+          toastError("Card checkout is unavailable until Stripe is configured. A trial cannot start without a card.");
+          return;
+        }
         if (hasActive && data.subscription) {
           const next = await changeBillingPlan({
             plan_slug: planSlug,
@@ -646,31 +669,18 @@ function BillingPageInner() {
           return;
         }
 
-        const result = await startBillingCheckout({
-          plan_slug: planSlug,
-          interval: nextInterval,
-          estimated_residents: data.community.estimated_residents ?? undefined,
-          return_origin: typeof window !== "undefined" ? window.location.origin : undefined,
-        });
-
-        if (result.mode === "stripe" && result.checkout_url) {
-          window.location.href = result.checkout_url;
-          return;
-        }
-
-        toastSuccess(
-          result.message ||
-            "Trial started. Your card is on file — you won’t be charged until the trial ends.",
+        router.push(
+          withAppReturnParams(
+            `/admin/billing/pay?plan=${encodeURIComponent(planSlug)}&interval=${nextInterval}`,
+          ),
         );
-        await load(true);
-        await redirectAfterBillingReady();
       } catch (err) {
         toastError(apiError(err));
       } finally {
         setBusy(false);
       }
     },
-    [data, interval, load, redirectAfterBillingReady],
+    [data, interval, router],
   );
 
   // After Stripe return: confirm session even if webhook is delayed.
@@ -698,14 +708,20 @@ function BillingPageInner() {
         setData(payload);
 
         const status = payload.subscription?.status;
+        const cardSaved =
+          payload.setup.card_on_file ||
+          payload.setup.trial_pending_approval ||
+          status === "pending_trial";
         const ready =
           payload.setup.subscription_active ||
           status === "trialing" ||
           status === "active";
 
-        if (ready) {
+        if (ready || cardSaved) {
           toastSuccess(
-            "30-day free trial started. Your card is saved — you won’t be charged until the trial ends.",
+            ready
+              ? "30-day free trial started. You won’t be charged until the trial ends."
+              : "Card saved. Your 30-day free trial starts when a system administrator approves your account.",
           );
           await redirectAfterBillingReady();
           return;
@@ -722,10 +738,17 @@ function BillingPageInner() {
           setData(polled);
           const polledReady =
             polled.setup.subscription_active ||
+            polled.setup.card_on_file ||
+            polled.setup.trial_pending_approval ||
+            polled.subscription?.status === "pending_trial" ||
             polled.subscription?.status === "trialing" ||
             polled.subscription?.status === "active";
           if (polledReady) {
-            toastSuccess("30-day free trial started.");
+            toastSuccess(
+              polled.setup.subscription_active || polled.subscription?.status === "trialing"
+                ? "30-day free trial started."
+                : "Card saved. Your 30-day free trial starts after approval.",
+            );
             await redirectAfterBillingReady();
             return;
           }
@@ -771,7 +794,7 @@ function BillingPageInner() {
 
     if (data.setup.subscription_active && data.subscription?.plan_slug === plan) {
       toastSuccess("This plan is already active.");
-      router.replace("/admin/billing");
+      router.replace(withAppReturnParams("/admin/billing"));
       return;
     }
 
@@ -797,35 +820,38 @@ function BillingPageInner() {
     }
   };
 
-  if (loading && !data) return <PageLoader label="Loading billing…" />;
+  if (loading && !data) return <PageLoader text="Loading billing…" />;
   if (error && !data) return <PageError message={error} onRetry={() => void load()} />;
   if (!data) return null;
 
   const seats = data.seats;
   const sub = data.subscription;
   const billingReady = Boolean(data.setup.subscription_active);
-  const paidPendingApproval =
-    billingReady && data.community.review_status === "pending";
+  const cardSavedAwaitingApproval = Boolean(
+    data.setup.trial_pending_approval || (data.setup.card_on_file && !billingReady),
+  );
+  const paidPendingApproval = cardSavedAwaitingApproval || (billingReady && data.community.review_status === "pending");
+  const checkoutComplete = billingReady || cardSavedAwaitingApproval;
   const seatLimitLabel = seats.seat_limit > 0 ? String(seats.seat_limit) : "—";
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-full space-y-4 overflow-x-hidden pb-6 sm:max-w-6xl sm:space-y-5">
-      <header className={billingReady ? undefined : "mt-0.5 sm:mt-1"}>
-        {billingReady ? (
+      <header className={checkoutComplete ? undefined : "mt-0.5 sm:mt-1"}>
+        {checkoutComplete ? (
           <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-teal-700">Billing</p>
         ) : null}
         <h1
           className={[
             "font-[family-name:var(--font-brand)] text-xl font-bold tracking-tight text-slate-900 sm:text-2xl",
-            billingReady ? "mt-1 sm:text-3xl" : "",
+            checkoutComplete ? "mt-1 sm:text-3xl" : "",
           ].join(" ")}
         >
-          {billingReady ? "Community subscription" : "Choose your plan"}
+          {checkoutComplete ? "Community subscription" : "Choose your plan"}
         </h1>
         <p className="mt-1.5 max-w-2xl text-[13px] leading-relaxed text-slate-600 sm:mt-2 sm:text-sm">
-          {billingReady
+          {checkoutComplete
             ? "One Havena subscription covers your whole community. Residents never pay Havena — you invite them into your seat pool."
-            : "Compare seat packs, then start your free month. Add a card today — you pay nothing until the trial ends."}
+            : "Compare seat packs, then add a card. Your free trial starts after a system administrator approves you — $0 today."}
         </p>
       </header>
 
@@ -868,17 +894,23 @@ function BillingPageInner() {
 
       {paidPendingApproval ? (
         <div className="rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3.5 text-[13px] text-teal-950">
-          Your free trial is active — waiting for platform approval. Dashboard access unlocks once a
-          system administrator approves your profile and community.
+          {cardSavedAwaitingApproval
+            ? "Your card is saved. The 30-day free trial starts when a system administrator approves your profile and community — you will not be charged before then."
+            : "Your free trial is active — waiting for platform approval. Dashboard access unlocks once a system administrator approves your profile and community."}
           <Link href="/admin/pending-approval" className="ml-2 font-semibold underline">
             View status
           </Link>
         </div>
       ) : null}
 
-      {!billingReady ? <CompactTrialBanner communityName={data.community.name} /> : null}
+      {!checkoutComplete ? (
+        <CompactTrialBanner
+          communityName={data.community.name}
+          trialDays={data.trial_period_days ?? TRIAL_DAYS}
+        />
+      ) : null}
 
-      {billingReady ? (
+      {checkoutComplete ? (
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -909,10 +941,12 @@ function BillingPageInner() {
               </div>
               <div className="rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2.5">
                 <p className="text-[11px] uppercase tracking-wide text-slate-400">
-                  {sub.status === "trialing" ? "Trial ends" : "Renews"}
+                  {sub.status === "trialing" ? "Trial ends" : sub.status === "pending_trial" ? "Trial starts" : "Renews"}
                 </p>
                 <p className="text-[13px] font-semibold text-slate-800">
-                  {sub.current_period_end
+                  {sub.status === "pending_trial"
+                    ? "After approval"
+                    : sub.current_period_end
                     ? new Date(sub.current_period_end).toLocaleDateString()
                     : "—"}
                 </p>
@@ -953,27 +987,28 @@ function BillingPageInner() {
         </section>
       ) : null}
 
-      {!billingReady ? (
+      {!checkoutComplete ? (
         <>
           <OnboardingPlanPicker
             plans={data.plans}
             interval={interval}
             selected={selected}
             busy={busy}
+            checkoutDisabled={!data.billing.stripe_configured}
             onSelect={setSelected}
             onCheckout={(slug) => void onCheckout(slug)}
             onIntervalChange={setInterval}
             estimatedHint={estimatedHint}
           />
-          {data.billing.driver === "manual" ? (
-            <p className="text-[12px] text-slate-500">
-              Local billing driver is active — choosing a plan starts the trial immediately without Stripe.
-            </p>
-          ) : !data.billing.stripe_configured ? (
+          {!data.billing.stripe_configured ? (
             <p className="text-[12px] text-amber-700">
-              Stripe is not configured. Add test-mode keys in the API `.env` before taking payments.
+              Card checkout is not available until Stripe test keys are configured. A free trial cannot start without a card.
             </p>
-          ) : null}
+          ) : (
+            <p className="text-[12px] text-slate-500">
+              Next you’ll enter card details. $0 is due today — the trial clock starts after approval.
+            </p>
+          )}
         </>
       ) : (
         <section className="space-y-4">
@@ -1004,25 +1039,21 @@ function BillingPageInner() {
             ))}
           </div>
 
-          {data.billing.driver === "manual" ? (
-            <p className="text-[12px] text-slate-500">
-              Local billing driver is active — choosing a plan starts the trial immediately without Stripe.
-            </p>
-          ) : !data.billing.stripe_configured ? (
+          {data.billing.stripe_configured ? null : (
             <p className="text-[12px] text-amber-700">
-              Stripe is not configured. Add test-mode keys in the API `.env` before taking payments.
+              Stripe is not configured. Card details are required before a trial can start.
             </p>
-          ) : null}
+          )}
         </section>
       )}
 
       <section className="space-y-2.5 sm:space-y-3">
         <h2 className="text-[13px] font-semibold text-slate-900 sm:text-[14px]">What happens next</h2>
         <SetupChecklist
-          billingReady={billingReady}
+          billingReady={checkoutComplete}
           data={data}
           seats={seats}
-          compact={!billingReady}
+          compact={!checkoutComplete}
         />
       </section>
     </div>
@@ -1031,7 +1062,7 @@ function BillingPageInner() {
 
 export default function BillingPage() {
   return (
-    <Suspense fallback={<PageLoader label="Loading billing…" />}>
+    <Suspense fallback={<PageLoader text="Loading billing…" />}>
       <BillingPageInner />
     </Suspense>
   );

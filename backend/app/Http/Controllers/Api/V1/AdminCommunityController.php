@@ -264,6 +264,8 @@ class AdminCommunityController extends Controller
 
         $community->refresh()->load(['regionRecord', 'requester.profile']);
 
+        app(\App\Services\CommunityAdminAccessService::class)->activateTrialIfApproved($community);
+
         return response()->json([
             'data'    => $this->transform($community, detailed: true),
             'message' => 'Community approved and activated.',

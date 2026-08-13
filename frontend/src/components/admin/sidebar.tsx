@@ -204,6 +204,7 @@ const systemAdminNav: NavItem[] = [
   { href: "/admin/regions", label: "Regions", icon: NavIconRegions },
   { href: "/admin/contact-messages", label: "Contact Messages", icon: NavIconMail },
   { href: "/admin/wellness", label: "Wellness Programs", icon: NavIconWellness },
+  { href: "/admin/billing-plans", label: "Billing & Plans", icon: NavIconBilling },
 ];
 
 const communityAdminNav: NavItem[] = [
@@ -378,7 +379,7 @@ function SidebarInner({
             <NavSection title="User Management" items={systemAdminNav.slice(0, 2)} pathname={pathname} onNavigate={onNavigate} />
             <NavSection title="Platform" items={systemAdminNav.slice(2)} pathname={pathname} onNavigate={onNavigate} />
             <p className="px-2 pt-3 text-[11px] leading-relaxed text-slate-400">
-              Manage community admins and residents, review community requests, and configure regions.
+              Manage community admins and residents, review community requests, configure regions, and set subscription plans.
             </p>
           </>
         ) : (

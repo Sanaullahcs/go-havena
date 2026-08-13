@@ -13,21 +13,20 @@ class StripeBillingStatusCommand extends Command
 
     public function handle(CommunityBillingService $billing): int
     {
-        $plans = config('billing.plans', []);
+        $plans = $billing->plans();
         $rows = [];
 
         foreach ($plans as $slug => $plan) {
-            $monthly = config("billing.plans.{$slug}.stripe_price_monthly");
-            $yearly = config("billing.plans.{$slug}.stripe_price_yearly");
             $rows[] = [
                 $slug,
-                filled($monthly) ? 'yes' : 'no',
-                filled($yearly) ? 'yes' : 'no',
+                filled($plan['stripe_price_monthly'] ?? null) ? 'yes' : 'no',
+                filled($plan['stripe_price_yearly'] ?? null) ? 'yes' : 'no',
                 (string) ($plan['seat_limit'] ?? ''),
+                ($plan['is_active'] ?? true) ? 'active' : 'inactive',
             ];
         }
 
-        $this->table(['Plan', 'Monthly price', 'Yearly price', 'Seats'], $rows);
+        $this->table(['Plan', 'Monthly price', 'Yearly price', 'Seats', 'Status'], $rows);
 
         $this->line('Billing enabled: '.(config('billing.enabled') ? 'yes' : 'no'));
         $this->line('Enforce seats: '.(config('billing.enforce') ? 'yes' : 'no'));
@@ -47,21 +46,24 @@ class StripeBillingStatusCommand extends Command
             return self::FAILURE;
         }
 
-        $missingPrices = collect($plans)->filter(function ($plan, $slug) {
-            return ! filled(config("billing.plans.{$slug}.stripe_price_monthly"))
-                || ! filled(config("billing.plans.{$slug}.stripe_price_yearly"));
+        $missingPrices = collect($plans)->filter(function ($plan) {
+            return ($plan['is_active'] ?? true)
+                && (
+                    ! filled($plan['stripe_price_monthly'] ?? null)
+                    || ! filled($plan['stripe_price_yearly'] ?? null)
+                );
         });
 
         if ($missingPrices->isNotEmpty()) {
             $this->newLine();
-            $this->warn('Some plan price IDs are missing. Re-run billing:setup-stripe --write-env.');
+            $this->warn('Some active plans are missing Stripe price IDs. Re-run billing:setup-stripe or save the plan in Billing & Plans.');
 
             return self::FAILURE;
         }
 
         $this->info('Stripe billing looks ready for test checkout.');
         $this->newLine();
-        $this->line('Checkout policy: USD only · card only · 30-day trial (see billing.checkout in config/billing.php)');
+        $this->line('Checkout policy: USD only · card only · trial days come from each plan in Billing & Plans.');
         $this->line('If Checkout still shows Neighborlink / PKR / extra wallets, update Stripe Dashboard (see docs/BILLING-STRIPE-TEST.md §1).');
 
         return self::SUCCESS;

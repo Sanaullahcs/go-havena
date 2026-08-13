@@ -1,21 +1,17 @@
 import axios from "axios";
 import { getToken, clearSession } from "@/lib/auth/session";
 import { resolveAdminLoginPath } from "@/lib/auth/admin-routes";
-
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/v1\/?$/, "") ||
-  "http://127.0.0.1:8000/api";
+import { resolveApiRoot } from "./resolve-base-url";
 
 const api = axios.create({
-  baseURL: BASE_URL,
   headers: { "Content-Type": "application/json", Accept: "application/json" },
   withCredentials: false,
   timeout: 12_000,
 });
 
-/* Attach token on every request */
+/* Attach LAN-aware API host + token on every request */
 api.interceptors.request.use((config) => {
+  config.baseURL = resolveApiRoot();
   const token = getToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;

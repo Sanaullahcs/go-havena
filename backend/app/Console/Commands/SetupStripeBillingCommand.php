@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Models\SubscriptionPlan;
+use App\Models\SubscriptionPlanPrice;
 use Illuminate\Console\Command;
 use Stripe\StripeClient;
 
@@ -12,14 +14,7 @@ class SetupStripeBillingCommand extends Command
         {--secret= : Stripe secret key (sk_test_...)}
         {--write-env : Persist keys and price IDs to backend/.env}';
 
-    protected $description = 'Create Havena test-mode Stripe products/prices and verify billing configuration';
-
-    /** @var array<string, array{name: string, seats: int, month: int, year: int}> */
-    private array $plans = [
-        'starter' => ['name' => 'Havena Starter', 'seats' => 50, 'month' => 9900, 'year' => 99000],
-        'growth' => ['name' => 'Havena Growth', 'seats' => 150, 'month' => 24900, 'year' => 249000],
-        'campus' => ['name' => 'Havena Campus', 'seats' => 500, 'month' => 59900, 'year' => 599000],
-    ];
+    protected $description = 'Create Havena test-mode Stripe products/prices and store IDs on subscription plans';
 
     public function handle(): int
     {
@@ -53,52 +48,87 @@ class SetupStripeBillingCommand extends Command
             return self::FAILURE;
         }
 
-        $this->info('Connected to Stripe. Creating test products and prices…');
+        $this->info('Connected to Stripe. Syncing products and prices for database plans…');
+
+        $plans = SubscriptionPlan::query()->orderBy('sort_order')->get();
+        if ($plans->isEmpty()) {
+            $this->error('No subscription plans found. Run migrations first.');
+
+            return self::FAILURE;
+        }
 
         $priceVars = [];
+        $currency = strtolower((string) config('billing.currency', 'usd'));
 
-        foreach ($this->plans as $slug => $plan) {
-            $product = $stripe->products->create([
-                'name' => $plan['name'],
-                'description' => sprintf(
-                    '%d resident seats · %d-day free trial · USD billing only',
-                    $plan['seats'],
-                    (int) config('billing.trial_period_days', 30),
-                ),
-                'metadata' => [
-                    'plan_slug' => $slug,
-                    'seat_limit' => (string) $plan['seats'],
-                    'billing_currency' => 'usd',
-                ],
-            ]);
+        foreach ($plans as $plan) {
+            if (! filled($plan->stripe_product_id) && filled($plan->stripe_price_monthly)) {
+                try {
+                    $existingPrice = $stripe->prices->retrieve((string) $plan->stripe_price_monthly);
+                    $productId = is_object($existingPrice->product)
+                        ? (string) data_get($existingPrice->product, 'id')
+                        : (string) $existingPrice->product;
+                    if ($productId !== '') {
+                        $plan->stripe_product_id = $productId;
+                    }
+                } catch (\Throwable) {
+                    // Create a new product below if the stored price cannot be loaded.
+                }
+            }
 
-            $monthly = $stripe->prices->create([
-                'product' => $product->id,
-                'unit_amount' => $plan['month'],
-                'currency' => 'usd',
-                'recurring' => ['interval' => 'month'],
-                'metadata' => [
-                    'plan_slug' => $slug,
-                    'billing_interval' => 'month',
-                ],
-            ]);
+            if (! filled($plan->stripe_product_id)) {
+                $product = $stripe->products->create([
+                    'name' => 'Havena '.$plan->name,
+                    'description' => sprintf(
+                        '%d resident seats · %d-day free trial · USD billing only',
+                        $plan->seat_limit,
+                        $plan->trial_period_days,
+                    ),
+                    'metadata' => [
+                        'plan_slug' => $plan->slug,
+                        'seat_limit' => (string) $plan->seat_limit,
+                        'billing_currency' => $currency,
+                    ],
+                ]);
+                $plan->stripe_product_id = $product->id;
+            }
 
-            $yearly = $stripe->prices->create([
-                'product' => $product->id,
-                'unit_amount' => $plan['year'],
-                'currency' => 'usd',
-                'recurring' => ['interval' => 'year'],
-                'metadata' => [
-                    'plan_slug' => $slug,
-                    'billing_interval' => 'year',
-                ],
-            ]);
+            if (! filled($plan->stripe_price_monthly)) {
+                $monthly = $stripe->prices->create([
+                    'product' => $plan->stripe_product_id,
+                    'unit_amount' => (int) $plan->price_monthly_cents,
+                    'currency' => $currency,
+                    'recurring' => ['interval' => 'month'],
+                    'metadata' => [
+                        'plan_slug' => $plan->slug,
+                        'billing_interval' => 'month',
+                    ],
+                ]);
+                $plan->stripe_price_monthly = $monthly->id;
+                $this->recordPrice($plan, 'month', (int) $plan->price_monthly_cents, $monthly->id);
+            }
 
-            $upper = strtoupper($slug);
-            $priceVars["STRIPE_PRICE_{$upper}_MONTHLY"] = $monthly->id;
-            $priceVars["STRIPE_PRICE_{$upper}_YEARLY"] = $yearly->id;
+            if (! filled($plan->stripe_price_yearly)) {
+                $yearly = $stripe->prices->create([
+                    'product' => $plan->stripe_product_id,
+                    'unit_amount' => (int) $plan->price_yearly_cents,
+                    'currency' => $currency,
+                    'recurring' => ['interval' => 'year'],
+                    'metadata' => [
+                        'plan_slug' => $plan->slug,
+                        'billing_interval' => 'year',
+                    ],
+                ]);
+                $plan->stripe_price_yearly = $yearly->id;
+                $this->recordPrice($plan, 'year', (int) $plan->price_yearly_cents, $yearly->id);
+            }
 
-            $this->line("  {$slug}: {$monthly->id} (month), {$yearly->id} (year)");
+            $plan->save();
+
+            $upper = strtoupper(str_replace('-', '_', $plan->slug));
+            $priceVars["STRIPE_PRICE_{$upper}_MONTHLY"] = (string) $plan->stripe_price_monthly;
+            $priceVars["STRIPE_PRICE_{$upper}_YEARLY"] = (string) $plan->stripe_price_yearly;
+
+            $this->line("  {$plan->slug}: {$plan->stripe_price_monthly} (month), {$plan->stripe_price_yearly} (year)");
         }
 
         if ($this->option('write-env')) {
@@ -114,10 +144,10 @@ class SetupStripeBillingCommand extends Command
                 'STRIPE_SECRET' => $secret,
             ], $priceVars));
 
-            $this->info('Updated backend/.env with Stripe keys and price IDs.');
+            $this->info('Updated backend/.env with Stripe keys (price IDs are stored on subscription_plans).');
             $this->line('Restart the Laravel server if it is already running.');
         } else {
-            $this->warn('Price IDs were not written to .env (pass --write-env to persist).');
+            $this->info('Stripe product and price IDs were saved on subscription_plans in the database.');
         }
 
         $appUrl = rtrim((string) config('app.url', 'http://localhost:8000'), '/');
@@ -175,5 +205,21 @@ class SetupStripeBillingCommand extends Command
         }
 
         file_put_contents($path, implode(PHP_EOL, $filtered).PHP_EOL);
+    }
+
+    private function recordPrice(SubscriptionPlan $plan, string $interval, int $amountCents, string $stripePriceId): void
+    {
+        SubscriptionPlanPrice::query()
+            ->where('subscription_plan_id', $plan->id)
+            ->where('interval', $interval)
+            ->update(['is_current' => false]);
+
+        SubscriptionPlanPrice::query()->create([
+            'subscription_plan_id' => $plan->id,
+            'interval' => $interval,
+            'amount_cents' => $amountCents,
+            'stripe_price_id' => $stripePriceId,
+            'is_current' => true,
+        ]);
     }
 }

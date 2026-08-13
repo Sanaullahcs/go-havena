@@ -50,7 +50,7 @@ export default function PendingApprovalPage() {
           setRejected(true);
           setTitle("Application not approved");
           setMessage(
-            "Your community admin application or community request was not approved. Any trial subscription has been canceled and you will not be charged.",
+            "Your community admin application or community request was not approved. Any saved card or subscription has been canceled and you will not be charged.",
           );
           return;
         }
@@ -59,11 +59,11 @@ export default function PendingApprovalPage() {
         setTitle("Waiting for system approval");
         if (access?.billing_complete) {
           setMessage(
-            "Your card and subscription trial are set up. A system administrator still needs to approve your profile and community before you can use the dashboard.",
+            "Your card is saved. A system administrator still needs to approve your profile and community. Your 30-day free trial starts only after that approval — you will not be charged before then.",
           );
         } else {
           setMessage(
-            "Your account is under review. Complete billing if you haven’t already — full access unlocks after system approval.",
+            "Your account is under review. Add a card to continue — the free trial starts after system approval, not when you save the card.",
           );
         }
       } catch {
@@ -108,7 +108,7 @@ export default function PendingApprovalPage() {
                   setRejected(true);
                   setTitle("Application not approved");
                   setMessage(
-                    "Your community admin application or community request was not approved. Any trial subscription has been canceled and you will not be charged.",
+                    "Your community admin application or community request was not approved. Any saved card or subscription has been canceled and you will not be charged.",
                   );
                 } else {
                   setRejected(false);

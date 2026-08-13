@@ -8,6 +8,7 @@ export const SYSTEM_ADMIN_ROUTE_PREFIXES = [
   "/admin/regions",
   "/admin/contact-messages",
   "/admin/wellness",
+  "/admin/billing-plans",
   "/admin/moderation",
   "/admin/analytics",
   "/admin/users",

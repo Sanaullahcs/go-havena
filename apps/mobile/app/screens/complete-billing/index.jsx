@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -12,9 +12,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import * as Clipboard from "expo-clipboard";
+import * as ExpoLinking from "expo-linking";
 
 import { Fonts } from "../../../constants/font";
 import { Colors, SolidFills } from "../../../constants/tokens";
@@ -22,16 +22,15 @@ import { API_BASE_URL } from "../../../constants/api-config";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
 import { navigateAfterAuth } from "../../../constants/onboarding-routes";
 import { getUser } from "../../../services/auth-session";
-import { fetchMe } from "../../../services/auth-api";
+import { createWebHandoff, fetchMe } from "../../../services/auth-api";
 import { confirmSignOut } from "../../../services/sign-out";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
-import { canAccessDashboard } from "../../../services/community-access";
+import { canAccessDashboard, getPrimaryMembership } from "../../../services/community-access";
 
 WebBrowser.maybeCompleteAuthSession();
 
 export const options = { headerShown: false };
 
-/** Opens the community admin portal URL (activation handled outside the app). */
 function resolveAdminPortalUrl(fromAccess) {
   const candidate = String(fromAccess?.billing_url || "").trim();
   const unusable =
@@ -44,25 +43,33 @@ function resolveAdminPortalUrl(fromAccess) {
 
   try {
     const api = new URL(API_BASE_URL);
-    // Same host as the API, admin dashboard port 3000.
     return `${api.protocol}//${api.hostname}:3000/admin/billing`;
   } catch {
     return "http://192.168.0.134:3000/admin/billing";
   }
 }
 
-/**
- * Community admins finish portal activation outside the app.
- * User-facing copy avoids payment-provider or external checkout language (App Store).
- */
+function appendQuery(url, params) {
+  try {
+    const next = new URL(url);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) next.searchParams.set(key, String(value));
+    });
+    return next.toString();
+  } catch {
+    return url;
+  }
+}
+
 export default function CompleteBillingScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const dialog = useAppDialog();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [portalUrl, setPortalUrl] = useState(() => resolveAdminPortalUrl(null));
   const [opening, setOpening] = useState(false);
+  const [awaitingApproval, setAwaitingApproval] = useState(false);
+  const [communityName, setCommunityName] = useState("");
 
   const syncFromUser = useCallback(
     (user) => {
@@ -72,16 +79,20 @@ export default function CompleteBillingScreen() {
       }
 
       const nextStep = user?.access?.next_step;
-      if (nextStep === "await_approval" || nextStep === "rejected") {
+      if (nextStep === "rejected") {
         navigateAfterAuth(router, user, { role: "admin" });
         return;
       }
-      if (nextStep && nextStep !== "complete_billing_web" && nextStep !== "ready") {
+      if (nextStep && !["complete_billing_web", "await_approval", "ready"].includes(nextStep)) {
         navigateAfterAuth(router, user, { role: "admin" });
         return;
       }
 
-      setPortalUrl(resolveAdminPortalUrl(user?.access));
+      const membership = getPrimaryMembership(user);
+      setCommunityName(membership?.community?.name || membership?.community?.title || "");
+      setAwaitingApproval(
+        nextStep === "await_approval" || Boolean(user?.access?.card_on_file && nextStep !== "complete_billing_web"),
+      );
     },
     [router],
   );
@@ -97,7 +108,6 @@ export default function CompleteBillingScreen() {
       } catch {
         const cached = await getUser();
         if (cached) syncFromUser(cached);
-        else setPortalUrl(resolveAdminPortalUrl(null));
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -106,41 +116,45 @@ export default function CompleteBillingScreen() {
     [syncFromUser],
   );
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  useFocusEffect(
+    useCallback(() => {
+      void refresh(true);
+    }, [refresh]),
+  );
 
   const handleSignOut = () => confirmSignOut(dialog);
 
-  const copyPortalUrl = async () => {
-    try {
-      await Clipboard.setStringAsync(portalUrl);
-      await dialog.showSuccess(
-        t("common.copied", { defaultValue: "Copied" }),
-        t("billing.urlCopied", {
-          defaultValue: "Admin portal link copied.",
-        }),
-      );
-    } catch {
-      await dialog.showError(t("common.error", { defaultValue: "Error" }), portalUrl);
-    }
-  };
-
   const openAdminPortal = async () => {
-    const url = resolveAdminPortalUrl({ billing_url: portalUrl });
-    setPortalUrl(url);
+    const returnUrl = ExpoLinking.createURL("screens/complete-billing");
+    let url = appendQuery(resolveAdminPortalUrl(null), {
+      from: "app",
+      return_to: returnUrl,
+    });
+    try {
+      const cached = await getUser();
+      url = appendQuery(resolveAdminPortalUrl(cached?.access), {
+        from: "app",
+        return_to: returnUrl,
+      });
+    } catch {
+      // keep resolved URL
+    }
+
     setOpening(true);
     try {
-      // Prefer Custom Tabs / SFSafariViewController — more reliable than Linking on Android.
-      await WebBrowser.openBrowserAsync(url, {
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-        showTitle: true,
-        enableBarCollapsing: true,
-        createTask: true,
+      const code = await createWebHandoff();
+      if (code) url = appendQuery(url, { handoff: code });
+    } catch {
+      // Still open the portal — they'll sign in with the same phone number.
+    }
+
+    try {
+      await WebBrowser.openAuthSessionAsync(url, returnUrl, {
+        showInRecents: true,
+        createTask: false,
       });
     } catch {
       try {
-        // Do NOT gate on Linking.canOpenURL — Android 11+ often returns false for http://.
         await Linking.openURL(url);
       } catch {
         await dialog.showError(
@@ -152,6 +166,7 @@ export default function CompleteBillingScreen() {
       }
     } finally {
       setOpening(false);
+      await refresh(true);
     }
   };
 
@@ -167,6 +182,20 @@ export default function CompleteBillingScreen() {
       </SafeAreaView>
     );
   }
+
+  const timeline = awaitingApproval
+    ? [
+        { label: t("billing.timelineAccount", { defaultValue: "Account created" }), status: "done" },
+        { label: t("billing.timelineCard", { defaultValue: "Card saved" }), status: "done" },
+        { label: t("billing.timelineReview", { defaultValue: "Havena review" }), status: "current" },
+        { label: t("billing.timelineAccess", { defaultValue: "Dashboard access" }), status: "upcoming" },
+      ]
+    : [
+        { label: t("billing.timelineAccount", { defaultValue: "Account created" }), status: "done" },
+        { label: t("billing.timelineCard", { defaultValue: "Save a card" }), status: "current" },
+        { label: t("billing.timelineReview", { defaultValue: "Havena review" }), status: "upcoming" },
+        { label: t("billing.timelineAccess", { defaultValue: "Dashboard access" }), status: "upcoming" },
+      ];
 
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
@@ -184,101 +213,128 @@ export default function CompleteBillingScreen() {
       >
         <View style={[styles.hero, { backgroundColor: SolidFills.authWash }]}>
           <View style={styles.iconWrap}>
-            <Ionicons name="laptop-outline" size={26} color={Colors.brandPrimaryDeep} />
+            <Ionicons
+              name={awaitingApproval ? "shield-checkmark" : "card-outline"}
+              size={28}
+              color={Colors.brandPrimaryDeep}
+            />
           </View>
           <View style={styles.statusBadge}>
             <View style={styles.statusDot} />
             <Text style={styles.statusBadgeText}>
-              {t("billing.setupRequired", { defaultValue: "One step left" })}
+              {awaitingApproval
+                ? t("billing.cardSavedBadge", { defaultValue: "Card on file" })
+                : t("billing.setupRequired", { defaultValue: "Payment method" })}
             </Text>
           </View>
           <Text style={styles.title}>
-            {t("billing.completeSetupTitle", {
-              defaultValue: "Activate your community",
-            })}
+            {awaitingApproval
+              ? t("billing.waitingTitle", { defaultValue: "Waiting for approval" })
+              : t("billing.completeSetupTitle", { defaultValue: "Add a payment method" })}
           </Text>
           <Text style={styles.subtitle}>
-            {t("billing.completeSetupBody", {
-              defaultValue:
-                "Community administrators complete account activation in the Havena Admin Portal. When you're done, return here and refresh your status.",
-            })}
+            {awaitingApproval
+              ? t("billing.waitingBody", {
+                  defaultValue:
+                    "Your card is saved and you will not be charged yet. A Havena administrator will review your community. When you’re approved, your 30-day free trial begins.",
+                })
+              : t("billing.completeSetupBody", {
+                  defaultValue:
+                    "Save a card in the Havena admin portal. $0 is due today. Your free trial starts only after a system administrator approves you.",
+                })}
           </Text>
         </View>
 
         <View style={styles.body}>
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>
-              {t("billing.howItWorks", { defaultValue: "Next steps" })}
-            </Text>
-            <Text style={styles.stepLine}>
-              1.{" "}
-              {t("billing.stepOpenWeb", {
-                defaultValue: "Open the Havena Admin Portal on a desktop or tablet",
-              })}
-            </Text>
-            <Text style={styles.stepLine}>
-              2.{" "}
-              {t("billing.stepChoosePlan", {
-                defaultValue: "Sign in with the same phone number you used in this app",
-              })}
-            </Text>
-            <Text style={styles.stepLine}>
-              3.{" "}
-              {t("billing.stepReturn", {
-                defaultValue: "Finish community administrator activation in the portal",
-              })}
-            </Text>
-            <Text style={styles.stepLine}>
-              4.{" "}
-              {t("billing.stepRefresh", {
-                defaultValue: "Return here and tap Refresh status",
-              })}
-            </Text>
-          </View>
-
-          {__DEV__ ? (
-            <View style={styles.urlCard}>
-              <Text style={styles.urlLabel}>
-                {t("billing.setupLink", { defaultValue: "Developer portal link" })}
-              </Text>
-              <Text selectable style={styles.urlText} numberOfLines={3}>
-                {portalUrl}
-              </Text>
-              <TouchableOpacity style={styles.copyBtn} onPress={copyPortalUrl}>
-                <Ionicons name="copy-outline" size={14} color={Colors.brandPrimaryDeep} />
-                <Text style={styles.copyBtnText}>
-                  {t("billing.copyLink", { defaultValue: "Copy link" })}
+          {communityName ? (
+            <View style={styles.communityCard}>
+              <View style={styles.communityIcon}>
+                <Ionicons name="business-outline" size={18} color={Colors.brandPrimaryDeep} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.communityLabel}>
+                  {t("billing.yourCommunity", { defaultValue: "Your community" })}
                 </Text>
-              </TouchableOpacity>
+                <Text style={styles.communityName}>{communityName}</Text>
+              </View>
             </View>
           ) : null}
 
+          <View style={styles.timelineCard}>
+            <Text style={styles.sectionTitle}>
+              {t("billing.reviewProgress", { defaultValue: "Progress" })}
+            </Text>
+            {timeline.map((step, index) => {
+              const isLast = index === timeline.length - 1;
+              const iconName =
+                step.status === "done" ? "checkmark" : step.status === "current" ? "time-outline" : "ellipse-outline";
+              return (
+                <View key={step.label} style={styles.timelineRow}>
+                  <View style={styles.rail}>
+                    <View
+                      style={[
+                        styles.dot,
+                        step.status === "done" && styles.dotDone,
+                        step.status === "current" && styles.dotCurrent,
+                        step.status === "upcoming" && styles.dotUpcoming,
+                      ]}
+                    >
+                      <Ionicons
+                        name={iconName}
+                        size={step.status === "upcoming" ? 10 : 13}
+                        color={
+                          step.status === "upcoming" ? "#98A2B3" : step.status === "current" ? "#14B8A6" : "#FFFFFF"
+                        }
+                      />
+                    </View>
+                    {!isLast ? <View style={[styles.line, step.status === "done" && styles.lineDone]} /> : null}
+                  </View>
+                  <Text
+                    style={[
+                      styles.stepLabel,
+                      step.status === "current" && styles.stepLabelCurrent,
+                      step.status === "upcoming" && styles.stepLabelUpcoming,
+                    ]}
+                  >
+                    {step.label}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+
           <View style={styles.infoCard}>
-            <Ionicons name="notifications-outline" size={16} color={Colors.brandPrimaryDeep} />
+            <Ionicons name="information-circle-outline" size={18} color={Colors.brandPrimaryDeep} />
             <Text style={styles.infoText}>
-              {t("billing.refreshHint", {
-                defaultValue:
-                  "Your administrator access updates automatically once activation is complete. Pull down to refresh anytime.",
-              })}
+              {awaitingApproval
+                ? t("billing.waitingHint", {
+                    defaultValue: "Stay in the app. Tap Refresh status after you’re notified, or pull down anytime.",
+                  })
+                : t("billing.refreshHint", {
+                    defaultValue:
+                      "You’ll add card details in a secure browser, then return here. Nothing is charged until after approval and the trial.",
+                  })}
             </Text>
           </View>
         </View>
       </ScrollView>
 
       <SafeAreaView style={styles.footer} edges={["bottom"]}>
-        <AuthSubmitButton
-          label={
-            opening
-              ? t("billing.opening", { defaultValue: "Opening…" })
-              : t("billing.openWebSetup", { defaultValue: "Open Admin Portal" })
-          }
-          loadingLabel={t("billing.opening", { defaultValue: "Opening…" })}
-          enabled={!opening}
-          loading={opening}
-          style={styles.footerButton}
-          textStyle={styles.footerButtonText}
-          onPress={openAdminPortal}
-        />
+        {!awaitingApproval ? (
+          <AuthSubmitButton
+            label={
+              opening
+                ? t("billing.opening", { defaultValue: "Opening…" })
+                : t("billing.openWebSetup", { defaultValue: "Continue in browser" })
+            }
+            loadingLabel={t("billing.opening", { defaultValue: "Opening…" })}
+            enabled={!opening}
+            loading={opening}
+            style={styles.footerButton}
+            textStyle={styles.footerButtonText}
+            onPress={openAdminPortal}
+          />
+        ) : null}
         <AuthSubmitButton
           label={
             refreshing
@@ -288,15 +344,13 @@ export default function CompleteBillingScreen() {
           loadingLabel={t("guests.checking", { defaultValue: "Checking…" })}
           enabled={!refreshing}
           loading={refreshing}
-          solidColor={Colors.brandPrimary}
-          style={styles.footerButtonSecondary}
+          solidColor={awaitingApproval ? Colors.brandPrimaryDeep : Colors.brandPrimary}
+          style={styles.footerButton}
           textStyle={styles.footerButtonText}
           onPress={() => refresh(true)}
         />
         <TouchableOpacity style={styles.linkBtn} onPress={handleSignOut}>
-          <Text style={styles.linkBtnText}>
-            {t("guests.signOut", { defaultValue: "Sign out" })}
-          </Text>
+          <Text style={styles.linkBtnText}>{t("guests.signOut", { defaultValue: "Sign out" })}</Text>
         </TouchableOpacity>
       </SafeAreaView>
     </SafeAreaView>
@@ -327,165 +381,196 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   hero: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 20,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 28,
     alignItems: "center",
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
   iconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
+    width: 64,
+    height: 64,
+    borderRadius: 20,
     backgroundColor: "#D1FAF5",
     borderWidth: 1,
     borderColor: "rgba(20, 184, 166, 0.28)",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
+    marginBottom: 14,
   },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 999,
     backgroundColor: "#D1FAF5",
     borderWidth: 1,
     borderColor: "rgba(20, 184, 166, 0.28)",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   statusDot: {
-    width: 7,
-    height: 7,
+    width: 8,
+    height: 8,
     borderRadius: 4,
     backgroundColor: "#14B8A6",
   },
   statusBadgeText: {
     fontFamily: Fonts.semiBold,
-    fontSize: 11,
-    color: "#14B8A6",
+    fontSize: 12,
+    color: "#0F766E",
   },
   title: {
     fontFamily: Fonts.bold,
-    fontSize: 20,
-    lineHeight: 26,
+    fontSize: 24,
+    lineHeight: 30,
     color: "#101828",
     textAlign: "center",
-    marginBottom: 6,
+    marginBottom: 8,
   },
   subtitle: {
     fontFamily: Fonts.regular,
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 14,
+    lineHeight: 21,
     color: "#667085",
     textAlign: "center",
-    maxWidth: 320,
+    maxWidth: 340,
   },
   body: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    gap: 12,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    gap: 14,
   },
-  card: {
+  communityCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
     padding: 14,
-    borderRadius: 14,
-    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+  },
+  communityIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#D1FAF5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  communityLabel: {
+    fontFamily: Fonts.medium,
+    fontSize: 11,
+    color: "#98A2B3",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  communityName: {
+    fontFamily: Fonts.semiBold,
+    fontSize: 16,
+    color: "#101828",
+    marginTop: 2,
+  },
+  timelineCard: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FAFBFC",
   },
   sectionTitle: {
     fontFamily: Fonts.semiBold,
     fontSize: 14,
     color: "#101828",
-    marginBottom: 8,
+    marginBottom: 14,
   },
-  stepLine: {
-    fontFamily: Fonts.regular,
-    fontSize: 13,
-    lineHeight: 19,
-    color: "#475467",
-    marginBottom: 5,
-  },
-  urlCard: {
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  urlLabel: {
-    fontFamily: Fonts.semiBold,
-    fontSize: 12,
-    color: "#101828",
-    marginBottom: 4,
-  },
-  urlText: {
-    fontFamily: Fonts.regular,
-    fontSize: 12,
-    lineHeight: 17,
-    color: Colors.brandPrimaryDeep,
-  },
-  copyBtn: {
-    marginTop: 8,
-    alignSelf: "flex-start",
+  timelineRow: {
     flexDirection: "row",
+    gap: 12,
+    alignItems: "flex-start",
+  },
+  rail: {
+    width: 24,
     alignItems: "center",
-    gap: 5,
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    backgroundColor: SolidFills.authWash,
   },
-  copyBtnText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: 12,
-    color: Colors.brandPrimaryDeep,
-  },
-  infoCard: {
-    padding: 12,
+  dot: {
+    width: 24,
+    height: 24,
     borderRadius: 12,
-    backgroundColor: SolidFills.authWash,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dotDone: { backgroundColor: "#14B8A6" },
+  dotCurrent: {
+    backgroundColor: "#D1FAF5",
+    borderWidth: 2,
+    borderColor: "#14B8A6",
+  },
+  dotUpcoming: {
+    backgroundColor: "#F3F4F6",
     borderWidth: 1,
     borderColor: "#E5E7EB",
+  },
+  line: {
+    flex: 1,
+    width: 2,
+    minHeight: 18,
+    backgroundColor: "#E5E7EB",
+    marginVertical: 4,
+  },
+  lineDone: { backgroundColor: "rgba(20, 184, 166, 0.28)" },
+  stepLabel: {
+    flex: 1,
+    fontFamily: Fonts.medium,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#344054",
+    paddingBottom: 16,
+  },
+  stepLabelCurrent: { color: "#0F766E" },
+  stepLabelUpcoming: { color: "#98A2B3" },
+  infoCard: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 8,
+    gap: 10,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: SolidFills.authWash,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   infoText: {
     flex: 1,
     fontFamily: Fonts.regular,
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 13,
+    lineHeight: 19,
     color: "#475467",
   },
   footer: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingHorizontal: 24,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: "#F3F4F6",
     backgroundColor: "#FFFFFF",
     gap: 8,
   },
   footerButton: {
-    height: 44,
-  },
-  footerButtonSecondary: {
-    height: 44,
-    backgroundColor: Colors.brandPrimary,
+    height: 52,
+    borderRadius: 14,
   },
   footerButtonText: {
     fontSize: 15,
   },
   linkBtn: {
     alignItems: "center",
-    paddingVertical: 6,
+    paddingVertical: 10,
   },
   linkBtnText: {
     fontFamily: Fonts.semiBold,
-    fontSize: 13,
+    fontSize: 14,
     color: "#667085",
   },
 });

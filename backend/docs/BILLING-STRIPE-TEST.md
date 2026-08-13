@@ -13,10 +13,11 @@ Community admins purchase a **Starter / Growth / Campus** plan. Seats are consum
    - **Settings → Payment methods** → **Cards ON**; disable Link, Amazon Pay, Cash App Pay, Apple Pay
    - **Settings → Checkout** → optional support email + terms/privacy links
 
-Hosted Checkout is configured in code to:
-- Bill in **USD only** (`adaptive_pricing.enabled = false`)
-- Accept **card** payments only (Stripe Link hidden)
-- Show **$0 due today** trial copy on the submit button
+Hosted Checkout is no longer used for first-time trials. Admins pay on a **Havena checkout page** (`/admin/billing/pay`) with Stripe Payment Element:
+
+- Card number, expiry, and CVC only
+- No Apple Pay, cardholder name, or billing address
+- Havena teal styling, $0-today trial copy
 
 ## 2. Create products & price IDs
 

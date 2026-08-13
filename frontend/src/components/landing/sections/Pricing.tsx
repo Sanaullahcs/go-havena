@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "../ui/Button";
 import { Container } from "../ui/Container";
-import { formatPlanPrice, publicPlans } from "@/lib/landing/pricing";
+import { formatPlanPrice, type PublicPlan } from "@/lib/landing/pricing";
+import { fetchPublicBillingPlans } from "@/lib/api/subscription-plans";
 import {
   planCheckoutPath,
   planLoginPath,
@@ -17,6 +18,8 @@ export function Pricing() {
   const [interval, setInterval] = useState<BillingInterval>("month");
   /** null until client session is read — avoids SSR guessing. */
   const [signedInAdmin, setSignedInAdmin] = useState<boolean | null>(null);
+  const [plans, setPlans] = useState<PublicPlan[]>([]);
+  const [plansError, setPlansError] = useState<string | null>(null);
 
   useEffect(() => {
     const sync = () => {
@@ -33,15 +36,39 @@ export function Pricing() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetchPublicBillingPlans()
+      .then((res) => {
+        if (cancelled) return;
+        setPlans(
+          (res.data ?? []).map((plan) => ({
+            slug: plan.slug,
+            name: plan.name,
+            description: plan.description,
+            seatLimit: plan.seat_limit,
+            monthlyCents: plan.price_monthly_cents,
+            yearlyCents: plan.price_yearly_cents,
+            trialDays: plan.trial_period_days,
+            recommended: plan.recommended,
+          })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setPlansError("Plans are temporarily unavailable.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const goToPlan = (slug: string) => {
     const token = getToken();
     const user = getUser();
     if (token && canAccessCommunityDashboard(user)) {
-      // Already an approved community admin → Billing auto-starts Stripe checkout.
       router.push(planCheckoutPath(slug, interval));
       return;
     }
-    // Guest / not approved → OTP login, then same Billing URL with plan preserved.
     router.push(planLoginPath(slug, interval));
   };
 
@@ -89,63 +116,68 @@ export function Pricing() {
           </li>
         </ol>
 
-        <div className="lp-pricing__grid">
-          {publicPlans.map((plan) => {
-            const price = interval === "year" ? plan.yearlyCents : plan.monthlyCents;
-            const href = signedInAdmin
-              ? planCheckoutPath(plan.slug, interval)
-              : planLoginPath(plan.slug, interval);
-            const cta =
-              signedInAdmin === null
-                ? `Get ${plan.name}`
-                : signedInAdmin
-                  ? `Checkout ${plan.name}`
-                  : `Sign in for ${plan.name}`;
+        {plansError ? (
+          <p className="lp-body">{plansError}</p>
+        ) : (
+          <div className="lp-pricing__grid">
+            {plans.map((plan) => {
+              const price = interval === "year" ? plan.yearlyCents : plan.monthlyCents;
+              const href = signedInAdmin
+                ? planCheckoutPath(plan.slug, interval)
+                : planLoginPath(plan.slug, interval);
+              const cta =
+                signedInAdmin === null
+                  ? `Get ${plan.name}`
+                  : signedInAdmin
+                    ? `Checkout ${plan.name}`
+                    : `Sign in for ${plan.name}`;
 
-            return (
-              <article
-                key={plan.slug}
-                className={[
-                  "lp-pricing__card",
-                  plan.recommended ? "is-recommended" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-              >
-                {plan.recommended ? (
-                  <span className="lp-pricing__badge">Most popular</span>
-                ) : null}
-                <h3 className="lp-pricing__name">{plan.name}</h3>
-                <p className="lp-pricing__desc">{plan.description}</p>
-                <p className="lp-pricing__price">
-                  {formatPlanPrice(price)}
-                  <span>/{interval === "year" ? "year" : "month"}</span>
-                </p>
-                <p className="lp-pricing__seats">{plan.seatLimit} resident seats</p>
-                <ul className="lp-pricing__features">
-                  <li>Admin dashboard & member invites</li>
-                  <li>Notices, events, and alerts</li>
-                  <li>Amenities & community feed</li>
-                  <li>Residents join free via invite</li>
-                </ul>
-                <Button
-                  href={href}
-                  link={false}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    goToPlan(plan.slug);
-                  }}
-                  variant={plan.recommended ? "primary" : "secondary"}
-                  size="lg"
-                  fullWidth
-                  iconTrailing="arrow-right"
+              return (
+                <article
+                  key={plan.slug}
+                  className={["lp-pricing__card", plan.recommended ? "is-recommended" : ""]
+                    .filter(Boolean)
+                    .join(" ")}
                 >
-                  {cta}
-                </Button>
-              </article>
-            );
-          })}
-        </div>
+                  {plan.recommended ? (
+                    <span className="lp-pricing__badge">Most popular</span>
+                  ) : null}
+                  <h3 className="lp-pricing__name">{plan.name}</h3>
+                  <p className="lp-pricing__desc">{plan.description}</p>
+                  <p className="lp-pricing__price">
+                    {formatPlanPrice(price)}
+                    <span>/{interval === "year" ? "year" : "month"}</span>
+                  </p>
+                  <p className="lp-pricing__seats">{plan.seatLimit} resident seats</p>
+                  <ul className="lp-pricing__features">
+                    <li>
+                      {plan.trialDays > 0
+                        ? `${plan.trialDays}-day free trial`
+                        : "Billed from day one"}
+                    </li>
+                    <li>Admin dashboard & member invites</li>
+                    <li>Notices, events, and alerts</li>
+                    <li>Residents join free via invite</li>
+                  </ul>
+                  <Button
+                    href={href}
+                    link={false}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      goToPlan(plan.slug);
+                    }}
+                    variant={plan.recommended ? "primary" : "secondary"}
+                    size="lg"
+                    fullWidth
+                    iconTrailing="arrow-right"
+                  >
+                    {cta}
+                  </Button>
+                </article>
+              );
+            })}
+          </div>
+        )}
 
         <p className="lp-pricing__footnote">
           {signedInAdmin

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class CommunitySubscription extends Model
 {
     public const STATUS_INCOMPLETE = 'incomplete';
+    public const STATUS_PENDING_TRIAL = 'pending_trial';
     public const STATUS_ACTIVE = 'active';
     public const STATUS_PAST_DUE = 'past_due';
     public const STATUS_GRACE = 'grace';
@@ -62,7 +63,7 @@ class CommunitySubscription extends Model
     /** Subscription allows inviting/approving residents. */
     public function allowsSeatAllocation(): bool
     {
-        if (in_array($this->status, [self::STATUS_ACTIVE, self::STATUS_TRIALING], true)) {
+        if ($this->grantsPaidAccess()) {
             return true;
         }
 
@@ -77,5 +78,45 @@ class CommunitySubscription extends Model
     {
         return in_array($this->status, [self::STATUS_GRACE, self::STATUS_PAST_DUE], true)
             && ($this->grace_ends_at === null || $this->grace_ends_at->isFuture());
+    }
+
+    public function isManualGrant(): bool
+    {
+        return (data_get($this->meta, 'activated_via') === 'manual');
+    }
+
+    /** Card captured via Stripe, or a system-admin grant (no card collected). */
+    public function hasCardOnFile(): bool
+    {
+        if ($this->isManualGrant() && in_array($this->status, [self::STATUS_TRIALING, self::STATUS_ACTIVE], true)) {
+            return true;
+        }
+
+        if (! (bool) data_get($this->meta, 'card_on_file', false)) {
+            return false;
+        }
+
+        return in_array($this->status, [
+            self::STATUS_PENDING_TRIAL,
+            self::STATUS_TRIALING,
+            self::STATUS_ACTIVE,
+        ], true);
+    }
+
+    /** Card is saved but the 30-day trial has not started yet (waiting for platform approval). */
+    public function isPendingTrial(): bool
+    {
+        return $this->status === self::STATUS_PENDING_TRIAL && $this->hasCardOnFile();
+    }
+
+    /** Trial/active access that can unlock the dashboard after platform approval. */
+    public function grantsPaidAccess(): bool
+    {
+        if ($this->isManualGrant()) {
+            return in_array($this->status, [self::STATUS_TRIALING, self::STATUS_ACTIVE], true);
+        }
+
+        return in_array($this->status, [self::STATUS_TRIALING, self::STATUS_ACTIVE], true)
+            && (bool) data_get($this->meta, 'card_on_file', false);
     }
 }

@@ -93,14 +93,25 @@ class BillingController extends Controller
     public function confirmCheckout(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'session_id' => ['required', 'string', 'max:255'],
+            'session_id' => ['nullable', 'string', 'max:255'],
+            'stripe_subscription_id' => ['nullable', 'string', 'max:255'],
+            'stripe_setup_intent_id' => ['nullable', 'string', 'max:255'],
             'community_id' => ['nullable', 'integer'],
         ]);
 
         $communityId = AdminRoleService::requireManagedCommunityId($request->user(), $request);
         $community = Community::query()->findOrFail($communityId);
 
-        $this->billing->confirmCheckoutSession($community, $validated['session_id']);
+        if (filled($validated['stripe_subscription_id'] ?? null) || filled($validated['stripe_setup_intent_id'] ?? null)) {
+            $this->billing->confirmElementsCheckout(
+                $community,
+                (string) ($validated['stripe_setup_intent_id'] ?? $validated['stripe_subscription_id']),
+            );
+        } elseif (filled($validated['session_id'] ?? null)) {
+            $this->billing->confirmCheckoutSession($community, (string) $validated['session_id']);
+        } else {
+            throw new BillingException('Missing checkout confirmation id.', 'CHECKOUT_CONFIRM_MISSING', 422);
+        }
 
         return response()->json([
             'data' => $this->billing->billingPayload($community->fresh()),

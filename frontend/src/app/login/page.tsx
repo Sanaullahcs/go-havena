@@ -27,6 +27,7 @@ import { AuthRedirectOverlay } from "@/components/shared/loaders";
 import { emptyPhoneField, phoneFieldFromE164, type PhoneFieldState } from "@/lib/phone/format";
 import { landingImages } from "@/lib/landing/site";
 import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
+import { consumeWebHandoffIfPresent } from "@/lib/auth/web-handoff";
 import { Suspense } from "react";
 
 type OtpStep = "phone" | "code";
@@ -59,28 +60,43 @@ function LoginPageInner() {
   const communityStep = otpStep === "phone" ? 1 : 2;
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) return;
+    let cancelled = false;
 
-    const user = getUser();
-    if (canAccessCommunityDashboard(user)) {
-      router.replace(planHint ? billingReturnPath : "/admin");
-      return;
-    }
+    (async () => {
+      const handedOff = await consumeWebHandoffIfPresent();
+      if (cancelled) return;
 
-    if (isCommunityAdminUser(user)) {
-      const step = getCommunityAdminNextStep(user);
-      if (step === "ready" || canAccessCommunityDashboard(user)) {
+      const token = getToken();
+      if (!token) return;
+
+      const user = getUser();
+      if (canAccessCommunityDashboard(user)) {
         router.replace(planHint ? billingReturnPath : "/admin");
         return;
       }
-      router.replace(`${communityAdminOnboardingPath(step)}${planQuery}`);
-      return;
-    }
 
-    if (user?.role === "resident") {
-      router.replace("/home");
-    }
+      if (isCommunityAdminUser(user)) {
+        const step = getCommunityAdminNextStep(user);
+        if (step === "ready" || canAccessCommunityDashboard(user)) {
+          router.replace(planHint ? billingReturnPath : "/admin");
+          return;
+        }
+        router.replace(
+          handedOff && step === "complete_billing_web"
+            ? billingReturnPath
+            : `${communityAdminOnboardingPath(step)}${planQuery}`,
+        );
+        return;
+      }
+
+      if (user?.role === "resident") {
+        router.replace("/home");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router, planHint, billingReturnPath, planQuery]);
 
   const handleSendOtp = async (e: React.FormEvent) => {

@@ -104,6 +104,14 @@ class AdminCommunityAdminController extends Controller
             })
             ->update(['status' => 'approved']);
 
+        $user->refresh()->load(['memberships.community']);
+        $access = app(\App\Services\CommunityAdminAccessService::class);
+        foreach ($user->memberships as $membership) {
+            if ($membership->community) {
+                $access->activateTrialIfApproved($membership->community);
+            }
+        }
+
         NotificationService::send(
             $user->id,
             'success',
@@ -131,7 +139,8 @@ class AdminCommunityAdminController extends Controller
             'reason' => 'nullable|string|max:500',
         ]);
 
-        $user = $this->findPendingAdmin($id);
+        $user = $this->findRejectableAdmin($id);
+        $wasApproved = ($user->community_admin_status ?? '') === 'approved';
 
         $reason = $request->input('reason');
 
@@ -144,13 +153,19 @@ class AdminCommunityAdminController extends Controller
         $access = app(\App\Services\CommunityAdminAccessService::class);
         foreach ($user->memberships as $membership) {
             if ($membership->community_id) {
-                $access->cancelBillingOnRejection((int) $membership->community_id, 'community_admin_rejected');
+                $access->cancelBillingOnRejection((int) $membership->community_id, $wasApproved
+                    ? 'community_admin_revoked'
+                    : 'community_admin_rejected');
             }
         }
 
-        $body   = $reason
-            ? "Your community admin application was not approved. Reason: {$reason}"
-            : 'Your community admin application was not approved. Please contact support.';
+        $body = $wasApproved
+            ? ($reason
+                ? "Your community admin access was revoked. Your subscription has been canceled and you will not be charged again. Reason: {$reason}"
+                : 'Your community admin access was revoked. Your subscription has been canceled and you will not be charged again.')
+            : ($reason
+                ? "Your community admin application was not approved. Reason: {$reason}"
+                : 'Your community admin application was not approved. Please contact support.');
 
         NotificationService::send($user->id, 'warning', 'Community admin not approved', $body);
 
@@ -163,7 +178,7 @@ class AdminCommunityAdminController extends Controller
 
         return response()->json([
             'data'    => $this->transform($user->fresh(['profile', 'memberships.community'])),
-            'message' => 'Community admin rejected',
+            'message' => $wasApproved ? 'Community admin revoked. Billing canceled.' : 'Community admin rejected',
         ]);
     }
 
@@ -363,7 +378,7 @@ class AdminCommunityAdminController extends Controller
         return $user;
     }
 
-    private function findPendingAdmin(int $id): User
+    private function findRejectableAdmin(int $id): User
     {
         $user = User::query()
             ->where('id', $id)
@@ -374,8 +389,8 @@ class AdminCommunityAdminController extends Controller
             abort(404, 'Community admin applicant not found');
         }
 
-        if (($user->community_admin_status ?? '') !== 'pending') {
-            abort(422, 'This community admin application is not pending review');
+        if (! in_array($user->community_admin_status ?? '', ['pending', 'approved'], true)) {
+            abort(422, 'This community admin cannot be rejected');
         }
 
         return $user;

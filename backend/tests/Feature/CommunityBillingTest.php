@@ -69,13 +69,19 @@ class CommunityBillingTest extends TestCase
                 'name' => 'No Seat Resident',
                 'email' => 'noseat@example.com',
             ])
-            ->assertStatus(402)
-            ->assertJsonPath('code', 'SUBSCRIPTION_REQUIRED');
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'COMMUNITY_ADMIN_ACCESS_REQUIRED');
     }
 
-    public function test_manual_checkout_activates_subscription_and_allows_invite(): void
+    public function test_self_serve_checkout_without_card_does_not_start_trial(): void
     {
-        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+        config([
+            'billing.enabled' => true,
+            'billing.enforce' => true,
+            'billing.driver' => 'manual',
+            'billing.stripe.secret' => null,
+            'billing.stripe.publishable' => null,
+        ]);
 
         $community = $this->seedCommunity();
         $admin = $this->seedAdmin($community);
@@ -86,15 +92,98 @@ class CommunityBillingTest extends TestCase
                 'plan_slug' => 'growth',
                 'interval' => 'month',
             ])
-            ->assertOk()
-            ->assertJsonPath('data.mode', 'manual');
+            ->assertStatus(503)
+            ->assertJsonPath('code', 'STRIPE_NOT_CONFIGURED');
 
-        $this->assertDatabaseHas('community_subscriptions', [
+        $this->assertDatabaseMissing('community_subscriptions', [
+            'community_id' => $community->id,
+        ]);
+
+        $this->withToken($token)
+            ->getJson('/api/v1/me')
+            ->assertOk()
+            ->assertJsonPath('data.access.billing_complete', false)
+            ->assertJsonPath('data.access.can_use_dashboard', false)
+            ->assertJsonPath('data.access.card_on_file', false)
+            ->assertJsonPath('data.access.next_step', 'complete_billing_web');
+
+        $this->withToken($token)
+            ->postJson('/api/v1/admin/members/invite', [
+                'name' => 'Jane Resident',
+                'email' => 'jane.billing@example.com',
+                'unit_number' => 'A1',
+            ])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'COMMUNITY_ADMIN_ACCESS_REQUIRED');
+    }
+
+    public function test_trialing_without_card_does_not_unlock_dashboard_or_invites(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true]);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedAdmin($community);
+
+        CommunitySubscription::query()->create([
             'community_id' => $community->id,
             'plan_slug' => 'growth',
-            'status' => CommunitySubscription::STATUS_ACTIVE,
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_TRIALING,
             'seat_limit' => 150,
+            'stripe_customer_id' => 'cus_no_card',
+            'stripe_subscription_id' => 'sub_no_card',
+            'current_period_start' => now(),
+            'current_period_end' => now()->addDays(30),
+            'meta' => ['card_on_file' => false],
         ]);
+
+        $token = $admin->createToken('test')->plainTextToken;
+
+        $this->withToken($token)
+            ->getJson('/api/v1/me')
+            ->assertOk()
+            ->assertJsonPath('data.access.billing_complete', false)
+            ->assertJsonPath('data.access.can_use_dashboard', false)
+            ->assertJsonPath('data.access.card_on_file', false)
+            ->assertJsonPath('data.access.next_step', 'complete_billing_web');
+
+        $this->withToken($token)
+            ->postJson('/api/v1/admin/members/invite', [
+                'name' => 'No Card Resident',
+                'email' => 'nocard@example.com',
+            ])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'COMMUNITY_ADMIN_ACCESS_REQUIRED');
+    }
+
+    public function test_card_on_file_trial_completes_billing_and_allows_invite(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true]);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedAdmin($community);
+
+        CommunitySubscription::query()->create([
+            'community_id' => $community->id,
+            'plan_slug' => 'growth',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_TRIALING,
+            'seat_limit' => 150,
+            'stripe_customer_id' => 'cus_card',
+            'stripe_subscription_id' => 'sub_card',
+            'current_period_start' => now(),
+            'current_period_end' => now()->addDays(30),
+            'meta' => ['card_on_file' => true],
+        ]);
+
+        $token = $admin->createToken('test')->plainTextToken;
+
+        $this->withToken($token)
+            ->getJson('/api/v1/me')
+            ->assertOk()
+            ->assertJsonPath('data.access.billing_complete', true)
+            ->assertJsonPath('data.access.card_on_file', true)
+            ->assertJsonPath('data.access.can_use_dashboard', true);
 
         $this->withToken($token)
             ->postJson('/api/v1/admin/members/invite', [
@@ -103,10 +192,6 @@ class CommunityBillingTest extends TestCase
                 'unit_number' => 'A1',
             ])
             ->assertCreated();
-
-        $summary = app(CommunityBillingService::class)->seatSummary($community->id);
-        $this->assertSame(1, $summary['seats_used']);
-        $this->assertSame(150, $summary['seat_limit']);
     }
 
     public function test_seats_full_blocks_invite(): void
@@ -125,6 +210,7 @@ class CommunityBillingTest extends TestCase
             'extra_seats' => 0,
             'current_period_start' => now(),
             'current_period_end' => now()->addMonth(),
+            'meta' => ['activated_via' => 'manual'],
         ]);
 
         $existing = User::factory()->create(['role' => 'resident', 'email' => 'taken@example.com']);
@@ -204,13 +290,199 @@ class CommunityBillingTest extends TestCase
 
         $this->withToken($token)
             ->patchJson("/api/v1/admin/members/{$pending->id}/approve")
-            ->assertStatus(402)
-            ->assertJsonPath('code', 'SUBSCRIPTION_REQUIRED');
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'COMMUNITY_ADMIN_ACCESS_REQUIRED');
 
         app(CommunityBillingService::class)->activateManualSubscription($community, 'starter');
 
         $this->withToken($token)
             ->patchJson("/api/v1/admin/members/{$pending->id}/approve")
             ->assertOk();
+    }
+
+    public function test_card_saved_before_approval_does_not_start_trial_or_unlock_dashboard(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true]);
+
+        $community = $this->seedCommunity();
+        $admin = User::factory()->create([
+            'role' => 'community_admin',
+            'community_admin_status' => 'pending',
+            'phone' => '+1'.fake()->unique()->numerify('##########'),
+            'phone_verified_at' => now(),
+            'email' => fake()->unique()->safeEmail(),
+        ]);
+        CommunityMembership::query()->create([
+            'user_id' => $admin->id,
+            'community_id' => $community->id,
+            'role' => 'admin',
+            'status' => 'pending',
+        ]);
+
+        CommunitySubscription::query()->create([
+            'community_id' => $community->id,
+            'plan_slug' => 'growth',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_PENDING_TRIAL,
+            'seat_limit' => 150,
+            'stripe_customer_id' => 'cus_pending_trial',
+            'stripe_subscription_id' => null,
+            'meta' => ['card_on_file' => true, 'trial_starts_on_approval' => true],
+        ]);
+
+        $token = $admin->createToken('test')->plainTextToken;
+
+        $this->withToken($token)
+            ->getJson('/api/v1/me')
+            ->assertOk()
+            ->assertJsonPath('data.access.billing_complete', true)
+            ->assertJsonPath('data.access.card_on_file', true)
+            ->assertJsonPath('data.access.can_use_dashboard', false)
+            ->assertJsonPath('data.access.subscription_status', 'pending_trial')
+            ->assertJsonPath('data.access.next_step', 'await_approval');
+
+        $this->assertDatabaseHas('community_subscriptions', [
+            'community_id' => $community->id,
+            'status' => CommunitySubscription::STATUS_PENDING_TRIAL,
+            'stripe_subscription_id' => null,
+        ]);
+    }
+
+    public function test_approval_starts_local_trial_after_card_is_saved(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.stripe.secret' => null]);
+
+        $community = $this->seedCommunity();
+        $admin = User::factory()->create([
+            'role' => 'community_admin',
+            'community_admin_status' => 'pending',
+            'phone' => '+1'.fake()->unique()->numerify('##########'),
+            'phone_verified_at' => now(),
+            'email' => fake()->unique()->safeEmail(),
+        ]);
+        CommunityMembership::query()->create([
+            'user_id' => $admin->id,
+            'community_id' => $community->id,
+            'role' => 'admin',
+            'status' => 'pending',
+        ]);
+        CommunitySubscription::query()->create([
+            'community_id' => $community->id,
+            'plan_slug' => 'growth',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_PENDING_TRIAL,
+            'seat_limit' => 150,
+            'stripe_customer_id' => 'cus_start_trial',
+            'meta' => ['card_on_file' => true, 'trial_starts_on_approval' => true],
+        ]);
+
+        $system = User::factory()->create([
+            'role' => 'system_admin',
+            'email' => fake()->unique()->safeEmail(),
+            'phone' => '+1'.fake()->unique()->numerify('##########'),
+        ]);
+        $systemToken = $system->createToken('test')->plainTextToken;
+
+        $this->withToken($systemToken)
+            ->patchJson("/api/v1/admin/community-admins/{$admin->id}/approve")
+            ->assertOk();
+
+        $this->assertDatabaseHas('community_subscriptions', [
+            'community_id' => $community->id,
+            'status' => CommunitySubscription::STATUS_TRIALING,
+        ]);
+
+        $this->actingAs($admin->fresh(), 'sanctum')
+            ->getJson('/api/v1/me')
+            ->assertOk()
+            ->assertJsonPath('data.access.can_use_dashboard', true)
+            ->assertJsonPath('data.access.subscription_status', 'trialing');
+    }
+
+    public function test_rejecting_approved_admin_months_later_cancels_billing_immediately(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true]);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedAdmin($community);
+
+        CommunitySubscription::query()->create([
+            'community_id' => $community->id,
+            'plan_slug' => 'growth',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_ACTIVE,
+            'seat_limit' => 150,
+            'stripe_customer_id' => 'cus_paid',
+            'stripe_subscription_id' => 'sub_paid_later',
+            'current_period_start' => now()->subMonths(3),
+            'current_period_end' => now()->addMonth(),
+            'meta' => ['card_on_file' => true],
+        ]);
+
+        $system = User::factory()->create([
+            'role' => 'system_admin',
+            'email' => fake()->unique()->safeEmail(),
+            'phone' => '+1'.fake()->unique()->numerify('##########'),
+        ]);
+
+        $this->actingAs($system, 'sanctum')
+            ->patchJson("/api/v1/admin/community-admins/{$admin->id}/reject", [
+                'reason' => 'Community shut down',
+            ])
+            ->assertOk();
+
+        $this->assertSame('rejected', $admin->fresh()->community_admin_status);
+        $this->assertDatabaseHas('community_subscriptions', [
+            'community_id' => $community->id,
+            'status' => CommunitySubscription::STATUS_CANCELED,
+        ]);
+
+        $subscription = CommunitySubscription::query()->where('community_id', $community->id)->first();
+        $this->assertNotNull($subscription?->canceled_at);
+        $this->assertSame('community_admin_revoked', data_get($subscription->meta, 'canceled_reason'));
+    }
+
+    public function test_rejecting_pending_admin_cancels_saved_card_before_trial(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true]);
+
+        $community = $this->seedCommunity();
+        $admin = User::factory()->create([
+            'role' => 'community_admin',
+            'community_admin_status' => 'pending',
+            'phone' => '+1'.fake()->unique()->numerify('##########'),
+            'phone_verified_at' => now(),
+            'email' => fake()->unique()->safeEmail(),
+        ]);
+        CommunityMembership::query()->create([
+            'user_id' => $admin->id,
+            'community_id' => $community->id,
+            'role' => 'admin',
+            'status' => 'pending',
+        ]);
+        CommunitySubscription::query()->create([
+            'community_id' => $community->id,
+            'plan_slug' => 'growth',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_PENDING_TRIAL,
+            'seat_limit' => 150,
+            'stripe_customer_id' => 'cus_reject_pending',
+            'meta' => ['card_on_file' => true],
+        ]);
+
+        $system = User::factory()->create([
+            'role' => 'system_admin',
+            'email' => fake()->unique()->safeEmail(),
+            'phone' => '+1'.fake()->unique()->numerify('##########'),
+        ]);
+
+        $this->actingAs($system, 'sanctum')
+            ->patchJson("/api/v1/admin/community-admins/{$admin->id}/reject")
+            ->assertOk();
+
+        $this->assertDatabaseHas('community_subscriptions', [
+            'community_id' => $community->id,
+            'status' => CommunitySubscription::STATUS_CANCELED,
+        ]);
     }
 }

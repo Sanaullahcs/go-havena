@@ -164,7 +164,7 @@ function RegisterPageInner() {
                 <li>1. Verify your phone with a one-time code</li>
                 <li>2. Create your community</li>
                 <li>3. Complete your profile</li>
-                <li>4. Start a 30-day free trial (card required)</li>
+                <li>4. Add a card (trial starts after approval)</li>
                 <li>5. Wait for Havena system approval</li>
               </ol>
             </div>

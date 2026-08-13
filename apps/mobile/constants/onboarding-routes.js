@@ -164,7 +164,7 @@ export function getPostAuthRoute(user, { role, mode } = {}) {
       return { pathname: Routes.COMPLETE_BILLING, params: { role: "admin" } };
     }
     if (nextStep === "await_approval") {
-      return { pathname: Routes.PENDING_COMMUNITY_ADMIN, params: { role: "admin" } };
+      return { pathname: Routes.COMPLETE_BILLING, params: { role: "admin" } };
     }
     if (nextStep === "rejected") {
       return { pathname: Routes.PENDING_COMMUNITY_ADMIN, params: { role: "admin", rejected: "1" } };
