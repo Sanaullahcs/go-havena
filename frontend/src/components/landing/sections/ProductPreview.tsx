@@ -16,14 +16,31 @@ export function ProductPreview() {
           <span className="section-label justify-center">Product preview</span>
           <h2 className="section-title mt-4">
             One platform.{" "}
-            <span className="gradient-text">Two experiences.</span>
+            <span className="gradient-text">Four resident experiences.</span>
           </h2>
           <p className="mx-auto mt-3 text-[15px] leading-relaxed text-ink-body">
-            Same data across the resident mobile app and admin web dashboard.
+            Feed, home, deals, and wellness — synced live with your admin dashboard.
           </p>
         </div>
 
-        <div className="product-preview-stage mx-auto mt-12 max-w-full lg:mt-14">
+        <div className="lp-product-preview__showcase mx-auto mt-10 max-w-full lg:mt-12">
+          <div className="lp-product-preview__phones">
+            <div className="lp-product-preview__phone lp-product-preview__phone--left">
+              <MobileAppMockup variant="feed" size="sm" tilt="left" glow={false} />
+              <span className="lp-product-preview__label">Community feed</span>
+            </div>
+            <div className="lp-product-preview__phone lp-product-preview__phone--center">
+              <MobileAppMockup variant="home" size="default" tilt="none" glow />
+              <span className="lp-product-preview__label">Resident home</span>
+            </div>
+            <div className="lp-product-preview__phone lp-product-preview__phone--right">
+              <MobileAppMockup variant="marketplace" size="sm" tilt="right" glow={false} />
+              <span className="lp-product-preview__label">Local deals</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="product-preview-stage mx-auto mt-10 max-w-full lg:mt-12">
           <div className="product-preview-labels hidden lg:grid">
             <span className={`${labelClass} justify-self-center text-brand-deep`}>
               <Icon name="phone" className="h-3.5 w-3.5" />
@@ -42,7 +59,7 @@ export function ProductPreview() {
                 <Icon name="phone" className="h-3.5 w-3.5" />
                 Residents
               </span>
-              <MobileAppMockup />
+              <MobileAppMockup variant="wellness" size="default" glow />
             </div>
 
             <div aria-hidden="true" className="product-preview-connector hidden lg:flex">

@@ -1,5 +1,5 @@
 import { Button } from "../ui/Button";
-import { MobileAppMockup } from "../ui/MobileAppMockup";
+import { PhoneMockupFan } from "../ui/PhoneMockupFan";
 import { Icon } from "../icons/Icon";
 import { actionLinks, landingImages } from "@/lib/landing/site";
 
@@ -51,8 +51,8 @@ export function Hero() {
           </div>
 
           <div className="lp-hero--bleed__visual animate-fade-up delay-200">
-            <div className="lp-hero--bleed__phone-wrap">
-              <MobileAppMockup size="hero" className="lp-hero--bleed__phone" />
+            <div className="lp-hero--bleed__phone-wrap lp-hero--bleed__phone-wrap--fan">
+              <PhoneMockupFan />
               <div className="lp-hero--bleed__float lp-hero--bleed__float--notices">
                 <Icon name="megaphone" className="h-4 w-4" />
                 <span>New community notice</span>
