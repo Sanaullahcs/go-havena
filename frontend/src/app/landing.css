@@ -6456,12 +6456,13 @@
   }
 }
 
-/* Right — phone mockup */
+/* Right — three-phone mockup fan */
 .landing-page.lp .lp-hero--split__visual {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2rem 1.5rem 2.5rem;
+  padding: 2rem 1rem 2.5rem;
+  overflow: hidden;
   background:
     radial-gradient(520px 440px at 50% 45%, rgba(13, 148, 136, 0.1), transparent 70%),
     linear-gradient(180deg, #f8fbfd 0%, var(--lp-canvas) 100%);
@@ -6469,13 +6470,35 @@
 
 @media (min-width: 1024px) {
   .landing-page.lp .lp-hero--split__visual {
-    padding: 3rem clamp(1.5rem, 3vw, 2.5rem);
+    padding: 2.5rem clamp(1rem, 2.5vw, 2rem);
   }
 }
 
-.landing-page.lp .lp-hero--split__phone {
-  width: min(100%, 300px);
-  margin-inline: auto;
+.landing-page.lp .lp-hero--split__fan {
+  width: min(100%, 440px);
+  min-height: 300px;
+}
+
+@media (min-width: 1024px) {
+  .landing-page.lp .lp-hero--split__fan {
+    width: min(100%, 400px);
+    min-height: 340px;
+  }
+
+  .landing-page.lp .lp-hero--split__fan .lp-mockup-fan__phone--left {
+    margin-right: -2.25rem;
+  }
+
+  .landing-page.lp .lp-hero--split__fan .lp-mockup-fan__phone--right {
+    margin-left: -2.25rem;
+  }
+}
+
+@media (max-width: 639px) {
+  .landing-page.lp .lp-hero--split__fan {
+    transform: scale(0.94);
+    transform-origin: center center;
+  }
 }
 
 .landing-page.lp .lp-hero--split__eyebrow {

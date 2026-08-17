@@ -1,5 +1,5 @@
 import { Button } from "../ui/Button";
-import { MobileAppMockup } from "../ui/MobileAppMockup";
+import { PhoneMockupFan } from "../ui/PhoneMockupFan";
 import { actionLinks } from "@/lib/landing/site";
 
 export function Hero() {
@@ -31,7 +31,7 @@ export function Hero() {
         </div>
 
         <div className="lp-hero--split__visual animate-fade-up delay-100">
-          <MobileAppMockup variant="home" size="hero" glow className="lp-hero--split__phone" />
+          <PhoneMockupFan className="lp-hero--split__fan" />
         </div>
       </div>
     </section>
