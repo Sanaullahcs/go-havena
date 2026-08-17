@@ -6003,8 +6003,8 @@
 
 @media (min-width: 960px) {
   .landing-page.lp .lp-product-preview__canvas {
-    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-    gap: clamp(0.75rem, 2vw, 1.5rem);
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    gap: clamp(1rem, 2.5vw, 2rem);
     padding-inline: clamp(1rem, 3vw, 2.5rem);
     align-items: stretch;
   }
@@ -6105,6 +6105,7 @@
 
 .landing-page.lp .lp-product-preview__admin {
   display: flex;
+  width: 100%;
   min-width: 0;
   min-height: 100%;
   align-self: stretch;
@@ -6115,6 +6116,7 @@
   flex: 1;
   flex-direction: column;
   width: 100%;
+  max-width: none;
   min-height: 100%;
   border-radius: 18px;
   box-shadow:
@@ -6127,29 +6129,46 @@
   flex: 1;
   flex-direction: column;
   padding: 0.85rem;
-  min-height: 280px;
+  min-height: 320px;
+  background: #ffffff;
 }
 
 .landing-page.lp .lp-product-preview__dashboard .lp-dash-preview {
   flex: 1;
-  gap: 0.5rem;
-  justify-content: space-between;
+  width: 100%;
+  gap: 0.55rem;
 }
 
 .landing-page.lp .lp-product-preview__dashboard .lp-dash-preview__stats {
-  gap: 0.35rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
 }
 
 .landing-page.lp .lp-product-preview__dashboard .lp-dash-preview__stat {
-  padding: 0.5rem 0.45rem;
+  padding: 0.55rem 0.5rem;
+}
+
+.landing-page.lp .lp-product-preview__dashboard .lp-dash-preview__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
 }
 
 .landing-page.lp .lp-product-preview__dashboard .lp-dash-preview__main {
-  flex: 1;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.85fr) minmax(0, 0.9fr);
+  gap: 0.4rem;
+}
+
+.landing-page.lp .lp-product-preview__dashboard .lp-dash-preview__chart {
+  height: 56px;
 }
 
 .landing-page.lp .lp-product-preview__dashboard .lp-dash-preview__list {
-  gap: 0.3rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
 }
 
 @media (min-width: 960px) {
@@ -6175,7 +6194,11 @@
   }
 
   .landing-page.lp .lp-product-preview__dashboard .lp-browser-mockup__body {
-    min-height: 340px;
+    min-height: 360px;
+  }
+
+  .landing-page.lp .lp-product-preview__dashboard .lp-dash-preview__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -6200,6 +6223,18 @@
 
   .landing-page.lp .lp-product-preview__admin {
     width: 100%;
+  }
+
+  .landing-page.lp .lp-product-preview__dashboard .lp-dash-preview__main {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .landing-page.lp .lp-product-preview__dashboard .lp-dash-preview__panel--side {
+    grid-column: 1 / -1;
+  }
+
+  .landing-page.lp .lp-product-preview__dashboard .lp-dash-preview__list {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -6595,6 +6630,86 @@
   }
 }
 
+.lp-dash-preview__body {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lp-dash-preview--showcase {
+  width: 100%;
+}
+
+.lp-dash-preview--showcase .lp-dash-preview__stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.lp-dash-preview--showcase .lp-dash-preview__main {
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.85fr) minmax(0, 0.9fr);
+}
+
+.lp-dash-preview--showcase .lp-dash-preview__list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.lp-dash-preview__panel--side {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lp-dash-preview__actions {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lp-dash-preview__action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.lp-dash-preview__action-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.lp-dash-preview__action-icon--teal {
+  background: linear-gradient(135deg, #99f6e4, #0d9488);
+}
+
+.lp-dash-preview__action-icon--navy {
+  background: linear-gradient(135deg, #93c5fd, #3b82f6);
+}
+
+.lp-dash-preview__action-icon--violet {
+  background: linear-gradient(135deg, #c4b5fd, #8b5cf6);
+}
+
+.lp-dash-preview__action-title {
+  margin: 0;
+  font-size: 7px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.lp-dash-preview__action-meta {
+  margin: 1px 0 0;
+  font-size: 6px;
+  color: #94a3b8;
+}
+
 .lp-dash-preview__panel {
   padding: 8px;
   border-radius: 10px;
@@ -6736,6 +6851,10 @@
 
 .lp-dash-preview__row-icon--store {
   background: linear-gradient(135deg, #fde68a, #f59e0b);
+}
+
+.lp-dash-preview__row-icon--heart {
+  background: linear-gradient(135deg, #fda4af, #e11d48);
 }
 
 .lp-dash-preview__row-title {

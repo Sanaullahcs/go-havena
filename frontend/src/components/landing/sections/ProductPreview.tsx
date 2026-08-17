@@ -66,7 +66,7 @@ export function ProductPreview() {
           </div>
 
           <div className="lp-product-preview__admin">
-            <DashboardMockup className="lp-product-preview__dashboard" />
+            <DashboardMockup className="lp-product-preview__dashboard" variant="showcase" />
           </div>
         </div>
       </div>

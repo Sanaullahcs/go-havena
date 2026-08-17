@@ -1,7 +1,12 @@
 import { Icon } from "../icons/Icon";
 import { HavenaDashboardPreview } from "./HavenaDashboardPreview";
 
-export function DashboardMockup({ className = "" }: { className?: string }) {
+type DashboardMockupProps = {
+  className?: string;
+  variant?: "default" | "showcase";
+};
+
+export function DashboardMockup({ className = "", variant = "default" }: DashboardMockupProps) {
   return (
     <div className={`lp-browser-mockup ${className}`.trim()}>
       <div className="lp-browser-mockup__chrome">
@@ -16,7 +21,7 @@ export function DashboardMockup({ className = "" }: { className?: string }) {
         </div>
       </div>
       <div className="lp-browser-mockup__body">
-        <HavenaDashboardPreview />
+        <HavenaDashboardPreview variant={variant} />
       </div>
     </div>
   );
