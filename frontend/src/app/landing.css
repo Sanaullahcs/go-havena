@@ -3499,8 +3499,14 @@
 
 @media (min-width: 1024px) {
   .landing-page.lp .lp-faq__layout {
-    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-    gap: 3.5rem;
+    grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+    gap: clamp(3rem, 5vw, 4.5rem);
+    align-items: start;
+  }
+
+  .landing-page.lp .lp-faq__intro {
+    position: sticky;
+    top: 6rem;
   }
 }
 
@@ -3524,7 +3530,7 @@
 
 .landing-page.lp .lp-faq__list {
   display: grid;
-  gap: 0.75rem;
+  gap: 1rem;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -3532,15 +3538,15 @@
 
 .landing-page.lp .lp-faq__item {
   border: 1px solid var(--lp-line);
-  border-radius: 14px;
-  background: var(--lp-canvas);
+  border-radius: 16px;
+  background: #ffffff;
   overflow: hidden;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .landing-page.lp .lp-faq__item:has(.lp-faq__trigger[aria-expanded="true"]) {
-  border-color: rgba(27, 79, 138, 0.2);
-  box-shadow: 0 8px 24px rgba(11, 28, 46, 0.05);
+  border-color: rgba(10, 42, 67, 0.14);
+  box-shadow: 0 10px 28px rgba(10, 42, 67, 0.06);
   background: #ffffff;
 }
 
@@ -3549,8 +3555,8 @@
   width: 100%;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 1.1rem 1.15rem;
+  gap: 1.25rem;
+  padding: 1.25rem 1.35rem;
   border: none;
   background: transparent;
   text-align: left;
@@ -3562,7 +3568,7 @@
   font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  line-height: 1.45;
+  line-height: 1.5;
   color: var(--lp-ink);
 }
 
@@ -3570,8 +3576,8 @@
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 2rem;
-  height: 2rem;
+  width: 2.25rem;
+  height: 2.25rem;
   border-radius: 999px;
   background: var(--lp-soft);
   color: var(--lp-brand);
@@ -3587,23 +3593,29 @@
 .landing-page.lp .lp-faq__panel {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 0.25s ease;
+  transition: grid-template-rows 0.28s ease;
 }
 
 .landing-page.lp .lp-faq__panel.is-open {
   grid-template-rows: 1fr;
 }
 
-.landing-page.lp .lp-faq__panel > .lp-faq__answer {
+.landing-page.lp .lp-faq__panel-inner {
   overflow: hidden;
+  min-height: 0;
 }
 
 .landing-page.lp .lp-faq__answer {
   margin: 0;
-  padding: 0 1.15rem 1.15rem;
+  padding: 0 1.35rem 1.35rem;
   font-size: 14px;
-  line-height: 1.65;
+  line-height: 1.7;
   color: var(--lp-body);
+}
+
+.landing-page.lp .lp-faq__panel.is-open .lp-faq__answer {
+  border-top: 1px solid rgba(10, 42, 67, 0.08);
+  padding: 1rem 1.35rem 1.35rem;
 }
 
 /* ── CTA banner ── */
@@ -6553,4 +6565,40 @@
     width: 100%;
     justify-content: center;
   }
+}
+
+/* ── FAQ breathing room (override compact pass) ── */
+
+.landing-page.lp .lp-faq__layout {
+  gap: 2.5rem;
+}
+
+@media (min-width: 1024px) {
+  .landing-page.lp .lp-faq__layout {
+    gap: clamp(3rem, 5vw, 4.5rem);
+  }
+}
+
+.landing-page.lp .lp-faq__list {
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .landing-page.lp .lp-faq__list {
+    gap: 1.125rem;
+  }
+}
+
+.landing-page.lp .lp-faq__trigger {
+  gap: 1.25rem;
+  padding: 1.25rem 1.35rem;
+}
+
+.landing-page.lp .lp-faq__answer {
+  padding: 0 1.35rem 1.35rem;
+}
+
+.landing-page.lp .lp-faq__lede {
+  margin-top: 0.85rem;
+  line-height: 1.65;
 }

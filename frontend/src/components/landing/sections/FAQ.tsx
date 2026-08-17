@@ -71,7 +71,9 @@ export function FAQ() {
                     </span>
                   </button>
                   <div className={`lp-faq__panel${isOpen ? " is-open" : ""}`}>
-                    <p className="lp-faq__answer">{item.answer}</p>
+                    <div className="lp-faq__panel-inner">
+                      <p className="lp-faq__answer">{item.answer}</p>
+                    </div>
                   </div>
                 </li>
               );
