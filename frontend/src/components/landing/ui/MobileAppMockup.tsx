@@ -28,6 +28,7 @@ export function MobileAppMockup({
     <div
       className={[
         "lp-phone-mockup",
+        "lp-phone-mockup--realistic",
         size === "hero" ? "lp-phone-mockup--hero" : "",
         size === "sm" ? "lp-phone-mockup--sm" : "",
         size === "default" ? "lp-phone-mockup--default" : "",
@@ -42,8 +43,12 @@ export function MobileAppMockup({
       aria-label={alt ?? ALT_BY_VARIANT[variant]}
     >
       <div className="lp-phone-mockup__frame">
-        <div className="lp-phone-mockup__screen">
-          <HavenaAppScreenPreview variant={variant} />
+        <div className="lp-phone-mockup__bezel">
+          <div className="lp-phone-mockup__island" aria-hidden="true" />
+          <div className="lp-phone-mockup__screen">
+            <HavenaAppScreenPreview variant={variant} className="lp-app-preview--device" />
+          </div>
+          <div className="lp-phone-mockup__home-bar" aria-hidden="true" />
         </div>
       </div>
     </div>

@@ -19,11 +19,13 @@ function ScreenShell({
   return (
     <div className={["lp-app-preview", className].filter(Boolean).join(" ")} aria-hidden="true">
       <div className="lp-app-preview__status">
-        <span>9:41</span>
-        <span className="lp-app-preview__status-icons">
-          <span />
-          <span />
-          <span />
+        <span className="lp-app-preview__time">9:41</span>
+        <span className="lp-app-preview__status-icons" aria-hidden="true">
+          <span className="lp-app-preview__signal" />
+          <span className="lp-app-preview__wifi" />
+          <span className="lp-app-preview__battery">
+            <span className="lp-app-preview__battery-level" />
+          </span>
         </span>
       </div>
       {children}
@@ -117,7 +119,7 @@ function FeedScreen() {
       <div className="lp-app-preview__body lp-app-preview__body--flush">
         <article className="lp-app-preview__feed lp-app-preview__feed--large">
           <div className="lp-app-preview__feed-head">
-            <span className="lp-app-preview__feed-avatar" />
+            <span className="lp-app-preview__feed-avatar lp-app-preview__feed-avatar--photo" />
             <div>
               <p className="lp-app-preview__feed-name">Sarah Chen</p>
               <p className="lp-app-preview__feed-time">2h ago · Building B</p>
