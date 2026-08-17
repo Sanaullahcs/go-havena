@@ -7,7 +7,10 @@ const RESIDENT_SCREENS = [
   { variant: "feed" as const, label: "Community feed", tilt: "left" as const },
   { variant: "home" as const, label: "Resident home", tilt: "none" as const, featured: true },
   { variant: "marketplace" as const, label: "Local deals", tilt: "right" as const },
+  { variant: "wellness" as const, label: "Wellness", tilt: "right" as const, peek: true },
 ];
+
+const EXPERIENCES = ["Feed", "Home", "Deals", "Wellness"];
 
 export function ProductPreview() {
   return (
@@ -28,12 +31,23 @@ export function ProductPreview() {
 
         <div className="lp-product-preview__stage">
           <div className="lp-product-preview__residents">
-            <div className="lp-product-preview__block-label">
-              <Icon name="phone" className="h-4 w-4" />
-              Residents
+            <div className="lp-product-preview__panel-top">
+              <div className="lp-product-preview__block-label">
+                <Icon name="phone" className="h-4 w-4" />
+                Residents
+              </div>
+              <ul className="lp-product-preview__experiences" aria-label="Resident experiences">
+                {EXPERIENCES.map((label, index) => (
+                  <li key={label} className="lp-product-preview__experience">
+                    {index > 0 ? <span className="lp-product-preview__experience-sep" aria-hidden="true" /> : null}
+                    <span>{label}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
 
             <div className="lp-product-preview__phones">
+              <div className="lp-product-preview__phones-glow" aria-hidden="true" />
               {RESIDENT_SCREENS.map((screen) => (
                 <figure
                   key={screen.label}
@@ -41,21 +55,26 @@ export function ProductPreview() {
                     "lp-product-preview__phone",
                     screen.featured ? "lp-product-preview__phone--featured" : "",
                     screen.tilt === "left" ? "lp-product-preview__phone--left" : "",
-                    screen.tilt === "right" ? "lp-product-preview__phone--right" : "",
+                    screen.tilt === "right" && !screen.peek ? "lp-product-preview__phone--right" : "",
+                    screen.peek ? "lp-product-preview__phone--peek" : "",
                   ]
                     .filter(Boolean)
                     .join(" ")}
                 >
                   <MobileAppMockup
                     variant={screen.variant}
-                    size={screen.featured ? "hero" : "default"}
-                    tilt={screen.tilt}
+                    size={screen.featured ? "hero" : screen.peek ? "sm" : "default"}
+                    tilt={screen.peek ? "right" : screen.tilt}
                     glow={screen.featured}
                   />
                   <figcaption className="lp-product-preview__caption">{screen.label}</figcaption>
                 </figure>
               ))}
             </div>
+
+            <p className="lp-product-preview__footnote">
+              Live community updates on every resident phone — notices, deals, and wellness in one place.
+            </p>
           </div>
 
           <div className="lp-product-preview__bridge" aria-hidden="true">
@@ -66,11 +85,17 @@ export function ProductPreview() {
           </div>
 
           <div className="lp-product-preview__admins">
-            <div className="lp-product-preview__block-label">
-              <Icon name="bar-chart" className="h-4 w-4" />
-              Admins
+            <div className="lp-product-preview__panel-top">
+              <div className="lp-product-preview__block-label">
+                <Icon name="bar-chart" className="h-4 w-4" />
+                Admins
+              </div>
+              <p className="lp-product-preview__admin-note">Web dashboard</p>
             </div>
             <DashboardMockup className="lp-product-preview__dashboard" />
+            <p className="lp-product-preview__footnote">
+              Approvals, notices, bookings, and activity — the same community, managed from the web.
+            </p>
           </div>
         </div>
       </Container>
