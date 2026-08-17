@@ -5287,17 +5287,17 @@
 
 .landing-page.lp .lp-phone-mockup__frame {
   position: relative;
-  padding: 2px;
-  border-radius: 46px;
-  background: linear-gradient(160deg, #3d3d42 0%, #1c1c1f 38%, #0a0a0c 100%);
+  padding: 1.5px;
+  border-radius: 44px;
+  background: linear-gradient(165deg, #52525b 0%, #27272a 42%, #09090b 100%);
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.06),
-    0 28px 56px -16px rgba(10, 42, 67, 0.45),
-    0 12px 24px -8px rgba(10, 42, 67, 0.25);
+    0 0 0 0.5px rgba(255, 255, 255, 0.12),
+    0 24px 48px -14px rgba(10, 42, 67, 0.42),
+    0 8px 20px -6px rgba(10, 42, 67, 0.22);
 }
 
 .landing-page.lp .lp-phone-mockup--realistic .lp-phone-mockup__frame {
-  padding: 3px;
+  padding: 2px;
 }
 
 .landing-page.lp .lp-phone-mockup--realistic .lp-phone-mockup__frame::before,
@@ -5327,22 +5327,23 @@
 .landing-page.lp .lp-phone-mockup__bezel {
   position: relative;
   overflow: hidden;
-  border-radius: 43px;
+  border-radius: 42px;
   background: #000000;
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.06);
 }
 
 .landing-page.lp .lp-phone-mockup__island {
   position: absolute;
-  top: 10px;
+  top: 8px;
   left: 50%;
   z-index: 5;
-  width: 26%;
-  min-width: 56px;
-  max-width: 88px;
-  height: 12px;
+  width: 28%;
+  min-width: 52px;
+  max-width: 84px;
+  height: 11px;
   border-radius: 999px;
   background: #000000;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04);
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.05);
   transform: translateX(-50%);
   pointer-events: none;
 }
@@ -5391,7 +5392,7 @@
 }
 
 .landing-page.lp .lp-phone-mockup--realistic .lp-app-preview--device .lp-app-preview__status {
-  padding-top: 18px;
+  padding-top: 16px;
 }
 
 .lp-app-preview {
