@@ -12,9 +12,7 @@ const RESIDENT_SCREENS = [
 
 export function ProductPreview() {
   return (
-    <section id="preview" className="lp-section lp-product-preview relative overflow-x-clip">
-      <div aria-hidden="true" className="lp-product-preview__mesh absolute inset-0 -z-20" />
-
+    <section id="preview" className="lp-section lp-product-preview">
       <Container size="xl">
         <header className="lp-product-preview__head">
           <span className="section-label justify-center">Product preview</span>
@@ -26,52 +24,52 @@ export function ProductPreview() {
             Feed, home, deals, and wellness — synced live with your admin dashboard.
           </p>
         </header>
+      </Container>
 
-        <div className="lp-product-preview__stage">
-          <div className="lp-product-preview__rail" aria-hidden="true">
-            <span className="lp-product-preview__rail-label">
-              <Icon name="phone" className="h-3.5 w-3.5" />
-              Residents
-            </span>
-            <span className="lp-product-preview__rail-sync">
-              <Icon name="zap" className="h-3.5 w-3.5" />
-              Live sync
-            </span>
-            <span className="lp-product-preview__rail-label">
-              <Icon name="bar-chart" className="h-3.5 w-3.5" />
-              Admins
-            </span>
+      <div className="lp-product-preview__stage">
+        <div className="lp-product-preview__rail" aria-hidden="true">
+          <span className="lp-product-preview__rail-label">
+            <Icon name="phone" className="h-3.5 w-3.5" />
+            Residents
+          </span>
+          <span className="lp-product-preview__rail-sync">
+            <Icon name="zap" className="h-3.5 w-3.5" />
+            Live sync
+          </span>
+          <span className="lp-product-preview__rail-label">
+            <Icon name="bar-chart" className="h-3.5 w-3.5" />
+            Admins
+          </span>
+        </div>
+
+        <div className="lp-product-preview__canvas">
+          <div className="lp-product-preview__phones" aria-label="Resident app screens">
+            {RESIDENT_SCREENS.map((screen) => (
+              <figure
+                key={screen.slot}
+                className={[
+                  "lp-product-preview__phone",
+                  `lp-product-preview__phone--${screen.slot}`,
+                  screen.featured ? "lp-product-preview__phone--featured" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
+                <MobileAppMockup
+                  variant={screen.variant}
+                  size={screen.featured ? "hero" : screen.slot === "wellness" ? "sm" : "default"}
+                  glow={screen.featured}
+                />
+                <figcaption className="lp-product-preview__chip">{screen.label}</figcaption>
+              </figure>
+            ))}
           </div>
 
-          <div className="lp-product-preview__canvas">
-            <div className="lp-product-preview__phones" aria-label="Resident app screens">
-              {RESIDENT_SCREENS.map((screen) => (
-                <figure
-                  key={screen.slot}
-                  className={[
-                    "lp-product-preview__phone",
-                    `lp-product-preview__phone--${screen.slot}`,
-                    screen.featured ? "lp-product-preview__phone--featured" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                >
-                  <MobileAppMockup
-                    variant={screen.variant}
-                    size={screen.featured ? "hero" : screen.slot === "wellness" ? "sm" : "default"}
-                    glow={screen.featured}
-                  />
-                  <figcaption className="lp-product-preview__chip">{screen.label}</figcaption>
-                </figure>
-              ))}
-            </div>
-
-            <div className="lp-product-preview__admin">
-              <DashboardMockup className="lp-product-preview__dashboard" />
-            </div>
+          <div className="lp-product-preview__admin">
+            <DashboardMockup className="lp-product-preview__dashboard" />
           </div>
         </div>
-      </Container>
+      </div>
     </section>
   );
 }
