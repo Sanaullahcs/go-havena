@@ -73,6 +73,13 @@ export function HavenaDashboardPreview({ className = "" }: { className?: string 
             <p className="lp-dash-preview__row-meta">Today · Sunflower Heights</p>
           </div>
         </article>
+        <article className="lp-dash-preview__row">
+          <span className="lp-dash-preview__row-icon lp-dash-preview__row-icon--store" />
+          <div>
+            <p className="lp-dash-preview__row-title">Green Bowl deal featured</p>
+            <p className="lp-dash-preview__row-meta">Yesterday · 86 views</p>
+          </div>
+        </article>
       </div>
     </div>
   );
