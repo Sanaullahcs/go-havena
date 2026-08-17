@@ -6417,3 +6417,113 @@
   margin-top: 0.85rem;
   padding-top: 0.65rem;
 }
+
+/* ── Split hero (50/50 mockup + white copy) ── */
+
+.landing-page.lp .lp-hero--split {
+  background: #ffffff;
+  padding: 0;
+  overflow: hidden;
+}
+
+.landing-page.lp .lp-hero--split__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: min(88svh, 760px);
+}
+
+@media (min-width: 1024px) {
+  .landing-page.lp .lp-hero--split__grid {
+    grid-template-columns: 1fr 1fr;
+    min-height: min(82svh, 720px);
+  }
+}
+
+.landing-page.lp .lp-hero--split__visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1.5rem 1.75rem;
+  background:
+    radial-gradient(520px 420px at 50% 38%, rgba(13, 148, 136, 0.08), transparent 68%),
+    var(--lp-canvas);
+}
+
+@media (min-width: 1024px) {
+  .landing-page.lp .lp-hero--split__visual {
+    padding: 3rem 2.5rem;
+  }
+}
+
+.landing-page.lp .lp-hero--split__phone {
+  width: min(100%, 280px);
+  margin-inline: auto;
+}
+
+.landing-page.lp .lp-hero--split__copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+  padding: 2rem 1.5rem 2.75rem;
+  background: #ffffff;
+}
+
+@media (min-width: 1024px) {
+  .landing-page.lp .lp-hero--split__copy {
+    padding: 3rem clamp(2rem, 4vw, 3.5rem);
+  }
+}
+
+.landing-page.lp .lp-hero--split__eyebrow {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--lp-mid);
+}
+
+.landing-page.lp .lp-hero--split__title {
+  margin: 0.85rem 0 0;
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(1.65rem, 2.8vw, 2.35rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+  color: var(--lp-ink);
+  white-space: nowrap;
+}
+
+@media (max-width: 1023px) {
+  .landing-page.lp .lp-hero--split__title {
+    white-space: normal;
+  }
+}
+
+.landing-page.lp .lp-hero--split__lede {
+  margin: 0.85rem 0 0;
+  max-width: 34rem;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--lp-body);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.landing-page.lp .lp-hero--split__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1.35rem;
+}
+
+@media (max-width: 639px) {
+  .landing-page.lp .lp-hero--split__actions .landing-btn-primary,
+  .landing-page.lp .lp-hero--split__actions a {
+    width: 100%;
+    justify-content: center;
+  }
+}
