@@ -6,11 +6,7 @@ export function Hero() {
   return (
     <section id="top" className="lp-hero lp-hero--split scroll-mt-0">
       <div className="lp-hero--split__grid">
-        <div className="lp-hero--split__visual animate-fade-up">
-          <MobileAppMockup variant="home" size="hero" glow className="lp-hero--split__phone" />
-        </div>
-
-        <div className="lp-hero--split__copy animate-fade-up delay-100">
+        <div className="lp-hero--split__copy animate-fade-up">
           <p className="lp-hero--split__eyebrow">For community operators</p>
           <h1 className="lp-hero--split__title">
             One subscription. Every resident invited in.
@@ -32,6 +28,10 @@ export function Hero() {
               View plans
             </Button>
           </div>
+        </div>
+
+        <div className="lp-hero--split__visual animate-fade-up delay-100">
+          <MobileAppMockup variant="home" size="hero" glow className="lp-hero--split__phone" />
         </div>
       </div>
     </section>
