@@ -263,7 +263,8 @@ class SubscriptionCouponAdminService
         ];
 
         if ($coupon->discount_type === SubscriptionCoupon::TYPE_PERCENT) {
-            $payload['percent_off'] = (float) $coupon->percent_off;
+            // Stripe expects a numeric percent (integer preferred); avoid empty/null payloads.
+            $payload['percent_off'] = (int) round((float) $coupon->percent_off);
         } else {
             $payload['amount_off'] = (int) $coupon->amount_off_cents;
             $payload['currency'] = strtolower((string) $coupon->currency);
@@ -281,15 +282,19 @@ class SubscriptionCouponAdminService
                 $this->deactivateStripePromotionCode($coupon);
             }
 
-            $promo = $stripe->promotionCodes->create([
+            $promoPayload = [
                 'coupon' => $coupon->stripe_coupon_id,
                 'code' => $coupon->code,
                 'active' => (bool) $coupon->is_active,
-                'max_redemptions' => $coupon->max_redemptions,
                 'metadata' => [
                     'havena_coupon_id' => (string) ($coupon->id ?? 'new'),
                 ],
-            ]);
+            ];
+            if ($coupon->max_redemptions !== null && (int) $coupon->max_redemptions > 0) {
+                $promoPayload['max_redemptions'] = (int) $coupon->max_redemptions;
+            }
+
+            $promo = $stripe->promotionCodes->create($promoPayload);
             $coupon->stripe_promotion_code_id = (string) $promo->id;
         } catch (ApiErrorException $e) {
             throw new BillingException(
@@ -307,10 +312,16 @@ class SubscriptionCouponAdminService
         }
 
         try {
-            $this->billing->stripe()->promotionCodes->update($coupon->stripe_promotion_code_id, [
+            $payload = [
                 'active' => (bool) $coupon->is_active,
-                'max_redemptions' => $coupon->max_redemptions,
-            ]);
+            ];
+            // Stripe rejects null/empty for max_redemptions — only send a positive int.
+            // Unlimited coupons omit the field (Stripe keeps existing limit if already set).
+            if ($coupon->max_redemptions !== null && (int) $coupon->max_redemptions > 0) {
+                $payload['max_redemptions'] = (int) $coupon->max_redemptions;
+            }
+
+            $this->billing->stripe()->promotionCodes->update($coupon->stripe_promotion_code_id, $payload);
         } catch (ApiErrorException) {
             // Non-fatal — Havena still validates locally.
         }

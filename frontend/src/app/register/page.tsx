@@ -27,6 +27,13 @@ import { AuthRedirectOverlay } from "@/components/shared/loaders";
 import { emptyPhoneField, type PhoneFieldState } from "@/lib/phone/format";
 import { landingImages } from "@/lib/landing/site";
 import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
+import {
+  clearPersistedReferralCode,
+  normalizeReferralCode,
+  persistReferralCode,
+  readPersistedReferralCode,
+} from "@/lib/auth/referral-storage";
+import { ApiError } from "@/lib/api/client";
 
 type OtpStep = "phone" | "code";
 
@@ -35,6 +42,8 @@ function RegisterPageInner() {
   const searchParams = useSearchParams();
   const planHint = searchParams.get("plan");
   const intervalHint = searchParams.get("interval") === "year" ? "year" : "month";
+  const referralRawFromUrl = searchParams.get("ref");
+  const referralCode = normalizeReferralCode(referralRawFromUrl) ?? readPersistedReferralCode();
   const planQuery = planHint
     ? `?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
     : "";
@@ -52,6 +61,28 @@ function RegisterPageInner() {
   const isBusy = loading || redirecting;
   const otpSendingLocked = isBusy || otpSending;
   const communityStep = otpStep === "phone" ? 1 : 2;
+
+  useEffect(() => {
+    if (!referralRawFromUrl) return;
+
+    const normalized = normalizeReferralCode(referralRawFromUrl);
+    if (normalized) {
+      persistReferralCode(normalized);
+      // Clean a corrupted ?ref=… URL so the address bar only keeps the real code.
+      if (normalized !== referralRawFromUrl.trim().toUpperCase()) {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("ref", normalized);
+        router.replace(`/register?${params.toString()}`);
+      }
+      return;
+    }
+
+    clearPersistedReferralCode();
+    setOtpStep("phone");
+    setError(
+      "This referral link is invalid or incomplete. You can still create an account without a referral code.",
+    );
+  }, [referralRawFromUrl, router, searchParams]);
 
   useEffect(() => {
     const token = getToken();
@@ -75,6 +106,27 @@ function RegisterPageInner() {
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!phone.valid || !phone.e164 || otpSending) return;
+
+    const resolvedReferral =
+      normalizeReferralCode(referralRawFromUrl) ?? readPersistedReferralCode();
+
+    // Bad ref in the URL: warn on this screen, clear it, then continue signup normally.
+    if (referralRawFromUrl && !resolvedReferral) {
+      clearPersistedReferralCode();
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("ref");
+      const qs = params.toString();
+      router.replace(qs ? `/register?${qs}` : "/register");
+      setError(
+        "That referral link was invalid, so it was removed. Enter your phone to continue without a referral.",
+      );
+      return;
+    }
+
+    if (resolvedReferral) {
+      persistReferralCode(resolvedReferral);
+    }
+
     setError(null);
     setOtp("");
     setOtpStep("code");
@@ -94,7 +146,13 @@ function RegisterPageInner() {
     setError(null);
     setLoading(true);
     try {
-      const res = await verifyCommunityAdminOtp(phone.e164!, code, "signup");
+      const res = await verifyCommunityAdminOtp(
+        phone.e164!,
+        code,
+        "signup",
+        referralCode,
+      );
+      clearPersistedReferralCode();
       setSession(res.token, res.user);
       setRedirecting(true);
       const step = getCommunityAdminNextStep(res.user);
@@ -106,6 +164,21 @@ function RegisterPageInner() {
           : `${communityAdminOnboardingPath(step)}${planQuery}`;
       router.replace(next);
     } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "";
+      if (/referral/i.test(message)) {
+        clearPersistedReferralCode();
+        setOtpStep("phone");
+        setError(
+          "This referral link is invalid. You can continue signup without a referral, or open a fresh invite link.",
+        );
+        setLoading(false);
+        return;
+      }
       await handleLoginError(err, setError);
     } finally {
       setLoading(false);
@@ -232,6 +305,12 @@ function RegisterPageInner() {
             {error ? (
               <div className="mt-4">
                 <AuthErrorBanner message={error} />
+              </div>
+            ) : null}
+
+            {otpStep === "phone" && referralCode && !error ? (
+              <div className="mt-4 rounded-xl border border-teal-200 bg-teal-50 px-3.5 py-2.5 text-[13px] text-teal-900">
+                Referral code <span className="font-semibold">{referralCode}</span> will be applied when you create your account.
               </div>
             ) : null}
 

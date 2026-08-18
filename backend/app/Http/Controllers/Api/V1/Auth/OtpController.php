@@ -14,6 +14,7 @@ use App\Services\LoginStreakService;
 use App\Services\ContactIdentityService;
 use App\Services\OtpService;
 use App\Services\PointsRewardService;
+use App\Services\ReferralService;
 use App\Support\PhoneNormalizer;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -94,6 +95,7 @@ class OtpController extends Controller
             'intent' => ['sometimes', 'string', 'in:login,signup'],
             'role' => ['sometimes', 'string', 'in:admin,resident'],
             'portal' => ['sometimes', 'string', 'in:community_admin_dashboard'],
+            'referral_code' => ['nullable', 'string', 'max:16'],
         ]);
 
         $phone = PhoneNormalizer::normalize($validated['phone']);
@@ -172,6 +174,15 @@ class OtpController extends Controller
                     'community_admin_status' => $adminStatus,
                 ]);
                 $user->profile()->firstOrCreate(['user_id' => $user->id], ['display_name' => '']);
+            }
+
+            if ($userRole === 'community_admin') {
+                app(ReferralService::class)->lockAtSignup(
+                    $user,
+                    $validated['referral_code'] ?? null,
+                    source: ($validated['portal'] ?? null) === 'community_admin_dashboard' ? 'web_link' : 'mobile_signup',
+                    referralToken: $validated['referral_code'] ?? null,
+                );
             }
         }
 

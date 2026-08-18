@@ -306,6 +306,8 @@ class CommunityController extends Controller
 
         $user->load(['profile.region', 'memberships.community']);
 
+        app(\App\Services\ReferralService::class)->linkCommunity($user, $community);
+
         return response()->json([
             'data' => [
                 'membership' => [
@@ -387,6 +389,8 @@ class CommunityController extends Controller
         );
 
         $user->load(['profile.region', 'memberships.community']);
+
+        app(\App\Services\ReferralService::class)->linkCommunity($user, $community);
 
         return response()->json([
             'data' => [

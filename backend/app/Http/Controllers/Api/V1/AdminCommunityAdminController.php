@@ -10,6 +10,7 @@ use App\Services\ActivityLogService;
 use App\Services\AdminRoleService;
 use App\Services\CommunityLifecycleService;
 use App\Services\NotificationService;
+use App\Services\ReferralService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -126,6 +127,8 @@ class AdminCommunityAdminController extends Controller
             $user->id,
         );
 
+        app(ReferralService::class)->ensureReferralCode($user->fresh());
+
         return response()->json([
             'data'    => $this->transform($user->fresh(['profile', 'memberships.community'])),
             'message' => $wasRejected ? 'Community admin re-approved' : 'Community admin approved',
@@ -174,6 +177,11 @@ class AdminCommunityAdminController extends Controller
             "Rejected community admin: {$user->name}",
             'User',
             $user->id,
+        );
+
+        app(ReferralService::class)->disqualifyByRefereeUser(
+            (int) $user->id,
+            'Referee community admin was not approved.',
         );
 
         return response()->json([

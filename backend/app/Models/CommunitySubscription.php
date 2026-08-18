@@ -115,6 +115,17 @@ class CommunitySubscription extends Model
         return (data_get($this->meta, 'activated_via') === 'manual');
     }
 
+    /** Whether this community has already used its one-time free trial. */
+    public function hasConsumedTrial(): bool
+    {
+        if ((bool) data_get($this->meta, 'trial_consumed', false)) {
+            return true;
+        }
+
+        // Legacy rows that started a trial before trial_consumed was persisted.
+        return filled(data_get($this->meta, 'trial_started_on_approval'));
+    }
+
     /** Card captured via Stripe, or a system-admin grant (no card collected). */
     public function hasCardOnFile(): bool
     {

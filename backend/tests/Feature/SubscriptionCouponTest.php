@@ -342,4 +342,39 @@ class SubscriptionCouponTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('code', 'COUPON_PLAN_MISMATCH');
     }
+
+    public function test_system_admin_can_update_coupon_with_unlimited_redemptions(): void
+    {
+        config(['billing.driver' => 'manual', 'billing.stripe.secret' => null]);
+
+        $token = $this->systemAdmin()->createToken('test')->plainTextToken;
+
+        $create = $this->withToken($token)
+            ->postJson('/api/v1/admin/subscription-coupons', [
+                'code' => 'UNLIMITED30',
+                'name' => 'Unlimited 30',
+                'discount_type' => 'percent',
+                'percent_off' => 20,
+                'discount_duration' => 'once',
+                'max_redemptions' => null,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.max_redemptions', null);
+
+        $id = $create->json('data.id');
+
+        $this->withToken($token)
+            ->putJson("/api/v1/admin/subscription-coupons/{$id}", [
+                'name' => 'Unlimited 30 updated',
+                'discount_type' => 'percent',
+                'percent_off' => 30,
+                'discount_duration' => 'once',
+                'max_redemptions' => null,
+                'is_active' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.percent_off', 30)
+            ->assertJsonPath('data.max_redemptions', null)
+            ->assertJsonPath('data.name', 'Unlimited 30 updated');
+    }
 }

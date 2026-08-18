@@ -37,6 +37,8 @@ use App\Http\Controllers\Api\V1\BillingController;
 use App\Http\Controllers\Api\V1\StripeWebhookController;
 use App\Http\Controllers\Api\V1\SubscriptionPlanController;
 use App\Http\Controllers\Api\V1\SubscriptionCouponController;
+use App\Http\Controllers\Api\V1\ReferralController;
+use App\Http\Controllers\Api\V1\ReferralProgramController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -261,6 +263,11 @@ Route::prefix('v1')->group(function () {
                 Route::post('/subscription-coupons', [SubscriptionCouponController::class, 'store']);
                 Route::put('/subscription-coupons/{id}', [SubscriptionCouponController::class, 'update']);
                 Route::patch('/subscription-coupons/{id}/status', [SubscriptionCouponController::class, 'updateStatus']);
+                Route::get('/referral-program/settings', [ReferralProgramController::class, 'settings']);
+                Route::put('/referral-program/settings', [ReferralProgramController::class, 'updateSettings']);
+                Route::get('/referral-program/attributions', [ReferralProgramController::class, 'attributions']);
+                Route::post('/referral-program/attributions/{id}/review', [ReferralProgramController::class, 'review']);
+                Route::post('/referral-program/rewards/{id}/retry', [ReferralProgramController::class, 'retryReward']);
             });
 
             /* Community admin (+ system admin override) */
@@ -310,6 +317,7 @@ Route::prefix('v1')->group(function () {
                 Route::post('/billing/confirm-checkout',     [BillingController::class, 'confirmCheckout']);
                 Route::post('/billing/portal',               [BillingController::class, 'portal']);
                 Route::post('/billing/change-plan',          [BillingController::class, 'changePlan']);
+                Route::get('/referrals/me',                  [ReferralController::class, 'me']);
 
                 Route::patch('/family-add-member-requests/{id}/approve', [FamilyController::class, 'adminApproveAddMemberRequest']);
                 Route::patch('/family-add-member-requests/{id}/reject',  [FamilyController::class, 'adminRejectAddMemberRequest']);

@@ -105,6 +105,55 @@ class CommunityBillingService
         return max(0, (int) config('billing.trial_period_days', 30));
     }
 
+    /** Free trial days remaining for this community (0 when the one-time trial was consumed). */
+    public function eligibleTrialDays(?CommunitySubscription $subscription, ?array $plan = null): int
+    {
+        if ($subscription?->hasConsumedTrial()) {
+            return 0;
+        }
+
+        return $this->trialDaysForPlan($plan);
+    }
+
+    public function markTrialConsumed(CommunitySubscription $subscription, string $reason): CommunitySubscription
+    {
+        if ($subscription->hasConsumedTrial()) {
+            return $subscription;
+        }
+
+        $meta = is_array($subscription->meta) ? $subscription->meta : [];
+        $meta['trial_consumed'] = true;
+        $meta['trial_consumed_at'] = now()->toIso8601String();
+        $meta['trial_consumed_reason'] = $reason;
+        $subscription->update(['meta' => $meta]);
+
+        return $subscription->fresh();
+    }
+
+    protected function shouldMarkTrialConsumedOnCancel(CommunitySubscription $subscription): bool
+    {
+        if ($subscription->hasConsumedTrial()) {
+            return false;
+        }
+
+        if (in_array($subscription->status, [
+            CommunitySubscription::STATUS_TRIALING,
+            CommunitySubscription::STATUS_ACTIVE,
+            CommunitySubscription::STATUS_GRACE,
+            CommunitySubscription::STATUS_PAST_DUE,
+            CommunitySubscription::STATUS_PENDING_TRIAL,
+        ], true)) {
+            return true;
+        }
+
+        if ((bool) data_get($subscription->meta, 'card_on_file', false)
+            && $subscription->status !== CommunitySubscription::STATUS_INCOMPLETE) {
+            return true;
+        }
+
+        return false;
+    }
+
     public function assertPlanAvailable(?array $plan, ?CommunitySubscription $existing = null): array
     {
         if (! $plan) {
@@ -291,8 +340,9 @@ class CommunityBillingService
             'recommended_plan' => $subscription?->isAdminTransition()
                 ? $subscription->plan_slug
                 : $this->recommendPlanSlug($estimated !== null ? (int) $estimated : null),
-            'trial_period_days' => $this->trialDaysForPlan(
-                $this->plan($this->recommendPlanSlug($estimated !== null ? (int) $estimated : null))
+            'trial_period_days' => $this->eligibleTrialDays(
+                $subscription,
+                $this->plan($this->recommendPlanSlug($estimated !== null ? (int) $estimated : null)),
             ),
             'subscription' => $subscription ? [
                 'plan_slug' => $subscription->plan_slug,
@@ -424,9 +474,7 @@ class CommunityBillingService
         $customerId = $this->ensureStripeCustomer($community, $admin, $stripe);
         $this->assertUsdStripePrice($stripe, (string) $priceId);
 
-        $trialDays = ($existing?->isAdminTransition() && (bool) data_get($existing->meta, 'trial_consumed', false))
-            ? 0
-            : $this->trialDaysForPlan($plan);
+        $trialDays = $this->eligibleTrialDays($existing, $plan);
         $priceCents = $interval === 'year'
             ? (int) ($plan['price_yearly_cents'] ?? 0)
             : (int) ($plan['price_monthly_cents'] ?? 0);
@@ -658,7 +706,7 @@ class CommunityBillingService
         $meta['initiated_by'] = $admin->id;
         $meta['checkout_ui'] = 'elements';
         $replacement = $existing?->isAdminTransition() ?? false;
-        $meta['trial_starts_on_approval'] = ! $replacement || ! (bool) data_get($meta, 'trial_consumed', false);
+        $meta['trial_starts_on_approval'] = $trialDays > 0;
         if ($replacement) {
             $meta['admin_transition'] = true;
         }
@@ -687,6 +735,8 @@ class CommunityBillingService
             app(SubscriptionCouponService::class)->linkPendingToSubscription($community->id, $saved);
         }
 
+        app(\App\Services\ReferralService::class)->markBillingStarted($admin->id);
+
         $email = $admin->email;
         if (filled($email) && str_contains((string) $email, '@invited')) {
             $email = null;
@@ -707,7 +757,7 @@ class CommunityBillingService
             'intent_type' => $intent['type'],
             'stripe_subscription_id' => $stripeSubscriptionId,
             'stripe_setup_intent_id' => $intent['type'] === 'setup' ? $intent['id'] : null,
-            'trial_starts_on_approval' => ! $replacement || $trialDays > 0,
+            'trial_starts_on_approval' => $trialDays > 0,
             'publishable_key' => config('billing.stripe.publishable'),
             'trial_days' => $trialDays,
             'customer_email' => $email,
@@ -948,7 +998,7 @@ class CommunityBillingService
     }
 
     /**
-     * Create the Stripe subscription + 30-day trial only after the community and admin are approved.
+     * Activate billing after platform approval: free trial when eligible, otherwise paid subscription.
      */
     public function startTrialIfEligible(Community $community): ?CommunitySubscription
     {
@@ -966,7 +1016,7 @@ class CommunityBillingService
         }
 
         $plan = $this->plan($subscription->plan_slug) ?? [];
-        $trialDays = $this->trialDaysForPlan($plan);
+        $trialDays = $this->eligibleTrialDays($subscription, $plan);
         $interval = $subscription->billing_interval === 'year' ? 'year' : 'month';
         $priceId = $interval === 'year'
             ? ($plan['stripe_price_yearly'] ?? $subscription->stripe_price_id)
@@ -974,17 +1024,25 @@ class CommunityBillingService
 
         if (! $this->stripeConfigured()) {
             $meta = is_array($subscription->meta) ? $subscription->meta : [];
-            $meta['trial_started_on_approval'] = now()->toIso8601String();
+            if ($trialDays > 0) {
+                $meta['trial_started_on_approval'] = now()->toIso8601String();
+            }
 
             $subscription->update([
                 'status' => $trialDays > 0
                     ? CommunitySubscription::STATUS_TRIALING
                     : CommunitySubscription::STATUS_ACTIVE,
                 'current_period_start' => now(),
-                'current_period_end' => now()->addDays($trialDays > 0 ? $trialDays : 30),
+                'current_period_end' => $trialDays > 0
+                    ? now()->addDays($trialDays)
+                    : ($interval === 'year' ? now()->addYear() : now()->addMonth()),
                 'canceled_at' => null,
                 'meta' => $meta,
             ]);
+
+            if ($trialDays > 0) {
+                $this->markTrialConsumed($subscription->fresh(), 'trial_started');
+            }
 
             $fresh = $subscription->fresh();
             app(SubscriptionCouponService::class)->markApplied($fresh);
@@ -1004,11 +1062,12 @@ class CommunityBillingService
         }
 
         if ($customerId === '' || $paymentMethodId === '' || ! filled($priceId)) {
-            Log::warning('Cannot start trial after approval — missing Stripe customer, card, or price', [
+            Log::warning('Cannot activate billing after approval — missing Stripe customer, card, or price', [
                 'community_id' => $community->id,
                 'has_customer' => $customerId !== '',
                 'has_payment_method' => $paymentMethodId !== '',
                 'has_price' => filled($priceId),
+                'trial_consumed' => $subscription->hasConsumedTrial(),
             ]);
 
             return $subscription;
@@ -1054,8 +1113,9 @@ class CommunityBillingService
         try {
             $stripeSub = $this->stripe()->subscriptions->create($createParams);
         } catch (ApiErrorException $e) {
-            Log::error('Failed to start Stripe trial after approval', [
+            Log::error('Failed to activate Stripe subscription after approval', [
                 'community_id' => $community->id,
+                'trial_days' => $trialDays,
                 'error' => $e->getMessage(),
             ]);
 
@@ -1066,8 +1126,15 @@ class CommunityBillingService
         $meta = is_array($synced->meta) ? $synced->meta : [];
         $meta['card_on_file'] = true;
         $meta['payment_method_id'] = $paymentMethodId;
-        $meta['trial_started_on_approval'] = now()->toIso8601String();
+        if ($trialDays > 0) {
+            $meta['trial_started_on_approval'] = now()->toIso8601String();
+        }
         $synced->update(['meta' => $meta]);
+
+        if ($trialDays > 0) {
+            $this->markTrialConsumed($synced->fresh(), 'trial_started');
+        }
+
         app(SubscriptionCouponService::class)->markApplied($synced->fresh());
 
         return $synced->fresh();
@@ -1223,13 +1290,19 @@ class CommunityBillingService
         $plan = $this->assertPlanAvailable($this->plan($planSlug));
 
         $interval = $interval === 'year' ? 'year' : 'month';
-        $trialDays = $this->trialDaysForPlan($plan);
+        $existing = $this->getSubscription($community->id);
+        $trialDays = $this->eligibleTrialDays($existing, $plan);
         $isTrial = $trialDays > 0;
         $periodEnd = $isTrial
             ? now()->addDays($trialDays)
             : ($interval === 'year' ? now()->addYear() : now()->addMonth());
 
-        return CommunitySubscription::query()->updateOrCreate(
+        $meta = is_array($existing?->meta) ? $existing->meta : [];
+        $meta['activated_via'] = 'manual';
+        $meta['activated_by'] = $actor?->id;
+        $meta['trial_days'] = $isTrial ? $trialDays : 0;
+
+        $subscription = CommunitySubscription::query()->updateOrCreate(
             ['community_id' => $community->id],
             [
                 'plan_slug' => $planSlug,
@@ -1244,13 +1317,15 @@ class CommunityBillingService
                 'cancel_at_period_end' => false,
                 'grace_ends_at' => null,
                 'canceled_at' => null,
-                'meta' => [
-                    'activated_via' => 'manual',
-                    'activated_by' => $actor?->id,
-                    'trial_days' => $isTrial ? $trialDays : 0,
-                ],
+                'meta' => $meta,
             ],
         );
+
+        if ($isTrial) {
+            $this->markTrialConsumed($subscription, 'manual_grant_trial');
+        }
+
+        return $subscription->fresh();
     }
 
     public function reserveSeatForInvite(int $communityId, ?int $userId, ?InviteCode $invite = null): CommunitySeatReservation
@@ -1336,12 +1411,14 @@ class CommunityBillingService
         $meta['paused_at'] = now()->toIso8601String();
         $meta['previous_status'] = $previousStatus;
         $meta['inherited_plan_slug'] = $subscription->plan_slug;
-        $meta['trial_consumed'] = in_array($previousStatus, [
-            CommunitySubscription::STATUS_TRIALING,
-            CommunitySubscription::STATUS_ACTIVE,
-            CommunitySubscription::STATUS_GRACE,
-            CommunitySubscription::STATUS_PAST_DUE,
-        ], true) || (bool) data_get($meta, 'trial_started_on_approval');
+        $meta['trial_consumed'] = $subscription->hasConsumedTrial()
+            || in_array($previousStatus, [
+                CommunitySubscription::STATUS_TRIALING,
+                CommunitySubscription::STATUS_ACTIVE,
+                CommunitySubscription::STATUS_GRACE,
+                CommunitySubscription::STATUS_PAST_DUE,
+            ], true)
+            || (bool) data_get($meta, 'trial_started_on_approval');
 
         $subscription->update([
             'status' => $leftoverEnd->isFuture()
@@ -1442,8 +1519,7 @@ class CommunityBillingService
             throw BillingException::downgradeBlocked($used, $newLimit);
         }
 
-        $trialConsumed = (bool) data_get($local->meta, 'trial_consumed', false);
-        $trialDays = $trialConsumed ? 0 : $this->trialDaysForPlan($plan);
+        $trialDays = $this->eligibleTrialDays($local, $plan);
         $priceId = $interval === 'year'
             ? ($plan['stripe_price_yearly'] ?? $local->stripe_price_id)
             : ($plan['stripe_price_monthly'] ?? $local->stripe_price_id);
@@ -1501,6 +1577,32 @@ class CommunityBillingService
             }
         }
 
+        if (
+            $this->stripeConfigured()
+            && ! filled($local->stripe_subscription_id)
+            && filled($priceId)
+            && $customerId !== ''
+        ) {
+            $local->update([
+                'plan_slug' => $planSlug,
+                'billing_interval' => $interval,
+                'status' => CommunitySubscription::STATUS_PENDING_TRIAL,
+                'seat_limit' => (int) ($plan['seat_limit'] ?? $local->seat_limit),
+                'stripe_customer_id' => $customerId !== '' ? $customerId : $local->stripe_customer_id,
+                'stripe_price_id' => $priceId,
+                'stripe_subscription_id' => null,
+                'current_period_start' => null,
+                'current_period_end' => null,
+                'grace_ends_at' => null,
+                'canceled_at' => null,
+                'meta' => $meta,
+            ]);
+
+            $started = $this->startTrialIfEligible($community);
+
+            return $started ?? $local->fresh();
+        }
+
         $periodEnd = $trialDays > 0
             ? now()->addDays($trialDays)
             : ($interval === 'year' ? now()->addYear() : now()->addMonth());
@@ -1521,16 +1623,8 @@ class CommunityBillingService
             'meta' => $meta,
         ]);
 
-        if (
-            $this->stripeConfigured()
-            && ! $trialConsumed
-            && ! filled($local->fresh()?->stripe_subscription_id)
-            && filled($priceId)
-            && $customerId !== ''
-        ) {
-            $started = $this->startTrialIfEligible($community);
-
-            return $started ?? $local->fresh();
+        if ($trialDays > 0) {
+            $this->markTrialConsumed($local->fresh(), 'trial_started');
         }
 
         return $local->fresh();
@@ -1608,6 +1702,11 @@ class CommunityBillingService
         $subscription = $this->getSubscription($communityId);
         if (! $subscription) {
             return;
+        }
+
+        if ($this->shouldMarkTrialConsumedOnCancel($subscription)) {
+            $this->markTrialConsumed($subscription, $reason);
+            $subscription = $subscription->fresh();
         }
 
         if (
@@ -2084,6 +2183,8 @@ class CommunityBillingService
         if ($communityId) {
             $this->syncFromStripeSubscription($stripeSub, $communityId);
         }
+
+        app(\App\Services\ReferralService::class)->handleInvoicePaid($invoice);
     }
 
     public function syncFromStripeSubscription(object|array $stripeSub, int $communityId, ?string $customerId = null): CommunitySubscription
@@ -2132,6 +2233,14 @@ class CommunityBillingService
 
         $meta = is_array($existing?->meta) ? $existing->meta : [];
         $meta['card_on_file'] = $hasCard;
+
+        if ($existing?->hasConsumedTrial() && $mapped === CommunitySubscription::STATUS_TRIALING) {
+            Log::warning('Stripe returned trialing for a community that already consumed its trial; treating as active', [
+                'community_id' => $communityId,
+                'stripe_subscription_id' => data_get($stripeSub, 'id'),
+            ]);
+            $mapped = CommunitySubscription::STATUS_ACTIVE;
+        }
 
         return CommunitySubscription::query()->updateOrCreate(
             ['community_id' => $communityId],

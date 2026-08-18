@@ -362,7 +362,7 @@ function CheckoutForm({
 
       <p className="text-center text-[11px] leading-relaxed text-slate-500 sm:text-[12px]">
         {session.trialDays <= 0
-          ? "Your card replaces the previous admin’s payment method. Billing resumes on the plan you selected."
+          ? "Your community has already used its one-time free trial. Your card is saved by Stripe and billing starts on the plan you selected."
           : session.trialStartsOnApproval
             ? `$0 due today. Your ${session.trialDays}-day free trial starts after a system administrator approves your account. You are not charged until that trial ends.`
             : `$0 due today. Your card is saved by Stripe and billed in USD after the trial unless you cancel.`}
@@ -625,7 +625,7 @@ function PayInner() {
           </h1>
           <p className="mt-2 text-[13px] leading-relaxed text-white/75">
             {session.trialDays <= 0
-              ? `${formatMoney(billedPriceCents, session.plan.currency)} per ${period} after you save your card. The previous admin is not charged.`
+              ? `${formatMoney(billedPriceCents, session.plan.currency)} per ${period} after approval. Your community already used its one-time free trial.`
               : `Then ${formatMoney(billedPriceCents, session.plan.currency)} per ${period}${
                   appliedCoupon
                     ? ` (${formatMoney(originalPriceCents, session.plan.currency)} before discount)`
@@ -638,10 +638,17 @@ function PayInner() {
           </p>
 
           <ul className="mt-5 space-y-2.5 border-t border-white/15 pt-4 text-[13px] text-white/85">
-            <li className="flex items-center gap-2">
-              <Check className="h-4 w-4 shrink-0 text-teal-300" aria-hidden />
-              $0 due today
-            </li>
+            {session.trialDays > 0 ? (
+              <li className="flex items-center gap-2">
+                <Check className="h-4 w-4 shrink-0 text-teal-300" aria-hidden />
+                $0 due today
+              </li>
+            ) : (
+              <li className="flex items-center gap-2">
+                <Check className="h-4 w-4 shrink-0 text-teal-300" aria-hidden />
+                Paid subscription — no free trial
+              </li>
+            )}
             <li className="flex items-center gap-2">
               <Check className="h-4 w-4 shrink-0 text-teal-300" aria-hidden />
               {session.plan.seat_limit} resident seats
@@ -652,9 +659,11 @@ function PayInner() {
             </li>
             <li className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 shrink-0 text-teal-300" aria-hidden />
-              {session.trialStartsOnApproval
-                ? "Card saved now — trial starts after approval"
-                : "Card billed in USD after trial"}
+              {session.trialDays <= 0
+                ? "Billing starts after approval"
+                : session.trialStartsOnApproval
+                  ? "Card saved now — trial starts after approval"
+                  : "Card billed in USD after trial"}
             </li>
           </ul>
         </aside>

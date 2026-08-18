@@ -10,6 +10,7 @@ export const SYSTEM_ADMIN_ROUTE_PREFIXES = [
   "/admin/wellness",
   "/admin/billing-plans",
   "/admin/billing-coupons",
+  "/admin/referrals",
   "/admin/moderation",
   "/admin/analytics",
   "/admin/users",
@@ -32,6 +33,7 @@ export const COMMUNITY_ADMIN_ROUTE_PREFIXES = [
   "/admin/feed",
   "/admin/marketplace",
   "/admin/businesses",
+  "/admin/refer-and-earn",
 ] as const;
 
 const SHARED_ADMIN_ROUTES = new Set([

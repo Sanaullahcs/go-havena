@@ -2,6 +2,7 @@ import axios from "axios";
 import api, { ApiError } from "./client";
 import { parseAccountBlockFromResponse } from "@/lib/auth/account-block";
 import type { CommunityAdminAccess } from "@/lib/auth/session";
+import { normalizeReferralCode } from "@/lib/auth/referral-storage";
 
 export type AuthUser = {
   id: number;
@@ -52,7 +53,7 @@ function throwAuthError(err: unknown): never {
   if (axios.isAxiosError(err)) {
     const data = err.response?.data as Record<string, unknown> | undefined;
     const errors = data?.errors as Record<string, string[]> | undefined;
-    const fieldMsg = errors?.email?.[0] ?? errors?.phone?.[0] ?? errors?.code?.[0];
+    const fieldMsg = errors?.email?.[0] ?? errors?.phone?.[0] ?? errors?.code?.[0] ?? errors?.referral_code?.[0];
     const msg = fieldMsg ?? (typeof data?.message === "string" ? data.message : "Request failed.");
     const block = parseAccountBlockFromResponse(data);
     throw new ApiError(msg, err.response?.status ?? 500, {
@@ -134,14 +135,17 @@ export async function verifyCommunityAdminOtp(
   phone: string,
   code: string,
   intent: CommunityAdminOtpIntent = "login",
+  referralCode?: string | null,
 ): Promise<{ token: string; user: AuthUser; intent: CommunityAdminOtpIntent }> {
   try {
+    const cleanReferral = normalizeReferralCode(referralCode);
     const res = await api.post("/v1/auth/otp/verify", {
       phone,
       code,
       intent,
       portal: "community_admin_dashboard",
       ...(intent === "signup" ? { role: "admin" as const } : {}),
+      ...(cleanReferral ? { referral_code: cleanReferral } : {}),
     });
     const data = res.data;
     const token = data.token;

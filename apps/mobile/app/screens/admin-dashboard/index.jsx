@@ -497,6 +497,7 @@ export default function AdminDashboardScreen() {
     { icon: "shopping-bag", label: t("admin.marketplaceListings"), badge: stats?.pending_listings, color: "#059669", route: "/screens/admin-listings" },
     { icon: "briefcase", label: t("admin.businesses"), badge: stats?.pending_businesses, color: "#D97706", route: { pathname: MarketplaceRoutes.ALL_BUSINESSES, params: withMarketplaceRole("admin", { tab: "businesses" }) } },
     { icon: "tag", label: t("admin.deals"), color: "#E11D48", route: { pathname: MarketplaceRoutes.ALL_BUSINESSES, params: withMarketplaceRole("admin", { tab: "deals" }) } },
+    { icon: "award", label: t("admin.referAndEarn"), color: "#0F766E", route: "/screens/admin-refer-and-earn" },
   ];
 
   const reviewItems = useMemo(() => {

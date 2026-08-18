@@ -361,7 +361,12 @@ export default function BillingCouponsPage() {
             <div className="space-y-4 px-6 py-5">
               <Field label="Code" required error={showError("code", liveErrors)}>
                 <input
-                  className={inputClass(showError("code", liveErrors), "nl-input w-full font-mono uppercase")}
+                  className={inputClass(
+                    showError("code", liveErrors),
+                    editing
+                      ? "nl-input w-full cursor-not-allowed bg-slate-50 font-mono uppercase text-slate-600"
+                      : "nl-input w-full font-mono uppercase",
+                  )}
                   placeholder="SUMMER26"
                   value={form.code}
                   readOnly={Boolean(editing)}
@@ -372,11 +377,15 @@ export default function BillingCouponsPage() {
                   }}
                 />
               </Field>
-              {!editing ? (
+              {editing ? (
+                <p className="-mt-2 text-[11px] text-slate-500">
+                  Code can’t be changed after creation — Stripe promotion codes are immutable, and existing checkouts already reference this exact code. Create a new coupon if you need a different code.
+                </p>
+              ) : (
                 <p className="-mt-2 text-[11px] text-slate-500">
                   Must be unique — community admins type this exact code at checkout. Existing code in your account: check the coupons table first.
                 </p>
-              ) : null}
+              )}
 
               <Field label="Name" required error={showError("name", liveErrors)}>
                 <input

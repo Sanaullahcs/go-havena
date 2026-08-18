@@ -206,11 +206,13 @@ const systemAdminNav: NavItem[] = [
   { href: "/admin/wellness", label: "Wellness Programs", icon: NavIconWellness },
   { href: "/admin/billing-plans", label: "Billing & Plans", icon: NavIconBilling },
   { href: "/admin/billing-coupons", label: "Coupons", icon: NavIconBilling },
+  { href: "/admin/referrals", label: "Referrals", icon: NavIconBilling },
 ];
 
 const communityAdminNav: NavItem[] = [
   { href: "/admin/members", label: "Members", icon: NavIconMembers },
   { href: "/admin/billing", label: "Billing", icon: NavIconBilling },
+  { href: "/admin/refer-and-earn", label: "Refer & Earn", icon: NavIconBilling },
   { href: "/admin/guests", label: "Guest Users", icon: NavIconMembers },
   { href: "/admin/messages", label: "Messages", icon: NavIconMessages },
   { href: "/admin/notices", label: "Notices", icon: NavIconNotices },
