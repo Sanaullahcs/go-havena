@@ -52,12 +52,13 @@ class CommunityAdminAccessService
             }
         }
 
+        $this->billing->refreshGraceIfNeeded($communityId);
         $subscription = $this->billing->getSubscription($communityId);
         if (! $subscription) {
             return false;
         }
 
-        return $subscription->hasCardOnFile();
+        return $subscription->hasCardOnFile() || $subscription->hasLeftoverService();
     }
 
     public function isPlatformApproved(User $user): bool
@@ -130,10 +131,13 @@ class CommunityAdminAccessService
     public function accessPayload(User $user): array
     {
         $communityId = $this->managedCommunityId($user);
+        if ($communityId) {
+            $this->billing->refreshGraceIfNeeded($communityId);
+        }
         $subscription = $communityId ? $this->billing->getSubscription($communityId) : null;
         $platformApproved = $this->isPlatformApproved($user);
 
-        if ($communityId && $platformApproved && $subscription?->isPendingTrial()) {
+        if ($communityId && $platformApproved && $subscription?->isPendingTrial() && ! $subscription->isAdminTransition()) {
             $community = $this->managedMembership($user)?->community
                 ?? Community::query()->find($communityId);
             if ($community) {
@@ -159,7 +163,9 @@ class CommunityAdminAccessService
         }
         if (! $platformApproved) {
             if (AdminRoleService::isCommunityAdminRejected($user)) {
-                $blocking[] = 'admin_rejected';
+                $blocking[] = app(CommunityLifecycleService::class)->wasApprovedThenRejected($user)
+                    ? 'admin_revoked'
+                    : 'admin_rejected';
             } elseif (($user->community_admin_status ?? 'pending') === 'pending') {
                 $blocking[] = 'admin_pending';
             } else {
@@ -202,6 +208,12 @@ class CommunityAdminAccessService
             'trial_ends_at' => $subscription?->status === CommunitySubscription::STATUS_TRIALING
                 ? $subscription->current_period_end?->toIso8601String()
                 : null,
+            'admin_transition' => $subscription?->isAdminTransition() ?? false,
+            'leftover_ends_at' => $subscription?->leftoverEndsAt()?->toIso8601String(),
+            'has_leftover_service' => $subscription?->hasLeftoverService() ?? false,
+            'requires_replacement_card' => ($subscription?->isAdminTransition() ?? false)
+                && ! ($subscription?->hasLeftoverService() ?? false),
+            'access_revoked' => in_array('admin_revoked', $blocking, true),
             'next_step' => $nextStep,
             'billing_url' => $adminUrl.'/admin/billing',
             'blocking_reasons' => $blocking,
@@ -218,9 +230,14 @@ class CommunityAdminAccessService
                 'card_on_file' => false,
                 'billing_complete' => false,
                 'trial_ends_at' => null,
+                'admin_transition' => false,
+                'leftover_ends_at' => null,
+                'has_leftover_service' => false,
+                'requires_replacement_card' => false,
             ];
         }
 
+        $this->billing->refreshGraceIfNeeded($communityId);
         $subscription = $this->billing->getSubscription($communityId);
         $community = Community::query()->find($communityId);
         if ($community && $subscription?->isPendingTrial()) {
@@ -242,6 +259,11 @@ class CommunityAdminAccessService
             'trial_ends_at' => $subscription?->status === CommunitySubscription::STATUS_TRIALING
                 ? $subscription->current_period_end?->toIso8601String()
                 : null,
+            'admin_transition' => $subscription?->isAdminTransition() ?? false,
+            'leftover_ends_at' => $subscription?->leftoverEndsAt()?->toIso8601String(),
+            'has_leftover_service' => $subscription?->hasLeftoverService() ?? false,
+            'requires_replacement_card' => ($subscription?->isAdminTransition() ?? false)
+                && ! ($subscription?->hasLeftoverService() ?? false),
         ];
     }
 
@@ -271,7 +293,7 @@ class CommunityAdminAccessService
         bool $platformApproved,
         array $blocking,
     ): string {
-        if (in_array('admin_rejected', $blocking, true) || in_array('community_rejected', $blocking, true)) {
+        if (in_array('admin_revoked', $blocking, true) || in_array('admin_rejected', $blocking, true) || in_array('community_rejected', $blocking, true)) {
             return 'rejected';
         }
 

@@ -15,9 +15,12 @@ import { PageError, PageLoader } from "@/components/shared/page-states";
 import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
 import { apiError } from "@/lib/api/client";
 import {
+  applyBillingCoupon,
   confirmElementsCheckout,
   formatMoney,
+  removeBillingCoupon,
   startBillingCheckout,
+  type BillingCouponSummary,
   type BillingInterval,
 } from "@/lib/api/billing";
 import { toastError, toastSuccess } from "@/lib/alert";
@@ -135,6 +138,7 @@ type CheckoutSession = {
     price_cents: number;
     currency: string;
   };
+  coupon?: BillingCouponSummary | null;
 };
 
 function intentAlreadyComplete(status: string | undefined) {
@@ -169,10 +173,22 @@ function CheckoutForm({
   session,
   onPaid,
   onIntentExpired,
+  couponCode,
+  setCouponCode,
+  appliedCoupon,
+  onApplyCoupon,
+  onRemoveCoupon,
+  couponLoading,
 }: {
   session: CheckoutSession;
   onPaid: () => Promise<void>;
   onIntentExpired: () => Promise<void>;
+  couponCode: string;
+  setCouponCode: (value: string) => void;
+  appliedCoupon: BillingCouponSummary | null;
+  onApplyCoupon: () => Promise<void>;
+  onRemoveCoupon: () => Promise<void>;
+  couponLoading: boolean;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -256,6 +272,50 @@ function CheckoutForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
+      {session.trialDays > 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-[12px] font-semibold text-slate-700">Promo code</p>
+          <p className="mt-1 text-[12px] text-slate-500">
+            Applied after your free trial on the first paid invoice.
+          </p>
+          {appliedCoupon ? (
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2.5">
+              <div>
+                <p className="text-sm font-semibold text-teal-900">{appliedCoupon.code}</p>
+                <p className="text-[12px] text-teal-800">
+                  Save {formatMoney(appliedCoupon.savings_cents, appliedCoupon.currency)} per {session.plan.interval}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void onRemoveCoupon()}
+                disabled={couponLoading}
+                className="text-[12px] font-semibold text-teal-700 hover:text-teal-900"
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <div className="mt-3 flex gap-2">
+              <input
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                placeholder="Enter code"
+                className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => void onApplyCoupon()}
+                disabled={couponLoading || !couponCode.trim()}
+                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                Apply
+              </button>
+            </div>
+          )}
+        </div>
+      ) : null}
+
       {session.customerEmail ? (
         <div>
           <p className="text-[12px] font-semibold text-slate-600">Email</p>
@@ -288,18 +348,24 @@ function CheckoutForm({
       >
         <Lock className="h-4 w-4" aria-hidden />
         {submitting
-          ? session.trialStartsOnApproval
-            ? "Saving your card…"
-            : "Starting your trial…"
-          : session.trialStartsOnApproval
-            ? "Save card"
-            : `Start ${session.trialDays}-day free trial`}
+          ? session.trialDays > 0
+            ? session.trialStartsOnApproval
+              ? "Saving your card…"
+              : "Starting your trial…"
+            : "Saving your card…"
+          : session.trialDays > 0
+            ? session.trialStartsOnApproval
+              ? "Save card"
+              : `Start ${session.trialDays}-day free trial`
+            : "Save card and resume billing"}
       </button>
 
       <p className="text-center text-[11px] leading-relaxed text-slate-500 sm:text-[12px]">
-        {session.trialStartsOnApproval
-          ? `$0 due today. Your ${session.trialDays}-day free trial starts after a system administrator approves your account. You are not charged until that trial ends.`
-          : `$0 due today. Your card is saved by Stripe and billed in USD after the trial unless you cancel.`}
+        {session.trialDays <= 0
+          ? "Your card replaces the previous admin’s payment method. Billing resumes on the plan you selected."
+          : session.trialStartsOnApproval
+            ? `$0 due today. Your ${session.trialDays}-day free trial starts after a system administrator approves your account. You are not charged until that trial ends.`
+            : `$0 due today. Your card is saved by Stripe and billed in USD after the trial unless you cancel.`}
       </p>
     </form>
   );
@@ -312,6 +378,10 @@ function PayInner() {
   const interval: BillingInterval = searchParams.get("interval") === "year" ? "year" : "month";
 
   const [session, setSession] = useState<CheckoutSession | null>(null);
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<BillingCouponSummary | null>(null);
+  const [basePlanPriceCents, setBasePlanPriceCents] = useState(0);
+  const [couponLoading, setCouponLoading] = useState(false);
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -366,6 +436,7 @@ function PayInner() {
       }
 
       setStripePromise(stripePromiseFor(result.publishable_key));
+      setBasePlanPriceCents(result.plan.price_cents);
       setSession({
         clientSecret: result.client_secret,
         intentType: result.intent_type === "payment" ? "payment" : "setup",
@@ -384,7 +455,9 @@ function PayInner() {
           ...result.plan,
           interval: result.plan.interval === "year" ? "year" : "month",
         },
+        coupon: result.coupon ?? null,
       });
+      setAppliedCoupon(result.coupon ?? null);
     } catch (err) {
       if (gen !== startGen.current) return;
       setError(apiError(err));
@@ -451,7 +524,67 @@ function PayInner() {
     throw lastError || new Error("Card saved, but the trial is still confirming. Refresh billing in a moment.");
   };
 
+  const onApplyCoupon = async () => {
+    if (!session || !couponCode.trim()) return;
+    setCouponLoading(true);
+    try {
+      const result = await applyBillingCoupon({
+        code: couponCode.trim(),
+        plan_slug: session.plan.slug,
+        interval: session.plan.interval,
+      });
+      setAppliedCoupon(result.coupon);
+      setSession((current) =>
+        current
+          ? {
+              ...current,
+              coupon: result.coupon,
+              plan: {
+                ...current.plan,
+                price_cents: result.coupon.discounted_price_cents,
+              },
+            }
+          : current,
+      );
+      toastSuccess("Coupon applied.");
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const onRemoveCoupon = async () => {
+    setCouponLoading(true);
+    try {
+      await removeBillingCoupon();
+      setAppliedCoupon(null);
+      setCouponCode("");
+      setSession((current) =>
+        current
+          ? {
+              ...current,
+              coupon: null,
+              plan: {
+                ...current.plan,
+                price_cents: basePlanPriceCents || current.plan.price_cents,
+              },
+            }
+          : current,
+      );
+      toastSuccess("Coupon removed.");
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
   const period = session?.plan.interval === "year" ? "year" : "month";
+  const billedPriceCents =
+    appliedCoupon?.discounted_price_cents ?? session?.plan.price_cents ?? 0;
+  const originalPriceCents =
+    appliedCoupon?.original_price_cents ?? session?.plan.price_cents ?? 0;
   const trialEnd = useMemo(() => {
     const date = new Date();
     date.setDate(date.getDate() + (session?.trialDays ?? TRIAL_DAYS));
@@ -485,16 +618,23 @@ function PayInner() {
       <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,18.5rem)_minmax(0,1fr)] lg:items-start">
         <aside className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-[#0A2A43] via-[#0c3550] to-teal-800 p-5 text-white shadow-md">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-teal-100/80">
-            Try Havena {session.plan.name}
+            {session.trialDays > 0 ? `Try Havena ${session.plan.name}` : `Resume ${session.plan.name}`}
           </p>
           <h1 className="mt-2 font-[family-name:var(--font-brand)] text-[1.75rem] font-bold leading-tight">
-            {session.trialDays} days free
+            {session.trialDays > 0 ? `${session.trialDays} days free` : "Add your card"}
           </h1>
           <p className="mt-2 text-[13px] leading-relaxed text-white/75">
-            Then {formatMoney(session.plan.price_cents, session.plan.currency)} per {period}
-            {session.trialStartsOnApproval
-              ? ` after your ${session.trialDays}-day trial (trial starts when you’re approved).`
-              : ` starting ${trialEnd}.`}
+            {session.trialDays <= 0
+              ? `${formatMoney(billedPriceCents, session.plan.currency)} per ${period} after you save your card. The previous admin is not charged.`
+              : `Then ${formatMoney(billedPriceCents, session.plan.currency)} per ${period}${
+                  appliedCoupon
+                    ? ` (${formatMoney(originalPriceCents, session.plan.currency)} before discount)`
+                    : ""
+                }${
+                  session.trialStartsOnApproval
+                    ? ` after your ${session.trialDays}-day trial (trial starts when you’re approved).`
+                    : ` starting ${trialEnd}.`
+                }`}
           </p>
 
           <ul className="mt-5 space-y-2.5 border-t border-white/15 pt-4 text-[13px] text-white/85">
@@ -540,6 +680,12 @@ function PayInner() {
                   setSession(null);
                   await start();
                 }}
+                couponCode={couponCode}
+                setCouponCode={setCouponCode}
+                appliedCoupon={appliedCoupon}
+                onApplyCoupon={onApplyCoupon}
+                onRemoveCoupon={onRemoveCoupon}
+                couponLoading={couponLoading}
               />
             </Elements>
           </div>

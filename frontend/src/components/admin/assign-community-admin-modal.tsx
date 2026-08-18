@@ -5,7 +5,6 @@ import { AdminPhoneInput } from "@/components/admin/phone-input";
 import { AdminBadge } from "@/components/admin/ui";
 import { assignCommunityAdmin } from "@/lib/api/communities";
 import { apiError } from "@/lib/api/client";
-import { isSystemAdminUser } from "@/lib/auth/session";
 import { toastError, toastSuccess } from "@/lib/alert";
 import { emptyPhoneField, type PhoneFieldState } from "@/lib/phone/format";
 
@@ -46,20 +45,6 @@ export function AssignCommunityAdminModal({
 
   const isReassign = target.mode === "reassign" || Boolean(target.previousAdminName);
   const canSubmitNew = form.email.trim().length > 0 && phone.valid;
-
-  const handleAssignSelf = async () => {
-    setSubmitting(true);
-    try {
-      const res = await assignCommunityAdmin(target.communityId, { assign_self: true });
-      toastSuccess(res.message);
-      onAssigned?.();
-      onClose();
-    } catch (err) {
-      toastError(apiError(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const handleAssignNew = async () => {
     setFormTouched(true);
@@ -114,37 +99,13 @@ export function AssignCommunityAdminModal({
               <p className="font-semibold">Previous admin suspended</p>
               <p className="mt-0.5 text-[13px] text-amber-900">
                 <span className="font-medium">{target.previousAdminName}</span> no longer has access.
-                Assign yourself or invite a new admin to restore community management.
+                Invite a new community admin to restore management.
               </p>
             </div>
           ) : null}
         </div>
 
         <div className="space-y-5 px-6 py-5">
-          {isSystemAdminUser() ? (
-            <button
-              type="button"
-              disabled={submitting}
-              onClick={handleAssignSelf}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-800 transition hover:bg-blue-100 disabled:opacity-60"
-            >
-              <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" aria-hidden>
-                <circle cx="10" cy="7" r="3" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M4 17c0-3 2.7-5 6-5s6 2 6 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-              Assign myself as admin
-            </button>
-          ) : null}
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center" aria-hidden>
-              <div className="w-full border-t border-slate-200" />
-            </div>
-            <div className="relative flex justify-center text-[11px] font-semibold uppercase tracking-wide">
-              <span className="bg-white px-3 text-slate-400">Or create new admin</span>
-            </div>
-          </div>
-
           <div className="space-y-4">
             <Field label="Full name" hint="Optional — shown in the admin directory">
               <input

@@ -44,8 +44,11 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${sans.variable} ${display.variable} ${brand.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full overflow-x-hidden">{children}</body>
+      <body className="min-h-full overflow-x-hidden" suppressHydrationWarning>
+        {children}
+      </body>
     </html>
   );
 }

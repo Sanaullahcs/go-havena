@@ -36,6 +36,10 @@ export type CommunityAdminApplicant = {
     card_on_file?: boolean;
     billing_complete?: boolean;
     trial_ends_at?: string | null;
+    admin_transition?: boolean;
+    leftover_ends_at?: string | null;
+    has_leftover_service?: boolean;
+    requires_replacement_card?: boolean;
   } | null;
 };
 

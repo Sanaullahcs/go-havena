@@ -109,7 +109,7 @@ class CommunityAdminReassignTest extends TestCase
         $this->assertSame('Administrator needed', $row['name']);
     }
 
-    public function test_assign_self_removes_community_from_reassign_list(): void
+    public function test_system_admin_cannot_assign_themselves(): void
     {
         $region = $this->seedRegion();
         ['community' => $community, 'admin' => $admin] = $this->seedCommunityWithAdmin($region);
@@ -118,23 +118,19 @@ class CommunityAdminReassignTest extends TestCase
 
         $this->patchJson("/api/v1/admin/community-admins/{$admin->id}/suspend")->assertOk();
 
+        $this->postJson("/api/v1/admin/communities/{$community->id}/assign-admin", [
+            'assign_self' => true,
+        ])->assertStatus(422)
+            ->assertJsonPath('message', 'Provide user_id or new admin contact details.');
+
+        $this->postJson("/api/v1/admin/communities/{$community->id}/assign-admin", [
+            'user_id' => $systemAdmin->id,
+        ])->assertStatus(422)
+            ->assertJsonPath('message', 'A system administrator cannot be assigned as a community admin. Invite a community admin instead.');
+
         $this->getJson('/api/v1/admin/community-admins?status=reassign')
             ->assertOk()
             ->assertJsonPath('meta.stats.needs_reassign', 1);
-
-        $this->postJson("/api/v1/admin/communities/{$community->id}/assign-admin", [
-            'assign_self' => true,
-        ])->assertOk()
-            ->assertJsonPath('data.admin.id', $systemAdmin->id);
-
-        $this->getJson('/api/v1/admin/community-admins?status=reassign')
-            ->assertOk()
-            ->assertJsonPath('meta.stats.needs_reassign', 0)
-            ->assertJsonCount(0, 'data');
-
-        $this->getJson('/api/v1/admin/community-admins?status=suspended')
-            ->assertOk()
-            ->assertJsonCount(0, 'data');
     }
 
     public function test_assign_new_admin_removes_community_from_reassign_and_suspended_lists(): void

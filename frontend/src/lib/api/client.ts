@@ -63,6 +63,31 @@ export class ApiError extends Error {
   }
 }
 
+/** Map Laravel / API validation errors to field keys. */
+export function apiFieldErrors(err: unknown): Record<string, string> {
+  if (!axios.isAxiosError(err)) return {};
+
+  const data = err.response?.data as {
+    errors?: Record<string, string[]>;
+    code?: string;
+    message?: string;
+  } | undefined;
+
+  const out: Record<string, string> = {};
+
+  if (data?.errors) {
+    for (const [key, msgs] of Object.entries(data.errors)) {
+      if (Array.isArray(msgs) && msgs[0]) out[key] = msgs[0];
+    }
+  }
+
+  if (data?.code === "COUPON_CODE_TAKEN" && data.message) {
+    out.code = data.message;
+  }
+
+  return out;
+}
+
 /** Extract error message from axios error */
 export function apiError(err: unknown): string {
   if (axios.isAxiosError(err)) {

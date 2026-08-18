@@ -49,6 +49,12 @@ export interface BillingSubscription {
   in_grace: boolean;
   card_on_file?: boolean;
   trial_pending_approval?: boolean;
+  admin_transition?: boolean;
+  leftover_ends_at?: string | null;
+  has_leftover_service?: boolean;
+  requires_replacement_card?: boolean;
+  trial_consumed?: boolean;
+  inherited_plan_slug?: string | null;
 }
 
 export interface BillingSetup {
@@ -58,6 +64,9 @@ export interface BillingSetup {
   can_invite_residents: boolean;
   card_on_file?: boolean;
   trial_pending_approval?: boolean;
+  admin_transition?: boolean;
+  has_leftover_service?: boolean;
+  requires_replacement_card?: boolean;
 }
 
 export interface BillingPayload {
@@ -82,6 +91,27 @@ export interface BillingPayload {
     publishable_key: string | null;
   };
   setup: BillingSetup;
+  coupon?: BillingCouponSummary | null;
+}
+
+export interface BillingCouponSummary {
+  id: number;
+  code: string;
+  discount_type: "percent" | "fixed";
+  percent_off: number | null;
+  amount_off_cents: number | null;
+  currency: string;
+  discount_duration: "once" | "repeating" | "forever";
+  discount_months: number | null;
+  plan_slug: string;
+  billing_interval: string;
+  status: string;
+  original_price_cents: number;
+  discounted_price_cents: number;
+  savings_cents: number;
+  is_pending?: boolean;
+  redeemed_at?: string | null;
+  applied_at?: string | null;
 }
 
 function communityParams(communityId?: number | null) {
@@ -124,6 +154,7 @@ export async function startBillingCheckout(input: {
     price_cents: number;
     currency: string;
   };
+  coupon?: BillingCouponSummary | null;
   message?: string;
 }> {
   const returnOrigin =
@@ -221,4 +252,31 @@ export function planCheckoutPath(planSlug: string, interval: BillingInterval = "
 
 export function planLoginPath(planSlug: string, interval: BillingInterval = "month"): string {
   return `/login?plan=${encodeURIComponent(planSlug)}&interval=${interval}`;
+}
+
+export async function applyBillingCoupon(input: {
+  code: string;
+  plan_slug: string;
+  interval?: BillingInterval;
+  community_id?: number;
+}): Promise<{ coupon: BillingCouponSummary; billing: BillingPayload }> {
+  const { data } = await api.post(
+    "/v1/admin/billing/coupon/apply",
+    {
+      ...communityParams(input.community_id),
+      code: input.code,
+      plan_slug: input.plan_slug,
+      interval: input.interval ?? "month",
+    },
+    { timeout: 45_000 },
+  );
+  return data.data;
+}
+
+export async function removeBillingCoupon(communityId?: number | null): Promise<BillingPayload> {
+  const { data } = await api.delete("/v1/admin/billing/coupon", {
+    params: communityParams(communityId),
+    timeout: 45_000,
+  });
+  return data.data as BillingPayload;
 }

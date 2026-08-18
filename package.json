@@ -16,6 +16,7 @@
     "frontend:build": "npm --prefix frontend run build",
     "frontend:lint": "npm --prefix frontend run lint",
     "backend": "php backend/artisan serve --host=0.0.0.0 --port=8000",
+    "backend:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-backend.ps1",
     "backend:setup": "php backend/artisan storage:link",
     "backend:seed-demo": "php backend/artisan havena:seed-demo",
     "dashboards": "bash scripts/dev-dashboards.sh",

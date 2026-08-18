@@ -13,6 +13,11 @@ export type CommunityAdminAccess = {
   plan_slug?: string | null;
   card_on_file?: boolean;
   trial_ends_at?: string | null;
+  admin_transition?: boolean;
+  leftover_ends_at?: string | null;
+  has_leftover_service?: boolean;
+  requires_replacement_card?: boolean;
+  access_revoked?: boolean;
   next_step?: string;
   billing_url?: string;
   blocking_reasons?: string[];
@@ -109,6 +114,34 @@ export function canAccessCommunityOnboarding(user?: WebUser | null): boolean {
   if (!u || !isCommunityAdminUser(u)) return false;
   if (u.community_admin_status === "rejected") return false;
   return true;
+}
+
+export function wasCommunityAdminRevoked(user?: WebUser | null): boolean {
+  const u = user ?? getUser();
+  if (!u || u.community_admin_status !== "rejected") return false;
+  if (u.access?.access_revoked || u.access?.blocking_reasons?.includes("admin_revoked")) {
+    return true;
+  }
+  return (u.memberships ?? []).some(
+    (m) =>
+      m.role === "admin" &&
+      (m.status === "approved" || m.status === "banned") &&
+      (m.community?.review_status === "approved" || m.community?.review_status == null),
+  );
+}
+
+export function communityAdminAccessBlockedCopy(user?: WebUser | null): { title: string; message: string } {
+  if (wasCommunityAdminRevoked(user)) {
+    return {
+      title: "Access revoked",
+      message:
+        "Your community admin access was revoked after it had been approved. Your subscription has been canceled and you will not be charged again. Contact support if you have questions.",
+    };
+  }
+  return {
+    title: "Access unavailable",
+    message: "Your community admin application was not approved. Contact support for help.",
+  };
 }
 
 export function getCommunityAdminNextStep(user?: WebUser | null): string {

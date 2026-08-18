@@ -156,6 +156,33 @@ class AuthAccountBlockTest extends TestCase
             ->assertJsonPath('rejected_by', 'system_admin');
     }
 
+    public function test_revoked_community_admin_otp_explains_access_was_revoked(): void
+    {
+        $community = $this->seedCommunity();
+        $admin = User::factory()->create([
+            'role'                             => 'community_admin',
+            'community_admin_status'           => 'rejected',
+            'community_admin_rejection_reason' => 'Policy violation',
+            'phone'                            => '+201700000079',
+            'phone_verified_at'                => now(),
+        ]);
+        CommunityMembership::query()->create([
+            'user_id'      => $admin->id,
+            'community_id' => $community->id,
+            'role'         => 'admin',
+            'status'       => 'approved',
+        ]);
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'phone'  => $admin->phone,
+            'intent' => 'login',
+            'portal' => 'community_admin_dashboard',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'COMMUNITY_ADMIN_REVOKED')
+            ->assertJsonPath('message', 'Your community admin access was revoked. Your subscription has been canceled and you will not be charged again. Contact support if you have questions.');
+    }
+
     public function test_pending_community_admin_otp_returns_block_details(): void
     {
         $admin = User::factory()->create([

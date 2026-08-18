@@ -174,7 +174,6 @@ export async function assignCommunityAdmin(
   communityId: number,
   payload: {
     user_id?: number;
-    assign_self?: boolean;
     name?: string;
     email?: string;
     phone?: string;

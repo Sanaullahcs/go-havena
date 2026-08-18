@@ -74,8 +74,38 @@ class CommunitySubscription extends Model
         return false;
     }
 
+    public function isAdminTransition(): bool
+    {
+        return (bool) data_get($this->meta, 'admin_transition', false);
+    }
+
+    /** Remaining paid/trial days after the previous admin was suspended. */
+    public function hasLeftoverService(): bool
+    {
+        if (! $this->isAdminTransition()) {
+            return false;
+        }
+
+        $ends = $this->leftoverEndsAt();
+
+        return $ends !== null && $ends->isFuture();
+    }
+
+    public function leftoverEndsAt(): ?\Illuminate\Support\Carbon
+    {
+        if (! $this->isAdminTransition()) {
+            return null;
+        }
+
+        return $this->grace_ends_at ?? $this->current_period_end;
+    }
+
     public function isInGrace(): bool
     {
+        if ($this->hasLeftoverService()) {
+            return true;
+        }
+
         return in_array($this->status, [self::STATUS_GRACE, self::STATUS_PAST_DUE], true)
             && ($this->grace_ends_at === null || $this->grace_ends_at->isFuture());
     }
@@ -112,6 +142,10 @@ class CommunitySubscription extends Model
     /** Trial/active access that can unlock the dashboard after platform approval. */
     public function grantsPaidAccess(): bool
     {
+        if ($this->hasLeftoverService()) {
+            return true;
+        }
+
         if ($this->isManualGrant()) {
             return in_array($this->status, [self::STATUS_TRIALING, self::STATUS_ACTIVE], true);
         }

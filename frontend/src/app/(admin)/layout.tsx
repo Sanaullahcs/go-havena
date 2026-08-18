@@ -10,6 +10,7 @@ import {
   updateUser,
   canAccessCommunityDashboard,
   canAccessCommunityOnboarding,
+  communityAdminAccessBlockedCopy,
   getCommunityAdminNextStep,
   isCommunityAdminOnboarding,
   isCommunityAdminUser,
@@ -40,6 +41,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/contact-messages": "Contact Messages",
   "/admin/wellness": "Wellness Programs",
   "/admin/billing-plans": "Billing & Plans",
+  "/admin/billing-coupons": "Subscription Coupons",
   "/admin/members": "Members",
   "/admin/billing": "Billing",
   "/admin/billing/pay": "Checkout",
@@ -101,6 +103,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [checked, setChecked] = useState(() => readCachedAdminShell().checked);
   const [accessBlocked, setAccessBlocked] = useState<string | null>(null);
+  const [accessBlockedTitle, setAccessBlockedTitle] = useState("Access unavailable");
   const [onboardingOnly, setOnboardingOnly] = useState(
     () => readCachedAdminShell().onboardingOnly,
   );
@@ -151,7 +154,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
 
       if (!canAccessCommunityOnboarding(user)) {
-        setAccessBlocked("Your community admin application was not approved. Contact support for help.");
+        const blocked = communityAdminAccessBlockedCopy(user);
+        setAccessBlockedTitle(blocked.title);
+        setAccessBlocked(blocked.message);
         setOnboardingOnly(false);
         setChecked(true);
         return;
@@ -225,7 +230,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="flex min-h-screen items-center justify-center bg-[#F6F8FB] px-6">
         <div className="max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
           <p className="text-sm font-semibold uppercase tracking-wide text-sky-700">Community admin portal</p>
-          <h1 className="mt-3 text-2xl font-bold text-slate-900">Access unavailable</h1>
+          <h1 className="mt-3 text-2xl font-bold text-slate-900">{accessBlockedTitle}</h1>
           <p className="mt-3 text-sm leading-relaxed text-slate-600">{accessBlocked}</p>
           <button
             type="button"

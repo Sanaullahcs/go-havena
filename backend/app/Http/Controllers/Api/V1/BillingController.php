@@ -7,13 +7,16 @@ use App\Http\Controllers\Controller;
 use App\Models\Community;
 use App\Services\AdminRoleService;
 use App\Services\CommunityBillingService;
+use App\Services\SubscriptionCouponService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class BillingController extends Controller
 {
-    public function __construct(private readonly CommunityBillingService $billing)
-    {
+    public function __construct(
+        private readonly CommunityBillingService $billing,
+        private readonly SubscriptionCouponService $coupons,
+    ) {
     }
 
     /** GET /v1/admin/billing */
@@ -141,6 +144,61 @@ class BillingController extends Controller
             'data' => $this->billing->billingPayload($community->fresh()),
             'message' => 'Plan updated.',
             'subscription_id' => $subscription->id,
+        ]);
+    }
+
+    /** POST /v1/admin/billing/coupon/apply */
+    public function applyCoupon(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'code' => ['required', 'string', 'max:40'],
+            'plan_slug' => ['required', 'string', 'max:50'],
+            'interval' => ['nullable', 'in:month,year'],
+            'community_id' => ['nullable', 'integer'],
+        ]);
+
+        $communityId = AdminRoleService::requireManagedCommunityId($request->user(), $request);
+        $community = Community::query()->findOrFail($communityId);
+        $subscription = $this->billing->getSubscription($communityId);
+        $interval = ($validated['interval'] ?? 'month') === 'year' ? 'year' : 'month';
+        $plan = $this->billing->plan($validated['plan_slug']);
+
+        if (! $plan) {
+            throw new BillingException('Plan not found.', 'PLAN_NOT_FOUND', 404);
+        }
+
+        $priceCents = $interval === 'year'
+            ? (int) ($plan['price_yearly_cents'] ?? 0)
+            : (int) ($plan['price_monthly_cents'] ?? 0);
+
+        $redemption = $this->coupons->applyPending(
+            $communityId,
+            $validated['code'],
+            $validated['plan_slug'],
+            $interval,
+            $subscription,
+        );
+
+        return response()->json([
+            'data' => [
+                'coupon' => $this->coupons->preview($priceCents, $redemption),
+                'billing' => $this->billing->billingPayload($community->fresh()),
+            ],
+            'message' => 'Coupon applied.',
+        ]);
+    }
+
+    /** DELETE /v1/admin/billing/coupon */
+    public function removeCoupon(Request $request): JsonResponse
+    {
+        $communityId = AdminRoleService::requireManagedCommunityId($request->user(), $request);
+        $community = Community::query()->findOrFail($communityId);
+
+        $this->coupons->removePending($communityId);
+
+        return response()->json([
+            'data' => $this->billing->billingPayload($community->fresh()),
+            'message' => 'Coupon removed.',
         ]);
     }
 

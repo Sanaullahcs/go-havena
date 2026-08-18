@@ -4,7 +4,10 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  ArrowRight,
+  CalendarDays,
   Check,
+  CreditCard,
   ShieldCheck,
   Sparkles,
   Users,
@@ -39,7 +42,8 @@ function planTrialDays(plan?: Pick<BillingPlan, "trial_period_days"> | null, fal
   return typeof plan?.trial_period_days === "number" ? plan.trial_period_days : fallback;
 }
 
-function statusLabel(status: string | null | undefined) {
+function statusLabel(status: string | null | undefined, leftover = false) {
+  if (leftover) return "Leftover period";
   switch (status) {
     case "active":
       return "Active";
@@ -57,6 +61,46 @@ function statusLabel(status: string | null | undefined) {
     default:
       return status ? status.replace(/_/g, " ") : "No subscription";
   }
+}
+
+function statusTone(status: string | null | undefined, leftover = false) {
+  if (leftover) return "bg-amber-50 text-amber-800 ring-amber-200";
+  switch (status) {
+    case "active":
+      return "bg-emerald-50 text-emerald-800 ring-emerald-200";
+    case "trialing":
+      return "bg-teal-50 text-teal-800 ring-teal-200";
+    case "pending_trial":
+      return "bg-sky-50 text-sky-800 ring-sky-200";
+    case "grace":
+    case "past_due":
+    case "unpaid":
+      return "bg-orange-50 text-orange-800 ring-orange-200";
+    case "canceled":
+      return "bg-rose-50 text-rose-800 ring-rose-200";
+    default:
+      return "bg-slate-100 text-slate-600 ring-slate-200";
+  }
+}
+
+function formatBillingDate(value?: string | null) {
+  if (!value) return "—";
+  try {
+    return new Date(value).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return "—";
+  }
+}
+
+function daysUntil(value?: string | null) {
+  if (!value) return null;
+  const end = new Date(value);
+  if (Number.isNaN(end.getTime())) return null;
+  return Math.max(0, Math.ceil((end.getTime() - Date.now()) / 86_400_000));
 }
 
 function planHighlights(_plan: BillingPlan) {
@@ -410,7 +454,7 @@ function PlanCard({
         <p className="text-[16px] font-bold text-slate-900">{plan.name}</p>
         <p className="mt-1 min-h-[2.5rem] text-[12px] leading-relaxed text-slate-500">{plan.description}</p>
 
-        <div className="mt-4 rounded-xl border border-teal-100 bg-teal-50/60 px-3.5 py-3">
+        <div className="mt-4 rounded-xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white px-3.5 py-3.5">
           {onboarding ? (
             <>
               <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-teal-700">Due today</p>
@@ -830,12 +874,14 @@ function BillingPageInner() {
   const cardSavedAwaitingApproval = Boolean(
     data.setup.trial_pending_approval || (data.setup.card_on_file && !billingReady),
   );
+  const leftover = Boolean(sub?.has_leftover_service);
+  const needsReplacementCard = Boolean(sub?.requires_replacement_card || data.setup.requires_replacement_card);
   const paidPendingApproval = cardSavedAwaitingApproval || (billingReady && data.community.review_status === "pending");
-  const checkoutComplete = billingReady || cardSavedAwaitingApproval;
+  const checkoutComplete = (billingReady || cardSavedAwaitingApproval || leftover) && !needsReplacementCard;
   const seatLimitLabel = seats.seat_limit > 0 ? String(seats.seat_limit) : "—";
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-full space-y-4 overflow-x-hidden pb-6 sm:max-w-6xl sm:space-y-5">
+    <div className="space-y-6">
       <header className={checkoutComplete ? undefined : "mt-0.5 sm:mt-1"}>
         {checkoutComplete ? (
           <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-teal-700">Billing</p>
@@ -843,12 +889,12 @@ function BillingPageInner() {
         <h1
           className={[
             "font-[family-name:var(--font-brand)] text-xl font-bold tracking-tight text-slate-900 sm:text-2xl",
-            checkoutComplete ? "mt-1 sm:text-3xl" : "",
+            checkoutComplete ? "mt-1 sm:text-[2rem] sm:leading-tight" : "",
           ].join(" ")}
         >
           {checkoutComplete ? "Community subscription" : "Choose your plan"}
         </h1>
-        <p className="mt-1.5 max-w-2xl text-[13px] leading-relaxed text-slate-600 sm:mt-2 sm:text-sm">
+        <p className="mt-1.5 max-w-2xl text-[13px] leading-relaxed text-slate-600 sm:mt-2 sm:text-[15px]">
           {checkoutComplete
             ? "One Havena subscription covers your whole community. Residents never pay Havena — you invite them into your seat pool."
             : "Compare seat packs, then add a card. Your free trial starts after a system administrator approves you — $0 today."}
@@ -873,12 +919,18 @@ function BillingPageInner() {
         </div>
       )}
 
-      {sub?.in_grace ? (
+      {leftover ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-[13px] leading-relaxed text-amber-950">
+          This community is finishing the leftover days of the previous subscription
+          {sub?.leftover_ends_at ? ` until ${formatBillingDate(sub.leftover_ends_at)}` : ""}. The previous
+          admin is not being charged. When that period ends, add your card and you can choose a plan.
+        </div>
+      ) : null}
+
+      {sub?.in_grace && !leftover && !sub?.admin_transition ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-[13px] text-amber-950">
           Payment failed. Update your payment method before{" "}
-          {sub.grace_ends_at
-            ? new Date(sub.grace_ends_at).toLocaleDateString()
-            : "the grace period ends"}{" "}
+          {sub.grace_ends_at ? formatBillingDate(sub.grace_ends_at) : "the grace period ends"}{" "}
           to keep inviting residents.
           {data.billing.stripe_configured ? (
             <button
@@ -903,86 +955,152 @@ function BillingPageInner() {
         </div>
       ) : null}
 
-      {!checkoutComplete ? (
+      {!checkoutComplete && !needsReplacementCard ? (
         <CompactTrialBanner
           communityName={data.community.name}
           trialDays={data.trial_period_days ?? TRIAL_DAYS}
         />
       ) : null}
 
+      {needsReplacementCard ? (
+        <div className="rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3.5 text-[13px] text-teal-950">
+          The leftover period has ended. Add your card to keep this community on Havena. The current plan is
+          pre-selected — you can keep it or choose another plan that fits your resident count.
+        </div>
+      ) : null}
+
       {checkoutComplete ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                Community
-              </p>
-              <h2 className="mt-1 text-[20px] font-semibold tracking-tight text-slate-900">
-                {data.community.name}
-              </h2>
-              <p className="mt-1 text-[13px] text-slate-500">{statusLabel(sub?.status ?? null)}</p>
-            </div>
-            <div className="rounded-2xl bg-teal-50 px-4 py-3 text-right">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                Seats used
-              </p>
-              <p className="text-[28px] font-semibold tabular-nums text-slate-900">
-                {seats.seats_used}
-                <span className="text-[16px] font-medium text-slate-500"> / {seatLimitLabel}</span>
-              </p>
-            </div>
-          </div>
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="h-1.5 bg-gradient-to-r from-[#0A2A43] via-teal-600 to-teal-400" aria-hidden />
+          <div className="p-5 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                  Current subscription
+                </p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2.5">
+                  <h2 className="font-[family-name:var(--font-brand)] text-[22px] font-bold tracking-tight text-slate-900 sm:text-[26px]">
+                    {data.community.name}
+                  </h2>
+                  <span
+                    className={[
+                      "inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1",
+                      statusTone(sub?.status ?? null, leftover),
+                    ].join(" ")}
+                  >
+                    {statusLabel(sub?.status ?? null, leftover)}
+                  </span>
+                </div>
+                <p className="mt-1.5 max-w-xl text-[13px] leading-relaxed text-slate-500">
+                  {leftover
+                    ? `Service continues on the previous plan until ${formatBillingDate(sub?.leftover_ends_at)}. The previous admin is not being charged.`
+                    : sub?.status === "trialing"
+                      ? `${daysUntil(sub.current_period_end) ?? "—"} days left in the free trial. Residents can join without paying Havena.`
+                      : sub?.status === "pending_trial"
+                        ? "Card is on file. The free trial starts after a system administrator approves this community."
+                        : "One plan covers the whole community. Invite residents into your seat pool."}
+                </p>
+              </div>
 
-          {sub ? (
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2.5">
-                <p className="text-[11px] uppercase tracking-wide text-slate-400">Plan</p>
-                <p className="text-[13px] font-semibold text-slate-800">{sub.plan_name}</p>
-              </div>
-              <div className="rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2.5">
-                <p className="text-[11px] uppercase tracking-wide text-slate-400">
-                  {sub.status === "trialing" ? "Trial ends" : sub.status === "pending_trial" ? "Trial starts" : "Renews"}
+              <div className="w-full min-w-[12rem] rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white px-4 py-3.5 sm:w-auto sm:min-w-[13.5rem]">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-teal-700">
+                  Seats used
                 </p>
-                <p className="text-[13px] font-semibold text-slate-800">
-                  {sub.status === "pending_trial"
-                    ? "After approval"
-                    : sub.current_period_end
-                    ? new Date(sub.current_period_end).toLocaleDateString()
-                    : "—"}
+                <p className="mt-1 font-[family-name:var(--font-brand)] text-[30px] font-bold leading-none tabular-nums text-slate-900">
+                  {seats.seats_used}
+                  <span className="text-[16px] font-medium text-slate-400"> / {seatLimitLabel}</span>
                 </p>
-              </div>
-              <div className="rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2.5">
-                <p className="text-[11px] uppercase tracking-wide text-slate-400">Interval</p>
-                <p className="text-[13px] font-semibold capitalize text-slate-800">
-                  {sub.billing_interval}
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-teal-100">
+                  <div
+                    className="h-full rounded-full bg-teal-600 transition-all"
+                    style={{
+                      width: `${Math.min(100, seats.seat_limit > 0 ? (seats.seats_used / seats.seat_limit) * 100 : 0)}%`,
+                    }}
+                  />
+                </div>
+                <p className="mt-2 text-[11px] text-slate-500">
+                  {seats.seats_available > 0
+                    ? `${seats.seats_available} seats still open`
+                    : seats.seat_limit > 0
+                      ? "Seat pool is full"
+                      : "Seats unlock with an active plan"}
                 </p>
               </div>
             </div>
-          ) : null}
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {data.setup.can_invite_residents ? (
-              <Link
-                href="/admin/members"
-                className="inline-flex rounded-xl bg-[#0A2A43] px-4 py-2.5 text-[13px] font-semibold text-white"
-              >
-                Invite residents
-              </Link>
-            ) : (
-              <span className="inline-flex rounded-xl bg-slate-100 px-4 py-2.5 text-[13px] font-semibold text-slate-400">
-                Invite residents
-              </span>
-            )}
-            {sub?.stripe_customer_id && data.billing.stripe_configured ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void onPortal()}
-                className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Manage payment & invoices
-              </button>
+            {sub ? (
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-slate-100 bg-slate-50/80 px-3.5 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Plan</p>
+                  <p className="mt-1 text-[15px] font-semibold text-slate-900">{sub.plan_name}</p>
+                  <p className="mt-0.5 text-[12px] text-slate-500">{sub.seat_limit} resident seats</p>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50/80 px-3.5 py-3">
+                  <p className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    <CalendarDays className="h-3.5 w-3.5" aria-hidden />
+                    {leftover
+                      ? "Leftover ends"
+                      : sub.status === "trialing"
+                        ? "Trial ends"
+                        : sub.status === "pending_trial"
+                          ? "Trial starts"
+                          : "Renews"}
+                  </p>
+                  <p className="mt-1 text-[15px] font-semibold text-slate-900">
+                    {leftover
+                      ? formatBillingDate(sub.leftover_ends_at)
+                      : sub.status === "pending_trial"
+                        ? "After approval"
+                        : formatBillingDate(sub.current_period_end)}
+                  </p>
+                  {sub.status === "trialing" && daysUntil(sub.current_period_end) !== null ? (
+                    <p className="mt-0.5 text-[12px] text-teal-700">
+                      {daysUntil(sub.current_period_end)} days remaining
+                    </p>
+                  ) : leftover && daysUntil(sub.leftover_ends_at) !== null ? (
+                    <p className="mt-0.5 text-[12px] text-amber-700">
+                      {daysUntil(sub.leftover_ends_at)} days remaining
+                    </p>
+                  ) : null}
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50/80 px-3.5 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Billing</p>
+                  <p className="mt-1 text-[15px] font-semibold capitalize text-slate-900">
+                    {sub.billing_interval === "year" ? "Yearly" : "Monthly"}
+                  </p>
+                  <p className="mt-0.5 text-[12px] text-slate-500">
+                    {sub.card_on_file ? "Card on file" : leftover ? "Paused — previous card removed" : "No card on file"}
+                  </p>
+                </div>
+              </div>
             ) : null}
+
+            <div className="mt-5 flex flex-wrap gap-2.5">
+              {data.setup.can_invite_residents ? (
+                <Link
+                  href="/admin/members"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#0A2A43] px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm transition hover:bg-[#0d3a5a]"
+                >
+                  Invite residents
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                </Link>
+              ) : (
+                <span className="inline-flex rounded-xl bg-slate-100 px-4 py-2.5 text-[13px] font-semibold text-slate-400">
+                  Invite residents
+                </span>
+              )}
+              {sub?.stripe_customer_id && data.billing.stripe_configured ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void onPortal()}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  <CreditCard className="h-3.5 w-3.5 text-slate-400" aria-hidden />
+                  Manage payment & invoices
+                </button>
+              ) : null}
+            </div>
           </div>
         </section>
       ) : null}
@@ -1014,10 +1132,10 @@ function BillingPageInner() {
         <section className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
             <div>
-              <h2 className="text-[15px] font-bold text-slate-900">Plans</h2>
-              {estimatedHint ? (
-                <p className="mt-1 text-[13px] text-slate-500">{estimatedHint}</p>
-              ) : null}
+              <h2 className="text-[16px] font-bold text-slate-900">Change plan</h2>
+              <p className="mt-1 text-[13px] text-slate-500">
+                {estimatedHint ?? "Switch anytime. Downgrades are blocked if your residents exceed the new seat limit."}
+              </p>
             </div>
             <BillingIntervalToggle interval={interval} onChange={setInterval} />
           </div>

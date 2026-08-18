@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\V1\ResidentGuestController;
 use App\Http\Controllers\Api\V1\BillingController;
 use App\Http\Controllers\Api\V1\StripeWebhookController;
 use App\Http\Controllers\Api\V1\SubscriptionPlanController;
+use App\Http\Controllers\Api\V1\SubscriptionCouponController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -256,6 +257,10 @@ Route::prefix('v1')->group(function () {
                 Route::post('/subscription-plans', [SubscriptionPlanController::class, 'store']);
                 Route::put('/subscription-plans/{id}', [SubscriptionPlanController::class, 'update']);
                 Route::patch('/subscription-plans/{id}/status', [SubscriptionPlanController::class, 'updateStatus']);
+                Route::get('/subscription-coupons', [SubscriptionCouponController::class, 'index']);
+                Route::post('/subscription-coupons', [SubscriptionCouponController::class, 'store']);
+                Route::put('/subscription-coupons/{id}', [SubscriptionCouponController::class, 'update']);
+                Route::patch('/subscription-coupons/{id}/status', [SubscriptionCouponController::class, 'updateStatus']);
             });
 
             /* Community admin (+ system admin override) */
@@ -300,6 +305,8 @@ Route::prefix('v1')->group(function () {
                 /* Community subscription billing */
                 Route::get('/billing',                      [BillingController::class, 'show']);
                 Route::post('/billing/checkout',             [BillingController::class, 'checkout']);
+                Route::post('/billing/coupon/apply',         [BillingController::class, 'applyCoupon']);
+                Route::delete('/billing/coupon',             [BillingController::class, 'removeCoupon']);
                 Route::post('/billing/confirm-checkout',     [BillingController::class, 'confirmCheckout']);
                 Route::post('/billing/portal',               [BillingController::class, 'portal']);
                 Route::post('/billing/change-plan',          [BillingController::class, 'changePlan']);

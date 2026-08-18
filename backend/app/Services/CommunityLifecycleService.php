@@ -238,6 +238,14 @@ class CommunityLifecycleService
             'status'            => 'suspended',
             'suspension_reason' => self::REASON_ADMIN_SUSPENDED,
         ]);
+
+        $admin->loadMissing('memberships');
+        $billing = app(CommunityBillingService::class);
+        foreach ($admin->memberships as $membership) {
+            if ($membership->role === 'admin' && $membership->community_id) {
+                $billing->pauseForAdminTransition((int) $membership->community_id);
+            }
+        }
     }
 
     public function assignCommunityAdmin(Community $community, User $newAdmin, bool $keepSystemAdminRole = false): User
@@ -283,6 +291,8 @@ class CommunityLifecycleService
 
             $this->revokeOtherAdminMemberships($newAdmin, $community->id);
         });
+
+        app(CommunityBillingService::class)->onCommunityAdminReassigned($community, $newAdmin);
 
         return $newAdmin->fresh(['profile', 'memberships.community']);
     }
@@ -445,9 +455,13 @@ class CommunityLifecycleService
     public function rejectionBlockDetails(User $user, ?string $portal = null): ?array
     {
         if (AdminRoleService::isCommunityAdminRejected($user)) {
+            $revoked = $this->wasApprovedThenRejected($user);
+
             return [
-                'message'     => 'Your community admin application was not approved. Contact support for help.',
-                'code'        => 'COMMUNITY_ADMIN_REJECTED',
+                'message'     => $revoked
+                    ? 'Your community admin access was revoked. Your subscription has been canceled and you will not be charged again. Contact support if you have questions.'
+                    : 'Your community admin application was not approved. Contact support for help.',
+                'code'        => $revoked ? 'COMMUNITY_ADMIN_REVOKED' : 'COMMUNITY_ADMIN_REJECTED',
                 'status'      => 'rejected',
                 'reason'      => $user->community_admin_rejection_reason,
                 'rejected_by' => 'system_admin',
@@ -488,6 +502,33 @@ class CommunityLifecycleService
         }
 
         return null;
+    }
+
+    /** Approved admin/community later rejected (revoke), not an initial application decline. */
+    public function wasApprovedThenRejected(User $user): bool
+    {
+        if (! AdminRoleService::isCommunityAdminRejected($user)) {
+            return false;
+        }
+
+        $user->loadMissing('memberships.community');
+        foreach ($user->memberships as $membership) {
+            $community = $membership->community;
+            if (! $community) {
+                continue;
+            }
+
+            $communityApproved = in_array($community->review_status, [null, 'approved'], true)
+                && ($community->status === null || $community->status === 'active' || $community->status === 'inactive');
+            $hadAdminSeat = $membership->role === 'admin'
+                && in_array($membership->status, ['approved', 'banned'], true);
+
+            if ($communityApproved && $hadAdminSeat) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function hasPendingCommunityRequest(User $user): bool

@@ -105,13 +105,19 @@ class CommunityBillingService
         return max(0, (int) config('billing.trial_period_days', 30));
     }
 
-    public function assertPlanAvailable(?array $plan): array
+    public function assertPlanAvailable(?array $plan, ?CommunitySubscription $existing = null): array
     {
         if (! $plan) {
             throw new BillingException('Invalid plan selected.', 'INVALID_PLAN');
         }
 
-        if (! ($plan['is_active'] ?? true)) {
+        $slug = (string) ($plan['slug'] ?? '');
+        $inherited = $existing
+            && $existing->isAdminTransition()
+            && $slug !== ''
+            && $existing->plan_slug === $slug;
+
+        if (! ($plan['is_active'] ?? true) && ! $inherited) {
             throw new BillingException('This plan is not available.', 'PLAN_INACTIVE');
         }
 
@@ -224,18 +230,24 @@ class CommunityBillingService
             && $subscription->grace_ends_at
             && $subscription->grace_ends_at->isPast()
         ) {
+            $meta = is_array($subscription->meta) ? $subscription->meta : [];
             $subscription->update([
                 'status' => CommunitySubscription::STATUS_UNPAID,
+                'meta' => $meta,
             ]);
         }
     }
 
-    public function formattedPlans(?int $estimatedResidents = null): array
+    public function formattedPlans(?int $estimatedResidents = null, ?string $includeSlug = null): array
     {
         $recommended = $this->recommendPlanSlug($estimatedResidents);
+        $catalog = $this->activePlans();
+        if ($includeSlug && ! isset($catalog[$includeSlug]) && $this->plan($includeSlug)) {
+            $catalog[$includeSlug] = $this->plan($includeSlug);
+        }
         $items = [];
 
-        foreach ($this->activePlans() as $slug => $plan) {
+        foreach ($catalog as $slug => $plan) {
             $items[] = [
                 'slug' => $slug,
                 'name' => $plan['name'],
@@ -255,11 +267,16 @@ class CommunityBillingService
 
     public function billingPayload(Community $community): array
     {
-        $this->startTrialIfEligible($community);
+        $this->refreshGraceIfNeeded($community->id);
         $subscription = $this->getSubscription($community->id);
+        if (! $subscription?->isAdminTransition()) {
+            $this->startTrialIfEligible($community);
+            $subscription = $this->getSubscription($community->id);
+        }
         $summary = $this->seatSummary($community->id);
         $estimated = $community->estimated_residents
             ?? $subscription?->estimated_residents;
+        $includeSlug = $subscription?->isAdminTransition() ? $subscription->plan_slug : null;
 
         return [
             'community' => [
@@ -270,8 +287,10 @@ class CommunityBillingService
                 'estimated_residents' => $estimated,
                 'is_active_for_residents' => $community->isActiveForResidents(),
             ],
-            'plans' => $this->formattedPlans($estimated !== null ? (int) $estimated : null),
-            'recommended_plan' => $this->recommendPlanSlug($estimated !== null ? (int) $estimated : null),
+            'plans' => $this->formattedPlans($estimated !== null ? (int) $estimated : null, $includeSlug),
+            'recommended_plan' => $subscription?->isAdminTransition()
+                ? $subscription->plan_slug
+                : $this->recommendPlanSlug($estimated !== null ? (int) $estimated : null),
             'trial_period_days' => $this->trialDaysForPlan(
                 $this->plan($this->recommendPlanSlug($estimated !== null ? (int) $estimated : null))
             ),
@@ -293,6 +312,14 @@ class CommunityBillingService
                 'in_grace' => $subscription->isInGrace(),
                 'card_on_file' => $subscription->hasCardOnFile(),
                 'trial_pending_approval' => $subscription->isPendingTrial(),
+                'admin_transition' => $subscription->isAdminTransition(),
+                'leftover_ends_at' => $subscription->leftoverEndsAt()?->toIso8601String(),
+                'has_leftover_service' => $subscription->hasLeftoverService(),
+                'requires_replacement_card' => $subscription->isAdminTransition() && ! $subscription->hasLeftoverService(),
+                'trial_consumed' => (bool) data_get($subscription->meta, 'trial_consumed', false),
+                'inherited_plan_slug' => $subscription->isAdminTransition()
+                    ? (string) (data_get($subscription->meta, 'inherited_plan_slug') ?: $subscription->plan_slug)
+                    : null,
             ] : null,
             'seats' => $summary,
             'billing' => [
@@ -308,9 +335,17 @@ class CommunityBillingService
                 'subscription_active' => $summary['allows_allocation'],
                 'card_on_file' => $subscription?->hasCardOnFile() ?? false,
                 'trial_pending_approval' => $subscription?->isPendingTrial() ?? false,
+                'admin_transition' => $subscription?->isAdminTransition() ?? false,
+                'has_leftover_service' => $subscription?->hasLeftoverService() ?? false,
+                'requires_replacement_card' => ($subscription?->isAdminTransition() ?? false)
+                    && ! ($subscription?->hasLeftoverService() ?? false),
                 'can_invite_residents' => $summary['allows_allocation'] && $summary['seats_available'] > 0
                     && ($community->review_status === null || $community->review_status === 'approved'),
             ],
+            'coupon' => app(SubscriptionCouponService::class)->summaryForBilling(
+                $community->id,
+                $subscription,
+            ),
         ];
     }
 
@@ -335,31 +370,23 @@ class CommunityBillingService
         string $interval = 'month',
         ?string $returnOrigin = null,
     ): array {
-        $plan = $this->assertPlanAvailable($this->plan($planSlug));
+        $this->refreshGraceIfNeeded($community->id);
+        $existing = $this->getSubscription($community->id);
+        $plan = $this->assertPlanAvailable($this->plan($planSlug), $existing);
 
         $interval = $interval === 'year' ? 'year' : 'month';
         $priceId = $interval === 'year'
             ? ($plan['stripe_price_yearly'] ?? null)
             : ($plan['stripe_price_monthly'] ?? null);
 
-        if (! $this->stripeConfigured()) {
-            throw BillingException::stripeNotConfigured();
+        if ($existing?->hasLeftoverService()) {
+            return [
+                'mode' => 'already_active',
+                'checkout_url' => null,
+                'message' => 'This community is still on the leftover period of the previous subscription. Add a card when that period ends.',
+            ];
         }
 
-        if (! filled($priceId)) {
-            throw BillingException::stripePriceMissing();
-        }
-
-        $stripe = $this->stripe();
-        $customerId = $this->ensureStripeCustomer($community, $admin, $stripe);
-        $this->assertUsdStripePrice($stripe, (string) $priceId);
-
-        $trialDays = $this->trialDaysForPlan($plan);
-        $priceCents = $interval === 'year'
-            ? (int) ($plan['price_yearly_cents'] ?? 0)
-            : (int) ($plan['price_monthly_cents'] ?? 0);
-
-        $existing = $this->getSubscription($community->id);
         if ($existing?->grantsPaidAccess()) {
             return [
                 'mode' => 'already_active',
@@ -368,7 +395,7 @@ class CommunityBillingService
             ];
         }
 
-        if ($existing?->isPendingTrial()) {
+        if ($existing?->isPendingTrial() && ! $existing->isAdminTransition()) {
             $started = $this->startTrialIfEligible($community);
             if ($started?->grantsPaidAccess()) {
                 return [
@@ -385,9 +412,29 @@ class CommunityBillingService
             ];
         }
 
+        if (! $this->stripeConfigured()) {
+            throw BillingException::stripeNotConfigured();
+        }
+
+        if (! filled($priceId)) {
+            throw BillingException::stripePriceMissing();
+        }
+
+        $stripe = $this->stripe();
+        $customerId = $this->ensureStripeCustomer($community, $admin, $stripe);
+        $this->assertUsdStripePrice($stripe, (string) $priceId);
+
+        $trialDays = ($existing?->isAdminTransition() && (bool) data_get($existing->meta, 'trial_consumed', false))
+            ? 0
+            : $this->trialDaysForPlan($plan);
+        $priceCents = $interval === 'year'
+            ? (int) ($plan['price_yearly_cents'] ?? 0)
+            : (int) ($plan['price_monthly_cents'] ?? 0);
+
         $intentId = (string) data_get($existing?->meta, 'intent_id', '');
         if (
             $existing?->status === CommunitySubscription::STATUS_INCOMPLETE
+            && ! $existing->isAdminTransition()
             && str_starts_with($intentId, 'seti_')
             && $existing->plan_slug === $planSlug
             && $existing->billing_interval === $interval
@@ -604,26 +651,41 @@ class CommunityBillingService
         string $customerId,
         string $priceId,
     ): array {
+        $existing = $this->getSubscription($community->id);
+        $meta = is_array($existing?->meta) ? $existing->meta : [];
+        $meta['intent_type'] = $intent['type'];
+        $meta['intent_id'] = $intent['id'];
+        $meta['initiated_by'] = $admin->id;
+        $meta['checkout_ui'] = 'elements';
+        $replacement = $existing?->isAdminTransition() ?? false;
+        $meta['trial_starts_on_approval'] = ! $replacement || ! (bool) data_get($meta, 'trial_consumed', false);
+        if ($replacement) {
+            $meta['admin_transition'] = true;
+        }
+
         CommunitySubscription::query()->updateOrCreate(
             ['community_id' => $community->id],
             [
                 'plan_slug' => $planSlug,
                 'billing_interval' => $interval,
-                'status' => CommunitySubscription::STATUS_INCOMPLETE,
-                'seat_limit' => (int) ($plan['seat_limit'] ?? 0),
+                'status' => $replacement
+                    ? (string) $existing->status
+                    : CommunitySubscription::STATUS_INCOMPLETE,
+                'seat_limit' => (int) ($plan['seat_limit'] ?? $existing?->seat_limit ?? 0),
                 'estimated_residents' => $community->estimated_residents,
                 'stripe_customer_id' => $customerId,
-                'stripe_subscription_id' => str_starts_with($stripeSubscriptionId, 'sub_') ? $stripeSubscriptionId : null,
+                'stripe_subscription_id' => $replacement && filled($existing?->stripe_subscription_id)
+                    ? $existing->stripe_subscription_id
+                    : (str_starts_with($stripeSubscriptionId, 'sub_') ? $stripeSubscriptionId : null),
                 'stripe_price_id' => $priceId,
-                'meta' => [
-                    'intent_type' => $intent['type'],
-                    'intent_id' => $intent['id'],
-                    'initiated_by' => $admin->id,
-                    'checkout_ui' => 'elements',
-                    'trial_starts_on_approval' => true,
-                ],
+                'meta' => $meta,
             ],
         );
+
+        $saved = $this->getSubscription($community->id);
+        if ($saved) {
+            app(SubscriptionCouponService::class)->linkPendingToSubscription($community->id, $saved);
+        }
 
         $email = $admin->email;
         if (filled($email) && str_contains((string) $email, '@invited')) {
@@ -645,7 +707,7 @@ class CommunityBillingService
             'intent_type' => $intent['type'],
             'stripe_subscription_id' => $stripeSubscriptionId,
             'stripe_setup_intent_id' => $intent['type'] === 'setup' ? $intent['id'] : null,
-            'trial_starts_on_approval' => true,
+            'trial_starts_on_approval' => ! $replacement || $trialDays > 0,
             'publishable_key' => config('billing.stripe.publishable'),
             'trial_days' => $trialDays,
             'customer_email' => $email,
@@ -660,6 +722,11 @@ class CommunityBillingService
                 'price_cents' => $priceCents,
                 'currency' => (string) config('billing.currency', 'usd'),
             ],
+            'coupon' => app(SubscriptionCouponService::class)->summaryForBilling(
+                $community->id,
+                $saved,
+                $priceCents,
+            ),
         ];
     }
 
@@ -782,6 +849,17 @@ class CommunityBillingService
         $meta['intent_type'] = 'setup';
         $meta['trial_starts_on_approval'] = true;
 
+        if ($local?->isAdminTransition()) {
+            return $this->applyReplacementResume(
+                $community,
+                $local,
+                $planSlug,
+                $interval,
+                $paymentMethodId,
+                $customerId,
+            );
+        }
+
         CommunitySubscription::query()->updateOrCreate(
             ['community_id' => $community->id],
             [
@@ -801,6 +879,11 @@ class CommunityBillingService
                 'meta' => $meta,
             ],
         );
+
+        $saved = $this->getSubscription($community->id);
+        if ($saved) {
+            app(SubscriptionCouponService::class)->linkPendingToSubscription($community->id, $saved);
+        }
 
         return $this->startTrialIfEligible($community) ?? $this->getSubscription($community->id);
     }
@@ -903,7 +986,10 @@ class CommunityBillingService
                 'meta' => $meta,
             ]);
 
-            return $subscription->fresh();
+            $fresh = $subscription->fresh();
+            app(SubscriptionCouponService::class)->markApplied($fresh);
+
+            return $fresh;
         }
 
         $customerId = (string) $subscription->stripe_customer_id;
@@ -962,6 +1048,9 @@ class CommunityBillingService
             ];
         }
 
+        $createParams = app(SubscriptionCouponService::class)
+            ->appendDiscountToSubscriptionCreate($createParams, $subscription);
+
         try {
             $stripeSub = $this->stripe()->subscriptions->create($createParams);
         } catch (ApiErrorException $e) {
@@ -979,6 +1068,7 @@ class CommunityBillingService
         $meta['payment_method_id'] = $paymentMethodId;
         $meta['trial_started_on_approval'] = now()->toIso8601String();
         $synced->update(['meta' => $meta]);
+        app(SubscriptionCouponService::class)->markApplied($synced->fresh());
 
         return $synced->fresh();
     }
@@ -1059,11 +1149,19 @@ class CommunityBillingService
 
     public function changePlan(Community $community, string $planSlug, string $interval = 'month'): CommunitySubscription
     {
-        $plan = $this->assertPlanAvailable($this->plan($planSlug));
-
+        $this->refreshGraceIfNeeded($community->id);
         $subscription = $this->getSubscription($community->id);
+        $plan = $this->assertPlanAvailable($this->plan($planSlug), $subscription);
+
         if (! $subscription || ! $subscription->allowsSeatAllocation()) {
             throw BillingException::subscriptionRequired();
+        }
+
+        if ($subscription->isAdminTransition()) {
+            throw new BillingException(
+                'Add a card to resume billing before changing plans.',
+                'ADMIN_TRANSITION_CARD_REQUIRED',
+            );
         }
 
         $used = $this->seatsUsed($community->id);
@@ -1202,6 +1300,306 @@ class CommunityBillingService
     }
 
     /**
+     * Suspend billing when a community admin is removed: detach their card,
+     * pause Stripe, and keep leftover paid/trial days as the grace window.
+     */
+    public function pauseForAdminTransition(int $communityId): ?CommunitySubscription
+    {
+        $this->refreshGraceIfNeeded($communityId);
+        $subscription = $this->getSubscription($communityId);
+        if (! $subscription || $subscription->status === CommunitySubscription::STATUS_CANCELED) {
+            return $subscription;
+        }
+
+        $previousStatus = (string) $subscription->status;
+        $periodEnd = $subscription->current_period_end;
+        $hadStartedService = in_array($previousStatus, [
+            CommunitySubscription::STATUS_TRIALING,
+            CommunitySubscription::STATUS_ACTIVE,
+            CommunitySubscription::STATUS_GRACE,
+            CommunitySubscription::STATUS_PAST_DUE,
+        ], true) || $periodEnd !== null;
+
+        $leftoverEnd = now();
+        if ($hadStartedService && $periodEnd && $periodEnd->isFuture()) {
+            $leftoverEnd = $periodEnd;
+        }
+
+        $this->detachCustomerPaymentMethods($subscription);
+        $this->pauseStripeCollection($subscription);
+
+        $meta = is_array($subscription->meta) ? $subscription->meta : [];
+        $meta['admin_transition'] = true;
+        $meta['card_on_file'] = false;
+        unset($meta['payment_method_id']);
+        $meta['paused_reason'] = 'community_admin_suspended';
+        $meta['paused_at'] = now()->toIso8601String();
+        $meta['previous_status'] = $previousStatus;
+        $meta['inherited_plan_slug'] = $subscription->plan_slug;
+        $meta['trial_consumed'] = in_array($previousStatus, [
+            CommunitySubscription::STATUS_TRIALING,
+            CommunitySubscription::STATUS_ACTIVE,
+            CommunitySubscription::STATUS_GRACE,
+            CommunitySubscription::STATUS_PAST_DUE,
+        ], true) || (bool) data_get($meta, 'trial_started_on_approval');
+
+        $subscription->update([
+            'status' => $leftoverEnd->isFuture()
+                ? CommunitySubscription::STATUS_GRACE
+                : CommunitySubscription::STATUS_UNPAID,
+            'grace_ends_at' => $leftoverEnd,
+            'canceled_at' => null,
+            'meta' => $meta,
+        ]);
+
+        return $subscription->fresh();
+    }
+
+    public function onCommunityAdminReassigned(Community $community, User $newAdmin): void
+    {
+        $this->refreshGraceIfNeeded($community->id);
+        $subscription = $this->getSubscription($community->id);
+        if (! $subscription) {
+            return;
+        }
+
+        $meta = is_array($subscription->meta) ? $subscription->meta : [];
+        $meta['replacement_admin_id'] = $newAdmin->id;
+        $subscription->update(['meta' => $meta]);
+
+        if (! $this->stripeConfigured() || ! filled($subscription->stripe_customer_id)) {
+            return;
+        }
+
+        try {
+            $params = [
+                'name' => $community->name ?: ('Community #'.$community->id),
+                'metadata' => [
+                    'community_id' => (string) $community->id,
+                    'admin_user_id' => (string) $newAdmin->id,
+                ],
+            ];
+            if (filled($newAdmin->email) && ! str_contains((string) $newAdmin->email, '@invited')) {
+                $params['email'] = $newAdmin->email;
+            } elseif (filled($newAdmin->phone)) {
+                $params['phone'] = $newAdmin->phone;
+            }
+            $this->stripe()->customers->update((string) $subscription->stripe_customer_id, $params);
+        } catch (ApiErrorException $e) {
+            Log::info('Could not update Stripe customer after admin reassignment', [
+                'community_id' => $community->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Replacement admin adds a card (and may choose a plan) after leftover days end.
+     * Used by Stripe confirm and by tests with the manual driver.
+     */
+    public function resumeReplacementBilling(
+        Community $community,
+        User $admin,
+        string $planSlug,
+        string $interval = 'month',
+    ): CommunitySubscription {
+        $this->refreshGraceIfNeeded($community->id);
+        $local = $this->getSubscription($community->id);
+        if (! $local?->isAdminTransition()) {
+            throw new BillingException('This community is not waiting for a replacement card.', 'NOT_IN_ADMIN_TRANSITION');
+        }
+        if ($local->hasLeftoverService()) {
+            throw new BillingException(
+                'Finish the leftover period before adding a new card.',
+                'LEFTOVER_PERIOD_ACTIVE',
+            );
+        }
+
+        $interval = $interval === 'year' ? 'year' : 'month';
+
+        return $this->applyReplacementResume(
+            $community,
+            $local,
+            $planSlug,
+            $interval,
+            (string) data_get($local->meta, 'payment_method_id', 'pm_replacement'),
+            (string) ($local->stripe_customer_id ?? ''),
+        );
+    }
+
+    protected function applyReplacementResume(
+        Community $community,
+        CommunitySubscription $local,
+        string $planSlug,
+        string $interval,
+        string $paymentMethodId,
+        string $customerId,
+    ): CommunitySubscription {
+        $plan = $this->assertPlanAvailable($this->plan($planSlug), $local);
+        $used = $this->seatsUsed($community->id);
+        $newLimit = (int) ($plan['seat_limit'] ?? 0) + (int) $local->extra_seats;
+        if ($used > $newLimit) {
+            throw BillingException::downgradeBlocked($used, $newLimit);
+        }
+
+        $trialConsumed = (bool) data_get($local->meta, 'trial_consumed', false);
+        $trialDays = $trialConsumed ? 0 : $this->trialDaysForPlan($plan);
+        $priceId = $interval === 'year'
+            ? ($plan['stripe_price_yearly'] ?? $local->stripe_price_id)
+            : ($plan['stripe_price_monthly'] ?? $local->stripe_price_id);
+
+        $meta = is_array($local->meta) ? $local->meta : [];
+        $meta['card_on_file'] = true;
+        $meta['payment_method_id'] = $paymentMethodId;
+        $meta['admin_transition'] = false;
+        $meta['resumed_at'] = now()->toIso8601String();
+        $meta['resumed_plan_slug'] = $planSlug;
+        unset($meta['paused_reason'], $meta['trial_starts_on_approval']);
+
+        if ($this->stripeConfigured() && filled($local->stripe_subscription_id)) {
+            try {
+                $stripe = $this->stripe();
+                $stripeSub = $stripe->subscriptions->retrieve($local->stripe_subscription_id);
+                $itemId = $stripeSub->items->data[0]->id ?? null;
+                $update = [
+                    'pause_collection' => '',
+                    'default_payment_method' => $paymentMethodId !== '' ? $paymentMethodId : null,
+                    'metadata' => [
+                        'community_id' => (string) $community->id,
+                        'plan_slug' => $planSlug,
+                        'billing_interval' => $interval,
+                    ],
+                ];
+                if ($itemId && filled($priceId)) {
+                    $update['items'] = [[
+                        'id' => $itemId,
+                        'price' => $priceId,
+                    ]];
+                    $update['proration_behavior'] = 'none';
+                }
+                $updated = $stripe->subscriptions->update($local->stripe_subscription_id, array_filter(
+                    $update,
+                    fn ($value) => $value !== null,
+                ));
+                $synced = $this->syncFromStripeSubscription($updated, $community->id, $customerId ?: null);
+                $syncedMeta = is_array($synced->meta) ? $synced->meta : [];
+                $synced->update([
+                    'plan_slug' => $planSlug,
+                    'billing_interval' => $interval,
+                    'seat_limit' => (int) ($plan['seat_limit'] ?? $synced->seat_limit),
+                    'grace_ends_at' => null,
+                    'canceled_at' => null,
+                    'meta' => array_merge($syncedMeta, $meta, ['card_on_file' => true, 'admin_transition' => false]),
+                ]);
+
+                return $synced->fresh();
+            } catch (ApiErrorException $e) {
+                Log::warning('Could not resume paused Stripe subscription; creating a new one', [
+                    'community_id' => $community->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $periodEnd = $trialDays > 0
+            ? now()->addDays($trialDays)
+            : ($interval === 'year' ? now()->addYear() : now()->addMonth());
+
+        $local->update([
+            'plan_slug' => $planSlug,
+            'billing_interval' => $interval,
+            'status' => $trialDays > 0
+                ? CommunitySubscription::STATUS_TRIALING
+                : CommunitySubscription::STATUS_ACTIVE,
+            'seat_limit' => (int) ($plan['seat_limit'] ?? $local->seat_limit),
+            'stripe_customer_id' => $customerId !== '' ? $customerId : $local->stripe_customer_id,
+            'stripe_price_id' => $priceId,
+            'current_period_start' => now(),
+            'current_period_end' => $periodEnd,
+            'grace_ends_at' => null,
+            'canceled_at' => null,
+            'meta' => $meta,
+        ]);
+
+        if (
+            $this->stripeConfigured()
+            && ! $trialConsumed
+            && ! filled($local->fresh()?->stripe_subscription_id)
+            && filled($priceId)
+            && $customerId !== ''
+        ) {
+            $started = $this->startTrialIfEligible($community);
+
+            return $started ?? $local->fresh();
+        }
+
+        return $local->fresh();
+    }
+
+    protected function detachCustomerPaymentMethods(CommunitySubscription $subscription): void
+    {
+        if (! $this->stripeConfigured() || ! filled($subscription->stripe_customer_id)) {
+            return;
+        }
+
+        $stripe = $this->stripe();
+        $customerId = (string) $subscription->stripe_customer_id;
+
+        try {
+            $methods = $stripe->paymentMethods->all([
+                'customer' => $customerId,
+                'type' => 'card',
+            ]);
+            foreach ($methods->data as $method) {
+                try {
+                    $stripe->paymentMethods->detach($method->id);
+                } catch (ApiErrorException) {
+                    // Card already detached.
+                }
+            }
+            $stripe->customers->update($customerId, [
+                'invoice_settings' => [
+                    'default_payment_method' => '',
+                ],
+            ]);
+        } catch (ApiErrorException $e) {
+            Log::warning('Could not detach previous admin payment methods', [
+                'community_id' => $subscription->community_id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $setupIntentId = (string) data_get($subscription->meta, 'intent_id', '');
+        if (str_starts_with($setupIntentId, 'seti_')) {
+            try {
+                $stripe->setupIntents->cancel($setupIntentId);
+            } catch (ApiErrorException) {
+                // Already canceled or consumed.
+            }
+        }
+    }
+
+    protected function pauseStripeCollection(CommunitySubscription $subscription): void
+    {
+        if (! $this->stripeConfigured() || ! filled($subscription->stripe_subscription_id)) {
+            return;
+        }
+
+        try {
+            $this->stripe()->subscriptions->update($subscription->stripe_subscription_id, [
+                'pause_collection' => [
+                    'behavior' => 'void',
+                ],
+            ]);
+        } catch (ApiErrorException $e) {
+            Log::warning('Could not pause Stripe collection after admin suspend', [
+                'community_id' => $subscription->community_id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
      * Immediately cancel a community subscription (platform rejection / hard revoke).
      * Cancels Stripe subscription when present so no future charges occur.
      */
@@ -1278,6 +1676,21 @@ class CommunityBillingService
         $stripe ??= $this->stripe();
         $existing = $this->getSubscription($community->id)?->stripe_customer_id;
         if ($existing) {
+            try {
+                $update = [
+                    'metadata' => [
+                        'community_id' => (string) $community->id,
+                        'admin_user_id' => (string) $admin->id,
+                    ],
+                ];
+                if (filled($admin->email) && ! str_contains((string) $admin->email, '@invited')) {
+                    $update['email'] = $admin->email;
+                }
+                $stripe->customers->update($existing, $update);
+            } catch (ApiErrorException) {
+                // Keep the community customer even if the email update fails.
+            }
+
             return $existing;
         }
 

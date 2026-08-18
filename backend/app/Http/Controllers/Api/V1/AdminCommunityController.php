@@ -460,31 +460,23 @@ class AdminCommunityController extends Controller
     public function assignAdmin(int $id, Request $request, CommunityLifecycleService $lifecycle): JsonResponse
     {
         $validated = $request->validate([
-            'user_id'     => ['nullable', 'integer', Rule::exists('users', 'id')],
-            'assign_self' => ['sometimes', 'boolean'],
-            'name'        => ['nullable', 'string', 'max:100'],
-            'email'       => ['nullable', 'email', 'max:255'],
-            'phone'       => ['nullable', 'string', 'max:30'],
+            'user_id' => ['nullable', 'integer', Rule::exists('users', 'id')],
+            'name'    => ['nullable', 'string', 'max:100'],
+            'email'   => ['nullable', 'email', 'max:255'],
+            'phone'   => ['nullable', 'string', 'max:30'],
         ]);
 
         $hasNewUser = $request->filled('email') && $request->filled('phone');
-        if (empty($validated['user_id']) && ! $request->boolean('assign_self') && ! $hasNewUser) {
+        if (empty($validated['user_id']) && ! $hasNewUser) {
             return response()->json([
-                'message' => 'Provide user_id, assign_self, or new admin contact details.',
-                'errors'  => ['user_id' => ['A user must be selected or created to assign as community admin.']],
+                'message' => 'Provide user_id or new admin contact details.',
+                'errors'  => ['user_id' => ['A community admin must be selected or created.']],
             ], 422);
         }
 
         $community = Community::query()->findOrFail($id);
-        $actor = $request->user();
 
-        if ($request->boolean('assign_self')) {
-            if (! AdminRoleService::isSystemAdmin($actor)) {
-                return response()->json(['message' => 'Only system admins can assign themselves.'], 403);
-            }
-            $newAdmin = $actor;
-            $keepSystemRole = true;
-        } elseif ($hasNewUser) {
+        if ($hasNewUser) {
             $phone = \App\Support\PhoneNormalizer::normalize($validated['phone']);
             if (! $phone) {
                 return response()->json(['message' => 'Invalid phone number.', 'errors' => ['phone' => ['Invalid phone format.']]], 422);
@@ -536,6 +528,12 @@ class AdminCommunityController extends Controller
                     'errors'  => $e->errors(),
                 ], 422);
             }
+        }
+
+        if (AdminRoleService::isSystemAdmin($newAdmin)) {
+            return response()->json([
+                'message' => 'A system administrator cannot be assigned as a community admin. Invite a community admin instead.',
+            ], 422);
         }
 
         try {

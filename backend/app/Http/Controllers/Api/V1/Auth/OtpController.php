@@ -327,7 +327,9 @@ class OtpController extends Controller
             // Pending admins may log in to finish profile, community, and billing.
             // Rejected admins are blocked. Full dashboard access is enforced via /me access flags.
             if (AdminRoleService::isCommunityAdminRejected($user)) {
-                $this->failAuthenticationBlock('phone', [
+                $block = app(\App\Services\CommunityLifecycleService::class)
+                    ->rejectionBlockDetails($user, 'community_admin_dashboard');
+                $this->failAuthenticationBlock('phone', $block ?? [
                     'message'     => 'Your community admin application was not approved. Contact support for help.',
                     'code'        => 'COMMUNITY_ADMIN_REJECTED',
                     'status'      => 'rejected',

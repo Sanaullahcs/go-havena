@@ -48,10 +48,17 @@ export default function PendingApprovalPage() {
 
         if (step === "rejected") {
           setRejected(true);
-          setTitle("Application not approved");
-          setMessage(
-            "Your community admin application or community request was not approved. Any saved card or subscription has been canceled and you will not be charged.",
-          );
+          if (access?.access_revoked || access?.blocking_reasons?.includes("admin_revoked")) {
+            setTitle("Access revoked");
+            setMessage(
+              "Your community admin access was revoked after it had been approved. Your subscription has been canceled and you will not be charged again.",
+            );
+          } else {
+            setTitle("Application not approved");
+            setMessage(
+              "Your community admin application or community request was not approved. Any saved card or subscription has been canceled and you will not be charged.",
+            );
+          }
           return;
         }
 
@@ -106,10 +113,17 @@ export default function PendingApprovalPage() {
                   router.replace("/admin/billing");
                 } else if (step === "rejected") {
                   setRejected(true);
-                  setTitle("Application not approved");
-                  setMessage(
-                    "Your community admin application or community request was not approved. Any saved card or subscription has been canceled and you will not be charged.",
-                  );
+                  if (user?.access?.access_revoked || user?.access?.blocking_reasons?.includes("admin_revoked")) {
+                    setTitle("Access revoked");
+                    setMessage(
+                      "Your community admin access was revoked after it had been approved. Your subscription has been canceled and you will not be charged again.",
+                    );
+                  } else {
+                    setTitle("Application not approved");
+                    setMessage(
+                      "Your community admin application or community request was not approved. Any saved card or subscription has been canceled and you will not be charged.",
+                    );
+                  }
                 } else {
                   setRejected(false);
                   setTitle("Waiting for system approval");

@@ -205,6 +205,7 @@ const systemAdminNav: NavItem[] = [
   { href: "/admin/contact-messages", label: "Contact Messages", icon: NavIconMail },
   { href: "/admin/wellness", label: "Wellness Programs", icon: NavIconWellness },
   { href: "/admin/billing-plans", label: "Billing & Plans", icon: NavIconBilling },
+  { href: "/admin/billing-coupons", label: "Coupons", icon: NavIconBilling },
 ];
 
 const communityAdminNav: NavItem[] = [
