@@ -50,7 +50,8 @@ function mapAuthUser(raw: Record<string, unknown>, fallback?: Partial<AuthUser>)
 
 function throwAuthError(err: unknown): never {
   if (axios.isAxiosError(err)) {
-    const data = err.response?.data as Record<string, unknown> | undefined;
+    const raw = err.response?.data as Record<string, unknown> | undefined;
+    const data = (raw?.data as Record<string, unknown> | undefined) ?? raw;
     const errors = data?.errors as Record<string, string[]> | undefined;
     const fieldMsg = errors?.email?.[0] ?? errors?.phone?.[0] ?? errors?.code?.[0];
     const msg = fieldMsg ?? (typeof data?.message === "string" ? data.message : "Request failed.");

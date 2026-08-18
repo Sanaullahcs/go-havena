@@ -7,6 +7,7 @@ import {
   requestCommunityAdminOtp,
   verifyCommunityAdminOtp,
 } from "@/lib/api/auth";
+import { ApiError } from "@/lib/api/client";
 import {
   setSession,
   getToken,
@@ -83,6 +84,10 @@ function RegisterPageInner() {
       await requestCommunityAdminOtp(phone.e164, "signup");
     } catch (err) {
       setOtpStep("phone");
+      if (err instanceof ApiError && err.code === "ACCOUNT_EXISTS_USE_LOGIN") {
+        setError("This phone number is already registered. Use Sign in instead.");
+        return;
+      }
       await handleLoginError(err, setError);
     } finally {
       setOtpSending(false);

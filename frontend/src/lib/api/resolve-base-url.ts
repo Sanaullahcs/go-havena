@@ -8,13 +8,15 @@ export function resolveApiRoot(): string {
     return normalizeApiRoot(envUrl || "http://127.0.0.1:8000/api");
   }
 
-  if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
-    return normalizeApiRoot(envUrl);
+  const { hostname } = window.location;
+  // When the portal is opened on localhost, always talk to the local API —
+  // even if NEXT_PUBLIC_API_URL points at a Cloudflare tunnel for remote demos.
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return normalizeApiRoot(envUrl?.includes("localhost") || envUrl?.includes("127.0.0.1") ? envUrl : "http://127.0.0.1:8000/api");
   }
 
-  const { hostname } = window.location;
-  if (hostname === "localhost" || hostname === "127.0.0.1") {
-    return normalizeApiRoot(envUrl || "http://127.0.0.1:8000/api");
+  if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
+    return normalizeApiRoot(envUrl);
   }
 
   return `http://${hostname}:8000/api`;
