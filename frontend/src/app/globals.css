@@ -222,6 +222,23 @@ body {
   object-fit: cover;
   opacity: 0.28;
 }
+
+.nl-login-hero__preview {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+.nl-login-hero__preview .lp-app-preview {
+  width: min(300px, 72%);
+  aspect-ratio: 390 / 844;
+  border-radius: 28px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+}
 .nl-login-hero__veil {
   position: absolute;
   inset: 0;

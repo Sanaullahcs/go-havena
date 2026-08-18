@@ -18,14 +18,14 @@ export function DashboardMockup({ className = "" }: { className?: string }) {
           </div>
         </div>
 
-        <div className="bg-[#F6F8FB]">
+        <div className="bg-[#F6F8FB] overflow-hidden leading-none">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={DASHBOARD_SRC}
             alt="Havena community admin dashboard with activity charts and member stats"
             width={1400}
             height={788}
-            className="product-mockup-img block h-auto w-full"
+            className="product-mockup-img block h-auto w-full align-top"
             loading="eager"
             decoding="sync"
             draggable={false}

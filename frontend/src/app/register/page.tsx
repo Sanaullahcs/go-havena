@@ -25,7 +25,7 @@ import { OtpVerifyStep } from "@/components/auth/otp-verify-step";
 import { PhoneSignInStep } from "@/components/auth/phone-sign-in-step";
 import { AuthRedirectOverlay } from "@/components/shared/loaders";
 import { emptyPhoneField, type PhoneFieldState } from "@/lib/phone/format";
-import { landingImages } from "@/lib/landing/site";
+import { HavenaAppScreenPreview } from "@/components/landing/ui/HavenaAppScreenPreview";
 import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
 
 type OtpStep = "phone" | "code";
@@ -133,8 +133,9 @@ function RegisterPageInner() {
 
       <div className="nl-login-split">
         <aside className="nl-login-hero">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={landingImages.hero} alt="" className="nl-login-hero__photo" aria-hidden />
+          <div className="nl-login-hero__preview" aria-hidden>
+            <HavenaAppScreenPreview />
+          </div>
           <div className="nl-login-hero__veil" aria-hidden />
 
           <div className="relative z-10 flex flex-1 flex-col justify-between p-10 xl:p-14">

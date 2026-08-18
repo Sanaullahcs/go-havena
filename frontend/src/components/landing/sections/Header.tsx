@@ -57,7 +57,7 @@ export function Header() {
   const solid = scrolled || mobileOpen;
 
   return (
-    <header className={["lp-header", solid ? "is-scrolled" : "is-over-hero"].filter(Boolean).join(" ")}>
+    <header className={["lp-header", solid ? "is-scrolled" : ""].filter(Boolean).join(" ")}>
       <div className="lp-header__inner">
         <LandingHomeLink
           className="lp-header__brand"
@@ -66,7 +66,7 @@ export function Header() {
             setMobileOpen(false);
           }}
         >
-          <Logo tone={solid ? "brand" : "light"} />
+          <Logo tone="brand" />
         </LandingHomeLink>
 
         <nav aria-label="Primary" className="lp-header__nav hidden lg:flex">
@@ -92,10 +92,10 @@ export function Header() {
         <div className="lp-header__actions">
           <div className="lp-header__cta-group hidden items-center gap-3 sm:flex">
             <Button href={actionLinks.login} variant="ghost" size="sm" className="lp-header__login">
-              Log in
+              Admin login
             </Button>
-            <Button href={actionLinks.signUp} variant="primary" size="sm" className="lp-header__start">
-              Get started
+            <Button href={actionLinks.residentLogin} variant="primary" size="sm" className="lp-header__start">
+              Get the app
             </Button>
           </div>
 
@@ -145,10 +145,10 @@ export function Header() {
             </nav>
             <div className="flex flex-col gap-2 border-t border-border-subtle px-4 py-4">
               <Button href={actionLinks.login} variant="secondary" size="md" fullWidth>
-                Log in
+                Admin login
               </Button>
-              <Button href={actionLinks.signUp} variant="primary" size="md" fullWidth>
-                Get started
+              <Button href={actionLinks.residentLogin} variant="primary" size="md" fullWidth>
+                Get the app
               </Button>
             </div>
           </div>

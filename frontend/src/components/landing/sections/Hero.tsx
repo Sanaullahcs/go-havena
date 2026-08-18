@@ -1,55 +1,73 @@
 import { Button } from "../ui/Button";
-import { actionLinks, landingImages } from "@/lib/landing/site";
+import { Container } from "../ui/Container";
+import { MobileAppMockup } from "../ui/MobileAppMockup";
+import { Reveal } from "../ui/Reveal";
+import { Icon } from "../icons/Icon";
+import { actionLinks } from "@/lib/landing/site";
+
+const TRUST_ITEMS = [
+  "Verified neighbors",
+  "AI-moderated",
+  "Invite-only communities",
+] as const;
 
 export function Hero() {
   return (
-    <section id="top" className="lp-hero lp-hero--bleed scroll-mt-0">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={landingImages.hero}
-        alt=""
-        className="lp-hero__bg"
-        fetchPriority="high"
-        aria-hidden
-      />
-      <div className="lp-hero__veil" aria-hidden />
+    <section id="top" className="lp-hero lp-hero--product scroll-mt-0">
+      <Container size="xl">
+        <div className="lp-hero--product__grid">
+          <Reveal className="lp-hero--product__copy">
+            <p className="lp-label lp-label--plain">Hyperlocal community platform</p>
 
-      <div className="lp-hero__content">
-        <p className="lp-hero__eyebrow animate-fade-up">For community operators</p>
+            <h1 className="lp-hero--product__title">
+              Your neighborhood,
+              <span className="lp-hero--product__title-accent"> connected.</span>
+            </h1>
 
-        <h1 className="lp-hero__heading animate-fade-up delay-100">
-          <span className="lp-hero__brand">Havena</span>
-          <span className="lp-hero__line">
-            One subscription.
-            <em> Every resident invited in.</em>
-          </span>
-        </h1>
+            <p className="lp-body lp-hero--product__lede">
+              Verified residents only. One app for notices, events, marketplace, wellness, and
+              property life — inside a safe, moderated community.
+            </p>
 
-        <p className="lp-hero__lede animate-fade-up delay-200">
-          Buy seats for your HOA or neighborhood, then onboard people into a verified hub for
-          notices, amenities, and daily life — residents never pay Havena.
-        </p>
+            <div className="lp-hero--product__actions">
+              <Button
+                href={actionLinks.residentLogin}
+                variant="primary"
+                size="lg"
+                iconTrailing="arrow-right"
+              >
+                Get the app
+              </Button>
+              <Button href={actionLinks.signUp} variant="secondary" size="lg">
+                Request admin access
+              </Button>
+            </div>
 
-        <div className="lp-hero__actions animate-fade-up delay-300">
-          <Button
-            href={actionLinks.signUp}
-            variant="primary"
-            size="lg"
-            iconTrailing="arrow-right"
-            className="lp-hero__cta"
-          >
-            Start your community
-          </Button>
-          <Button href="#pricing" variant="white" size="lg" className="lp-hero__ghost" link={false}>
-            View plans
-          </Button>
+            <ul className="lp-hero--product__trust" aria-label="Platform highlights">
+              {TRUST_ITEMS.map((item) => (
+                <li key={item}>
+                  <Icon name="check-circle-2" className="h-4 w-4 shrink-0 text-brand" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </Reveal>
+
+          <Reveal className="lp-hero--product__visual" delay={120}>
+            <div className="lp-hero--product__phone-wrap">
+              <MobileAppMockup size="hero" className="lp-hero--product__phone" />
+              <div className="lp-hero--product__float lp-hero--product__float--notices">
+                <Icon name="megaphone" className="h-4 w-4 text-brand-dark-teal" />
+                <span>New community notice</span>
+              </div>
+              <div className="lp-hero--product__float lp-hero--product__float--deals">
+                <Icon name="tag" className="h-4 w-4 text-brand" />
+                <span>Local deal nearby</span>
+              </div>
+            </div>
+          </Reveal>
         </div>
-      </div>
-
-      <a href="#platform" className="lp-hero__scroll animate-fade-up delay-400">
-        <span>Explore the platform</span>
-        <span className="lp-hero__scroll-line" aria-hidden />
-      </a>
+      </Container>
     </section>
   );
 }

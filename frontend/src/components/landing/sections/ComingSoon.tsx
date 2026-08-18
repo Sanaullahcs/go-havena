@@ -1,17 +1,15 @@
 import Link from "next/link";
 import { HavenaMark } from "@/components/shared/havena-mark";
-import { landingImages, site } from "@/lib/landing/site";
+import { HavenaAppScreenPreview } from "@/components/landing/ui/HavenaAppScreenPreview";
+import { site } from "@/lib/landing/site";
 
 export function ComingSoon() {
   return (
     <section className="lp-coming-soon" aria-label="Coming soon">
       <div className="lp-coming-soon__media" aria-hidden>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={landingImages.hero}
-          alt=""
-          className="lp-coming-soon__photo"
-        />
+        <div className="lp-coming-soon__preview">
+          <HavenaAppScreenPreview />
+        </div>
         <div className="lp-coming-soon__wash" />
       </div>
 

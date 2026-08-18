@@ -1,85 +1,89 @@
-import { Icon, type IconName } from "../icons/Icon";
-import { Container } from "../ui/Container";
-
-const FEATURES: { icon: IconName; tag: string; title: string; body: string }[] = [
-  {
-    icon: "shield-check",
-    tag: "Security",
-    title: "Verified access",
-    body: "OTP login, utility bill checks, and admin approval keep every community private and trustworthy.",
-  },
-  {
-    icon: "megaphone",
-    tag: "Communications",
-    title: "Notices & events",
-    body: "Publish updates and activities that reach the right residents instantly, with no lost emails.",
-  },
-  {
-    icon: "calendar-days",
-    tag: "Operations",
-    title: "Amenities & bookings",
-    body: "Manage shared spaces with clear schedules so residents stop fighting over spreadsheets.",
-  },
-  {
-    icon: "book-open",
-    tag: "Engagement",
-    title: "Wellness programs",
-    body: "Courses, lessons, and streaks that help neighbors stay engaged beyond announcements.",
-  },
-  {
-    icon: "store",
-    tag: "Local",
-    title: "Local marketplace",
-    body: "Highlight community deals and trusted local offers without leaving the neighborhood app.",
-  },
-  {
-    icon: "users",
-    tag: "Administration",
-    title: "Admin dashboard",
-    body: "Approve members, manage operations, and stay in control from mobile or the web console.",
-  },
-];
-
-export function Features() {
-  return (
-    <section id="features" className="lp-section lp-features scroll-mt-28">
-      <Container size="xl">
-        <div className="lp-features__head">
-          <p className="lp-label lp-label--plain">Features</p>
-          <h2 className="lp-features__title">
-            <span className="lp-features__title-main">Everything your community needs.</span>
-            <span className="lp-features__title-accent">Nothing it doesn&apos;t.</span>
-          </h2>
-          <p className="lp-body lp-features__lede">
-            One calm surface for daily neighborhood life, designed for clarity and trust.
-          </p>
-        </div>
-
-        <ul className="lp-features__grid">
-          {FEATURES.map((f, index) => (
-            <li
-              key={f.title}
-              className={`lp-features__item${index === 0 ? " lp-features__item--featured" : ""}`}
-            >
-              <article className="lp-features__card">
-                <span className="lp-features__index" aria-hidden="true">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <span className="lp-features__tag">{f.tag}</span>
-                <span className="lp-features__icon" aria-hidden="true">
-                  <Icon name={f.icon} className="h-5 w-5" />
-                </span>
-                <div className="lp-features__content">
-                  <h3 className="lp-features__card-title">{f.title}</h3>
-                  <p className="lp-features__card-body">{f.body}</p>
-                </div>
-              </article>
-            </li>
-          ))}
-        </ul>
-      </Container>
-    </section>
-  );
-}
-
-export default Features;
+import { Icon } from "../icons/Icon";
+import { Container } from "../ui/Container";
+import { Reveal } from "../ui/Reveal";
+import { featureGroups } from "@/lib/landing/content";
+
+function FeatureCard({
+  icon,
+  title,
+  body,
+  className = "",
+}: {
+  icon: (typeof featureGroups)[number]["features"][number]["icon"];
+  title: string;
+  body: string;
+  className?: string;
+}) {
+  return (
+    <article className={["lp-feature-card", className].filter(Boolean).join(" ")}>
+      <span className="lp-feature-card__icon" aria-hidden="true">
+        <Icon name={icon} className="h-5 w-5" />
+      </span>
+      <h3 className="lp-feature-card__title">{title}</h3>
+      <p className="lp-feature-card__body">{body}</p>
+    </article>
+  );
+}
+
+export function Features() {
+  return (
+    <section id="features" className="lp-section lp-features-v2 scroll-mt-28">
+      <Container size="xl">
+        <Reveal className="lp-features-v2__head">
+          <p className="lp-label lp-label--plain">Features</p>
+          <h2 className="lp-title">Everything your community needs.</h2>
+          <p className="lp-body lp-features-v2__lede">
+            Organized for clarity — from daily notices to wellness, marketplace, and admin
+            operations.
+          </p>
+        </Reveal>
+
+        <div className="lp-features-v2__groups">
+          {featureGroups.map((group, groupIndex) => (
+            <Reveal key={group.id} delay={groupIndex * 80} className="lp-features-v2__group">
+              <div className="lp-features-v2__group-head">
+                <p className="lp-label lp-label--plain">{group.label}</p>
+                <h3 className="lp-features-v2__group-title">{group.title}</h3>
+              </div>
+
+              {group.layout === "pair" ? (
+                <ul className="lp-features-v2__pair">
+                  {group.features.map((feature) => (
+                    <li key={feature.title}>
+                      <FeatureCard {...feature} />
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
+              {group.layout === "bento" ? (
+                <ul className="lp-features-v2__bento">
+                  {group.features.map((feature, index) => (
+                    <li
+                      key={feature.title}
+                      className={index === 0 ? "lp-features-v2__bento-wide" : undefined}
+                    >
+                      <FeatureCard {...feature} />
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
+              {group.layout === "trio" ? (
+                <ul className="lp-features-v2__trio">
+                  {group.features.map((feature) => (
+                    <li key={feature.title}>
+                      <FeatureCard {...feature} />
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </Reveal>
+          ))}
+        </div>
+      </Container>
+    </section>
+  );
+}
+
+export default Features;

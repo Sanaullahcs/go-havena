@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
-import { ComingSoon } from "@/components/landing/sections/ComingSoon";
+import { MarketingLandingPage } from "@/components/landing/marketing-landing-page";
+import { site } from "@/lib/landing/site";
 
 export const metadata: Metadata = {
-  title: "Havena — Coming soon",
-  description: "Havena is coming soon. A calmer home for community life.",
+  title: `${site.name} — ${site.tagline}`,
+  description: site.description,
 };
 
-export default function LandingPage() {
+export default function HomePage() {
   return (
-    <div className="landing-page lp lp--breeze lp--coming-soon min-h-screen overflow-x-hidden text-ink-primary antialiased">
-      <ComingSoon />
+    <div className="landing-page lp lp--breeze min-h-screen overflow-x-hidden text-ink-primary antialiased">
+      <MarketingLandingPage />
     </div>
   );
 }
