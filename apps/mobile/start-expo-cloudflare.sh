@@ -33,9 +33,27 @@ if [[ -z "$TUNNEL_HOST" ]]; then
   exit 1
 fi
 
-export EXPO_PACKAGER_PROXY_URL="https://${TUNNEL_HOST}"
+export EXPO_PACKAGER_PROXY_URL="http://${TUNNEL_HOST}"
 export REACT_NATIVE_PACKAGER_HOSTNAME="${TUNNEL_HOST}"
-EXP_URL="exp://${TUNNEL_HOST}"
+EXP_URL="exp://${TUNNEL_HOST}:80"
+
+# Optional: start a backend API tunnel on port 8000 when BACKEND_TUNNEL=1
+if [[ "${BACKEND_TUNNEL:-1}" == "1" ]]; then
+  lsof -ti :8000 >/dev/null 2>&1 || echo "Warning: backend not listening on :8000 — start with: npm run backend"
+  API_LOG="$(mktemp)"
+  "$CLOUDFLARED" tunnel --url "http://127.0.0.1:8000" >"$API_LOG" 2>&1 &
+  API_CF_PID=$!
+  API_TUNNEL_HOST=""
+  for _ in $(seq 1 20); do
+    API_TUNNEL_HOST=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$API_LOG" | tail -1 | sed 's|https://||')
+    [[ -n "$API_TUNNEL_HOST" ]] && break
+    sleep 1
+  done
+  if [[ -n "$API_TUNNEL_HOST" ]]; then
+    export EXPO_PUBLIC_API_URL="http://${API_TUNNEL_HOST}/api/v1"
+    echo "API tunnel: http://${API_TUNNEL_HOST}/api/v1"
+  fi
+fi
 
 echo ""
 echo "=== Havena Expo (Cloudflare tunnel) ==="

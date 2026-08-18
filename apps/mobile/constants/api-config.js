@@ -59,6 +59,11 @@ function isDevTunnelApiUrl(url) {
   }
 }
 
+function isTunnelPackagerHost(host) {
+  if (!host) return false;
+  return host.includes("exp.direct") || host.endsWith(".trycloudflare.com");
+}
+
 /** Physical Android device vs emulator (Expo Go / AVD). */
 function isAndroidEmulator() {
   if (Platform.OS !== "android") return false;
@@ -86,7 +91,7 @@ function resolveApiBaseUrl() {
   }
 
   const packagerHost = getPackagerHost();
-  const isTunnelHost = packagerHost?.includes("exp.direct");
+  const isTunnelHost = isTunnelPackagerHost(packagerHost);
   const envLanUrl =
     envUrl && /^http:\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(envUrl)
       ? envUrl
