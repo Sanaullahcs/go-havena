@@ -14,7 +14,8 @@ export function Footer() {
           <div className="lp-footer__brand">
             <Logo tone="light" />
             <p className="lp-footer__tagline">
-              A calm platform for verified neighborhoods: notices, amenities, wellness, and more.
+              Your neighborhood, connected — verified notices, feed, marketplace, wellness, and
+              property life in one place.
             </p>
           </div>
 
