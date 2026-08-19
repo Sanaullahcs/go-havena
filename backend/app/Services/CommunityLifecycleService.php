@@ -251,7 +251,8 @@ class CommunityLifecycleService
     public function assignCommunityAdmin(Community $community, User $newAdmin, bool $keepSystemAdminRole = false): User
     {
         if (! $community->isActiveForResidents()) {
-            abort(422, 'Cannot assign an admin to an inactive community.');
+            $this->reactivateCommunityForAdminAssignment($community);
+            $community->refresh();
         }
 
         $this->assertCanAdminCommunity($newAdmin, $community);
@@ -370,11 +371,11 @@ class CommunityLifecycleService
         }
     }
 
-    /** Communities approved/active with no active community admin assigned. */
+    /** Communities approved (active or inactive) with no active community admin assigned. */
     public function communityIdsNeedingAdminReassignment(): array
     {
         return Community::query()
-            ->where('status', 'active')
+            ->whereIn('status', ['active', 'inactive'])
             ->where(function ($w) {
                 $w->whereNull('review_status')
                     ->orWhere('review_status', 'approved');
@@ -383,6 +384,80 @@ class CommunityLifecycleService
             ->filter(fn (Community $community) => ! $this->hasCommunityAdminAssigned($community))
             ->pluck('id')
             ->all();
+    }
+
+    public function resolveReassignReason(Community $community, ?User $previousAdmin): string
+    {
+        if ($community->status === 'inactive') {
+            return 'community_inactive';
+        }
+
+        if ($previousAdmin && $previousAdmin->suspension_reason === self::REASON_ADMIN_SUSPENDED) {
+            return 'previous_admin_suspended';
+        }
+
+        if ($previousAdmin) {
+            return 'previous_admin_removed';
+        }
+
+        return 'missing_admin';
+    }
+
+    public function reassignSummaryFor(Community $community, ?User $previousAdmin): string
+    {
+        $reason = $this->resolveReassignReason($community, $previousAdmin);
+
+        return match ($reason) {
+            'community_inactive' => 'Community is inactive. Assigning a new admin will reactivate it for residents.',
+            'previous_admin_suspended' => ($previousAdmin?->name ?? 'The previous admin').' was suspended — assign a replacement to restore management.',
+            'previous_admin_removed' => ($previousAdmin?->name ?? 'The previous admin').' is no longer active — assign a new administrator.',
+            default => 'No administrator is assigned yet. Invite someone to manage this community.',
+        };
+    }
+
+    /** Reactivate an inactive community for reassignment without restoring the previous admin. */
+    public function reactivateCommunityForAdminAssignment(Community $community): void
+    {
+        if ($community->status === 'active') {
+            return;
+        }
+
+        if ($community->review_status !== 'approved' && $community->review_status !== null) {
+            abort(422, 'Only approved communities can be reactivated for admin assignment.');
+        }
+
+        DB::transaction(function () use ($community) {
+            $community->update(['status' => 'active']);
+
+            $residentUserIds = CommunityMembership::query()
+                ->where('community_id', $community->id)
+                ->where('role', '!=', 'admin')
+                ->where('deactivation_source', 'community')
+                ->pluck('user_id');
+
+            CommunityMembership::query()
+                ->where('community_id', $community->id)
+                ->where('role', '!=', 'admin')
+                ->where('deactivation_source', 'community')
+                ->each(function (CommunityMembership $membership) {
+                    $restoreStatus = $membership->status_before_deactivation ?? 'approved';
+                    $membership->update([
+                        'status'                     => $restoreStatus,
+                        'status_before_deactivation' => null,
+                        'deactivation_source'        => null,
+                    ]);
+                });
+
+            if ($residentUserIds->isNotEmpty()) {
+                User::query()
+                    ->whereIn('id', $residentUserIds)
+                    ->where('suspension_reason', self::REASON_COMMUNITY_DEACTIVATED)
+                    ->update([
+                        'status'            => 'active',
+                        'suspension_reason' => null,
+                    ]);
+            }
+        });
     }
 
     public function authenticationBlock(User $user, ?string $portal = null, bool $includeRejections = true): ?array

@@ -137,10 +137,16 @@ class CommunitySubscription extends Model
             return false;
         }
 
+        if ($this->status === self::STATUS_CANCELED) {
+            return false;
+        }
+
         return in_array($this->status, [
             self::STATUS_PENDING_TRIAL,
             self::STATUS_TRIALING,
             self::STATUS_ACTIVE,
+            self::STATUS_GRACE,
+            self::STATUS_UNPAID,
         ], true);
     }
 

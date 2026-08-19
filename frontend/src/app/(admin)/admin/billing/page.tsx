@@ -1039,7 +1039,8 @@ function BillingPageInner() {
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-[13px] leading-relaxed text-amber-950">
           This community is finishing the leftover days of the previous subscription
           {sub?.leftover_ends_at ? ` until ${formatBillingDate(sub.leftover_ends_at)}` : ""}. The previous
-          admin is not being charged. When that period ends, add your card and you can choose a plan.
+          admin is not being charged. You can keep using the community until then — add your card and choose a
+          plan when that period ends.
         </div>
       ) : null}
 

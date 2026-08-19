@@ -124,7 +124,7 @@ class CommunityAdminBillingReassignTest extends TestCase
         $this->assertTrue($subscription->grace_ends_at?->isSameDay(now()->addDays(12)));
     }
 
-    public function test_one_day_leftover_still_grants_replacement_admin_access(): void
+    public function test_one_day_leftover_grants_replacement_admin_dashboard_access(): void
     {
         config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
 
@@ -144,6 +144,7 @@ class CommunityAdminBillingReassignTest extends TestCase
             ->assertJsonPath('data.access.can_use_dashboard', true)
             ->assertJsonPath('data.access.has_leftover_service', true)
             ->assertJsonPath('data.access.card_on_file', false)
+            ->assertJsonPath('data.access.requires_replacement_card', false)
             ->assertJsonPath('data.access.plan_slug', 'growth')
             ->assertJsonPath('data.access.next_step', 'ready');
 
@@ -198,15 +199,30 @@ class CommunityAdminBillingReassignTest extends TestCase
         $this->patchJson("/api/v1/admin/community-admins/{$admin->id}/suspend")->assertOk();
         $replacement = $this->assignReplacement($community);
 
+        Sanctum::actingAs($replacement);
+        $this->getJson('/api/v1/me')
+            ->assertOk()
+            ->assertJsonPath('data.access.billing_complete', true)
+            ->assertJsonPath('data.access.can_use_dashboard', true)
+            ->assertJsonPath('data.access.has_leftover_service', true)
+            ->assertJsonPath('data.access.requires_replacement_card', false);
+
         $this->travel(2)->days();
 
-        Sanctum::actingAs($replacement);
         $this->getJson('/api/v1/me')
             ->assertOk()
             ->assertJsonPath('data.access.billing_complete', false)
             ->assertJsonPath('data.access.can_use_dashboard', false)
+            ->assertJsonPath('data.access.has_leftover_service', false)
             ->assertJsonPath('data.access.requires_replacement_card', true)
             ->assertJsonPath('data.access.next_step', 'complete_billing_web');
+
+        $subscription = CommunitySubscription::query()->where('community_id', $community->id)->firstOrFail();
+        $subscription->update([
+            'meta' => array_merge(is_array($subscription->meta) ? $subscription->meta : [], [
+                'payment_method_id' => 'pm_replacement',
+            ]),
+        ]);
 
         $resumed = app(CommunityBillingService::class)->resumeReplacementBilling(
             $community->fresh(),
@@ -214,7 +230,6 @@ class CommunityAdminBillingReassignTest extends TestCase
             'starter',
             'month',
         );
-
         $this->assertSame('starter', $resumed->plan_slug);
         $this->assertSame(CommunitySubscription::STATUS_ACTIVE, $resumed->status);
         $this->assertFalse($resumed->isAdminTransition());
@@ -253,6 +268,15 @@ class CommunityAdminBillingReassignTest extends TestCase
         $this->asSystem();
         $this->patchJson("/api/v1/admin/community-admins/{$admin->id}/suspend")->assertOk();
         $replacement = $this->assignReplacement($community);
+
+        $subscription = CommunitySubscription::query()->where('community_id', $community->id)->firstOrFail();
+        $subscription->update([
+            'meta' => array_merge(is_array($subscription->meta) ? $subscription->meta : [], [
+                'payment_method_id' => 'pm_replacement',
+                'resumed_plan_slug' => 'starter',
+            ]),
+        ]);
+
         $this->travel(2)->days();
 
         $this->expectException(\App\Exceptions\BillingException::class);
@@ -277,6 +301,15 @@ class CommunityAdminBillingReassignTest extends TestCase
         $this->asSystem();
         $this->patchJson("/api/v1/admin/community-admins/{$admin->id}/suspend")->assertOk();
         $replacement = $this->assignReplacement($community);
+
+        $subscription = CommunitySubscription::query()->where('community_id', $community->id)->firstOrFail();
+        $subscription->update([
+            'meta' => array_merge(is_array($subscription->meta) ? $subscription->meta : [], [
+                'payment_method_id' => 'pm_replacement',
+                'resumed_plan_slug' => 'growth',
+            ]),
+        ]);
+
         $this->travel(2)->days();
 
         $resumed = app(CommunityBillingService::class)->resumeReplacementBilling(
@@ -288,6 +321,7 @@ class CommunityAdminBillingReassignTest extends TestCase
 
         $this->assertSame('growth', $resumed->plan_slug);
         $this->assertTrue($resumed->hasCardOnFile());
+        $this->assertFalse($resumed->isAdminTransition());
     }
 
     public function test_reject_still_cancels_subscription_immediately(): void
@@ -328,5 +362,48 @@ class CommunityAdminBillingReassignTest extends TestCase
         ])
             ->assertOk()
             ->assertJsonPath('data.mode', 'already_active');
+    }
+
+    public function test_reapproved_replacement_admin_must_rebill_without_second_trial(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedAdmin($community);
+        $this->activeSubscription($community, ['current_period_end' => now()->addDays(5)]);
+
+        $this->asSystem();
+        $this->patchJson("/api/v1/admin/community-admins/{$admin->id}/suspend")->assertOk();
+        $replacement = $this->assignReplacement($community);
+
+        $subscription = CommunitySubscription::query()->where('community_id', $community->id)->firstOrFail();
+        $subscription->update([
+            'meta' => array_merge(is_array($subscription->meta) ? $subscription->meta : [], [
+                'card_on_file' => true,
+                'payment_method_id' => 'pm_replacement',
+            ]),
+        ]);
+
+        Sanctum::actingAs($this->systemAdmin());
+        $this->patchJson("/api/v1/admin/community-admins/{$replacement->id}/reject")
+            ->assertOk()
+            ->assertJsonPath('message', 'Community admin revoked. Billing canceled.');
+
+        $this->patchJson("/api/v1/admin/community-admins/{$replacement->id}/approve")
+            ->assertOk()
+            ->assertJsonPath('message', 'Community admin re-approved');
+
+        Sanctum::actingAs($replacement);
+        $this->getJson('/api/v1/me')
+            ->assertOk()
+            ->assertJsonPath('data.access.billing_complete', false)
+            ->assertJsonPath('data.access.can_use_dashboard', false)
+            ->assertJsonPath('data.access.next_step', 'complete_billing_web');
+
+        $this->getJson('/api/v1/admin/billing')
+            ->assertOk()
+            ->assertJsonPath('data.trial_period_days', 0)
+            ->assertJsonPath('data.subscription.trial_consumed', true)
+            ->assertJsonPath('data.subscription.status', CommunitySubscription::STATUS_UNPAID);
     }
 }

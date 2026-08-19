@@ -35,8 +35,8 @@ type StatusTab = "pending" | "approved" | "suspended" | "reassign" | "rejected";
 const STATUS_FILTERS: { key: StatusTab; label: string; description: string }[] = [
   { key: "pending", label: "Pending", description: "Applications awaiting review" },
   { key: "approved", label: "Active", description: "Approved admins with dashboard access" },
-  { key: "suspended", label: "Suspended", description: "Suspended admins whose community already has a replacement" },
-  { key: "reassign", label: "Reassign", description: "Communities that need an active administrator assigned" },
+  { key: "suspended", label: "Suspended", description: "Suspended administrators — reassign a replacement while the community still needs one" },
+  { key: "reassign", label: "Reassign", description: "Communities needing an active admin — missing admin, suspended admin, or inactive community" },
   { key: "rejected", label: "Rejected", description: "Declined applications" },
 ];
 
@@ -152,7 +152,7 @@ export default function CommunityAdminsPage() {
       {
         label: "Needs Reassign",
         value: String(stats.needs_reassign ?? 0),
-        hint: "Communities without an active admin",
+        hint: "Communities without an active admin (includes inactive communities)",
         tone: "amber" as const,
         icon: <IcoSwap />,
       },
@@ -239,8 +239,8 @@ export default function CommunityAdminsPage() {
     setBusyId(item.id);
     try {
       await suspendCommunityAdmin(item.id);
-      toastSuccess("Community admin suspended. Assign a replacement from the Reassign tab.");
-      setStatus("reassign");
+      toastSuccess("Community admin suspended. Assign a replacement from the Suspended or Reassign tab.");
+      setStatus("suspended");
       await load(true);
     } catch (err) {
       toastError(apiError(err));
@@ -258,7 +258,12 @@ export default function CommunityAdminsPage() {
     setAssignTarget({
       communityId: community.id,
       communityName: community.name,
-      previousAdminName: item.reassign_reason === "missing_admin" ? undefined : item.name,
+      region: community.region,
+      previousAdminName:
+        item.previous_admin?.name ?? (status === "suspended" && item.id ? item.name : undefined),
+      reassignReason: item.reassign_reason,
+      reassignSummary: item.reassign_summary,
+      communityStatus: community.status,
       mode,
     });
   };
@@ -329,36 +334,96 @@ export default function CommunityAdminsPage() {
         >
           <DtTable>
             <DtHead
-              cols={[
-                { label: "Administrator" },
-                { label: "Contact" },
-                { label: "Community" },
-                { label: "Account status" },
-                { label: "Billing" },
-                { label: "Since" },
-                { label: "", right: true },
-              ]}
+              cols={
+                status === "reassign"
+                  ? [
+                      { label: "Community" },
+                      { label: "Situation" },
+                      { label: "Previous admin" },
+                      { label: "Status" },
+                      { label: "Updated" },
+                      { label: "", right: true },
+                    ]
+                  : [
+                      { label: "Administrator" },
+                      { label: "Contact" },
+                      { label: "Community" },
+                      { label: "Account status" },
+                      { label: "Billing" },
+                      { label: "Since" },
+                      { label: "", right: true },
+                    ]
+              }
             />
             <tbody>
-              {items.map((item, index) => {
+              {items.map((item) => {
                 const community = communityFor(item);
+                if (status === "reassign") {
+                  return (
+                    <DtRow key={rowKey(item)} muted>
+                      <DtCell first>
+                        <div>
+                          <p className="font-semibold text-slate-900">{community?.name ?? item.name}</p>
+                          {community?.region ? (
+                            <p className="text-[12px] text-slate-400">{community.region}</p>
+                          ) : null}
+                        </div>
+                      </DtCell>
+                      <DtCell>
+                        <p className="text-[13px] text-slate-700">{item.reassign_summary ?? "This community needs an active administrator."}</p>
+                      </DtCell>
+                      <DtCell>
+                        {item.previous_admin?.name ? (
+                          <div>
+                            <p className="font-medium text-slate-800">{item.previous_admin.name}</p>
+                            <p className="text-[11px] capitalize text-slate-400">{item.previous_admin.status ?? "—"}</p>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </DtCell>
+                      <DtCell>
+                        <AdminAccountStatusBadge
+                          accountStatus={item.status}
+                          applicationStatus={item.community_admin_status}
+                          needsReassign
+                          reassignReason={item.reassign_reason}
+                        />
+                      </DtCell>
+                      <DtCell nowrap muted>{relDate(item.created_at)}</DtCell>
+                      <DtCell last right>
+                        <AdminActionsMenu
+                          disabled={busyId === item.id}
+                          actions={[
+                            { label: "View details", icon: "view", onClick: () => setViewing(item) },
+                            {
+                              label: "Reassign admin",
+                              icon: "edit",
+                              tone: "primary",
+                              hidden: !community?.id,
+                              onClick: () => openAssign(item, "reassign"),
+                            },
+                          ]}
+                        />
+                      </DtCell>
+                    </DtRow>
+                  );
+                }
+
                 return (
                   <DtRow key={rowKey(item)} muted={status === "suspended" || status === "reassign"}>
                     <DtCell first>
                       <div className="flex items-center gap-3">
                         <UserAvatar
-                          name={item.reassign_reason === "missing_admin" ? "!" : item.profile?.display_name ?? item.name}
+                          name={item.profile?.display_name ?? item.name}
                           src={item.avatar_url ?? item.profile?.avatar_url}
                           size={36}
-                          color={item.reassign_reason === "missing_admin" ? "#dc2626" : undefined}
                         />
                         <div>
-                          <p className="font-semibold text-slate-900">
-                            {item.reassign_reason === "missing_admin" ? "No administrator assigned" : item.name}
-                          </p>
+                          <p className="font-semibold text-slate-900">{item.name}</p>
                           <p className="text-[12px] text-slate-400">
-                            {item.reassign_reason === "missing_admin"
-                              ? "Assign a community admin to activate management"
+                            {item.needs_reassign && item.reassign_summary
+                              ? item.reassign_summary
                               : formatDisplayEmail(item.email) ?? "—"}
                           </p>
                         </div>
@@ -380,9 +445,11 @@ export default function CommunityAdminsPage() {
                       <AdminAccountStatusBadge
                         accountStatus={item.status}
                         applicationStatus={item.community_admin_status}
-                        needsReassign={item.needs_reassign || status === "reassign"}
-                        reassignReason={item.reassign_reason}
+                        needsReassign={item.needs_reassign}
                       />
+                      {item.needs_reassign ? (
+                        <p className="mt-1 text-[11px] font-medium text-amber-700">Replacement needed</p>
+                      ) : null}
                     </DtCell>
                     <DtCell>
                       <BillingStatusBadge billing={item.billing} />
@@ -415,18 +482,10 @@ export default function CommunityAdminsPage() {
                             onClick: () => handleSuspend(item),
                           },
                           {
-                            label: "Assign admin",
-                            icon: "plus",
-                            tone: "primary",
-                            hidden: status !== "suspended" || !community?.id,
-                            disabled: !community?.id,
-                            onClick: () => openAssign(item, "assign"),
-                          },
-                          {
                             label: "Reassign admin",
                             icon: "edit",
                             tone: "primary",
-                            hidden: status !== "reassign" || !community?.id,
+                            hidden: status !== "suspended" || !item.needs_reassign || !community?.id,
                             disabled: !community?.id,
                             onClick: () => openAssign(item, "reassign"),
                           },
@@ -532,7 +591,7 @@ function CommunityAdminDetailModal({
   busy?: boolean;
 }) {
   const community = communityFor(item);
-  const isMissingAdmin = item.reassign_reason === "missing_admin";
+  const isReassignRow = Boolean(item.reassign_row_id) || item.id === 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
@@ -540,10 +599,10 @@ function CommunityAdminDetailModal({
         <div className="sticky top-0 flex items-start justify-between border-b border-slate-100 bg-white px-6 py-4">
           <div>
             <h3 className="text-[15px] font-bold text-slate-900">
-              {isMissingAdmin ? "Community reassignment" : item.name}
+              {isReassignRow ? community?.name ?? "Community reassignment" : item.name}
             </h3>
             <p className="mt-0.5 text-[12.5px] text-slate-500">
-              {isMissingAdmin ? "No administrator assigned" : "Community administrator details"}
+              {isReassignRow ? "Community reassignment details" : "Community administrator details"}
             </p>
           </div>
           <button
@@ -556,7 +615,7 @@ function CommunityAdminDetailModal({
         </div>
 
         <div className="space-y-3 px-6 py-5 text-sm">
-          {!isMissingAdmin ? (
+          {!isReassignRow ? (
             <>
               <ProfileRow label="Email" value={formatDisplayEmail(item.email) ?? "—"} />
               <ProfileRow label="Phone" value={item.phone ? <PhoneDisplay value={item.phone} /> : "—"} />
@@ -564,6 +623,17 @@ function CommunityAdminDetailModal({
               <ProfileRow label="Unit" value={item.profile?.unit_number ?? "—"} />
               <ProfileRow label="Residence" value={capitalize(item.profile?.residence_type)} />
             </>
+          ) : null}
+
+          {item.reassign_summary ? (
+            <ProfileRow label="Situation" value={item.reassign_summary} />
+          ) : null}
+
+          {item.previous_admin?.name ? (
+            <ProfileRow
+              label="Previous admin"
+              value={`${item.previous_admin.name}${item.previous_admin.status ? ` (${item.previous_admin.status})` : ""}`}
+            />
           ) : null}
 
           <ProfileRow
@@ -578,21 +648,19 @@ function CommunityAdminDetailModal({
             }
           />
 
-          <ProfileRow
-            label="Billing"
-            value={<BillingStatusBadge billing={item.billing} />}
-          />
+          {!isReassignRow ? (
+            <ProfileRow
+              label="Billing"
+              value={<BillingStatusBadge billing={item.billing} />}
+            />
+          ) : null}
 
-          {!isMissingAdmin && item.community_admin_status === "rejected" && item.community_admin_rejection_reason ? (
+          {!isReassignRow && item.community_admin_status === "rejected" && item.community_admin_rejection_reason ? (
             <ProfileRow label="Rejection reason" value={item.community_admin_rejection_reason} />
           ) : null}
 
-          {!isMissingAdmin && item.status === "suspended" && item.suspension_reason ? (
+          {!isReassignRow && item.status === "suspended" && item.suspension_reason ? (
             <ProfileRow label="Suspension reason" value={item.suspension_reason} />
-          ) : null}
-
-          {item.reassign_reason === "previous_admin_suspended" ? (
-            <ProfileRow label="Reassign note" value="Previous administrator was suspended; this community needs a replacement." />
           ) : null}
 
           <div className="border-t border-slate-100 pt-3">
@@ -603,14 +671,14 @@ function CommunityAdminDetailModal({
             <ProfileRow label="Review status" value={capitalize(community?.review_status ?? "—")} />
           </div>
 
-          {!isMissingAdmin && item.profile?.utility_bill_url ? (
+          {!isReassignRow && item.profile?.utility_bill_url ? (
             <div className="border-t border-slate-100 pt-3">
               <UtilityBillPreview url={item.profile.utility_bill_url} />
             </div>
           ) : null}
 
           <ProfileRow label="Registered" value={formatDateTime(item.created_at)} />
-          {!isMissingAdmin && item.id ? <ProfileRow label="Admin ID" value={String(item.id)} /> : null}
+          {!isReassignRow && item.id ? <ProfileRow label="Admin ID" value={String(item.id)} /> : null}
         </div>
 
         {(onApprove || onReject) ? (

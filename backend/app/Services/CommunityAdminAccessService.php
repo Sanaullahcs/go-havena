@@ -284,6 +284,11 @@ class CommunityAdminAccessService
         $this->billing->cancelSubscriptionImmediately($communityId, $reason);
     }
 
+    public function prepareBillingAfterAdminReApproval(int $communityId): void
+    {
+        $this->billing->prepareBillingAfterAdminReApproval($communityId);
+    }
+
     /** @param string[] $blocking */
     private function resolveNextStep(
         User $user,

@@ -14,6 +14,7 @@ use App\Services\CommunityLifecycleService;
 use App\Services\ContactIdentityService;
 use App\Services\MembershipService;
 use App\Services\NotificationService;
+use App\Services\ReferralService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -558,6 +559,8 @@ class AdminCommunityController extends Controller
             'Community admin access granted',
             "You have been assigned to manage {$community->name} in Havena.",
         );
+
+        app(ReferralService::class)->ensureReferralCode($assigned->fresh());
 
         return response()->json([
             'data'    => [

@@ -1,10 +1,23 @@
 import api from "./client";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 
+export type ReassignReason =
+  | "missing_admin"
+  | "previous_admin_suspended"
+  | "previous_admin_removed"
+  | "community_inactive";
+
 export type CommunityAdminApplicant = {
   id: number;
   reassign_row_id?: string;
-  reassign_reason?: "previous_admin_suspended" | "missing_admin";
+  reassign_reason?: ReassignReason;
+  reassign_summary?: string | null;
+  previous_admin?: {
+    id: number;
+    name: string;
+    status?: string;
+    suspension_reason?: string | null;
+  } | null;
   name: string;
   email?: string;
   phone?: string;

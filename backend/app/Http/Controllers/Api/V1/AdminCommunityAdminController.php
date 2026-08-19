@@ -35,16 +35,10 @@ class AdminCommunityAdminController extends Controller
             $query->where('community_admin_status', 'approved')
                 ->where('status', 'active');
         } elseif ($status === 'suspended') {
-            $communityIds = app(CommunityLifecycleService::class)->communityIdsNeedingAdminReassignment();
             $query->where('community_admin_status', 'approved')
                 ->where('status', 'suspended')
                 ->whereHas('memberships', function ($membership) {
-                    $membership->where('role', 'admin')->where('status', 'approved');
-                })
-                ->whereDoesntHave('memberships', function ($membership) use ($communityIds) {
-                    $membership->where('role', 'admin')
-                        ->where('status', 'approved')
-                        ->whereIn('community_id', $communityIds ?: [-1]);
+                    $membership->where('role', 'admin');
                 });
         } elseif (in_array($status, ['pending', 'rejected'], true)) {
             $query->where('community_admin_status', $status);
@@ -108,7 +102,13 @@ class AdminCommunityAdminController extends Controller
         $user->refresh()->load(['memberships.community']);
         $access = app(\App\Services\CommunityAdminAccessService::class);
         foreach ($user->memberships as $membership) {
-            if ($membership->community) {
+            if (! $membership->community_id) {
+                continue;
+            }
+
+            if ($wasRejected) {
+                $access->prepareBillingAfterAdminReApproval((int) $membership->community_id);
+            } elseif ($membership->community) {
                 $access->activateTrialIfApproved($membership->community);
             }
         }
@@ -249,7 +249,14 @@ class AdminCommunityAdminController extends Controller
             ->map(fn (Community $community) => $this->transformReassignRow(
                 $community,
                 $this->findPreviousAdminForCommunity($community),
-            ));
+            ))
+            ->sortBy(fn (array $row) => match ($row['reassign_reason'] ?? '') {
+                'community_inactive' => 0,
+                'previous_admin_suspended' => 1,
+                'previous_admin_removed' => 2,
+                default => 3,
+            })
+            ->values();
 
         if ($search !== '') {
             $needle = mb_strtolower($search);
@@ -258,6 +265,8 @@ class AdminCommunityAdminController extends Controller
                     $row['name'] ?? '',
                     $row['email'] ?? '',
                     $row['phone'] ?? '',
+                    $row['reassign_summary'] ?? '',
+                    $row['previous_admin']['name'] ?? '',
                     $row['community_request']['name'] ?? '',
                     $row['community_request']['region'] ?? '',
                 ])));
@@ -291,12 +300,7 @@ class AdminCommunityAdminController extends Controller
             ->where('community_admin_status', 'approved')
             ->where('status', 'suspended')
             ->whereHas('memberships', function ($membership) {
-                $membership->where('role', 'admin')->where('status', 'approved');
-            })
-            ->whereDoesntHave('memberships', function ($membership) use ($reassignCommunityIds) {
-                $membership->where('role', 'admin')
-                    ->where('status', 'approved')
-                    ->whereIn('community_id', $reassignCommunityIds ?: [-1]);
+                $membership->where('role', 'admin');
             })
             ->count();
 
@@ -326,13 +330,15 @@ class AdminCommunityAdminController extends Controller
             ->with(['profile', 'memberships.community'])
             ->whereIn('id', $adminUserIds)
             ->where('role', 'community_admin')
-            ->where('status', 'suspended')
+            ->orderByRaw("CASE WHEN status = 'suspended' THEN 0 ELSE 1 END")
             ->orderByDesc('updated_at')
             ->first();
     }
 
     private function transformReassignRow(Community $community, ?User $previousAdmin): array
     {
+        $lifecycle = app(CommunityLifecycleService::class);
+        $reason = $lifecycle->resolveReassignReason($community, $previousAdmin);
         $communityPayload = [
             'id'            => $community->id,
             'name'          => $community->name,
@@ -341,19 +347,10 @@ class AdminCommunityAdminController extends Controller
             'region'        => $community->region,
         ];
 
-        if ($previousAdmin) {
-            $row = $this->transform($previousAdmin, [$community->id]);
-            $row['needs_reassign'] = true;
-            $row['reassign_reason'] = 'previous_admin_suspended';
-            $row['community_request'] = $communityPayload;
-
-            return $row;
-        }
-
         return [
             'id'                     => 0,
             'reassign_row_id'        => 'community-'.$community->id,
-            'name'                   => 'Administrator needed',
+            'name'                   => $community->name,
             'email'                  => null,
             'phone'                  => null,
             'role'                   => 'community_admin',
@@ -361,7 +358,14 @@ class AdminCommunityAdminController extends Controller
             'status'                 => 'unassigned',
             'suspension_reason'      => null,
             'needs_reassign'         => true,
-            'reassign_reason'        => 'missing_admin',
+            'reassign_reason'        => $reason,
+            'reassign_summary'       => $lifecycle->reassignSummaryFor($community, $previousAdmin),
+            'previous_admin'         => $previousAdmin ? [
+                'id'                => $previousAdmin->id,
+                'name'              => $previousAdmin->name,
+                'status'            => $previousAdmin->status,
+                'suspension_reason' => $previousAdmin->suspension_reason,
+            ] : null,
             'created_at'             => $community->created_at?->toIso8601String(),
             'profile'                => null,
             'community_request'      => $communityPayload,
@@ -424,9 +428,12 @@ class AdminCommunityAdminController extends Controller
         $membership = $user->memberships->firstWhere('role', 'admin') ?? $user->memberships->first();
         $community  = $membership?->community;
         $needsReassign = $user->status === 'suspended'
-            && ($membership?->role === 'admin' && $membership?->status === 'approved')
+            && $membership?->role === 'admin'
             && $community
             && in_array($community->id, $reassignCommunityIds, true);
+
+        $lifecycle = app(CommunityLifecycleService::class);
+        $previousAdminForSummary = $user->status === 'suspended' ? $user : null;
 
         return [
             'id'                     => $user->id,
@@ -440,6 +447,9 @@ class AdminCommunityAdminController extends Controller
             'status'                         => $user->status,
             'suspension_reason'              => $user->suspension_reason,
             'needs_reassign'         => $needsReassign,
+            'reassign_summary'       => ($needsReassign && $community)
+                ? $lifecycle->reassignSummaryFor($community, $previousAdminForSummary)
+                : null,
             'created_at'             => $user->created_at?->toIso8601String(),
             'profile'                => $user->profile ? [
                 'display_name'     => $user->profile->display_name,

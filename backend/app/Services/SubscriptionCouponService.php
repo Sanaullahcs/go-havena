@@ -49,9 +49,9 @@ class SubscriptionCouponService
         string $interval,
         ?CommunitySubscription $subscription = null,
     ): SubscriptionCouponRedemption {
-        if ($subscription?->isAdminTransition()) {
+        if ($subscription?->isAdminTransition() && $subscription->hasLeftoverService()) {
             throw new BillingException(
-                'Coupons cannot be applied during admin reassignment.',
+                'Coupons can be applied when billing resumes after the inherited subscription period.',
                 'COUPON_NOT_ALLOWED',
             );
         }

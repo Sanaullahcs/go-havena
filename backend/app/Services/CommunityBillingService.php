@@ -280,6 +280,39 @@ class CommunityBillingService
             && $subscription->grace_ends_at->isPast()
         ) {
             $meta = is_array($subscription->meta) ? $subscription->meta : [];
+
+            if ($subscription->isAdminTransition() && $subscription->hasCardOnFile()) {
+                $community = Community::query()->find($communityId);
+                if ($community) {
+                    $planSlug = (string) (data_get($meta, 'resumed_plan_slug')
+                        ?: data_get($meta, 'inherited_plan_slug')
+                        ?: $subscription->plan_slug);
+                    $interval = $subscription->billing_interval === 'year' ? 'year' : 'month';
+
+                    try {
+                        $this->applyReplacementResume(
+                            $community,
+                            $subscription,
+                            $planSlug,
+                            $interval,
+                            (string) data_get($meta, 'payment_method_id', ''),
+                            (string) ($subscription->stripe_customer_id ?? ''),
+                        );
+                    } catch (BillingException $e) {
+                        if ($e->codeKey !== 'DOWNGRADE_BLOCKED') {
+                            throw $e;
+                        }
+
+                        $subscription->update([
+                            'status' => CommunitySubscription::STATUS_UNPAID,
+                            'meta' => $meta,
+                        ]);
+                    }
+
+                    return;
+                }
+            }
+
             $subscription->update([
                 'status' => CommunitySubscription::STATUS_UNPAID,
                 'meta' => $meta,
@@ -433,7 +466,7 @@ class CommunityBillingService
             return [
                 'mode' => 'already_active',
                 'checkout_url' => null,
-                'message' => 'This community is still on the leftover period of the previous subscription. Add a card when that period ends.',
+                'message' => 'This community is still within the inherited subscription period. Add your card when that period ends.',
             ];
         }
 
@@ -900,6 +933,13 @@ class CommunityBillingService
         $meta['trial_starts_on_approval'] = true;
 
         if ($local?->isAdminTransition()) {
+            if ($local->hasLeftoverService()) {
+                throw new BillingException(
+                    'Billing resumes when the inherited subscription period ends. Add your card then.',
+                    'LEFTOVER_PERIOD_ACTIVE',
+                );
+            }
+
             return $this->applyReplacementResume(
                 $community,
                 $local,
@@ -1225,6 +1265,13 @@ class CommunityBillingService
         }
 
         if ($subscription->isAdminTransition()) {
+            if ($subscription->hasLeftoverService()) {
+                throw new BillingException(
+                    'Plan changes are available when the inherited subscription period ends.',
+                    'LEFTOVER_PERIOD_ACTIVE',
+                );
+            }
+
             throw new BillingException(
                 'Add a card to resume billing before changing plans.',
                 'ADMIN_TRANSITION_CARD_REQUIRED',
@@ -1485,23 +1532,82 @@ class CommunityBillingService
         if (! $local?->isAdminTransition()) {
             throw new BillingException('This community is not waiting for a replacement card.', 'NOT_IN_ADMIN_TRANSITION');
         }
+        $interval = $interval === 'year' ? 'year' : 'month';
+
         if ($local->hasLeftoverService()) {
             throw new BillingException(
-                'Finish the leftover period before adding a new card.',
+                'Add your card during the leftover period. Paid billing resumes automatically when that period ends.',
                 'LEFTOVER_PERIOD_ACTIVE',
             );
         }
 
-        $interval = $interval === 'year' ? 'year' : 'month';
+        $paymentMethodId = (string) data_get($local->meta, 'payment_method_id', '');
+        if ($paymentMethodId === '') {
+            throw BillingException::cardRequired();
+        }
 
         return $this->applyReplacementResume(
             $community,
             $local,
             $planSlug,
             $interval,
-            (string) data_get($local->meta, 'payment_method_id', 'pm_replacement'),
+            $paymentMethodId,
             (string) ($local->stripe_customer_id ?? ''),
         );
+    }
+
+    /**
+     * Replacement admin saves a card during the leftover grace window.
+     * Stripe billing resumes when leftover days end (or immediately if already expired).
+     */
+    protected function saveReplacementCardDuringTransition(
+        Community $community,
+        CommunitySubscription $local,
+        string $planSlug,
+        string $interval,
+        string $paymentMethodId,
+        string $customerId,
+        string $setupIntentId,
+    ): CommunitySubscription {
+        $plan = $this->assertPlanAvailable($this->plan($planSlug), $local);
+        $used = $this->seatsUsed($community->id);
+        $newLimit = (int) ($plan['seat_limit'] ?? 0) + (int) $local->extra_seats;
+        if ($used > $newLimit) {
+            throw BillingException::downgradeBlocked($used, $newLimit);
+        }
+
+        $meta = is_array($local->meta) ? $local->meta : [];
+        $meta['card_on_file'] = true;
+        $meta['payment_method_id'] = $paymentMethodId;
+        $meta['intent_id'] = $setupIntentId;
+        $meta['intent_type'] = 'setup';
+        $meta['replacement_card_saved_at'] = now()->toIso8601String();
+        $meta['resumed_plan_slug'] = $planSlug;
+        unset($meta['trial_starts_on_approval']);
+
+        $local->update([
+            'plan_slug' => $planSlug,
+            'billing_interval' => $interval,
+            'stripe_customer_id' => $customerId !== '' ? $customerId : $local->stripe_customer_id,
+            'stripe_price_id' => $interval === 'year'
+                ? ($plan['stripe_price_yearly'] ?? $local->stripe_price_id)
+                : ($plan['stripe_price_monthly'] ?? $local->stripe_price_id),
+            'meta' => $meta,
+        ]);
+
+        $fresh = $local->fresh();
+        if (! $fresh->hasLeftoverService()) {
+            return $this->applyReplacementResume(
+                $community,
+                $fresh,
+                $planSlug,
+                $interval,
+                $paymentMethodId,
+                $customerId,
+            );
+        }
+
+        return $fresh;
     }
 
     protected function applyReplacementResume(
@@ -1568,7 +1674,10 @@ class CommunityBillingService
                     'meta' => array_merge($syncedMeta, $meta, ['card_on_file' => true, 'admin_transition' => false]),
                 ]);
 
-                return $synced->fresh();
+                $fresh = $synced->fresh();
+                app(SubscriptionCouponService::class)->markApplied($fresh);
+
+                return $fresh;
             } catch (ApiErrorException $e) {
                 Log::warning('Could not resume paused Stripe subscription; creating a new one', [
                     'community_id' => $community->id,
@@ -1627,7 +1736,10 @@ class CommunityBillingService
             $this->markTrialConsumed($local->fresh(), 'trial_started');
         }
 
-        return $local->fresh();
+        $fresh = $local->fresh();
+        app(SubscriptionCouponService::class)->markApplied($fresh);
+
+        return $fresh;
     }
 
     protected function detachCustomerPaymentMethods(CommunitySubscription $subscription): void
@@ -1741,15 +1853,32 @@ class CommunityBillingService
             }
         }
 
+        $this->detachCustomerPaymentMethods($subscription);
+
         $meta = is_array($subscription->meta) ? $subscription->meta : [];
         $meta['canceled_reason'] = $reason;
         $meta['canceled_via'] = 'platform_rejection';
+        $meta['card_on_file'] = false;
+        $meta['admin_transition'] = false;
+        unset(
+            $meta['payment_method_id'],
+            $meta['replacement_admin_id'],
+            $meta['replacement_card_saved_at'],
+            $meta['resumed_plan_slug'],
+            $meta['paused_reason'],
+            $meta['paused_at'],
+            $meta['previous_status'],
+            $meta['inherited_plan_slug'],
+        );
 
         $subscription->update([
             'status' => CommunitySubscription::STATUS_CANCELED,
             'canceled_at' => now(),
             'cancel_at_period_end' => false,
             'grace_ends_at' => null,
+            'stripe_subscription_id' => null,
+            'current_period_start' => null,
+            'current_period_end' => null,
             'meta' => $meta,
         ]);
 
@@ -1763,6 +1892,50 @@ class CommunityBillingService
                     'updated_at' => now(),
                 ]);
         }
+    }
+
+    /**
+     * After a rejected admin is re-approved, require a fresh plan + card checkout.
+     * Preserves trial_consumed so no second free trial is granted.
+     */
+    public function prepareBillingAfterAdminReApproval(int $communityId): void
+    {
+        $subscription = $this->getSubscription($communityId);
+        if (! $subscription || $subscription->status !== CommunitySubscription::STATUS_CANCELED) {
+            return;
+        }
+
+        $meta = is_array($subscription->meta) ? $subscription->meta : [];
+        unset(
+            $meta['card_on_file'],
+            $meta['payment_method_id'],
+            $meta['admin_transition'],
+            $meta['replacement_admin_id'],
+            $meta['intent_id'],
+            $meta['intent_type'],
+            $meta['trial_starts_on_approval'],
+            $meta['replacement_card_saved_at'],
+            $meta['resumed_plan_slug'],
+            $meta['paused_reason'],
+            $meta['paused_at'],
+            $meta['previous_status'],
+            $meta['inherited_plan_slug'],
+            $meta['canceled_reason'],
+            $meta['canceled_via'],
+        );
+        $meta['rebilling_required'] = true;
+        $meta['rebilling_reason'] = 'admin_reapproved';
+
+        $subscription->update([
+            'status' => CommunitySubscription::STATUS_UNPAID,
+            'stripe_subscription_id' => null,
+            'current_period_start' => null,
+            'current_period_end' => null,
+            'grace_ends_at' => null,
+            'canceled_at' => null,
+            'cancel_at_period_end' => false,
+            'meta' => $meta,
+        ]);
     }
 
     private function seatReservationsAvailable(): bool

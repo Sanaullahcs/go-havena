@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AdminPhoneInput } from "@/components/admin/phone-input";
 import { AdminBadge } from "@/components/admin/ui";
 import { assignCommunityAdmin } from "@/lib/api/communities";
+import type { ReassignReason } from "@/lib/api/community-admins";
 import { apiError } from "@/lib/api/client";
 import { toastError, toastSuccess } from "@/lib/alert";
 import { emptyPhoneField, type PhoneFieldState } from "@/lib/phone/format";
@@ -13,6 +14,9 @@ export type AssignAdminTarget = {
   communityName: string;
   region?: string | null;
   previousAdminName?: string;
+  reassignReason?: ReassignReason;
+  reassignSummary?: string | null;
+  communityStatus?: string | null;
   mode?: "assign" | "reassign";
 };
 
@@ -43,8 +47,30 @@ export function AssignCommunityAdminModal({
 
   if (!open || !target) return null;
 
-  const isReassign = target.mode === "reassign" || Boolean(target.previousAdminName);
+  const isReassign = target.mode === "reassign" || Boolean(target.previousAdminName) || Boolean(target.reassignReason);
   const canSubmitNew = form.email.trim().length > 0 && phone.valid;
+
+  const contextBanner = (() => {
+    if (target.reassignSummary) {
+      return {
+        title: reassignReasonTitle(target.reassignReason),
+        body: target.reassignSummary,
+      };
+    }
+    if (target.reassignReason === "community_inactive") {
+      return {
+        title: "Inactive community",
+        body: "Assigning a new admin will reactivate this community and restore resident access.",
+      };
+    }
+    if (target.previousAdminName) {
+      return {
+        title: "Replacement required",
+        body: `${target.previousAdminName} no longer manages this community. Invite a new admin to restore management.`,
+      };
+    }
+    return null;
+  })();
 
   const handleAssignNew = async () => {
     setFormTouched(true);
@@ -79,7 +105,12 @@ export function AssignCommunityAdminModal({
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-600">
                   {isReassign ? "Reassign community admin" : "Assign community admin"}
                 </p>
-                {isReassign ? <AdminBadge tone="amber">Needs replacement</AdminBadge> : null}
+                {isReassign ? (
+                  <AdminBadge tone="amber">
+                    {reassignReasonLabel(target.reassignReason) ?? "Needs replacement"}
+                  </AdminBadge>
+                ) : null}
+                {target.communityStatus === "inactive" ? <AdminBadge tone="red">Inactive</AdminBadge> : null}
               </div>
               <h3 className="mt-1 text-xl font-bold text-slate-900">{target.communityName}</h3>
               {target.region ? <p className="mt-0.5 text-sm text-slate-500">{target.region}</p> : null}
@@ -94,13 +125,10 @@ export function AssignCommunityAdminModal({
             </button>
           </div>
 
-          {target.previousAdminName ? (
+          {contextBanner ? (
             <div className="mt-4 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-3 text-sm text-amber-950">
-              <p className="font-semibold">Previous admin suspended</p>
-              <p className="mt-0.5 text-[13px] text-amber-900">
-                <span className="font-medium">{target.previousAdminName}</span> no longer has access.
-                Invite a new community admin to restore management.
-              </p>
+              <p className="font-semibold">{contextBanner.title}</p>
+              <p className="mt-0.5 text-[13px] text-amber-900">{contextBanner.body}</p>
             </div>
           ) : null}
         </div>
@@ -185,10 +213,19 @@ export function AdminAccountStatusBadge({
   accountStatus: string;
   applicationStatus: string;
   needsReassign?: boolean;
-  reassignReason?: "previous_admin_suspended" | "missing_admin";
+  reassignReason?: ReassignReason;
 }) {
+  if (reassignReason === "community_inactive") {
+    return <AdminBadge tone="red">Community inactive</AdminBadge>;
+  }
   if (reassignReason === "missing_admin") {
     return <AdminBadge tone="amber">No admin assigned</AdminBadge>;
+  }
+  if (reassignReason === "previous_admin_suspended") {
+    return <AdminBadge tone="amber">Admin suspended</AdminBadge>;
+  }
+  if (reassignReason === "previous_admin_removed") {
+    return <AdminBadge tone="amber">Admin removed</AdminBadge>;
   }
   if (needsReassign) {
     return <AdminBadge tone="amber">Needs reassignment</AdminBadge>;
@@ -206,4 +243,34 @@ export function AdminAccountStatusBadge({
     return <AdminBadge tone="slate">Rejected</AdminBadge>;
   }
   return <AdminBadge tone="slate">{applicationStatus}</AdminBadge>;
+}
+
+function reassignReasonLabel(reason?: ReassignReason) {
+  switch (reason) {
+    case "community_inactive":
+      return "Inactive community";
+    case "previous_admin_suspended":
+      return "Admin suspended";
+    case "previous_admin_removed":
+      return "Admin removed";
+    case "missing_admin":
+      return "No admin yet";
+    default:
+      return null;
+  }
+}
+
+function reassignReasonTitle(reason?: ReassignReason) {
+  switch (reason) {
+    case "community_inactive":
+      return "Reactivate & assign admin";
+    case "previous_admin_suspended":
+      return "Replace suspended admin";
+    case "previous_admin_removed":
+      return "Assign new admin";
+    case "missing_admin":
+      return "First admin needed";
+    default:
+      return "Replacement required";
+  }
 }
