@@ -91,10 +91,18 @@ function resolveApiBaseUrl() {
     envUrl && /^http:\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(envUrl)
       ? envUrl
       : null;
+  const onPhysicalDevice = Constants.isDevice !== false;
 
   // Android emulator cannot reach the PC LAN IP — bridge via 10.0.2.2 (must beat .env LAN URL).
   if (isAndroidEmulator()) {
     return DEV_ANDROID_EMULATOR;
+  }
+
+  // Physical phone + stale Metro host (localhost) → trust .env LAN URL from start:lan.
+  if (onPhysicalDevice && envLanUrl) {
+    if (!packagerHost || packagerHost === "localhost" || packagerHost === "127.0.0.1" || isTunnelHost) {
+      return envLanUrl;
+    }
   }
 
   // Prefer live Metro LAN IP so login still works after Wi-Fi / hotspot changes (stale .env is common).
@@ -130,6 +138,21 @@ function resolveApiBaseUrl() {
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
+
+/** Admin web portal base (no trailing slash). Used for mobile → browser billing handoff. */
+export function resolveAdminPortalBaseUrl() {
+  const envAdmin = process.env.EXPO_PUBLIC_ADMIN_URL?.trim()?.replace(/\/$/, "");
+  if (envAdmin) {
+    return envAdmin.replace(/\/admin(?:\/billing)?\/?$/, "");
+  }
+
+  try {
+    const api = new URL(API_BASE_URL);
+    return `${api.protocol}//${api.hostname}:3000`;
+  } catch {
+    return "http://192.168.0.134:3000";
+  }
+}
 
 if (__DEV__) {
   console.log("[Havena] API base URL:", API_BASE_URL);

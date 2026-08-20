@@ -10,15 +10,41 @@ import {
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import AppModal from "../layout/app-modal";
-import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
+import { HomeTheme as HT } from "../../constants/home-theme";
 import { useRouter } from "expo-router";
 import { getUser } from "../../services/auth-session";
 import { fetchMe } from "../../services/profile-api";
 import { canAccessDashboard, isCommunityAdmin } from "../../services/community-access";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
+import ThemedIconBox from "./themed-icon-box";
 import NoticeDrawer from "./noticeDrawer";
+import { sf, sw } from "../../utils/responsive";
+import { chevronForward } from "../../utils/rtl";
+
+function CreateOptionRow({
+  icon,
+  iconBg = HT.mint,
+  iconColor = HT.navy,
+  title,
+  titleStyle,
+  subtitle,
+  onPress,
+  trailing,
+  style,
+}) {
+  return (
+    <TouchableOpacity activeOpacity={0.85} style={[styles.option, style]} onPress={onPress}>
+      <ThemedIconBox name={icon} size="sm" backgroundColor={iconBg} color={iconColor} />
+      <View style={styles.optionCopy}>
+        <Text style={titleStyle}>{title}</Text>
+        <Text style={styles.optionSubtitle}>{subtitle}</Text>
+      </View>
+      {trailing}
+    </TouchableOpacity>
+  );
+}
 
 export default function CreateNewModal({ visible, onClose, onOpen }) {
   const { t } = useTranslation();
@@ -89,172 +115,120 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
               <View style={styles.handle} />
             </TouchableOpacity>
 
-            <Text style={styles.title}>{t("nav.createNew")}</Text>
-            <Text style={styles.subtitle}>{t("nav.createNewSub")}</Text>
+            <View style={styles.headerRow}>
+              <ThemedIconBox name="plus-circle" size="md" backgroundColor={HT.mint} color={HT.teal} />
+              <View style={styles.headerCopy}>
+                <Text style={styles.title}>{t("nav.createNew")}</Text>
+                <Text style={styles.subtitle}>{t("nav.createNewSub")}</Text>
+              </View>
+            </View>
 
-            <TouchableOpacity
-              style={[styles.option, { marginBottom: 10 }]}
+            <CreateOptionRow
+              icon="edit-3"
+              iconBg="#D1FAF5"
+              iconColor={HT.navy}
+              title={t("nav.createPost")}
+              titleStyle={styles.optionTitleTeal}
+              subtitle={t("nav.createPostSub")}
+              style={{ marginBottom: 10 }}
               onPress={() => {
                 onClose();
                 router.push("/screens/create-post");
               }}
-            >
-              <View style={styles.optionIconWrap}>
-                <Image
-                  source={require("../../assets/images/create-post.png")}
-                  style={styles.optionIcon}
-                />
-              </View>
-
-              <View>
-                <Text style={styles.optionTitleBlue}>{t("nav.createPost")}</Text>
-                <Text style={styles.optionSubtitle}>
-                  {t("nav.createPostSub")}
-                </Text>
-              </View>
-            </TouchableOpacity>
+            />
 
             {showCreateEvent ? (
-              <TouchableOpacity
-                style={[styles.option, { marginBottom: 10 }]}
+              <CreateOptionRow
+                icon="calendar"
+                iconBg="#DBEAFE"
+                iconColor="#1D4ED8"
+                title={t("nav.createEvent")}
+                titleStyle={styles.optionTitleBlue}
+                subtitle={
+                  canManageCommunity ? t("nav.createEventSub") : t("nav.createEventSubAdmin")
+                }
+                style={{ marginBottom: 10 }}
                 onPress={() => {
                   onClose();
                   router.push("/screens/create-event");
                 }}
-              >
-                <View style={styles.optionIconWrap}>
-                  <Image
-                    source={require("../../assets/images/event-notice.png")}
-                    style={styles.optionIcon}
-                  />
-                </View>
-
-                <View>
-                  <Text style={styles.optionTitleBlue}>{t("nav.createEvent")}</Text>
-                  <Text style={styles.optionSubtitle}>
-                    {canManageCommunity
-                      ? t("nav.createEventSub")
-                      : t("nav.createEventSubAdmin")}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+              />
             ) : null}
 
-            <TouchableOpacity
-              style={[styles.option, { marginBottom: 10 }]}
+            <CreateOptionRow
+              icon="shopping-bag"
+              iconBg="#D1FAE5"
+              iconColor="#059669"
+              title={t("nav.sellItem")}
+              titleStyle={styles.optionTitleGreen}
+              subtitle={t("nav.sellItemSub")}
+              style={{ marginBottom: 10 }}
               onPress={() => {
                 onClose();
                 router.push({ pathname: "/screens/createListing", params: { type: "item" } });
               }}
-            >
-              <View style={styles.optionIconWrap}>
-                <Image
-                  source={require("../../assets/images/marketplace-item.png")}
-                  style={styles.optionIcon}
-                />
-              </View>
+            />
 
-              <View>
-                <Text style={styles.optionTitleGreen}>{t("nav.sellItem")}</Text>
-                <Text style={styles.optionSubtitle}>{t("nav.sellItemSub")}</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.option,
-                { marginBottom: canManageCommunity ? 10 : 0 },
-              ]}
+            <CreateOptionRow
+              icon="tool"
+              iconBg="#ECFDF5"
+              iconColor="#047857"
+              title={t("nav.offerService")}
+              titleStyle={styles.optionTitleGreen}
+              subtitle={t("nav.offerServiceSub")}
+              style={{ marginBottom: canManageCommunity ? 10 : 0 }}
               onPress={() => {
                 onClose();
                 router.push({ pathname: "/screens/createListing", params: { type: "service" } });
               }}
-            >
-              <View style={styles.optionIconWrap}>
-                <Image
-                  source={require("../../assets/images/marketplace-item.png")}
-                  style={styles.optionIcon}
-                />
-              </View>
-
-              <View>
-                <Text style={styles.optionTitleGreen}>{t("nav.offerService")}</Text>
-                <Text style={styles.optionSubtitle}>
-                  {t("nav.offerServiceSub")}
-                </Text>
-              </View>
-            </TouchableOpacity>
+            />
             {canManageCommunity && (
               <>
-                <TouchableOpacity
-                  style={[styles.option, { marginBottom: 10 }]}
+                <CreateOptionRow
+                  icon="book-open"
+                  iconBg="#CCFBF1"
+                  iconColor="#0F766E"
+                  title={t("nav.addRule")}
+                  titleStyle={styles.optionTitleTeal}
+                  subtitle={t("nav.addRuleSub")}
+                  style={{ marginBottom: 10 }}
                   onPress={() => {
                     onClose();
                     router.push(PropertyManagementRoutes.RULE_FORM);
                   }}
-                >
-                  <View style={[styles.optionIconWrap, styles.featherIconWrap, { backgroundColor: "#CCFBF1" }]}>
-                    <Feather name="book-open" size={18} color="#0F766E" />
-                  </View>
-                  <View>
-                    <Text style={styles.optionTitleTeal}>{t("nav.addRule")}</Text>
-                    <Text style={styles.optionSubtitle}>
-                      {t("nav.addRuleSub")}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
+                />
 
-                <TouchableOpacity
-                  style={[styles.option, { marginBottom: 10 }]}
+                <CreateOptionRow
+                  icon="file-text"
+                  iconBg="#FFEDD5"
+                  iconColor="#C2410C"
+                  title={t("nav.addDocument")}
+                  titleStyle={styles.optionTitleOrange}
+                  subtitle={t("nav.addDocumentSub")}
+                  style={{ marginBottom: 10 }}
                   onPress={() => {
                     onClose();
                     router.push(PropertyManagementRoutes.DOCUMENT_FORM);
                   }}
-                >
-                  <View style={[styles.optionIconWrap, styles.featherIconWrap, { backgroundColor: "#FFEDD5" }]}>
-                    <Feather name="file-text" size={18} color="#C2410C" />
-                  </View>
-                  <View>
-                    <Text style={styles.optionTitleOrange}>{t("nav.addDocument")}</Text>
-                    <Text style={styles.optionSubtitle}>
-                      {t("nav.addDocumentSub")}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
+                />
 
-                <TouchableOpacity
-                  style={[styles.option, { justifyContent: "space-between" }]}
+                <CreateOptionRow
+                  icon="bell"
+                  iconBg="#DBEAFE"
+                  iconColor={HT.navy}
+                  title={t("nav.notice")}
+                  titleStyle={styles.optionTitleBlue}
+                  subtitle={t("nav.noticeSub")}
+                  trailing={
+                    <View style={styles.noticeChevron}>
+                      <Feather name={chevronForward()} size={sf(16)} color={HT.navy} />
+                    </View>
+                  }
                   onPress={() => {
                     onClose();
                     setOpenNoticeDrawer(true);
                   }}
-                >
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 10,
-                    }}
-                  >
-                    <View style={styles.optionIconWrap}>
-                      <Image
-                        source={require("../../assets/images/notice-drawer.png")}
-                        style={styles.optionIcon}
-                      />
-                    </View>
-
-                    <View>
-                      <Text style={styles.optionTitleBlue}>{t("nav.notice")}</Text>
-                      <Text style={styles.optionSubtitle}>
-                        {t("nav.noticeSub")}
-                      </Text>
-                    </View>
-                  </View>
-                  <Image
-                    source={require("../../assets/images/next-icon.png")}
-                    style={styles.chevronIcon}
-                  />
-                </TouchableOpacity>
+                />
               </>
             )}
           </Pressable>
@@ -295,6 +269,18 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
 
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(12),
+    marginBottom: sw(18),
+  },
+
+  headerCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+
   title: {
     fontSize: 17,
     fontWeight: "700",
@@ -306,7 +292,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 12,
     color: "rgba(106, 114, 130, 1)",
-    marginBottom: 18,
+    marginTop: 2,
     fontFamily: Fonts.regular,
     lineHeight: 16,
     fontWeight: "400",
@@ -315,31 +301,26 @@ const styles = StyleSheet.create({
   option: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    padding: 14,
+    gap: sw(12),
+    padding: sw(14),
     backgroundColor: "rgba(249, 250, 251, 1)",
-    borderRadius: 14,
+    borderRadius: sw(14),
+    borderWidth: 1,
+    borderColor: "#EEF2F6",
   },
 
-  optionIconWrap: {
-    width: 36,
-    height: 36,
+  optionCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  noticeChevron: {
+    width: sw(28),
+    height: sw(28),
+    borderRadius: sw(14),
+    backgroundColor: HT.mint,
     alignItems: "center",
     justifyContent: "center",
-  },
-
-  featherIconWrap: {
-    borderRadius: 10,
-  },
-
-  optionIcon: {
-    width: 36,
-    height: 36,
-  },
-
-  chevronIcon: {
-    width: 16,
-    height: 16,
   },
 
   optionTitleBlue: {

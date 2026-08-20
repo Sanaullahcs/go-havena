@@ -340,6 +340,12 @@ function parseUploadResult(result, fieldName) {
   return body;
 }
 
+function ensureUploadUri(uri) {
+  if (!uri) return uri;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(uri)) return uri;
+  return uri.startsWith("/") ? `file://${uri}` : uri;
+}
+
 async function uploadWithReactNativeFormData({
   url,
   uri,
@@ -354,9 +360,10 @@ async function uploadWithReactNativeFormData({
     throw new Error("Could not read the selected file. Please try again.");
   }
 
+  const uploadUri = ensureUploadUri(uri);
   const formData = new FormData();
   formData.append(fieldName, {
-    uri,
+    uri: uploadUri,
     name: fileName || "upload.jpg",
     type: mimeType || "image/jpeg",
   });

@@ -14,14 +14,14 @@ export const ACCOUNT_RESTRICTED_CODES = new Set([
 
 function permissionLabel(feature) {
   const option = GUEST_PERMISSION_OPTIONS.find((item) => item.key === feature);
-  return option?.label ?? i18n.t("guestPermissions.thisFeature");
+  return option ? i18n.t(option.labelKey) : i18n.t("guestPermissions.thisFeature");
 }
 
 function featureMeta(feature) {
   const option = GUEST_PERMISSION_OPTIONS.find((item) => item.key === feature);
   return {
-    label: option?.label ?? i18n.t("guestPermissions.communityContent"),
-    description: option?.description ?? i18n.t("guestPermissions.communityContentDesc"),
+    label: option ? i18n.t(option.labelKey) : i18n.t("guestPermissions.communityContent"),
+    description: option ? i18n.t(option.descriptionKey) : i18n.t("guestPermissions.communityContentDesc"),
     icon: option?.icon ?? "lock",
   };
 }

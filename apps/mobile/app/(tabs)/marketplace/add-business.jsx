@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { MarketplaceType } from "../../../constants/marketplace-type";
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from "react-native";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { Image } from "expo-image";
 import { Fonts } from "../../../constants/font";
@@ -204,10 +204,12 @@ export default function AddBusinessScreen() {
 
       <KeyboardSafeScreen
         scrollRef={scrollRef}
+        keyboardAvoiding={Platform.OS === "ios"}
+        footerKeyboardLift={false}
         contentContainerStyle={styles.contentContainer}
         footerBorderless
         footerStyle={styles.bottomWrap}
-        keyboardFieldGap={40}
+        keyboardFieldGap={24}
         footer={
           <TouchableOpacity
             activeOpacity={0.88}

@@ -14,11 +14,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import * as ExpoLinking from "expo-linking";
 
 import { Fonts } from "../../../constants/font";
 import { Colors, SolidFills } from "../../../constants/tokens";
-import { API_BASE_URL } from "../../../constants/api-config";
+import { resolveAdminPortalBaseUrl } from "../../../constants/api-config";
+import { createBillingReturnUrl } from "../../../constants/app-linking";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
 import { navigateAfterAuth } from "../../../constants/onboarding-routes";
 import { getUser } from "../../../services/auth-session";
@@ -41,12 +41,7 @@ function resolveAdminPortalUrl(fromAccess) {
     return candidate.replace(/\/$/, "");
   }
 
-  try {
-    const api = new URL(API_BASE_URL);
-    return `${api.protocol}//${api.hostname}:3000/admin/billing`;
-  } catch {
-    return "http://192.168.0.134:3000/admin/billing";
-  }
+  return `${resolveAdminPortalBaseUrl()}/admin/billing`;
 }
 
 function appendQuery(url, params) {
@@ -125,7 +120,7 @@ export default function CompleteBillingScreen() {
   const handleSignOut = () => confirmSignOut(dialog);
 
   const openAdminPortal = async () => {
-    const returnUrl = ExpoLinking.createURL("screens/complete-billing");
+    const returnUrl = createBillingReturnUrl();
     let url = appendQuery(resolveAdminPortalUrl(null), {
       from: "app",
       return_to: returnUrl,
@@ -155,14 +150,21 @@ export default function CompleteBillingScreen() {
       });
     } catch {
       try {
-        await Linking.openURL(url);
+        await WebBrowser.openBrowserAsync(url, {
+          showInRecents: true,
+          createTask: false,
+        });
       } catch {
-        await dialog.showError(
-          t("common.error", { defaultValue: "Error" }),
-          t("billing.cannotOpenBrowser", {
-            defaultValue: "Could not open the admin portal. Try again or use a desktop browser.",
-          }),
-        );
+        try {
+          await Linking.openURL(url);
+        } catch {
+          await dialog.showError(
+            t("common.error", { defaultValue: "Error" }),
+            t("billing.cannotOpenBrowser", {
+              defaultValue: "Could not open the admin portal. Try again or use a desktop browser.",
+            }),
+          );
+        }
       }
     } finally {
       setOpening(false);

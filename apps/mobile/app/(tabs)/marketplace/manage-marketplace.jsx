@@ -7,7 +7,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
   ActivityIndicator,
   RefreshControl,
   Platform,
@@ -26,9 +25,12 @@ import {
 import { fetchBusinesses, fetchMyBusiness } from "../../../services/businesses-api";
 import { fetchManageDeals } from "../../../services/deals-api";
 import { MarketplaceTheme as MT } from "../../../constants/marketplace-theme";
+import { useAppDialog } from "../../../providers/app-dialog-provider";
+import { promptAddBusinessBeforeDeal } from "../../../utils/marketplace-business-prompt";
 
 export default function ManageMarketplace() {
   const { t } = useTranslation();
+  const { showDialog } = useAppDialog();
   const router = useRouter();
   const { role: roleParam } = useLocalSearchParams();
   const activeRole =
@@ -155,14 +157,11 @@ export default function ManageMarketplace() {
 
   const handleCreateDeal = () => {
     if (!myBusiness) {
-      Alert.alert(
-        t("marketplace.addBusinessFirst"),
-        t("marketplace.needBusinessForDeal"),
-        [
-          { text: t("common.cancel"), style: "cancel" },
-          { text: t("marketplace.addBusiness"), onPress: goToAddOrEditBusiness },
-        ],
-      );
+      promptAddBusinessBeforeDeal(showDialog, t, {
+        confirmKey: "marketplace.addBusiness",
+        isCommunityAdmin: isAdmin,
+        onContinue: goToAddOrEditBusiness,
+      });
       return;
     }
     goTo(MarketplaceRoutes.CREATE_DEAL);

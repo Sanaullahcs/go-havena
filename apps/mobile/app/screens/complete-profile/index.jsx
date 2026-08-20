@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from "react-native";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { useTranslation } from "react-i18next";
@@ -30,7 +30,7 @@ import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { hasFieldErrors, LIMITS, validateCompleteProfileForm } from "../../../utils/form-validation";
 import { getProfileFields, isPlaceholderDisplayName } from "../../../utils/profile-display";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
-import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
+import KeyboardSafeScreen, { useScrollFieldRefIntoView } from "../../../components/layout/keyboard-safe-screen";
 import { HomeTheme as T } from "../../../constants/home-theme";
 import { ScreenBrand as B } from "../../../constants/screen-brand";
 
@@ -85,7 +85,24 @@ export default function CompleteProfile() {
   const showFamilyNumberField = role !== "admin" && !isCommunityRequest;
 
   const scrollRef = useRef(null);
+  const contentRef = useRef(null);
+  const nameFieldRef = useRef(null);
+  const emailFieldRef = useRef(null);
+  const bioFieldRef = useRef(null);
+  const unitFieldRef = useRef(null);
+  const familyFieldRef = useRef(null);
   const familyCheckSeq = useRef(0);
+  const { scrollIntoView, onScroll } = useScrollFieldRefIntoView(scrollRef, {
+    footerHeight: 120,
+    topPad: 24,
+  });
+
+  const handleFieldFocus = useCallback(
+    (fieldRef) => {
+      scrollIntoView(fieldRef);
+    },
+    [scrollIntoView],
+  );
 
   useEffect(() => {
     if (familyModeParam === "create" || familyModeParam === "join") {
@@ -325,6 +342,12 @@ export default function CompleteProfile() {
     };
   }, [isEditMode, router, dialog]);
 
+  useEffect(() => {
+    if (name && isPlaceholderDisplayName(name)) {
+      setName("");
+    }
+  }, [name]);
+
   const liveErrors = useMemo(
     () =>
       validateCompleteProfileForm({
@@ -509,6 +532,40 @@ export default function CompleteProfile() {
     });
 
 
+  const submitBlock = (
+    <View style={styles.buttonContainer}>
+      <TouchableOpacity
+        activeOpacity={isValid && !submitting ? 0.9 : 1}
+        onPress={handleJoinCommunity}
+        disabled={!isValid || submitting}
+      >
+        <View
+          style={[
+            styles.button,
+            isValid && !submitting ? styles.buttonActive : styles.buttonDisabled,
+            isValid && !submitting ? B.buttonShadow : null,
+          ]}
+        >
+          {submitting ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.buttonText}>
+              {isEditMode
+                ? t("onboarding.saveChanges")
+                : isCommunityRequest || isAdminClaim
+                  ? t("onboarding.saveContinue")
+                  : isResidentJoin
+                    ? t("onboarding.submitForApproval")
+                    : t("onboarding.joinCommunity")}
+            </Text>
+          )}
+        </View>
+      </TouchableOpacity>
+
+      <Text style={styles.footerHint}>{t("onboarding.termsAgreement")}</Text>
+    </View>
+  );
+
   return (
     <>
       <ScreenStatusBar style="dark" opaque androidBackgroundColor={T.canvas} />
@@ -559,7 +616,7 @@ export default function CompleteProfile() {
           finishOnboarding(router, { role, user: savedUser });
         }}
       />
-    <SafeAreaView style={styles.container} edges={["top", "left", "right", "bottom"]}>
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]} importantForAutofill="no">
       <View style={styles.headerRow}>
         <BackButton iconOnly compact />
         <Text style={styles.headerTitle} numberOfLines={1}>
@@ -569,55 +626,20 @@ export default function CompleteProfile() {
 
       <KeyboardSafeScreen
         scrollRef={scrollRef}
-        keyboardAvoiding={false}
+        keyboardAvoiding={Platform.OS === "ios"}
+        footerKeyboardLift={false}
         footerBorderless
         footerStyle={styles.footer}
         contentContainerStyle={styles.scrollContainer}
-        keyboardFieldGap={20}
-        scrollProps={
-          Platform.OS === "android"
-            ? { automaticallyAdjustKeyboardInsets: false }
-            : undefined
-        }
-        footer={
-          !profileLoading ? (
-            <View style={styles.buttonContainer}>
-              <TouchableOpacity
-                activeOpacity={isValid && !submitting ? 0.9 : 1}
-                onPress={handleJoinCommunity}
-                disabled={!isValid || submitting}
-              >
-                <View
-                  style={[
-                    styles.button,
-                    isValid && !submitting ? styles.buttonActive : styles.buttonDisabled,
-                    isValid && !submitting ? B.buttonShadow : null,
-                  ]}
-                >
-                  {submitting ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.buttonText}>
-                      {isEditMode
-                        ? t("onboarding.saveChanges")
-                        : isCommunityRequest || isAdminClaim
-                          ? t("onboarding.saveContinue")
-                          : isResidentJoin
-                            ? t("onboarding.submitForApproval")
-                            : t("onboarding.joinCommunity")}
-                    </Text>
-                  )}
-                </View>
-              </TouchableOpacity>
-
-              <Text style={styles.footerHint}>
-                {t("onboarding.termsAgreement")}
-              </Text>
-            </View>
-          ) : null
-        }
+        keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+        scrollProps={{
+          bounces: false,
+          onScroll,
+          scrollEventThrottle: 16,
+        }}
+        footer={!profileLoading ? submitBlock : null}
       >
-        <View style={styles.content}>
+        <View ref={contentRef} collapsable={false} style={styles.content}>
           <View>
             <Text style={styles.subHeading}>
               {isEditMode
@@ -647,7 +669,7 @@ export default function CompleteProfile() {
           </View>
 
           {!isEditMode ? (
-          <View style={styles.progressRow}>
+          <View style={styles.progressRow} importantForAutofill="no">
             <View style={styles.progressItem}>
               <View style={styles.doneDot}>
                 <Ionicons name="checkmark" size={12} color="#FFFFFF" />
@@ -700,7 +722,7 @@ export default function CompleteProfile() {
           {!profileLoading ? (
           <>
           <View style={styles.form}>
-            <View style={styles.fieldGroup}>
+            <View ref={nameFieldRef} collapsable={false} style={styles.fieldGroup}>
               <Text style={styles.inputText}>
                 {t("onboarding.fullName")} <Text style={styles.requiredMark}>*</Text>
               </Text>
@@ -714,18 +736,28 @@ export default function CompleteProfile() {
                   clearError("name");
                 }}
                 onBlur={() => touch("name")}
+                onFocus={() => {
+                  if (name && isPlaceholderDisplayName(name)) {
+                    setName("");
+                  }
+                  handleFieldFocus(nameFieldRef);
+                }}
+                autoComplete="off"
+                textContentType="none"
+                importantForAutofill="no"
+                autoCorrect={false}
                 maxLength={LIMITS.profileName}
               />
               {showError("name", liveErrors) ? <Text style={styles.errorText}>{showError("name", liveErrors)}</Text> : null}
             </View>
 
-            <View style={styles.fieldGroup}>
+            <View ref={emailFieldRef} collapsable={false} style={styles.fieldGroup}>
               <Text style={styles.inputText}>
                 {t("onboarding.emailAddress")} <Text style={styles.requiredMark}>*</Text>
               </Text>
               <LocaleTextInput
                 style={[styles.input, showError("email", liveErrors) && styles.inputError]}
-                placeholder="you@example.com"
+                placeholder={t("onboarding.emailPlaceholder")}
                 placeholderTextColor={T.gray}
                 value={email}
                 onChangeText={(text) => {
@@ -733,17 +765,18 @@ export default function CompleteProfile() {
                   clearError("email");
                 }}
                 onBlur={() => touch("email")}
-                keyboardType="email-address"
+                onFocus={() => handleFieldFocus(emailFieldRef)}
                 autoCapitalize="none"
                 autoCorrect={false}
                 autoComplete="email"
                 textContentType="emailAddress"
+                keyboardType="email-address"
                 maxLength={LIMITS.profileEmail}
               />
               {showError("email", liveErrors) ? <Text style={styles.errorText}>{showError("email", liveErrors)}</Text> : null}
             </View>
 
-            <View style={styles.fieldGroup}>
+            <View ref={bioFieldRef} collapsable={false} style={styles.fieldGroup}>
               <Text style={styles.inputText}>{t("onboarding.bio")}</Text>
               <LocaleTextInput
                 style={[styles.input, styles.textArea, showError("bio", liveErrors) && styles.inputError]}
@@ -755,6 +788,7 @@ export default function CompleteProfile() {
                   clearError("bio");
                 }}
                 onBlur={() => touch("bio")}
+                onFocus={() => handleFieldFocus(bioFieldRef)}
                 multiline
                 textAlignVertical="top"
                 maxLength={LIMITS.profileBio}
@@ -763,7 +797,7 @@ export default function CompleteProfile() {
               {showError("bio", liveErrors) ? <Text style={styles.errorText}>{showError("bio", liveErrors)}</Text> : null}
             </View>
 
-            <View style={styles.fieldGroup}>
+            <View ref={unitFieldRef} collapsable={false} style={styles.fieldGroup}>
               <Text style={styles.inputText}>
                 {t("onboarding.unitNumber")}
                 {!isGuestProfile ? <Text style={styles.requiredMark}> *</Text> : null}
@@ -778,6 +812,7 @@ export default function CompleteProfile() {
                   clearError("unitNumber");
                 }}
                 onBlur={() => touch("unitNumber")}
+                onFocus={() => handleFieldFocus(unitFieldRef)}
                 maxLength={LIMITS.profileUnit}
               />
               {showError("unitNumber", liveErrors) ? <Text style={styles.errorText}>{showError("unitNumber", liveErrors)}</Text> : null}
@@ -893,7 +928,7 @@ export default function CompleteProfile() {
                   </View>
                 ) : null}
 
-                <View style={styles.familyNumberSection}>
+                <View ref={familyFieldRef} collapsable={false} style={styles.familyNumberSection}>
                 <View style={styles.familyLabelRow}>
                   <Text style={styles.inputText}>
                     {familyMode === "join" ? (
@@ -933,6 +968,7 @@ export default function CompleteProfile() {
                       setFamilyNumberError(null);
                     }}
                     onBlur={handleFamilyNumberBlur}
+                    onFocus={() => handleFieldFocus({ familyField: true })}
                     autoCapitalize="characters"
                     autoCorrect={false}
                     maxLength={30}
@@ -1171,7 +1207,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   footer: {
-    paddingHorizontal: 0,
+    paddingHorizontal: 24,
   },
   subHeading: {
     fontFamily: Fonts.regular,

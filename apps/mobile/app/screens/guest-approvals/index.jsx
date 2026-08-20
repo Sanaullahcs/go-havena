@@ -151,7 +151,7 @@ function formatPermissionSummary(permissions, t) {
   const enabled = GUEST_PERMISSION_OPTIONS.filter((option) => normalized[option.key]);
   if (enabled.length === GUEST_PERMISSION_OPTIONS.length) return t("guests.allFeaturesEnabled");
   if (enabled.length === 0) return t("guests.noFeaturesEnabled");
-  return enabled.map((option) => option.label).join(", ");
+  return enabled.map((option) => t(option.labelKey)).join(", ");
 }
 
 function PendingGuestCard({ item, busy, onApprove, onReject, t }) {

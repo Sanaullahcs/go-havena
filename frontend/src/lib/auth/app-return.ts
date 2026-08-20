@@ -1,8 +1,37 @@
 const APP_RETURN_SCHEMES = /^(havena|exp|exps):\/\//i;
+const EXPO_GO_ANDROID_PACKAGE = "host.exp.exponent";
+const PRODUCTION_ANDROID_PACKAGE = "com.zsquare.havena";
 
 function searchParams(): URLSearchParams {
   if (typeof window === "undefined") return new URLSearchParams();
   return new URLSearchParams(window.location.search);
+}
+
+function isAndroidBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /android/i.test(navigator.userAgent);
+}
+
+/** Chrome on Android often ignores exp:// / havena:// links — use an intent URL instead. */
+export function resolveMobileAppOpenUrl(returnTo: string): string {
+  if (!isAndroidBrowser()) return returnTo;
+
+  if (/^exp:\/\//i.test(returnTo)) {
+    const target = returnTo.replace(/^exp:\/\//i, "");
+    return `intent://${target}#Intent;scheme=exp;package=${EXPO_GO_ANDROID_PACKAGE};end`;
+  }
+
+  if (/^exps:\/\//i.test(returnTo)) {
+    const target = returnTo.replace(/^exps:\/\//i, "");
+    return `intent://${target}#Intent;scheme=exps;package=${EXPO_GO_ANDROID_PACKAGE};end`;
+  }
+
+  if (/^havena:\/\//i.test(returnTo)) {
+    const target = returnTo.replace(/^havena:\/\//i, "");
+    return `intent://${target}#Intent;scheme=havena;package=${PRODUCTION_ANDROID_PACKAGE};end`;
+  }
+
+  return returnTo;
 }
 
 export function readAppReturnTo(): string | null {
@@ -47,10 +76,38 @@ export function withAppReturnParams(path: string): string {
   return query ? `${pathname}?${query}` : pathname;
 }
 
-/** Send the in-app browser back to Havena. Returns true when a deep link was used. */
+function navigateToDeepLink(target: string) {
+  // Anchor navigation survives stricter mobile browser custom-scheme policies.
+  const anchor = document.createElement("a");
+  anchor.href = target;
+  anchor.rel = "noopener noreferrer";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+}
+
+/** Send the in-app browser back to Havena (exact deep link — matches openAuthSessionAsync). */
 export function redirectToMobileAppIfPresent(): boolean {
   const url = readAppReturnTo();
   if (!url) return false;
-  window.location.assign(url);
+  try {
+    navigateToDeepLink(url);
+  } catch {
+    window.location.assign(url);
+  }
+  return true;
+}
+
+/** Manual “Open Havena” tap — uses Android intent URLs when needed. */
+export function openMobileAppReturn(): boolean {
+  const url = readAppReturnTo();
+  if (!url) return false;
+
+  const target = resolveMobileAppOpenUrl(url);
+  try {
+    navigateToDeepLink(target);
+  } catch {
+    window.location.assign(target);
+  }
   return true;
 }

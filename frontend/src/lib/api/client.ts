@@ -17,6 +17,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+function preserveMobileReturnQuery(loginPath: string): string {
+  if (typeof window === "undefined") return loginPath;
+  const current = new URLSearchParams(window.location.search);
+  const keep = new URLSearchParams();
+  for (const key of ["from", "return_to", "handoff", "plan", "interval"]) {
+    const value = current.get(key);
+    if (value) keep.set(key, value);
+  }
+  const query = keep.toString();
+  return query ? `${loginPath}?${query}` : loginPath;
+}
+
 /* Handle 401 globally */
 api.interceptors.response.use(
   (res) => res,
@@ -36,7 +48,7 @@ api.interceptors.response.use(
           ? "/resident-login"
           : resolveAdminLoginPath({ pathname });
       clearSession();
-      window.location.href = loginPath;
+      window.location.href = preserveMobileReturnQuery(loginPath);
     }
     return Promise.reject(err);
   },

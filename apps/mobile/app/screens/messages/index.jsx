@@ -21,6 +21,7 @@ import UserAvatar from "../../../components/ui/user-avatar";
 import SearchInput from "../../../components/ui/search-input";
 import { Fonts } from "../../../constants/font";
 import { Colors, Layout } from "../../../constants/tokens";
+import { HomeTheme as T } from "../../../constants/home-theme";
 import { formatListingPrice } from "../../../components/marketplace/listing-grid-card";
 import { fetchConversations, isPeerAdmin, peerRoleLabel } from "../../../services/messages-api";
 import { useApiAction } from "../../../hooks/use-api-action";
@@ -326,23 +327,20 @@ function EmptyState({ query, filter, onNewChat, t }) {
 
   return (
     <View style={styles.empty}>
-      <View
-        style={styles.emptyIconWrap}
-      >
-        <View style={styles.emptyIconInner}>
-          <Feather name="message-circle" size={30} color={BRAND_BLUE} />
-        </View>
+      <View style={styles.emptyIconWrap}>
+        <Feather name="message-circle" size={sf(28)} color={T.navy} />
       </View>
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptyText}>{message}</Text>
       {showNewChat ? (
-        <TouchableOpacity style={styles.emptyBtn} activeOpacity={0.88} onPress={onNewChat}>
-          <View
-            style={styles.emptyBtnGradient}
-          >
-            <Ionicons name="create-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.emptyBtnText}>{t("messages.startChat")}</Text>
-          </View>
+        <TouchableOpacity
+          style={styles.emptyBtn}
+          activeOpacity={0.88}
+          onPress={onNewChat}
+          accessibilityRole="button"
+        >
+          <Feather name="plus" size={sf(18)} color="#FFFFFF" />
+          <Text style={styles.emptyBtnText}>{t("messages.startChat")}</Text>
         </TouchableOpacity>
       ) : null}
     </View>
@@ -652,6 +650,11 @@ const styles = StyleSheet.create({
     paddingBottom: sw(28),
   },
   listEmptyContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
+    paddingHorizontal: Layout.screenPadding,
     paddingTop: sw(28),
     paddingBottom: sw(32),
   },
@@ -913,31 +916,27 @@ const styles = StyleSheet.create({
   },
   empty: {
     alignItems: "center",
-    paddingHorizontal: sw(32),
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: sw(320),
+    paddingHorizontal: sw(8),
     gap: sw(10),
   },
   emptyIconWrap: {
-    width: sw(76),
-    height: sw(76),
-    borderRadius: sw(38),
+    width: sw(72),
+    height: sw(72),
+    borderRadius: sw(22),
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: sw(6),
+    marginBottom: sw(4),
+    backgroundColor: T.mint,
     borderWidth: 1,
-    borderColor: "rgba(20, 184, 166, 0.12)",
-  },
-  emptyIconInner: {
-    width: sw(52),
-    height: sw(52),
-    borderRadius: sw(26),
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    alignItems: "center",
-    justifyContent: "center",
+    borderColor: "rgba(20, 184, 166, 0.2)",
   },
   emptyTitle: {
     fontFamily: Fonts.bold,
-    fontSize: sf(16),
-    color: Colors.textPrimary,
+    fontSize: sf(17),
+    color: T.navy,
     fontWeight: "700",
     textAlign: "center",
   },
@@ -947,32 +946,35 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: "center",
     lineHeight: sf(20),
+    maxWidth: sw(280),
   },
   emptyBtn: {
-    marginTop: sw(10),
-    borderRadius: sw(14),
-    overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: BRAND_BLUE,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.22,
-        shadowRadius: 8,
-      },
-      android: { elevation: 3 },
-    }),
-  },
-  emptyBtnGradient: {
+    marginTop: sw(16),
+    alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
-    gap: sw(6),
-    paddingHorizontal: sw(18),
-    paddingVertical: sw(12),
+    justifyContent: "center",
+    gap: sw(8),
+    paddingHorizontal: sw(20),
+    paddingVertical: sw(13),
+    borderRadius: sw(999),
+    backgroundColor: "#0F3D5F",
+    borderWidth: 1,
+    borderColor: "#0A2A43",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#0F172A",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.18,
+        shadowRadius: 8,
+      },
+      android: { elevation: 5 },
+    }),
   },
   emptyBtnText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: sf(13),
+    fontFamily: Fonts.bold,
+    fontSize: sf(15),
     color: "#FFFFFF",
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });

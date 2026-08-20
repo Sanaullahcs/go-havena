@@ -2,7 +2,7 @@ import { apiRequest } from "./api-client";
 import { getCommunityId, getToken } from "./auth-session";
 import { API_BASE_URL } from "../constants/api-config";
 import { resolveMediaUrl } from "../utils/profile-display";
-import { guessImageMeta, uploadMultipartFile } from "../utils/upload-form-data";
+import { guessImageMeta, uploadMultipartFile, persistUploadAsset } from "../utils/upload-form-data";
 import { HOME_SECTION_CARD_LIMIT } from "../constants/home-sections";
 import i18n from "../i18n";
 import { getLocaleForLang } from "../hooks/use-app-locale";
@@ -92,7 +92,12 @@ export async function publishDealWithImage(coverImage, payload, { asAdmin = fals
   if (!coverImage?.uri) {
     throw new Error(i18n.t("deals.imageRequired"));
   }
-  const uploaded = await uploadDealImage(coverImage.uri, coverImage, { asAdmin });
+
+  const prepared = coverImage.uploadPrepared
+    ? coverImage
+    : await persistUploadAsset(coverImage, "deal-cover");
+
+  const uploaded = await uploadDealImage(prepared.uri, prepared, { asAdmin });
   return createDeal({ ...payload, image_url: uploaded.image_url }, { asAdmin });
 }
 

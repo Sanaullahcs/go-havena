@@ -362,13 +362,17 @@ export function validateListingForm(form, { listingType }) {
   return errors;
 }
 
-export function validateDealForm(form, { businessStatus } = {}) {
+export function validateDealForm(form, { businessStatus, isAdmin = false } = {}) {
   const errors = {};
 
-  if (businessStatus === "rejected") {
-    errors.business = i18n.t("validation.businessRejected");
-  } else if (businessStatus === "pending") {
-    errors.business = i18n.t("validation.businessPending");
+  if (!isAdmin) {
+    if (businessStatus === "rejected") {
+      errors.business = i18n.t("validation.businessRejected");
+    } else if (businessStatus === "pending") {
+      errors.business = i18n.t("validation.businessPending");
+    } else if (!form.hasBusiness) {
+      errors.business = i18n.t("validation.businessRequired");
+    }
   } else if (!form.hasBusiness) {
     errors.business = i18n.t("validation.businessRequired");
   }

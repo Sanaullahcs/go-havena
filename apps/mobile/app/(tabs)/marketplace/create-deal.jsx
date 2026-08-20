@@ -110,9 +110,9 @@ export default function CreateDeal() {
           hasBusiness: Boolean(ownBusiness || business.trim()),
           hasImage: Boolean(selectedFile?.uri || existingImageUrl),
         },
-        { businessStatus: ownBusiness?.status },
+        { businessStatus: ownBusiness?.status, isAdmin },
       ),
-    [dealTitle, discountLabel, category, description, ownBusiness, business, selectedFile, existingImageUrl],
+    [dealTitle, discountLabel, category, description, ownBusiness, business, selectedFile, existingImageUrl, isAdmin],
   );
 
   const canSubmit = useMemo(() => !hasFieldErrors(liveErrors), [liveErrors]);
@@ -120,14 +120,14 @@ export default function CreateDeal() {
   const handleCreate = () => {
     if (submitting) return;
     if (!validateOnSubmit(liveErrors)) return;
-    if (ownBusiness?.status === "rejected") {
+    if (!isAdmin && ownBusiness?.status === "rejected") {
       Alert.alert(
         t("deals.businessRejectedTitle"),
         t("deals.businessRejectedMsg"),
       );
       return;
     }
-    if (ownBusiness?.status === "pending") {
+    if (!isAdmin && ownBusiness?.status === "pending") {
       Alert.alert(
         t("deals.businessPendingTitle"),
         t("deals.businessPendingMsg"),
@@ -206,11 +206,21 @@ export default function CreateDeal() {
           activeOpacity={0.85}
           style={[styles.uploadBox, showError("image", liveErrors) && styles.uploadBoxError]}
           onPress={() => {
-            pickImage((file) => {
-              setSelectedFile(file);
-              touch("image");
-              clearError("image");
-            });
+            pickImage(
+              (file) => {
+                setSelectedFile(file);
+                touch("image");
+                clearError("image");
+              },
+              {
+                allowCamera: true,
+                allowFile: true,
+                documentPick: true,
+                uploadBaseName: "deal-cover",
+                promptTitle: t("deals.dealImage"),
+                promptMessage: t("deals.uploadImage"),
+              },
+            );
           }}
         >
           {selectedFile ? (

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Check, Smartphone } from "lucide-react";
-import { cameFromMobileApp, readAppReturnTo, redirectToMobileAppIfPresent } from "@/lib/auth/app-return";
+import { cameFromMobileApp, openMobileAppReturn, readAppReturnTo, redirectToMobileAppIfPresent } from "@/lib/auth/app-return";
 
 export default function BillingDonePage() {
   const [tried, setTried] = useState(false);
@@ -33,13 +33,17 @@ export default function BillingDonePage() {
       </p>
 
       {returnTo ? (
-        <a
-          href={returnTo}
+        <button
+          type="button"
+          onClick={() => {
+            openMobileAppReturn();
+            setTried(true);
+          }}
           className="mt-8 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-600 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700"
         >
           <Smartphone className="h-4 w-4" aria-hidden />
           {tried ? "Open Havena again" : "Open Havena"}
-        </a>
+        </button>
       ) : (
         <p className="mt-8 text-[13px] text-slate-500">Switch back to the Havena app on this phone, then refresh status.</p>
       )}

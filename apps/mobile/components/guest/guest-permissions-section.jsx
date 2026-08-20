@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Switch } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
+import { HomeTheme as T } from "../../constants/home-theme";
 import { sf, sw } from "../../utils/responsive";
 import { GUEST_PERMISSION_OPTIONS } from "../../constants/guest-permissions";
 
@@ -14,12 +15,12 @@ export default function GuestPermissionsSection({ permissions, onChange }) {
     <View style={styles.section}>
       <View style={styles.header}>
         <View style={styles.headerIcon}>
-          <Feather name="shield" size={sf(14)} color="#0A2A43" />
+          <Feather name="shield" size={sf(14)} color={T.navy} />
         </View>
         <View style={styles.headerCopy}>
-          <Text style={styles.title}>{t('guests.permissionsTitle')}</Text>
+          <Text style={styles.title}>{t("guests.permissionsTitle")}</Text>
           <Text style={styles.subtitle}>
-            {t('guests.permissionsSubtitle', { enabled: enabledCount, total: GUEST_PERMISSION_OPTIONS.length })}
+            {t("guests.permissionsSubtitle", { enabled: enabledCount, total: GUEST_PERMISSION_OPTIONS.length })}
           </Text>
         </View>
       </View>
@@ -33,16 +34,17 @@ export default function GuestPermissionsSection({ permissions, onChange }) {
             <View key={option.key} style={[styles.row, isLast && styles.rowLast]}>
               <View style={styles.rowCopy}>
                 <View style={styles.rowTitleWrap}>
-                  <Feather name={option.icon} size={sf(14)} color={enabled ? "#0A2A43" : "#94A3B8"} />
-                  <Text style={[styles.rowTitle, !enabled && styles.rowTitleOff]}>{option.label}</Text>
+                  <Feather name={option.icon} size={sf(14)} color={enabled ? T.navy : "#94A3B8"} />
+                  <Text style={[styles.rowTitle, !enabled && styles.rowTitleOff]}>{t(option.labelKey)}</Text>
                 </View>
-                <Text style={styles.rowDescription}>{option.description}</Text>
+                <Text style={styles.rowDescription}>{t(option.descriptionKey)}</Text>
               </View>
               <Switch
                 value={enabled}
                 onValueChange={(value) => onChange?.(option.key, value)}
-                trackColor={{ false: "#E5E7EB", true: "#93C5FD" }}
-                thumbColor={enabled ? "#0A2A43" : "#FFFFFF"}
+                trackColor={{ false: T.border, true: "rgba(20, 184, 166, 0.35)" }}
+                thumbColor={enabled ? T.teal : T.white}
+                ios_backgroundColor={T.border}
               />
             </View>
           );

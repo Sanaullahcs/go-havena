@@ -22,7 +22,7 @@ import { AdminSidebar } from "@/components/admin/sidebar";
 import { AdminTopBar } from "@/components/admin/top-bar";
 import { AdminPushBootstrap } from "@/components/push/admin-push-bootstrap";
 import { ForegroundNotificationProvider } from "@/components/push/foreground-notification-provider";
-import { consumeWebHandoffIfPresent } from "@/lib/auth/web-handoff";
+import { consumeWebHandoffIfPresent, readHandoffCodeFromLocation } from "@/lib/auth/web-handoff";
 
 import {
   communityAdminOnboardingPath,
@@ -88,6 +88,10 @@ function readCachedAdminShell(): {
   if (typeof window === "undefined") {
     return { checked: false, onboardingOnly: false };
   }
+  // Never flash cached session while the mobile app handoff code is still in the URL.
+  if (readHandoffCodeFromLocation()) {
+    return { checked: false, onboardingOnly: false };
+  }
   const token = getToken();
   if (!token) {
     return { checked: false, onboardingOnly: false };
@@ -123,7 +127,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         // (localhost vs LAN IP) leaves AuthShellSkeleton spinning forever.
         setChecked(true);
         setOnboardingOnly(false);
-        router.replace("/login");
+        const qs = typeof window !== "undefined" ? window.location.search : "";
+        router.replace(qs ? `/login${qs}` : "/login");
         return;
       }
 

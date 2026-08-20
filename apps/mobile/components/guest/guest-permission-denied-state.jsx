@@ -37,8 +37,8 @@ const HERO_THEMES = {
 function featureMeta(feature) {
   const option = GUEST_PERMISSION_OPTIONS.find((item) => item.key === feature);
   return {
-    label: option?.label ?? i18n.t("guests.thisFeature"),
-    description: option?.description ?? i18n.t("guests.communityContentShared"),
+    label: option ? i18n.t(option.labelKey) : i18n.t("guests.thisFeature"),
+    description: option ? i18n.t(option.descriptionKey) : i18n.t("guests.communityContentShared"),
     icon: option?.icon ?? "lock",
   };
 }

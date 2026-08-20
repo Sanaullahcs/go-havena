@@ -18,6 +18,8 @@ import { getUser } from "../../services/auth-session";
 import { isGuestUser } from "../../services/community-access";
 import { guestCanAccessFeature } from "../../constants/guest-permissions";
 import { navigateAppRoute } from "../../utils/app-navigation";
+import { useKeyboardVisible } from "./keyboard-safe-screen";
+import { shouldHideTabBar } from "../../constants/tab-bar-visibility";
 
 const ACTIVE = T.teal;
 const INACTIVE = T.gray;
@@ -116,6 +118,7 @@ function getActiveTab(segments, pathname) {
  */
 export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = false }) {
   const { t } = useTranslation();
+  const keyboardVisible = useKeyboardVisible();
   const [guestUser, setGuestUser] = useState(null);
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -199,6 +202,12 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
     onCreatePress?.();
   }, [haptic, onCreatePress]);
 
+  const hideTabBar = shouldHideTabBar(pathname, { keyboardVisible });
+
+  if (hideTabBar) {
+    return null;
+  }
+
   const renderTab = (item) => {
     const focused = activeTab === item.name;
     const label = t(item.labelKey);
@@ -229,8 +238,12 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
           accessibilityRole="button"
           accessibilityLabel={t("nav.create")}
         >
-          <View style={styles.fab}>
-            <Ionicons name="add" size={sf(26)} color="#FFFFFF" />
+          <View style={styles.fabShell}>
+            <View style={styles.fabRing}>
+              <View style={styles.fab}>
+                <Ionicons name="add" size={sf(28)} color={T.white} />
+              </View>
+            </View>
           </View>
           <Text style={styles.fabLabel}>{t("nav.create")}</Text>
         </Pressable>
@@ -287,23 +300,43 @@ const styles = StyleSheet.create({
   fabTab: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: sw(4),
+    justifyContent: "flex-end",
+    marginTop: -sw(10),
+    paddingBottom: sw(2),
+  },
+  fabShell: {
+    ...Platform.select({
+      ios: {
+        shadowColor: T.teal,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.28,
+        shadowRadius: 14,
+      },
+      android: { elevation: 8 },
+    }),
+  },
+  fabRing: {
+    padding: sw(3),
+    borderRadius: sw(26),
+    backgroundColor: T.mint,
+    borderWidth: 2,
+    borderColor: T.white,
   },
   fab: {
-    width: sw(42),
-    height: sw(42),
-    borderRadius: sw(21),
+    width: sw(46),
+    height: sw(46),
+    borderRadius: sw(23),
     backgroundColor: T.teal,
     alignItems: "center",
     justifyContent: "center",
   },
   fabLabel: {
-    fontFamily: Fonts.medium,
+    marginTop: sw(4),
+    fontFamily: Fonts.bold,
     fontSize: LABEL_SIZE,
     lineHeight: sf(12),
     color: T.teal,
-    fontWeight: "500",
+    fontWeight: "700",
     textAlign: "center",
     ...Platform.select({
       android: { includeFontPadding: false },

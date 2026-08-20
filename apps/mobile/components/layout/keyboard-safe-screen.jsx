@@ -96,19 +96,30 @@ export function useKeyboardFooterLift(hasFooter) {
 }
 
 /** True while the software keyboard is visible. */
-function useKeyboardVisible() {
+export function useKeyboardVisible() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const showEvent = "keyboardWillShow";
     const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
 
-    const showSub = Keyboard.addListener(showEvent, () => setVisible(true));
-    const hideSub = Keyboard.addListener(hideEvent, () => setVisible(false));
+    const onShow = () => setVisible(true);
+    const onHide = () => setVisible(false);
+
+    const showSub = Keyboard.addListener(showEvent, onShow);
+    const hideSub = Keyboard.addListener(hideEvent, onHide);
+
+    // Android fallback when keyboardWillShow is not emitted.
+    const didShowSub =
+      Platform.OS === "android" ? Keyboard.addListener("keyboardDidShow", onShow) : null;
+    const willHideSub =
+      Platform.OS === "android" ? Keyboard.addListener("keyboardWillHide", onHide) : null;
 
     return () => {
       showSub.remove();
       hideSub.remove();
+      didShowSub?.remove();
+      willHideSub?.remove();
     };
   }, []);
 

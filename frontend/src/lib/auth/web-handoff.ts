@@ -26,6 +26,11 @@ export function readHandoffCodeFromLocation(): string | null {
   return code?.trim() || null;
 }
 
+/** True while a mobile→web one-time code is still in the URL (not yet consumed). */
+export function isWebHandoffPending(): boolean {
+  return Boolean(readHandoffCodeFromLocation());
+}
+
 function stripHandoffFromUrl() {
   if (typeof window === "undefined") return;
   const url = new URL(window.location.href);

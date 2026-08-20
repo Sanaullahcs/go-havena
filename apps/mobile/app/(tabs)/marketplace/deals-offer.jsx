@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   ScrollView,
   RefreshControl,
-  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import CrispImage from "../../../components/ui/crisp-image";
@@ -29,6 +28,8 @@ import { MARKETPLACE_FEATURES } from "../../../constants/marketplace-features";
 import { MarketplaceTheme, marketplaceSharedStyles } from "../../../constants/marketplace-theme";
 import { DealsOfferSkeleton } from "../../../components/ui/skeleton-loader";
 import { localizedField } from "../../../i18n";
+import { useAppDialog } from "../../../providers/app-dialog-provider";
+import { promptAddBusinessBeforeDeal } from "../../../utils/marketplace-business-prompt";
 
 const DEAL_PLACEHOLDER = require("../../../assets/images/food-bowl.png");
 
@@ -46,6 +47,7 @@ function sortFavoritesFirst(list) {
 export default function DealsOffer({ embedded = false }) {
   const router = useRouter();
   const { t } = useTranslation();
+  const { showDialog } = useAppDialog();
   const { role: roleParam } = useLocalSearchParams();
   const activeRole =
     roleParam === "admin" || roleParam === "resident"
@@ -149,21 +151,15 @@ export default function DealsOffer({ embedded = false }) {
                 style={styles.createDealBtn}
                 onPress={() => {
                   if (!myBusiness) {
-                    Alert.alert(
-                      t("deals.addBusinessFirst"),
-                      t("deals.registerBeforeDeal"),
-                      [
-                        { text: t("common.cancel"), style: "cancel" },
-                        {
-                          text: t("marketplace.addBusiness"),
-                          onPress: () =>
-                            router.push({
-                              pathname: MarketplaceRoutes.ADD_BUSINESS,
-                              params: withMarketplaceRole(activeRole),
-                            }),
-                        },
-                      ],
-                    );
+                    promptAddBusinessBeforeDeal(showDialog, t, {
+                      confirmKey: "marketplace.addBusiness",
+                      isCommunityAdmin: isAdmin,
+                      onContinue: () =>
+                        router.push({
+                          pathname: MarketplaceRoutes.ADD_BUSINESS,
+                          params: withMarketplaceRole(activeRole),
+                        }),
+                    });
                     return;
                   }
                   router.push({

@@ -6,6 +6,7 @@
     "start": "expo start --lan",
     "start:clear": "expo start --lan --clear",
     "start:lan": "powershell -ExecutionPolicy Bypass -File ./start-expo-lan.ps1",
+    "check:lan": "powershell -ExecutionPolicy Bypass -File ./check-lan.ps1",
     "start:hotspot": "powershell -ExecutionPolicy Bypass -File ./connect-phone-hotspot.ps1",
     "start:pc-hotspot": "powershell -ExecutionPolicy Bypass -File ./start-pc-hotspot.ps1",
     "start:web": "expo start --web --clear",

@@ -7,10 +7,14 @@ import {
   Pressable,
 } from "react-native";
 import { useTranslation } from "react-i18next";
-import { Image } from "expo-image";
+import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
+import { HomeTheme as HT } from "../../constants/home-theme";
 import { useRouter } from "expo-router";
 import AppModal from "../layout/app-modal";
+import ThemedIconBox from "./themed-icon-box";
+import { sw } from "../../utils/responsive";
+import { chevronBack } from "../../utils/rtl";
 
 export default function NoticeDrawer({ visible, onClose, onBackToCreate }) {
   const { t } = useTranslation();
@@ -23,14 +27,7 @@ export default function NoticeDrawer({ visible, onClose, onBackToCreate }) {
             <View style={styles.handle} />
           </TouchableOpacity>
 
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 10,
-              marginBottom: 18,
-            }}
-          >
+          <View style={styles.headerRow}>
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => {
@@ -39,13 +36,12 @@ export default function NoticeDrawer({ visible, onClose, onBackToCreate }) {
                   onBackToCreate();
                 }
               }}
+              style={styles.backBtn}
             >
-              <Image
-                source={require("../../assets/images/bb-icon.png")}
-                style={styles.backIcon}
-              />
+              <Feather name={chevronBack()} size={18} color={HT.navy} />
             </TouchableOpacity>
-            <View>
+            <ThemedIconBox name="bell" size="sm" backgroundColor="#DBEAFE" color={HT.navy} />
+            <View style={styles.headerCopy}>
               <Text style={styles.title}>{t("notices.options")}</Text>
               <Text style={styles.subtitle}>{t("notices.chooseType")}</Text>
             </View>
@@ -58,36 +54,22 @@ export default function NoticeDrawer({ visible, onClose, onBackToCreate }) {
               router.push("/screens/create-notice");
             }}
           >
-            <View style={styles.optionIconWrap}>
-              <Image
-                source={require("../../assets/images/notice-drawer.png")}
-                style={styles.optionIcon}
-              />
-            </View>
-
-            <View>
+            <ThemedIconBox name="clipboard" size="sm" backgroundColor={HT.mint} color={HT.navy} />
+            <View style={styles.optionCopy}>
               <Text style={styles.optionTitle}>{t("notices.notice")}</Text>
-              <Text style={styles.optionSubtitle}>
-                {t("notices.generalNotice")}
-              </Text>
+              <Text style={styles.optionSubtitle}>{t("notices.generalNotice")}</Text>
             </View>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.option]}
+            style={styles.option}
             onPress={() => {
               onClose();
               router.push("/screens/create-alert");
             }}
           >
-            <View style={styles.optionIconWrap}>
-              <Image
-                source={require("../../assets/images/alert-notice.png")}
-                style={styles.optionIcon}
-              />
-            </View>
-
-            <View>
+            <ThemedIconBox name="alert-triangle" size="sm" backgroundColor="#FEE2E2" color="#DC2626" />
+            <View style={styles.optionCopy}>
               <Text style={styles.optionTitle}>{t("notices.alert")}</Text>
               <Text style={styles.optionSubtitle}>{t("notices.urgentAlert")}</Text>
             </View>
@@ -123,9 +105,25 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
 
-  backIcon: {
-    width: 16,
-    height: 16,
+  backBtn: {
+    width: sw(32),
+    height: sw(32),
+    borderRadius: sw(10),
+    backgroundColor: HT.mint,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(10),
+    marginBottom: sw(18),
+  },
+
+  headerCopy: {
+    flex: 1,
+    minWidth: 0,
   },
 
   title: {
@@ -147,22 +145,17 @@ const styles = StyleSheet.create({
   option: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    padding: 14,
+    gap: sw(12),
+    padding: sw(14),
     backgroundColor: "rgba(249, 250, 251, 1)",
-    borderRadius: 14,
+    borderRadius: sw(14),
+    borderWidth: 1,
+    borderColor: "#EEF2F6",
   },
 
-  optionIconWrap: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  optionIcon: {
-    width: 36,
-    height: 36,
+  optionCopy: {
+    flex: 1,
+    minWidth: 0,
   },
 
   optionTitle: {

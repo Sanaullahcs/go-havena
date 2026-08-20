@@ -30,6 +30,7 @@ import { useApiAction } from "../../../hooks/use-api-action";
 import BusinessModerationSheet from "../../../components/marketplace/business-moderation-sheet";
 import AdminRowActionsMenu from "../../../components/admin/admin-row-actions-menu";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
+import { promptAddBusinessBeforeDeal } from "../../../utils/marketplace-business-prompt";
 
 const BUSINESS_STATUS_FILTERS = [
   { key: "all" },
@@ -62,7 +63,7 @@ export default function ManageAllMarketplace() {
   const [moderationSheet, setModerationSheet] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const { runAction, showFailure } = useApiAction();
-  const { showConfirm } = useAppDialog();
+  const { showConfirm, showDialog } = useAppDialog();
 
   const filterLabel = (key) => {
     const map = {
@@ -146,17 +147,12 @@ export default function ManageAllMarketplace() {
   };
 
   const promptAddBusinessFirst = () => {
-    Alert.alert(
-      myBusiness ? t("marketplace.editBusinessFirst") : t("marketplace.addBusinessFirst"),
-      t("marketplace.needBusinessForDeal"),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: myBusiness ? t("marketplace.editMyBusiness") : t("marketplace.addNewBusiness"),
-          onPress: goToAddOrEditBusiness,
-        },
-      ],
-    );
+    promptAddBusinessBeforeDeal(showDialog, t, {
+      titleKey: myBusiness ? "marketplace.editBusinessFirst" : "marketplace.addBusinessFirst",
+      hasExistingBusiness: Boolean(myBusiness),
+      isCommunityAdmin: isAdmin,
+      onContinue: goToAddOrEditBusiness,
+    });
   };
 
   const openListItem = (item) => {

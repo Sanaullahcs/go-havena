@@ -26,6 +26,7 @@ const ICONS = {
   warning: { name: "alert-circle", color: "#D97706", bg: "#FFFBEB" },
   info: { name: "information-circle", color: "#0A2A43", bg: "#D1FAF5" },
   confirm: { name: "help-circle", color: "#0A2A43", bg: "#D1FAF5" },
+  marketplace: { name: "storefront-outline", color: "#0F3D5F", bg: "#D1FAF5" },
 };
 
 function MetaRow({ label, value, tone = "default" }) {
@@ -115,18 +116,65 @@ function StatusDialogBody({ config, icon }) {
   );
 }
 
+function PromptDialogBody({ config, icon }) {
+  return (
+    <>
+      <View style={styles.promptHero}>
+        <View style={[styles.promptIconHero, { backgroundColor: icon.bg }]}>
+          <Ionicons name={icon.name} size={30} color={icon.color} />
+        </View>
+        {config.title ? <Text style={styles.promptTitleCentered}>{config.title}</Text> : null}
+        {config.message ? (
+          <Text style={styles.promptMessageCentered}>{config.message}</Text>
+        ) : null}
+      </View>
+
+      {config.highlights?.length ? (
+        <View style={styles.promptFlow}>
+          {config.highlights.map((item, index) => (
+            <React.Fragment key={`${item.label}-${index}`}>
+              {index > 0 ? (
+                <View style={styles.promptFlowConnector}>
+                  <View style={styles.promptFlowLine} />
+                </View>
+              ) : null}
+              <View style={styles.promptFlowItem}>
+                <View style={[styles.promptFlowIcon, { backgroundColor: item.bg }]}>
+                  <Ionicons name={item.icon} size={17} color={item.color} />
+                </View>
+                <Text style={styles.promptFlowLabel} numberOfLines={2}>
+                  {item.label}
+                </Text>
+              </View>
+            </React.Fragment>
+          ))}
+        </View>
+      ) : null}
+    </>
+  );
+}
+
 function AppDialogModal({ config, onClose }) {
   if (!config?.visible) return null;
 
   const icon = ICONS[config.type] ?? ICONS.info;
   const isStatusLayout = config.layout === "status";
+  const isPromptLayout = config.layout === "prompt";
 
   return (
     <AppModal visible={config?.visible} onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={[styles.sheet, isStatusLayout && styles.sheetStatus]}>
+        <View
+          style={[
+            styles.sheet,
+            isStatusLayout && styles.sheetStatus,
+            isPromptLayout && styles.sheetPrompt,
+          ]}
+        >
           {isStatusLayout ? (
             <StatusDialogBody config={config} icon={icon} />
+          ) : isPromptLayout ? (
+            <PromptDialogBody config={config} icon={icon} />
           ) : (
             <>
               <View style={[styles.iconRing, { backgroundColor: icon.bg }]}>
@@ -138,13 +186,21 @@ function AppDialogModal({ config, onClose }) {
             </>
           )}
 
-          <View style={[styles.actions, isStatusLayout && styles.actionsStatus]}>
+          <View
+            style={[
+              styles.actions,
+              isStatusLayout && styles.actionsStatus,
+              isPromptLayout && styles.actionsPrompt,
+            ]}
+          >
             {(config.actions ?? []).map((action, index) => {
               const isPrimary =
                 action.variant === "primary" ||
                 (!action.variant && index === (config.actions?.length ?? 1) - 1);
               const isDestructive = action.variant === "destructive";
               const isSecondary = action.variant === "secondary";
+              const useTealPrimary = isPrimary && isPromptLayout;
+              const usePromptGhostCancel = isSecondary && isPromptLayout;
 
               return (
                 <TouchableOpacity
@@ -152,11 +208,13 @@ function AppDialogModal({ config, onClose }) {
                   style={[
                     styles.actionBtn,
                     isPrimary && styles.actionPrimary,
-                    isSecondary && styles.actionSecondary,
+                    useTealPrimary && styles.actionPrimaryPrompt,
+                    isSecondary && !usePromptGhostCancel && styles.actionSecondary,
+                    usePromptGhostCancel && styles.actionPromptGhost,
                     isDestructive && styles.actionDestructive,
                     action.loading && styles.actionDisabled,
                   ]}
-                  activeOpacity={0.85}
+                  activeOpacity={usePromptGhostCancel ? 0.6 : 0.85}
                   disabled={action.loading}
                   onPress={() => action.onPress?.()}
                 >
@@ -169,7 +227,8 @@ function AppDialogModal({ config, onClose }) {
                       style={[
                         styles.actionText,
                         (isPrimary || isDestructive) && styles.actionTextLight,
-                        isSecondary && styles.actionTextSecondary,
+                        isSecondary && !usePromptGhostCancel && styles.actionTextSecondary,
+                        usePromptGhostCancel && styles.actionTextGhost,
                       ]}
                     >
                       {action.label}
@@ -207,6 +266,8 @@ export function AppDialogProvider({ children }) {
         statusLabel: options.statusLabel ?? null,
         meta: options.meta ?? null,
         highlight: options.highlight ?? null,
+        bullets: options.bullets ?? null,
+        highlights: options.highlights ?? null,
         footerNote: options.footerNote ?? null,
         actions: (options.actions ?? [{ label: i18n.t("common.ok"), variant: "primary" }]).map((action) => ({
           ...action,
@@ -302,6 +363,14 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
     padding: 20,
     borderRadius: 22,
+  },
+  sheetPrompt: {
+    maxWidth: 320,
+    alignItems: "stretch",
+    paddingHorizontal: 22,
+    paddingTop: 28,
+    paddingBottom: 18,
+    borderRadius: 24,
   },
   iconRing: {
     width: 72,
@@ -475,6 +544,73 @@ const styles = StyleSheet.create({
     color: "#98A2B3",
     textAlign: "center",
   },
+  promptHero: {
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 22,
+  },
+  promptIconHero: {
+    width: 64,
+    height: 64,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(20, 184, 166, 0.16)",
+    marginBottom: 2,
+  },
+  promptTitleCentered: {
+    fontFamily: Fonts.bold,
+    fontSize: 20,
+    lineHeight: 26,
+    color: "#0F172A",
+    textAlign: "center",
+  },
+  promptMessageCentered: {
+    fontFamily: Fonts.regular,
+    fontSize: 14,
+    lineHeight: 21,
+    color: "#64748B",
+    textAlign: "center",
+    maxWidth: 260,
+  },
+  promptFlow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  promptFlowItem: {
+    flex: 1,
+    alignItems: "center",
+    gap: 8,
+    minWidth: 0,
+  },
+  promptFlowIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  promptFlowLabel: {
+    fontFamily: Fonts.medium,
+    fontSize: 11,
+    lineHeight: 15,
+    color: "#475569",
+    textAlign: "center",
+  },
+  promptFlowConnector: {
+    width: 18,
+    alignItems: "center",
+    paddingTop: 12,
+  },
+  promptFlowLine: {
+    width: 14,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: "#E2E8F0",
+  },
   actions: {
     marginTop: 20,
     width: "100%",
@@ -482,6 +618,20 @@ const styles = StyleSheet.create({
   },
   actionsStatus: {
     marginTop: 16,
+  },
+  actionsPrompt: {
+    marginTop: 22,
+    gap: 6,
+  },
+  actionPromptGhost: {
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    minHeight: 40,
+  },
+  actionTextGhost: {
+    color: "#94A3B8",
+    fontFamily: Fonts.medium,
+    fontSize: 14,
   },
   actionBtn: {
     minHeight: 48,
@@ -493,6 +643,9 @@ const styles = StyleSheet.create({
   },
   actionPrimary: {
     backgroundColor: "#0A2A43",
+  },
+  actionPrimaryPrompt: {
+    backgroundColor: "#14B8A6",
   },
   actionSecondary: {
     backgroundColor: "#FFFFFF",

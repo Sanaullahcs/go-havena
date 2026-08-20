@@ -35,6 +35,7 @@ import {
   updateUser,
 } from "@/lib/auth/session";
 import { cameFromMobileApp, withAppReturnParams } from "@/lib/auth/app-return";
+import { isWebHandoffPending } from "@/lib/auth/web-handoff";
 
 const TRIAL_DAYS = 30;
 
@@ -756,9 +757,12 @@ function BillingPageInner() {
   }, [load]);
 
   useEffect(() => {
+    if (isWebHandoffPending()) return;
+
     const token = getToken();
     if (!token) {
-      router.replace("/login");
+      const qs = typeof window !== "undefined" ? window.location.search : "";
+      router.replace(qs ? `/login${qs}` : "/login");
       return;
     }
 
