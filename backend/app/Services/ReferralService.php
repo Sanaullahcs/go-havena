@@ -176,7 +176,7 @@ class ReferralService
             return;
         }
 
-        if (! in_array($billingReason, ['subscription_cycle', 'subscription_create'], true)) {
+        if (! $this->isQualifyingReferralInvoice($billingReason, $amountPaid)) {
             return;
         }
 
@@ -201,7 +201,19 @@ class ReferralService
             return;
         }
 
-        if (ReferralReward::query()->where('referee_community_id', $subscription->community_id)->exists()) {
+        $attribution->load('reward');
+        if ($attribution->reward) {
+            if ($attribution->reward->status !== ReferralReward::STATUS_CREDITED) {
+                $this->retryPendingReward($attribution->reward, $attribution);
+            }
+
+            return;
+        }
+
+        if (ReferralReward::query()
+            ->where('referee_community_id', $subscription->community_id)
+            ->where('status', ReferralReward::STATUS_CREDITED)
+            ->exists()) {
             return;
         }
 
@@ -260,6 +272,97 @@ class ReferralService
 
             $this->creditReferrer($reward, $attribution);
         });
+    }
+
+    /**
+     * Heal missed invoice.paid webhooks and retry pending/failed referrer credits.
+     */
+    public function reconcileReferralForCommunity(int $communityId): void
+    {
+        if (! $this->billing->stripeConfigured()) {
+            return;
+        }
+
+        $attribution = ReferralAttribution::query()
+            ->where('referee_community_id', $communityId)
+            ->whereNotIn('status', [
+                ReferralAttribution::STATUS_DISQUALIFIED,
+                ReferralAttribution::STATUS_QUALIFIED,
+            ])
+            ->with('reward')
+            ->first();
+
+        if (! $attribution) {
+            return;
+        }
+
+        $reward = $attribution->reward;
+        if ($reward && in_array($reward->status, [ReferralReward::STATUS_PENDING, ReferralReward::STATUS_FAILED], true)) {
+            $this->retryPendingReward($reward, $attribution);
+
+            return;
+        }
+
+        if ($reward) {
+            return;
+        }
+
+        $subscription = $this->billing->getSubscription($communityId);
+        if (! filled($subscription?->stripe_subscription_id)) {
+            return;
+        }
+
+        try {
+            $invoices = $this->billing->stripe()->invoices->all([
+                'subscription' => $subscription->stripe_subscription_id,
+                'status' => 'paid',
+                'limit' => 12,
+            ]);
+        } catch (ApiErrorException $e) {
+            Log::info('Referral invoice reconcile skipped', [
+                'community_id' => $communityId,
+                'stripe_subscription_id' => $subscription->stripe_subscription_id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return;
+        }
+
+        foreach ($invoices->data as $invoice) {
+            $this->handleInvoicePaid($invoice);
+
+            $attribution->refresh()->load('reward');
+            if ($attribution->status === ReferralAttribution::STATUS_QUALIFIED || $attribution->reward) {
+                break;
+            }
+        }
+    }
+
+    public function reconcilePendingReferralsForReferrer(int $referrerUserId): void
+    {
+        ReferralAttribution::query()
+            ->where('referrer_user_id', $referrerUserId)
+            ->whereIn('status', [
+                ReferralAttribution::STATUS_LOCKED,
+                ReferralAttribution::STATUS_PENDING_QUALIFICATION,
+            ])
+            ->whereNotNull('referee_community_id')
+            ->pluck('referee_community_id')
+            ->unique()
+            ->each(fn ($communityId) => $this->reconcileReferralForCommunity((int) $communityId));
+    }
+
+    public function reconcilePendingReferrals(): void
+    {
+        ReferralAttribution::query()
+            ->whereIn('status', [
+                ReferralAttribution::STATUS_LOCKED,
+                ReferralAttribution::STATUS_PENDING_QUALIFICATION,
+            ])
+            ->whereNotNull('referee_community_id')
+            ->pluck('referee_community_id')
+            ->unique()
+            ->each(fn ($communityId) => $this->reconcileReferralForCommunity((int) $communityId));
     }
 
     public function creditReferrer(ReferralReward $reward, ?ReferralAttribution $attribution = null): ReferralReward
@@ -330,10 +433,9 @@ class ReferralService
             ->get();
 
         $successful = $attributions->filter(fn (ReferralAttribution $a) => $a->reward?->status === ReferralReward::STATUS_CREDITED);
-        $pending = $attributions->filter(fn (ReferralAttribution $a) => in_array($a->status, [
-            ReferralAttribution::STATUS_LOCKED,
-            ReferralAttribution::STATUS_PENDING_QUALIFICATION,
-        ], true) && $a->status !== ReferralAttribution::STATUS_DISQUALIFIED);
+        $pending = $attributions->filter(fn (ReferralAttribution $a) => $a->status !== ReferralAttribution::STATUS_DISQUALIFIED
+            && $a->status !== ReferralAttribution::STATUS_QUALIFIED
+            && $a->reward?->status !== ReferralReward::STATUS_CREDITED);
 
         $webOrigin = rtrim((string) config('app.frontend_url', config('app.url', 'http://localhost:3000')), '/');
 
@@ -360,12 +462,29 @@ class ReferralService
         ];
     }
 
+    protected function retryPendingReward(ReferralReward $reward, ReferralAttribution $attribution): ReferralReward
+    {
+        if (! filled($reward->referrer_stripe_customer_id)) {
+            $customerId = $this->resolveReferrerStripeCustomerId($attribution->referrer_user_id);
+            if ($customerId !== '') {
+                $reward->update(['referrer_stripe_customer_id' => $customerId]);
+            }
+        }
+
+        if (! filled($reward->fresh()->referrer_stripe_customer_id)) {
+            return $reward;
+        }
+
+        return $this->creditReferrer($reward->fresh(['attribution']), $attribution);
+    }
+
     /** @return array<string, mixed> */
     public function transformAttribution(ReferralAttribution $attribution): array
     {
         return [
             'id' => $attribution->id,
             'status' => $attribution->status,
+            'display_status' => $this->resolveDisplayStatus($attribution),
             'reward_type' => (string) ($attribution->reward_type ?? ReferralProgramSetting::REWARD_TYPE_PERCENT),
             'reward_percent' => (float) $attribution->reward_percent,
             'reward_fixed_cents' => $attribution->reward_fixed_cents !== null ? (int) $attribution->reward_fixed_cents : null,
@@ -462,6 +581,17 @@ class ReferralService
         return (string) ($this->billing->getSubscription($communityId)?->stripe_customer_id ?? '');
     }
 
+    protected function isQualifyingReferralInvoice(string $billingReason, int $amountPaid): bool
+    {
+        if ($amountPaid <= 0) {
+            return false;
+        }
+
+        // Trial checkout is $0 subscription_create — skip. First real charge after trial
+        // often arrives as subscription_update (plan activation / proration).
+        return ! in_array($billingReason, ['manual', 'upcoming', ''], true);
+    }
+
     protected function invoiceSubtotalExTax(object|array $invoice): int
     {
         $amountPaid = (int) data_get($invoice, 'amount_paid', 0);
@@ -478,6 +608,32 @@ class ReferralService
             'disqualified_at' => now(),
             'disqualify_reason' => $reason,
         ]);
+    }
+
+    protected function resolveDisplayStatus(ReferralAttribution $attribution): string
+    {
+        if ($attribution->status === ReferralAttribution::STATUS_QUALIFIED
+            || $attribution->reward?->status === ReferralReward::STATUS_CREDITED) {
+            return 'rewarded';
+        }
+
+        if ($attribution->status === ReferralAttribution::STATUS_DISQUALIFIED) {
+            return 'disqualified';
+        }
+
+        if ($attribution->reward?->status === ReferralReward::STATUS_FAILED) {
+            return 'payout_failed';
+        }
+
+        if ($attribution->reward?->status === ReferralReward::STATUS_PENDING) {
+            return 'payout_pending';
+        }
+
+        if ($attribution->status === ReferralAttribution::STATUS_PENDING_QUALIFICATION) {
+            return 'awaiting_payment';
+        }
+
+        return 'signed_up';
     }
 
     protected function formatRewardLabel(string $rewardType, float $rewardPercent, ?int $rewardFixedCents): string

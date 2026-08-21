@@ -50,12 +50,25 @@ type SettingsForm = {
   is_active: boolean;
 };
 
-function statusBadge(status: string) {
-  if (status === "qualified") return <AdminBadge tone="green">Rewarded</AdminBadge>;
-  if (status === "disqualified") return <AdminBadge tone="red">Disqualified</AdminBadge>;
-  if (status === "pending_qualification") return <AdminBadge tone="amber">Awaiting first payment</AdminBadge>;
-  if (status === "locked") return <AdminBadge tone="slate">Signed up</AdminBadge>;
-  return <AdminBadge tone="slate">{status}</AdminBadge>;
+function statusBadge(row: ReferralAttributionRow) {
+  const display = row.display_status;
+  if (display === "rewarded" || row.status === "qualified") {
+    return <AdminBadge tone="green">Rewarded</AdminBadge>;
+  }
+  if (display === "disqualified" || row.status === "disqualified") {
+    return <AdminBadge tone="red">Disqualified</AdminBadge>;
+  }
+  if (display === "payout_failed") {
+    return <AdminBadge tone="red">Payout failed</AdminBadge>;
+  }
+  if (display === "payout_pending") {
+    return <AdminBadge tone="sky">Payout pending</AdminBadge>;
+  }
+  if (display === "awaiting_payment" || row.status === "pending_qualification") {
+    return <AdminBadge tone="amber">Awaiting first payment</AdminBadge>;
+  }
+  if (row.status === "locked") return <AdminBadge tone="slate">Signed up</AdminBadge>;
+  return <AdminBadge tone="slate">{row.status}</AdminBadge>;
 }
 
 function fraudBadge(status: string) {
@@ -559,7 +572,7 @@ export default function ReferralsAdminPage() {
                     </p>
                   </DtCell>
                   <DtCell>{row.referee_community?.name ?? "—"}</DtCell>
-                  <DtCell>{statusBadge(row.status)}</DtCell>
+                  <DtCell>{statusBadge(row)}</DtCell>
                   <DtCell>{fraudBadge(row.fraud_review_status) ?? <span className="text-slate-400">—</span>}</DtCell>
                   <DtCell>
                     {row.reward ? (

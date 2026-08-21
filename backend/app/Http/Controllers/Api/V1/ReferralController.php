@@ -16,6 +16,8 @@ class ReferralController extends Controller
     /** GET /v1/admin/referrals/me */
     public function me(Request $request): JsonResponse
     {
+        $this->referrals->reconcilePendingReferralsForReferrer((int) $request->user()->id);
+
         return response()->json([
             'data' => $this->referrals->dashboardForUser($request->user()),
         ]);

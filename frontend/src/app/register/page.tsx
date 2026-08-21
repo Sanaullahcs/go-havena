@@ -129,12 +129,11 @@ function RegisterPageInner() {
 
     setError(null);
     setOtp("");
-    setOtpStep("code");
     setOtpSending(true);
     try {
       await requestCommunityAdminOtp(phone.e164, "signup");
+      setOtpStep("code");
     } catch (err) {
-      setOtpStep("phone");
       await handleLoginError(err, setError);
     } finally {
       setOtpSending(false);

@@ -48,8 +48,15 @@ function communityTrialEligible(data: BillingPayload): boolean {
   return (data.trial_period_days ?? TRIAL_DAYS) > 0;
 }
 
-function statusLabel(status: string | null | undefined, leftover = false) {
+function statusLabel(
+  status: string | null | undefined,
+  leftover = false,
+  cancelAtPeriodEnd = false,
+) {
   if (leftover) return "Leftover period";
+  if (cancelAtPeriodEnd && (status === "active" || status === "trialing")) {
+    return status === "trialing" ? "Trial ending" : "Canceling";
+  }
   switch (status) {
     case "active":
       return "Active";
@@ -69,8 +76,15 @@ function statusLabel(status: string | null | undefined, leftover = false) {
   }
 }
 
-function statusTone(status: string | null | undefined, leftover = false) {
+function statusTone(
+  status: string | null | undefined,
+  leftover = false,
+  cancelAtPeriodEnd = false,
+) {
   if (leftover) return "bg-amber-50 text-amber-800 ring-amber-200";
+  if (cancelAtPeriodEnd && (status === "active" || status === "trialing")) {
+    return "bg-rose-50 text-rose-800 ring-rose-200";
+  }
   switch (status) {
     case "active":
       return "bg-emerald-50 text-emerald-800 ring-emerald-200";
@@ -757,6 +771,22 @@ function BillingPageInner() {
   }, [load]);
 
   useEffect(() => {
+    const refreshAfterPortal = () => {
+      if (document.visibilityState === "visible") {
+        void load(true);
+      }
+    };
+
+    window.addEventListener("focus", refreshAfterPortal);
+    document.addEventListener("visibilitychange", refreshAfterPortal);
+
+    return () => {
+      window.removeEventListener("focus", refreshAfterPortal);
+      document.removeEventListener("visibilitychange", refreshAfterPortal);
+    };
+  }, [load]);
+
+  useEffect(() => {
     if (isWebHandoffPending()) return;
 
     const token = getToken();
@@ -995,6 +1025,18 @@ function BillingPageInner() {
   const seatLimitLabel = seats.seat_limit > 0 ? String(seats.seat_limit) : "—";
   const trialEligible = communityTrialEligible(data);
   const effectiveTrialDays = trialEligible ? (data.trial_period_days ?? TRIAL_DAYS) : 0;
+  const cancelScheduled = Boolean(sub?.cancel_at_period_end);
+  const statusBannerText =
+    confirmMessage ||
+    (busy && searchParams.get("plan")
+      ? "Starting checkout for your selected plan…"
+      : busy
+        ? "Opening billing portal…"
+        : confirmingCheckout
+          ? trialEligible
+            ? "Confirming your free trial…"
+            : "Confirming your subscription…"
+          : null);
 
   return (
     <div className="space-y-6">
@@ -1019,7 +1061,7 @@ function BillingPageInner() {
         </p>
       </header>
 
-      {(confirmingCheckout || confirmMessage || busy) && (
+      {statusBannerText ? (
         <div
           className={[
             "rounded-2xl border px-4 py-3.5 text-[13px] leading-relaxed",
@@ -1028,16 +1070,9 @@ function BillingPageInner() {
               : "border-teal-200 bg-teal-50 text-teal-950",
           ].join(" ")}
         >
-          {confirmMessage ||
-            (busy && searchParams.get("plan")
-              ? "Starting checkout for your selected plan…"
-              : confirmingCheckout
-                ? trialEligible
-                  ? "Confirming your free trial…"
-                  : "Confirming your subscription…"
-                : null)}
+          {statusBannerText}
         </div>
-      )}
+      ) : null}
 
       {leftover ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-[13px] leading-relaxed text-amber-950">
@@ -1045,6 +1080,23 @@ function BillingPageInner() {
           {sub?.leftover_ends_at ? ` until ${formatBillingDate(sub.leftover_ends_at)}` : ""}. The previous
           admin is not being charged. You can keep using the community until then — add your card and choose a
           plan when that period ends.
+        </div>
+      ) : null}
+
+      {cancelScheduled && sub?.status !== "canceled" ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3.5 text-[13px] text-rose-950">
+          Your subscription is scheduled to cancel on{" "}
+          {formatBillingDate(sub.current_period_end)}. You keep access until then and will not be charged again
+          after that date.
+          {data.billing.stripe_configured ? (
+            <button
+              type="button"
+              onClick={() => void onPortal()}
+              className="ml-2 font-semibold underline"
+            >
+              Resume subscription
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -1111,20 +1163,22 @@ function BillingPageInner() {
                   <span
                     className={[
                       "inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1",
-                      statusTone(sub?.status ?? null, leftover),
+                      statusTone(sub?.status ?? null, leftover, cancelScheduled),
                     ].join(" ")}
                   >
-                    {statusLabel(sub?.status ?? null, leftover)}
+                    {statusLabel(sub?.status ?? null, leftover, cancelScheduled)}
                   </span>
                 </div>
                 <p className="mt-1.5 max-w-xl text-[13px] leading-relaxed text-slate-500">
                   {leftover
                     ? `Service continues on the previous plan until ${formatBillingDate(sub?.leftover_ends_at)}. The previous admin is not being charged.`
-                    : sub?.status === "trialing"
-                      ? `${daysUntil(sub.current_period_end) ?? "—"} days left in the free trial. Residents can join without paying Havena.`
-                      : sub?.status === "pending_trial"
-                        ? "Card is on file. The free trial starts after a system administrator approves this community."
-                        : "One plan covers the whole community. Invite residents into your seat pool."}
+                    : cancelScheduled
+                      ? `Access continues until ${formatBillingDate(sub.current_period_end)}. You will not be charged again after that date.`
+                      : sub?.status === "trialing"
+                        ? `${daysUntil(sub.current_period_end) ?? "—"} days left in the free trial. Residents can join without paying Havena.`
+                        : sub?.status === "pending_trial"
+                          ? "Card is on file. The free trial starts after a system administrator approves this community."
+                          : "One plan covers the whole community. Invite residents into your seat pool."}
                 </p>
               </div>
 
@@ -1166,11 +1220,13 @@ function BillingPageInner() {
                     <CalendarDays className="h-3.5 w-3.5" aria-hidden />
                     {leftover
                       ? "Leftover ends"
-                      : sub.status === "trialing"
-                        ? "Trial ends"
-                        : sub.status === "pending_trial"
-                          ? "Trial starts"
-                          : "Renews"}
+                      : cancelScheduled
+                        ? "Access ends"
+                        : sub.status === "trialing"
+                          ? "Trial ends"
+                          : sub.status === "pending_trial"
+                            ? "Trial starts"
+                            : "Renews"}
                   </p>
                   <p className="mt-1 text-[15px] font-semibold text-slate-900">
                     {leftover

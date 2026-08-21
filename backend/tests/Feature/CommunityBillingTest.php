@@ -630,4 +630,75 @@ class CommunityBillingTest extends TestCase
             ->assertJsonPath('data.trial_period_days', 0)
             ->assertJsonPath('data.subscription.trial_consumed', true);
     }
+
+    public function test_subscription_deleted_webhook_cancels_active_subscription_even_with_stale_ignore_flag(): void
+    {
+        config(['billing.stripe.webhook_secret' => '']);
+
+        $community = $this->seedCommunity();
+        CommunitySubscription::query()->create([
+            'community_id' => $community->id,
+            'plan_slug' => 'starter',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_TRIALING,
+            'seat_limit' => 50,
+            'stripe_subscription_id' => 'sub_cancel_test',
+            'meta' => [
+                'card_on_file' => true,
+                'ignore_subscription_deleted' => true,
+            ],
+        ]);
+
+        $payload = json_encode([
+            'type' => 'customer.subscription.deleted',
+            'data' => [
+                'object' => [
+                    'id' => 'sub_cancel_test',
+                    'status' => 'canceled',
+                ],
+            ],
+        ]);
+
+        app(CommunityBillingService::class)->handleWebhook($payload, null);
+
+        $subscription = CommunitySubscription::query()->where('community_id', $community->id)->first();
+        $this->assertSame(CommunitySubscription::STATUS_CANCELED, $subscription?->status);
+        $this->assertNotNull($subscription?->canceled_at);
+        $this->assertFalse((bool) $subscription?->cancel_at_period_end);
+    }
+
+    public function test_subscription_deleted_webhook_is_ignored_while_pending_trial(): void
+    {
+        config(['billing.stripe.webhook_secret' => '']);
+
+        $community = $this->seedCommunity();
+        CommunitySubscription::query()->create([
+            'community_id' => $community->id,
+            'plan_slug' => 'starter',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_PENDING_TRIAL,
+            'seat_limit' => 50,
+            'stripe_subscription_id' => 'sub_deferred_checkout',
+            'meta' => [
+                'card_on_file' => true,
+                'ignore_subscription_deleted' => true,
+            ],
+        ]);
+
+        $payload = json_encode([
+            'type' => 'customer.subscription.deleted',
+            'data' => [
+                'object' => [
+                    'id' => 'sub_deferred_checkout',
+                    'status' => 'canceled',
+                ],
+            ],
+        ]);
+
+        app(CommunityBillingService::class)->handleWebhook($payload, null);
+
+        $subscription = CommunitySubscription::query()->where('community_id', $community->id)->first();
+        $this->assertSame(CommunitySubscription::STATUS_PENDING_TRIAL, $subscription?->status);
+        $this->assertNull($subscription?->canceled_at);
+    }
 }

@@ -5,6 +5,13 @@ export type ReferralRewardType = "percent" | "fixed";
 export interface ReferralAttributionRow {
   id: number;
   status: string;
+  display_status?:
+    | "rewarded"
+    | "disqualified"
+    | "payout_failed"
+    | "payout_pending"
+    | "awaiting_payment"
+    | "signed_up";
   reward_type?: ReferralRewardType;
   reward_percent: number;
   reward_fixed_cents?: number | null;
