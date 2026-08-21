@@ -1,6 +1,6 @@
 {
   "name": "havena-app",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "version": "1.0.0",
   "scripts": {
     "start": "expo start --lan",
@@ -22,10 +22,11 @@
     "test:validation": "node scripts/test-form-validation.mjs"
   },
   "dependencies": {
-    "app-locale": "file:./modules/app-locale",
     "@expo-google-fonts/inter": "^0.4.2",
+    "@expo-google-fonts/noto-sans-arabic": "^0.4.3",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-community/datetimepicker": "9.1.0",
+    "app-locale": "file:./modules/app-locale",
     "expo": "~56.0.17",
     "expo-camera": "~56.0.8",
     "expo-clipboard": "~56.0.4",

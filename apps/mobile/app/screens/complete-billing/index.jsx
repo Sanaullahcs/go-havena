@@ -143,26 +143,44 @@ export default function CompleteBillingScreen() {
       // Still open the portal — they'll sign in with the same phone number.
     }
 
+    // Expo Go / LAN: openAuthSessionAsync often fails on plain http:// URLs.
+    // Prefer the system browser so billing can load on the phone.
     try {
-      await WebBrowser.openAuthSessionAsync(url, returnUrl, {
-        showInRecents: true,
-        createTask: false,
-      });
-    } catch {
-      try {
-        await WebBrowser.openBrowserAsync(url, {
+      const isPlainHttp = /^http:\/\//i.test(url);
+      if (isPlainHttp || __DEV__) {
+        const canOpen = await Linking.canOpenURL(url);
+        if (canOpen) {
+          await Linking.openURL(url);
+        } else {
+          await WebBrowser.openBrowserAsync(url, {
+            showInRecents: true,
+            createTask: true,
+          });
+        }
+      } else {
+        const result = await WebBrowser.openAuthSessionAsync(url, returnUrl, {
           showInRecents: true,
           createTask: false,
         });
+        if (result?.type === "cancel" || result?.type === "dismiss") {
+          // User closed the sheet — still refresh in case they finished checkout.
+        }
+      }
+    } catch (err) {
+      try {
+        await Linking.openURL(url);
       } catch {
         try {
-          await Linking.openURL(url);
+          await WebBrowser.openBrowserAsync(url, {
+            showInRecents: true,
+            createTask: true,
+          });
         } catch {
           await dialog.showError(
             t("common.error", { defaultValue: "Error" }),
             t("billing.cannotOpenBrowser", {
               defaultValue: "Could not open the admin portal. Try again or use a desktop browser.",
-            }),
+            }) + `\n\n${url}`,
           );
         }
       }

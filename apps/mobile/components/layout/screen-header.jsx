@@ -114,24 +114,26 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: Fonts.bold,
     fontSize: sf(17),
-    lineHeight: sf(22),
+    lineHeight: sf(26),
     fontWeight: "700",
     color: "#101828",
-    letterSpacing: -0.2,
+    letterSpacing: 0,
+    includeFontPadding: true,
   },
   subtitle: {
     fontFamily: Fonts.regular,
     fontSize: sf(12),
-    lineHeight: sf(16),
+    lineHeight: sf(18),
     color: "#6B7280",
     marginTop: sw(2),
+    includeFontPadding: true,
   },
   titleCompact: {
     fontSize: sf(15),
-    lineHeight: sf(20),
+    lineHeight: sf(24),
   },
   subtitleCompact: {
     fontSize: sf(11),
-    lineHeight: sf(14),
+    lineHeight: sf(17),
   },
 });

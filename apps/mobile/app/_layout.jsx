@@ -12,12 +12,6 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "../global.css";
 import "../nativewind-interop";
 import "react-native-reanimated";
-import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-} from "@expo-google-fonts/inter";
 
 import { AppDialogProvider } from "../providers/app-dialog-provider";
 import { ImageSourcePickerProvider } from "../providers/image-source-picker-provider";
@@ -37,25 +31,50 @@ import {
 } from "../components/layout/system-chrome";
 import { registerScreenChrome } from "../components/layout/chrome-manager";
 import BootSplash from "../components/layout/boot-splash";
+import { fontMapForLanguage } from "../constants/font-map";
+import { getSavedLanguage } from "../i18n";
+import { setArabicTextMetricsEnabled } from "../utils/arabic-text-metrics";
+import { isArabicLanguage } from "../constants/font";
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
+  const [bootLang, setBootLang] = useState(null);
 
-  // Font family keys mirror constants/font.js so every screen renders Inter.
-  const [fontsLoaded, fontError] = useFonts({
-    "Inter-Regular": Inter_400Regular,
-    "Inter-Medium": Inter_500Medium,
-    "Inter-SemiBold": Inter_600SemiBold,
-    "Inter-Bold": Inter_700Bold,
-  });
+  // Resolve language before fonts so Arabic loads Noto under the Inter-* keys.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const saved = await getSavedLanguage();
+        if (!cancelled) {
+          const lng = saved || "en";
+          setBootLang(lng);
+          setArabicTextMetricsEnabled(isArabicLanguage(lng));
+        }
+      } catch {
+        if (!cancelled) {
+          setBootLang("en");
+          setArabicTextMetricsEnabled(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const [fontsLoaded, fontError] = useFonts(
+    bootLang ? fontMapForLanguage(bootLang) : {},
+  );
 
   useEffect(() => {
     applySplashChrome();
   }, []);
 
   useEffect(() => {
+    if (!bootLang) return;
     if (!fontsLoaded && !fontError) {
       return;
     }
@@ -64,7 +83,7 @@ export default function RootLayout() {
     SplashScreen.hideAsync()
       .catch(() => {})
       .finally(() => setReady(true));
-  }, [fontsLoaded, fontError]);
+  }, [bootLang, fontsLoaded, fontError]);
 
   // Never block forever on fonts — hide splash after 3s even if fonts lag.
   useEffect(() => {

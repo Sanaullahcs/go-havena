@@ -14,6 +14,8 @@ class DatabaseSeeder extends Seeder
             DevPhoneSeeder::class,
             MobileTestAccountsSeeder::class,
             FeedEngagementSeeder::class,
+            // Rich presentation demo (notices/events/feed/listings with /storage/seed images).
+            DemoContentSeeder::class,
         ]);
     }
 }

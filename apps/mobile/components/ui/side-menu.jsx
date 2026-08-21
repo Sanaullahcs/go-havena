@@ -83,7 +83,7 @@ const MenuItem = ({
       <View style={styles.menuItemLabel}>
         <Text
           style={[styles.menuItemText, isActive && styles.menuItemTextActive]}
-          numberOfLines={1}
+          numberOfLines={2}
         >
           {title}
         </Text>
@@ -408,16 +408,16 @@ function SideMenuPanel({ visible, onClose }) {
                   activeOpacity={0.8}
                   onPress={openProfile}
                 >
-                  <Text style={styles.profileName} numberOfLines={1}>
+                  <Text style={styles.profileName} numberOfLines={2}>
                     {isNewProfile ? t("nav.welcome") : profile.displayName}
                   </Text>
-                  <Text style={styles.profileAddress} numberOfLines={1}>
+                  <Text style={styles.profileAddress} numberOfLines={2}>
                     {profile.unitNumber
                       ? `${profile.communityName} · ${t("nav.unit", { number: profile.unitNumber })}`
                       : profile.communityName}
                   </Text>
                   {!isNewProfile ? (
-                    <Text style={styles.profileRole} numberOfLines={1}>
+                    <Text style={styles.profileRole} numberOfLines={2}>
                       {t(roleLabelKey)}
                     </Text>
                   ) : null}
@@ -626,13 +626,17 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
     color: "#0F172A",
-    lineHeight: 22,
+    lineHeight: 26,
+    flexShrink: 1,
+    includeFontPadding: true,
   },
   brandSubtitle: {
     fontFamily: Fonts.regular,
     fontSize: 11,
     color: "#64748B",
-    lineHeight: 14,
+    lineHeight: 18,
+    flexShrink: 1,
+    includeFontPadding: true,
   },
   closeBtn: {
     width: sw(36),
@@ -670,15 +674,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#0F172A",
-    lineHeight: 18,
+    lineHeight: 22,
+    flexShrink: 1,
+    includeFontPadding: true,
   },
   profileAddress: {
     fontFamily: Fonts.medium,
     fontSize: 11,
     color: "#64748B",
     fontWeight: "500",
-    lineHeight: 15,
+    lineHeight: 18,
     marginTop: 2,
+    flexShrink: 1,
+    includeFontPadding: true,
   },
   profileRole: {
     marginTop: 2,
@@ -686,9 +694,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#0A2A43",
     fontWeight: "600",
-    lineHeight: 14,
+    lineHeight: 16,
     textTransform: "uppercase",
-    letterSpacing: 0.4,
+    letterSpacing: 0,
+    flexShrink: 1,
+    includeFontPadding: true,
   },
   addPhotoHint: {
     marginTop: 4,
@@ -810,11 +820,12 @@ const styles = StyleSheet.create({
   menuItemText: {
     fontFamily: Fonts.semiBold,
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 22,
     fontWeight: "600",
     color: "#334155",
-    includeFontPadding: false,
+    includeFontPadding: true,
     textAlignVertical: "center",
+    flexShrink: 1,
   },
   menuItemTextActive: {
     color: "#FFFFFF",

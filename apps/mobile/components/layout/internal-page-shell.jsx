@@ -57,12 +57,12 @@ const sectionStyles = StyleSheet.create({
   label: {
     fontFamily: Fonts.bold,
     fontSize: sf(11),
-    lineHeight: sf(14),
-    letterSpacing: 0.8,
+    lineHeight: sf(17),
+    letterSpacing: 0,
     textTransform: "uppercase",
     color: "#6A7282",
     fontWeight: "700",
     marginBottom: sw(8),
-    includeFontPadding: false,
+    includeFontPadding: true,
   },
 });

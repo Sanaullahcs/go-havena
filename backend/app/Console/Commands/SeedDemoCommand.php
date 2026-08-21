@@ -53,21 +53,27 @@ class SeedDemoCommand extends Command
 
         if (PHP_OS_FAMILY === 'Windows') {
             $psScript = base_path('scripts/generate-seed-images.ps1');
-            if (! is_file($psScript)) {
-                $this->error('Missing scripts/generate-seed-images.ps1');
+            $phpScript = base_path('scripts/generate-seed-images.php');
+            if (is_file($psScript)) {
+                $forceArg = $force ? ' -Force' : '';
+                passthru(
+                    'powershell -NoProfile -ExecutionPolicy Bypass -File '
+                    .escapeshellarg($psScript)
+                    .$forceArg,
+                    $code,
+                );
 
-                return self::FAILURE;
+                return $code;
             }
+            if (is_file($phpScript)) {
+                $args = escapeshellarg($phpScript).($force ? ' --force' : '');
+                passthru(PHP_BINARY.' '.$args, $code);
 
-            $forceArg = $force ? ' -Force' : '';
-            passthru(
-                'powershell -NoProfile -ExecutionPolicy Bypass -File '
-                .escapeshellarg($psScript)
-                .$forceArg,
-                $code,
-            );
+                return $code;
+            }
+            $this->error('Missing scripts/generate-seed-images.ps1 (or .php)');
 
-            return $code;
+            return self::FAILURE;
         }
 
         $script = base_path('scripts/generate-seed-images.php');

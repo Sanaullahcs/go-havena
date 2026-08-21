@@ -13,7 +13,7 @@ class OtpService
 
     public function send(string $phone): void
     {
-        $code = app()->environment('local', 'testing', 'uat') ? self::DEV_CODE : (string) random_int(100000, 999999);
+        $code = $this->issueCode();
 
         PhoneOtp::query()->where('phone', $phone)->delete();
 
@@ -21,10 +21,11 @@ class OtpService
             'phone' => $phone,
             'code_hash' => self::hashCode($code),
             'attempts' => 0,
-            'expires_at' => now()->addMinutes(self::EXPIRE_MINUTES),
+            'expires_at' => now()->addMinutes($this->expireMinutes()),
         ]);
 
-        if (app()->environment('local', 'testing', 'uat')) {
+        // No SMS provider yet — always log when using a fixed/demo code so ops can recover.
+        if ($this->usesFixedCode()) {
             Log::info('Havena OTP', ['phone' => $phone, 'code' => $code]);
         }
     }
@@ -53,7 +54,8 @@ class OtpService
             return false;
         }
 
-        if (app()->environment('local', 'testing', 'uat') && $code === self::DEV_CODE) {
+        $fixed = $this->fixedCode();
+        if ($fixed !== null && $code === $fixed) {
             return true;
         }
 
@@ -78,6 +80,43 @@ class OtpService
             ->where('phone', $phone)
             ->where('expires_at', '>', now())
             ->update(['expires_at' => now()->addMinutes($minutes)]);
+    }
+
+    private function issueCode(): string
+    {
+        $fixed = $this->fixedCode();
+
+        return $fixed ?? (string) random_int(100000, 999999);
+    }
+
+    private function usesFixedCode(): bool
+    {
+        return $this->fixedCode() !== null;
+    }
+
+    /**
+     * Fixed demo code when OTP_FIXED_CODE is set, or on local/testing/uat.
+     * Production with no SMS must set OTP_FIXED_CODE explicitly.
+     */
+    private function fixedCode(): ?string
+    {
+        $configured = trim((string) config('otp.fixed_code', ''));
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        if (app()->environment('local', 'testing', 'uat', 'staging')) {
+            return self::DEV_CODE;
+        }
+
+        return null;
+    }
+
+    private function expireMinutes(): int
+    {
+        $minutes = (int) config('otp.expire_minutes', self::EXPIRE_MINUTES);
+
+        return $minutes > 0 ? $minutes : self::EXPIRE_MINUTES;
     }
 
     /** Short-lived OTP codes use HMAC (not bcrypt) for fast send/verify. */

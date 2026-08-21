@@ -5,6 +5,7 @@ import * as SecureStore from "expo-secure-store";
 import i18n, { initI18n, saveLanguage, SUPPORTED } from "../i18n";
 import { Colors } from "../constants/tokens";
 import { setNativeAppLocale } from "../utils/native-app-locale";
+import { setArabicTextMetricsEnabled } from "../utils/arabic-text-metrics";
 
 const LanguageContext = createContext({
   language: "en",
@@ -25,9 +26,10 @@ function languageNeedsRTL(lng) {
 }
 
 /**
- * Layout stays LTR app-wide (no I18nManager.forceRTL) so screens are not
- * double-mirrored. Arabic RTL for typing is handled by LocaleTextInput
- * (writingDirection + textAlign) and icon helpers in utils/rtl.js.
+ * Layout stays LTR app-wide (no I18nManager.forceRTL / no root `direction:'rtl'`)
+ * so screens are not mirrored. Arabic uses Noto Sans Arabic (loaded under Inter-*
+ * keys) plus LocaleTextInput writingDirection for typing. Text clip fixes run from
+ * index.js / setArabicTextMetricsEnabled so Noto glyphs are not cropped on top.
  *
  * I18nManager.forceRTL must stay false. If a previous build left native
  * isRTL=true, clear it once with forceRTL(false) + reload.
@@ -66,6 +68,8 @@ export default function LanguageProvider({ children }) {
 
         setLanguage(lng);
         setIsRTL(languageNeedsRTL(lng));
+        // Noto Arabic needs looser line metrics than Inter — avoid top clipping.
+        setArabicTextMetricsEnabled(languageNeedsRTL(lng));
         // Sync OS app-locale so soft keyboards match (Arabic → Arabic keyboard).
         setNativeAppLocale(lng);
       } catch (err) {
@@ -87,6 +91,7 @@ export default function LanguageProvider({ children }) {
     await i18n.changeLanguage(lng);
     setLanguage(lng);
     setIsRTL(languageNeedsRTL(lng));
+    setArabicTextMetricsEnabled(languageNeedsRTL(lng));
 
     const applied = setNativeAppLocale(lng);
     if (!applied && __DEV__) {
@@ -94,11 +99,11 @@ export default function LanguageProvider({ children }) {
         "[LanguageProvider] Keyboard locale module missing. Expo Go cannot switch keyboards — rebuild with `npx expo run:android` or `npx expo run:ios`.",
       );
     }
-    // Android: recreate so application locales + IME pick up the new language.
-    // iOS: reload applies AppleLanguages preference (keyboard still user-controlled).
-    if (applied && Platform.OS !== "web") {
+    // Reload so root fonts remap Inter-* → Noto for Arabic (and back for EN/ES),
+    // and so soft-keyboard locale preferences apply.
+    if (Platform.OS !== "web") {
       try {
-        await reloadAppAsync("Apply keyboard language");
+        await reloadAppAsync("Apply language fonts and keyboard");
       } catch {
         // Expo Go / reload unavailable
       }

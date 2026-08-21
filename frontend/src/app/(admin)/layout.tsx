@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useLayoutEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AuthShellSkeleton, AdminOnboardingShellSkeleton } from "@/components/shared/loaders";
 import {
@@ -103,16 +103,32 @@ function readCachedAdminShell(): {
   return { checked: false, onboardingOnly: false };
 }
 
+function isBillingOrOnboardingPath(pathname: string) {
+  return (
+    isOnboardingPath(pathname) ||
+    pathname === "/admin/billing" ||
+    pathname.startsWith("/admin/billing/")
+  );
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [checked, setChecked] = useState(() => readCachedAdminShell().checked);
+  // Always start unchecked so SSR HTML matches the first client render (no localStorage on server).
+  const [checked, setChecked] = useState(false);
   const [accessBlocked, setAccessBlocked] = useState<string | null>(null);
   const [accessBlockedTitle, setAccessBlockedTitle] = useState("Access unavailable");
-  const [onboardingOnly, setOnboardingOnly] = useState(
-    () => readCachedAdminShell().onboardingOnly,
-  );
+  const [onboardingOnly, setOnboardingOnly] = useState(false);
+
+  // Apply cached session before paint so onboarding admins skip the dashboard skeleton flash.
+  useLayoutEffect(() => {
+    const cached = readCachedAdminShell();
+    if (cached.checked) {
+      setChecked(true);
+      setOnboardingOnly(cached.onboardingOnly);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -225,8 +241,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [pathname]);
 
   if (!checked) {
-    const user = getUser();
-    if (getToken() && isCommunityAdminOnboarding(user)) {
+    // Pathname-only choice keeps SSR and first client paint identical (no localStorage).
+    if (isBillingOrOnboardingPath(pathname)) {
       return <AdminOnboardingShellSkeleton />;
     }
     return <AuthShellSkeleton />;

@@ -272,25 +272,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-around",
-    paddingTop: sw(6),
+    paddingTop: sw(8),
   },
   tab: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: sw(4),
+    paddingVertical: sw(5),
   },
   label: {
     marginTop: sw(2),
     fontFamily: Fonts.medium,
     fontSize: LABEL_SIZE,
-    lineHeight: sf(12),
+    // Noto Arabic clips with Inter-tuned 12px LH on small phones.
+    lineHeight: sf(15),
     color: INACTIVE,
     fontWeight: "500",
     textAlign: "center",
-    ...Platform.select({
-      android: { includeFontPadding: false },
-    }),
+    includeFontPadding: true,
   },
   labelActive: {
     color: ACTIVE,
@@ -334,12 +333,10 @@ const styles = StyleSheet.create({
     marginTop: sw(4),
     fontFamily: Fonts.bold,
     fontSize: LABEL_SIZE,
-    lineHeight: sf(12),
+    lineHeight: sf(15),
     color: T.teal,
     fontWeight: "700",
     textAlign: "center",
-    ...Platform.select({
-      android: { includeFontPadding: false },
-    }),
+    includeFontPadding: true,
   },
 });
