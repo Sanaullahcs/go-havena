@@ -9,7 +9,6 @@ import {
   Gift,
   Percent,
   ShieldAlert,
-  Sparkles,
   Users,
   Wallet,
   XCircle,
@@ -355,7 +354,7 @@ export default function ReferralsAdminPage() {
               : "border-slate-200 bg-slate-100 text-slate-600",
           ].join(" ")}
         >
-          <Sparkles className="h-3.5 w-3.5" />
+          <Gift className="h-3.5 w-3.5" />
           {settings.is_active ? "Program active" : "Program paused"}
         </div>
       </div>

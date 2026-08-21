@@ -168,7 +168,7 @@ export default function CreateDeal() {
       <SafeAreaView style={styles.container} edges={["left", "right"]}>
         <InternalScreenHeader title={isEdit ? t("deals.editDeal") : t("deals.createDeal")} subtitle={t("common.loading")} />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator size="large" color="#0A2A43" />
+          <ActivityIndicator size="large" color="#1B4F8A" />
         </View>
       </SafeAreaView>
     );
@@ -355,7 +355,7 @@ export default function CreateDeal() {
           <Ionicons
             name="calendar-outline"
             size={16}
-            color={validUntilDate ? "#0A2A43" : "#9CA3AF"}
+            color={validUntilDate ? "#1B4F8A" : "#9CA3AF"}
           />
           <Text style={[styles.datePickerText, validUntilDate && styles.datePickerTextFilled]}>
             {formatDisplayDate(validUntilDate) || t("deals.selectExpiryDate")}
@@ -694,7 +694,7 @@ const styles = StyleSheet.create({
   dateModalDone: {
     fontFamily: Fonts.bold,
     fontSize: 15,
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   businessPill: {
     marginTop: 8,
@@ -716,7 +716,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: Fonts.medium,
     fontSize: MarketplaceType.caption,
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   pendingBadge: {
     borderRadius: 999,

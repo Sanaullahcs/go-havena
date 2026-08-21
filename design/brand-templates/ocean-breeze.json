@@ -5,10 +5,10 @@
   "status": "partial",
   "applied": true,
   "appliedScope": ["login", "signup", "home"],
-  "screenPrimary": "#0A2A43",
+  "screenPrimary": "#1B4F8A",
   "allowGradients": false,
   "swatches": {
-    "deepNavy": "#0A2A43",
+    "deepNavy": "#1B4F8A",
     "deepTeal": "#0D9488",
     "primaryTeal": "#14B8A6",
     "softMint": "#D1FAF5",
@@ -16,18 +16,18 @@
   },
   "neutrals": {
     "white": "#FFFFFF",
-    "darkText": "#0A2A43",
+    "darkText": "#1B4F8A",
     "mediumGray": "#6B7280",
     "border": "#E5E7EB"
   },
   "semantic": {
-    "textPrimary": "#0A2A43",
+    "textPrimary": "#1B4F8A",
     "textSecondary": "#6B7280",
     "textOnDark": "#FFFFFF",
     "pageBackground": "#F4F8FD",
     "cardBackground": "#FFFFFF",
     "softSurface": "#D1FAF5",
-    "heroFill": "#0A2A43",
+    "heroFill": "#1B4F8A",
     "ctaFill": "#14B8A6",
     "navActive": "#14B8A6",
     "navInactive": "#6B7280",
@@ -44,7 +44,7 @@
   },
   "components": {
     "heroCard": {
-      "background": "#0A2A43",
+      "background": "#1B4F8A",
       "title": "#FFFFFF",
       "accentWord": "#14B8A6",
       "ctaBackground": "#14B8A6",
@@ -62,7 +62,7 @@
     "iconTile": {
       "background": "#FFFFFF",
       "border": "#E5E7EB",
-      "icon": "#0A2A43",
+      "icon": "#1B4F8A",
       "iconWell": "#D1FAF5"
     }
   },

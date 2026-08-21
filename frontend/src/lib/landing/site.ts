@@ -19,30 +19,20 @@ export type NavItem = {
   badge?: string;
 };
 
-export const primaryNav: NavItem[] = [
-  { label: "Platform", sectionId: "platform" },
-  { label: "Pricing", sectionId: "pricing" },
-  { label: "How it works", sectionId: "how-it-works" },
-  { label: "FAQ", sectionId: "faq" },
-];
+export const primaryNav: NavItem[] = [];
 
 export const footerColumns: { title: string; links: NavItem[] }[] = [
   {
     title: "Product",
     links: [
-      { label: "Platform", sectionId: "platform" },
-      { label: "Pricing", sectionId: "pricing" },
-      { label: "Features", sectionId: "features" },
-      { label: "How it works", sectionId: "how-it-works" },
+      { label: "Plans", href: "/plans" },
+      { label: "Admin sign in", href: "/login" },
+      { label: "Admin sign up", href: "/register" },
     ],
   },
   {
     title: "Company",
     links: [
-      { label: "FAQ", sectionId: "faq" },
-      { label: "Contact", sectionId: "contact" },
-      { label: "Admin sign in", href: "/login" },
-      { label: "Admin sign up", href: "/register" },
       { label: "Resident portal", href: "/resident-login" },
     ],
   },
@@ -69,7 +59,7 @@ export const actionLinks = {
   residentLogin: "/resident-login",
   home: "/home",
   profile: "/profile",
-  pricing: "/#pricing",
+  pricing: "/plans",
 } as const;
 
 /** Neighborhood atmosphere — place first, not empty luxury staging. */

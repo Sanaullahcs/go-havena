@@ -28,7 +28,7 @@ export const POST_TYPE_THEMES = {
   Recommendations: { bg: "#F3E8FF", text: "#7C3AED", border: "#DDD6FE" },
   Events: { bg: "#FFF7ED", text: "#C2410C", border: "#FED7AA" },
   Help: { bg: "#ECFDF5", text: "#047857", border: "#A7F3D0" },
-  Neighborhood: { bg: "#D1FAF5", text: "#0A2A43", border: "rgba(20, 184, 166, 0.28)" },
+  Neighborhood: { bg: "#D1FAF5", text: "#1B4F8A", border: "rgba(20, 184, 166, 0.28)" },
   Announcements: { bg: "#FEF3C7", text: "#B45309", border: "#FDE68A" },
 };
 

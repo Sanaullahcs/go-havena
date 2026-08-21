@@ -45,7 +45,7 @@ export default function NoticeCoverImageField({
       >
         {uploading ? (
           <View style={styles.uploadingWrap}>
-            <ActivityIndicator color="#0A2A43" />
+            <ActivityIndicator color="#1B4F8A" />
             <Text style={styles.uploadingText}>{t("common.uploadingImage")}</Text>
           </View>
         ) : value?.uri ? (
@@ -59,7 +59,7 @@ export default function NoticeCoverImageField({
         ) : (
           <View style={styles.placeholder}>
             <View style={styles.iconCircle}>
-              <Ionicons name="image-outline" size={22} color="#0A2A43" />
+              <Ionicons name="image-outline" size={22} color="#1B4F8A" />
             </View>
             <Text style={styles.placeholderTitle}>{t("notices.addCoverImage")}</Text>
             <Text style={styles.placeholderSub}>{t("notices.tapToChoose")}</Text>

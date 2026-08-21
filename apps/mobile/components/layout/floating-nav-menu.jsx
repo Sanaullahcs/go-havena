@@ -9,10 +9,12 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useSegments, usePathname } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
+import { Colors } from "../../constants/tokens";
 import { sw, sf } from "../../utils/responsive";
 import { getUser } from "../../services/auth-session";
 import { isGuestUser } from "../../services/community-access";
@@ -21,7 +23,8 @@ import { navigateAppRoute } from "../../utils/app-navigation";
 import { useKeyboardVisible } from "./keyboard-safe-screen";
 import { shouldHideTabBar } from "../../constants/tab-bar-visibility";
 
-const ACTIVE = T.teal;
+const BRAND = Colors.brandPrimary;
+const ACTIVE = BRAND;
 const INACTIVE = T.gray;
 const ICON_SIZE = sf(22);
 const LABEL_SIZE = sf(9);
@@ -239,10 +242,17 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
           accessibilityLabel={t("nav.create")}
         >
           <View style={styles.fabShell}>
+            <View style={styles.fabHalo} />
             <View style={styles.fabRing}>
-              <View style={styles.fab}>
+              <LinearGradient
+                colors={[BRAND, "#163A66"]}
+                start={{ x: 0.15, y: 0 }}
+                end={{ x: 0.9, y: 1 }}
+                style={styles.fab}
+              >
+                <View style={styles.fabSheen} />
                 <Ionicons name="add" size={sf(28)} color={T.white} />
-              </View>
+              </LinearGradient>
             </View>
           </View>
           <Text style={styles.fabLabel}>{t("nav.create")}</Text>
@@ -304,37 +314,54 @@ const styles = StyleSheet.create({
     paddingBottom: sw(2),
   },
   fabShell: {
+    alignItems: "center",
+    justifyContent: "center",
     ...Platform.select({
       ios: {
-        shadowColor: T.teal,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.28,
-        shadowRadius: 14,
+        shadowColor: BRAND,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.32,
+        shadowRadius: 16,
       },
-      android: { elevation: 8 },
+      android: { elevation: 10 },
     }),
+  },
+  fabHalo: {
+    position: "absolute",
+    width: sw(62),
+    height: sw(62),
+    borderRadius: sw(20),
+    backgroundColor: "rgba(27, 79, 138, 0.14)",
   },
   fabRing: {
     padding: sw(3),
-    borderRadius: sw(26),
-    backgroundColor: T.mint,
+    borderRadius: sw(18),
+    backgroundColor: "#E8F0F7",
     borderWidth: 2,
     borderColor: T.white,
   },
   fab: {
-    width: sw(46),
-    height: sw(46),
-    borderRadius: sw(23),
-    backgroundColor: T.teal,
+    width: sw(48),
+    height: sw(48),
+    borderRadius: sw(15),
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  fabSheen: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "42%",
+    backgroundColor: "rgba(255,255,255,0.16)",
   },
   fabLabel: {
     marginTop: sw(4),
     fontFamily: Fonts.bold,
     fontSize: LABEL_SIZE,
     lineHeight: sf(15),
-    color: T.teal,
+    color: BRAND,
     fontWeight: "700",
     textAlign: "center",
     includeFontPadding: true,

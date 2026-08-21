@@ -13,7 +13,7 @@ import {
 } from "@/lib/api/billing";
 import { canAccessCommunityDashboard, getToken, getUser } from "@/lib/auth/session";
 
-export function Pricing() {
+export function Pricing({ hideIntro = false }: { hideIntro?: boolean }) {
   const router = useRouter();
   const [interval, setInterval] = useState<BillingInterval>("month");
   /** null until client session is read — avoids SSR guessing. */
@@ -75,13 +75,17 @@ export function Pricing() {
   return (
     <section id="pricing" className="lp-section lp-pricing scroll-mt-28">
       <Container size="xl">
-        <div className="lp-pricing__head">
-          <p className="lp-label">Subscriptions</p>
-          <h2 className="lp-title">One plan for the whole community</h2>
-          <p className="lp-body lp-pricing__lede">
-            Community admins pay for seats. Residents never pay Havena — you invite them into your
-            seat pool.
-          </p>
+        <div className={hideIntro ? "lp-pricing__head lp-pricing__head--compact" : "lp-pricing__head"}>
+          {hideIntro ? null : (
+            <>
+              <p className="lp-label">Subscriptions</p>
+              <h2 className="lp-title">One plan for the whole community</h2>
+              <p className="lp-body lp-pricing__lede">
+                Community admins pay for seats. Residents never pay Havena — you invite them into your
+                seat pool.
+              </p>
+            </>
+          )}
 
           <div className="lp-pricing__toggle" role="group" aria-label="Billing interval">
             <button
@@ -148,15 +152,16 @@ export function Pricing() {
                     {formatPlanPrice(price)}
                     <span>/{interval === "year" ? "year" : "month"}</span>
                   </p>
+                  {plan.trialDays > 0 ? (
+                    <p className="lp-pricing__trial">First {plan.trialDays} days on us — billed after</p>
+                  ) : (
+                    <p className="lp-pricing__trial">Billed from day one after approval</p>
+                  )}
                   <p className="lp-pricing__seats">{plan.seatLimit} resident seats</p>
                   <ul className="lp-pricing__features">
-                    <li>
-                      {plan.trialDays > 0
-                        ? `${plan.trialDays}-day free trial`
-                        : "Billed from day one"}
-                    </li>
                     <li>Admin dashboard & member invites</li>
                     <li>Notices, events, and alerts</li>
+                    <li>Amenities, feed, and wellness</li>
                     <li>Residents join free via invite</li>
                   </ul>
                   <Button

@@ -33,6 +33,7 @@ import {
 } from "@/lib/admin/datetime-local";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
+import { Check, Plus, TicketPlus, X } from "lucide-react";
 
 type StatusFilter = "all" | "active" | "inactive";
 
@@ -173,10 +174,10 @@ export default function BillingCouponsPage() {
 
       if (editing) {
         await updateSubscriptionCoupon(editing.id, payload);
-        toastSuccess("Coupon updated. Existing redemptions keep their original terms.");
+        toastSuccess("Coupon updated", "Existing redemptions keep their original terms.");
       } else {
         await createSubscriptionCoupon(payload);
-        toastSuccess("Coupon created.");
+        toastSuccess("Coupon created", "Community admins can apply this code at checkout.");
       }
 
       setModalOpen(false);
@@ -208,7 +209,10 @@ export default function BillingCouponsPage() {
 
     try {
       await setSubscriptionCouponStatus(coupon.id, next);
-      toastSuccess(next ? "Coupon activated." : "Coupon deactivated.");
+      toastSuccess(
+        next ? "Coupon activated" : "Coupon deactivated",
+        next ? "This code is live for community checkout." : "New redemptions are blocked. Existing discounts stay.",
+      );
       load(true);
     } catch (err) {
       toastError(apiError(err));
@@ -240,11 +244,8 @@ export default function BillingCouponsPage() {
             Editing a coupon only affects future redemptions.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="inline-flex h-10 items-center justify-center rounded-xl bg-teal-600 px-4 text-sm font-semibold text-white hover:bg-teal-700"
-        >
+        <button type="button" onClick={openCreate} className="nl-btn-primary">
+          <Plus />
           New coupon
         </button>
       </header>
@@ -561,6 +562,7 @@ export default function BillingCouponsPage() {
 
             <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
               <button type="button" className="nl-btn-secondary" onClick={() => setModalOpen(false)}>
+                <X />
                 Cancel
               </button>
               <button
@@ -569,6 +571,7 @@ export default function BillingCouponsPage() {
                 disabled={submitting || !canSubmitForm}
                 onClick={() => void handleSave()}
               >
+                {editing ? <Check /> : <TicketPlus />}
                 {submitting ? "Saving…" : editing ? "Save changes" : "Create coupon"}
               </button>
             </div>

@@ -12,17 +12,17 @@ module.exports = {
         brand: {
           DEFAULT: "#14B8A6",
           primary: "#14B8A6",
-          deep: "#0A2A43",
+          deep: "#1B4F8A",
           darkTeal: "#0D9488",
           turquoise: "#0D9488",
           green: "#0D9488",
           mint: "#D1FAF5",
         },
         ink: {
-          DEFAULT: "#0A2A43",
-          primary: "#0A2A43",
+          DEFAULT: "#1B4F8A",
+          primary: "#1B4F8A",
           secondary: "#6B7280",
-          body: "#0A2A43",
+          body: "#1B4F8A",
           muted: "#6B7280",
         },
         surface: {
@@ -36,7 +36,7 @@ module.exports = {
           card: "#E5E7EB",
         },
         hero: {
-          start: "#0A2A43",
+          start: "#1B4F8A",
           end: "#14B8A6",
         },
       },

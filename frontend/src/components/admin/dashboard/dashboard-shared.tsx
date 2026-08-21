@@ -146,13 +146,30 @@ export function DashboardHero({
   );
 }
 
-export function PendingAlertBanner({ children }: { children: ReactNode }) {
+export function PendingAlertBanner({
+  children,
+  href,
+  actionLabel = "Review now",
+}: {
+  children: ReactNode;
+  href?: string;
+  actionLabel?: string;
+}) {
   return (
     <div className="nl-pending-banner">
       <span className="nl-pending-banner-icon flex items-center justify-center" aria-hidden>
         <AlertTriangle className="h-4 w-4" strokeWidth={2.5} />
       </span>
       <div className="min-w-0 flex-1 text-[13px] leading-relaxed text-amber-950/90">{children}</div>
+      {href ? (
+        <Link
+          href={href}
+          className="inline-flex shrink-0 items-center gap-0.5 text-[12px] font-semibold text-amber-800 transition hover:text-amber-950"
+        >
+          {actionLabel}
+          <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.5} />
+        </Link>
+      ) : null}
     </div>
   );
 }

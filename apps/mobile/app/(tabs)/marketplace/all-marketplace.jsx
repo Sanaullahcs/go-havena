@@ -477,7 +477,7 @@ export default function ManageAllMarketplace() {
         </Text>
 
         {loading ? (
-          <ActivityIndicator size="large" color="#0A2A43" style={{ marginTop: 24 }} />
+          <ActivityIndicator size="large" color="#1B4F8A" style={{ marginTop: 24 }} />
         ) : listData.length === 0 ? (
           <Text style={styles.emptyText}>
             {activeTab === "businesses"

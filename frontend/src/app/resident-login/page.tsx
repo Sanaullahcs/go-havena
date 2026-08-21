@@ -56,13 +56,17 @@ export default function ResidentLoginPage() {
   return (
     <main className="flex h-screen flex-col overflow-hidden bg-[#f4f8fd]">
       {redirecting ? (
-        <AuthRedirectOverlay title="Opening your portal" subtitle="Loading your resident dashboard…" />
+        <AuthRedirectOverlay
+          variant="resident"
+          title="Opening your portal"
+          subtitle="Loading your resident dashboard…"
+        />
       ) : null}
       {/* Top header */}
       <header className="z-20 w-full shrink-0 border-b border-slate-200/70 bg-white">
         <div className="flex w-full items-center justify-between gap-4 px-5 py-3 sm:px-8">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0A2A43] text-white">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1B4F8A] text-white">
               <NbrLogoMark />
             </span>
             <div>
@@ -237,7 +241,7 @@ export default function ResidentLoginPage() {
       </div>
 
       <style>{`
-        .resident-auth-hero { background: #0A2A43; }
+        .resident-auth-hero { background: #1B4F8A; }
         .resident-auth-hero-pattern {
           pointer-events: none; opacity: 0.45;
           background-image: linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px);
@@ -264,7 +268,7 @@ export default function ResidentLoginPage() {
         .resident-header-cta {
           display: inline-flex; align-items: center; gap: 0.375rem; border-radius: 9999px;
           border: 1px solid rgba(13,148,136,0.25); background: #ccfbf1;
-          padding: 0.5rem 1rem; font-size: 0.8125rem; font-weight: 600; color: #0a2a43; transition: background 150ms;
+          padding: 0.5rem 1rem; font-size: 0.8125rem; font-weight: 600; color: #1B4F8A; transition: background 150ms;
         }
         .resident-header-cta:hover { background: #99f6e4; }
       `}</style>

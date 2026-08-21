@@ -22,7 +22,7 @@ function AchievementBadgeIcon({ icon, iconColor, iconBg, locked = false }) {
       <Ionicons
         name={icon ?? "trophy-outline"}
         size={sf(24)}
-        color={locked ? "rgba(74, 85, 101, 0.45)" : (iconColor ?? "#0A2A43")}
+        color={locked ? "rgba(74, 85, 101, 0.45)" : (iconColor ?? "#1B4F8A")}
       />
     </View>
   );

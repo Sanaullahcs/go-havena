@@ -10,7 +10,7 @@ const ICON_ASSETS = {
 const DEFAULT_VISUAL = {
   ionicon: "notifications-outline",
   assetKey: "reminder",
-  color: "#0A2A43",
+  color: "#1B4F8A",
   bg: "#D1FAF5",
 };
 
@@ -18,19 +18,19 @@ const KIND_VISUALS = {
   post_created: {
     ionicon: "newspaper-outline",
     assetKey: "reminder",
-    color: "#0A2A43",
+    color: "#1B4F8A",
     bg: "#D1FAF5",
   },
   post_comment: {
     ionicon: "chatbubbles-outline",
     assetKey: "comment",
-    color: "#0A2A43",
+    color: "#1B4F8A",
     bg: "#D1FAF5",
   },
   post_comment_reply: {
     ionicon: "return-down-forward-outline",
     assetKey: "comment",
-    color: "#0A2A43",
+    color: "#1B4F8A",
     bg: "#D1FAF5",
   },
   post_like: {
@@ -48,13 +48,13 @@ const KIND_VISUALS = {
   message: {
     ionicon: "chatbubble-ellipses-outline",
     assetKey: null,
-    color: "#0A2A43",
+    color: "#1B4F8A",
     bg: "#D1FAF5",
   },
   new_message: {
     ionicon: "chatbubble-ellipses-outline",
     assetKey: null,
-    color: "#0A2A43",
+    color: "#1B4F8A",
     bg: "#D1FAF5",
   },
   listing: {
@@ -66,7 +66,7 @@ const KIND_VISUALS = {
   neighbor: {
     ionicon: "chatbubble-outline",
     assetKey: null,
-    color: "#0A2A43",
+    color: "#1B4F8A",
     bg: "#D1FAF5",
   },
   community_request: {
@@ -84,7 +84,7 @@ const KIND_VISUALS = {
   test_push: {
     ionicon: "notifications-outline",
     assetKey: "reminder",
-    color: "#0A2A43",
+    color: "#1B4F8A",
     bg: "#D1FAF5",
   },
 };

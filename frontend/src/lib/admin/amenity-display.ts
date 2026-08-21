@@ -11,7 +11,7 @@ import {
   Droplets,
   Dumbbell,
   Shirt,
-  Sparkles,
+  Flower2,
   Trees,
   Trophy,
   UtensilsCrossed,
@@ -21,7 +21,7 @@ const VISUALS = [
   { key: "pool", match: ["pool", "swim"], tint: "#0284C7", soft: "#E0F2FE", label: "Pool" },
   { key: "gym", match: ["gym", "fitness", "workout"], tint: "#DB2777", soft: "#FCE7F3", label: "Gym" },
   { key: "hall", match: ["hall", "party", "event", "lounge", "community", "clubhouse"], tint: "#1B4F8A", soft: "#E8F0F7", label: "Hall" },
-  { key: "meeting", match: ["meeting", "conference", "business", "office", "co-work", "cowork"], tint: "#0B1C2E", soft: "#E8F0F7", label: "Meeting" },
+  { key: "meeting", match: ["meeting", "conference", "business", "office", "co-work", "cowork"], tint: "#1B4F8A", soft: "#E8F0F7", label: "Meeting" },
   { key: "dining", match: ["bbq", "grill", "kitchen", "dining", "cafe", "restaurant"], tint: "#EA580C", soft: "#E8F0F7", label: "Dining" },
   { key: "sports", match: ["tennis", "court", "sport", "basketball"], tint: "#059669", soft: "#ECFDF5", label: "Sports" },
   { key: "playground", match: ["kid", "playground", "child", "play"], tint: "#D97706", soft: "#FEF3C7", label: "Play" },
@@ -36,7 +36,7 @@ const VISUALS = [
 
 const DEFAULT_VISUAL = {
   key: "building",
-  tint: "#0B1C2E",
+  tint: "#1B4F8A",
   soft: "#E8F0F7",
   label: "Building",
 } as const;
@@ -62,7 +62,7 @@ const LUCIDE_BY_KEY: Record<string, LucideIcon> = {
   sports: Trophy,
   playground: Baby,
   terrace: Trees,
-  spa: Sparkles,
+  spa: Flower2,
   library: BookOpen,
   parking: Car,
   laundry: Shirt,

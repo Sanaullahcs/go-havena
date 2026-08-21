@@ -5,10 +5,15 @@
 export function HavenaMark({
   size = 36,
   className = "",
+  tone = "brand",
 }: {
   size?: number;
   className?: string;
+  tone?: "brand" | "light";
 }) {
+  const tile = tone === "light" ? "#FFFFFF" : "#1B4F8A";
+  const stem = tone === "light" ? "#1B4F8A" : "#FFFFFF";
+
   return (
     <svg
       viewBox="0 0 40 40"
@@ -18,18 +23,18 @@ export function HavenaMark({
       aria-hidden="true"
       className={className}
     >
-      <rect width="40" height="40" rx="11" fill="#0A2A43" />
+      <rect width="40" height="40" rx="11" fill={tile} />
       <path
         d="M13 12.5 V27.5"
         fill="none"
-        stroke="#FFFFFF"
+        stroke={stem}
         strokeWidth="3.2"
         strokeLinecap="round"
       />
       <path
         d="M27 12.5 V27.5"
         fill="none"
-        stroke="#FFFFFF"
+        stroke={stem}
         strokeWidth="3.2"
         strokeLinecap="round"
       />
@@ -47,7 +52,7 @@ export function HavenaMark({
 /** Compact glyph for tinted tiles (no filled background). */
 export function HavenaHouseIcon({
   size = 20,
-  color = "#0A2A43",
+  color = "#1B4F8A",
   accent = "#14B8A6",
   className = "",
 }: {

@@ -44,7 +44,7 @@ export default function FamilyTreeScreen() {
       <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
         <InternalScreenHeader title={t("family.familyTree")} />
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#0A2A43" />
+          <ActivityIndicator size="large" color="#1B4F8A" />
         </View>
       </SafeAreaView>
     );
@@ -94,7 +94,7 @@ export default function FamilyTreeScreen() {
               setRefreshing(true);
               load();
             }}
-            tintColor="#0A2A43"
+            tintColor="#1B4F8A"
           />
         }
         showsVerticalScrollIndicator={false}

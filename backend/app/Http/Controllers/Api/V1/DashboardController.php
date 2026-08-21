@@ -38,7 +38,12 @@ class DashboardController extends Controller
 
         $residentsQuery = $this->residentMembershipQuery($communityId);
 
-        $totalMembers = (clone $residentsQuery)->where('cm.status', 'approved')->count();
+        $memberCounts = (clone $residentsQuery)
+            ->selectRaw('cm.status, COUNT(*) as aggregate')
+            ->groupBy('cm.status')
+            ->pluck('aggregate', 'status');
+        $totalMembers = (int) ($memberCounts['approved'] ?? 0);
+        $bannedMembers = (int) ($memberCounts['banned'] ?? 0);
         $pendingMembers = (clone $residentsQuery)
             ->where('cm.status', 'pending')
             ->whereNotExists(function ($sub) {
@@ -49,7 +54,6 @@ class DashboardController extends Controller
                     ->where('fjr.status', 'pending');
             })
             ->count();
-        $bannedMembers = (clone $residentsQuery)->where('cm.status', 'banned')->count();
         $onboardingMembers = DB::table('users')
             ->where('role', 'resident')
             ->where('status', '!=', 'deleted')
@@ -59,21 +63,33 @@ class DashboardController extends Controller
             })
             ->count();
         $openReports = (clone $reportsQuery)->whereIn('status', ['open', 'in_review', 'escalated'])->count();
-        $activeListings = (clone $listingsQuery)->where('status', 'approved')->count();
-        $pendingListings = (clone $listingsQuery)->where('status', 'pending')->count();
+        $listingCounts = (clone $listingsQuery)
+            ->selectRaw('status, COUNT(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status');
+        $activeListings = (int) ($listingCounts['approved'] ?? 0);
+        $pendingListings = (int) ($listingCounts['pending'] ?? 0);
         $businessesQuery = DB::table('businesses')->whereNull('deleted_at');
         if ($communityId) {
             $businessesQuery->where('community_id', $communityId);
         }
-        $pendingBusinesses = (clone $businessesQuery)->where('status', 'pending')->count();
-        $totalBusinesses = (clone $businessesQuery)->count();
+        $businessCounts = (clone $businessesQuery)
+            ->selectRaw('status, COUNT(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status');
+        $pendingBusinesses = (int) ($businessCounts['pending'] ?? 0);
+        $totalBusinesses = (int) $businessCounts->sum();
         $publishedNotices = (clone $noticesQuery)
             ->where('status', 'published')
             ->whereNotIn('category', ['event', 'emergency'])
             ->count();
-        $totalPosts = (clone $postsQuery)->count();
-        $pendingPosts = (clone $postsQuery)->where('status', 'pending')->count();
-        $approvedPosts = (clone $postsQuery)->where('status', 'approved')->count();
+        $postCounts = (clone $postsQuery)
+            ->selectRaw('status, COUNT(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status');
+        $totalPosts = (int) $postCounts->sum();
+        $pendingPosts = (int) ($postCounts['pending'] ?? 0);
+        $approvedPosts = (int) ($postCounts['approved'] ?? 0);
 
         $bookingsQuery = DB::table('bookings')
             ->join('amenities', 'amenities.id', '=', 'bookings.amenity_id');
@@ -100,16 +116,23 @@ class DashboardController extends Controller
 
         $activeRegions = Region::query()->where('status', 'active')->count();
 
-        $communityAdminBase = DB::table('users')
+        $communityAdminCounts = DB::table('users')
             ->where('role', 'community_admin')
-            ->where('status', '!=', 'deleted');
-        $totalCommunityAdmins = (clone $communityAdminBase)->count();
-        $pendingCommunityAdmins = (clone $communityAdminBase)->where('community_admin_status', 'pending')->count();
-        $approvedCommunityAdmins = (clone $communityAdminBase)->where('community_admin_status', 'approved')->count();
-        $rejectedCommunityAdmins = (clone $communityAdminBase)->where('community_admin_status', 'rejected')->count();
+            ->where('status', '!=', 'deleted')
+            ->selectRaw('community_admin_status, COUNT(*) as aggregate')
+            ->groupBy('community_admin_status')
+            ->pluck('aggregate', 'community_admin_status');
+        $totalCommunityAdmins = (int) $communityAdminCounts->sum();
+        $pendingCommunityAdmins = (int) ($communityAdminCounts['pending'] ?? 0);
+        $approvedCommunityAdmins = (int) ($communityAdminCounts['approved'] ?? 0);
+        $rejectedCommunityAdmins = (int) ($communityAdminCounts['rejected'] ?? 0);
 
-        $newContactSubmissions = ContactSubmission::query()->where('status', 'new')->count();
-        $totalContactSubmissions = ContactSubmission::query()->count();
+        $contactCounts = ContactSubmission::query()
+            ->selectRaw('status, COUNT(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status');
+        $newContactSubmissions = (int) ($contactCounts['new'] ?? 0);
+        $totalContactSubmissions = (int) $contactCounts->sum();
 
         $activityChart = $this->buildDailySeries(
             DB::table('activity_logs')
@@ -218,6 +241,7 @@ class DashboardController extends Controller
             ])
             ->orderByDesc('members_count')
             ->orderBy('name')
+            ->limit(8)
             ->get()
             ->map(fn (Community $c) => [
                 'id'            => $c->id,
@@ -418,13 +442,27 @@ class DashboardController extends Controller
             ->whereNull('deleted_at')
             ->count();
 
+        $since = now()->subDays(6)->startOfDay();
+        $postsByDay = DB::table('posts')
+            ->where('user_id', $userId)
+            ->where('created_at', '>=', $since)
+            ->selectRaw('DATE(created_at) as day, COUNT(*) as aggregate')
+            ->groupBy('day')
+            ->pluck('aggregate', 'day');
+        $likesByDay = DB::table('post_likes')
+            ->where('user_id', $userId)
+            ->where('created_at', '>=', $since)
+            ->selectRaw('DATE(created_at) as day, COUNT(*) as aggregate')
+            ->groupBy('day')
+            ->pluck('aggregate', 'day');
+
         $personalActivity = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = now()->subDays($i)->format('Y-m-d');
             $personalActivity[] = [
                 'date'  => now()->subDays($i)->format('M d'),
-                'posts' => DB::table('posts')->where('user_id', $userId)->whereDate('created_at', $date)->count(),
-                'likes' => DB::table('post_likes')->where('user_id', $userId)->whereDate('created_at', $date)->count(),
+                'posts' => (int) ($postsByDay[$date] ?? 0),
+                'likes' => (int) ($likesByDay[$date] ?? 0),
             ];
         }
 

@@ -152,7 +152,7 @@ export default function AddFamilyMemberScreen() {
           contentContainerStyle={styles.content}
         >
           <View style={styles.infoBanner}>
-            <Feather name="info" size={sf(14)} color="#0A2A43" />
+            <Feather name="info" size={sf(14)} color="#1B4F8A" />
             <Text style={styles.infoText}>
               {t("family.addMemberForm.infoBanner")}
             </Text>
@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
     gap: sw(6),
     minHeight: sw(50),
     borderRadius: sw(12),
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
   },
   submitText: {
     fontFamily: Fonts.semiBold,

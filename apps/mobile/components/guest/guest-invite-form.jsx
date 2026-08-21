@@ -107,7 +107,7 @@ function AccessWindowSummary({ start, end }) {
         style={styles.accessSummaryHeader}
       >
         <View style={styles.accessSummaryHeaderIcon}>
-          <Feather name="calendar" size={sf(14)} color="#0A2A43" />
+          <Feather name="calendar" size={sf(14)} color="#1B4F8A" />
         </View>
         <View style={styles.accessSummaryHeaderCopy}>
           <Text style={styles.accessSummaryTitle}>{t("guests.accessWindow")}</Text>
@@ -136,7 +136,7 @@ function AccessWindowSummary({ start, end }) {
         <View style={styles.accessBridge}>
           <View style={styles.accessBridgeLine} />
           <View style={styles.accessBridgeIcon}>
-            <Feather name={arrowForward()} size={sf(12)} color="#0A2A43" />
+            <Feather name={arrowForward()} size={sf(12)} color="#1B4F8A" />
           </View>
           <View style={styles.accessBridgeLine} />
         </View>
@@ -328,13 +328,13 @@ function InviteSuccessCard({ result, variant, accessWindow, onShare, onInviteAno
       </View>
 
       <Pressable style={styles.shareBtn} onPress={onShare}>
-        <Feather name="share-2" size={sf(16)} color="#0A2A43" />
+        <Feather name="share-2" size={sf(16)} color="#1B4F8A" />
         <Text style={styles.shareBtnText}>{t("guests.shareInvitation")}</Text>
       </Pressable>
 
       <View style={styles.successActions}>
         <Pressable style={styles.secondaryBtn} onPress={onInviteAnother}>
-          <Feather name="plus" size={sf(15)} color="#0A2A43" />
+          <Feather name="plus" size={sf(15)} color="#1B4F8A" />
           <Text style={styles.secondaryBtnText}>{t("guests.inviteAnother")}</Text>
         </Pressable>
         {onDone ? (
@@ -863,8 +863,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   flowDotActive: {
-    backgroundColor: "#0A2A43",
-    borderColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
+    borderColor: "#1B4F8A",
   },
   flowDotNumber: {
     fontFamily: Fonts.bold,
@@ -892,7 +892,7 @@ const styles = StyleSheet.create({
     marginBottom: sw(4),
   },
   flowTitleActive: {
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   flowDesc: {
     fontFamily: Fonts.regular,
@@ -998,7 +998,7 @@ const styles = StyleSheet.create({
     color: "#475569",
   },
   chipTextActive: {
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   scheduleGroupLabel: {
     fontFamily: Fonts.semibold,
@@ -1064,7 +1064,7 @@ const styles = StyleSheet.create({
   durationBadgeText: {
     fontFamily: Fonts.semibold,
     fontSize: sf(10),
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   accessTimeline: {
     flexDirection: "row",
@@ -1146,7 +1146,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: sw(8),
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
     borderRadius: sw(14),
     paddingVertical: sw(15),
   },
@@ -1209,7 +1209,7 @@ const styles = StyleSheet.create({
   codeValue: {
     fontFamily: Fonts.bold,
     fontSize: sf(26),
-    color: "#0A2A43",
+    color: "#1B4F8A",
     letterSpacing: 2,
   },
   codeWindow: {
@@ -1266,7 +1266,7 @@ const styles = StyleSheet.create({
   guestStepBadgeText: {
     fontFamily: Fonts.bold,
     fontSize: sf(11),
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   guestStepText: {
     flex: 1,
@@ -1283,14 +1283,14 @@ const styles = StyleSheet.create({
     paddingVertical: sw(14),
     borderRadius: sw(14),
     borderWidth: 1.5,
-    borderColor: "#0A2A43",
+    borderColor: "#1B4F8A",
     backgroundColor: "#FFFFFF",
     marginBottom: sw(12),
   },
   shareBtnText: {
     fontFamily: Fonts.bold,
     fontSize: sf(14),
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   successActions: {
     flexDirection: "row",
@@ -1310,7 +1310,7 @@ const styles = StyleSheet.create({
   secondaryBtnText: {
     fontFamily: Fonts.semibold,
     fontSize: sf(14),
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   primaryBtn: {
     flex: 1,
@@ -1318,7 +1318,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: sw(14),
     borderRadius: sw(14),
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
   },
   primaryBtnText: {
     fontFamily: Fonts.bold,

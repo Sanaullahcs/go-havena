@@ -33,7 +33,7 @@ export default function FeatureAccessGate({
   if (loading) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#0A2A43" />
+        <ActivityIndicator size="large" color="#1B4F8A" />
       </View>
     );
   }

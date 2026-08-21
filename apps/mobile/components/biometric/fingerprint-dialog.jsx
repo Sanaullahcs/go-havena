@@ -97,7 +97,7 @@ export default function FingerprintDialog({ visible, onClose }) {
               <Feather name="x" size={22} color="#4A5565" />
             </TouchableOpacity>
             <View style={styles.iconRing}>
-              <Ionicons name="finger-print" size={44} color="#0A2A43" />
+              <Ionicons name="finger-print" size={44} color="#1B4F8A" />
             </View>
             <Text style={styles.title}>{t("auth.fingerprintLogin")}</Text>
             <Text style={styles.sub}>
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
   retry: {
     fontFamily: Fonts.semiBold,
     fontSize: 14,
-    color: "#0A2A43",
+    color: "#1B4F8A",
     fontWeight: "600",
   },
   cancelWrap: { marginTop: 20 },

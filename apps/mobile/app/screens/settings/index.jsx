@@ -78,7 +78,7 @@ export default function ProfileSetting() {
       title: t("settings.editProfile"),
       subTitle: t("settings.editProfileSub"),
       icon: "edit-3",
-      iconColor: "#0A2A43",
+      iconColor: "#1B4F8A",
       iconBg: "#D1FAF5",
       onPress: () =>
         router.push({
@@ -118,7 +118,7 @@ export default function ProfileSetting() {
   ];
 
   const support = [
-    { id: 1, title: t("settings.helpCenter"), subTitle: t("settings.helpCenterSub"), icon: "help-circle", iconColor: "#0A2A43", iconBg: "#D1FAF5", chevron: true, onPress: () => {} },
+    { id: 1, title: t("settings.helpCenter"), subTitle: t("settings.helpCenterSub"), icon: "help-circle", iconColor: "#1B4F8A", iconBg: "#D1FAF5", chevron: true, onPress: () => {} },
     { id: 2, title: t("settings.aboutHavena"), subTitle: t("common.version", { version: "1.0.0" }), icon: "info", iconColor: "#6B7280", iconBg: "#F3F4F6", chevron: true, onPress: () => {} },
     { id: 3, title: t("settings.logOut"), subTitle: t("settings.logOutSub"), icon: "log-out", iconColor: "#DC2626", iconBg: "#FEF2F2", danger: true, onPress: handleLogout },
     { id: 4, title: t("settings.deleteAccount"), subTitle: t("settings.deleteAccountSub"), icon: "trash-2", iconColor: "#DC2626", iconBg: "#FEF2F2", danger: true, onPress: () => dialog.showError(t("settings.deleteAccount"), t("settings.deleteAccountMsg")) },

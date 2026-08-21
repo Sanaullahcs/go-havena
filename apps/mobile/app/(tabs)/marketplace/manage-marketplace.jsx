@@ -186,7 +186,7 @@ export default function ManageMarketplace() {
       >
         {loading ? (
           <View style={styles.stateWrap}>
-            <ActivityIndicator size="large" color="#0A2A43" />
+            <ActivityIndicator size="large" color="#1B4F8A" />
             <Text style={styles.stateText}>{t("marketplace.loadingDashboard")}</Text>
           </View>
         ) : null}
@@ -544,7 +544,7 @@ const styles = StyleSheet.create({
   retryBtn: {
     marginTop: 14,
     alignSelf: "flex-start",
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,

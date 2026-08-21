@@ -25,8 +25,10 @@ import { OtpVerifyStep } from "@/components/auth/otp-verify-step";
 import { PhoneSignInStep } from "@/components/auth/phone-sign-in-step";
 import { AuthRedirectOverlay } from "@/components/shared/loaders";
 import { emptyPhoneField, type PhoneFieldState } from "@/lib/phone/format";
-import { landingImages } from "@/lib/landing/site";
+import { CommunityAuthHero } from "@/components/auth/community-auth-hero";
+import { HavenaMark } from "@/components/shared/havena-mark";
 import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
+import { Building2, CreditCard, ShieldCheck, Smartphone, UserRound } from "lucide-react";
 import {
   clearPersistedReferralCode,
   normalizeReferralCode,
@@ -200,58 +202,31 @@ function RegisterPageInner() {
   return (
     <>
       {redirecting ? (
-        <AuthRedirectOverlay title="Creating your account" subtitle="Opening community setup…" />
+        <AuthRedirectOverlay
+          variant="community-setup"
+          title="Creating your account"
+          subtitle="Opening community setup…"
+        />
       ) : null}
 
       <div className="nl-login-split">
-        <aside className="nl-login-hero">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={landingImages.hero} alt="" className="nl-login-hero__photo" aria-hidden />
-          <div className="nl-login-hero__veil" aria-hidden />
-
-          <div className="relative z-10 flex flex-1 flex-col justify-between p-10 xl:p-14">
-            <div>
-              <AuthBackLink href="/" variant="hero">
-                Back
-              </AuthBackLink>
-              <div className="nl-login-brand nl-login-brand--hero mt-8">
-                <span className="nl-login-brand__mark !h-10 !w-10 !rounded-xl">
-                  <HavenaLogoMark />
-                </span>
-                <span className="text-[15px] font-bold text-white">Havena</span>
-              </div>
-            </div>
-
-            <div>
-              <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-teal-200/90">
-                Community admin signup
-              </p>
-              <h2 className="mt-3 font-[family-name:var(--font-brand)] text-[2.35rem] font-bold leading-[1.08] tracking-tight text-white xl:text-[2.9rem]">
-                Create your
-                <span className="mt-2 block font-[family-name:var(--font-display)] text-[1.35rem] font-semibold text-teal-200 xl:text-[1.55rem]">
-                  community admin account
-                </span>
-              </h2>
-              <ol className="mt-6 space-y-2 text-[13px] text-white/70">
-                <li>1. Verify your phone with a one-time code</li>
-                <li>2. Create your community</li>
-                <li>3. Complete your profile</li>
-                <li>4. Add a card (trial starts after approval)</li>
-                <li>5. Wait for Havena system approval</li>
-              </ol>
-            </div>
-
-            <p className="text-[12px] text-white/40">© Havena · Community operator access</p>
-          </div>
-        </aside>
+        <CommunityAuthHero
+          eyebrow="Community admin signup"
+          title="Create your"
+          subtitle="community admin account"
+          points={[
+            { icon: Smartphone, text: "Verify your phone with a one-time code" },
+            { icon: Building2, text: "Create your community" },
+            { icon: UserRound, text: "Complete your profile" },
+            { icon: CreditCard, text: "Add a card — trial starts after approval" },
+            { icon: ShieldCheck, text: "Wait for Havena system approval" },
+          ]}
+        />
 
         <div className="nl-login-panel">
           <span className="nl-login-panel__accent hidden lg:block" aria-hidden />
 
           <div className="nl-login-topbar">
-            <AuthBackLink href="/" variant="button">
-              Back
-            </AuthBackLink>
             <Link href={`/login${planQuery}`} className="nl-login-resident-link ml-auto">
               Already have an account? Sign in →
             </Link>
@@ -259,9 +234,7 @@ function RegisterPageInner() {
 
           <div className="nl-login-form-wrap">
             <div className="nl-login-brand nl-login-brand--form mb-6">
-              <span className="nl-login-brand__mark !h-11 !w-11 !rounded-xl">
-                <HavenaLogoMark />
-              </span>
+              <HavenaMark size={40} />
               <span className="nl-login-brand__name">Havena</span>
             </div>
 
@@ -347,7 +320,7 @@ function RegisterPageInner() {
                 Sign in
               </Link>
               {" · "}
-              <a href="/#pricing" className="font-semibold text-[#0d9488] hover:underline">
+              <a href="/plans" className="font-semibold text-[#0d9488] hover:underline">
                 View plans
               </a>
             </p>
@@ -366,16 +339,3 @@ export default function RegisterPage() {
   );
 }
 
-function HavenaLogoMark() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden className="shrink-0">
-      <path
-        d="M3 9l9-6 9 6v11a1 1 0 01-1 1H4a1 1 0 01-1-1V9z"
-        stroke="white"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path d="M9 21V12h6v9" stroke="white" strokeWidth="1.8" strokeLinejoin="round" />
-    </svg>
-  );
-}

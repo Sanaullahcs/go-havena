@@ -8,7 +8,7 @@ import {
   Copy,
   Link2,
   Share2,
-  Sparkles,
+  Gift,
   Users,
   Wallet,
   XCircle,
@@ -151,7 +151,7 @@ export default function ReferAndEarnPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] font-semibold text-teal-800">
-            <Sparkles className="h-3 w-3" />
+            <Gift className="h-3 w-3" />
             {rewardLabel}
           </span>
           <span
@@ -238,7 +238,7 @@ export default function ReferAndEarnPage() {
                 { n: "3", t: "You earn credit", d: `${rewardLabel} to your Stripe balance` },
               ].map((step) => (
                 <li key={step.n} className="flex items-start gap-2.5 rounded-lg bg-slate-50/80 px-2.5 py-2">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#0A2A43] text-[11px] font-bold text-white">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#1B4F8A] text-[11px] font-bold text-white">
                     {step.n}
                   </span>
                   <div className="min-w-0">

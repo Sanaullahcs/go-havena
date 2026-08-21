@@ -151,7 +151,7 @@ export function AmenityViewModal({
             <button
               type="button"
               onClick={() => onEdit(amenity)}
-              className="rounded-xl bg-[#0B1C2E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1B4F8A]"
+              className="rounded-xl bg-[#1B4F8A] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1B4F8A]"
             >
               Edit amenity
             </button>

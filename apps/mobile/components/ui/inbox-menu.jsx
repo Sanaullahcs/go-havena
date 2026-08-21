@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     ...(Platform.OS === "ios"
       ? {
-          shadowColor: "#0A2A43",
+          shadowColor: "#1B4F8A",
           shadowOffset: { width: 0, height: 10 },
           shadowOpacity: 0.16,
           shadowRadius: 28,

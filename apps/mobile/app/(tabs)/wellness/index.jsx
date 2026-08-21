@@ -98,7 +98,7 @@ export default function Wellness() {
       <View style={styles.body}>
         {loading ? (
           <View style={styles.centered}>
-            <ActivityIndicator size="large" color="#0A2A43" />
+            <ActivityIndicator size="large" color="#1B4F8A" />
           </View>
         ) : error ? (
           <GuestFeatureErrorState

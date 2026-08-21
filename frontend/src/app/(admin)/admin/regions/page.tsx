@@ -13,6 +13,7 @@ import {
   StatTile,
 } from "@/components/admin/ui";
 import { confirmDelete, toastError, toastSuccess } from "@/lib/alert";
+import { Check, X } from "lucide-react";
 import {
   createRegion,
   deleteRegion,
@@ -388,9 +389,11 @@ export default function RegionsPage() {
                 onClick={() => setModalOpen(false)}
                 disabled={submitting}
               >
+                <X />
                 Cancel
               </button>
               <button type="button" className="nl-btn-primary" onClick={handleSave} disabled={submitting || !canSubmitForm}>
+                <Check />
                 {submitting ? "Saving…" : editing ? "Save changes" : "Create region"}
               </button>
             </div>

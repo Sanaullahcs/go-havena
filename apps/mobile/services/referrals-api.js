@@ -14,7 +14,8 @@ export function formatReferralMoney(cents, currency = "usd") {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: String(currency).toUpperCase(),
-    }).format(amount);
+      currencyDisplay: "narrowSymbol",
+    }).format(amount).replace(/^US\s?/, "");
   } catch {
     return `$${amount.toFixed(2)}`;
   }

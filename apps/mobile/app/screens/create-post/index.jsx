@@ -37,7 +37,7 @@ const TYPE_ICONS = {
 };
 
 const ATTACH_OPTIONS = [
-  { id: "photo", labelKey: "feed.createPost.photo", icon: "image", tint: "#0A2A43", soft: "#D1FAF5" },
+  { id: "photo", labelKey: "feed.createPost.photo", icon: "image", tint: "#1B4F8A", soft: "#D1FAF5" },
   { id: "location", labelKey: "feed.createPost.location", icon: "map-pin", tint: "#047857", soft: "#ECFDF5" },
   { id: "emoji", labelKey: "feed.createPost.feelingLabel", icon: "smile", tint: "#C2410C", soft: "#FFF7ED" },
 ];

@@ -7,7 +7,7 @@ const VISUALS = [
   { key: "pool", match: ["pool", "swim"], tint: "#0284C7", soft: "#E0F2FE", labelKey: "amenities.types.pool" },
   { key: "gym", match: ["gym", "fitness", "workout"], tint: "#DB2777", soft: "#FCE7F3", labelKey: "amenities.types.gym" },
   { key: "hall", match: ["hall", "party", "event", "lounge", "community", "clubhouse"], tint: "#6366F1", soft: "#D1FAF5", labelKey: "amenities.types.hall" },
-  { key: "meeting", match: ["meeting", "conference", "business", "office", "co-work", "cowork"], tint: "#0A2A43", soft: "#D1FAF5", labelKey: "amenities.types.meeting" },
+  { key: "meeting", match: ["meeting", "conference", "business", "office", "co-work", "cowork"], tint: "#1B4F8A", soft: "#D1FAF5", labelKey: "amenities.types.meeting" },
   { key: "dining", match: ["bbq", "grill", "kitchen", "dining", "cafe", "restaurant"], tint: "#EA580C", soft: "#FFF7ED", labelKey: "amenities.types.dining" },
   { key: "sports", match: ["tennis", "court", "sport", "basketball", "court"], tint: "#059669", soft: "#ECFDF5", labelKey: "amenities.types.sports" },
   { key: "playground", match: ["kid", "playground", "child", "play"], tint: "#D97706", soft: "#FEF3C7", labelKey: "amenities.types.play" },
@@ -22,7 +22,7 @@ const VISUALS = [
 
 const DEFAULT_VISUAL = {
   key: "building",
-  tint: "#0A2A43",
+  tint: "#1B4F8A",
   soft: "#D1FAF5",
   labelKey: "amenities.types.building",
 };

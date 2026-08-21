@@ -11,6 +11,7 @@ import { AdminPhoneInput } from "@/components/admin/phone-input";
 import { PhoneDisplay } from "@/components/admin/phone-display";
 import { emptyPhoneField, phoneFieldFromE164, type PhoneFieldState } from "@/lib/phone/format";
 import { disableWebPush, enableWebPush, isWebPushEnabledLocally } from "@/lib/firebase/web-push";
+import { PageLoader } from "@/components/shared/page-states";
 
 const ACHIEVEMENTS = [
   { id: 1, label: "Early Adopter",    color: "#7c3aed", desc: "One of the first 50 residents to join" },
@@ -37,6 +38,7 @@ export default function ProfilePage() {
   const [phoneField, setPhoneField] = useState<PhoneFieldState>(emptyPhoneField());
   const [prefs, setPrefs]         = useState<Record<string, boolean>>({ emailNotifications: true, pushNotifications: false, publicProfile: true, weeklyDigest: true });
   const [saving, setSaving]       = useState(false);
+  const [loading, setLoading]     = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -51,7 +53,8 @@ export default function ProfilePage() {
         setPhoneField(phoneFieldFromE164(data.phone));
         setAvatarUrl(data.profile?.avatar_url ?? null);
       })
-      .catch((err) => toastError(apiError(err)));
+      .catch((err) => toastError(apiError(err)))
+      .finally(() => setLoading(false));
 
     setPrefs((prev) => ({
       ...prev,
@@ -114,6 +117,8 @@ export default function ProfilePage() {
     const r = await confirmAction({ title: "Sign out?", text: "You will be returned to the resident login screen.", confirmText: "Sign out", icon: "question", color: "red" });
     if (r.isConfirmed) { clearSession(); router.replace("/resident-login"); }
   };
+
+  if (loading) return <PageLoader variant="form" />;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">

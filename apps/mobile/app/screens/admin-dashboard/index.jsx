@@ -633,7 +633,7 @@ export default function AdminDashboardScreen() {
                 icon="clipboard"
                 title={t("admin.notice")}
                 subtitle={t("admin.boardUpdatesAndReminders")}
-                accent="#0A2A43"
+                accent="#1B4F8A"
                 onPress={() => router.push("/screens/create-notice")}
               />
               <CreateRow

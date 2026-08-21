@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
   codeCard: {
     marginTop: 32,
     borderWidth: 2,
-    borderColor: "#0A2A43",
+    borderColor: "#1B4F8A",
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   primaryButton: {
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: "center",

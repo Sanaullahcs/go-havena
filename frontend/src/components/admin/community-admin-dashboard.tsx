@@ -301,8 +301,8 @@ export default function CommunityAdminDashboard() {
     [],
   );
 
-  if (!mounted) return <PageLoader text="Loading community dashboard…" skeleton />;
-  if (loading && !data) return <PageLoader text="Loading community dashboard…" skeleton />;
+  if (!mounted) return <PageLoader text="Loading community dashboard…" variant="community" />;
+  if (loading && !data) return <PageLoader text="Loading community dashboard…" variant="community" />;
   if ((error && !data) || !data) {
     return <PageError message={error ?? "Unable to load dashboard."} onRetry={() => load()} />;
   }

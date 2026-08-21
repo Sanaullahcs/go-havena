@@ -17,6 +17,7 @@ import { resolveMediaUrl } from "@/lib/media/resolve-url";
 import { getUser, updateUser } from "@/lib/auth/session";
 import { apiError } from "@/lib/api/client";
 import { toastError, toastSuccess } from "@/lib/alert";
+import { Plus } from "lucide-react";
 import { fetchMe, meToSessionUser } from "@/lib/api/profile";
 
 function participantRole(conv: Conversation): string {
@@ -216,7 +217,8 @@ export default function AdminMessagesPage() {
             onClick={() => setNewChatOpen(true)}
             className="nl-btn-primary h-9 px-4 text-sm"
           >
-            + New message
+            <Plus />
+            New message
           </button>
         </div>
       </div>

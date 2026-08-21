@@ -24,7 +24,7 @@ export default function InviteGuestScreen() {
             hitSlop={8}
             accessibilityLabel={t('guests.guestApprovalsLabel')}
           >
-            <Feather name="user-check" size={sf(20)} color="#0A2A43" />
+            <Feather name="user-check" size={sf(20)} color="#1B4F8A" />
           </Pressable>
         }
       />

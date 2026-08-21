@@ -160,7 +160,7 @@ export function AdminTopBar({
                     <Link
                       href="/admin/profile"
                       onClick={() => setOpen(false)}
-                      className="group flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-[#E8F0F7] hover:text-[#0B1C2E]"
+                      className="group flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-[#E8F0F7] hover:text-[#1B4F8A]"
                     >
                       <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition group-hover:bg-[#E8F0F7] group-hover:text-[#1B4F8A]">
                         <UserRound className="h-4 w-4" strokeWidth={2} />
@@ -171,7 +171,7 @@ export function AdminTopBar({
                     <Link
                       href="/admin/notifications"
                       onClick={() => setOpen(false)}
-                      className="group flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-[#E8F0F7] hover:text-[#0B1C2E]"
+                      className="group flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-[#E8F0F7] hover:text-[#1B4F8A]"
                     >
                       <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition group-hover:bg-[#E8F0F7] group-hover:text-[#1B4F8A]">
                         <Bell className="h-4 w-4" strokeWidth={2} />
@@ -183,7 +183,7 @@ export function AdminTopBar({
                     <Link
                       href="/admin/support"
                       onClick={() => setOpen(false)}
-                      className="group flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-[#E8F0F7] hover:text-[#0B1C2E]"
+                      className="group flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-[#E8F0F7] hover:text-[#1B4F8A]"
                     >
                       <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition group-hover:bg-[#E8F0F7] group-hover:text-[#1B4F8A]">
                         <CircleHelp className="h-4 w-4" strokeWidth={2} />

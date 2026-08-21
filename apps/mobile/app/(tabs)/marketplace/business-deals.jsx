@@ -166,7 +166,7 @@ export default function BusinessDealsScreen() {
 
         {loading ? (
           <View style={styles.centered}>
-            <ActivityIndicator size="large" color="#0A2A43" />
+            <ActivityIndicator size="large" color="#1B4F8A" />
           </View>
         ) : error ? (
           <GuestFeatureErrorState
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 10,
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
   },
   retryBtnText: {
     fontFamily: Fonts.bold,
@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     textAlign: "center",
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   dealDescription: {
     fontFamily: Fonts.regular,

@@ -4,14 +4,13 @@ import { sw } from "../utils/responsive";
  * Havena design tokens — Harbor Trust
  * Professional navy for community / HOA platforms.
  *
- *   #0B1C2E  Deep Navy
- *   #163A66  Mid Navy
  *   #1B4F8A  Primary Blue
+ *   #163A66  Mid Navy
  *   #E8F0F7  Soft Mist
  *   #F6F8FB  Canvas
  */
 
-const NAVY = "#0B1C2E";
+const NAVY = "#1B4F8A";
 const MID = "#163A66";
 const PRIMARY = "#1B4F8A";
 const SOFT = "#E8F0F7";

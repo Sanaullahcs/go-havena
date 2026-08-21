@@ -166,7 +166,7 @@ export default function AddBusinessScreen() {
       <SafeAreaView style={styles.container} edges={["left", "right"]}>
         <InternalScreenHeader title={isEdit ? t("marketplace.editBusiness") : t("marketplace.addBusiness")} subtitle={t("common.loading")} />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator size="large" color="#0A2A43" />
+          <ActivityIndicator size="large" color="#1B4F8A" />
         </View>
       </SafeAreaView>
     );
@@ -185,7 +185,7 @@ export default function AddBusinessScreen() {
           </Text>
           <TouchableOpacity
             activeOpacity={0.85}
-            style={{ marginTop: 20, backgroundColor: "#0A2A43", borderRadius: 12, paddingHorizontal: 18, paddingVertical: 12 }}
+            style={{ marginTop: 20, backgroundColor: "#1B4F8A", borderRadius: 12, paddingHorizontal: 18, paddingVertical: 12 }}
             onPress={() => router.back()}
           >
             <Text style={{ color: "#FFFFFF", fontFamily: Fonts.bold }}>{t("marketplace.goBack")}</Text>

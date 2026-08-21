@@ -13,6 +13,7 @@ import {
   StatTile,
 } from "@/components/admin/ui";
 import { confirmAction, toastError, toastSuccess } from "@/lib/alert";
+import { Check, X } from "lucide-react";
 import {
   createSubscriptionPlan,
   fetchSubscriptionPlans,
@@ -510,6 +511,7 @@ export default function BillingPlansPage() {
 
             <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
               <button type="button" className="nl-btn-secondary" onClick={() => setModalOpen(false)}>
+                <X />
                 Cancel
               </button>
               <button
@@ -518,6 +520,7 @@ export default function BillingPlansPage() {
                 disabled={submitting || !canSubmitForm}
                 onClick={() => void handleSave()}
               >
+                <Check />
                 {submitting ? "Saving…" : editing ? "Save changes" : "Create plan"}
               </button>
             </div>

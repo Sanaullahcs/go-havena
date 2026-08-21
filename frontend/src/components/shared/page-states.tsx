@@ -1,12 +1,21 @@
 "use client";
 
-import { DotPulse, PageLoaderSkeleton, RingSpinner } from "@/components/shared/loaders";
+import { DotPulse, RingSpinner } from "@/components/shared/loaders";
+import { PageSkeleton, type PageSkeletonVariant } from "@/components/shared/page-skeletons";
 
-export function PageLoader({ text = "Loading…", skeleton = false }: { text?: string; skeleton?: boolean }) {
+export function PageLoader({
+  text = "Loading…",
+  skeleton = true,
+  variant = "table",
+}: {
+  text?: string;
+  skeleton?: boolean;
+  variant?: PageSkeletonVariant;
+}) {
   if (skeleton) {
     return (
       <div className="w-full" aria-busy aria-label={text}>
-        <PageLoaderSkeleton />
+        <PageSkeleton variant={variant} />
       </div>
     );
   }

@@ -212,7 +212,7 @@ export default function CreateAlertScreen() {
   if (!accessChecked) {
     return (
       <SafeAreaView style={[styles.container, styles.centered]} edges={["left", "right"]}>
-        <ActivityIndicator size="large" color="#0A2A43" />
+        <ActivityIndicator size="large" color="#1B4F8A" />
       </SafeAreaView>
     );
   }
@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
   chipText: {
     fontFamily: Fonts.medium,
     fontSize: 12,
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   publishButton: {
     marginTop: 10,

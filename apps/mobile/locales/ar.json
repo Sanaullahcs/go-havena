@@ -153,6 +153,54 @@
     "notificationsAccess": "الإشعارات",
     "propertyManagement": "إدارة الخدمات",
     "settingsAccess": "الإعدادات",
+    "tabs": {
+      "profile": "الملف",
+      "subscription": "الاشتراك"
+    },
+    "subscription": {
+      "loading": "جارٍ تحميل الاشتراك…",
+      "loadFailed": "تعذر تحميل الاشتراك",
+      "retry": "حاول مرة أخرى",
+      "currentPlan": "الخطة الحالية",
+      "nextCharge": "الرسوم التالية",
+      "planPrice": "سعر الخطة",
+      "afterTrial": "أول فاتورة بعد الفترة التجريبية · {{date}}",
+      "afterTrialPending": "أول فاتورة بعد بدء الفترة التجريبية",
+      "invoices": "الفواتير",
+      "noPlan": "لا توجد خطة بعد",
+      "noPlanBody": "اختر خطة مقاعد وأضف بطاقة لبدء فوترة هذا المجتمع.",
+      "setupBilling": "إعداد الفوترة",
+      "noCharge": "لا توجد رسوم مجدولة",
+      "noInvoices": "لا توجد فواتير بعد. تظهر هنا بعد دورة الفوترة.",
+      "invoiceFallback": "فاتورة",
+      "seats": "{{count}} مقعد للمقيمين",
+      "monthly": "شهري",
+      "yearly": "سنوي",
+      "kind": {
+        "renews": "يتجدد",
+        "trial_ends": "تنتهي الفترة التجريبية",
+        "trial_starts": "تبدأ التجربة بعد الموافقة",
+        "access_ends": "ينتهي الوصول",
+        "leftover_ends": "ينتهي الوصول المتبقي"
+      },
+      "status": {
+        "active": "نشط",
+        "trialing": "تجريبي",
+        "pending_trial": "بانتظار الموافقة",
+        "past_due": "متأخر",
+        "canceled": "ملغى",
+        "unpaid": "غير مدفوع",
+        "incomplete": "غير مكتمل",
+        "grace": "مهلة"
+      },
+      "invoiceStatus": {
+        "paid": "مدفوعة",
+        "open": "مفتوحة",
+        "draft": "مسودة",
+        "void": "ملغاة",
+        "uncollectible": "غير قابلة للتحصيل"
+      }
+    },
     "roles": {
       "resident": "مقيم",
       "guest": "ضيف",

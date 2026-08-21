@@ -15,6 +15,9 @@ export function formatPlanPrice(cents: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
+    currencyDisplay: "narrowSymbol",
     maximumFractionDigits: 0,
-  }).format(cents / 100);
+  })
+    .format(cents / 100)
+    .replace(/^US\s?/, "");
 }

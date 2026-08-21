@@ -44,7 +44,7 @@ export function FamilyEmptyState({ onCreate, onJoin, canCreate = true, canJoin =
   return (
     <View style={styles.wrap}>
       <View style={styles.icon}>
-        <Feather name="users" size={sf(32)} color="#0A2A43" />
+        <Feather name="users" size={sf(32)} color="#1B4F8A" />
       </View>
       <Text style={styles.title}>{t("family.empty.title")}</Text>
       <Text style={styles.text}>
@@ -59,7 +59,7 @@ export function FamilyEmptyState({ onCreate, onJoin, canCreate = true, canJoin =
         ) : null}
         {canJoin ? (
           <Pressable style={styles.secondaryBtn} onPress={onJoin}>
-            <Feather name="log-in" size={sf(16)} color="#0A2A43" />
+            <Feather name="log-in" size={sf(16)} color="#1B4F8A" />
             <Text style={styles.secondaryText}>{t("family.empty.joinWithId")}</Text>
           </Pressable>
         ) : null}
@@ -125,7 +125,7 @@ export function FamilyPendingState({
         <View style={styles.pendingActions}>
           {onRefresh ? (
             <Pressable style={styles.secondaryBtn} onPress={onRefresh} disabled={cancelling}>
-              <Feather name="refresh-cw" size={sf(14)} color="#0A2A43" />
+              <Feather name="refresh-cw" size={sf(14)} color="#1B4F8A" />
               <Text style={styles.secondaryText}>{t("family.pending.refreshStatus")}</Text>
             </Pressable>
           ) : null}
@@ -194,7 +194,7 @@ export function FamilyRejectedState({
           ) : null}
           {onSignOut ? (
             <Pressable style={styles.secondaryBtn} onPress={onSignOut}>
-              <Feather name="log-out" size={sf(14)} color="#0A2A43" />
+              <Feather name="log-out" size={sf(14)} color="#1B4F8A" />
               <Text style={styles.secondaryText}>{t("family.rejected.signOut")}</Text>
             </Pressable>
           ) : null}
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
     gap: sw(8),
     paddingVertical: sw(14),
     borderRadius: 999,
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
   },
   primaryText: {
     fontFamily: Fonts.semiBold,
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
   secondaryText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(14),
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   cancelBtn: {
     flexDirection: "row",

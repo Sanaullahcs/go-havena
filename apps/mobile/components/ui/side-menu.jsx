@@ -64,7 +64,7 @@ const MenuItem = ({
         ? styles.iconBoxBlue
         : styles.iconBoxInactive;
   const glyphColor = isActive
-    ? "#0A2A43"
+    ? "#1B4F8A"
     : tinted
       ? iconColor
       : isBlueBox
@@ -102,7 +102,7 @@ function WellnessEmpty({ onExplore }) {
   return (
     <View style={styles.wellnessEmpty}>
       <View style={styles.wellnessEmptyIcon}>
-        <Feather name="heart" size={18} color="#0A2A43" />
+        <Feather name="heart" size={18} color="#1B4F8A" />
       </View>
       <Text style={styles.wellnessEmptyTitle}>{t("nav.wellnessComingSoon")}</Text>
       <Text style={styles.wellnessEmptyHint}>
@@ -110,7 +110,7 @@ function WellnessEmpty({ onExplore }) {
       </Text>
       <Pressable style={styles.wellnessEmptyCta} onPress={onExplore}>
         <Text style={styles.wellnessEmptyCtaText}>{t("nav.browseWellness")}</Text>
-        <Feather name={arrowForward()} size={14} color="#0A2A43" />
+        <Feather name={arrowForward()} size={14} color="#1B4F8A" />
       </Pressable>
     </View>
   );
@@ -613,7 +613,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 11,
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -692,7 +692,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontFamily: Fonts.semiBold,
     fontSize: 10,
-    color: "#0A2A43",
+    color: "#1B4F8A",
     fontWeight: "600",
     lineHeight: 16,
     textTransform: "uppercase",
@@ -705,7 +705,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semiBold,
     fontSize: 11,
     lineHeight: 14,
-    color: "#0A2A43",
+    color: "#1B4F8A",
     fontWeight: "600",
   },
 
@@ -774,7 +774,7 @@ const styles = StyleSheet.create({
   wellnessEmptyCtaText: {
     fontFamily: Fonts.semiBold,
     fontSize: 12,
-    color: "#0A2A43",
+    color: "#1B4F8A",
     fontWeight: "600",
   },
 
@@ -787,7 +787,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   menuItemActive: {
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
   },
   iconBox: {
     width: 32,

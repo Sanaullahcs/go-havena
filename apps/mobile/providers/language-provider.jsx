@@ -118,7 +118,7 @@ export default function LanguageProvider({ children }) {
         </View>
       ) : (
         <View style={styles.boot}>
-          <ActivityIndicator size="large" color={Colors.brandPrimaryDeep ?? "#0A2A43"} />
+          <ActivityIndicator size="large" color={Colors.brandPrimaryDeep ?? "#1B4F8A"} />
         </View>
       )}
     </LanguageContext.Provider>

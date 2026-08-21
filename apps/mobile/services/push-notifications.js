@@ -100,7 +100,7 @@ async function ensureAndroidChannel(Notifications) {
     name: i18n.t("push.channelName"),
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 250, 250, 250],
-    lightColor: "#0A2A43",
+    lightColor: "#1B4F8A",
     sound: "default",
     enableVibrate: true,
     showBadge: true,

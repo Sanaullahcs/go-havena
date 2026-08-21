@@ -100,7 +100,7 @@ function AccessWindowCard({ startsAt, endsAt, t }) {
         style={styles.accessCardHeader}
       >
         <View style={styles.accessCardHeaderIcon}>
-          <Feather name="calendar" size={sf(14)} color="#0A2A43" />
+          <Feather name="calendar" size={sf(14)} color="#1B4F8A" />
         </View>
         <View style={styles.accessCardHeaderCopy}>
           <Text style={styles.accessCardTitle}>{t("guests.accessWindowTitle")}</Text>
@@ -127,7 +127,7 @@ function AccessWindowCard({ startsAt, endsAt, t }) {
         <View style={styles.accessBridge}>
           <View style={styles.accessBridgeLine} />
           <View style={styles.accessBridgeIcon}>
-            <Feather name={arrowForward()} size={sf(12)} color="#0A2A43" />
+            <Feather name={arrowForward()} size={sf(12)} color="#1B4F8A" />
           </View>
           <View style={styles.accessBridgeLine} />
         </View>
@@ -346,7 +346,7 @@ export default function GuestApprovalsScreen() {
       <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
         <InternalScreenHeader title={t("guests.guestApprovalsTitle")} />
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#0A2A43" />
+          <ActivityIndicator size="large" color="#1B4F8A" />
         </View>
       </SafeAreaView>
     );
@@ -368,7 +368,7 @@ export default function GuestApprovalsScreen() {
               setRefreshing(true);
               load();
             }}
-            tintColor="#0A2A43"
+            tintColor="#1B4F8A"
           />
         }
         ListEmptyComponent={
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontFamily: Fonts.bold,
     fontSize: sf(16),
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   cardHeaderCopy: { flex: 1, minWidth: 0 },
   name: {
@@ -560,7 +560,7 @@ const styles = StyleSheet.create({
   detailMono: {
     fontFamily: Fonts.bold,
     letterSpacing: 1,
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   detailMuted: {
     color: "#94A3B8",
@@ -614,7 +614,7 @@ const styles = StyleSheet.create({
   durationBadgeText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(10),
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   accessMissing: {
     padding: sw(14),
@@ -777,7 +777,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(18),
     paddingVertical: sw(12),
     borderRadius: 999,
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
   },
   emptyCtaText: {
     fontFamily: Fonts.semiBold,

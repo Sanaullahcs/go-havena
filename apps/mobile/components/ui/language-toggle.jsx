@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     position: "relative",
     ...(Platform.OS === "ios"
       ? {
-          shadowColor: "#0A2A43",
+          shadowColor: "#1B4F8A",
           shadowOffset: { width: 0, height: 1 },
           shadowOpacity: 0.05,
           shadowRadius: 2,

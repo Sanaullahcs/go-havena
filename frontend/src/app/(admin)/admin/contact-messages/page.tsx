@@ -16,6 +16,7 @@ import { PageError, PageLoader } from "@/components/shared/page-states";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { toastError, toastSuccess } from "@/lib/alert";
+import { Archive, Check } from "lucide-react";
 import { apiError } from "@/lib/api/client";
 import {
   fetchContactSubmission,
@@ -315,6 +316,7 @@ export default function ContactMessagesPage() {
                   disabled={busyId === viewing.id}
                   onClick={() => handleStatus(viewing.id, "read")}
                 >
+                  <Check />
                   Mark as read
                 </button>
               ) : null}
@@ -325,6 +327,7 @@ export default function ContactMessagesPage() {
                   disabled={busyId === viewing.id}
                   onClick={() => handleStatus(viewing.id, "archived")}
                 >
+                  <Archive />
                   Archive
                 </button>
               ) : null}

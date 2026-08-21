@@ -149,8 +149,8 @@ export default function NoticeDetailScreen() {
 
   const heroBg = useMemo(() => {
     if (notice?.isAlert) return "#B91C1C";
-    if (notice?.isEvent) return "#0A2A43";
-    return "#0A2A43";
+    if (notice?.isEvent) return "#1B4F8A";
+    return "#1B4F8A";
   }, [notice]);
 
   const onShare = useCallback(async () => {

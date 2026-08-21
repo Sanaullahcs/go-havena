@@ -240,7 +240,7 @@ export default function DealDetails() {
             <View
               style={[
                 styles.offerBadge,
-                { backgroundColor: trending ? "#FE9A00" : "#0A2A43" },
+                { backgroundColor: trending ? "#FE9A00" : "#1B4F8A" },
               ]}
             >
               <Text style={styles.offerBadgeText}>{offerTag}</Text>

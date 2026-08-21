@@ -17,7 +17,7 @@
   }
 
   .signup-phone-input {
-    @apply h-12 flex-1 rounded-[12px] border border-[#E6E9EE] bg-white px-4 font-regular text-base text-[#0A2A43];
+    @apply h-12 flex-1 rounded-[12px] border border-[#E6E9EE] bg-white px-4 font-regular text-base text-[#1B4F8A];
   }
 
   .auth-divider {

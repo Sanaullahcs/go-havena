@@ -20,7 +20,7 @@ const FALLBACK_LOCKED = [
     statusLabelKey: "achievements.monthMasterStatus",
     status_label: i18n.t("achievements.monthMasterStatus"),
     icon: "calendar-outline",
-    icon_color: "#0A2A43",
+    icon_color: "#1B4F8A",
     icon_bg: "#D1FAF5",
     image_key: "earned_card",
     progress_color: "#14B8A6",

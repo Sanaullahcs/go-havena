@@ -8,7 +8,7 @@ import {
   ChevronRight,
   Clock3,
   Search,
-  Sparkles,
+  Activity,
   X,
 } from "lucide-react";
 import { UserAvatar } from "@/components/admin/user-avatar";
@@ -77,7 +77,7 @@ const ACTION_VISUAL: Record<string, { bg: string; color: string; icon: string }>
   listing_sold: { bg: "#E8F0F7", color: "#1B4F8A", icon: "tag" },
   business_created: { bg: "#ECFEFF", color: "#0891B2", icon: "store" },
   deal_created: { bg: "#FEF3C7", color: "#B45309", icon: "deal" },
-  notice_created: { bg: "#E8F0F7", color: "#0B1C2E", icon: "megaphone" },
+  notice_created: { bg: "#E8F0F7", color: "#1B4F8A", icon: "megaphone" },
   event_created: { bg: "#F5F3FF", color: "#7C3AED", icon: "calendar" },
   alert_created: { bg: "#FEF2F2", color: "#DC2626", icon: "alert" },
   profile_updated: { bg: "#F8FAFC", color: "#475569", icon: "user" },
@@ -451,7 +451,7 @@ export function ResidentActivityModal({ member, onClose }: Props) {
               </p>
               {meta && meta.total > 0 ? (
                 <span className="nl-resident-activity-count">
-                  <Sparkles className="h-3 w-3" strokeWidth={2.25} />
+                  <Activity className="h-3 w-3" strokeWidth={2.25} />
                   {meta.total} {meta.total === 1 ? "record" : "records"}
                 </span>
               ) : null}

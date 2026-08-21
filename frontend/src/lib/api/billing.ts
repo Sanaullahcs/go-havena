@@ -92,6 +92,32 @@ export interface BillingPayload {
   };
   setup: BillingSetup;
   coupon?: BillingCouponSummary | null;
+  next_charge?: BillingNextCharge | null;
+  invoices?: BillingInvoice[];
+}
+
+export interface BillingNextCharge {
+  at: string | null;
+  amount_cents: number;
+  currency: string;
+  interval: string;
+  will_charge: boolean;
+  kind: "renews" | "trial_ends" | "trial_starts" | "access_ends" | "leftover_ends";
+}
+
+export interface BillingInvoice {
+  id: string;
+  number: string | null;
+  status: string;
+  amount_due_cents: number;
+  amount_paid_cents: number;
+  currency: string;
+  created_at: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  hosted_invoice_url: string | null;
+  invoice_pdf: string | null;
+  billing_reason: string | null;
 }
 
 export interface BillingCouponSummary {
@@ -238,11 +264,14 @@ export async function changeBillingPlan(input: {
 
 export function formatMoney(cents: number, currency = "usd"): string {
   try {
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: currency.toUpperCase(),
+      currencyDisplay: "narrowSymbol",
       maximumFractionDigits: 0,
-    }).format(cents / 100);
+    })
+      .format(cents / 100)
+      .replace(/^US\s?/, "");
   } catch {
     return `$${(cents / 100).toFixed(0)}`;
   }

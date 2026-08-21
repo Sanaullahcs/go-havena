@@ -244,7 +244,9 @@ class CommunityBillingTest extends TestCase
             ->getJson('/api/v1/admin/billing')
             ->assertOk()
             ->assertJsonPath('data.recommended_plan', 'growth')
-            ->assertJsonPath('data.setup.subscription_active', false);
+            ->assertJsonPath('data.setup.subscription_active', false)
+            ->assertJsonPath('data.next_charge', null)
+            ->assertJsonPath('data.invoices', []);
     }
 
     public function test_system_admin_can_grant_subscription(): void
@@ -268,7 +270,9 @@ class CommunityBillingTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.subscription.plan_slug', 'campus')
             ->assertJsonPath('data.subscription.extra_seats', 25)
-            ->assertJsonPath('data.seats.seat_limit', 525);
+            ->assertJsonPath('data.seats.seat_limit', 525)
+            ->assertJsonPath('data.next_charge.kind', 'renews')
+            ->assertJsonPath('data.invoices', []);
     }
 
     public function test_approve_pending_member_requires_seat(): void

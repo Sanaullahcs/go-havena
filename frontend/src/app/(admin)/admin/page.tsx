@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { Check, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { AdminBadge, StatTile } from "@/components/admin/ui";
 import CommunityAdminDashboard from "@/components/admin/community-admin-dashboard";
@@ -264,10 +265,10 @@ export default function AdminOverviewPage() {
     ];
   }, [data]);
 
-  if (!mounted) return <PageLoader text="Loading dashboard…" skeleton />;
+  if (!mounted) return <PageLoader text="Loading dashboard…" variant="dashboard" />;
   if (!isSystemAdmin) return <CommunityAdminDashboard />;
 
-  if (loading && !data) return <PageLoader text="Loading dashboard…" skeleton />;
+  if (loading && !data) return <PageLoader text="Loading dashboard…" variant="dashboard" />;
   if ((error && !data) || !data) {
     return <PageError message={error ?? "Unable to load dashboard."} onRetry={() => load()} />;
   }
@@ -311,12 +312,13 @@ export default function AdminOverviewPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <DashboardHero
         eyebrow="System Dashboard"
         title="Platform Analytics"
         description="Live overview of users, communities, moderation, and platform activity across all regions."
         variant="system"
+        compact
         generatedAt={generatedLabel}
         refreshing={refreshing}
         onRefresh={() => load(true)}
@@ -329,30 +331,40 @@ export default function AdminOverviewPage() {
       />
 
       {stats.pending_approval_total > 0 ? (
-        <PendingAlertBanner>
+        <PendingAlertBanner href="#pending-approvals">
           <span className="font-semibold">
             {stats.pending_approval_total} item{stats.pending_approval_total === 1 ? "" : "s"} need your review
           </span>
           {" — "}
-          {stats.pending_members} resident approval{stats.pending_members === 1 ? "" : "s"}
-          {(stats.pending_community_admins ?? 0) > 0
-            ? `, ${stats.pending_community_admins} community admin${stats.pending_community_admins === 1 ? "" : "s"}`
-            : ""}
-          {stats.pending_community_requests
-            ? ` and ${stats.pending_community_requests} community request${stats.pending_community_requests === 1 ? "" : "s"}`
-            : ""}
+          {stats.pending_members > 0 ? (
+            <Link href="/admin/residents?status=pending" className="font-semibold underline decoration-amber-400/70 underline-offset-2 hover:text-amber-950">
+              {stats.pending_members} resident approval{stats.pending_members === 1 ? "" : "s"}
+            </Link>
+          ) : (
+            <>{stats.pending_members} resident approval{stats.pending_members === 1 ? "" : "s"}</>
+          )}
+          {(stats.pending_community_admins ?? 0) > 0 ? (
+            <>
+              {", "}
+              <Link href="/admin/community-admins?status=pending" className="font-semibold underline decoration-amber-400/70 underline-offset-2 hover:text-amber-950">
+                {stats.pending_community_admins} community admin{stats.pending_community_admins === 1 ? "" : "s"}
+              </Link>
+            </>
+          ) : null}
+          {stats.pending_community_requests ? (
+            <>
+              {" and "}
+              <Link href="/admin/communities?tab=requests" className="font-semibold underline decoration-amber-400/70 underline-offset-2 hover:text-amber-950">
+                {stats.pending_community_requests} community request{stats.pending_community_requests === 1 ? "" : "s"}
+              </Link>
+            </>
+          ) : null}
           .
         </PendingAlertBanner>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {primaryKpi.map((item) => (
-          <StatTile key={item.label} {...item} />
-        ))}
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {secondaryKpi.map((item) => (
+      <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+        {[...primaryKpi, ...secondaryKpi].map((item) => (
           <StatTile key={item.label} {...item} />
         ))}
       </div>
@@ -483,7 +495,7 @@ export default function AdminOverviewPage() {
         </DashboardPanel>
         </div>
 
-        <div className="col-span-12 flex min-h-0 flex-col lg:col-span-6">
+        <div id="pending-approvals" className="col-span-12 flex min-h-0 flex-col scroll-mt-20 lg:col-span-6">
         <DashboardPanel
           className="h-full min-h-0 flex-1"
           title="Pending Approvals"
@@ -513,8 +525,9 @@ export default function AdminOverviewPage() {
                         type="button"
                         disabled={actionId === action.id}
                         onClick={() => handlePendingAction(action, "reject")}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-60"
+                        className="nl-btn-secondary !py-2 !text-[12px]"
                       >
+                        <X />
                         Reject
                       </button>
                       <button
@@ -523,6 +536,7 @@ export default function AdminOverviewPage() {
                         onClick={() => handlePendingAction(action, "approve")}
                         className="nl-btn-primary !py-2 !text-[12px]"
                       >
+                        <Check />
                         {actionId === action.id ? "Working…" : "Approve"}
                       </button>
                     </div>

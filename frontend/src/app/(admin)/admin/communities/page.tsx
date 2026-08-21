@@ -34,6 +34,7 @@ import { UtilityBillPreview } from "@/components/admin/utility-bill-preview";
 import { PageError, PageLoader } from "@/components/shared/page-states";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
+import { Check, X } from "lucide-react";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
 import { validateCommunityForm } from "@/lib/admin/community-form-validation";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
@@ -606,8 +607,12 @@ export default function CommunitiesPage() {
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
-              <button type="button" onClick={() => { setModalOpen(false); setEditing(null); }} className="nl-btn-secondary">Cancel</button>
+              <button type="button" onClick={() => { setModalOpen(false); setEditing(null); }} className="nl-btn-secondary">
+                <X />
+                Cancel
+              </button>
               <button type="button" onClick={handleSave} disabled={submitting || !canSubmitForm} className="nl-btn-primary disabled:opacity-60">
+                <Check />
                 {submitting ? (editing ? "Saving…" : "Creating…") : (editing ? "Save Changes" : "Create Community")}
               </button>
             </div>

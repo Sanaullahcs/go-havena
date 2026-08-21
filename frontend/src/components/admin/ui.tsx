@@ -586,7 +586,7 @@ function PaginationIconBtn({
         "flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-all duration-200",
         disabled
           ? "cursor-not-allowed opacity-35"
-          : "hover:bg-[#E8F0F7] hover:text-[#0B1C2E] hover:shadow-sm active:scale-95",
+          : "hover:bg-[#E8F0F7] hover:text-[#1B4F8A] hover:shadow-sm active:scale-95",
       ].join(" ")}
     >
       {children}
@@ -617,7 +617,7 @@ function PaginationPageBtn({
           ? "text-white shadow-md"
           : disabled
             ? "cursor-default text-slate-400"
-            : "text-slate-600 hover:bg-slate-50 hover:text-[#0B1C2E] active:scale-95",
+            : "text-slate-600 hover:bg-slate-50 hover:text-[#1B4F8A] active:scale-95",
       ].join(" ")}
       style={
         active

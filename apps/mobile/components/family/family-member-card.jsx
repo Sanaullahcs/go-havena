@@ -15,7 +15,7 @@ import { Fonts } from "../../constants/font";
 import { sf, sw } from "../../utils/responsive";
 
 const STATUS_META = {
-  head: { label: "Head", bg: "#D1FAF5", color: "#0A2A43", border: "rgba(20, 184, 166, 0.28)" },
+  head: { label: "Head", bg: "#D1FAF5", color: "#1B4F8A", border: "rgba(20, 184, 166, 0.28)" },
   active: { label: "Active", bg: "#ECFDF5", color: "#059669", border: "#A7F3D0" },
   pending: { label: "Pending", bg: "#FFFBEB", color: "#B45309", border: "#FDE68A" },
   suspended: { label: "Suspended", bg: "#FEF2F2", color: "#DC2626", border: "#FECACA" },
@@ -24,7 +24,7 @@ const STATUS_META = {
 
 const TONE_COLOR = {
   default: "#475569",
-  primary: "#0A2A43",
+  primary: "#1B4F8A",
   success: "#059669",
   danger: "#DC2626",
 };
@@ -90,7 +90,7 @@ function MemberActionsDropdown({ actions, disabled = false }) {
           hitSlop={8}
           accessibilityLabel={t("family.memberOptions")}
         >
-          <Feather name="more-horizontal" size={sf(16)} color={open ? "#0A2A43" : "#64748B"} />
+          <Feather name="more-horizontal" size={sf(16)} color={open ? "#1B4F8A" : "#64748B"} />
         </Pressable>
       </View>
 
@@ -242,7 +242,7 @@ export default function FamilyMemberCard({
               hitSlop={8}
               accessibilityLabel={t("family.viewProfile")}
             >
-              <Feather name="user" size={sf(14)} color="#0A2A43" />
+              <Feather name="user" size={sf(14)} color="#1B4F8A" />
             </Pressable>
           ) : null}
         </View>
@@ -258,7 +258,7 @@ export function FamilyHeroCard({ familyNumber, onCopy, onShare }) {
       style={styles.hero}
     >
       <View style={styles.heroIcon}>
-        <Feather name="users" size={sf(22)} color="#0A2A43" />
+        <Feather name="users" size={sf(22)} color="#1B4F8A" />
       </View>
       <Text style={styles.heroLabel}>{t("family.heroCard.familyNumber")}</Text>
       <Text style={styles.heroNumber} selectable>
@@ -267,7 +267,7 @@ export function FamilyHeroCard({ familyNumber, onCopy, onShare }) {
       <Text style={styles.heroHint}>{t("family.heroCard.shareHint")}</Text>
       <View style={styles.heroActions}>
         <Pressable style={styles.heroBtn} onPress={onCopy}>
-          <Feather name="copy" size={sf(14)} color="#0A2A43" />
+          <Feather name="copy" size={sf(14)} color="#1B4F8A" />
           <Text style={styles.heroBtnText}>{t("family.heroCard.copy")}</Text>
         </Pressable>
         <Pressable style={[styles.heroBtn, styles.heroBtnGhost]} onPress={onShare}>
@@ -457,7 +457,7 @@ const styles = StyleSheet.create({
   heroBtnText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(14),
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   heroBtnTextGhost: {
     color: "#FFFFFF",

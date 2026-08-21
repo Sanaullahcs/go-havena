@@ -54,7 +54,11 @@ export default function SystemLoginPage() {
   return (
     <>
       {redirecting ? (
-        <AuthRedirectOverlay title="Opening platform dashboard" subtitle="Loading your workspace…" />
+        <AuthRedirectOverlay
+          variant="system"
+          title="Opening platform dashboard"
+          subtitle="Loading your workspace…"
+        />
       ) : null}
 
       <main className="flex min-h-screen min-h-dvh items-center justify-center bg-[#f4f6fb] px-4 py-10">

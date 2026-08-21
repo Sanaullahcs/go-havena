@@ -30,6 +30,8 @@ const nextConfig: NextConfig = {
   // Phone / LAN access to `next dev` (Expo billing redirect) needs this or
   // /_next assets never load and /admin/billing stays on the skeleton forever.
   allowedDevOrigins: lanDevOrigins(),
+  skipTrailingSlashRedirect: true,
+  skipProxyUrlNormalize: true,
   // Allow production deploy while residual admin TS strictness issues are cleaned up.
   typescript: {
     ignoreBuildErrors: true,

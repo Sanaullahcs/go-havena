@@ -958,9 +958,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(20),
     paddingVertical: sw(13),
     borderRadius: sw(999),
-    backgroundColor: "#0F3D5F",
+    backgroundColor: "#1B4F8A",
     borderWidth: 1,
-    borderColor: "#0A2A43",
+    borderColor: "#1B4F8A",
     ...Platform.select({
       ios: {
         shadowColor: "#0F172A",

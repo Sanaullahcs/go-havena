@@ -1,5 +1,161 @@
-const TOKEN_KEY = "nbr_web_token";
-const USER_KEY = "nbr_web_user";
+/**
+ * System admin, community admin, and resident each keep their own token.
+ * A tab/window locks to one portal via sessionStorage so two browsers (or two
+ * windows) can stay signed in as different roles without overwriting each other.
+ */
+export type SessionPortal = "system" | "community" | "resident";
+
+const PORTAL_LOCK_KEY = "havena_web_portal";
+const LEGACY_TOKEN_KEY = "nbr_web_token";
+const LEGACY_USER_KEY = "nbr_web_user";
+
+const SESSION_KEYS: Record<SessionPortal, { token: string; user: string }> = {
+  system: { token: "havena_system_token", user: "havena_system_user" },
+  community: { token: "havena_community_token", user: "havena_community_user" },
+  resident: { token: "havena_resident_token", user: "havena_resident_user" },
+};
+
+const SYSTEM_PATH_PREFIXES = [
+  "/system-login",
+  "/admin/community-admins",
+  "/admin/residents",
+  "/admin/communities",
+  "/admin/regions",
+  "/admin/contact-messages",
+  "/admin/wellness",
+  "/admin/billing-plans",
+  "/admin/billing-coupons",
+  "/admin/referrals",
+  "/admin/moderation",
+  "/admin/analytics",
+  "/admin/users",
+  "/admin/community-requests",
+];
+
+const RESIDENT_PATH_PREFIXES = [
+  "/resident-login",
+  "/home",
+  "/notices",
+  "/feed",
+  "/messages",
+  "/wellness",
+  "/marketplace",
+  "/property",
+  "/profile",
+  "/support",
+];
+
+function pathStartsWith(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+function portalFromUser(user?: WebUser | null): SessionPortal | null {
+  if (!user?.role) return null;
+  if (user.role === "system_admin" || user.role === "admin") return "system";
+  if (user.role === "community_admin") return "community";
+  if (user.role === "resident" || user.role === "guest") return "resident";
+  return null;
+}
+
+function portalFromPath(pathname: string): SessionPortal | null {
+  if (SYSTEM_PATH_PREFIXES.some((prefix) => pathStartsWith(pathname, prefix))) {
+    return "system";
+  }
+  if (RESIDENT_PATH_PREFIXES.some((prefix) => pathStartsWith(pathname, prefix))) {
+    return "resident";
+  }
+  if (
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/register") ||
+    pathname.startsWith("/admin")
+  ) {
+    return "community";
+  }
+  return null;
+}
+
+function readPortalToken(portal: SessionPortal): string | null {
+  return localStorage.getItem(SESSION_KEYS[portal].token);
+}
+
+function migrateLegacySession() {
+  const token = localStorage.getItem(LEGACY_TOKEN_KEY);
+  if (!token) return;
+
+  let user: WebUser | null = null;
+  const raw = localStorage.getItem(LEGACY_USER_KEY);
+  try {
+    user = raw ? (JSON.parse(raw) as WebUser) : null;
+  } catch {
+    user = null;
+  }
+
+  const portal = portalFromUser(user) ?? "community";
+  if (!readPortalToken(portal)) {
+    localStorage.setItem(SESSION_KEYS[portal].token, token);
+    if (raw) localStorage.setItem(SESSION_KEYS[portal].user, raw);
+  }
+  localStorage.removeItem(LEGACY_TOKEN_KEY);
+  localStorage.removeItem(LEGACY_USER_KEY);
+}
+
+export function resolveSessionPortal(): SessionPortal {
+  if (typeof window === "undefined") return "community";
+  migrateLegacySession();
+
+  const pathname = window.location.pathname;
+  const pathHint = portalFromPath(pathname);
+  let tabPortal: SessionPortal | null = null;
+  try {
+    const locked = sessionStorage.getItem(PORTAL_LOCK_KEY);
+    if (locked === "system" || locked === "community" || locked === "resident") {
+      tabPortal = locked;
+    }
+  } catch {
+    tabPortal = null;
+  }
+
+  const lock = (portal: SessionPortal) => {
+    try {
+      sessionStorage.setItem(PORTAL_LOCK_KEY, portal);
+    } catch {
+      /* private mode */
+    }
+    return portal;
+  };
+
+  // Login / dedicated portals must not pick up the other role's token from localStorage.
+  if (
+    pathHint &&
+    (pathname.startsWith("/login") ||
+      pathname.startsWith("/register") ||
+      pathname.startsWith("/system-login") ||
+      pathname.startsWith("/resident-login") ||
+      pathHint === "system" ||
+      pathHint === "resident")
+  ) {
+    return lock(pathHint);
+  }
+
+  if (tabPortal && readPortalToken(tabPortal)) return tabPortal;
+
+  if (pathname === "/admin" || pathname === "/admin/") {
+    if (readPortalToken("community") && !readPortalToken("system")) return lock("community");
+    if (readPortalToken("system") && !readPortalToken("community")) return lock("system");
+  }
+
+  if (pathHint && readPortalToken(pathHint)) return lock(pathHint);
+
+  return lock(pathHint ?? tabPortal ?? "community");
+}
+
+function lockPortal(portal: SessionPortal) {
+  try {
+    sessionStorage.setItem(PORTAL_LOCK_KEY, portal);
+  } catch {
+    /* private mode */
+  }
+}
 
 export type CommunityAdminAccess = {
   platform_approved?: boolean;
@@ -44,17 +200,20 @@ export type WebUser = {
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
+  return readPortalToken(resolveSessionPortal());
 }
 
 export function setSession(token: string, user?: WebUser) {
-  localStorage.setItem(TOKEN_KEY, token);
-  if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+  const portal = portalFromUser(user) ?? resolveSessionPortal();
+  localStorage.setItem(SESSION_KEYS[portal].token, token);
+  if (user) localStorage.setItem(SESSION_KEYS[portal].user, JSON.stringify(user));
+  lockPortal(portal);
 }
 
 export function updateUser(partial: Partial<WebUser>) {
   if (typeof window === "undefined") return;
-  const token = getToken();
+  const portal = resolveSessionPortal();
+  const token = readPortalToken(portal);
   const current = getUser();
   if (!token || !current) return;
   const next = { ...current, ...partial };
@@ -64,13 +223,14 @@ export function updateUser(partial: Partial<WebUser>) {
   if (partial.access) {
     next.access = { ...current.access, ...partial.access };
   }
-  localStorage.setItem(USER_KEY, JSON.stringify(next));
+  const writePortal = portalFromUser(next) ?? portal;
+  localStorage.setItem(SESSION_KEYS[writePortal].user, JSON.stringify(next));
   window.dispatchEvent(new CustomEvent("nbr-session-updated"));
 }
 
 export function getUser(): WebUser | null {
   if (typeof window === "undefined") return null;
-  const raw = localStorage.getItem(USER_KEY);
+  const raw = localStorage.getItem(SESSION_KEYS[resolveSessionPortal()].user);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as WebUser;
@@ -80,8 +240,15 @@ export function getUser(): WebUser | null {
 }
 
 export function clearSession() {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
+  if (typeof window === "undefined") return;
+  const portal = resolveSessionPortal();
+  localStorage.removeItem(SESSION_KEYS[portal].token);
+  localStorage.removeItem(SESSION_KEYS[portal].user);
+  try {
+    sessionStorage.removeItem(PORTAL_LOCK_KEY);
+  } catch {
+    /* private mode */
+  }
 }
 
 export function isSystemAdminUser(user?: WebUser | null): boolean {

@@ -153,6 +153,54 @@
     "notificationsAccess": "Notifications",
     "propertyManagement": "Property management",
     "settingsAccess": "Settings",
+    "tabs": {
+      "profile": "Profile",
+      "subscription": "Subscription"
+    },
+    "subscription": {
+      "loading": "Loading subscription…",
+      "loadFailed": "Could not load subscription",
+      "retry": "Try again",
+      "currentPlan": "Current plan",
+      "nextCharge": "Next charge",
+      "planPrice": "Plan price",
+      "afterTrial": "First billed after trial · {{date}}",
+      "afterTrialPending": "First billed after the trial starts",
+      "invoices": "Invoices",
+      "noPlan": "No plan yet",
+      "noPlanBody": "Choose a seat plan and add a card to start billing for this community.",
+      "setupBilling": "Set up billing",
+      "noCharge": "No charge scheduled",
+      "noInvoices": "No invoices yet. They appear here after a billing cycle.",
+      "invoiceFallback": "Invoice",
+      "seats": "{{count}} resident seats",
+      "monthly": "Monthly",
+      "yearly": "Yearly",
+      "kind": {
+        "renews": "Renews",
+        "trial_ends": "Trial ends",
+        "trial_starts": "Trial starts after approval",
+        "access_ends": "Access ends",
+        "leftover_ends": "Leftover access ends"
+      },
+      "status": {
+        "active": "Active",
+        "trialing": "Trial",
+        "pending_trial": "Awaiting approval",
+        "past_due": "Past due",
+        "canceled": "Canceled",
+        "unpaid": "Unpaid",
+        "incomplete": "Incomplete",
+        "grace": "Grace"
+      },
+      "invoiceStatus": {
+        "paid": "Paid",
+        "open": "Open",
+        "draft": "Draft",
+        "void": "Void",
+        "uncollectible": "Uncollectible"
+      }
+    },
     "roles": {
       "resident": "Resident",
       "guest": "Guest",
@@ -3700,7 +3748,7 @@
     "checkingStatus": "Checking account status…",
     "setupRequired": "Payment method",
     "completeSetupTitle": "Add a payment method",
-    "completeSetupBody": "Save a card in the Havena admin portal. $0 is due today. Your free trial starts only after a system administrator approves you.",
+    "completeSetupBody": "Save a card in the Havena admin portal. You’ll see the full plan price first — the trial is included, and the first charge is only after it ends.",
     "cardSavedBadge": "Card on file",
     "waitingTitle": "Waiting for approval",
     "waitingBody": "Your card is saved and you will not be charged yet. A Havena administrator will review your community. When you’re approved, your 30-day free trial begins.",
@@ -3713,7 +3761,7 @@
     "timelineAccess": "Dashboard access",
     "howItWorks": "Next steps",
     "stepOpenWeb": "Open the secure billing page",
-    "stepChoosePlan": "Add your card — $0 today",
+    "stepChoosePlan": "Add your card — trial included",
     "stepReturn": "Return to this screen",
     "stepRefresh": "Tap Refresh status",
     "setupLink": "Developer portal link",

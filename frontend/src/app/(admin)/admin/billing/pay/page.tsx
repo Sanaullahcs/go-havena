@@ -318,7 +318,7 @@ function CheckoutForm({
                 type="button"
                 onClick={() => void onApplyCoupon()}
                 disabled={couponLoading || !couponCode.trim()}
-                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                className="rounded-xl bg-[#1B4F8A] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
               >
                 Apply
               </button>
@@ -375,8 +375,8 @@ function CheckoutForm({
         {session.trialDays <= 0
           ? "Your community has already used its one-time free trial. Your card is saved by Stripe and billing starts on the plan you selected."
           : session.trialStartsOnApproval
-            ? `$0 due today. Your ${session.trialDays}-day free trial starts after a system administrator approves your account. You are not charged until that trial ends.`
-            : `$0 due today. Your card is saved by Stripe and billed in USD after the trial unless you cancel.`}
+            ? `You’ll see the full plan price. Your ${session.trialDays}-day trial starts after a system administrator approves you — the first charge is only after that trial ends.`
+            : `You’ll see the full plan price. Your card is saved by Stripe and billed in USD after the trial unless you cancel.`}
       </p>
     </form>
   );
@@ -610,7 +610,7 @@ function PayInner() {
     return date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
   }, [session?.trialDays]);
 
-  if (loading && !session) return <PageLoader text="Preparing checkout…" />;
+  if (loading && !session) return <PageLoader text="Preparing checkout…" variant="form" />;
   if (error && !session) {
     return (
       <PageError
@@ -635,24 +635,25 @@ function PayInner() {
       </Link>
 
       <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,18.5rem)_minmax(0,1fr)] lg:items-start">
-        <aside className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-[#0A2A43] via-[#0c3550] to-teal-800 p-5 text-white shadow-md">
+        <aside className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-[#1B4F8A] via-[#163A66] to-[#1B4F8A] p-5 text-white shadow-md">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-teal-100/80">
             {session.trialDays > 0 ? `Try Havena ${session.plan.name}` : `Resume ${session.plan.name}`}
           </p>
           <h1 className="mt-2 font-[family-name:var(--font-brand)] text-[1.75rem] font-bold leading-tight">
-            {session.trialDays > 0 ? `${session.trialDays} days free` : "Add your card"}
+            {formatMoney(billedPriceCents, session.plan.currency)}
+            <span className="text-[1rem] font-semibold text-white/70"> / {period}</span>
           </h1>
           <p className="mt-2 text-[13px] leading-relaxed text-white/75">
             {session.trialDays <= 0
-              ? `${formatMoney(billedPriceCents, session.plan.currency)} per ${period} after approval. Your community already used its one-time free trial.`
-              : `Then ${formatMoney(billedPriceCents, session.plan.currency)} per ${period}${
+              ? `Paid after approval. Your community already used its one-time free trial.`
+              : `First ${session.trialDays} days on us${
                   appliedCoupon
                     ? ` (${formatMoney(originalPriceCents, session.plan.currency)} before discount)`
                     : ""
-                }${
+                }. ${
                   session.trialStartsOnApproval
-                    ? ` after your ${session.trialDays}-day trial (trial starts when you’re approved).`
-                    : ` starting ${trialEnd}.`
+                    ? "The trial starts when you’re approved — first charge after it ends."
+                    : `First charge ${trialEnd}.`
                 }`}
           </p>
 
@@ -660,7 +661,7 @@ function PayInner() {
             {session.trialDays > 0 ? (
               <li className="flex items-center gap-2">
                 <Check className="h-4 w-4 shrink-0 text-teal-300" aria-hidden />
-                $0 due today
+                First {session.trialDays} days included
               </li>
             ) : (
               <li className="flex items-center gap-2">
@@ -725,7 +726,7 @@ function PayInner() {
 
 export default function BillingPayPage() {
   return (
-    <Suspense fallback={<PageLoader text="Preparing checkout…" />}>
+    <Suspense fallback={<PageLoader text="Preparing checkout…" variant="form" />}>
       <PayInner />
     </Suspense>
   );

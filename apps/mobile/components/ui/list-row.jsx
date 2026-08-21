@@ -10,7 +10,7 @@ export default function ListRow({
   title,
   subtitle,
   icon,
-  iconColor = "#0A2A43",
+  iconColor = "#1B4F8A",
   iconBg = "#D1FAF5",
   onPress,
   right,

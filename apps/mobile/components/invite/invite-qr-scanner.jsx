@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
   allowButtonText: {
     fontFamily: Fonts.semiBold,
     fontSize: 14,
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   closeButton: {
     paddingHorizontal: 16,

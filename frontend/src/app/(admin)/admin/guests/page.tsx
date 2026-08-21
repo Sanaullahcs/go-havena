@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Activity, Calendar, Check, ChevronLeft, ChevronRight, Clock, Eye, LogIn, Mail, Phone, Plus, RefreshCw, Shield, Sparkles, UserPlus, X } from "lucide-react";
+import { Activity, Calendar, Check, ChevronLeft, ChevronRight, Clock, Eye, Info, LogIn, Mail, Phone, Plus, RefreshCw, Shield, UserPlus, X } from "lucide-react";
 import { AdminBadge, DataTable, DtPagination, StatTile } from "@/components/admin/ui";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { UserAvatar } from "@/components/admin/user-avatar";
@@ -684,7 +684,7 @@ export default function GuestsPage() {
               </div>
 
               <div className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
-                <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
                 <p className="text-sm leading-6 text-blue-800">
                   After the guest verifies their phone and invite code, you must approve access before they can use the community.
                 </p>
@@ -694,6 +694,7 @@ export default function GuestsPage() {
             <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50/80 px-6 py-4">
               <button type="button" onClick={() => setShowForm(false)} className="nl-btn-secondary">Cancel</button>
               <button type="button" onClick={handleInvite} disabled={submitting} className="nl-btn-primary disabled:opacity-60">
+                <Plus />
                 {submitting ? "Creating…" : "Create Invitation"}
               </button>
             </div>

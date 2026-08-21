@@ -2,7 +2,7 @@
  * Ocean Breeze — the only home palette.
  *
  * Five swatches, used everywhere:
- *   #0F3D5F  Navy          — hero bg, headings, primary text, icon color
+ *   #1B4F8A  Primary Blue  — hero bg, headings, primary text, icon color
  *   #0D9488  Deep Teal     — secondary accent, success
  *   #14B8A6  Primary Teal  — CTA buttons, active nav, FAB, accent text
  *   #D1FAF5  Soft Mint     — icon wells, chips, soft surfaces
@@ -11,7 +11,7 @@
  * No gradients. Solid fills only.
  */
 export const HomeTheme = {
-  navy:       "#0F3D5F",
+  navy:       "#1B4F8A",
   deepTeal:   "#0D9488",
   teal:       "#14B8A6",
   mint:       "#D1FAF5",

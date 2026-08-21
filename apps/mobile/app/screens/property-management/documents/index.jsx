@@ -143,7 +143,7 @@ export default function Documents() {
       <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
         <InternalScreenHeader title={t("propertyMgmt.documentsTitle")} subtitle={t("common.loading")} />
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#0A2A43" />
+          <ActivityIndicator size="large" color="#1B4F8A" />
         </View>
       </SafeAreaView>
     );
@@ -163,7 +163,7 @@ export default function Documents() {
             </Pressable>
             {isAdmin ? (
               <Pressable onPress={openAddDocument} style={styles.addBtn}>
-                <Feather name="plus" size={sf(16)} color="#0A2A43" />
+                <Feather name="plus" size={sf(16)} color="#1B4F8A" />
                 <Text style={styles.addBtnText}>{t("propertyMgmt.addBtn")}</Text>
               </Pressable>
             ) : null}
@@ -174,7 +174,7 @@ export default function Documents() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={pageStyles.scrollBottom}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0A2A43" colors={["#0A2A43"]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1B4F8A" colors={["#1B4F8A"]} />}
       >
         {showSearch && (
           <View style={propertyStyles.sectionBlock}>
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(20, 184, 166, 0.28)",
   },
-  addBtnText: { fontFamily: Fonts.bold, fontSize: sf(12), color: "#0A2A43", fontWeight: "700" },
+  addBtnText: { fontFamily: Fonts.bold, fontSize: sf(12), color: "#1B4F8A", fontWeight: "700" },
   searchWrap: {
     flexDirection: "row",
     alignItems: "center",
@@ -389,5 +389,5 @@ const styles = StyleSheet.create({
   emptyHint: { fontFamily: Fonts.regular, fontSize: sf(12), color: "#D1D5DB", textAlign: "center" },
   errorBox: { gap: sw(8) },
   errorText: { fontFamily: Fonts.regular, fontSize: sf(13), color: "#E7000B" },
-  retryText: { fontFamily: Fonts.bold, fontSize: sf(13), color: "#0A2A43", fontWeight: "700" },
+  retryText: { fontFamily: Fonts.bold, fontSize: sf(13), color: "#1B4F8A", fontWeight: "700" },
 });

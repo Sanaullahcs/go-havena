@@ -326,7 +326,7 @@ export default function FamilyRequestsScreen() {
       <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
         <InternalScreenHeader title={t("family.requests.title")} />
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#0A2A43" />
+          <ActivityIndicator size="large" color="#1B4F8A" />
         </View>
       </SafeAreaView>
     );
@@ -347,7 +347,7 @@ export default function FamilyRequestsScreen() {
               setRefreshing(true);
               load();
             }}
-            tintColor="#0A2A43"
+            tintColor="#1B4F8A"
           />
         }
         ListEmptyComponent={
@@ -477,7 +477,7 @@ const styles = StyleSheet.create({
   typePillText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(10),
-    color: "#0A2A43",
+    color: "#1B4F8A",
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
@@ -495,7 +495,7 @@ const styles = StyleSheet.create({
   initialsText: {
     fontFamily: Fonts.bold,
     fontSize: sf(16),
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   cardHeader: {
     flexDirection: "row",
@@ -633,7 +633,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(18),
     paddingVertical: sw(12),
     borderRadius: 999,
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
   },
   emptyCtaText: {
     fontFamily: Fonts.semiBold,

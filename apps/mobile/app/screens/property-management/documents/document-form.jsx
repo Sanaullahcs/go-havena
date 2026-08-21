@@ -142,7 +142,7 @@ export default function DocumentForm() {
     return (
       <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
         <InternalScreenHeader title={isEdit ? t("propertyMgmt.editDocument") : t("propertyMgmt.addDocument")} />
-        <View style={styles.centered}><ActivityIndicator size="large" color="#0A2A43" /></View>
+        <View style={styles.centered}><ActivityIndicator size="large" color="#1B4F8A" /></View>
       </SafeAreaView>
     );
   }
@@ -211,7 +211,7 @@ export default function DocumentForm() {
         <View style={styles.field}>
           <Text style={styles.label}>{isEdit ? t("propertyMgmt.replaceFile") : t("propertyMgmt.fileRequired")}</Text>
           <Pressable style={[styles.filePicker, showError("file", liveErrors) && styles.inputError]} onPress={pickFile}>
-            <Feather name="upload" size={sf(18)} color="#0A2A43" />
+            <Feather name="upload" size={sf(18)} color="#1B4F8A" />
             <Text style={styles.filePickerText} numberOfLines={2}>
               {fileAsset?.name ?? (isEdit ? t("propertyMgmt.tapNewFile") : t("propertyMgmt.tapChooseFile"))}
             </Text>
@@ -228,7 +228,7 @@ export default function DocumentForm() {
             value={form.status === "active"}
             onValueChange={(v) => setF("status", v ? "active" : "inactive")}
             trackColor={{ false: "#E5E7EB", true: "rgba(20, 184, 166, 0.28)" }}
-            thumbColor={form.status === "active" ? "#0A2A43" : "#FFFFFF"}
+            thumbColor={form.status === "active" ? "#1B4F8A" : "#FFFFFF"}
           />
         </View>
       </ScrollView>
@@ -261,9 +261,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(12), paddingVertical: sw(7), borderRadius: sw(999),
     borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#FFFFFF",
   },
-  chipActive: { borderColor: "#0A2A43", backgroundColor: "#D1FAF5" },
+  chipActive: { borderColor: "#1B4F8A", backgroundColor: "#D1FAF5" },
   chipText: { fontFamily: Fonts.medium, fontSize: sf(12), color: "#374151" },
-  chipTextActive: { color: "#0A2A43", fontFamily: Fonts.bold, fontWeight: "700" },
+  chipTextActive: { color: "#1B4F8A", fontFamily: Fonts.bold, fontWeight: "700" },
   filePicker: {
     flexDirection: "row", alignItems: "center", gap: sw(12),
     borderWidth: 1, borderStyle: "dashed", borderColor: "#CBD5E1", borderRadius: sw(12),
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#F3F4F6", backgroundColor: "#FFFFFF",
   },
   submitBtn: {
-    backgroundColor: "#0A2A43", borderRadius: sw(14), paddingVertical: sw(15),
+    backgroundColor: "#1B4F8A", borderRadius: sw(14), paddingVertical: sw(15),
     alignItems: "center", justifyContent: "center",
   },
   submitBtnDisabled: { opacity: 0.5 },

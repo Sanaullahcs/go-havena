@@ -72,7 +72,7 @@ export const CATEGORY_THEME = {
   general: {
     label: "Announcement",
     bg: "#D1FAF5",
-    text: "#0A2A43",
+    text: "#1B4F8A",
     accent: "#14B8A6",
     icon: "bell",
   },

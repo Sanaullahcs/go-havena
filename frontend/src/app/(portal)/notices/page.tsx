@@ -30,7 +30,7 @@ export default function NoticesPage() {
 
   const visible = notices.filter((n) => filter === "All" || n.category === filter);
 
-  if (loading) return <PageLoader skeleton />;
+  if (loading) return <PageLoader variant="cards" />;
 
   return (
     <div className="space-y-6">

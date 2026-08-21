@@ -24,9 +24,9 @@ const ICONS = {
   success: { name: "checkmark-circle", color: "#10B981", bg: "#ECFDF5" },
   error: { name: "close-circle", color: "#DC2626", bg: "#FEF2F2" },
   warning: { name: "alert-circle", color: "#D97706", bg: "#FFFBEB" },
-  info: { name: "information-circle", color: "#0A2A43", bg: "#D1FAF5" },
-  confirm: { name: "help-circle", color: "#0A2A43", bg: "#D1FAF5" },
-  marketplace: { name: "storefront-outline", color: "#0F3D5F", bg: "#D1FAF5" },
+  info: { name: "information-circle", color: "#1B4F8A", bg: "#D1FAF5" },
+  confirm: { name: "help-circle", color: "#1B4F8A", bg: "#D1FAF5" },
+  marketplace: { name: "storefront-outline", color: "#1B4F8A", bg: "#D1FAF5" },
 };
 
 function MetaRow({ label, value, tone = "default" }) {
@@ -220,7 +220,7 @@ function AppDialogModal({ config, onClose }) {
                 >
                   {action.loading ? (
                     <ActivityIndicator
-                      color={isPrimary || isDestructive ? "#FFFFFF" : "#0A2A43"}
+                      color={isPrimary || isDestructive ? "#FFFFFF" : "#1B4F8A"}
                     />
                   ) : (
                     <Text
@@ -642,7 +642,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F3F4F6",
   },
   actionPrimary: {
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
   },
   actionPrimaryPrompt: {
     backgroundColor: "#14B8A6",

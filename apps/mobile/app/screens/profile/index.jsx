@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from "react-native";
 import React, { useState, useCallback } from "react";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -11,11 +11,13 @@ import ProfilePhotoAvatar from "../../../components/profile/profile-photo-avatar
 import ProfileStats from "../../../components/profile/profilestats";
 import RecentAchievements from "../../../components/profile/recentAchievements";
 import QuickAccess from "../../../components/profile/quickAccess";
+import ProfileSubscriptionTab from "../../../components/profile/profile-subscription-tab";
 import { ProfileSkeleton } from "../../../components/ui/skeleton-loader";
 import { fetchMe } from "../../../services/profile-api";
 import { fetchPointsStats, formatPoints } from "../../../services/points-api";
 import { fetchAchievements } from "../../../services/achievements-api";
-import { getProfileFields, getRoleLabel } from "../../../utils/profile-display";
+import { isCommunityAdminRole } from "../../../services/community-access";
+import { getProfileFields } from "../../../utils/profile-display";
 import { useProfilePhoto } from "../../../hooks/use-profile-photo";
 import { sw, sf, hp } from "../../../utils/responsive";
 
@@ -26,6 +28,7 @@ export default function Profile() {
   const [pointsStats, setPointsStats] = useState(null);
   const [achievements, setAchievements] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("profile");
 
   const load = useCallback(async () => {
     try {
@@ -62,6 +65,7 @@ export default function Profile() {
   const regionLine = fields.regionTitle || null;
   const roleKey = fields.role === "guest" ? "guest" : fields.role === "community_admin" || fields.role === "admin" ? "admin" : "resident";
   const roleLabel = t(`profile.roles.${roleKey}`);
+  const showSubscriptionTab = isCommunityAdminRole(profile);
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
@@ -81,6 +85,40 @@ export default function Profile() {
         }
       />
 
+      {showSubscriptionTab ? (
+        <View style={styles.tabBarWrap}>
+          <View style={styles.tabBar}>
+            {[
+              { id: "profile", labelKey: "profile.tabs.profile", icon: "user" },
+              { id: "subscription", labelKey: "profile.tabs.subscription", icon: "credit-card" },
+            ].map((tab) => {
+              const active = activeTab === tab.id;
+              const label = t(tab.labelKey);
+              return (
+                <Pressable
+                  key={tab.id}
+                  style={[styles.tabButton, active && styles.tabButtonActive]}
+                  onPress={() => setActiveTab(tab.id)}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={label}
+                >
+                  <Feather
+                    name={tab.icon}
+                    size={sf(14)}
+                    color={active ? "#FFFFFF" : Colors.textSecondary}
+                  />
+                  <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
+
+      {showSubscriptionTab && activeTab === "subscription" ? (
+        <ProfileSubscriptionTab />
+      ) : (
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -167,6 +205,7 @@ export default function Profile() {
         <RecentAchievements achievements={achievements} />
         <QuickAccess />
       </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -178,6 +217,45 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: hp(5),
+  },
+  tabBarWrap: {
+    paddingHorizontal: Layout.screenPadding,
+    paddingTop: sw(8),
+    paddingBottom: sw(10),
+  },
+  tabBar: {
+    flexDirection: "row",
+    gap: sw(8),
+  },
+  tabButton: {
+    flex: 1,
+    minHeight: sw(40),
+    borderRadius: sw(12),
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: sw(6),
+    backgroundColor: "#FFFFFF",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.borderSubtle,
+    ...Platform.select({
+      ios: { borderCurve: "continuous" },
+      default: {},
+    }),
+  },
+  tabButtonActive: {
+    backgroundColor: Colors.brandPrimaryDeep,
+    borderColor: Colors.brandPrimaryDeep,
+  },
+  tabLabel: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(12),
+    lineHeight: sf(16),
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  tabLabelActive: {
+    color: "#FFFFFF",
   },
   pressed: {
     opacity: 0.9,

@@ -56,7 +56,7 @@ function normalizeCategorySummary(c) {
     title: c.title,
     subtitle: c.subtitle ?? "",
     iconKey: c.icon_key ?? c.key,
-    color: c.color ?? "#0A2A43",
+    color: c.color ?? "#1B4F8A",
     courseCount: c.course_count ?? 0,
     coursesLabel: c.courses_label ?? "",
     progressPercent: c.progress_percent ?? 0,
@@ -72,7 +72,7 @@ function normalizeCategory(c) {
     title: c.title,
     subtitle: c.subtitle ?? "",
     iconKey: c.icon_key ?? c.key,
-    color: c.color ?? "#0A2A43",
+    color: c.color ?? "#1B4F8A",
   };
 }
 
@@ -109,7 +109,7 @@ function normalizeCourseDetail(c) {
     id: c.id,
     categoryKey: c.category_key,
     categoryTitle: c.category_title,
-    categoryColor: c.category_color ?? "#0A2A43",
+    categoryColor: c.category_color ?? "#1B4F8A",
     title: c.title,
     description: c.description ?? "",
     imageUrl: resolveMediaUrl(c.image_url),
@@ -134,7 +134,7 @@ function normalizeLessonDetail(l) {
     courseDescription: l.course_description ?? "",
     categoryKey: l.category_key,
     categoryTitle: l.category_title,
-    categoryColor: l.category_color ?? "#0A2A43",
+    categoryColor: l.category_color ?? "#1B4F8A",
     title: l.title,
     description: l.description ?? "",
     durationMin: l.duration_min ?? 0,

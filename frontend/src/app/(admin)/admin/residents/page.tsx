@@ -16,7 +16,7 @@ export default function ResidentsPage() {
   }, [router]);
 
   if (!isSystemAdminUser()) {
-    return <PageLoader text="Redirecting…" skeleton />;
+    return <PageLoader text="Redirecting…" skeleton={false} />;
   }
 
   return <MembersPage mode="system-residents" />;

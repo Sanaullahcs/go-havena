@@ -181,14 +181,14 @@ export default function MyBooking() {
                   <View style={styles.details}>
                     <View style={styles.detailRow}>
                       <View style={styles.detailIcon}>
-                        <Feather name="calendar" size={sf(14)} color="#0A2A43" />
+                        <Feather name="calendar" size={sf(14)} color="#1B4F8A" />
                       </View>
                       <Text style={styles.detailText}>{dateLabel || t("propertyMgmt.dateTBD")}</Text>
                     </View>
                     {reservation.time_slot ? (
                       <View style={styles.detailRow}>
                         <View style={styles.detailIcon}>
-                          <Feather name="clock" size={sf(14)} color="#0A2A43" />
+                          <Feather name="clock" size={sf(14)} color="#1B4F8A" />
                         </View>
                         <Text style={styles.detailText}>{reservation.time_slot}</Text>
                       </View>
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(14),
     borderRadius: sw(10),
   },
-  tabActive: { backgroundColor: "#0A2A43" },
+  tabActive: { backgroundColor: "#1B4F8A" },
   tabText: {
     fontFamily: Fonts.medium,
     fontSize: PropertyType.bodyMd,

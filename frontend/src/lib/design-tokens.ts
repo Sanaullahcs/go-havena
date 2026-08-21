@@ -2,24 +2,23 @@
  * Havena design tokens — Harbor Trust
  * Professional navy for community / HOA platforms.
  *
- *   #0B1C2E  Deep Navy
- *   #163A66  Mid Navy
  *   #1B4F8A  Primary Blue
+ *   #163A66  Mid Navy
  *   #E8F0F7  Soft Mist
  *   #F6F8FB  Canvas
  */
 
 export const NL = {
-  navy: "#0B1C2E",
+  navy: "#1B4F8A",
   deepTeal: "#163A66",
   teal: "#1B4F8A",
   mint: "#E8F0F7",
   canvas: "#F6F8FB",
 
   brandPrimary: "#1B4F8A",
-  brandPrimaryDeep: "#0B1C2E",
+  brandPrimaryDeep: "#1B4F8A",
 
-  textPrimary: "#0B1C2E",
+  textPrimary: "#1B4F8A",
   textSecondary: "#5B6B7C",
   textBody: "#334155",
   textMuted: "#7C8B9A",
@@ -37,7 +36,7 @@ export const NL = {
   chipBg: "#E8F0F7",
 
   fillCta: "#1B4F8A",
-  fillHero: "#0B1C2E",
+  fillHero: "#1B4F8A",
   fillAuthWash: "#F6F8FB",
   fillSoft: "#E8F0F7",
 

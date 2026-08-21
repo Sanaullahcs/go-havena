@@ -257,7 +257,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <p className="mt-3 text-sm leading-relaxed text-slate-600">{accessBlocked}</p>
           <button
             type="button"
-            className="mt-6 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white"
+            className="mt-6 rounded-xl bg-[#1B4F8A] px-5 py-2.5 text-sm font-semibold text-white"
             onClick={() => {
               void confirmAdminSignOutAndRedirect(router);
             }}
@@ -274,25 +274,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Onboarding shell: no sidebar until full access is unlocked.
   if (onboardingOnly) {
     const onboardingStep = onboardingStepFromPath(pathname);
-    const onboardingShellWide = pathname === "/admin/billing" || pathname.startsWith("/admin/billing/");
-
     return (
       <ForegroundNotificationProvider>
         <div className="min-h-screen overflow-x-hidden bg-[#F6F8FB]">
           <AdminOnboardingTopBar
             title={title}
             step={onboardingStep}
-            wide={onboardingShellWide}
+            wide
             onSignOut={() => {
               void confirmAdminSignOutAndRedirect(router);
             }}
           />
-          <main
-            className={[
-              "mx-auto w-full min-w-0 overflow-x-hidden px-3 py-3 sm:px-6 sm:py-5",
-              onboardingShellWide ? "max-w-6xl" : "max-w-3xl",
-            ].join(" ")}
-          >
+          <main className="mx-auto w-full min-w-0 overflow-x-hidden px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
             {children}
           </main>
         </div>
@@ -308,7 +301,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex min-w-0 flex-col min-h-screen md:ml-60">
           <AdminTopBar title={title} onMenuOpen={() => setDrawerOpen(true)} />
 
-          <main className="min-w-0 flex-1 mx-auto w-full max-w-[1680px] overflow-x-hidden px-4 py-5 sm:px-5 sm:py-6 lg:px-6">
+          <main className="mx-auto min-w-0 w-full max-w-[1680px] flex-1 overflow-x-hidden px-4 py-3 sm:px-5 sm:py-4 lg:px-6">
             <AdminPushBootstrap />
             {children}
           </main>

@@ -17,7 +17,7 @@ import { sf, sw } from "../../utils/responsive";
 import { chevronForward } from "../../utils/rtl";
 
 const STATUS_META = {
-  head: { label: "Family Head", bg: "#D1FAF5", color: "#0A2A43", border: "rgba(20, 184, 166, 0.28)" },
+  head: { label: "Family Head", bg: "#D1FAF5", color: "#1B4F8A", border: "rgba(20, 184, 166, 0.28)" },
   active: { label: "Member", bg: "#F8FAFC", color: "#475569", border: "#E2E8F0" },
   pending: { label: "Pending", bg: "#FFFBEB", color: "#B45309", border: "#FDE68A" },
   suspended: { label: "Suspended", bg: "#FEF2F2", color: "#DC2626", border: "#FECACA" },
@@ -59,7 +59,7 @@ function TreeHero({ family, memberCount }) {
     >
       <View style={styles.heroTop}>
         <View style={styles.heroIconWrap}>
-          <Feather name="git-branch" size={sf(20)} color="#0A2A43" />
+          <Feather name="git-branch" size={sf(20)} color="#1B4F8A" />
         </View>
         <View style={styles.heroCopy}>
           <Text style={styles.heroEyebrow}>{t("family.tree.familyTreeLabel")}</Text>
@@ -224,7 +224,7 @@ function MemberRoster({ members }) {
   return (
     <View style={styles.rosterCard}>
       <View style={styles.rosterHeader}>
-        <Feather name="list" size={sf(14)} color="#0A2A43" />
+        <Feather name="list" size={sf(14)} color="#1B4F8A" />
         <Text style={styles.rosterTitle}>{t("family.tree.allMembers")}</Text>
         <Text style={styles.rosterCount}>{members.length}</Text>
       </View>
@@ -250,7 +250,7 @@ function MemberRoster({ members }) {
               </View>
               {isHead ? (
                 <View style={styles.rosterHeadIcon}>
-                  <Feather name="award" size={sf(14)} color="#0A2A43" />
+                  <Feather name="award" size={sf(14)} color="#1B4F8A" />
                 </View>
               ) : (
                 <Feather name={chevronForward()} size={sf(16)} color="#CBD5E1" />
@@ -288,7 +288,7 @@ export default function FamilyTreeView({ members = [], family = null }) {
     return (
       <View style={styles.emptyWrap}>
         <View style={styles.emptyIcon}>
-          <Feather name="git-branch" size={sf(28)} color="#0A2A43" />
+          <Feather name="git-branch" size={sf(28)} color="#1B4F8A" />
         </View>
         <Text style={styles.emptyTitle}>{t("family.tree.noTreeYet")}</Text>
         <Text style={styles.emptyText}>{t("family.tree.addMembersHint")}</Text>
@@ -304,7 +304,7 @@ export default function FamilyTreeView({ members = [], family = null }) {
         <View style={styles.treeCardHeader}>
           <Text style={styles.treeCardTitle}>{t("family.tree.household")}</Text>
           <View style={styles.treeCardPill}>
-            <Feather name="users" size={sf(12)} color="#0A2A43" />
+            <Feather name="users" size={sf(12)} color="#1B4F8A" />
             <Text style={styles.treeCardPillText}>{t("family.tree.total", { count: members.length })}</Text>
           </View>
         </View>
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
   treeCardPillText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(11),
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   treeCanvas: {
     alignSelf: "center",
@@ -527,7 +527,7 @@ const styles = StyleSheet.create({
     width: sw(28),
     height: sw(28),
     borderRadius: sw(14),
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
     borderWidth: 2,
     borderColor: "#FFFFFF",
     alignItems: "center",
@@ -593,7 +593,7 @@ const styles = StyleSheet.create({
     marginTop: sw(2),
     fontFamily: Fonts.medium,
     fontSize: sf(10),
-    color: "#0A2A43",
+    color: "#1B4F8A",
     textAlign: "center",
   },
   badge: {

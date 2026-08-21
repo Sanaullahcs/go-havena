@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
   retry: {
     fontFamily: Fonts.semiBold,
     fontSize: 14,
-    color: "#0A2A43",
+    color: "#1B4F8A",
     fontWeight: "600",
   },
   cancelWrap: { marginTop: 20 },

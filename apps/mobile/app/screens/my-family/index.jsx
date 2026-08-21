@@ -299,7 +299,7 @@ export default function MyFamilyScreen() {
         hitSlop={8}
         style={styles.requestsBtn}
       >
-        <Feather name="inbox" size={sf(18)} color="#0A2A43" />
+        <Feather name="inbox" size={sf(18)} color="#1B4F8A" />
         {(family?.pending_requests_count ?? 0) > 0 ? (
           <View style={styles.requestsBadge}>
             <Text style={styles.requestsBadgeText}>{family.pending_requests_count}</Text>
@@ -313,7 +313,7 @@ export default function MyFamilyScreen() {
       <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
         <InternalScreenHeader title={t("family.myFamily")} />
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#0A2A43" />
+          <ActivityIndicator size="large" color="#1B4F8A" />
         </View>
       </SafeAreaView>
     );
@@ -354,7 +354,7 @@ export default function MyFamilyScreen() {
                 setRefreshing(true);
                 load();
               }}
-              tintColor="#0A2A43"
+              tintColor="#1B4F8A"
             />
           }
           showsVerticalScrollIndicator={false}
@@ -387,7 +387,7 @@ export default function MyFamilyScreen() {
                 setRefreshing(true);
                 load();
               }}
-              tintColor="#0A2A43"
+              tintColor="#1B4F8A"
             />
           }
           showsVerticalScrollIndicator={false}
@@ -485,7 +485,7 @@ export default function MyFamilyScreen() {
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor="#0A2A43" />
+          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor="#1B4F8A" />
         }
         showsVerticalScrollIndicator={false}
       >
@@ -535,7 +535,7 @@ export default function MyFamilyScreen() {
               </Pressable>
             ) : null}
             <Pressable style={styles.treeLink} onPress={() => router.push("/screens/my-family/tree")}>
-              <Feather name="git-branch" size={sf(14)} color="#0A2A43" />
+              <Feather name="git-branch" size={sf(14)} color="#1B4F8A" />
               <Text style={styles.treeLinkText}>{t("family.familyTree")}</Text>
             </Pressable>
           </View>
@@ -613,7 +613,7 @@ export default function MyFamilyScreen() {
 function StatCard({ icon, label, value }) {
   return (
     <View style={styles.statCard}>
-      <Feather name={icon} size={sf(16)} color="#0A2A43" />
+      <Feather name={icon} size={sf(16)} color="#1B4F8A" />
       <Text style={styles.statLabel}>{label}</Text>
       <Text style={styles.statValue}>{value}</Text>
     </View>
@@ -672,7 +672,7 @@ function CreateFamilyModal({
                 editable={!submitting}
               />
               {loading || checking ? (
-                <ActivityIndicator size="small" color="#0A2A43" style={styles.modalInputSpinner} />
+                <ActivityIndicator size="small" color="#1B4F8A" style={styles.modalInputSpinner} />
               ) : null}
             </View>
             {error ? <Text style={styles.modalError}>{error}</Text> : null}
@@ -848,7 +848,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(10),
     paddingVertical: sw(6),
     borderRadius: sw(999),
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
   },
   addMemberText: {
     fontFamily: Fonts.semiBold,
@@ -872,7 +872,7 @@ const styles = StyleSheet.create({
   treeLinkText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(12),
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   memberList: { gap: sw(8) },
   noMembers: {
@@ -970,7 +970,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: sw(13),
     borderRadius: sw(12),
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
   },
   modalSubmitText: {
     fontFamily: Fonts.semiBold,
@@ -994,7 +994,7 @@ const styles = StyleSheet.create({
   modalLinkText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(12),
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   modalInputWrap: {
     position: "relative",

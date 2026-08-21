@@ -8,14 +8,14 @@ import { PageLoader, EmptyState } from "@/components/shared/page-states";
 
 const CAT_META: Record<string, { label: string; color: string }> = {
   // Current WELLS / course catalog keys
-  weight:        { label: "Weight & Diet",   color: "#0B1C2E" },
+  weight:        { label: "Weight & Diet",   color: "#1B4F8A" },
   exercise:      { label: "Exercise",        color: "#0F766E" },
   learning:      { label: "Learning",        color: "#0369A1" },
   stress:        { label: "Lowering Stress", color: "#1B4F8A" },
   social:        { label: "Social",          color: "#163A66" },
   nutrition:     { label: "Nutrition",       color: "#B45309" },
   sleep:         { label: "Sleep",           color: "#1B4F8A" },
-  mindful:       { label: "Mindfulness",     color: "#0B1C2E" },
+  mindful:       { label: "Mindfulness",     color: "#1B4F8A" },
   // Legacy flat-content keys (kept for older rows)
   fitness:       { label: "Fitness",         color: "#1B4F8A" },
   mental_health: { label: "Mental Health",   color: "#7c3aed" },
@@ -87,7 +87,7 @@ export default function WellnessPage() {
     }
   };
 
-  if (loading) return <PageLoader text="Loading wellness content…" skeleton />;
+  if (loading) return <PageLoader text="Loading wellness content…" variant="cards" />;
 
   const tabs = Object.keys(categories);
 

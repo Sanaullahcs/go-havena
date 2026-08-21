@@ -1,5 +1,16 @@
 import Swal from "sweetalert2";
 
+const ICO_CHECK =
+  '<svg class="nl-swal-btn-ico" viewBox="0 0 24 24" fill="none" width="15" height="15" aria-hidden="true"><path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ICO_X =
+  '<svg class="nl-swal-btn-ico" viewBox="0 0 24 24" fill="none" width="15" height="15" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+const ICO_ALERT =
+  '<svg class="nl-swal-btn-ico" viewBox="0 0 24 24" fill="none" width="15" height="15" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+function labeledButton(icon: string, text: string) {
+  return `<span class="nl-swal-btn-label">${icon}<span>${text}</span></span>`;
+}
+
 /* ─── Brand-themed SweetAlert2 base ─── */
 const nl = Swal.mixin({
   customClass: {
@@ -28,9 +39,18 @@ export async function confirmDelete(opts: {
     icon: "warning",
     title: opts.title ?? "Are you sure?",
     html: opts.text ?? "This will remove it from active lists.",
-    confirmButtonText: opts.confirmText ?? "Delete",
+    confirmButtonText: labeledButton(ICO_ALERT, opts.confirmText ?? "Delete"),
     showCancelButton: true,
-    cancelButtonText: "Cancel",
+    cancelButtonText: labeledButton(ICO_X, "Cancel"),
+    customClass: {
+      popup: "nl-swal-popup",
+      title: "nl-swal-title",
+      htmlContainer: "nl-swal-body",
+      confirmButton: "nl-swal-confirm nl-swal-confirm--red",
+      cancelButton: "nl-swal-cancel",
+      actions: "nl-swal-actions",
+      icon: "nl-swal-icon",
+    },
   });
 }
 
@@ -46,9 +66,12 @@ export async function confirmAction(opts: {
     icon: opts.icon ?? "question",
     title: opts.title ?? "Confirm action",
     html: opts.text ?? "Do you want to proceed?",
-    confirmButtonText: opts.confirmText ?? "Confirm",
+    confirmButtonText: labeledButton(
+      opts.color === "red" ? ICO_ALERT : ICO_CHECK,
+      opts.confirmText ?? "Confirm",
+    ),
     showCancelButton: true,
-    cancelButtonText: "Cancel",
+    cancelButtonText: labeledButton(ICO_X, "Cancel"),
     customClass: {
       popup:         "nl-swal-popup",
       title:         "nl-swal-title",
@@ -105,9 +128,9 @@ export async function confirmRejectWithReason(opts: {
         </div>
       </div>
     `,
-    confirmButtonText: opts.confirmText ?? "Reject",
+    confirmButtonText: labeledButton(ICO_ALERT, opts.confirmText ?? "Reject"),
     showCancelButton: true,
-    cancelButtonText: "Cancel",
+    cancelButtonText: labeledButton(ICO_X, "Cancel"),
     focusConfirm: false,
     customClass: {
       popup: "nl-swal-popup nl-swal-popup--reject",
@@ -170,28 +193,46 @@ const Toast = Swal.mixin({
   toast: true,
   position: "top-end",
   showConfirmButton: false,
-  timer: 3200,
+  timer: 3800,
   timerProgressBar: true,
-  customClass: { popup: "nl-swal-toast" },
   buttonsStyling: false,
   showClass:  { popup: "nl-toast-show"  },
   hideClass:  { popup: "nl-toast-hide"  },
 });
 
-export function toastSuccess(msg: string) {
-  Toast.fire({ icon: "success", title: msg });
+function fireToast(
+  kind: "success" | "error" | "info" | "warning",
+  msg: string,
+  detail?: string,
+) {
+  return Toast.fire({
+    icon: kind,
+    title: msg,
+    text: detail,
+    customClass: {
+      popup: `nl-swal-toast nl-swal-toast--${kind}`,
+      title: "nl-toast-title",
+      htmlContainer: "nl-toast-detail",
+      icon: `nl-toast-icon nl-toast-icon--${kind}`,
+      timerProgressBar: "nl-toast-bar",
+    },
+  });
 }
 
-export function toastError(msg: string) {
-  Toast.fire({ icon: "error", title: msg });
+export function toastSuccess(msg: string, detail?: string) {
+  return fireToast("success", msg, detail);
 }
 
-export function toastInfo(msg: string) {
-  Toast.fire({ icon: "info", title: msg });
+export function toastError(msg: string, detail?: string) {
+  return fireToast("error", msg, detail);
 }
 
-export function toastWarning(msg: string) {
-  Toast.fire({ icon: "warning", title: msg });
+export function toastInfo(msg: string, detail?: string) {
+  return fireToast("info", msg, detail);
+}
+
+export function toastWarning(msg: string, detail?: string) {
+  return fireToast("warning", msg, detail);
 }
 
 export async function alertError(title: string, message: string) {
@@ -199,7 +240,7 @@ export async function alertError(title: string, message: string) {
     icon: "error",
     title,
     html: message,
-    confirmButtonText: "OK",
+    confirmButtonText: labeledButton(ICO_CHECK, "OK"),
   });
 }
 

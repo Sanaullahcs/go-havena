@@ -36,7 +36,7 @@ const STATUS_META = {
   pending_verification: {
     label: "admin.pendingVerification",
     bg: "#D1FAF5",
-    text: "#0A2A43",
+    text: "#1B4F8A",
     border: "rgba(20, 184, 166, 0.28)",
     accent: "#14B8A6",
     icon: "smartphone",

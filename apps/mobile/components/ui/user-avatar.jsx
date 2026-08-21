@@ -52,7 +52,7 @@ export default function UserAvatar({
       ]}
     >
       {useIconPlaceholder ? (
-        <UserRound size={size * 0.4} color="#0A2A43" strokeWidth={1.75} />
+        <UserRound size={size * 0.4} color="#1B4F8A" strokeWidth={1.75} />
       ) : (
         <Text style={[styles.initial, { fontSize: size * 0.38 }]}>{initial}</Text>
       )}
@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
   },
   initial: {
     fontFamily: Fonts.bold,
-    color: "#0A2A43",
+    color: "#1B4F8A",
     fontWeight: "700",
   },
 });

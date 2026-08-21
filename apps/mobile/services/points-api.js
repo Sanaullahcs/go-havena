@@ -3,7 +3,7 @@ import i18n from "../i18n";
 import { getLocaleForLang } from "../hooks/use-app-locale";
 
 const ACTION_ICONS = {
-  lesson_completed: { icon: "book-open", iconColor: "#0A2A43", iconBg: "#D1FAF5" },
+  lesson_completed: { icon: "book-open", iconColor: "#1B4F8A", iconBg: "#D1FAF5" },
   community_post: { icon: "edit-3", iconColor: "#059669", iconBg: "#ECFDF5" },
   streak_bonus: { icon: "zap", iconColor: "#D97706", iconBg: "#FFFBEB" },
   daily_activity: { icon: "activity", iconColor: "#0EA5E9", iconBg: "#D1FAF5" },
@@ -12,7 +12,7 @@ const ACTION_ICONS = {
   booking: { icon: "calendar", iconColor: "#7C3AED", iconBg: "#F3E8FF" },
 };
 
-const DEFAULT_ICON = { icon: "star", iconColor: "#0A2A43", iconBg: "#D1FAF5" };
+const DEFAULT_ICON = { icon: "star", iconColor: "#1B4F8A", iconBg: "#D1FAF5" };
 
 function formatHistoryTime(iso) {
   if (!iso) return "";

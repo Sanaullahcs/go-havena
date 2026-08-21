@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DM_Sans, Plus_Jakarta_Sans, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 import { APP_NAME } from "@/lib/constants";
+import { StripTrailingSlash } from "@/components/shared/strip-trailing-slash";
 
 const sans = DM_Sans({
   variable: "--font-inter",
@@ -47,6 +48,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full overflow-x-hidden" suppressHydrationWarning>
+        <StripTrailingSlash />
         {children}
       </body>
     </html>

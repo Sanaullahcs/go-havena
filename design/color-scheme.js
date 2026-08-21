@@ -2,7 +2,7 @@
  * Havena official color scheme — Ocean Breeze
  * Single source of truth. Solid fills only (no gradients).
  *
- *   #0A2A43  Deep navy — text, nav icons, hero fills
+ *   #1B4F8A  Deep navy — text, nav icons, hero fills
  *   #0D9488  Dark teal — secondary icons / accent text
  *   #14B8A6  Primary teal — CTAs, FAB, highlights
  *   #D1FAF5  Soft mint — chips, soft surfaces
@@ -18,14 +18,14 @@ export const HavenaColors = {
   primary: {
     main: "#14B8A6",
     teal: "#14B8A6",
-    darkNavy: "#0A2A43",
+    darkNavy: "#1B4F8A",
     darkTeal: "#0D9488",
     softMint: "#D1FAF5",
     canvas: "#F4F8FD",
   },
 
   secondary: {
-    navy: "#0A2A43",
+    navy: "#1B4F8A",
     darkTeal: "#0D9488",
     /** @deprecated Prefer darkTeal — kept for older imports */
     turquoise: "#0D9488",
@@ -33,7 +33,7 @@ export const HavenaColors = {
   },
 
   neutral: {
-    darkText: "#0A2A43",
+    darkText: "#1B4F8A",
     mediumGray: "#6B7280",
     lightGray: "#E5E7EB",
     background: "#F4F8FD",

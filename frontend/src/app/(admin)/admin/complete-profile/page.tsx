@@ -180,27 +180,31 @@ function CompleteProfileInner() {
   const utilityLabel = utilityFile?.name ?? (existingUtilityUrl ? "Document on file" : null);
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-lg px-0">
-      <div className="mt-1 sm:mt-2">
-        <h1 className="font-[family-name:var(--font-brand)] text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
-          Complete your profile
-        </h1>
-        <p className="mt-1.5 text-sm leading-snug text-slate-600">
-          {communityName ? (
-            <>
-              Almost there — complete your profile for{" "}
-              <span className="font-semibold text-slate-800">{communityName}</span>.
-            </>
-          ) : (
-            "Tell us about yourself as the community administrator. These details help Havena verify your account."
-          )}
-        </p>
-      </div>
+    <div className="w-full min-w-0">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)] lg:gap-10 xl:grid-cols-[minmax(18rem,26rem)_minmax(0,1fr)]">
+        <aside className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#1B4F8A]">
+            Your profile
+          </p>
+          <h1 className="mt-2 font-[family-name:var(--font-brand)] text-[1.75rem] font-bold tracking-tight text-slate-900 sm:text-[2.1rem]">
+            Complete your profile
+          </h1>
+          <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-600 sm:text-[15px]">
+            {communityName ? (
+              <>
+                Almost there — complete your profile for{" "}
+                <span className="font-semibold text-slate-800">{communityName}</span>.
+              </>
+            ) : (
+              "Tell us about yourself as the community administrator. These details help Havena verify your account."
+            )}
+          </p>
+        </aside>
 
       <form
         onSubmit={onSubmit}
         noValidate
-        className="mt-4 space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:mt-5 sm:p-5"
+        className="min-w-0 space-y-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 lg:p-8"
       >
         {formError ? (
           <div
@@ -211,6 +215,7 @@ function CompleteProfileInner() {
           </div>
         ) : null}
 
+        <div className="grid gap-5 sm:grid-cols-2">
         <OnboardingField
           id="profile-name"
           label="Full name"
@@ -266,6 +271,7 @@ function CompleteProfileInner() {
             aria-invalid={Boolean(emailErr)}
           />
         </OnboardingField>
+        </div>
 
         <OnboardingField
           id="profile-bio"
@@ -399,28 +405,29 @@ function CompleteProfileInner() {
           ) : null}
         </div>
 
-        <div className="space-y-3 pt-1">
-          <button
-            type="submit"
-            disabled={busy || hasFieldErrors(liveErrors)}
-            className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-teal-600 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-600/30 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {busy ? "Saving profile…" : "Save & continue"}
-          </button>
-          <p className="text-center text-[11px] leading-relaxed text-slate-500">
-            By continuing, you agree to Havena&apos;s Terms of Service and Privacy Policy.
-          </p>
+        <div className="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
           <button
             type="button"
-            className="w-full py-2 text-center text-xs font-semibold text-slate-500 transition hover:text-slate-800"
+            className="order-2 text-center text-xs font-semibold text-slate-500 transition hover:text-slate-800 sm:order-1 sm:text-left"
             onClick={() => {
               void confirmAdminSignOutAndRedirect(router);
             }}
           >
             Sign out
           </button>
+          <button
+            type="submit"
+            disabled={busy || hasFieldErrors(liveErrors)}
+            className="order-1 inline-flex h-12 w-full items-center justify-center rounded-xl bg-[#1B4F8A] px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-[#163A66] focus:outline-none focus:ring-2 focus:ring-[#1B4F8A]/30 disabled:cursor-not-allowed disabled:opacity-60 sm:order-2 sm:w-auto sm:min-w-[14rem]"
+          >
+            {busy ? "Saving profile…" : "Save & continue"}
+          </button>
         </div>
+        <p className="text-center text-[11px] leading-relaxed text-slate-500 sm:text-left">
+          By continuing, you agree to Havena&apos;s Terms of Service and Privacy Policy.
+        </p>
       </form>
+      </div>
     </div>
   );
 }

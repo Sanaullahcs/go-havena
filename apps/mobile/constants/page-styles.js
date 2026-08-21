@@ -43,7 +43,7 @@ export const pageStyles = StyleSheet.create({
     lineHeight: PageType.sectionLabelLine,
     letterSpacing: 0.8,
     textTransform: "uppercase",
-    color: "#0A2A43",
+    color: "#1B4F8A",
     fontWeight: "700",
   },
   cardTitle: {
@@ -51,7 +51,7 @@ export const pageStyles = StyleSheet.create({
     fontSize: PageType.cardTitle,
     lineHeight: PageType.cardTitleLine,
     fontWeight: "700",
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   body: {
     fontFamily: Fonts.regular,
@@ -75,7 +75,7 @@ export const pageStyles = StyleSheet.create({
     fontFamily: Fonts.medium,
     fontSize: PageType.bodyMd,
     lineHeight: PageType.bodyMdLine,
-    color: "#0A2A43",
+    color: "#1B4F8A",
     fontWeight: "500",
   },
   input: {
@@ -87,7 +87,7 @@ export const pageStyles = StyleSheet.create({
     paddingHorizontal: sw(14),
     fontFamily: Fonts.regular,
     fontSize: PageType.bodyMd,
-    color: "#0A2A43",
+    color: "#1B4F8A",
     backgroundColor: "#F4F8FD",
   },
   textArea: {
@@ -100,7 +100,7 @@ export const pageStyles = StyleSheet.create({
     paddingTop: sw(12),
     fontFamily: Fonts.regular,
     fontSize: PageType.bodyMd,
-    color: "#0A2A43",
+    color: "#1B4F8A",
     backgroundColor: "#F4F8FD",
   },
   primaryButton: {
@@ -114,7 +114,7 @@ export const pageStyles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: PageType.bodyMd,
     lineHeight: PageType.bodyMdLine,
-    color: "#0A2A43",
+    color: "#1B4F8A",
     fontWeight: "700",
   },
 });

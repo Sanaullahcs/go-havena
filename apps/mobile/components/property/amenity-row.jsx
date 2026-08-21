@@ -20,7 +20,7 @@ export default function AmenityRow({ name, description, capacity, status, icon, 
         {icon ? (
           <Image source={icon} style={styles.icon} contentFit="contain" />
         ) : (
-          <Feather name="home" size={22} color="#0A2A43" />
+          <Feather name="home" size={22} color="#1B4F8A" />
         )}
       </View>
 

@@ -153,7 +153,7 @@ export default function RuleDetails() {
                   fontSize: PropertyType.caption,
                   lineHeight: PropertyType.captionLine,
                   fontWeight: 500,
-                  color: "#0A2A43",
+                  color: "#1B4F8A",
                 }}
               >
                 {t("propertyMgmt.demoVersion")}
@@ -230,8 +230,8 @@ export default function RuleDetails() {
                 height: 20,
                 borderRadius: 6,
                 borderWidth: 2,
-                borderColor: isAcknowledged ? "#0A2A43" : "#D0D5DD",
-                backgroundColor: isAcknowledged ? "#0A2A43" : "#FFFFFF",
+                borderColor: isAcknowledged ? "#1B4F8A" : "#D0D5DD",
+                backgroundColor: isAcknowledged ? "#1B4F8A" : "#FFFFFF",
                 alignItems: "center",
                 justifyContent: "center",
               }}
@@ -269,7 +269,7 @@ export default function RuleDetails() {
           <TouchableOpacity
             disabled={!isAcknowledged}
             style={{
-              backgroundColor: isAcknowledged ? "#0A2A43" : "#F3F4F6",
+              backgroundColor: isAcknowledged ? "#1B4F8A" : "#F3F4F6",
               paddingVertical: 15,
               width: "100%",
               borderRadius: 14,
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 15,
     width: "100%",
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
     boxShadow: "0px 4px 6px -4px #0000001A",
     boxShadow: "0px 10px 15px -3px #0000001A",
     borderRadius: 14,

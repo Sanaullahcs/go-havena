@@ -263,7 +263,7 @@ export default function Notifications() {
     if (loading) {
       return (
           <View style={styles.loadingWrap}>
-          <ActivityIndicator size="small" color="#0A2A43" />
+          <ActivityIndicator size="small" color="#1B4F8A" />
         </View>
       );
     }
@@ -426,7 +426,7 @@ export default function Notifications() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0A2A43" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1B4F8A" />
         }
       />
       )}
@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(249, 250, 251, 1)",
   },
   activeTab: {
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
   },
   cardList: {
     flex: 1,
@@ -567,14 +567,14 @@ const styles = StyleSheet.create({
     lineHeight: sf(12),
     fontWeight: "700",
     letterSpacing: 0.4,
-    color: "#0F3D5F",
+    color: "#1B4F8A",
   },
   cardTitle: {
     fontFamily: Fonts.semibold,
     fontWeight: "700",
     fontSize: sf(14.5),
     lineHeight: sf(19),
-    color: "#0F3D5F",
+    color: "#1B4F8A",
   },
   cardDescription: {
     fontFamily: Fonts.regular,
@@ -613,7 +613,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semibold,
     fontSize: sf(10),
     lineHeight: sf(14),
-    color: "#0A2A43",
+    color: "#1B4F8A",
     fontWeight: "600",
   },
   cardRsvpFull: {

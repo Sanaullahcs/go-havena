@@ -176,7 +176,7 @@ export default function BusinessHoursInput({ value = "", onChange, showError = f
                   display="spinner"
                   themeVariant="light"
                   textColor="#111827"
-                  accentColor="#0A2A43"
+                  accentColor="#1B4F8A"
                   onChange={handleValueChange}
                   style={styles.iosPicker}
                 />
@@ -203,7 +203,7 @@ function TimeChip({ label, value, onPress, filled, hasError }) {
       <Ionicons
         name="time-outline"
         size={14}
-        color={filled ? "#0A2A43" : hasError ? "#F04438" : "#9CA3AF"}
+        color={filled ? "#1B4F8A" : hasError ? "#F04438" : "#9CA3AF"}
       />
       <View>
         <Text style={[styles.chipLabel, filled && styles.chipLabelFilled]}>{label}</Text>
@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
   iosDone: {
     fontFamily: Fonts.bold,
     fontSize: 15,
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   iosPickerWrap: {
     backgroundColor: "#F8FAFC",

@@ -321,7 +321,7 @@ export default function DealsOffer({ embedded = false }) {
                   style={[
                     styles.offerTag,
                     {
-                      backgroundColor: deal.isTrending ? "#FE9A00" : "#0A2A43",
+                      backgroundColor: deal.isTrending ? "#FE9A00" : "#1B4F8A",
                     },
                   ]}
                 >

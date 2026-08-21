@@ -6,7 +6,7 @@ import { OnboardingProgress } from "@/components/admin/onboarding/onboarding-ui"
 
 function HavenaMark() {
   return (
-    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0A2A43] shadow-sm">
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#1B4F8A] shadow-sm">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
         <path
           d="M3 9l9-6 9 6v11a1 1 0 01-1 1H4a1 1 0 01-1-1V9z"
@@ -35,8 +35,8 @@ export function AdminOnboardingTopBar({
     <header className="sticky top-0 z-30 w-full overflow-x-hidden border-b border-slate-200/90 bg-white/95 shadow-sm shadow-slate-900/[0.03] backdrop-blur-sm">
       <div
         className={[
-          "mx-auto flex w-full min-w-0 items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3",
-          wide ? "max-w-6xl" : "max-w-3xl",
+          "mx-auto flex w-full min-w-0 items-center gap-2 px-4 py-2.5 sm:gap-3 sm:px-6 sm:py-3 lg:px-8",
+          wide ? "max-w-none" : "max-w-3xl",
         ].join(" ")}
       >
         <Link

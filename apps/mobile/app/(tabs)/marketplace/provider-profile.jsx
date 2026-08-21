@@ -27,7 +27,7 @@ function InfoTile({ icon, label, value, isLast = false }) {
   return (
     <View style={[styles.infoTile, isLast && styles.infoTileLast]}>
       <View style={styles.infoIconWrap}>
-        <Ionicons name={icon} size={18} color="#0A2A43" />
+        <Ionicons name={icon} size={18} color="#1B4F8A" />
       </View>
       <View style={styles.infoCopy}>
         <Text style={styles.infoLabel}>{label}</Text>
@@ -123,7 +123,7 @@ export default function ProviderProfileScreen() {
 
       {loading ? (
         <View style={styles.centeredState}>
-          <ActivityIndicator color="#0A2A43" size="large" />
+          <ActivityIndicator color="#1B4F8A" size="large" />
         </View>
       ) : error ? (
         <View style={styles.centeredState}>
@@ -154,7 +154,7 @@ export default function ProviderProfileScreen() {
               <View style={styles.badgeRow}>
                 {category ? (
                   <View style={styles.categoryPill}>
-                    <Ionicons name="storefront-outline" size={13} color="#0A2A43" />
+                    <Ionicons name="storefront-outline" size={13} color="#1B4F8A" />
                     <Text style={styles.categoryPillText}>{category}</Text>
                   </View>
                 ) : null}
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
   },
   retryLink: { marginTop: 4 },
   retryLinkText: {
-    color: "#0A2A43",
+    color: "#1B4F8A",
     fontFamily: Fonts.medium,
     fontSize: MarketplaceType.body,
   },
@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
   categoryPillText: {
     fontFamily: Fonts.bold,
     fontSize: MarketplaceType.caption,
-    color: "#0A2A43",
+    color: "#1B4F8A",
     fontWeight: "700",
   },
   statusPill: {
@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
   statValue: {
     fontFamily: Fonts.bold,
     fontSize: MarketplaceType.stat,
-    color: "#0A2A43",
+    color: "#1B4F8A",
     fontWeight: "700",
   },
   statLabel: {
@@ -463,8 +463,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     borderRadius: 16,
     overflow: "hidden",
-    backgroundColor: "#0A2A43",
-    shadowColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
+    shadowColor: "#1B4F8A",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
     shadowRadius: 12,

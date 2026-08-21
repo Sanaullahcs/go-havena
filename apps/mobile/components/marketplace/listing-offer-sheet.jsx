@@ -400,7 +400,7 @@ const styles = StyleSheet.create({
     color: "#4B5563",
   },
   chipTextActive: {
-    color: "#0A2A43",
+    color: "#1B4F8A",
     fontWeight: "600",
   },
   amountRow: {

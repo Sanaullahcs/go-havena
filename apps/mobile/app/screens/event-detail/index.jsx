@@ -125,7 +125,7 @@ const SCREEN_WIDTH = Dimensions.get("window").width;
 const HERO_HEIGHT = SCREEN_WIDTH / HERO_ASPECT;
 
 const SCHEDULE_META = {
-  date: { icon: "calendar", color: "#0A2A43", bg: "#D1FAF5" },
+  date: { icon: "calendar", color: "#1B4F8A", bg: "#D1FAF5" },
   time: { icon: "clock", color: "#7C3AED", bg: "#F5F3FF" },
   location: { icon: "map-pin", color: "#059669", bg: "#ECFDF5" },
 };
@@ -418,7 +418,7 @@ export default function EventDetailScreen() {
           shareDisabled
         />
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#0A2A43" />
+          <ActivityIndicator size="large" color="#1B4F8A" />
         </View>
       </View>
     );
@@ -864,7 +864,7 @@ const styles = StyleSheet.create({
   retryText: {
     fontFamily: Fonts.bold,
     fontSize: sf(14),
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   upcomingEvent: {
     paddingHorizontal: 20,
@@ -955,7 +955,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semiBold,
     fontSize: sf(11),
     lineHeight: sf(15),
-    color: "#0A2A43",
+    color: "#1B4F8A",
     fontWeight: "600",
   },
   attendeeCard: {
@@ -978,7 +978,7 @@ const styles = StyleSheet.create({
   capacityFill: {
     height: "100%",
     borderRadius: 999,
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
   },
   capacityLabel: {
     fontFamily: Fonts.medium,
@@ -1289,7 +1289,7 @@ const styles = StyleSheet.create({
   },
   joinBtn: {
     paddingVertical: 16,
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
     borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
@@ -1332,7 +1332,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 16,
     borderRadius: 16,
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
   },
   shareEventBtnText: {
     fontFamily: Fonts.bold,

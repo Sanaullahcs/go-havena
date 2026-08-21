@@ -237,7 +237,7 @@ export default function AmenityFormScreen() {
             value={form.weekends_available}
             onValueChange={(v) => setF("weekends_available", v)}
             trackColor={{ false: "#E2E8F0", true: "#93C5FD" }}
-            thumbColor={form.weekends_available ? "#0A2A43" : "#F8FAFC"}
+            thumbColor={form.weekends_available ? "#1B4F8A" : "#F8FAFC"}
           />
         </View>
 
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     gap: sw(4),
   },
-  iconChipActive: { borderColor: "#0A2A43", backgroundColor: "#D1FAF5" },
+  iconChipActive: { borderColor: "#1B4F8A", backgroundColor: "#D1FAF5" },
   iconLabel: {
     fontFamily: Fonts.medium,
     fontSize: sf(9),
@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
     padding: sw(14),
     marginBottom: sw(8),
   },
-  modeCardActive: { borderColor: "#0A2A43", backgroundColor: "#F8FBFF" },
+  modeCardActive: { borderColor: "#1B4F8A", backgroundColor: "#F8FBFF" },
   modeCopy: { flex: 1, marginEnd: sw(10) },
   modeTitle: {
     fontFamily: Fonts.bold,
@@ -418,12 +418,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  radioActive: { borderColor: "#0A2A43" },
+  radioActive: { borderColor: "#1B4F8A" },
   radioDot: {
     width: sw(10),
     height: sw(10),
     borderRadius: sw(5),
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
   },
   switchRow: {
     marginTop: sw(16),
@@ -445,13 +445,13 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
     backgroundColor: "#FFFFFF",
   },
-  durationChipActive: { borderColor: "#0A2A43", backgroundColor: "#D1FAF5" },
+  durationChipActive: { borderColor: "#1B4F8A", backgroundColor: "#D1FAF5" },
   durationText: {
     fontFamily: Fonts.semiBold,
     fontSize: PropertyType.caption,
     color: "#64748B",
   },
-  durationTextActive: { color: "#0A2A43" },
+  durationTextActive: { color: "#1B4F8A" },
   previewCard: {
     marginTop: sw(12),
     backgroundColor: "#F8FAFC",
@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
   },
   submit: {
     marginTop: sw(24),
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
     borderRadius: sw(12),
     paddingVertical: sw(14),
     flexDirection: "row",

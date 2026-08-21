@@ -196,7 +196,7 @@ export default function PropertyPage() {
     }
   };
 
-  if (loading) return <PageLoader skeleton />;
+  if (loading) return <PageLoader variant="cards" />;
 
   return (
     <div className="space-y-5">

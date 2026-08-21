@@ -673,7 +673,7 @@ const styles = StyleSheet.create({
   chipText: {
     fontFamily: Fonts.medium,
     fontSize: 12,
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   publishWrap: {
     paddingHorizontal: 24,

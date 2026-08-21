@@ -359,6 +359,10 @@ class CommunityBillingService
         $estimated = $community->estimated_residents
             ?? $subscription?->estimated_residents;
         $includeSlug = $subscription?->isAdminTransition() ? $subscription->plan_slug : null;
+        $coupon = app(SubscriptionCouponService::class)->summaryForBilling(
+            $community->id,
+            $subscription,
+        );
 
         return [
             'community' => [
@@ -425,11 +429,108 @@ class CommunityBillingService
                 'can_invite_residents' => $summary['allows_allocation'] && $summary['seats_available'] > 0
                     && ($community->review_status === null || $community->review_status === 'approved'),
             ],
-            'coupon' => app(SubscriptionCouponService::class)->summaryForBilling(
-                $community->id,
-                $subscription,
-            ),
+            'coupon' => $coupon,
+            'next_charge' => $this->nextChargePayload($subscription, $coupon),
+            'invoices' => $this->formattedInvoices($subscription),
         ];
+    }
+
+    /** Next charge date/amount for the admin subscription summary. */
+    public function nextChargePayload(?CommunitySubscription $subscription, ?array $coupon = null): ?array
+    {
+        if (! $subscription) {
+            return null;
+        }
+
+        $plan = $this->plan($subscription->plan_slug) ?? [];
+        $interval = $subscription->billing_interval === 'year' ? 'year' : 'month';
+        $amount = $interval === 'year'
+            ? (int) ($plan['price_yearly_cents'] ?? 0)
+            : (int) ($plan['price_monthly_cents'] ?? 0);
+
+        if (is_array($coupon) && isset($coupon['discounted_price_cents'])) {
+            $amount = (int) $coupon['discounted_price_cents'];
+        }
+
+        $leftover = $subscription->hasLeftoverService();
+        $cancelScheduled = (bool) $subscription->cancel_at_period_end;
+        $status = (string) $subscription->status;
+        $willCharge = ! $leftover
+            && ! $cancelScheduled
+            && in_array($status, [
+                CommunitySubscription::STATUS_TRIALING,
+                CommunitySubscription::STATUS_ACTIVE,
+                CommunitySubscription::STATUS_PAST_DUE,
+            ], true)
+            && $subscription->hasCardOnFile();
+
+        $kind = $leftover
+            ? 'leftover_ends'
+            : ($cancelScheduled
+                ? 'access_ends'
+                : ($status === CommunitySubscription::STATUS_TRIALING
+                    ? 'trial_ends'
+                    : ($status === CommunitySubscription::STATUS_PENDING_TRIAL
+                        ? 'trial_starts'
+                        : 'renews')));
+
+        $at = $leftover
+            ? $subscription->leftoverEndsAt()?->toIso8601String()
+            : ($status === CommunitySubscription::STATUS_PENDING_TRIAL
+                ? null
+                : $subscription->current_period_end?->toIso8601String());
+
+        return [
+            'at' => $at,
+            'amount_cents' => $amount,
+            'currency' => config('billing.currency', 'usd'),
+            'interval' => $interval,
+            'will_charge' => $willCharge,
+            'kind' => $kind,
+        ];
+    }
+
+    /** Recent Stripe invoices for the community customer. Empty when Stripe is unused. */
+    public function formattedInvoices(?CommunitySubscription $subscription): array
+    {
+        if (! filled($subscription?->stripe_customer_id) || ! $this->stripeConfigured()) {
+            return [];
+        }
+
+        try {
+            $result = $this->stripe()->invoices->all([
+                'customer' => $subscription->stripe_customer_id,
+                'limit' => 12,
+            ]);
+        } catch (\Throwable $e) {
+            Log::info('Billing invoice list skipped', [
+                'subscription_id' => $subscription->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+
+        return collect($result->data ?? [])->map(function ($invoice) {
+            $created = isset($invoice->created) ? Carbon::createFromTimestamp((int) $invoice->created) : null;
+            $periodStart = isset($invoice->period_start) ? Carbon::createFromTimestamp((int) $invoice->period_start) : null;
+            $periodEnd = isset($invoice->period_end) ? Carbon::createFromTimestamp((int) $invoice->period_end) : null;
+
+            return [
+                'id' => (string) ($invoice->id ?? ''),
+                'number' => $invoice->number ?? null,
+                'status' => (string) ($invoice->status ?? ''),
+                'amount_due_cents' => (int) ($invoice->amount_due ?? 0),
+                'amount_paid_cents' => (int) ($invoice->amount_paid ?? 0),
+                'currency' => strtolower((string) ($invoice->currency ?: config('billing.currency', 'usd'))),
+                'created_at' => $created?->toIso8601String(),
+                'period_start' => $periodStart?->toIso8601String(),
+                'period_end' => $periodEnd?->toIso8601String(),
+                'hosted_invoice_url' => $invoice->hosted_invoice_url ?? null,
+                'invoice_pdf' => $invoice->invoice_pdf ?? null,
+                'billing_reason' => $invoice->billing_reason ?? null,
+            ];
+        })->values()->all();
     }
 
     public function stripeConfigured(): bool

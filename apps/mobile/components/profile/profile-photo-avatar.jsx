@@ -40,7 +40,7 @@ export default function ProfilePhotoAvatar({
           />
         ) : (
           <View style={[styles.placeholder, { borderRadius: radius }]}>
-            <Feather name="user" size={iconSize} color="#0A2A43" />
+            <Feather name="user" size={iconSize} color="#1B4F8A" />
           </View>
         )}
       </View>
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   },
   badge: {
     position: "absolute",
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,

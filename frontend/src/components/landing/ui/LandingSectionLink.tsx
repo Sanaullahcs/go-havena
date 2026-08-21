@@ -25,7 +25,7 @@ export function LandingSectionLink({
     e.preventDefault();
     onNavigate?.();
 
-    if (pathname === "/") {
+    if (pathname === "/" || (pathname === "/plans" && sectionId === "pricing")) {
       scrollToLandingSection(sectionId);
     } else {
       navigateToLandingSection(sectionId, router);

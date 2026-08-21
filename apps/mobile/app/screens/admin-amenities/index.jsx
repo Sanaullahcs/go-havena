@@ -887,7 +887,7 @@ export default function AdminAmenitiesScreen() {
                     value={Boolean(form.weekends_available)}
                     onValueChange={(v) => setField("weekends_available", v)}
                     trackColor={{ false: "#E2E8F0", true: "#93C5FD" }}
-                    thumbColor={form.weekends_available ? "#0A2A43" : "#F8FAFC"}
+                    thumbColor={form.weekends_available ? "#1B4F8A" : "#F8FAFC"}
                   />
                 </View>
                 <FieldError message={errorFor("weekends_available")} />
@@ -1461,7 +1461,7 @@ const styles = StyleSheet.create({
   previewTitle: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(12),
-    color: "#0A2A43",
+    color: "#1B4F8A",
     marginBottom: sw(2),
   },
   previewSlot: {

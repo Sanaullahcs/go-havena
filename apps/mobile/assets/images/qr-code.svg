@@ -14,7 +14,7 @@
 <path d="M40 58V56" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
 <defs>
 <linearGradient id="paint0_linear_2622_3064" x1="7.56757" y1="12.973" x2="89.7297" y2="101.622" gradientUnits="userSpaceOnUse">
-<stop stop-color="#0A2A43"/>
+<stop stop-color="#1B4F8A"/>
 <stop offset="1" stop-color="#00D9B8"/>
 </linearGradient>
 </defs>

@@ -18,7 +18,7 @@ function ImpactRow({ icon, tone, title, detail }) {
     success: { bg: "#ECFDF5", color: "#059669" },
     warning: { bg: "#FFFBEB", color: "#D97706" },
     danger: { bg: "#FEF2F2", color: "#DC2626" },
-    info: { bg: "#D1FAF5", color: "#0A2A43" },
+    info: { bg: "#D1FAF5", color: "#1B4F8A" },
   };
   const palette = tones[tone] ?? tones.info;
 
@@ -96,7 +96,7 @@ export default function BusinessModerationSheet({
 
           <View style={styles.businessCard}>
             <View style={styles.businessIcon}>
-              <Ionicons name="storefront-outline" size={22} color="#0A2A43" />
+              <Ionicons name="storefront-outline" size={22} color="#1B4F8A" />
             </View>
             <View style={styles.businessCopy}>
               <Text style={styles.businessName}>{business.name}</Text>

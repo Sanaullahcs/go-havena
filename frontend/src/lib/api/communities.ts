@@ -205,10 +205,52 @@ export async function selfServeCreateCommunity(payload: {
   };
 }
 
-export async function fetchPublicRegions() {
-  const res = await api.get("/v1/regions");
+export type PublicRegion = {
+  id: number;
+  title: string;
+  area?: string;
+  state?: string | null;
+  status?: string;
+};
+
+export type PublicCommunity = {
+  id: number;
+  name: string;
+  region: string | null;
+  region_id: number | null;
+  description?: string | null;
+  address: string | null;
+  has_admin: boolean;
+};
+
+export async function fetchPublicRegions(params?: { q?: string }) {
+  const res = await api.get("/v1/regions", { params });
   const payload = res.data;
   const rows = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
-  return (rows as Array<{ type?: string; id: number; title: string; area?: string; state?: string | null; status?: string }>)
-    .filter((row) => row.type === "region" || row.type == null);
+  return (
+    rows as Array<{
+      type?: string;
+      id: number;
+      title: string;
+      area?: string;
+      state?: string | null;
+      status?: string;
+    }>
+  ).filter((row) => row.type === "region" || row.type == null);
+}
+
+export async function searchPublicCommunities(params?: { region_id?: number; q?: string }) {
+  const res = await api.get("/v1/communities/search", { params });
+  const rows = Array.isArray(res.data?.data) ? res.data.data : [];
+  return rows as PublicCommunity[];
+}
+
+export async function joinCommunity(communityId: number) {
+  const res = await api.post(`/v1/communities/${communityId}/join`);
+  return res.data as {
+    data: {
+      community: { id: number; name: string; review_status?: string | null };
+      membership: { id: number; community_id: number; role: string; status: string };
+    };
+  };
 }

@@ -116,7 +116,7 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
             </TouchableOpacity>
 
             <View style={styles.headerRow}>
-              <ThemedIconBox name="plus-circle" size="md" backgroundColor={HT.mint} color={HT.teal} />
+              <ThemedIconBox name="plus-circle" size="md" backgroundColor="#E8F0F7" color="#1B4F8A" />
               <View style={styles.headerCopy}>
                 <Text style={styles.title}>{t("nav.createNew")}</Text>
                 <Text style={styles.subtitle}>{t("nav.createNewSub")}</Text>

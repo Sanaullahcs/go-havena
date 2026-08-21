@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
   heroLabel: {
     fontFamily: Fonts.medium,
     fontSize: MarketplaceType.caption,
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   heroRatingRow: {
     flexDirection: "row",
@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontFamily: Fonts.bold,
     fontSize: 13,
-    color: "#0A2A43",
+    color: "#1B4F8A",
   },
   reviewUser: {
     fontFamily: Fonts.bold,

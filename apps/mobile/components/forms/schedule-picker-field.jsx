@@ -178,7 +178,7 @@ export default function SchedulePickerField({
                   display="spinner"
                   themeVariant="light"
                   textColor="#111827"
-                  accentColor="#0A2A43"
+                  accentColor="#1B4F8A"
                   onValueChange={handleIosValueChange}
                   onChange={handleIosValueChange}
                   style={styles.iosPicker}

@@ -153,6 +153,54 @@
     "notificationsAccess": "Notificaciones",
     "propertyManagement": "Gestión de servicios",
     "settingsAccess": "Ajustes",
+    "tabs": {
+      "profile": "Perfil",
+      "subscription": "Suscripción"
+    },
+    "subscription": {
+      "loading": "Cargando suscripción…",
+      "loadFailed": "No se pudo cargar la suscripción",
+      "retry": "Reintentar",
+      "currentPlan": "Plan actual",
+      "nextCharge": "Próximo cargo",
+      "planPrice": "Precio del plan",
+      "afterTrial": "Primer cobro después de la prueba · {{date}}",
+      "afterTrialPending": "Primer cobro cuando empiece la prueba",
+      "invoices": "Facturas",
+      "noPlan": "Aún no hay plan",
+      "noPlanBody": "Elige un plan de plazas y añade una tarjeta para facturar esta comunidad.",
+      "setupBilling": "Configurar facturación",
+      "noCharge": "Sin cargo programado",
+      "noInvoices": "Aún no hay facturas. Aparecerán aquí después de un ciclo de cobro.",
+      "invoiceFallback": "Factura",
+      "seats": "{{count}} plazas de residentes",
+      "monthly": "Mensual",
+      "yearly": "Anual",
+      "kind": {
+        "renews": "Se renueva",
+        "trial_ends": "La prueba termina",
+        "trial_starts": "La prueba empieza al aprobarse",
+        "access_ends": "El acceso termina",
+        "leftover_ends": "El acceso restante termina"
+      },
+      "status": {
+        "active": "Activo",
+        "trialing": "Prueba",
+        "pending_trial": "Pendiente de aprobación",
+        "past_due": "Vencido",
+        "canceled": "Cancelado",
+        "unpaid": "Impago",
+        "incomplete": "Incompleto",
+        "grace": "Gracia"
+      },
+      "invoiceStatus": {
+        "paid": "Pagada",
+        "open": "Abierta",
+        "draft": "Borrador",
+        "void": "Anulada",
+        "uncollectible": "Incobrable"
+      }
+    },
     "roles": {
       "resident": "Residente",
       "guest": "Invitado",

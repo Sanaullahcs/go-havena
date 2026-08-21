@@ -4,7 +4,7 @@ import { Logo } from "@/components/landing/ui/Logo";
 import { Footer } from "@/components/landing/sections/Footer";
 import { Icon } from "@/components/landing/icons/Icon";
 import type { LegalDocument } from "@/lib/landing/legal-content";
-import { LandingSectionLink } from "@/components/landing/ui/LandingSectionLink";
+import { site } from "@/lib/landing/site";
 
 type LegalPageShellProps = {
   document: LegalDocument;
@@ -72,9 +72,9 @@ export function LegalPageShell({ document }: LegalPageShellProps) {
 
           <div className="lp-legal__note">
             Questions?{" "}
-            <LandingSectionLink sectionId="contact" className="lp-legal__note-link">
+            <a href={`mailto:${site.contactEmail}`} className="lp-legal__note-link">
               Contact us
-            </LandingSectionLink>{" "}
+            </a>{" "}
             or return to the{" "}
             <Link href="/" className="lp-legal__note-link">
               homepage

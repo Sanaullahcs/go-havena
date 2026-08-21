@@ -1245,7 +1245,7 @@ const styles = StyleSheet.create({
     marginHorizontal: Home.gutter,
     marginTop: sw(4),
     borderRadius: sw(16),
-    backgroundColor: "#0F3D5F",
+    backgroundColor: "#1B4F8A",
     overflow: "hidden",
   },
   homeHeroInner: {

@@ -12,8 +12,8 @@ type Props = {
 
 const toneTextClass: Record<Tone, string> = {
   light: "text-white",
-  brand: "text-[#0A2A43]",
-  dark: "text-[#0A2A43]",
+  brand: "text-[#1B4F8A]",
+  dark: "text-[#1B4F8A]",
 };
 
 export function Logo({
@@ -25,7 +25,7 @@ export function Logo({
   if (variant === "mark") {
     return (
       <span className={`inline-flex shrink-0 ${className}`} aria-label="Havena">
-        <HavenaMark size={34} />
+        <HavenaMark size={34} tone={tone === "light" ? "light" : "brand"} />
       </span>
     );
   }
@@ -33,7 +33,7 @@ export function Logo({
   if (variant === "wordmark") {
     return (
       <span className={`inline-flex items-center gap-2.5 ${toneTextClass[tone]} ${className}`}>
-        <HavenaMark size={28} />
+        <HavenaMark size={28} tone={tone === "light" ? "light" : "brand"} />
         <span className="font-[family-name:var(--font-brand)] text-[1.05rem] font-semibold tracking-[-0.03em]">
           Havena
         </span>
@@ -43,7 +43,7 @@ export function Logo({
 
   return (
     <span className={`inline-flex items-center gap-2.5 ${className}`} aria-label="Havena">
-      <HavenaMark size={32} className="shrink-0" />
+      <HavenaMark size={32} className="shrink-0" tone={tone === "light" ? "light" : "brand"} />
       {withWordmarkText ? (
         <span
           className={`font-[family-name:var(--font-brand)] text-[1.15rem] font-semibold tracking-[-0.03em] transition-colors duration-300 ease-out ${toneTextClass[tone]}`}

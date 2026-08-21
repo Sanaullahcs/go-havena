@@ -2,63 +2,87 @@
 
 import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  OnboardingField,
-} from "@/components/admin/onboarding/onboarding-ui";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { Building2, ChevronLeft, ChevronRight, Lock, MapPin, Plus, Search, X } from "lucide-react";
+import { OnboardingField } from "@/components/admin/onboarding/onboarding-ui";
 import {
   canAccessCommunityDashboard,
   getCommunityAdminNextStep,
   getToken,
   getUser,
   setSession,
-  type WebUser,
 } from "@/lib/auth/session";
 import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
 import { confirmAdminSignOutAndRedirect } from "@/lib/auth/sign-out";
-import { fetchPublicRegions, selfServeCreateCommunity } from "@/lib/api/communities";
+import {
+  fetchPublicRegions,
+  joinCommunity,
+  searchPublicCommunities,
+  selfServeCreateCommunity,
+  type PublicCommunity,
+  type PublicRegion,
+} from "@/lib/api/communities";
+import { fetchMe, meToSessionUser, updateMe } from "@/lib/api/profile";
 import { apiError } from "@/lib/api/client";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
 import { validateCommunitySetupForm } from "@/lib/admin/community-setup-validation";
 import { inputClass } from "@/lib/admin/form-validation-utils";
+
+type SetupView = "regions" | "communities" | "add";
 
 function SetupInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const planHint = searchParams.get("plan");
   const intervalHint = searchParams.get("interval") === "year" ? "year" : "month";
+  const planQuery = planHint
+    ? `?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
+    : "";
 
-  const [regions, setRegions] = useState<
-    Array<{ id: number; title: string; area?: string; state?: string | null }>
-  >([]);
+  const [view, setView] = useState<SetupView>("regions");
+  const [regions, setRegions] = useState<PublicRegion[]>([]);
   const [regionsLoaded, setRegionsLoaded] = useState(false);
+  const [regionQuery, setRegionQuery] = useState("");
+  const [debouncedRegionQuery, setDebouncedRegionQuery] = useState("");
+  const [selectedRegion, setSelectedRegion] = useState<PublicRegion | null>(null);
+
+  const [communities, setCommunities] = useState<PublicCommunity[]>([]);
+  const [communitiesLoaded, setCommunitiesLoaded] = useState(false);
+  const [communityQuery, setCommunityQuery] = useState("");
+  const [debouncedCommunityQuery, setDebouncedCommunityQuery] = useState("");
+
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
-  const [regionId, setRegionId] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [selectingId, setSelectingId] = useState<number | null>(null);
 
   const { touch, clearError, showError, validateOnSubmit } = useTouchedFieldErrors();
 
   const liveErrors = useMemo(
     () =>
       validateCommunitySetupForm({
-        regionId,
+        regionId: selectedRegion ? String(selectedRegion.id) : "",
         name,
         address,
-        regionsLoaded,
+        regionsLoaded: true,
       }),
-    [regionId, name, address, regionsLoaded],
+    [selectedRegion, name, address],
   );
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedRegionQuery(regionQuery.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [regionQuery]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedCommunityQuery(communityQuery.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [communityQuery]);
 
   useEffect(() => {
     const token = getToken();
     if (!token) {
-      router.replace(
-        planHint
-          ? `/login?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
-          : "/login",
-      );
+      router.replace(planHint ? `/login${planQuery}` : "/login");
       return;
     }
 
@@ -70,231 +94,499 @@ function SetupInner() {
     }
     if (step !== "link_community") {
       const path = communityAdminOnboardingPath(step);
-      router.replace(
-        planHint
-          ? `${path}?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
-          : path,
-      );
+      router.replace(planQuery ? `${path}${planQuery}` : path);
     }
-  }, [router, planHint, intervalHint]);
+  }, [router, planHint, planQuery]);
 
   useEffect(() => {
-    void fetchPublicRegions()
+    let cancelled = false;
+    setRegionsLoaded(false);
+    void fetchPublicRegions(debouncedRegionQuery ? { q: debouncedRegionQuery } : undefined)
       .then((rows) => {
-        const active = rows.filter((r) => !r.status || r.status === "active");
-        setRegions(active.map((r) => ({ id: r.id, title: r.title, area: r.area, state: r.state })));
-        if (active[0]) setRegionId(String(active[0].id));
+        if (cancelled) return;
+        setRegions(rows.filter((r) => !r.status || r.status === "active"));
       })
-      .catch(() => setFormError("Could not load regions. Refresh and try again."))
-      .finally(() => setRegionsLoaded(true));
-  }, []);
+      .catch(() => {
+        if (!cancelled) setFormError("Could not load regions. Refresh and try again.");
+      })
+      .finally(() => {
+        if (!cancelled) setRegionsLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedRegionQuery]);
 
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (busy) return;
+  useEffect(() => {
+    if (!selectedRegion) return;
+    let cancelled = false;
+    setCommunitiesLoaded(false);
+    void searchPublicCommunities({
+      region_id: selectedRegion.id,
+      ...(debouncedCommunityQuery ? { q: debouncedCommunityQuery } : {}),
+    })
+      .then((rows) => {
+        if (!cancelled) setCommunities(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setFormError("Could not load communities. Refresh and try again.");
+      })
+      .finally(() => {
+        if (!cancelled) setCommunitiesLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedRegion, debouncedCommunityQuery]);
+
+  const syncSessionFromMe = async () => {
+    const token = getToken();
+    const current = getUser();
+    const me = await fetchMe();
+    if (token && current) {
+      setSession(token, { ...current, ...meToSessionUser(me) });
+    }
+    return me;
+  };
+
+  const goToProfile = () => {
+    router.replace(`/admin/complete-profile${planQuery}`);
+  };
+
+  const selectRegion = (region: PublicRegion) => {
     setFormError(null);
+    setSelectedRegion(region);
+    setCommunityQuery("");
+    setDebouncedCommunityQuery("");
+    setView("communities");
+    void updateMe({ region_id: region.id }).catch(() => undefined);
+  };
 
+  const selectCommunity = async (community: PublicCommunity) => {
+    if (busy || selectingId || community.has_admin) return;
+    setFormError(null);
+    setSelectingId(community.id);
+    try {
+      await joinCommunity(community.id);
+      await syncSessionFromMe();
+      goToProfile();
+    } catch (err) {
+      setFormError(apiError(err));
+      setSelectingId(null);
+    }
+  };
+
+  const onAddSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (busy || !selectedRegion) return;
+    setFormError(null);
     if (!validateOnSubmit(liveErrors)) return;
-
-    const trimmedName = name.trim();
-    const trimmedAddress = address.trim();
-    const rid = Number(regionId);
 
     setBusy(true);
     try {
-      const res = await selfServeCreateCommunity({
-        community_name: trimmedName,
-        address: trimmedAddress,
-        region_id: rid,
+      await selfServeCreateCommunity({
+        community_name: name.trim(),
+        address: address.trim(),
+        region_id: selectedRegion.id,
       });
-
-      const token = getToken();
-      const current = getUser();
-      if (token && current) {
-        const nextUser: WebUser = {
-          ...current,
-          role: "community_admin",
-          community_admin_status: current.community_admin_status ?? "pending",
-          community_id: res.data.community.id,
-          memberships: [
-            {
-              id: res.data.membership.id,
-              community_id: res.data.membership.community_id,
-              role: res.data.membership.role,
-              status: res.data.membership.status,
-              community: {
-                id: res.data.community.id,
-                name: res.data.community.name,
-                review_status: res.data.community.review_status,
-              },
-            },
-          ],
-          access: res.data.access ?? current.access ?? null,
-        };
-        setSession(token, nextUser);
-      }
-
-      router.replace(
-        planHint
-          ? `/admin/complete-profile?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
-          : "/admin/complete-profile",
-      );
+      await syncSessionFromMe();
+      goToProfile();
     } catch (err) {
       setFormError(apiError(err));
       setBusy(false);
     }
   };
 
-  const regionOptions = useMemo(
-    () =>
-      regions.map((r) => ({
-        value: String(r.id),
-        label: r.title,
-        description: [r.area, r.state].filter(Boolean).join(" · ") || undefined,
-      })),
-    [regions],
-  );
-
-  const regionErr = showError("regionId", liveErrors);
   const nameErr = showError("name", liveErrors);
   const addressErr = showError("address", liveErrors);
+  const regionLabel = selectedRegion?.title ?? "your region";
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-lg px-0">
-      <div className="mt-1 sm:mt-2">
-        <h1 className="font-[family-name:var(--font-brand)] text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
-          Create your community
-        </h1>
-        <p className="mt-1.5 text-sm leading-snug text-slate-600">
-          Tell us where you operate. Next you&apos;ll complete your profile, then start your free trial
-          {planHint ? ` with the ${planHint} plan` : ""}.
-        </p>
+    <div className="w-full min-w-0">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)] lg:gap-10 xl:grid-cols-[minmax(18rem,26rem)_minmax(0,1fr)]">
+        <aside className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#1B4F8A]">
+            {view === "regions" ? "Choose region" : view === "communities" ? "Select community" : "Add community"}
+          </p>
+          <h1 className="mt-2 font-[family-name:var(--font-brand)] text-[1.75rem] font-bold tracking-tight text-slate-900 sm:text-[2.1rem]">
+            {view === "regions"
+              ? "Where do you operate?"
+              : view === "communities"
+                ? "Select your community"
+                : "Request to add a community"}
+          </h1>
+          <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-600 sm:text-[15px]">
+            {view === "regions"
+              ? "Pick your region first. Next you’ll see communities already listed there — or add a new one."
+              : view === "communities"
+                ? `Communities in ${regionLabel}. Choose one without an admin, or request to add a new community.`
+                : `Tell us the community name and address for ${regionLabel}. We’ll submit it for review.`}
+          </p>
+          {selectedRegion ? (
+            <button
+              type="button"
+              onClick={() => {
+                setView("regions");
+                setFormError(null);
+              }}
+              className="mt-5 inline-flex items-center gap-2 rounded-full border border-[#1B4F8A]/15 bg-[#E8F0F7] px-3 py-1.5 text-[12px] font-semibold text-[#1B4F8A]"
+            >
+              <MapPin className="h-3.5 w-3.5" aria-hidden />
+              {selectedRegion.title}
+              <span className="font-medium text-slate-500">Change</span>
+            </button>
+          ) : null}
+        </aside>
+
+        <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 lg:p-8">
+          {formError ? (
+            <div
+              className="mb-5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700"
+              role="alert"
+            >
+              {formError}
+            </div>
+          ) : null}
+
+          {view === "regions" ? (
+            <RegionList
+              query={regionQuery}
+              onQueryChange={setRegionQuery}
+              loading={!regionsLoaded}
+              regions={regions}
+              searching={regionQuery.trim() !== debouncedRegionQuery}
+              onSelect={selectRegion}
+            />
+          ) : null}
+
+          {view === "communities" && selectedRegion ? (
+            <CommunityList
+              regionTitle={selectedRegion.title}
+              query={communityQuery}
+              onQueryChange={setCommunityQuery}
+              loading={!communitiesLoaded}
+              communities={communities}
+              searching={communityQuery.trim() !== debouncedCommunityQuery}
+              selectingId={selectingId}
+              onSelect={selectCommunity}
+              onAdd={() => {
+                setFormError(null);
+                setView("add");
+              }}
+            />
+          ) : null}
+
+          {view === "add" && selectedRegion ? (
+            <form onSubmit={onAddSubmit} noValidate className="space-y-5">
+              <button
+                type="button"
+                onClick={() => {
+                  setView("communities");
+                  setFormError(null);
+                }}
+                className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-slate-600 transition hover:text-slate-900"
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden />
+                Back to communities
+              </button>
+
+              <OnboardingField
+                id="community-name"
+                label="Community name"
+                required
+                error={nameErr}
+                hint="The name residents will recognize"
+              >
+                <input
+                  id="community-name"
+                  type="text"
+                  autoComplete="organization"
+                  className={inputClass(
+                    nameErr,
+                    "h-12 w-full rounded-xl border border-slate-200 px-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1B4F8A] focus:ring-2 focus:ring-[#1B4F8A]/20",
+                  )}
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    clearError("name");
+                    setFormError(null);
+                  }}
+                  onBlur={() => touch("name")}
+                  placeholder="e.g. Palm Court HOA"
+                  aria-invalid={Boolean(nameErr)}
+                />
+              </OnboardingField>
+
+              <OnboardingField
+                id="community-address"
+                label="Address"
+                required
+                error={addressErr}
+                hint="Street, city, and state"
+              >
+                <input
+                  id="community-address"
+                  type="text"
+                  autoComplete="street-address"
+                  className={inputClass(
+                    addressErr,
+                    "h-12 w-full rounded-xl border border-slate-200 px-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1B4F8A] focus:ring-2 focus:ring-[#1B4F8A]/20",
+                  )}
+                  value={address}
+                  onChange={(e) => {
+                    setAddress(e.target.value);
+                    clearError("address");
+                    setFormError(null);
+                  }}
+                  onBlur={() => touch("address")}
+                  placeholder="100 Palm Ave, Miami, FL"
+                  aria-invalid={Boolean(addressErr)}
+                />
+              </OnboardingField>
+
+              <div className="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+                <button
+                  type="button"
+                  className="order-2 text-center text-xs font-semibold text-slate-500 transition hover:text-slate-800 sm:order-1 sm:text-left"
+                  onClick={() => {
+                    void confirmAdminSignOutAndRedirect(router);
+                  }}
+                >
+                  Sign out
+                </button>
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="order-1 inline-flex h-12 w-full items-center justify-center rounded-xl bg-[#1B4F8A] px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-[#163A66] focus:outline-none focus:ring-2 focus:ring-[#1B4F8A]/30 disabled:cursor-not-allowed disabled:opacity-60 sm:order-2 sm:w-auto sm:min-w-[14rem]"
+                >
+                  {busy ? "Submitting…" : "Continue to profile"}
+                </button>
+              </div>
+            </form>
+          ) : null}
+        </div>
       </div>
+    </div>
+  );
+}
 
-      <form
-        onSubmit={onSubmit}
-        noValidate
-        className="mt-4 space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:mt-5 sm:p-5"
-      >
-        {formError ? (
-          <div
-            className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700"
-            role="alert"
-          >
-            {formError}
-          </div>
-        ) : null}
-
-        <OnboardingField
-          id="community-region"
-          label="Region"
-          required
-          error={regionErr}
-          hint="Where your community is located"
+function SearchField({
+  value,
+  onChange,
+  placeholder,
+  searching,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  searching?: boolean;
+}) {
+  return (
+    <label className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-3.5">
+      <Search className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+      <input
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+      />
+      {searching ? (
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-[#1B4F8A]" />
+      ) : value ? (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          className="rounded-full p-0.5 text-slate-400 hover:text-slate-700"
+          aria-label="Clear search"
         >
-          <SearchableSelect
-            id="community-region"
-            value={regionId}
-            onChange={(value) => {
-              setRegionId(value);
-              clearError("regionId");
-              setFormError(null);
-              touch("regionId");
-            }}
-            options={regionOptions}
-            placeholder={
-              !regionsLoaded
-                ? "Loading regions…"
-                : regions.length === 0
-                  ? "No regions available"
-                  : "Select a region"
-            }
-            emptyMessage="No regions available."
-            searchable={false}
-            disabled={!regionsLoaded || regions.length === 0}
-            error={regionErr}
-            className="[&_.nl-picker-trigger]:rounded-xl [&_.nl-picker-trigger-open]:!border-teal-500 [&_.nl-picker-trigger-open]:!shadow-[0_0_0_3px_rgba(13,148,136,0.12)] [&_.nl-picker-trigger:focus-visible]:!border-teal-500 [&_.nl-picker-trigger:focus-visible]:!shadow-[0_0_0_3px_rgba(13,148,136,0.12)] [&_.nl-picker-trigger.has-value]:!border-teal-500/40 [&_.nl-picker-trigger.has-value]:bg-teal-50/30"
-          />
-        </OnboardingField>
+          <X className="h-4 w-4" />
+        </button>
+      ) : null}
+    </label>
+  );
+}
 
-        <OnboardingField
-          id="community-name"
-          label="Community name"
-          required
-          error={nameErr}
-          hint="The name residents will recognize"
-        >
-          <input
-            id="community-name"
-            type="text"
-            autoComplete="organization"
-            className={inputClass(
-              nameErr,
-              "h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-600/20",
-            )}
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              clearError("name");
-              setFormError(null);
-            }}
-            onBlur={() => touch("name")}
-            placeholder="e.g. Palm Court HOA"
-            aria-invalid={Boolean(nameErr)}
-            aria-describedby={nameErr ? "community-name-error" : undefined}
-          />
-        </OnboardingField>
+function RegionList({
+  query,
+  onQueryChange,
+  loading,
+  regions,
+  searching,
+  onSelect,
+}: {
+  query: string;
+  onQueryChange: (value: string) => void;
+  loading: boolean;
+  regions: PublicRegion[];
+  searching: boolean;
+  onSelect: (region: PublicRegion) => void;
+}) {
+  return (
+    <div>
+      <SearchField
+        value={query}
+        onChange={onQueryChange}
+        placeholder="Search regions…"
+        searching={searching}
+      />
+      {loading ? (
+        <p className="mt-8 text-center text-sm text-slate-500">Loading regions…</p>
+      ) : regions.length === 0 ? (
+        <p className="mt-8 text-center text-sm text-slate-500">
+          {query ? "No regions match that search." : "No regions available yet."}
+        </p>
+      ) : (
+        <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+          {regions.map((region) => {
+            const location = [region.area, region.state].filter(Boolean).join(" · ");
+            return (
+              <li key={region.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(region)}
+                  className="flex w-full items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-[#1B4F8A]/40 hover:bg-[#F4F8FC]"
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#E8F0F7] text-[#1B4F8A]">
+                    <MapPin className="h-4 w-4" aria-hidden />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-slate-900">{region.title}</span>
+                    {location ? (
+                      <span className="mt-0.5 block text-[12px] text-slate-500">{location}</span>
+                    ) : null}
+                  </span>
+                  <ChevronRight className="mt-2 h-4 w-4 shrink-0 text-[#1B4F8A]" aria-hidden />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
 
-        <OnboardingField
-          id="community-address"
-          label="Address"
-          required
-          error={addressErr}
-          hint="Street, city, and state"
-        >
-          <input
-            id="community-address"
-            type="text"
-            autoComplete="street-address"
-            className={inputClass(
-              addressErr,
-              "h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-600/20",
-            )}
-            value={address}
-            onChange={(e) => {
-              setAddress(e.target.value);
-              clearError("address");
-              setFormError(null);
-            }}
-            onBlur={() => touch("address")}
-            placeholder="100 Palm Ave, Miami, FL"
-            aria-invalid={Boolean(addressErr)}
-            aria-describedby={addressErr ? "community-address-error" : undefined}
-          />
-        </OnboardingField>
+function CommunityList({
+  regionTitle,
+  query,
+  onQueryChange,
+  loading,
+  communities,
+  searching,
+  selectingId,
+  onSelect,
+  onAdd,
+}: {
+  regionTitle: string;
+  query: string;
+  onQueryChange: (value: string) => void;
+  loading: boolean;
+  communities: PublicCommunity[];
+  searching: boolean;
+  selectingId: number | null;
+  onSelect: (community: PublicCommunity) => void;
+  onAdd: () => void;
+}) {
+  return (
+    <div>
+      <SearchField
+        value={query}
+        onChange={onQueryChange}
+        placeholder="Search communities…"
+        searching={searching}
+      />
 
-        <div className="space-y-3 pt-1">
-          <button
-            type="submit"
-            disabled={busy || !regionsLoaded || regions.length === 0}
-            className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-teal-600 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-600/30 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {busy
-              ? "Creating community…"
-              : "Continue to profile"}
-          </button>
-
+      {loading ? (
+        <p className="mt-8 text-center text-sm text-slate-500">Loading communities…</p>
+      ) : communities.length === 0 ? (
+        <div className="mt-8 flex flex-col items-center px-4 text-center">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#E8F0F7] text-[#1B4F8A]">
+            <Building2 className="h-5 w-5" aria-hidden />
+          </span>
+          <p className="mt-3 text-sm font-semibold text-slate-900">No communities listed yet</p>
+          <p className="mt-1 max-w-sm text-[13px] leading-relaxed text-slate-500">
+            {query
+              ? "Try a different search, or request to add your community."
+              : `Nothing is listed in ${regionTitle} yet. Request to add yours.`}
+          </p>
           <button
             type="button"
-            className="w-full py-2 text-center text-xs font-semibold text-slate-500 transition hover:text-slate-800"
-            onClick={() => {
-              void confirmAdminSignOutAndRedirect(router);
-            }}
+            onClick={onAdd}
+            className="mt-5 inline-flex h-11 items-center gap-2 rounded-xl bg-[#1B4F8A] px-4 text-sm font-semibold text-white"
           >
-            Sign out
+            <Plus className="h-4 w-4" aria-hidden />
+            Request to add community
           </button>
         </div>
-      </form>
+      ) : (
+        <>
+          <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-[#1B4F8A]/15 bg-[#E8F0F7]/70 px-3.5 py-3 text-[13px] leading-snug text-slate-700">
+            Communities with an admin are shown but cannot be selected. Choose an available community or request a new one.
+          </div>
+          <ul className="mt-4 grid gap-3">
+            {communities.map((community) => {
+              const disabled = community.has_admin;
+              const busy = selectingId === community.id;
+              return (
+                <li key={community.id}>
+                  <button
+                    type="button"
+                    disabled={disabled || Boolean(selectingId)}
+                    onClick={() => onSelect(community)}
+                    className={[
+                      "flex w-full items-start gap-3 rounded-xl border p-4 text-left transition",
+                      disabled
+                        ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-60"
+                        : "border-slate-200 bg-white hover:border-[#1B4F8A]/40 hover:bg-[#F4F8FC]",
+                    ].join(" ")}
+                  >
+                    <span
+                      className={[
+                        "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+                        disabled ? "bg-slate-100 text-slate-400" : "bg-[#E8F0F7] text-[#1B4F8A]",
+                      ].join(" ")}
+                    >
+                      <Building2 className="h-4 w-4" aria-hidden />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-slate-900">{community.name}</span>
+                      {community.address ? (
+                        <span className="mt-0.5 block text-[12px] text-slate-500">{community.address}</span>
+                      ) : null}
+                      {disabled ? (
+                        <span className="mt-1.5 block text-[11px] font-medium text-slate-500">
+                          Community admin already assigned
+                        </span>
+                      ) : null}
+                    </span>
+                    {busy ? (
+                      <span className="mt-2 h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-[#1B4F8A]" />
+                    ) : disabled ? (
+                      <Lock className="mt-2 h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+                    ) : (
+                      <ChevronRight className="mt-2 h-4 w-4 shrink-0 text-[#1B4F8A]" aria-hidden />
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+
+      {!loading && communities.length > 0 ? (
+        <div className="mt-6 border-t border-slate-100 pt-5 text-center">
+          <p className="text-[13px] text-slate-500">Don&apos;t see your community?</p>
+          <button
+            type="button"
+            onClick={onAdd}
+            className="mt-1 text-[13px] font-semibold text-[#1B4F8A] hover:underline"
+          >
+            Request to add in {regionTitle}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -127,7 +127,7 @@ export default function RankDetails() {
             activeOpacity={0.85}
           >
             <Text style={styles.leaderboardLinkText}>{t("rank.viewFullLeaderboard")}</Text>
-            <Feather name={chevronForward()} size={16} color="#0A2A43" />
+            <Feather name={chevronForward()} size={16} color="#1B4F8A" />
           </TouchableOpacity>
         </>
       )}
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#0A2A43",
+    backgroundColor: "#1B4F8A",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
   leaderboardLinkText: {
     fontFamily: Fonts.semiBold,
     fontSize: 12,
-    color: "#0A2A43",
+    color: "#1B4F8A",
     fontWeight: "600",
   },
 });
