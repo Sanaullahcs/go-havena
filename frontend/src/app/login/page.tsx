@@ -104,13 +104,12 @@ function LoginPageInner() {
     if (!phone.valid || !phone.e164 || otpSending) return;
     setError(null);
     setOtp("");
-    setOtpStep("code");
     setOtpSending(true);
     try {
-      const { intent } = await requestCommunityAdminOtp(phone.e164);
+      const { intent } = await requestCommunityAdminOtp(phone.e164, "login");
       setOtpIntent(intent);
+      setOtpStep("code");
     } catch (err) {
-      setOtpStep("phone");
       await handleLoginError(err, setError);
     } finally {
       setOtpSending(false);
@@ -145,7 +144,7 @@ function LoginPageInner() {
     setError(null);
     setOtpSending(true);
     try {
-      const { intent } = await requestCommunityAdminOtp(phone.e164);
+      const { intent } = await requestCommunityAdminOtp(phone.e164, "login");
       setOtpIntent(intent);
     } catch (err) {
       await handleLoginError(err, setError);
@@ -178,7 +177,7 @@ function LoginPageInner() {
         : "Enter the 6-digit SMS code to continue"
       : planHint
         ? `New or returning — after OTP you’ll set up your community and start ${planHint} checkout`
-        : "New communities create an account with phone OTP. Existing admins sign in the same way.";
+        : "Sign in with the phone number on your community admin account. New? Create an account first.";
 
   return (
     <>

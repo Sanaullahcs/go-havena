@@ -61,6 +61,7 @@ class ReferralProgramController extends Controller
     /** GET /v1/admin/referral-program/attributions */
     public function attributions(Request $request): JsonResponse
     {
+        app(\App\Services\ReferralService::class)->reconcilePendingReferrals();
         $result = $this->admin->listAttributions($request->all());
 
         return response()->json($result);

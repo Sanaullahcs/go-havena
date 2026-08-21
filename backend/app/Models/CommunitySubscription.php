@@ -97,6 +97,11 @@ class CommunitySubscription extends Model
             return null;
         }
 
+        $fromMeta = data_get($this->meta, 'leftover_ends_at');
+        if (filled($fromMeta)) {
+            return \Illuminate\Support\Carbon::parse((string) $fromMeta);
+        }
+
         return $this->grace_ends_at ?? $this->current_period_end;
     }
 

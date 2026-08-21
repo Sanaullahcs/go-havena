@@ -406,4 +406,38 @@ class CommunityAdminBillingReassignTest extends TestCase
             ->assertJsonPath('data.subscription.trial_consumed', true)
             ->assertJsonPath('data.subscription.status', CommunitySubscription::STATUS_UNPAID);
     }
+
+    public function test_stripe_subscription_canceled_during_leftover_ends_grace_early(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedAdmin($community);
+        $this->activeSubscription($community, ['current_period_end' => now()->addDays(20)]);
+
+        $this->asSystem();
+        $this->patchJson("/api/v1/admin/community-admins/{$admin->id}/suspend")->assertOk();
+        $replacement = $this->assignReplacement($community);
+
+        $subscription = CommunitySubscription::query()->where('community_id', $community->id)->firstOrFail();
+        $this->assertTrue($subscription->hasLeftoverService());
+
+        app(CommunityBillingService::class)->reconcileAdminTransitionLeftover($subscription, [
+            'status' => 'canceled',
+            'canceled_at' => now()->subMinute()->getTimestamp(),
+            'current_period_end' => now()->addDays(20)->getTimestamp(),
+        ]);
+
+        $subscription->refresh();
+        $this->assertFalse($subscription->hasLeftoverService());
+        $this->assertTrue($subscription->isAdminTransition());
+        $this->assertSame(CommunitySubscription::STATUS_UNPAID, $subscription->status);
+
+        Sanctum::actingAs($replacement);
+        $this->getJson('/api/v1/me')
+            ->assertOk()
+            ->assertJsonPath('data.access.has_leftover_service', false)
+            ->assertJsonPath('data.access.requires_replacement_card', true)
+            ->assertJsonPath('data.access.next_step', 'complete_billing_web');
+    }
 }

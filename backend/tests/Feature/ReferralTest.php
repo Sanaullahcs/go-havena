@@ -202,6 +202,52 @@ class ReferralTest extends TestCase
         ]);
     }
 
+    public function test_subscription_update_invoice_counts_as_first_paid_charge(): void
+    {
+        config(['billing.driver' => 'manual', 'billing.stripe.secret' => null]);
+
+        [$referrer, $code, $referrerCommunity] = $this->seedReferrerWithCode();
+        $this->seedSubscription($referrerCommunity);
+        $referee = User::factory()->create([
+            'role' => 'community_admin',
+            'community_admin_status' => 'approved',
+            'status' => 'active',
+            'phone' => '+15559991111',
+            'phone_verified_at' => now(),
+        ]);
+        $refereeCommunity = $this->seedCommunity('Trial To Paid Community');
+
+        app(ReferralService::class)->lockAtSignup($referee, $code->code);
+        app(ReferralService::class)->linkCommunity($referee, $refereeCommunity);
+
+        CommunitySubscription::query()->create([
+            'community_id' => $refereeCommunity->id,
+            'plan_slug' => 'growth',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_ACTIVE,
+            'seat_limit' => 150,
+            'stripe_customer_id' => 'cus_referee_update',
+            'stripe_subscription_id' => 'sub_referee_update',
+        ]);
+
+        app(ReferralService::class)->handleInvoicePaid([
+            'id' => 'in_referral_update_1',
+            'subscription' => 'sub_referee_update',
+            'amount_paid' => 23900,
+            'subtotal' => 24900,
+            'currency' => 'usd',
+            'billing_reason' => 'subscription_update',
+        ]);
+
+        $this->assertDatabaseHas('referral_rewards', [
+            'referrer_user_id' => $referrer->id,
+            'referee_community_id' => $refereeCommunity->id,
+            'invoice_subtotal_cents' => 24900,
+            'reward_amount_cents' => 1245,
+            'stripe_invoice_id' => 'in_referral_update_1',
+        ]);
+    }
+
     public function test_community_admin_can_fetch_referral_dashboard(): void
     {
         [$referrer, $code] = $this->seedReferrerWithCode();
@@ -401,5 +447,47 @@ class ReferralTest extends TestCase
         ])->assertOk();
 
         $this->assertDatabaseCount('referral_attributions', 0);
+    }
+
+    public function test_pending_reward_can_be_retried_when_referrer_gets_stripe_customer(): void
+    {
+        config(['billing.driver' => 'manual', 'billing.stripe.secret' => null]);
+
+        [$referrer, $code, $referrerCommunity] = $this->seedReferrerWithCode();
+        $referee = User::factory()->create([
+            'role' => 'community_admin',
+            'community_admin_status' => 'approved',
+            'status' => 'active',
+            'phone' => '+15556667788',
+            'phone_verified_at' => now(),
+        ]);
+        $refereeCommunity = $this->seedCommunity('Retry Reward Community');
+
+        app(ReferralService::class)->lockAtSignup($referee, $code->code);
+        app(ReferralService::class)->linkCommunity($referee, $refereeCommunity);
+
+        $attribution = ReferralAttribution::query()->where('referee_user_id', $referee->id)->firstOrFail();
+        ReferralReward::query()->create([
+            'referral_attribution_id' => $attribution->id,
+            'referrer_user_id' => $referrer->id,
+            'referee_community_id' => $refereeCommunity->id,
+            'reward_type' => ReferralProgramSetting::REWARD_TYPE_PERCENT,
+            'reward_percent' => 5,
+            'invoice_subtotal_cents' => 9900,
+            'reward_amount_cents' => 495,
+            'currency' => 'usd',
+            'stripe_invoice_id' => 'in_retry_test',
+            'status' => ReferralReward::STATUS_PENDING,
+            'qualified_at' => now(),
+            'failure_reason' => 'Referrer has no Stripe customer yet.',
+        ]);
+
+        $this->seedSubscription($referrerCommunity, [
+            'stripe_customer_id' => 'cus_referrer_retry',
+            'stripe_subscription_id' => 'sub_referrer_retry',
+        ]);
+
+        $this->assertTrue($attribution->fresh(['reward'])->isEligibleForReward());
+        $this->assertSame('payout_pending', app(ReferralService::class)->transformAttribution($attribution->fresh(['reward']))['display_status']);
     }
 }

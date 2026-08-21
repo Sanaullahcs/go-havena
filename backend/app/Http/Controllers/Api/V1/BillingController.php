@@ -28,6 +28,10 @@ class BillingController extends Controller
         $this->billing->refreshGraceIfNeeded($communityId);
         // Heal stuck "incomplete" rows after Stripe Checkout when the return confirm was missed.
         $this->billing->reconcileIncompleteCheckout($community);
+        // Sync portal cancellations / plan changes when Stripe webhooks were not delivered.
+        $this->billing->reconcileStripeSubscription($community);
+        // Match missed invoice.paid events to referral rewards for this community.
+        app(\App\Services\ReferralService::class)->reconcileReferralForCommunity($communityId);
 
         return response()->json([
             'data' => $this->billing->billingPayload($community->fresh()),

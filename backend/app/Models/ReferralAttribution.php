@@ -94,7 +94,11 @@ class ReferralAttribution extends Model
             return false;
         }
 
-        return $this->reward === null;
+        if ($this->reward?->status === ReferralReward::STATUS_CREDITED) {
+            return false;
+        }
+
+        return true;
     }
 
     public function isFixedReward(): bool

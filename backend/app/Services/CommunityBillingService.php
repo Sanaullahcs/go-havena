@@ -784,6 +784,8 @@ class CommunityBillingService
             $customerName = 'Community admin';
         }
 
+        $requiresReplacementCard = $replacement && ! ($existing?->hasLeftoverService() ?? false);
+
         return [
             'mode' => 'elements',
             'client_secret' => $intent['client_secret'],
@@ -793,6 +795,9 @@ class CommunityBillingService
             'trial_starts_on_approval' => $trialDays > 0,
             'publishable_key' => config('billing.stripe.publishable'),
             'trial_days' => $trialDays,
+            'admin_transition' => $replacement,
+            'requires_replacement_card' => $requiresReplacementCard,
+            'promo_code_allowed' => true,
             'customer_email' => $email,
             'customer_name' => $customerName,
             'customer_phone' => $admin->phone,
@@ -1166,6 +1171,7 @@ class CommunityBillingService
         $meta = is_array($synced->meta) ? $synced->meta : [];
         $meta['card_on_file'] = true;
         $meta['payment_method_id'] = $paymentMethodId;
+        unset($meta['ignore_subscription_deleted']);
         if ($trialDays > 0) {
             $meta['trial_started_on_approval'] = now()->toIso8601String();
         }
@@ -1458,6 +1464,7 @@ class CommunityBillingService
         $meta['paused_at'] = now()->toIso8601String();
         $meta['previous_status'] = $previousStatus;
         $meta['inherited_plan_slug'] = $subscription->plan_slug;
+        $meta['leftover_ends_at'] = $leftoverEnd->toIso8601String();
         $meta['trial_consumed'] = $subscription->hasConsumedTrial()
             || in_array($previousStatus, [
                 CommunitySubscription::STATUS_TRIALING,
@@ -1986,6 +1993,123 @@ class CommunityBillingService
     }
 
     /**
+     * Pull the latest Stripe subscription state (portal cancel, plan change, etc.)
+     * when webhooks were missed — common in local dev without stripe listen.
+     */
+    public function reconcileStripeSubscription(Community $community): void
+    {
+        if (! $this->stripeConfigured()) {
+            return;
+        }
+
+        $subscription = $this->getSubscription($community->id);
+        if (! $subscription?->stripe_subscription_id) {
+            return;
+        }
+
+        if ($subscription->status === CommunitySubscription::STATUS_INCOMPLETE) {
+            return;
+        }
+
+        try {
+            $stripeSub = $this->stripe()->subscriptions->retrieve($subscription->stripe_subscription_id);
+
+            if ($subscription->isAdminTransition()) {
+                $this->reconcileAdminTransitionLeftover($subscription, $stripeSub);
+                $this->refreshGraceIfNeeded($community->id);
+
+                return;
+            }
+
+            $this->syncFromStripeSubscription(
+                $stripeSub,
+                $community->id,
+                $subscription->stripe_customer_id,
+            );
+        } catch (ApiErrorException $e) {
+            if ($e->getStripeCode() === 'resource_missing') {
+                if ($subscription->isAdminTransition()) {
+                    $this->expireAdminTransitionLeftover($subscription);
+                    $this->refreshGraceIfNeeded($community->id);
+
+                    return;
+                }
+
+                if ($subscription->status !== CommunitySubscription::STATUS_PENDING_TRIAL) {
+                    $subscription->update([
+                        'status' => CommunitySubscription::STATUS_CANCELED,
+                        'canceled_at' => now(),
+                        'cancel_at_period_end' => false,
+                    ]);
+                }
+
+                return;
+            }
+
+            Log::info('Stripe subscription reconcile skipped', [
+                'community_id' => $community->id,
+                'stripe_subscription_id' => $subscription->stripe_subscription_id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Keep replacement-admin leftover windows stable when Stripe changes underneath
+     * (trial zeroed, subscription canceled, sync clearing grace_ends_at, etc.).
+     */
+    public function reconcileAdminTransitionLeftover(
+        CommunitySubscription $subscription,
+        object|array $stripeSub,
+    ): CommunitySubscription {
+        $meta = is_array($subscription->meta) ? $subscription->meta : [];
+
+        $leftoverEnd = filled(data_get($meta, 'leftover_ends_at'))
+            ? Carbon::parse((string) $meta['leftover_ends_at'])
+            : ($subscription->grace_ends_at ?? $subscription->current_period_end ?? now());
+
+        if (! filled(data_get($meta, 'leftover_ends_at'))) {
+            $meta['leftover_ends_at'] = $leftoverEnd->toIso8601String();
+        }
+
+        $stripeStatus = (string) data_get($stripeSub, 'status', '');
+        $canceledAt = data_get($stripeSub, 'canceled_at');
+        if ($stripeStatus === 'canceled' && $canceledAt) {
+            $cancelTime = Carbon::createFromTimestamp((int) $canceledAt);
+            if ($cancelTime->lt($leftoverEnd)) {
+                $leftoverEnd = $cancelTime;
+                $meta['leftover_ends_at'] = $leftoverEnd->toIso8601String();
+                $meta['leftover_ended_early'] = 'stripe_subscription_canceled';
+            }
+        }
+
+        $subscription->update([
+            'grace_ends_at' => $leftoverEnd,
+            'status' => $leftoverEnd->isFuture()
+                ? CommunitySubscription::STATUS_GRACE
+                : CommunitySubscription::STATUS_UNPAID,
+            'meta' => $meta,
+        ]);
+
+        return $subscription->fresh();
+    }
+
+    public function expireAdminTransitionLeftover(CommunitySubscription $subscription): CommunitySubscription
+    {
+        $meta = is_array($subscription->meta) ? $subscription->meta : [];
+        $meta['leftover_ends_at'] = now()->toIso8601String();
+        $meta['leftover_ended_early'] = 'stripe_subscription_removed';
+
+        $subscription->update([
+            'grace_ends_at' => now(),
+            'status' => CommunitySubscription::STATUS_UNPAID,
+            'meta' => $meta,
+        ]);
+
+        return $subscription->fresh();
+    }
+
+    /**
      * If local status is still incomplete, try confirming against Stripe
      * (covers missed return / host mismatch / Payment Element confirm).
      */
@@ -2307,9 +2431,8 @@ class CommunityBillingService
             return;
         }
 
-        if ($local->status === CommunitySubscription::STATUS_PENDING_TRIAL
-            || data_get($local->meta, 'ignore_subscription_deleted')
-        ) {
+        // Ignore deletion of the premature checkout subscription deferred until approval.
+        if ($local->status === CommunitySubscription::STATUS_PENDING_TRIAL) {
             return;
         }
 
@@ -2391,6 +2514,11 @@ class CommunityBillingService
 
         $plan = $this->plan($planSlug) ?? [];
         $existing = $this->getSubscription($communityId);
+
+        if ($existing?->isAdminTransition()) {
+            return $this->reconcileAdminTransitionLeftover($existing, $stripeSub);
+        }
+
         $seatLimit = (int) ($plan['seat_limit'] ?? 50);
         if ($existing && $existing->plan_slug === $planSlug && (int) $existing->seat_limit > 0) {
             $seatLimit = (int) $existing->seat_limit;
@@ -2406,6 +2534,10 @@ class CommunityBillingService
 
         $meta = is_array($existing?->meta) ? $existing->meta : [];
         $meta['card_on_file'] = $hasCard;
+
+        if (in_array($mapped, [CommunitySubscription::STATUS_TRIALING, CommunitySubscription::STATUS_ACTIVE], true)) {
+            unset($meta['ignore_subscription_deleted']);
+        }
 
         if ($existing?->hasConsumedTrial() && $mapped === CommunitySubscription::STATUS_TRIALING) {
             Log::warning('Stripe returned trialing for a community that already consumed its trial; treating as active', [

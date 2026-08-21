@@ -142,6 +142,9 @@ export async function startBillingCheckout(input: {
   trial_starts_on_approval?: boolean;
   publishable_key?: string | null;
   trial_days?: number;
+  admin_transition?: boolean;
+  requires_replacement_card?: boolean;
+  promo_code_allowed?: boolean;
   customer_email?: string | null;
   customer_name?: string | null;
   customer_phone?: string | null;

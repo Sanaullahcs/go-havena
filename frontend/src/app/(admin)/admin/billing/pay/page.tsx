@@ -126,6 +126,9 @@ type CheckoutSession = {
   publishableKey: string;
   trialDays: number;
   trialStartsOnApproval: boolean;
+  requiresReplacementCard: boolean;
+  showPromoCode: boolean;
+  promoHint: string;
   customerEmail: string | null;
   customerName: string;
   customerPhone: string | null;
@@ -140,6 +143,16 @@ type CheckoutSession = {
   };
   coupon?: BillingCouponSummary | null;
 };
+
+function promoHintForCheckout(trialDays: number, requiresReplacementCard: boolean): string {
+  if (requiresReplacementCard) {
+    return "Applied to your first invoice on the plan you select.";
+  }
+  if (trialDays > 0) {
+    return "Applied after your free trial on the first paid invoice.";
+  }
+  return "Applied to your first invoice after approval.";
+}
 
 function intentAlreadyComplete(status: string | undefined) {
   return status === "succeeded" || status === "processing";
@@ -272,12 +285,10 @@ function CheckoutForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
-      {session.trialDays > 0 ? (
+      {session.showPromoCode ? (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <p className="text-[12px] font-semibold text-slate-700">Promo code</p>
-          <p className="mt-1 text-[12px] text-slate-500">
-            Applied after your free trial on the first paid invoice.
-          </p>
+          <p className="mt-1 text-[12px] text-slate-500">{session.promoHint}</p>
           {appliedCoupon ? (
             <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2.5">
               <div>
@@ -437,13 +448,21 @@ function PayInner() {
 
       setStripePromise(stripePromiseFor(result.publishable_key));
       setBasePlanPriceCents(result.plan.price_cents);
+      const trialDays = result.trial_days ?? TRIAL_DAYS;
+      const requiresReplacementCard = Boolean(
+        result.requires_replacement_card ?? getUser()?.access?.requires_replacement_card,
+      );
+      const showPromoCode = result.promo_code_allowed !== false;
       setSession({
         clientSecret: result.client_secret,
         intentType: result.intent_type === "payment" ? "payment" : "setup",
         stripeSubscriptionId: result.stripe_setup_intent_id || result.stripe_subscription_id || "",
         publishableKey: result.publishable_key,
-        trialDays: result.trial_days ?? TRIAL_DAYS,
+        trialDays,
         trialStartsOnApproval: result.trial_starts_on_approval !== false && !getUser()?.access?.platform_approved,
+        requiresReplacementCard,
+        showPromoCode,
+        promoHint: promoHintForCheckout(trialDays, requiresReplacementCard),
         customerEmail: result.customer_email ?? null,
         customerName: stripePersonName(
           result.customer_name || result.community_name,

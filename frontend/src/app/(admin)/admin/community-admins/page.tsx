@@ -732,12 +732,12 @@ function BillingStatusBadge({
   } else if (status === "incomplete") {
     label = "Checkout incomplete";
     className = "bg-amber-50 text-amber-700";
-  } else if (billing?.has_leftover_service) {
-    label = "Leftover period";
-    className = "bg-amber-50 text-amber-800";
   } else if (billing?.requires_replacement_card) {
     label = "Card required";
     className = "bg-rose-50 text-rose-700";
+  } else if (billing?.has_leftover_service) {
+    label = "Leftover period";
+    className = "bg-amber-50 text-amber-800";
   } else if (status === "past_due" || status === "grace") {
     label = "Past due";
     className = "bg-orange-50 text-orange-700";

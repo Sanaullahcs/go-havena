@@ -46,7 +46,7 @@ class OtpController extends Controller
             if (! $user) {
                 $this->failValidation(
                     'phone',
-                    'No account found with this phone number. Please sign up first.',
+                    'Account not found. Please create an account first.',
                     'ACCOUNT_NOT_FOUND_USE_SIGNUP',
                 );
             }
@@ -114,7 +114,7 @@ class OtpController extends Controller
             if (! $user) {
                 $this->failValidation(
                     'phone',
-                    'No account found with this phone number. Please sign up first.',
+                    'Account not found. Please create an account first.',
                     'ACCOUNT_NOT_FOUND_USE_SIGNUP',
                 );
             }

@@ -24,10 +24,23 @@ import {
 import { apiError } from "@/lib/api/client";
 import { toastError, toastSuccess } from "@/lib/alert";
 
-function statusBadge(status: string) {
-  if (status === "qualified") return <AdminBadge tone="green">Rewarded</AdminBadge>;
-  if (status === "disqualified") return <AdminBadge tone="red">Disqualified</AdminBadge>;
-  if (status === "pending_qualification") return <AdminBadge tone="amber">Pending payment</AdminBadge>;
+function statusBadge(row: ReferralAttributionRow) {
+  const display = row.display_status;
+  if (display === "rewarded" || row.status === "qualified") {
+    return <AdminBadge tone="green">Rewarded</AdminBadge>;
+  }
+  if (display === "disqualified" || row.status === "disqualified") {
+    return <AdminBadge tone="red">Disqualified</AdminBadge>;
+  }
+  if (display === "payout_failed") {
+    return <AdminBadge tone="red">Payout failed</AdminBadge>;
+  }
+  if (display === "payout_pending") {
+    return <AdminBadge tone="sky">Payout pending</AdminBadge>;
+  }
+  if (display === "awaiting_payment" || row.status === "pending_qualification") {
+    return <AdminBadge tone="amber">Pending payment</AdminBadge>;
+  }
   return <AdminBadge tone="slate">Signed up</AdminBadge>;
 }
 
@@ -327,7 +340,7 @@ export default function ReferAndEarnPage() {
                   </DtCell>
                   <DtCell>{row.referee_community?.name ?? "—"}</DtCell>
                   <DtCell nowrap>{formatReferralDate(row.locked_at)}</DtCell>
-                  <DtCell>{statusBadge(row.status)}</DtCell>
+                  <DtCell>{statusBadge(row)}</DtCell>
                   <DtCell last right>
                     {row.reward?.status === "credited" ? (
                       <span className="font-semibold text-emerald-700">
