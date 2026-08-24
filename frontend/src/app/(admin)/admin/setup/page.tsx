@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Building2, ChevronLeft, ChevronRight, Lock, MapPin, Plus, Search, X } from "lucide-react";
 import { OnboardingField } from "@/components/admin/onboarding/onboarding-ui";
@@ -217,7 +217,7 @@ function SetupInner() {
           </h1>
           <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-600 sm:text-[15px]">
             {view === "regions"
-              ? "Pick your region first. Next you’ll see communities already listed there — or add a new one."
+              ? "Search or filter by state, then pick your region. Next you’ll see communities already listed there — or add a new one."
               : view === "communities"
                 ? `Communities in ${regionLabel}. Choose one without an admin, or request to add a new community.`
                 : `Tell us the community name and address for ${regionLabel}. We’ll submit it for review.`}
@@ -407,6 +407,11 @@ function SearchField({
   );
 }
 
+function regionStateKey(region: PublicRegion): string {
+  const state = String(region.state || "").trim();
+  return state || "Other";
+}
+
 function RegionList({
   query,
   onQueryChange,
@@ -422,14 +427,133 @@ function RegionList({
   searching: boolean;
   onSelect: (region: PublicRegion) => void;
 }) {
+  const [stateFilter, setStateFilter] = useState<string>("all");
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const stateOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const region of regions) {
+      const key = regionStateKey(region);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort(([a], [b]) => {
+        if (a === "Other") return 1;
+        if (b === "Other") return -1;
+        return a.localeCompare(b);
+      })
+      .map(([state, count]) => ({ state, count }));
+  }, [regions]);
+
+  useEffect(() => {
+    if (stateFilter === "all") return;
+    if (!stateOptions.some((option) => option.state === stateFilter)) {
+      setStateFilter("all");
+    }
+  }, [stateFilter, stateOptions]);
+
+  const grouped = useMemo(() => {
+    const filtered =
+      stateFilter === "all"
+        ? regions
+        : regions.filter((region) => regionStateKey(region) === stateFilter);
+
+    const byState = new Map<string, PublicRegion[]>();
+    for (const region of filtered) {
+      const key = regionStateKey(region);
+      const bucket = byState.get(key);
+      if (bucket) bucket.push(region);
+      else byState.set(key, [region]);
+    }
+
+    return Array.from(byState.entries())
+      .sort(([a], [b]) => {
+        if (a === "Other") return 1;
+        if (b === "Other") return -1;
+        return a.localeCompare(b);
+      })
+      .map(([state, items]) => ({
+        state,
+        items: [...items].sort((a, b) => a.title.localeCompare(b.title)),
+      }));
+  }, [regions, stateFilter]);
+
+  const visibleCount = grouped.reduce((sum, group) => sum + group.items.length, 0);
+  const showStateChips = stateOptions.length > 1;
+
+  const jumpToState = (state: string) => {
+    setStateFilter(state);
+    listRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   return (
-    <div>
-      <SearchField
-        value={query}
-        onChange={onQueryChange}
-        placeholder="Search regions…"
-        searching={searching}
-      />
+    <div className="flex min-h-0 flex-col">
+      <div className="shrink-0 space-y-3">
+        <SearchField
+          value={query}
+          onChange={onQueryChange}
+          placeholder="Search by city, area, or state…"
+          searching={searching}
+        />
+
+        {!loading && regions.length > 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[12px] font-medium text-slate-500">
+              {visibleCount} {visibleCount === 1 ? "region" : "regions"}
+              {stateFilter !== "all" ? ` in ${stateFilter}` : ""}
+              {query.trim() ? " matched" : ""}
+            </p>
+            {stateFilter !== "all" ? (
+              <button
+                type="button"
+                onClick={() => jumpToState("all")}
+                className="text-[12px] font-semibold text-[#1B4F8A] hover:underline"
+              >
+                Show all states
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {showStateChips && !loading ? (
+          <div
+            className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]"
+            role="tablist"
+            aria-label="Filter by state"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={stateFilter === "all"}
+              onClick={() => jumpToState("all")}
+              className={`shrink-0 rounded-full border px-3 py-1.5 text-[12px] font-semibold transition ${
+                stateFilter === "all"
+                  ? "border-[#1B4F8A] bg-[#1B4F8A] text-white"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-[#1B4F8A]/35 hover:text-[#1B4F8A]"
+              }`}
+            >
+              All ({regions.length})
+            </button>
+            {stateOptions.map(({ state, count }) => (
+              <button
+                key={state}
+                type="button"
+                role="tab"
+                aria-selected={stateFilter === state}
+                onClick={() => jumpToState(state)}
+                className={`shrink-0 rounded-full border px-3 py-1.5 text-[12px] font-semibold transition ${
+                  stateFilter === state
+                    ? "border-[#1B4F8A] bg-[#1B4F8A] text-white"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-[#1B4F8A]/35 hover:text-[#1B4F8A]"
+                }`}
+              >
+                {state} ({count})
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
       {loading ? (
         <p className="mt-8 text-center text-sm text-slate-500">Loading regions…</p>
       ) : regions.length === 0 ? (
@@ -437,31 +561,60 @@ function RegionList({
           {query ? "No regions match that search." : "No regions available yet."}
         </p>
       ) : (
-        <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-          {regions.map((region) => {
-            const location = [region.area, region.state].filter(Boolean).join(" · ");
-            return (
-              <li key={region.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelect(region)}
-                  className="flex w-full items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-[#1B4F8A]/40 hover:bg-[#F4F8FC]"
+        <div
+          ref={listRef}
+          className="mt-3 max-h-[min(28rem,55vh)] overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-slate-50/40 [scrollbar-width:thin]"
+          role="listbox"
+          aria-label="Regions"
+        >
+          {grouped.map((group) => (
+            <section key={group.state} aria-labelledby={`region-state-${group.state}`}>
+              {stateFilter === "all" && showStateChips ? (
+                <div
+                  id={`region-state-${group.state}`}
+                  className="sticky top-0 z-[1] border-b border-slate-200/80 bg-[#F8FAFC]/95 px-3 py-2 backdrop-blur-sm"
                 >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#E8F0F7] text-[#1B4F8A]">
-                    <MapPin className="h-4 w-4" aria-hidden />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-slate-900">{region.title}</span>
-                    {location ? (
-                      <span className="mt-0.5 block text-[12px] text-slate-500">{location}</span>
-                    ) : null}
-                  </span>
-                  <ChevronRight className="mt-2 h-4 w-4 shrink-0 text-[#1B4F8A]" aria-hidden />
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#1B4F8A]">
+                    {group.state}
+                    <span className="ml-2 font-semibold normal-case tracking-normal text-slate-400">
+                      {group.items.length}
+                    </span>
+                  </p>
+                </div>
+              ) : null}
+              <ul className="divide-y divide-slate-100 bg-white">
+                {group.items.map((region) => {
+                  const subtitle = [region.area, region.state].filter(Boolean).join(" · ");
+                  return (
+                    <li key={region.id}>
+                      <button
+                        type="button"
+                        role="option"
+                        onClick={() => onSelect(region)}
+                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-[#F4F8FC] focus:bg-[#F4F8FC] focus:outline-none"
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#E8F0F7] text-[#1B4F8A]">
+                          <MapPin className="h-3.5 w-3.5" aria-hidden />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-slate-900">
+                            {region.title}
+                          </span>
+                          {subtitle ? (
+                            <span className="mt-0.5 block truncate text-[12px] text-slate-500">
+                              {subtitle}
+                            </span>
+                          ) : null}
+                        </span>
+                        <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" aria-hidden />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -489,13 +642,20 @@ function CommunityList({
   onAdd: () => void;
 }) {
   return (
-    <div>
-      <SearchField
-        value={query}
-        onChange={onQueryChange}
-        placeholder="Search communities…"
-        searching={searching}
-      />
+    <div className="flex min-h-0 flex-col">
+      <div className="shrink-0 space-y-3">
+        <SearchField
+          value={query}
+          onChange={onQueryChange}
+          placeholder="Search communities…"
+          searching={searching}
+        />
+        {!loading && communities.length > 0 ? (
+          <p className="text-[12px] font-medium text-slate-500">
+            {communities.length} {communities.length === 1 ? "community" : "communities"} in {regionTitle}
+          </p>
+        ) : null}
+      </div>
 
       {loading ? (
         <p className="mt-8 text-center text-sm text-slate-500">Loading communities…</p>
@@ -521,72 +681,65 @@ function CommunityList({
         </div>
       ) : (
         <>
-          <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-[#1B4F8A]/15 bg-[#E8F0F7]/70 px-3.5 py-3 text-[13px] leading-snug text-slate-700">
-            Communities with an admin are shown but cannot be selected. Choose an available community or request a new one.
-          </div>
-          <ul className="mt-4 grid gap-3">
-            {communities.map((community) => {
-              const disabled = community.has_admin;
-              const busy = selectingId === community.id;
-              return (
-                <li key={community.id}>
-                  <button
-                    type="button"
-                    disabled={disabled || Boolean(selectingId)}
-                    onClick={() => onSelect(community)}
-                    className={[
-                      "flex w-full items-start gap-3 rounded-xl border p-4 text-left transition",
-                      disabled
-                        ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-60"
-                        : "border-slate-200 bg-white hover:border-[#1B4F8A]/40 hover:bg-[#F4F8FC]",
-                    ].join(" ")}
-                  >
-                    <span
-                      className={[
-                        "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-                        disabled ? "bg-slate-100 text-slate-400" : "bg-[#E8F0F7] text-[#1B4F8A]",
-                      ].join(" ")}
+          <div className="mt-3 max-h-[min(26rem,50vh)] overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-white [scrollbar-width:thin]">
+            <ul className="divide-y divide-slate-100">
+              {communities.map((community) => {
+                const taken = community.has_admin;
+                const selecting = selectingId === community.id;
+                return (
+                  <li key={community.id}>
+                    <button
+                      type="button"
+                      disabled={taken || selectingId !== null}
+                      onClick={() => onSelect(community)}
+                      className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition ${
+                        taken
+                          ? "cursor-not-allowed bg-slate-50/80 opacity-70"
+                          : "hover:bg-[#F4F8FC] focus:bg-[#F4F8FC] focus:outline-none"
+                      }`}
                     >
-                      <Building2 className="h-4 w-4" aria-hidden />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold text-slate-900">{community.name}</span>
-                      {community.address ? (
-                        <span className="mt-0.5 block text-[12px] text-slate-500">{community.address}</span>
-                      ) : null}
-                      {disabled ? (
-                        <span className="mt-1.5 block text-[11px] font-medium text-slate-500">
-                          Community admin already assigned
+                      <span
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                          taken ? "bg-slate-100 text-slate-400" : "bg-[#E8F0F7] text-[#1B4F8A]"
+                        }`}
+                      >
+                        {taken ? (
+                          <Lock className="h-3.5 w-3.5" aria-hidden />
+                        ) : (
+                          <Building2 className="h-3.5 w-3.5" aria-hidden />
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-slate-900">
+                          {community.name}
                         </span>
-                      ) : null}
-                    </span>
-                    {busy ? (
-                      <span className="mt-2 h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-[#1B4F8A]" />
-                    ) : disabled ? (
-                      <Lock className="mt-2 h-4 w-4 shrink-0 text-slate-400" aria-hidden />
-                    ) : (
-                      <ChevronRight className="mt-2 h-4 w-4 shrink-0 text-[#1B4F8A]" aria-hidden />
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </>
-      )}
-
-      {!loading && communities.length > 0 ? (
-        <div className="mt-6 border-t border-slate-100 pt-5 text-center">
-          <p className="text-[13px] text-slate-500">Don&apos;t see your community?</p>
+                        <span className="mt-0.5 block truncate text-[12px] text-slate-500">
+                          {taken
+                            ? "Already has an admin"
+                            : community.address || "Available — claim as admin"}
+                        </span>
+                      </span>
+                      {selecting ? (
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-[#1B4F8A]" />
+                      ) : taken ? null : (
+                        <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" aria-hidden />
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
           <button
             type="button"
             onClick={onAdd}
-            className="mt-1 text-[13px] font-semibold text-[#1B4F8A] hover:underline"
+            className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#1B4F8A]/35 bg-[#F4F8FC] px-4 text-sm font-semibold text-[#1B4F8A] transition hover:border-[#1B4F8A]/55 hover:bg-[#E8F0F7]"
           >
-            Request to add in {regionTitle}
+            <Plus className="h-4 w-4" aria-hidden />
+            Request to add a community
           </button>
-        </div>
-      ) : null}
+        </>
+      )}
     </div>
   );
 }
