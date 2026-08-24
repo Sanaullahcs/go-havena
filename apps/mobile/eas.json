@@ -27,6 +27,11 @@
     },
     "apk": {
       "distribution": "internal",
+      "credentialsSource": "local",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://apis.gohavena.com/api/v1",
+        "EXPO_PUBLIC_ADMIN_URL": "https://gohavena.com"
+      },
       "android": {
         "buildType": "apk"
       }

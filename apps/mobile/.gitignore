@@ -5,6 +5,7 @@
 expo-env.d.ts
 # @end expo-cli
 apple-secrets/
+android-secrets/
 credentials.json
 
 # Local Expo / Metro logs — never commit
