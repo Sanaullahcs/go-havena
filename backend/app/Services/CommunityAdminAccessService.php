@@ -137,9 +137,21 @@ class CommunityAdminAccessService
         $subscription = $communityId ? $this->billing->getSubscription($communityId) : null;
         $platformApproved = $this->isPlatformApproved($user);
 
+        $community = $communityId
+            ? ($this->managedMembership($user)?->community ?? Community::query()->find($communityId))
+            : null;
+
+        // Mobile /me must heal successful Stripe checkouts that missed the return confirm,
+        // otherwise the app keeps showing "Continue in browser" after the user adds a card.
+        if ($community && in_array($subscription?->status, [
+            CommunitySubscription::STATUS_INCOMPLETE,
+            CommunitySubscription::STATUS_PENDING_TRIAL,
+        ], true)) {
+            $this->billing->reconcileIncompleteCheckout($community);
+            $subscription = $this->billing->getSubscription($communityId);
+        }
+
         if ($communityId && $platformApproved && $subscription?->isPendingTrial() && ! $subscription->isAdminTransition()) {
-            $community = $this->managedMembership($user)?->community
-                ?? Community::query()->find($communityId);
             if ($community) {
                 $this->billing->startTrialIfEligible($community);
                 $subscription = $this->billing->getSubscription($communityId);

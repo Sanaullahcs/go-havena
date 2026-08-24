@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   RefreshControl,
   Linking,
   TouchableOpacity,
+  AppState,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -56,6 +57,15 @@ function appendQuery(url, params) {
   }
 }
 
+function isBillingStillRequired(user) {
+  if (!user) return true;
+  const access = user.access ?? {};
+  if (access.card_on_file || access.billing_complete) return false;
+  const nextStep = access.next_step;
+  if (nextStep === "await_approval" || nextStep === "ready") return false;
+  return nextStep === "complete_billing_web";
+}
+
 export default function CompleteBillingScreen() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -65,31 +75,52 @@ export default function CompleteBillingScreen() {
   const [opening, setOpening] = useState(false);
   const [awaitingApproval, setAwaitingApproval] = useState(false);
   const [communityName, setCommunityName] = useState("");
+  const openedPortalRef = useRef(false);
+  const pollTimersRef = useRef([]);
+  const awaitingApprovalRef = useRef(false);
+
+  const clearPollTimers = useCallback(() => {
+    pollTimersRef.current.forEach((id) => clearTimeout(id));
+    pollTimersRef.current = [];
+  }, []);
 
   const syncFromUser = useCallback(
     (user) => {
       if (canAccessDashboard(user)) {
+        openedPortalRef.current = false;
+        clearPollTimers();
         navigateAfterAuth(router, user);
         return;
       }
 
       const nextStep = user?.access?.next_step;
       if (nextStep === "rejected") {
+        openedPortalRef.current = false;
+        clearPollTimers();
         navigateAfterAuth(router, user, { role: "admin" });
         return;
       }
       if (nextStep && !["complete_billing_web", "await_approval", "ready"].includes(nextStep)) {
+        openedPortalRef.current = false;
+        clearPollTimers();
         navigateAfterAuth(router, user, { role: "admin" });
         return;
       }
 
       const membership = getPrimaryMembership(user);
       setCommunityName(membership?.community?.name || membership?.community?.title || "");
-      setAwaitingApproval(
-        nextStep === "await_approval" || Boolean(user?.access?.card_on_file && nextStep !== "complete_billing_web"),
-      );
+      // Prefer card_on_file over a possibly-stale next_step so the Continue CTA hides right away.
+      const nextAwaiting =
+        nextStep === "await_approval" || Boolean(user?.access?.card_on_file);
+      awaitingApprovalRef.current = nextAwaiting;
+      setAwaitingApproval(nextAwaiting);
+
+      if (nextAwaiting || !isBillingStillRequired(user)) {
+        openedPortalRef.current = false;
+        clearPollTimers();
+      }
     },
-    [router],
+    [clearPollTimers, router],
   );
 
   const refresh = useCallback(
@@ -100,9 +131,11 @@ export default function CompleteBillingScreen() {
       try {
         const user = await fetchMe();
         syncFromUser(user);
+        return user;
       } catch {
         const cached = await getUser();
         if (cached) syncFromUser(cached);
+        return cached ?? null;
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -111,11 +144,59 @@ export default function CompleteBillingScreen() {
     [syncFromUser],
   );
 
+  /** After browser checkout, Stripe/webhook may lag — poll a few times on return. */
+  const refreshAfterBrowserReturn = useCallback(async () => {
+    clearPollTimers();
+    const user = await refresh(true);
+    if (!openedPortalRef.current || !isBillingStillRequired(user) || awaitingApprovalRef.current) {
+      return;
+    }
+
+    const delaysMs = [1200, 2800, 5000];
+    delaysMs.forEach((delay) => {
+      const timer = setTimeout(async () => {
+        if (!openedPortalRef.current || awaitingApprovalRef.current) return;
+        const next = await refresh(true);
+        if (!isBillingStillRequired(next) || awaitingApprovalRef.current) {
+          openedPortalRef.current = false;
+          clearPollTimers();
+        }
+      }, delay);
+      pollTimersRef.current.push(timer);
+    });
+  }, [clearPollTimers, refresh]);
+
   useFocusEffect(
     useCallback(() => {
       void refresh(true);
-    }, [refresh]),
+      return () => clearPollTimers();
+    }, [clearPollTimers, refresh]),
   );
+
+  // Linking.openURL returns immediately; when the user switches back to the app
+  // the screen never remounts, so we must refresh on AppState "active".
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        void (openedPortalRef.current ? refreshAfterBrowserReturn() : refresh(true));
+      }
+    });
+    return () => {
+      sub.remove();
+      clearPollTimers();
+    };
+  }, [clearPollTimers, refresh, refreshAfterBrowserReturn]);
+
+  // Deep link return (exp://…/complete-billing or havena://…) after web done page.
+  useEffect(() => {
+    const onUrl = ({ url }) => {
+      if (!url || !String(url).includes("complete-billing")) return;
+      openedPortalRef.current = true;
+      void refreshAfterBrowserReturn();
+    };
+    const sub = Linking.addEventListener("url", onUrl);
+    return () => sub.remove();
+  }, [refreshAfterBrowserReturn]);
 
   const handleSignOut = () => confirmSignOut(dialog);
 
@@ -136,6 +217,7 @@ export default function CompleteBillingScreen() {
     }
 
     setOpening(true);
+    openedPortalRef.current = true;
     try {
       const code = await createWebHandoff();
       if (code) url = appendQuery(url, { handoff: code });
@@ -145,6 +227,7 @@ export default function CompleteBillingScreen() {
 
     // Expo Go / LAN: openAuthSessionAsync often fails on plain http:// URLs.
     // Prefer the system browser so billing can load on the phone.
+    let waitedForReturn = false;
     try {
       const isPlainHttp = /^http:\/\//i.test(url);
       if (isPlainHttp || __DEV__) {
@@ -158,6 +241,7 @@ export default function CompleteBillingScreen() {
           });
         }
       } else {
+        waitedForReturn = true;
         const result = await WebBrowser.openAuthSessionAsync(url, returnUrl, {
           showInRecents: true,
           createTask: false,
@@ -176,6 +260,7 @@ export default function CompleteBillingScreen() {
             createTask: true,
           });
         } catch {
+          openedPortalRef.current = false;
           await dialog.showError(
             t("common.error", { defaultValue: "Error" }),
             t("billing.cannotOpenBrowser", {
@@ -186,7 +271,10 @@ export default function CompleteBillingScreen() {
       }
     } finally {
       setOpening(false);
-      await refresh(true);
+      // Auth session waits until return; Linking does not — AppState handles that path.
+      if (waitedForReturn) {
+        await refreshAfterBrowserReturn();
+      }
     }
   };
 
