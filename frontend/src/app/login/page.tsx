@@ -33,7 +33,7 @@ import { Suspense } from "react";
 
 type OtpStep = "phone" | "code";
 
-const COMMUNITY_DEMO_PHONE = "+15556668888";
+const COMMUNITY_DEMO_PHONE = "+15555550200";
 
 function LoginPageInner() {
   const router = useRouter();
