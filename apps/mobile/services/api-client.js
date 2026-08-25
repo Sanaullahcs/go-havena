@@ -1,8 +1,6 @@
 import i18n from "../i18n";
 import { API_BASE_URL } from "../constants/api-config";
-import { shouldUseMockDataSync } from "../constants/mock-config";
 import { getCommunityId, getToken, getUser, clearSession, notifyGuestSessionTerminated } from "./auth-session";
-import { mockApiRequest } from "./mock/handlers";
 import { isGuestUser } from "./community-access";
 import { syncAccountRestrictionFromError, isAccountRestrictedError } from "../utils/account-access-sync";
 import {
@@ -141,11 +139,6 @@ function apiErrorMessage(body, response) {
 }
 
 export async function apiRequest(path, { method = "GET", body, auth = true, community = true, timeoutMs = 25000 } = {}) {
-  const token = await getToken();
-  if (shouldUseMockDataSync(token)) {
-    return mockApiRequest(path, { method, body, auth, community });
-  }
-
   const headers = {
     Accept: "application/json",
   };
@@ -154,8 +147,9 @@ export async function apiRequest(path, { method = "GET", body, auth = true, comm
     headers["Content-Type"] = "application/json";
   }
 
-  if (auth && token) {
-    headers.Authorization = `Bearer ${token}`;
+  if (auth) {
+    const token = await getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
   }
 
   if (community) {

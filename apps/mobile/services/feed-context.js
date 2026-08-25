@@ -1,7 +1,5 @@
 import { getCommunityId, getToken, getUser, setCommunityId } from "./auth-session";
 import { fetchMe } from "./auth-api";
-import { isMockApiActive, MOCK_COMMUNITY_ID } from "../constants/mock-config";
-import { MOCK_DEMO_TOKEN, DEV_OFFLINE_TOKEN } from "../constants/api-config";
 
 function isActiveApprovedMembership(membership) {
   if (membership?.status !== "approved") return false;
@@ -37,25 +35,11 @@ function pickApprovedCommunityId(user, storedId = null) {
  */
 export async function ensureFeedCommunityContext() {
   const token = await getToken();
-  if (!token) {
+  if (!token || token === "dev-offline-token") {
     return null;
   }
 
   const storedId = await getCommunityId();
-
-  if (token === DEV_OFFLINE_TOKEN) {
-    return null;
-  }
-
-  if (token === MOCK_DEMO_TOKEN || isMockApiActive(token)) {
-    const user = await getUser();
-    const communityId =
-      pickApprovedCommunityId(user, storedId) ??
-      (storedId ? Number(storedId) : null) ??
-      MOCK_COMMUNITY_ID;
-    await setCommunityId(communityId);
-    return communityId;
-  }
 
   try {
     const fresh = await fetchMe();

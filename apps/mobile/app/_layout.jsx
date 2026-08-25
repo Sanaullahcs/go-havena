@@ -17,7 +17,6 @@ import { AppDialogProvider } from "../providers/app-dialog-provider";
 import { ImageSourcePickerProvider } from "../providers/image-source-picker-provider";
 import LanguageProvider from "../providers/language-provider";
 import GuestSessionGuard from "../components/auth/guest-session-guard";
-import MockDataBootstrap from "../components/dev/mock-data-bootstrap";
 import PushNotificationBootstrap from "../components/notifications/push-notification-bootstrap";
 import InAppNotificationMonitor from "../components/notifications/in-app-notification-monitor";
 import { NotificationBannerProvider } from "../providers/notification-banner-provider";
@@ -122,7 +121,6 @@ export default function RootLayout() {
     <NotificationBannerProvider>
     <ImageSourcePickerProvider>
     <GuestSessionGuard />
-    <MockDataBootstrap />
     <PushNotificationBootstrap />
     <InAppNotificationMonitor />
     <ThemeProvider value={DefaultTheme}>

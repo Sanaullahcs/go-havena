@@ -52,22 +52,6 @@ export function DevInviteFill({ onFill }) {
   );
 }
 
-/** Load populated demo data without hitting the backend. */
-export function DevMockDemoButton({ label, onPress, disabled }) {
-  if (!__DEV__) return null;
-  return (
-    <Pressable
-      style={[styles.chip, styles.demoChip, disabled && styles.chipDisabled]}
-      onPress={onPress}
-      disabled={disabled}
-      hitSlop={8}
-    >
-      <Feather name="layers" size={sf(12)} color="#1B4F8A" />
-      <Text style={[styles.chipText, styles.demoChipText]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 export function DevHelperRow({ children }) {
   if (!__DEV__) return null;
   return <View style={styles.row}>{children}</View>;
@@ -77,8 +61,6 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     justifyContent: "flex-start",
-    flexWrap: "wrap",
-    gap: sw(8),
     marginTop: sw(10),
   },
   chip: {
@@ -97,15 +79,5 @@ const styles = StyleSheet.create({
     fontSize: sf(11),
     lineHeight: sf(14),
     color: "#64748B",
-  },
-  demoChip: {
-    backgroundColor: "#E8F4FC",
-    borderColor: "#BFDBFE",
-  },
-  demoChipText: {
-    color: "#1B4F8A",
-  },
-  chipDisabled: {
-    opacity: 0.5,
   },
 });

@@ -405,10 +405,10 @@ class DemoContentSeeder extends Seeder
         $posts = [
             ['aisha@havena.app', 'help', "Has anyone seen Biscuit? Our golden retriever slipped out of the lobby this afternoon near the east tower. He is very friendly and wearing a blue collar. Please call me if you spot him. Thank you neighbors!", "{$this->img}/feed-dog.jpg", 14, 3, 1],
             ['emily@havena.app', 'general', "The Saturday farmers market two blocks over is amazing right now. Fresh strawberries, local honey, and the best sourdough. Highly recommend a morning stroll over there this weekend.", "{$this->img}/feed-market.jpg", 22, 5, 2],
-            ['priya@havena.app', 'general', "Starting a morning run group! We meet at the clubhouse at 6:30 AM on Tuesdays and Thursdays. All paces welcome, we stick together. Comment below if you want to join.", null, 18, 6, 3],
-            ['tom@havena.app', 'help', "Looking for a recommendation for a reliable plumber who has worked in the building before. Slow drain in the kitchen. Appreciate any leads.", null, 4, 4, 4],
-            ['david@havena.app', 'general', "Big thank you to the maintenance team for fixing the gym AC so quickly. Back to full workouts in comfort. You all are the best.", null, 27, 2, 5],
-            ['nina@havena.app', 'general', "Free moving boxes available! We just unpacked and have about fifteen sturdy boxes plus packing paper. First come first served, message me and I will leave them by the mailroom.", null, 9, 3, 6],
+            ['priya@havena.app', 'general', "Starting a morning run group! We meet at the clubhouse at 6:30 AM on Tuesdays and Thursdays. All paces welcome, we stick together. Comment below if you want to join.", "{$this->img}/wellness-exercise.jpg", 18, 6, 3],
+            ['tom@havena.app', 'help', "Looking for a recommendation for a reliable plumber who has worked in the building before. Slow drain in the kitchen. Appreciate any leads.", "{$this->img}/notice-maintenance.jpg", 4, 4, 4],
+            ['david@havena.app', 'general', "Big thank you to the maintenance team for fixing the gym AC so quickly. Back to full workouts in comfort. You all are the best.", "{$this->img}/amenity-gym.jpg", 27, 2, 5],
+            ['nina@havena.app', 'general', "Free moving boxes available! We just unpacked and have about fifteen sturdy boxes plus packing paper. First come first served, message me and I will leave them by the mailroom.", "{$this->img}/listing-desk.jpg", 9, 3, 6],
         ];
 
         foreach ($posts as [$email, $category, $body, $image, $likes, $comments, $daysAgo]) {

@@ -55,6 +55,7 @@ class AmenitySeeder extends Seeder
             ->all();
 
         $now = now();
+        $seedImg = '/storage/seed';
 
         $rows = [
             [
@@ -74,6 +75,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => true,
                 'slot_duration_minutes' => 60,
                 'icon_key' => 'pool',
+                'image_url' => "{$seedImg}/amenity-pool.jpg",
             ],
             [
                 'name' => 'Fitness Center',
@@ -92,6 +94,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => true,
                 'slot_duration_minutes' => null,
                 'icon_key' => 'gym',
+                'image_url' => "{$seedImg}/amenity-gym.jpg",
             ],
             [
                 'name' => 'Community Hall',
@@ -110,6 +113,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => true,
                 'slot_duration_minutes' => 120,
                 'icon_key' => 'hall',
+                'image_url' => "{$seedImg}/amenity-clubhouse.jpg",
             ],
             [
                 'name' => 'Tennis Court',
@@ -128,6 +132,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => true,
                 'slot_duration_minutes' => 60,
                 'icon_key' => 'sports',
+                'image_url' => "{$seedImg}/wellness-exercise.jpg",
             ],
             [
                 'name' => 'BBQ Terrace',
@@ -146,6 +151,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => true,
                 'slot_duration_minutes' => 90,
                 'icon_key' => 'dining',
+                'image_url' => "{$seedImg}/event-bbq.jpg",
             ],
             [
                 'name' => 'Kids Playground',
@@ -164,6 +170,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => true,
                 'slot_duration_minutes' => null,
                 'icon_key' => 'playground',
+                'image_url' => "{$seedImg}/wellness-social.jpg",
             ],
             [
                 'name' => 'Meeting Room',
@@ -182,6 +189,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => false,
                 'slot_duration_minutes' => 60,
                 'icon_key' => 'meeting',
+                'image_url' => "{$seedImg}/event-townhall.jpg",
             ],
             [
                 'name' => 'Residents Lounge',
@@ -200,6 +208,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => false,
                 'slot_duration_minutes' => null,
                 'icon_key' => 'building',
+                'image_url' => "{$seedImg}/community-cover.jpg",
             ],
             [
                 'name' => 'Yoga Studio (Pending)',
@@ -218,6 +227,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => true,
                 'slot_duration_minutes' => 60,
                 'icon_key' => 'spa',
+                'image_url' => "{$seedImg}/deal-spa.jpg",
             ],
             [
                 'name' => 'Guest Parking Bay (Pending)',
@@ -236,6 +246,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => true,
                 'slot_duration_minutes' => 120,
                 'icon_key' => 'parking',
+                'image_url' => "{$seedImg}/community-cover.jpg",
             ],
         ];
 
@@ -254,6 +265,8 @@ class AmenitySeeder extends Seeder
                     'name_ar' => $row['name_ar'] ?? null,
                     'description_es' => $row['description_es'] ?? null,
                     'description_ar' => $row['description_ar'] ?? null,
+                    'image_url' => $row['image_url'] ?? null,
+                    'icon_key' => $row['icon_key'],
                     'updated_at' => $now,
                 ]);
                 $amenityIdsByName[$row['name']] = (int) $existingId;
@@ -283,6 +296,7 @@ class AmenitySeeder extends Seeder
                     'weekends_available' => $row['weekends_available'],
                     'slot_duration_minutes' => $row['slot_duration_minutes'],
                     'icon_key' => $row['icon_key'],
+                    'image_url' => $row['image_url'] ?? null,
                     'updated_at' => $now,
                 ]);
                 $amenityIdsByName[$row['name']] = (int) $fuzzyId;
@@ -307,7 +321,7 @@ class AmenitySeeder extends Seeder
                 'end_time' => $row['end_time'],
                 'weekends_available' => $row['weekends_available'],
                 'slot_duration_minutes' => $row['slot_duration_minutes'],
-                'image_url' => null,
+                'image_url' => $row['image_url'] ?? null,
                 'icon_key' => $row['icon_key'],
                 'created_at' => $now,
                 'updated_at' => $now,

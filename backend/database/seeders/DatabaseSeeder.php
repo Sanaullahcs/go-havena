@@ -16,6 +16,8 @@ class DatabaseSeeder extends Seeder
             FeedEngagementSeeder::class,
             // Rich presentation demo (notices/events/feed/listings with /storage/seed images).
             DemoContentSeeder::class,
+            FamilySeeder::class,
+            GuestInvitationSeeder::class,
         ]);
     }
 }

@@ -3,6 +3,8 @@
 namespace App\Console\Commands;
 
 use Database\Seeders\DemoContentSeeder;
+use Database\Seeders\FamilySeeder;
+use Database\Seeders\GuestInvitationSeeder;
 use Database\Seeders\MobileTestAccountsSeeder;
 use Illuminate\Console\Command;
 
@@ -11,7 +13,7 @@ class SeedDemoCommand extends Command
     protected $signature = 'havena:seed-demo
                             {--force-images : Regenerate demo seed images}';
 
-    protected $description = 'Seed presentation-ready demo data (notices, events, feed, marketplace, deals, amenities)';
+    protected $description = 'Seed presentation-ready demo data (notices, events, feed, marketplace, deals, amenities, family, guests)';
 
     public function handle(): int
     {
@@ -37,6 +39,10 @@ class SeedDemoCommand extends Command
 
         $this->info('Ensuring mobile test accounts…');
         $this->call('db:seed', ['--class' => MobileTestAccountsSeeder::class, '--force' => true]);
+
+        $this->info('Seeding family and guest demo data…');
+        $this->call('db:seed', ['--class' => FamilySeeder::class, '--force' => true]);
+        $this->call('db:seed', ['--class' => GuestInvitationSeeder::class, '--force' => true]);
 
         $this->newLine();
         $otp = (string) (config('otp.fixed_code') ?: '123456');
