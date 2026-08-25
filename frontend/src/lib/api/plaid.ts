@@ -7,9 +7,17 @@ export interface PlaidLinkTokenPayload {
 
 export interface PlaidExchangePayload {
   connected: boolean;
-  item_id: string;
-  institution_name: string | null;
+  item_id?: string | null;
+  institution_name?: string | null;
   institution_id?: string | null;
+  connected_at?: string | null;
+}
+
+export async function fetchPlaidConnection(): Promise<PlaidExchangePayload> {
+  const res = await api.get<{ success: boolean; data: PlaidExchangePayload }>(
+    "/v1/plaid/connection",
+  );
+  return res.data.data;
 }
 
 export async function createPlaidLinkToken(): Promise<PlaidLinkTokenPayload> {

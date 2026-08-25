@@ -5,10 +5,12 @@ import { Building2, CheckCircle2, Landmark, Loader2 } from "lucide-react";
 import type { PlaidLinkOnSuccessMetadata } from "react-plaid-link";
 import { usePlaidLink } from "react-plaid-link";
 import { AdminBadge } from "@/components/admin/ui";
+import { PageLoader } from "@/components/shared/loaders";
 import { apiError } from "@/lib/api/client";
 import {
   createPlaidLinkToken,
   exchangePlaidPublicToken,
+  fetchPlaidConnection,
   type PlaidExchangePayload,
 } from "@/lib/api/plaid";
 import { toastError, toastSuccess } from "@/lib/alert";
@@ -17,8 +19,36 @@ export default function PlaidPage() {
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [exchanging, setExchanging] = useState(false);
+  const [loadingConnection, setLoadingConnection] = useState(true);
   const [connection, setConnection] = useState<PlaidExchangePayload | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
+
+  const isConnected = Boolean(connection?.connected);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const payload = await fetchPlaidConnection();
+        if (!cancelled) {
+          setConnection(payload.connected ? payload : null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setLinkError(apiError(err));
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingConnection(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const completeExchange = useCallback(async (publicToken: string) => {
     setExchanging(true);
@@ -81,14 +111,10 @@ export default function PlaidPage() {
   }, [linkToken, ready, open]);
 
   const handleConnect = async () => {
-    if (connection?.connected) {
-      setLinkError("This community already has a connected bank account.");
-      return;
-    }
+    if (isConnected) return;
 
     setConnecting(true);
     setLinkError(null);
-    setConnection(null);
 
     try {
       const payload = await createPlaidLinkToken();
@@ -102,6 +128,10 @@ export default function PlaidPage() {
   };
 
   const isBusy = connecting || exchanging || Boolean(linkToken && !ready);
+
+  if (loadingConnection) {
+    return <PageLoader text="Loading bank connection…" variant="form" />;
+  }
 
   return (
     <div className="space-y-4">
@@ -117,20 +147,31 @@ export default function PlaidPage() {
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <div className="mx-auto flex max-w-xl flex-col items-center text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 ring-1 ring-sky-100">
-            <Landmark className="h-7 w-7" />
+          <div
+            className={[
+              "flex h-14 w-14 items-center justify-center rounded-2xl ring-1",
+              isConnected
+                ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
+                : "bg-sky-50 text-sky-700 ring-sky-100",
+            ].join(" ")}
+          >
+            {isConnected ? (
+              <CheckCircle2 className="h-7 w-7" />
+            ) : (
+              <Landmark className="h-7 w-7" />
+            )}
           </div>
 
           <h3 className="mt-5 text-lg font-semibold text-slate-900">
-            {connection?.connected ? "Bank Account Connected" : "Connect Bank Account"}
+            {isConnected ? "Bank Account Connected" : "Connect Bank Account"}
           </h3>
           <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-600">
-            {connection?.connected
+            {isConnected
               ? "Your community bank connection is stored securely on the Havena backend."
               : "Use Plaid Link to authenticate with a Sandbox institution. Havena exchanges the connection securely on the server — no access tokens are exposed to the browser."}
           </p>
 
-          {!connection?.connected ? (
+          {!isConnected ? (
             <button
               type="button"
               onClick={() => void handleConnect()}
@@ -151,7 +192,12 @@ export default function PlaidPage() {
                 "Connect with Plaid"
               )}
             </button>
-          ) : null}
+          ) : (
+            <p className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-800 ring-1 ring-emerald-200">
+              <CheckCircle2 className="h-4 w-4" />
+              Connected — one bank account per community
+            </p>
+          )}
 
           {linkError ? (
             <p className="mt-4 text-sm text-rose-600" role="alert">
@@ -161,7 +207,7 @@ export default function PlaidPage() {
         </div>
       </div>
 
-      {connection?.connected ? (
+      {isConnected && connection ? (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 shadow-sm sm:p-6">
           <div className="flex items-start gap-3">
             <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
@@ -185,12 +231,25 @@ export default function PlaidPage() {
                   </dd>
                 </div>
 
-                <div className="rounded-xl border border-emerald-200/80 bg-white/70 px-4 py-3">
-                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    Item ID
-                  </dt>
-                  <dd className="mt-1 font-mono text-xs text-slate-700">{connection.item_id}</dd>
-                </div>
+                {connection.item_id ? (
+                  <div className="rounded-xl border border-emerald-200/80 bg-white/70 px-4 py-3">
+                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Item ID
+                    </dt>
+                    <dd className="mt-1 font-mono text-xs text-slate-700">{connection.item_id}</dd>
+                  </div>
+                ) : null}
+
+                {connection.connected_at ? (
+                  <div className="rounded-xl border border-emerald-200/80 bg-white/70 px-4 py-3 sm:col-span-2">
+                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Connected
+                    </dt>
+                    <dd className="mt-1 text-sm text-slate-700">
+                      {new Date(connection.connected_at).toLocaleString()}
+                    </dd>
+                  </div>
+                ) : null}
               </dl>
             </div>
           </div>

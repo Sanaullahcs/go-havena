@@ -15,6 +15,21 @@ class PlaidController extends Controller
     ) {
     }
 
+    /** GET /v1/plaid/connection */
+    public function showConnection(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! AdminRoleService::isCommunityAdminRole($user)) {
+            abort(403, 'Community admin access required');
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->plaid->getCommunityConnection($user),
+        ]);
+    }
+
     /** POST /v1/plaid/link-token */
     public function createLinkToken(Request $request): JsonResponse
     {

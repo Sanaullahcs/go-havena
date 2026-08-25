@@ -137,6 +137,29 @@ class PlaidService
     }
 
     /**
+     * Return the current community's Plaid connection, if any.
+     *
+     * @return array{connected: bool, item_id?: string|null, institution_name?: string|null, institution_id?: string|null, connected_at?: string|null}
+     */
+    public function getCommunityConnection(User $user): array
+    {
+        $communityId = $this->resolveManagedCommunityId($user);
+
+        $connection = CommunityPlaidConnection::query()
+            ->where('community_id', $communityId)
+            ->where('status', 'connected')
+            ->first();
+
+        if (! $connection) {
+            return ['connected' => false];
+        }
+
+        return array_merge($connection->toPublicPayload(), [
+            'connected_at' => $connection->created_at?->toIso8601String(),
+        ]);
+    }
+
+    /**
      * @return array{access_token: string, item_id: string}
      */
     public function exchangePublicToken(string $publicToken): array

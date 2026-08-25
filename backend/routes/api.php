@@ -224,6 +224,7 @@ Route::prefix('v1')->group(function () {
 
         /* Plaid (community admin bank linking) */
         Route::middleware('community.admin')->prefix('plaid')->group(function () {
+            Route::get('/connection', [PlaidController::class, 'showConnection']);
             Route::post('/link-token', [PlaidController::class, 'createLinkToken']);
             Route::post('/exchange-token', [PlaidController::class, 'exchangeToken']);
         });
