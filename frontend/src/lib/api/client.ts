@@ -9,11 +9,19 @@ const api = axios.create({
   timeout: 12_000,
 });
 
+function needsNgrokBrowserBypass(baseURL: string | undefined): boolean {
+  const host = (baseURL ?? "").toLowerCase();
+  return host.includes("ngrok-free.app") || host.includes("ngrok.io") || host.includes("ngrok.app");
+}
+
 /* Attach LAN-aware API host + token on every request */
 api.interceptors.request.use((config) => {
   config.baseURL = resolveApiRoot();
   const token = getToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (needsNgrokBrowserBypass(config.baseURL)) {
+    config.headers["ngrok-skip-browser-warning"] = "true";
+  }
   return config;
 });
 

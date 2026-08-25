@@ -89,6 +89,8 @@ apps/mobile/.tmp-push-fix/
 apps/mobile/.expo-test-bundle/
 apps/mobile/google-services.json
 apps/mobile/GoogleService-Info.plist
+apps/mobile/.ngrok-token
+dev-urls.txt
 frontend/public/firebase-messaging-sw.js
 Thumbs.db
 
