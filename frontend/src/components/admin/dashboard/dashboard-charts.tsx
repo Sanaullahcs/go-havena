@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import {
   Area,
   AreaChart,
@@ -73,10 +73,17 @@ function ChartPlot({ children }: { children: ReactNode }) {
   return <div className="min-h-[220px] w-full flex-1">{children}</div>;
 }
 
-export function DashboardActivityChart({ data }: { data?: { date: string; count: number }[] }) {
-  const chartData = (data ?? []).map((point) => ({ day: point.date, Activity: point.count }));
-  const total = chartData.reduce((sum, row) => sum + row.Activity, 0);
-  const peak = chartData.reduce((max, row) => Math.max(max, row.Activity), 0);
+export function DashboardActivityChart({
+  data,
+}: {
+  data?: { date: string; count: number }[];
+}) {
+  const chartData = useMemo(
+    () => (data ?? []).map((point) => ({ day: point.date, Activity: point.count })),
+    [data],
+  );
+  const total = useMemo(() => chartData.reduce((sum, row) => sum + row.Activity, 0), [chartData]);
+  const peak = useMemo(() => chartData.reduce((max, row) => Math.max(max, row.Activity), 0), [chartData]);
 
   if (chartData.length === 0) return <ChartEmpty message="No activity recorded in the last 7 days" fill />;
 
@@ -102,7 +109,7 @@ export function DashboardActivityChart({ data }: { data?: { date: string; count:
             <CartesianGrid vertical={false} stroke="rgba(148, 163, 184, 0.18)" strokeDasharray="4 6" />
             <XAxis dataKey="day" tick={{ fontSize: 11, fill: NL.textMuted }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 11, fill: NL.textMuted }} axisLine={false} tickLine={false} allowDecimals={false} />
-            <Tooltip content={<ChartTooltip />} cursor={{ stroke: CHART_PRIMARY, strokeWidth: 1, strokeDasharray: "4 4" }} />
+            <Tooltip content={ChartTooltip} cursor={{ stroke: CHART_PRIMARY, strokeWidth: 1, strokeDasharray: "4 4" }} />
             <Area
               type="monotone"
               dataKey="Activity"
@@ -111,6 +118,7 @@ export function DashboardActivityChart({ data }: { data?: { date: string; count:
               strokeWidth={2.5}
               fill="url(#dashActivityFill)"
               dot={false}
+              isAnimationActive={false}
               activeDot={{ r: 5, fill: CHART_PRIMARY, stroke: "#fff", strokeWidth: 2 }}
             />
           </AreaChart>
@@ -127,7 +135,10 @@ export function DashboardMembersBarChart({
   data?: { month: string; count: number }[];
   variant?: "default" | "minimal";
 }) {
-  const chartData = (data ?? []).map((point) => ({ month: point.month, new: point.count }));
+  const chartData = useMemo(
+    () => (data ?? []).map((point) => ({ month: point.month, new: point.count })),
+    [data],
+  );
   if (chartData.length === 0) return <ChartEmpty message="No member growth data yet" fill />;
 
   const total = chartData.reduce((sum, row) => sum + row.new, 0);
@@ -172,8 +183,8 @@ export function DashboardMembersBarChart({
               </defs>
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#94A3B8" }} axisLine={false} tickLine={false} tickFormatter={(v) => String(v).split(" ")[0]} />
               <YAxis hide allowDecimals={false} domain={[0, "dataMax"]} />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(245, 243, 255, 0.45)" }} />
-              <Bar dataKey="new" name="New Members" radius={[8, 8, 2, 2]}>
+              <Tooltip content={ChartTooltip} cursor={{ fill: "rgba(245, 243, 255, 0.45)" }} />
+              <Bar dataKey="new" name="New Members" radius={[8, 8, 2, 2]} isAnimationActive={false}>
                 {chartData.map((_, i) => (
                   <Cell key={i} fill={`url(#dashBarMin${i})`} />
                 ))}
@@ -207,8 +218,8 @@ export function DashboardMembersBarChart({
             <CartesianGrid vertical={false} stroke="rgba(148, 163, 184, 0.18)" strokeDasharray="4 6" />
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: NL.textMuted }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 11, fill: NL.textMuted }} axisLine={false} tickLine={false} allowDecimals={false} domain={[0, "dataMax"]} />
-            <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(241, 245, 249, 0.6)" }} />
-            <Bar dataKey="new" name="New Members" radius={[10, 10, 0, 0]}>
+            <Tooltip content={ChartTooltip} cursor={{ fill: "rgba(241, 245, 249, 0.6)" }} />
+            <Bar dataKey="new" name="New Members" radius={[10, 10, 0, 0]} isAnimationActive={false}>
               {chartData.map((_, i) => (
                 <Cell key={i} fill={`url(#dashBar${i})`} />
               ))}
@@ -258,14 +269,14 @@ export function DashboardMembersPieChart({
   data?: { status: string; count: number }[];
   variant?: "default" | "minimal";
 }) {
-  const statusData = normalizeStatusData(data);
+  const statusData = useMemo(() => normalizeStatusData(data), [data]);
   const total = statusData.reduce((sum, item) => sum + item.value, 0);
   const active = statusData.find((item) => item.status === "approved")?.value ?? 0;
   const pending = statusData.find((item) => item.status === "pending")?.value ?? 0;
   const onboarding = statusData.find((item) => item.status === "onboarding")?.value ?? 0;
   const needsAttention = pending + onboarding + (statusData.find((item) => item.status === "banned")?.value ?? 0);
   const activeRate = total > 0 ? Math.round((active / total) * 100) : 0;
-  const chartSlices = statusData.filter((item) => item.value > 0);
+  const chartSlices = useMemo(() => statusData.filter((item) => item.value > 0), [statusData]);
 
   if (total === 0) return <ChartEmpty message="No membership records yet" fill />;
 
@@ -312,12 +323,13 @@ export function DashboardMembersPieChart({
                   outerRadius={58}
                   paddingAngle={chartSlices.length > 1 ? 3 : 0}
                   strokeWidth={0}
+                  isAnimationActive={false}
                 >
                   {(chartSlices.length > 0 ? chartSlices : [{ name: "Empty", value: 1, color: "#E2E8F0" }]).map((item, i) => (
                     <Cell key={i} fill={item.color} />
                   ))}
                 </Pie>
-                <Tooltip content={<ChartTooltip />} />
+                <Tooltip content={ChartTooltip} />
               </PieChart>
             </ResponsiveContainer>
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
@@ -366,12 +378,13 @@ export function DashboardMembersPieChart({
                 outerRadius={48}
                 paddingAngle={chartSlices.length > 1 ? 4 : 0}
                 strokeWidth={0}
+                isAnimationActive={false}
               >
                 {(chartSlices.length > 0 ? chartSlices : [{ name: "Empty", value: 1, color: "#E2E8F0" }]).map((item, i) => (
                   <Cell key={i} fill={item.color} />
                 ))}
               </Pie>
-              <Tooltip content={<ChartTooltip />} />
+              <Tooltip content={ChartTooltip} />
             </PieChart>
           </ResponsiveContainer>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
@@ -455,13 +468,26 @@ export function DashboardModerationChart({
   data?: { date: string; filed: number; resolved: number }[];
   reportsByType?: { type: string; count: number }[];
 }) {
-  const trendData = (data ?? []).map((point) => ({
-    day: point.date,
-    Filed: point.filed,
-    Resolved: point.resolved,
-  }));
+  const trendData = useMemo(
+    () =>
+      (data ?? []).map((point) => ({
+        day: point.date,
+        Filed: point.filed,
+        Resolved: point.resolved,
+      })),
+    [data],
+  );
+  const typeData = useMemo(
+    () =>
+      (reportsByType ?? []).map((item) => ({
+        type: item.type.charAt(0).toUpperCase() + item.type.slice(1),
+        count: item.count,
+      })),
+    [reportsByType],
+  );
+  const hasTrend = trendData.some((point) => point.Filed > 0 || point.Resolved > 0);
 
-  if (trendData.some((point) => point.Filed > 0 || point.Resolved > 0)) {
+  if (hasTrend) {
     return (
       <div className="flex h-full min-h-[280px] flex-col">
         <ChartPlot>
@@ -470,9 +496,9 @@ export function DashboardModerationChart({
               <CartesianGrid vertical={false} stroke="rgba(148, 163, 184, 0.18)" strokeDasharray="4 6" />
               <XAxis dataKey="day" tick={{ fontSize: 11, fill: NL.textMuted }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: NL.textMuted }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(239, 246, 255, 0.45)" }} />
-              <Bar dataKey="Filed" name="Filed" fill="#FCA5A5" radius={[8, 8, 0, 0]} />
-              <Bar dataKey="Resolved" name="Resolved" fill={NL.success} radius={[8, 8, 0, 0]} />
+              <Tooltip content={ChartTooltip} cursor={{ fill: "rgba(239, 246, 255, 0.45)" }} />
+              <Bar dataKey="Filed" name="Filed" fill="#FCA5A5" radius={[8, 8, 0, 0]} isAnimationActive={false} />
+              <Bar dataKey="Resolved" name="Resolved" fill={NL.success} radius={[8, 8, 0, 0]} isAnimationActive={false} />
             </BarChart>
           </ResponsiveContainer>
         </ChartPlot>
@@ -480,10 +506,6 @@ export function DashboardModerationChart({
     );
   }
 
-  const typeData = (reportsByType ?? []).map((item) => ({
-    type: item.type.charAt(0).toUpperCase() + item.type.slice(1),
-    count: item.count,
-  }));
   if (typeData.length === 0) return <ChartEmpty message="No moderation data yet" fill />;
 
   return (
@@ -494,8 +516,8 @@ export function DashboardModerationChart({
             <CartesianGrid horizontal={false} stroke="rgba(148, 163, 184, 0.18)" strokeDasharray="4 6" />
             <XAxis type="number" tick={{ fontSize: 11, fill: NL.textMuted }} axisLine={false} tickLine={false} allowDecimals={false} />
             <YAxis type="category" dataKey="type" tick={{ fontSize: 11, fill: NL.textBody }} axisLine={false} tickLine={false} width={84} />
-            <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(254, 242, 242, 0.4)" }} />
-            <Bar dataKey="count" name="Reports" fill="#F87171" radius={[0, 8, 8, 0]} />
+            <Tooltip content={ChartTooltip} cursor={{ fill: "rgba(254, 242, 242, 0.4)" }} />
+            <Bar dataKey="count" name="Reports" fill="#F87171" radius={[0, 8, 8, 0]} isAnimationActive={false} />
           </BarChart>
         </ResponsiveContainer>
       </ChartPlot>
@@ -510,10 +532,14 @@ export function DashboardTopCommunitiesChart({
 }: {
   data?: { id: number; name: string; region: string; members_count: number }[];
 }) {
-  const rows = (data ?? [])
-    .filter((item) => item.name)
-    .sort((a, b) => b.members_count - a.members_count)
-    .slice(0, 4);
+  const rows = useMemo(
+    () =>
+      (data ?? [])
+        .filter((item) => item.name)
+        .sort((a, b) => b.members_count - a.members_count)
+        .slice(0, 4),
+    [data],
+  );
 
   if (rows.length === 0) {
     return <ChartEmpty message="No communities yet" />;
