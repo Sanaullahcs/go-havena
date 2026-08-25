@@ -45,6 +45,33 @@ class PlaidException extends Exception
         );
     }
 
+    public static function exchangeFailed(string $message = 'Unable to connect bank account with Plaid.'): self
+    {
+        return new self(
+            $message,
+            'PLAID_EXCHANGE_FAILED',
+            422,
+        );
+    }
+
+    public static function alreadyConnected(): self
+    {
+        return new self(
+            'This community already has a connected bank account.',
+            'PLAID_ALREADY_CONNECTED',
+            409,
+        );
+    }
+
+    public static function noManagedCommunity(): self
+    {
+        return new self(
+            'No managed community found for this community admin account.',
+            'PLAID_NO_COMMUNITY',
+            422,
+        );
+    }
+
     public function render(): JsonResponse
     {
         return response()->json([

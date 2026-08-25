@@ -31,4 +31,25 @@ class PlaidController extends Controller
             'data' => $payload,
         ]);
     }
+
+    /** POST /v1/plaid/exchange-token */
+    public function exchangeToken(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! AdminRoleService::isCommunityAdminRole($user)) {
+            abort(403, 'Community admin access required');
+        }
+
+        $validated = $request->validate([
+            'public_token' => ['required', 'string', 'max:512'],
+        ]);
+
+        $payload = $this->plaid->connectCommunityAccount($user, $validated['public_token']);
+
+        return response()->json([
+            'success' => true,
+            'data' => $payload,
+        ]);
+    }
 }

@@ -45,6 +45,11 @@ class Community extends Model
         return $this->hasOne(CommunitySubscription::class);
     }
 
+    public function plaidConnection(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(CommunityPlaidConnection::class);
+    }
+
     public function inviteCodes(): HasMany
     {
         return $this->hasMany(InviteCode::class);

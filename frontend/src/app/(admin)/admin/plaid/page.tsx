@@ -6,56 +6,49 @@ import type { PlaidLinkOnSuccessMetadata } from "react-plaid-link";
 import { usePlaidLink } from "react-plaid-link";
 import { AdminBadge } from "@/components/admin/ui";
 import { apiError } from "@/lib/api/client";
-import { createPlaidLinkToken } from "@/lib/api/plaid";
+import {
+  createPlaidLinkToken,
+  exchangePlaidPublicToken,
+  type PlaidExchangePayload,
+} from "@/lib/api/plaid";
 import { toastError, toastSuccess } from "@/lib/alert";
-
-type PlaidConnectionSnapshot = {
-  publicToken: string;
-  institutionName: string | null;
-  institutionId: string | null;
-  accountCount: number;
-  linkSessionId: string | null;
-  receivedAt: string;
-};
-
-function maskToken(token: string): string {
-  if (token.length <= 12) return "••••••••";
-  return `${token.slice(0, 12)}••••••••`;
-}
 
 export default function PlaidPage() {
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
-  const [connection, setConnection] = useState<PlaidConnectionSnapshot | null>(null);
+  const [exchanging, setExchanging] = useState(false);
+  const [connection, setConnection] = useState<PlaidExchangePayload | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
 
+  const completeExchange = useCallback(async (publicToken: string) => {
+    setExchanging(true);
+    setLinkError(null);
+
+    try {
+      const payload = await exchangePlaidPublicToken(publicToken);
+      setConnection(payload);
+      toastSuccess("Bank account connected and saved securely.");
+    } catch (err) {
+      const message = apiError(err);
+      setLinkError(message);
+      toastError(message);
+    } finally {
+      setExchanging(false);
+    }
+  }, []);
+
   const handlePlaidSuccess = useCallback(
-    (publicToken: string | null, metadata: PlaidLinkOnSuccessMetadata) => {
+    (publicToken: string | null, _metadata: PlaidLinkOnSuccessMetadata) => {
+      setLinkToken(null);
+
       if (!publicToken) {
         setLinkError("Plaid did not return a public token.");
         return;
       }
 
-      const snapshot: PlaidConnectionSnapshot = {
-        publicToken,
-        institutionName: metadata.institution?.name ?? null,
-        institutionId: metadata.institution?.institution_id ?? null,
-        accountCount: metadata.accounts?.length ?? 0,
-        linkSessionId: metadata.link_session_id ?? null,
-        receivedAt: new Date().toISOString(),
-      };
-
-      setConnection(snapshot);
-      setLinkError(null);
-      setLinkToken(null);
-
-      if (process.env.NODE_ENV === "development") {
-        console.info("[Plaid] Sandbox link completed — public_token held in page state for verification.");
-      }
-
-      toastSuccess("Bank account connected in Plaid Sandbox.");
+      void completeExchange(publicToken);
     },
-    [],
+    [completeExchange],
   );
 
   const { open, ready } = usePlaidLink({
@@ -75,7 +68,9 @@ export default function PlaidPage() {
         return;
       }
 
-      toastSuccess("Plaid Link closed.");
+      if (!exchanging) {
+        toastSuccess("Plaid Link closed.");
+      }
     },
   });
 
@@ -86,6 +81,11 @@ export default function PlaidPage() {
   }, [linkToken, ready, open]);
 
   const handleConnect = async () => {
+    if (connection?.connected) {
+      setLinkError("This community already has a connected bank account.");
+      return;
+    }
+
     setConnecting(true);
     setLinkError(null);
     setConnection(null);
@@ -100,6 +100,8 @@ export default function PlaidPage() {
       toastError(message);
     }
   };
+
+  const isBusy = connecting || exchanging || Boolean(linkToken && !ready);
 
   return (
     <div className="space-y-4">
@@ -119,27 +121,37 @@ export default function PlaidPage() {
             <Landmark className="h-7 w-7" />
           </div>
 
-          <h3 className="mt-5 text-lg font-semibold text-slate-900">Connect Bank Account</h3>
+          <h3 className="mt-5 text-lg font-semibold text-slate-900">
+            {connection?.connected ? "Bank Account Connected" : "Connect Bank Account"}
+          </h3>
           <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-600">
-            Use Plaid Link to authenticate with a Sandbox institution. Your Havena account is
-            linked automatically — no manual user or community IDs are sent from this page.
+            {connection?.connected
+              ? "Your community bank connection is stored securely on the Havena backend."
+              : "Use Plaid Link to authenticate with a Sandbox institution. Havena exchanges the connection securely on the server — no access tokens are exposed to the browser."}
           </p>
 
-          <button
-            type="button"
-            onClick={() => void handleConnect()}
-            disabled={connecting || Boolean(linkToken && !ready)}
-            className="nl-btn-primary mt-6 inline-flex min-w-[220px] items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {connecting || (linkToken && !ready) ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Opening Plaid Link…
-              </>
-            ) : (
-              "Connect with Plaid"
-            )}
-          </button>
+          {!connection?.connected ? (
+            <button
+              type="button"
+              onClick={() => void handleConnect()}
+              disabled={isBusy}
+              className="nl-btn-primary mt-6 inline-flex min-w-[220px] items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {connecting || (linkToken && !ready) ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Opening Plaid Link…
+                </>
+              ) : exchanging ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving connection…
+                </>
+              ) : (
+                "Connect with Plaid"
+              )}
+            </button>
+          ) : null}
 
           {linkError ? (
             <p className="mt-4 text-sm text-rose-600" role="alert">
@@ -149,16 +161,16 @@ export default function PlaidPage() {
         </div>
       </div>
 
-      {connection ? (
+      {connection?.connected ? (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 shadow-sm sm:p-6">
           <div className="flex items-start gap-3">
             <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
             <div className="min-w-0 flex-1 space-y-3">
               <div>
-                <h3 className="text-base font-semibold text-emerald-900">Sandbox connection successful</h3>
+                <h3 className="text-base font-semibold text-emerald-900">Bank connection saved</h3>
                 <p className="mt-1 text-sm text-emerald-800">
-                  Plaid returned a public token. It is kept in this page state only for verification
-                  and is not stored or sent to the backend yet.
+                  Plaid Sandbox authentication completed and the connection was stored for your
+                  community. Access tokens remain on the server only.
                 </p>
               </div>
 
@@ -169,34 +181,16 @@ export default function PlaidPage() {
                   </dt>
                   <dd className="mt-1 flex items-center gap-2 text-sm font-medium text-slate-900">
                     <Building2 className="h-4 w-4 text-slate-400" />
-                    {connection.institutionName ?? "Sandbox institution"}
+                    {connection.institution_name ?? "Connected institution"}
                   </dd>
                 </div>
 
                 <div className="rounded-xl border border-emerald-200/80 bg-white/70 px-4 py-3">
                   <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    Accounts linked
+                    Item ID
                   </dt>
-                  <dd className="mt-1 text-sm font-medium text-slate-900">{connection.accountCount}</dd>
+                  <dd className="mt-1 font-mono text-xs text-slate-700">{connection.item_id}</dd>
                 </div>
-
-                <div className="rounded-xl border border-emerald-200/80 bg-white/70 px-4 py-3 sm:col-span-2">
-                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    Public token (masked)
-                  </dt>
-                  <dd className="mt-1 font-mono text-sm text-slate-900">
-                    {maskToken(connection.publicToken)}
-                  </dd>
-                </div>
-
-                {connection.linkSessionId ? (
-                  <div className="rounded-xl border border-emerald-200/80 bg-white/70 px-4 py-3 sm:col-span-2">
-                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                      Link session
-                    </dt>
-                    <dd className="mt-1 font-mono text-xs text-slate-700">{connection.linkSessionId}</dd>
-                  </div>
-                ) : null}
               </dl>
             </div>
           </div>
