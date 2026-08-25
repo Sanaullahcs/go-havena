@@ -19,6 +19,7 @@ class EnsureCommunityAdmin
     private array $onboardingAllowPrefixes = [
         'api/v1/admin/billing',
         'api/v1/admin/referrals',
+        'api/v1/plaid',
     ];
 
     public function handle(Request $request, Closure $next): Response

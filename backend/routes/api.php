@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\V1\SubscriptionPlanController;
 use App\Http\Controllers\Api\V1\SubscriptionCouponController;
 use App\Http\Controllers\Api\V1\ReferralController;
 use App\Http\Controllers\Api\V1\ReferralProgramController;
+use App\Http\Controllers\Api\V1\PlaidController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -220,6 +221,11 @@ Route::prefix('v1')->group(function () {
         Route::post('/devices', [DeviceController::class, 'store']);
         Route::delete('/devices', [DeviceController::class, 'destroy']);
         Route::post('/devices/test-push', [DeviceController::class, 'testPush']);
+
+        /* Plaid (community admin bank linking) */
+        Route::middleware('community.admin')->prefix('plaid')->group(function () {
+            Route::post('/link-token', [PlaidController::class, 'createLinkToken']);
+        });
 
         /* ── Activity Logs ── */
         Route::get('/activity-logs',              [ActivityLogController::class, 'index']);

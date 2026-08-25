@@ -36,6 +36,15 @@ class PlaidException extends Exception
         );
     }
 
+    public static function linkTokenFailed(string $message = 'Unable to create Plaid link token.'): self
+    {
+        return new self(
+            $message,
+            'PLAID_LINK_TOKEN_FAILED',
+            502,
+        );
+    }
+
     public function render(): JsonResponse
     {
         return response()->json([
