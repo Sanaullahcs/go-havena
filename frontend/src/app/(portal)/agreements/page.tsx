@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { FileSignature, PenLine, ShieldCheck } from "lucide-react";
+import { FileText, Pencil, ShieldCheck } from "lucide-react";
 import { apiError } from "@/lib/api/client";
 import { PageLoader, EmptyState } from "@/components/shared/page-states";
 import { categoryLabel, fetchMyAgreements, type Agreement, type RecipientStatus } from "@/lib/api/agreements";
@@ -41,8 +41,8 @@ export default function ResidentAgreementsPage() {
   useEffect(() => {
     fetchMyAgreements()
       .then((res) => {
-        setRows(res.data);
-        setStats(res.stats);
+        setRows(Array.isArray(res.data) ? res.data : []);
+        setStats(res.stats ?? { awaiting: 0, signed: 0 });
         setError(null);
       })
       .catch((err) => setError(apiError(err)))
@@ -70,7 +70,7 @@ export default function ResidentAgreementsPage() {
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="nl-panel flex items-center gap-3 p-4">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
-            <PenLine className="h-5 w-5" />
+            <Pencil className="h-5 w-5" />
           </div>
           <div>
             <p className="text-2xl font-bold text-slate-900">{stats.awaiting}</p>
@@ -128,7 +128,7 @@ export default function ResidentAgreementsPage() {
                 className="nl-panel flex items-start gap-3 p-4 transition hover:shadow-sm"
               >
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#E8F0F7] text-[#1B4F8A]">
-                  <FileSignature className="h-5 w-5" />
+                  <FileText className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">

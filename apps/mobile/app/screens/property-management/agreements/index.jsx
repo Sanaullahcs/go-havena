@@ -46,8 +46,8 @@ export default function Agreements() {
     setError(null);
     try {
       const res = isAdmin ? await fetchAdminAgreements() : await fetchMyAgreements();
-      setRows(res.data);
-      setStats(res.stats);
+      setRows(Array.isArray(res?.data) ? res.data : []);
+      setStats(res?.stats ?? {});
     } catch (err) {
       setError(err?.message ?? t("propertyMgmt.couldNotLoadAgreements"));
     } finally {

@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Bell, Copy, Download, FileSignature, Send, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Bell, Copy, Download, FileText, Send, ShieldCheck } from "lucide-react";
 import { AdminBadge, StatTile } from "@/components/admin/ui";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { confirmAction, toastError, toastSuccess } from "@/lib/alert";
 import { apiError } from "@/lib/api/client";
 import { PageLoader, PageError, EmptyState } from "@/components/shared/page-states";
@@ -49,6 +50,15 @@ const RECIPIENT_TONE: Record<RecipientStatus, "amber" | "blue" | "green" | "red"
 };
 
 type RecipientFilter = "all" | RecipientStatus;
+
+const CATEGORY_OPTIONS = AGREEMENT_CATEGORIES.map((c) => ({ value: c.value, label: c.label }));
+const RECIPIENT_FILTER_OPTIONS = [
+  { value: "all", label: "All recipients" },
+  { value: "pending", label: "Pending" },
+  { value: "viewed", label: "Viewed" },
+  { value: "signed", label: "Signed" },
+  { value: "declined", label: "Declined" },
+];
 
 export default function AdminAgreementDetailPage() {
   const params = useParams<{ id: string }>();
@@ -327,7 +337,7 @@ export default function AdminAgreementDetailPage() {
 
       <div className="grid gap-3 sm:grid-cols-3">
         <StatTile label="Signed" value={`${row.counts.signed}/${row.counts.total || 0}`} hint={`${progress}% complete`} tone="green" icon={<ShieldCheck className="h-5 w-5" />} />
-        <StatTile label="Waiting" value={String(row.counts.pending)} hint={`${row.counts.declined} declined`} tone="amber" icon={<FileSignature className="h-5 w-5" />} />
+        <StatTile label="Waiting" value={String(row.counts.pending)} hint={`${row.counts.declined} declined`} tone="amber" icon={<FileText className="h-5 w-5" />} />
         <StatTile label="Due" value={formatDate(row.due_at)} hint={row.sent_at ? `Sent ${formatDate(row.sent_at)}` : "Not sent"} tone={row.is_overdue ? "red" : row.is_due_soon ? "amber" : "blue"} />
       </div>
 
@@ -505,10 +515,18 @@ export default function AdminAgreementDetailPage() {
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() => run(async () => {
-                          const res = await remindAgreement(id, [person.user_id]);
-                          toastSuccess(res.message);
-                        })}
+                        onClick={async () => {
+                          const ok = await confirmAction({
+                            title: `Remind ${person.name}?`,
+                            text: "They will get another notification to review and sign this agreement.",
+                            confirmText: "Send reminder",
+                          });
+                          if (!ok.isConfirmed) return;
+                          await run(async () => {
+                            const res = await remindAgreement(id, [person.user_id]);
+                            toastSuccess(res.message);
+                          });
+                        }}
                         className="rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-semibold text-slate-600 hover:bg-slate-50"
                       >
                         Remind
@@ -518,10 +536,18 @@ export default function AdminAgreementDetailPage() {
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() => run(async () => {
-                          const res = await reopenRecipient(id, person.user_id);
-                          toastSuccess(res.message);
-                        })}
+                        onClick={async () => {
+                          const ok = await confirmAction({
+                            title: `Invite ${person.name} to sign again?`,
+                            text: "Their previous decline will be cleared and they will be notified.",
+                            confirmText: "Invite again",
+                          });
+                          if (!ok.isConfirmed) return;
+                          await run(async () => {
+                            const res = await reopenRecipient(id, person.user_id);
+                            toastSuccess(res.message);
+                          });
+                        }}
                         className="rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-semibold text-[#1B4F8A] hover:bg-[#E8F0F7]"
                       >
                         Invite again

@@ -28,6 +28,7 @@ export const COMMUNITY_ADMIN_ROUTE_PREFIXES = [
   "/admin/alerts",
   "/admin/community-rules",
   "/admin/documents",
+  "/admin/agreements",
   "/admin/amenities",
   "/admin/bookings",
   "/admin/feed",
@@ -45,6 +46,7 @@ const SHARED_ADMIN_ROUTES = new Set([
   "/admin/notifications",
   "/admin/messages",
   "/admin/activity",
+  "/admin/agreements",
 ]);
 
 function matchesPrefix(pathname: string, prefix: string): boolean {
@@ -85,7 +87,7 @@ export function resolveAdminLoginPath(options?: {
 /** Redirect target when the signed-in admin hits a route outside their portal. */
 export function resolveAdminPortalRedirect(pathname: string, user: WebUser | null): string | null {
   if (!pathname.startsWith("/admin")) return null;
-  if (SHARED_ADMIN_ROUTES.has(pathname)) return null;
+  if (SHARED_ADMIN_ROUTES.has(pathname) || matchesPrefix(pathname, "/admin/agreements")) return null;
 
   if (isSystemAdminUser(user)) {
     if (!isCommunityAdminRoute(pathname)) return null;

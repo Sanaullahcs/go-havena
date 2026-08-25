@@ -364,6 +364,13 @@ export default function CommunityAdminDashboard() {
       icon: dashIcon(FileText),
     },
     {
+      label: "Agreements",
+      href: "/admin/agreements",
+      desc: "Send forms and collect digital signatures",
+      tone: "violet",
+      icon: dashIcon(FileText),
+    },
+    {
       label: "Events",
       href: "/admin/events",
       desc: "Schedule community events",

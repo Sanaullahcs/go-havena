@@ -17,6 +17,7 @@ export function toneIcon(Icon: LucideIcon, tone: DashboardTone, size: "sm" | "md
       : size === "sm"
         ? "h-7 w-7 rounded-md [&_svg]:h-3.5 [&_svg]:w-3.5"
         : "h-9 w-9 rounded-lg [&_svg]:h-4 [&_svg]:w-4";
+  if (!Icon) return null;
   return (
     <span
       className={`flex shrink-0 items-center justify-center ${dim}`}

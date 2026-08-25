@@ -2042,13 +2042,14 @@ body {
 }
 @media (min-width: 1024px) {
   .nl-dashboard-equal-row {
-    height: 24rem;
-    max-height: 24rem;
-    overflow: hidden;
+    min-height: 24rem;
+    height: auto;
+    max-height: none;
+    overflow: visible;
   }
   .nl-dashboard-equal-row > * {
-    min-height: 0;
-    max-height: 100%;
+    min-height: 24rem;
+    max-height: none;
   }
 }
 

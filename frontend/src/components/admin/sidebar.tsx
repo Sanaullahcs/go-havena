@@ -14,8 +14,8 @@ import {
   CalendarCheck,
   CalendarDays,
   CreditCard,
-  FileSignature,
   FileText,
+  Pencil,
   Gift,
   HeartPulse,
   LayoutDashboard,
@@ -68,7 +68,7 @@ const communityAdminNav: NavItem[] = [
   { href: "/admin/alerts", label: "Alerts", icon: TriangleAlert },
   { href: "/admin/community-rules", label: "Community Rules", icon: Scale },
   { href: "/admin/documents", label: "Documents", icon: FileText },
-  { href: "/admin/agreements", label: "Agreements", icon: FileSignature },
+  { href: "/admin/agreements", label: "Agreements", icon: Pencil },
   { href: "/admin/amenities", label: "Amenities", icon: Building2 },
   { href: "/admin/bookings", label: "Booking Request", icon: CalendarCheck },
   { href: "/admin/feed", label: "Feed Moderation", icon: Newspaper },
@@ -137,7 +137,7 @@ function NavSection({
                   : "text-slate-400 group-hover:scale-105 group-hover:text-[#1B4F8A]",
               ].join(" ")}
             >
-              <Icon className="h-4 w-4" strokeWidth={2} aria-hidden />
+              {Icon ? <Icon className="h-4 w-4" strokeWidth={2} aria-hidden /> : null}
             </span>
             <span className="truncate">{item.label}</span>
             {item.badge && item.badge > 0 ? (

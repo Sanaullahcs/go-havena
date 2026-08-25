@@ -207,7 +207,7 @@ export function PendingFilterTabs({
   ];
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="relative z-20 flex flex-wrap gap-1.5 pointer-events-auto" role="tablist" aria-label="Pending approval filters">
       {tabs.map((tab) => {
         const active = value === tab.id;
         const count = counts[tab.id] ?? 0;
@@ -215,8 +215,14 @@ export function PendingFilterTabs({
           <button
             key={tab.id}
             type="button"
-            onClick={() => onChange(tab.id)}
-            className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-[12px] font-semibold transition"
+            role="tab"
+            aria-selected={active}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onChange(tab.id);
+            }}
+            className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl px-3 py-1.5 text-[12px] font-semibold transition"
             style={
               active
                 ? { background: NL.fillCta, color: "#fff", boxShadow: "0 3px 10px rgba(27, 79, 138, 0.18)" }

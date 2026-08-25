@@ -141,7 +141,13 @@ export async function fetchAdminAgreements(params?: {
   if (params?.category && params.category !== "all") p.set("category", params.category);
   if (params?.search?.trim()) p.set("search", params.search.trim());
   const res = await api.get(`/v1/admin/agreements?${p.toString()}`);
-  return res.data as { data: Agreement[]; stats: Record<string, number>; categories: string[] };
+  const body = res.data ?? {};
+  const rows = Array.isArray(body.data) ? body.data : [];
+  return {
+    data: rows,
+    stats: body.stats && typeof body.stats === "object" ? body.stats : {},
+    categories: Array.isArray(body.categories) ? body.categories : [],
+  };
 }
 
 export async function fetchAdminAgreement(id: number) {
@@ -258,7 +264,14 @@ export async function duplicateAgreement(id: number) {
 
 export async function fetchMyAgreements() {
   const res = await api.get("/v1/agreements");
-  return res.data as { data: Agreement[]; stats: { awaiting: number; signed: number } };
+  const body = res.data ?? {};
+  return {
+    data: Array.isArray(body.data) ? body.data : [],
+    stats: {
+      awaiting: Number(body.stats?.awaiting ?? 0),
+      signed: Number(body.stats?.signed ?? 0),
+    },
+  };
 }
 
 export async function fetchAgreement(id: number) {

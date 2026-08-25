@@ -47,9 +47,10 @@ export function categoryLabel(value) {
 
 export async function fetchMyAgreements() {
   const res = await apiRequest("/agreements");
+  const rows = Array.isArray(res?.data) ? res.data : [];
   return {
-    data: res.data ?? [],
-    stats: res.stats ?? { awaiting: 0, signed: 0 },
+    data: rows,
+    stats: res?.stats ?? { awaiting: 0, signed: 0 },
   };
 }
 
@@ -85,9 +86,10 @@ export async function fetchAdminAgreements(params = {}) {
   if (params.search?.trim()) p.set("search", params.search.trim());
   const qs = p.toString();
   const res = await apiRequest(`/admin/agreements${qs ? `?${qs}` : ""}`);
+  const rows = Array.isArray(res?.data) ? res.data : [];
   return {
-    data: res.data ?? [],
-    stats: res.stats ?? {},
+    data: rows,
+    stats: res?.stats ?? {},
   };
 }
 
