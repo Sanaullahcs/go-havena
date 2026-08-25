@@ -5,7 +5,7 @@ import { Building2, CheckCircle2, Landmark, Loader2 } from "lucide-react";
 import type { PlaidLinkOnSuccessMetadata } from "react-plaid-link";
 import { usePlaidLink } from "react-plaid-link";
 import { AdminBadge } from "@/components/admin/ui";
-import { PageLoader } from "@/components/shared/loaders";
+import { PageLoader } from "@/components/shared/page-states";
 import { apiError } from "@/lib/api/client";
 import {
   createPlaidLinkToken,
