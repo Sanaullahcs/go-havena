@@ -8,6 +8,10 @@ function lanDevOrigins(): string[] {
     "0.0.0.0",
     "192.168.*",
     "10.*",
+    "*.trycloudflare.com",
+    "*.ngrok-free.app",
+    "*.ngrok.io",
+    "*.ngrok.app",
   ]);
 
   for (let octet = 16; octet <= 31; octet += 1) {

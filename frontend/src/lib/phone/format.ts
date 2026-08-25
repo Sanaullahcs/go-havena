@@ -23,11 +23,15 @@ export const emptyPhoneField = (): PhoneFieldState => ({
 
 function parseForCountry(digits: string, country: string) {
   if (!digits) return null;
-  const dial = formatDialLabel(country).replace("+", "");
-  return (
-    parsePhoneNumberFromString(digits, country as never) ||
-    parsePhoneNumberFromString(`+${dial}${digits}`, country as never)
-  );
+  try {
+    const dial = formatDialLabel(country).replace("+", "");
+    return (
+      parsePhoneNumberFromString(digits, country as never) ||
+      parsePhoneNumberFromString(`+${dial}${digits}`, country as never)
+    );
+  } catch {
+    return null;
+  }
 }
 
 /** NANP (US/CA): 10 digits, area & exchange cannot start with 0 or 1. */
@@ -38,6 +42,14 @@ function isValidNanpNational(digits: string): boolean {
 function formatNanpNational(digits: string): string {
   if (digits.length !== 10) return digits;
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+/** Progressive US/CA display while typing — avoids libphonenumber throws on 555 test lines. */
+function formatNanpPartial(digits: string): string {
+  if (!digits) return "";
+  if (digits.length <= 3) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
 }
 
 function formatNanpInternational(digits: string): string {
@@ -71,14 +83,21 @@ export function normalizePhoneE164(input: string | null | undefined): string {
   return raw.startsWith("+") ? raw : "";
 }
 
+function phoneLengthStatus(digits: string, country: string): ReturnType<typeof validatePhoneNumberLength> | null {
+  if (!digits) return null;
+  try {
+    return validatePhoneNumberLength(digits, country as never);
+  } catch {
+    // libphonenumber-js/min can throw on some inputs (e.g. 555 test lines).
+    return null;
+  }
+}
+
 /** Trim pasted/over-typed digits once libphonenumber marks the number too long. */
 function clampNationalDigits(digits: string, country: string): string {
   if (!digits) return "";
   let next = digits.replace(/\D/g, "");
-  while (
-    next.length > 0 &&
-    validatePhoneNumberLength(next, country as never) === "TOO_LONG"
-  ) {
+  while (next.length > 0 && phoneLengthStatus(next, country) === "TOO_LONG") {
     next = next.slice(0, -1);
   }
   // US/CA national numbers are always 10 digits.
@@ -105,6 +124,9 @@ export function phoneFieldFromE164(e164: string | null | undefined): PhoneFieldS
 
 export function formatNationalDisplay(digits: string, country = DEFAULT_PHONE_COUNTRY): string {
   if (!digits) return "";
+  if (country === "US" || country === "CA") {
+    return formatNanpPartial(digits);
+  }
   try {
     const parsed = parseForCountry(digits, country);
     if (parsed?.isValid()) return parsed.formatNational();
@@ -113,17 +135,22 @@ export function formatNationalDisplay(digits: string, country = DEFAULT_PHONE_CO
     const asYouType = new AsYouType(country as never).input(digits);
     if (asYouType && asYouType !== digits) return asYouType;
   } catch {
-    // Fall through to NANP / raw display when libphonenumber is unavailable.
+    // Fall through to raw digits when libphonenumber is unavailable.
   }
-  if ((country === "US" || country === "CA") && digits.length === 10) {
-    return formatNanpNational(digits);
-  }
-  return new AsYouType(country as never).input(digits);
+  return digits;
 }
 
 export function extractNationalDigits(input: string, country = DEFAULT_PHONE_COUNTRY): string {
   const raw = String(input ?? "").trim();
   if (!raw) return "";
+  if (country === "US" || country === "CA") {
+    let digits = raw.replace(/\D/g, "");
+    const dial = formatDialLabel(country).replace("+", "");
+    if (digits.startsWith(dial) && digits.length > dial.length) {
+      digits = digits.slice(dial.length);
+    }
+    return digits.slice(0, 10);
+  }
   try {
     const typer = new AsYouType(country as never);
     typer.input(raw);
@@ -156,10 +183,14 @@ export function parsePhoneInputChange(text: string, country: string, previousDig
 
 export function isValidPhone(digits: string, country = DEFAULT_PHONE_COUNTRY): boolean {
   if (!digits) return false;
-  if (isValidPhoneNumber(digits, country as never)) return true;
   // Match backend PhoneNormalizer: accept structurally valid US/CA numbers
   // (includes local dev/test lines like 555-666-8888 that libphonenumber rejects).
   if ((country === "US" || country === "CA") && isValidNanpNational(digits)) return true;
+  try {
+    if (isValidPhoneNumber(digits, country as never)) return true;
+  } catch {
+    // libphonenumber-js/min can throw when metadata is unavailable.
+  }
   return false;
 }
 
@@ -173,7 +204,7 @@ export function getPhoneProgressHint(digits: string, country = DEFAULT_PHONE_COU
   if (!digits) return null;
   if (isValidPhone(digits, country)) return null;
 
-  const lengthStatus = validatePhoneNumberLength(digits, country as never);
+  const lengthStatus = phoneLengthStatus(digits, country);
   const selected = getCountryByCode(country);
 
   if (lengthStatus === "TOO_SHORT") {
@@ -200,7 +231,7 @@ export function getPhoneValidationError(digits: string, country = DEFAULT_PHONE_
   if (!digits) return null;
   if (isValidPhone(digits, country)) return null;
   const selected = getCountryByCode(country);
-  const lengthStatus = validatePhoneNumberLength(digits, country as never);
+  const lengthStatus = phoneLengthStatus(digits, country);
   if (lengthStatus === "TOO_SHORT") {
     return country === "US" || country === "CA"
       ? "Enter a complete 10-digit US number"
@@ -218,11 +249,11 @@ export function getPhoneValidationError(digits: string, country = DEFAULT_PHONE_
 
 export function toE164(digits: string, country = DEFAULT_PHONE_COUNTRY): string {
   if (!digits || !isValidPhone(digits, country)) return "";
-  const parsed = parseForCountry(digits, country);
-  if (parsed?.isValid()) return parsed.number ?? "";
   if ((country === "US" || country === "CA") && isValidNanpNational(digits)) {
     return `+1${digits}`;
   }
+  const parsed = parseForCountry(digits, country);
+  if (parsed?.isValid()) return parsed.number ?? "";
   return "";
 }
 
