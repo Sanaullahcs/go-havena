@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\PhoneOtp;
+use App\Support\PhoneNormalizer;
 use Illuminate\Support\Facades\Log;
 
 class OtpService
@@ -13,6 +14,7 @@ class OtpService
 
     public function send(string $phone): void
     {
+        $phone = $this->normalizedPhone($phone);
         $code = $this->issueCode();
 
         PhoneOtp::query()->where('phone', $phone)->delete();
@@ -36,7 +38,7 @@ class OtpService
             return false;
         }
 
-        PhoneOtp::query()->where('phone', $phone)->delete();
+        PhoneOtp::query()->where('phone', $this->normalizedPhone($phone))->delete();
 
         return true;
     }
@@ -44,6 +46,7 @@ class OtpService
     /** Validate OTP without consuming it (for multi-step guest login). */
     public function check(string $phone, string $code): bool
     {
+        $phone = $this->normalizedPhone($phone);
         $otp = PhoneOtp::query()
             ->where('phone', $phone)
             ->where('expires_at', '>', now())
@@ -70,16 +73,21 @@ class OtpService
 
     public function consume(string $phone): void
     {
-        PhoneOtp::query()->where('phone', $phone)->delete();
+        PhoneOtp::query()->where('phone', $this->normalizedPhone($phone))->delete();
     }
 
     /** Keep OTP alive for multi-step flows (e.g. guest invite entry). */
     public function extend(string $phone, int $minutes = 15): void
     {
         PhoneOtp::query()
-            ->where('phone', $phone)
+            ->where('phone', $this->normalizedPhone($phone))
             ->where('expires_at', '>', now())
             ->update(['expires_at' => now()->addMinutes($minutes)]);
+    }
+
+    private function normalizedPhone(string $phone): string
+    {
+        return PhoneNormalizer::normalize($phone) ?? $phone;
     }
 
     private function issueCode(): string

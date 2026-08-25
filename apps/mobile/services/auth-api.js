@@ -73,7 +73,7 @@ export async function requestOtp(phone, { intent = "login" } = {}) {
   const normalized = normalizePhone(phone);
   const body = { phone: normalized, intent };
 
-  // Always hit the API so an OTP record exists before verify (dev code 123456 in local env).
+  // Always hit the API so an OTP record exists before verify (dev code 221322 in local env).
   return apiRequest("/auth/otp/request", {
     method: "POST",
     body,

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -59,6 +59,7 @@ function RegisterPageInner() {
   const [loading, setLoading] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const verifyLock = useRef(false);
 
   const isBusy = loading || redirecting;
   const otpSendingLocked = isBusy || otpSending;
@@ -143,7 +144,8 @@ function RegisterPageInner() {
   };
 
   const verifyOtp = async (code: string) => {
-    if (code.length !== 6 || otpSending || loading || redirecting) return;
+    if (code.length !== 6 || otpSending || loading || redirecting || verifyLock.current) return;
+    verifyLock.current = true;
     setError(null);
     setLoading(true);
     try {
@@ -177,9 +179,11 @@ function RegisterPageInner() {
         setError(
           "This referral link is invalid. You can continue signup without a referral, or open a fresh invite link.",
         );
+        verifyLock.current = false;
         setLoading(false);
         return;
       }
+      verifyLock.current = false;
       await handleLoginError(err, setError);
     } finally {
       setLoading(false);

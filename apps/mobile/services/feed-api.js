@@ -174,7 +174,7 @@ export function normalizePost(raw) {
     id: raw.id,
     content: text,
     body: text,
-    image_url: sensitive ? null : raw.image_url,
+    image_url: sensitive ? null : (resolveMediaUrl(raw.image_url) ?? raw.image_url),
     tag: raw.tag ?? null,
     likes_count: raw.likes_count ?? raw.likes ?? 0,
     comments_count: raw.comments_count ?? raw.comments ?? 0,

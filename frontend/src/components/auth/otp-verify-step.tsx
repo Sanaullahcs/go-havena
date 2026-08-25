@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { OtpInput } from "@/components/auth/otp-input";
 import { LoadingButton, InlineLoader } from "@/components/shared/loaders";
 import { formatPhoneDisplay } from "@/lib/phone/format";
@@ -32,6 +32,7 @@ export function OtpVerifyStep({
 }: OtpVerifyStepProps) {
   const [resendIn, setResendIn] = useState(RESEND_SECONDS);
   const [resending, setResending] = useState(false);
+  const verifyOnce = useRef(false);
   const busy = verifying || resending;
 
   useEffect(() => {
@@ -45,11 +46,24 @@ export function OtpVerifyStep({
     return () => window.clearTimeout(t);
   }, [resendIn, sending]);
 
-  const handleComplete = useCallback(
+  useEffect(() => {
+    if (!verifying) verifyOnce.current = false;
+  }, [verifying]);
+
+  const runVerify = useCallback(
     (code: string) => {
-      if (!sending && !busy) onVerify(code);
+      if (sending || busy || verifyOnce.current || code.length !== 6) return;
+      verifyOnce.current = true;
+      onVerify(code);
     },
     [busy, onVerify, sending],
+  );
+
+  const handleComplete = useCallback(
+    (code: string) => {
+      runVerify(code);
+    },
+    [runVerify],
   );
 
   const handleResend = async () => {
@@ -82,14 +96,14 @@ export function OtpVerifyStep({
             onComplete={handleComplete}
           />
           <p className="text-center text-[11px] text-slate-400">
-            Dev · <span className="font-mono text-slate-500">123456</span>
+            Dev · <span className="font-mono text-slate-500">221322</span>
           </p>
         </>
       )}
 
       <LoadingButton
         type="button"
-        onClick={() => onVerify(otp)}
+        onClick={() => runVerify(otp)}
         disabled={otp.length !== 6 || sending || busy}
         loading={verifying}
         loadingText="Verifying…"

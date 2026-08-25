@@ -44,6 +44,7 @@ class DemoContentSeeder extends Seeder
 
         // Enrich the flagship community record.
         DB::table('communities')->where('id', $cid)->update([
+            'name' => 'Florida Main Street',
             'description' => 'A vibrant resort-style residential community in Miami-Dade with premium amenities, an active neighborhood feed, a resident marketplace, and year-round events.',
             'address' => '1200 Palm Grove Boulevard, Miami, FL 33131',
             'region_id' => $community->region_id ?: $regionId,
@@ -439,6 +440,14 @@ class DemoContentSeeder extends Seeder
             $comments[] = [$dogPost, 'sarah@havena.app', 'I think I saw him near the pool gate about an hour ago. Keeping an eye out!'];
             $comments[] = [$dogPost, 'michael@havena.app', 'Sharing with my floor group chat. We will help look.'];
             $comments[] = [$dogPost, 'grace@havena.app', 'So glad he was found safe. What a sweetheart.'];
+            $comments[] = [$dogPost, 'emily@havena.app', 'Just walked the east path — no sign yet. Sending a photo to the lobby desk.'];
+            $comments[] = [$dogPost, 'priya@havena.app', 'I will keep an eye out on my morning run. Hope he is home soon.'];
+            $comments[] = [$dogPost, 'tom@havena.app', 'Checking the courtyard cameras with the front office now.'];
+            $comments[] = [$dogPost, 'david@havena.app', 'Saw a golden near the mailroom earlier. Was it Biscuit?'];
+            $comments[] = [$dogPost, 'nina@havena.app', 'Putting treats by the lobby door in case he comes back.'];
+            $comments[] = [$dogPost, 'lisa@havena.app', 'Posted in the building WhatsApp. Lots of neighbors looking.'];
+            $comments[] = [$dogPost, 'carlos@havena.app', 'I can print flyers if you still need them tonight.'];
+            $comments[] = [$dogPost, 'diego@havena.app', 'Keeping the garage door watch — will text if I spot him.'];
         }
         if ($marketPost) {
             $comments[] = [$marketPost, 'lisa@havena.app', 'The honey vendor is my favorite. See you there Saturday!'];
@@ -462,7 +471,7 @@ class DemoContentSeeder extends Seeder
             if (! $postId) {
                 continue;
             }
-            foreach (array_slice($likeUsers, 0, 8) as $uid) {
+            foreach (array_slice($likeUsers, 0, 10) as $uid) {
                 DB::table('post_likes')->updateOrInsert(['user_id' => $uid, 'post_id' => $postId], []);
             }
         }
@@ -558,8 +567,8 @@ class DemoContentSeeder extends Seeder
         }
 
         $deals = [
-            ['20% Off Any Latte', 'Sunrise Coffee Co.', "Show this coupon at the counter to get 20% off any latte, hot or iced. Start your morning right.", 'coupon', '20% OFF', 5.50, 4.40, 'BREW20', 'Cafe', 'deal-coffee', true, 'emily@havena.app', 30],
-            ['Free First Pilates Class', 'Core Pilates Studio', "New to the studio? Your first reformer class is on us. Book online or drop by to reserve your spot.", 'offer', 'FREE TRIAL', null, null, null, 'Fitness', 'business-fitness', false, 'lisa@havena.app', 45],
+            ['20% Off Any Latte', 'Sunrise Coffee Co.', "Show this coupon at the counter to get 20% off any latte, hot or iced. Start your morning right.", 'coupon', '20% OFF', 5.50, 4.40, 'BREW20', 'Cafe', 'deal-coffee', false, 'emily@havena.app', 30],
+            ['Free First Pilates Class', 'Core Pilates Studio', "New to the studio? Your first reformer class is on us. Book online or drop by to reserve your spot.", 'offer', 'FREE TRIAL', null, null, null, 'Fitness', 'business-fitness', true, 'lisa@havena.app', 45],
             ['$15 Off Any Spa Service', 'Luxe Hair & Spa', "Treat yourself to a facial or massage and take $15 off any spa service over $60. Neighbors only.", 'deal', '$15 OFF', 80.00, 65.00, 'RELAX15', 'Beauty & Spa', 'deal-spa', false, 'nina@havena.app', 20],
             ['Family Pizza Night 2-for-1', 'Bella Cucina Trattoria', "Buy any large wood-fired pizza and get a second of equal or lesser value free, every Tuesday night.", 'deal', '2 FOR 1', 24.00, 12.00, 'PIZZATUES', 'Restaurant', 'deal-pizza', true, 'diego@havena.app', 14],
         ];

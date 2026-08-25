@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   requestCommunityAdminOtp,
@@ -55,6 +55,7 @@ function LoginPageInner() {
   const [loading, setLoading] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const verifyLock = useRef(false);
 
   const isBusy = loading || redirecting;
   const otpSendingLocked = isBusy || otpSending;
@@ -118,7 +119,8 @@ function LoginPageInner() {
   };
 
   const verifyOtp = async (code: string) => {
-    if (code.length !== 6 || otpSending || loading || redirecting) return;
+    if (code.length !== 6 || otpSending || loading || redirecting || verifyLock.current) return;
+    verifyLock.current = true;
     setError(null);
     setLoading(true);
     try {
@@ -134,6 +136,7 @@ function LoginPageInner() {
           : `${communityAdminOnboardingPath(step)}${planQuery}`;
       router.replace(next);
     } catch (err) {
+      verifyLock.current = false;
       await handleLoginError(err, setError);
     } finally {
       setLoading(false);

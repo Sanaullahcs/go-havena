@@ -9,7 +9,7 @@ import Notices from "../../components/new-home/Notices";
 import HappeningSoon from "../../components/new-home/HappeningSoon";
 import Communities from "../../components/new-home/communities";
 import DealsCornor from "../../components/new-home/deals-cornor";
-
+import Wellness from "../../components/new-home/Wellness";
 import PropertyNew from "../../components/new-home/Property";
 import { homeStyles } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
@@ -73,7 +73,7 @@ export default function Home() {
               <HappeningSoon items={upcomingEvents} />
               <Communities posts={posts} onPostsChange={setPosts} />
               <DealsCornor items={deals} />
-
+              <Wellness items={wellnessCategories} />
               <PropertyNew items={amenities} />
             </>
           )}

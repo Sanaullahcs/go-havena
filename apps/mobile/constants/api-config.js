@@ -24,7 +24,7 @@ export const DEV_COMMUNITY_ADMIN_PHONE_E164 = "+15555550200";
 /** Legacy resident dev phone (Sarah Mitchell) */
 export const DEV_LEGACY_RESIDENT_PHONE_DISPLAY = "(555) 555-5555";
 export const DEV_LEGACY_RESIDENT_PHONE_E164 = "+15555555555";
-export const DEV_OTP_HINT = "123456";
+export const DEV_OTP_HINT = "221322";
 export const DEV_INVITE_CODE = "MAPLE-2024-XYZ";
 export const DEV_OFFLINE_TOKEN = "dev-offline-token";
 

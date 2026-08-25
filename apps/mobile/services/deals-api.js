@@ -133,7 +133,7 @@ export function normalizeDeal(d) {
     isLiked: !!(d.is_liked ?? d.is_saved),
     status: d.status,
     statusLabel: dealStatusLabel(d.status, d.is_expired),
-    imageUrl: d.image_url ?? null,
+    imageUrl: resolveMediaUrl(d.image_url) ?? d.image_url ?? null,
     imageKey: "food-bowl",
   };
 }

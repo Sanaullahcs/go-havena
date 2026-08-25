@@ -39,10 +39,11 @@ class SeedDemoCommand extends Command
         $this->call('db:seed', ['--class' => MobileTestAccountsSeeder::class, '--force' => true]);
 
         $this->newLine();
+        $otp = (string) (config('otp.fixed_code') ?: '123456');
         $this->info('Demo data ready.');
-        $this->line('  Resident login:        (555) 555-0100  ·  OTP 123456');
-        $this->line('  Community admin login: (555) 555-0200  ·  OTP 123456');
-        $this->line('  Legacy resident:       (555) 555-5555  ·  OTP 123456');
+        $this->line("  Resident login:        (555) 555-0100  ·  OTP {$otp}");
+        $this->line("  Community admin login: (555) 555-0200  ·  OTP {$otp}");
+        $this->line("  Legacy resident:       (555) 555-5555  ·  OTP {$otp}");
 
         return self::SUCCESS;
     }

@@ -254,6 +254,32 @@ class AuthOtpTest extends TestCase
         ]);
     }
 
+    public function test_wrong_code_does_not_expire_a_valid_otp(): void
+    {
+        $phone = '+15555550500';
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'phone' => $phone,
+            'intent' => 'signup',
+        ])->assertStatus(202);
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'phone' => $phone,
+            'code' => '000000',
+            'intent' => 'signup',
+            'role' => 'admin',
+        ])->assertStatus(422)
+            ->assertJsonPath('code', 'INVALID_OTP');
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'phone' => $phone,
+            'code' => '123456',
+            'intent' => 'signup',
+            'role' => 'admin',
+        ])->assertOk()
+            ->assertJsonPath('user.phone', $phone);
+    }
+
     public function test_otp_expires_after_two_minutes(): void
     {
         $phone = '+15555555555';

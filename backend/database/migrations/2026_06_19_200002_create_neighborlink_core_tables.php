@@ -58,7 +58,7 @@ return new class extends Migration
             $table->string('phone', 20)->index();
             $table->string('code_hash');
             $table->unsignedTinyInteger('attempts')->default(0);
-            $table->timestamp('expires_at');
+            $table->dateTime('expires_at');
             $table->timestamps();
         });
     }

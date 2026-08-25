@@ -1,9 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { ActivityIndicator, I18nManager, Platform, StyleSheet, View } from "react-native";
-import { reloadAppAsync } from "expo";
+import { ActivityIndicator, I18nManager, StyleSheet, View } from "react-native";
+import * as Font from "expo-font";
 import * as SecureStore from "expo-secure-store";
 import i18n, { initI18n, saveLanguage, SUPPORTED } from "../i18n";
 import { Colors } from "../constants/tokens";
+import { fontMapForLanguage } from "../constants/font-map";
 import { setNativeAppLocale } from "../utils/native-app-locale";
 import { setArabicTextMetricsEnabled } from "../utils/arabic-text-metrics";
 
@@ -32,7 +33,7 @@ function languageNeedsRTL(lng) {
  * index.js / setArabicTextMetricsEnabled so Noto glyphs are not cropped on top.
  *
  * I18nManager.forceRTL must stay false. If a previous build left native
- * isRTL=true, clear it once with forceRTL(false) + reload.
+ * isRTL=true, clear it with forceRTL(false) (applies fully on the next cold start).
  */
 async function ensureNativeRtlIsOff() {
   if (!I18nManager.isRTL) return;
@@ -41,13 +42,9 @@ async function ensureNativeRtlIsOff() {
   I18nManager.forceRTL(false);
 
   try {
-    const alreadyCleared = await SecureStore.getItemAsync(STALE_RTL_KEY);
-    if (alreadyCleared === "done") return;
-
     await SecureStore.setItemAsync(STALE_RTL_KEY, "done");
-    await reloadAppAsync("Clearing stale native RTL");
   } catch {
-    // reload failed (Expo Go) — the forceRTL(false) will apply next cold start
+    // forceRTL(false) still applies on the next cold start
   }
 }
 
@@ -93,20 +90,12 @@ export default function LanguageProvider({ children }) {
     setIsRTL(languageNeedsRTL(lng));
     setArabicTextMetricsEnabled(languageNeedsRTL(lng));
 
-    const applied = setNativeAppLocale(lng);
-    if (!applied && __DEV__) {
-      console.warn(
-        "[LanguageProvider] Keyboard locale module missing. Expo Go cannot switch keyboards — rebuild with `npx expo run:android` or `npx expo run:ios`.",
-      );
-    }
-    // Reload so root fonts remap Inter-* → Noto for Arabic (and back for EN/ES),
-    // and so soft-keyboard locale preferences apply.
-    if (Platform.OS !== "web") {
-      try {
-        await reloadAppAsync("Apply language fonts and keyboard");
-      } catch {
-        // Expo Go / reload unavailable
-      }
+    setNativeAppLocale(lng);
+
+    try {
+      await Font.loadAsync(fontMapForLanguage(lng));
+    } catch {
+      // Fonts already registered, or Expo Go cannot swap families mid-session.
     }
   }, [language]);
 
