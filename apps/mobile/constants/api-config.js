@@ -27,6 +27,8 @@ export const DEV_LEGACY_RESIDENT_PHONE_E164 = "+15555555555";
 export const DEV_OTP_HINT = "221322";
 export const DEV_INVITE_CODE = "MAPLE-2024-XYZ";
 export const DEV_OFFLINE_TOKEN = "dev-offline-token";
+/** Routes all API calls through the in-app mock layer (dev only). */
+export const MOCK_DEMO_TOKEN = "mock-demo-token";
 
 function getPackagerHost() {
   const raw =

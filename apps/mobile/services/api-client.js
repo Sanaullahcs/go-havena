@@ -1,6 +1,8 @@
 import i18n from "../i18n";
 import { API_BASE_URL } from "../constants/api-config";
+import { shouldUseMockDataSync } from "../constants/mock-config";
 import { getCommunityId, getToken, getUser, clearSession, notifyGuestSessionTerminated } from "./auth-session";
+import { mockApiRequest } from "./mock/handlers";
 import { isGuestUser } from "./community-access";
 import { syncAccountRestrictionFromError, isAccountRestrictedError } from "../utils/account-access-sync";
 import {
@@ -8,20 +10,9 @@ import {
   isUserLocallyRestricted,
 } from "../utils/guest-permission-errors";
 
-export class ApiError extends Error {
-  constructor(message, { status, code, errors, statusKind, reason, rejectedBy, feature, suspendedAt } = {}) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-    this.code = code;
-    this.errors = errors;
-    this.statusKind = statusKind;
-    this.reason = reason;
-    this.rejectedBy = rejectedBy;
-    this.feature = feature ?? null;
-    this.suspendedAt = suspendedAt ?? null;
-  }
-}
+import { ApiError } from "./api-error";
+
+export { ApiError } from "./api-error";
 
 function isNetworkFailure(err) {
   if (!err) return false;
@@ -150,6 +141,11 @@ function apiErrorMessage(body, response) {
 }
 
 export async function apiRequest(path, { method = "GET", body, auth = true, community = true, timeoutMs = 25000 } = {}) {
+  const token = auth ? await getToken() : null;
+  if (shouldUseMockDataSync(token)) {
+    return mockApiRequest(path, { method, body, auth, community });
+  }
+
   const headers = {
     Accept: "application/json",
   };
@@ -158,9 +154,8 @@ export async function apiRequest(path, { method = "GET", body, auth = true, comm
     headers["Content-Type"] = "application/json";
   }
 
-  if (auth) {
-    const token = await getToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
+  if (auth && token) {
+    headers.Authorization = `Bearer ${token}`;
   }
 
   if (community) {

@@ -1,0 +1,14 @@
+export class ApiError extends Error {
+  constructor(message, { status, code, errors, statusKind, reason, rejectedBy, feature, suspendedAt } = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+    this.errors = errors;
+    this.statusKind = statusKind;
+    this.reason = reason;
+    this.rejectedBy = rejectedBy;
+    this.feature = feature ?? null;
+    this.suspendedAt = suspendedAt ?? null;
+  }
+}

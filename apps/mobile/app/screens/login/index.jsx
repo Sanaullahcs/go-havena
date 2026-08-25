@@ -38,6 +38,9 @@ import { Colors } from "../../../constants/tokens";
 import { ScreenBrand } from "../../../constants/screen-brand";
 import { Fonts } from "../../../constants/font";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
+import { DevHelperRow, DevMockDemoButton } from "../../../components/ui/dev-auth-helper";
+import { enterMockDemo } from "../../../services/mock/bootstrap";
+import { navigateFromColdStart } from "../../../constants/onboarding-routes";
 
 export default function LoginScreen() {
   const { t } = useTranslation();
@@ -55,6 +58,7 @@ export default function LoginScreen() {
   const [isReturningUser, setIsReturningUser] = useState(false);
   const [welcomeReady, setWelcomeReady] = useState(false);
   const { submitting, run } = useSubmitLock();
+  const [demoLoading, setDemoLoading] = useState(null);
   const isValid = isValidPhone(phoneDigits, phoneCountry);
   const biometricCaps = useBiometricCapabilities();
 
@@ -166,6 +170,18 @@ export default function LoginScreen() {
   const showFaceIdBtn = !biometricCaps.loading && biometricCaps.facial;
   const showBiometricSection = showFingerprintBtn || showFaceIdBtn;
 
+  const handleMockDemo = async (persona) => {
+    setDemoLoading(persona);
+    try {
+      const user = await enterMockDemo(persona);
+      navigateFromColdStart(router, user);
+    } catch (err) {
+      await dialog.alert(t("auth.signInFailed"), err?.message ?? "Could not start demo mode.");
+    } finally {
+      setDemoLoading(null);
+    }
+  };
+
   return (
     <>
       <ScreenStatusBar style="dark" opaque androidBackgroundColor={ScreenBrand.canvas} />
@@ -229,6 +245,20 @@ export default function LoginScreen() {
                 <Text style={styles.devHint}>
                   Test login: {DEV_TEST_PHONE_DISPLAY} (resident) or {DEV_COMMUNITY_ADMIN_PHONE_DISPLAY} (admin) · OTP {DEV_OTP_HINT}
                 </Text>
+              ) : null}
+              {__DEV__ ? (
+                <DevHelperRow>
+                  <DevMockDemoButton
+                    label="Demo resident"
+                    disabled={Boolean(demoLoading)}
+                    onPress={() => handleMockDemo("resident")}
+                  />
+                  <DevMockDemoButton
+                    label="Demo admin"
+                    disabled={Boolean(demoLoading)}
+                    onPress={() => handleMockDemo("admin")}
+                  />
+                </DevHelperRow>
               ) : null}
             </View>
 
