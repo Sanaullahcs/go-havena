@@ -141,7 +141,7 @@ function apiErrorMessage(body, response) {
 }
 
 export async function apiRequest(path, { method = "GET", body, auth = true, community = true, timeoutMs = 25000 } = {}) {
-  const token = auth ? await getToken() : null;
+  const token = await getToken();
   if (shouldUseMockDataSync(token)) {
     return mockApiRequest(path, { method, body, auth, community });
   }

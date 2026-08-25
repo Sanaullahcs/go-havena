@@ -1,4 +1,7 @@
 import { ApiError } from "../api-error";
+import { MOCK_DEMO_TOKEN } from "../../constants/api-config";
+import { MOCK_ADMIN_USER_ID } from "../../constants/mock-config";
+import { getCachedUser } from "../auth-session";
 import {
   getMockMe,
   getMockState,
@@ -37,6 +40,26 @@ function parseQuery(path) {
   return { pathname, searchParams: new URLSearchParams(query) };
 }
 
+function resolveMockUser() {
+  const cached = getCachedUser();
+  const state = getMockState();
+
+  if (
+    cached?.role === "community_admin" ||
+    Number(cached?.id) === MOCK_ADMIN_USER_ID
+  ) {
+    setMockPersona("admin");
+    return state.users.admin;
+  }
+
+  if (cached?.id) {
+    setMockPersona("resident");
+    return state.users.resident;
+  }
+
+  return getMockMe();
+}
+
 function findById(list, id) {
   return list.find((row) => String(row.id) === String(id)) ?? null;
 }
@@ -61,20 +84,14 @@ function handleAuth(method, pathname, body) {
     setMockPersona(isAdmin ? "admin" : "resident");
     const user = getMockMe();
     return {
-      token: "mock-demo-token",
-      user: {
-        id: user.id,
-        name: user.name,
-        phone: user.phone,
-        role: user.role,
-        memberships: user.memberships,
-      },
+      token: MOCK_DEMO_TOKEN,
+      user,
     };
   }
 
   if (method === "POST" && pathname === "/auth/login") {
     setMockPersona("admin");
-    return { token: "mock-demo-token", user: getMockMe() };
+    return { token: MOCK_DEMO_TOKEN, user: getMockMe() };
   }
 
   if (method === "POST" && pathname === "/auth/logout") return null;
@@ -95,12 +112,12 @@ function handleMe(method, pathname, body) {
 
   if (pathname === "/me") {
     if (method === "PUT" || method === "PATCH") {
-      const me = getMockMe();
+      const me = resolveMockUser();
       me.profile = { ...me.profile, ...body };
       if (body?.display_name) me.name = body.display_name;
       return ok(me);
     }
-    return ok(getMockMe());
+    return ok(resolveMockUser());
   }
   return null;
 }
@@ -455,7 +472,11 @@ function handleSocial(method, pathname, body) {
     }
     let items = [...state.notifications];
     if (searchParams.get("unread") === "1") items = items.filter((n) => !n.read_at);
-    return paginate(items, searchParams);
+    const page = paginate(items, searchParams);
+    return {
+      ...page,
+      unread: state.notifications.filter((n) => !n.read_at).length,
+    };
   }
 
   const neighborMatch = path.match(/^\/neighbors\/(\d+)$/);
