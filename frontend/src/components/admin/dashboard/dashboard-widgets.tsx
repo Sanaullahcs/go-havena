@@ -1,16 +1,22 @@
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Building2,
+  Check,
+  CheckCircle2,
   ChevronRight,
+  Clock,
   FileText,
   UserPlus,
   Users,
+  X,
 } from "lucide-react";
 import type { AdminDashboardPendingAction } from "@/lib/api/dashboard";
 import type { DashboardTone } from "@/components/admin/dashboard/dashboard-shared";
-import { actionTypeLabel } from "@/components/admin/dashboard/dashboard-shared";
+import { actionTypeLabel, DashboardEmptyState } from "@/components/admin/dashboard/dashboard-shared";
 import { DASHBOARD_TONE, toneIcon } from "@/components/admin/dashboard/dashboard-theme";
+import { DashboardPanel } from "@/components/admin/dashboard/dashboard-panel";
 import { NL } from "@/lib/design-tokens";
 
 const PENDING_META: Record<
@@ -228,5 +234,143 @@ export function PendingFilterTabs({
         );
       })}
     </div>
+  );
+}
+
+const INLINE_PENDING_TYPES = new Set<AdminDashboardPendingAction["type"]>([
+  "membership",
+  "family_add_member",
+  "community_admin",
+  "listing",
+  "notice",
+  "event",
+  "alert",
+]);
+
+function pendingRelTime(ts: string) {
+  const diff = Date.now() - new Date(ts).getTime();
+  if (diff < 60000) return "just now";
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  return `${Math.floor(diff / 86400000)}d ago`;
+}
+
+/**
+ * Owns pending-filter state locally so tab changes do not re-render dashboard charts.
+ */
+export function PendingApprovalsPanel({
+  actions,
+  actionId,
+  onApprove,
+  onReject,
+}: {
+  actions: AdminDashboardPendingAction[];
+  actionId: number | null;
+  onApprove: (action: AdminDashboardPendingAction) => void;
+  onReject: (action: AdminDashboardPendingAction) => void;
+}) {
+  const [pendingFilter, setPendingFilter] = useState<PendingFilter>("all");
+
+  const pendingActions = useMemo(
+    () => actions.filter((action) => action.type !== "post"),
+    [actions],
+  );
+
+  const pendingCounts = useMemo(() => {
+    const counts: Record<PendingFilter, number> = {
+      all: pendingActions.length,
+      membership: 0,
+      community_admin: 0,
+      community_request: 0,
+      post: 0,
+      listing: 0,
+      notice: 0,
+      event: 0,
+      alert: 0,
+      family_add_member: 0,
+    };
+    for (const action of pendingActions) {
+      if (action.type === "membership" || action.type === "family_add_member") {
+        counts.membership += 1;
+      } else if (action.type in counts) {
+        counts[action.type as PendingFilter] += 1;
+      }
+    }
+    return counts;
+  }, [pendingActions]);
+
+  const filteredPending = useMemo(() => {
+    if (pendingFilter === "all") return pendingActions;
+    if (pendingFilter === "membership") {
+      return pendingActions.filter(
+        (action) => action.type === "membership" || action.type === "family_add_member",
+      );
+    }
+    if (pendingFilter === "post") return [];
+    return pendingActions.filter((action) => action.type === pendingFilter);
+  }, [pendingActions, pendingFilter]);
+
+  return (
+    <DashboardPanel
+      className="h-full min-h-0 flex-1"
+      title="Pending Approvals"
+      description="Review items awaiting admin decision"
+      icon={Clock}
+      tone="amber"
+      scrollBody
+      action={
+        <PendingFilterTabs value={pendingFilter} onChange={setPendingFilter} counts={pendingCounts} />
+      }
+    >
+      {filteredPending.length === 0 ? (
+        <div className="flex h-full flex-col items-center justify-center">
+          <DashboardEmptyState
+            title="All caught up"
+            description="No items in this queue right now."
+            icon={<CheckCircle2 className="h-5 w-5" strokeWidth={2} />}
+          />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredPending.map((action) => (
+            <DashboardPendingCard
+              key={`${action.type}-${action.id}`}
+              action={action}
+              relTime={pendingRelTime(action.created_at)}
+            >
+              {INLINE_PENDING_TYPES.has(action.type) ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={actionId === action.id}
+                    onClick={() => onReject(action)}
+                    className="nl-btn-secondary !py-2 !text-[12px]"
+                  >
+                    <X />
+                    Reject
+                  </button>
+                  <button
+                    type="button"
+                    disabled={actionId === action.id}
+                    onClick={() => onApprove(action)}
+                    className="nl-btn-primary !py-2 !text-[12px]"
+                  >
+                    <Check />
+                    {actionId === action.id ? "Working…" : "Approve"}
+                  </button>
+                </div>
+              ) : null}
+              <Link
+                href={action.action_href}
+                className="rounded-xl border bg-white px-3 py-2 text-[12px] font-semibold transition hover:shadow-sm"
+                style={{ borderColor: NL.borderCard, color: NL.textBody }}
+              >
+                {action.action_label}
+              </Link>
+            </DashboardPendingCard>
+          ))}
+        </div>
+      )}
+    </DashboardPanel>
   );
 }

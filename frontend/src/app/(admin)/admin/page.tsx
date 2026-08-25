@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { AdminBadge, StatTile } from "@/components/admin/ui";
 import CommunityAdminDashboard from "@/components/admin/community-admin-dashboard";
@@ -16,7 +15,6 @@ import {
 import {
   Ban,
   Building2,
-  CheckCircle2,
   ClipboardList,
   Clock,
   dashIcon,
@@ -41,10 +39,8 @@ import {
 } from "@/components/admin/dashboard/dashboard-shared";
 import {
   DashboardActivityItem,
-  DashboardPendingCard,
   DashboardQuickAction,
-  PendingFilterTabs,
-  type PendingFilter,
+  PendingApprovalsPanel,
 } from "@/components/admin/dashboard/dashboard-widgets";
 import { isSystemAdminUser } from "@/lib/auth/session";
 import {
@@ -87,16 +83,6 @@ function pendingHint(stats: AdminDashboardData["stats"]) {
   return parts.length ? parts.join(" · ") : "Nothing awaiting review";
 }
 
-const INLINE_PENDING_TYPES = new Set<AdminDashboardPendingAction["type"]>([
-  "membership",
-  "family_add_member",
-  "community_admin",
-  "listing",
-  "notice",
-  "event",
-  "alert",
-]);
-
 export default function AdminOverviewPage() {
   const pathname = usePathname();
   const cached = getAdminCache<AdminDashboardData>("dashboard:stats");
@@ -107,7 +93,6 @@ export default function AdminOverviewPage() {
   const [actionId, setActionId] = useState<number | null>(null);
   const [mounted, setMounted] = useState(false);
   const [isSystemAdmin, setIsSystemAdmin] = useState(false);
-  const [pendingFilter, setPendingFilter] = useState<PendingFilter>("all");
 
   useEffect(() => {
     setIsSystemAdmin(isSystemAdminUser());
@@ -273,32 +258,8 @@ export default function AdminOverviewPage() {
     return <PageError message={error ?? "Unable to load dashboard."} onRetry={() => load()} />;
   }
 
-  const { stats, pending_actions: rawPendingActions } = data;
-  const pending_actions = rawPendingActions.filter((action) => action.type !== "post");
+  const { stats } = data;
   const generatedLabel = formatGeneratedAt(data.generated_at);
-
-  const pendingCounts: Record<PendingFilter, number> = {
-    all: pending_actions.length,
-    membership: pending_actions.filter((a) => a.type === "membership" || a.type === "family_add_member").length,
-    community_admin: pending_actions.filter((a) => a.type === "community_admin").length,
-    community_request: pending_actions.filter((a) => a.type === "community_request").length,
-    post: 0,
-    listing: pending_actions.filter((a) => a.type === "listing").length,
-    notice: pending_actions.filter((a) => a.type === "notice").length,
-    event: pending_actions.filter((a) => a.type === "event").length,
-    alert: pending_actions.filter((a) => a.type === "alert").length,
-  };
-
-  const filteredPending =
-    pendingFilter === "all"
-      ? pending_actions
-      : pendingFilter === "membership"
-        ? pending_actions.filter(
-            (action) => action.type === "membership" || action.type === "family_add_member",
-          )
-        : pendingFilter === "post"
-          ? []
-          : pending_actions.filter((action) => action.type === pendingFilter);
 
   const quickLinks = [
     { label: "Community Admins", href: "/admin/community-admins", tone: "violet" as const, badge: stats.pending_community_admins ? `${stats.pending_community_admins} pending` : undefined, icon: UserPlus },
@@ -496,63 +457,12 @@ export default function AdminOverviewPage() {
         </div>
 
         <div id="pending-approvals" className="col-span-12 flex min-h-0 flex-col scroll-mt-20 lg:col-span-6">
-        <DashboardPanel
-          className="h-full min-h-0 flex-1"
-          title="Pending Approvals"
-          description="Review items awaiting admin decision"
-          icon={Clock}
-          tone="amber"
-          scrollBody
-          action={
-            <PendingFilterTabs value={pendingFilter} onChange={setPendingFilter} counts={pendingCounts} />
-          }
-        >
-          {filteredPending.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center">
-              <DashboardEmptyState
-                title="All caught up"
-                description="No items in this queue right now."
-                icon={<CheckCircle2 className="h-5 w-5" strokeWidth={2} />}
-              />
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredPending.map((action) => (
-                <DashboardPendingCard key={`${action.type}-${action.id}`} action={action} relTime={relTime(action.created_at)}>
-                  {INLINE_PENDING_TYPES.has(action.type) ? (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        disabled={actionId === action.id}
-                        onClick={() => handlePendingAction(action, "reject")}
-                        className="nl-btn-secondary !py-2 !text-[12px]"
-                      >
-                        <X />
-                        Reject
-                      </button>
-                      <button
-                        type="button"
-                        disabled={actionId === action.id}
-                        onClick={() => handlePendingAction(action, "approve")}
-                        className="nl-btn-primary !py-2 !text-[12px]"
-                      >
-                        <Check />
-                        {actionId === action.id ? "Working…" : "Approve"}
-                      </button>
-                    </div>
-                  ) : null}
-                  <Link
-                    href={action.action_href}
-                    className="rounded-xl border bg-white px-3 py-2 text-[12px] font-semibold transition hover:shadow-sm"
-                    style={{ borderColor: NL.borderCard, color: NL.textBody }}
-                  >
-                    {action.action_label}
-                  </Link>
-                </DashboardPendingCard>
-              ))}
-            </div>
-          )}
-        </DashboardPanel>
+          <PendingApprovalsPanel
+            actions={data.pending_actions}
+            actionId={actionId}
+            onApprove={(action) => handlePendingAction(action, "approve")}
+            onReject={(action) => handlePendingAction(action, "reject")}
+          />
         </div>
       </div>
     </div>
