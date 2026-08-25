@@ -17,6 +17,7 @@ import {
   FileText,
   Gift,
   HeartPulse,
+  Landmark,
   LayoutDashboard,
   Mail,
   MapPin,
@@ -59,6 +60,7 @@ const systemAdminNav: NavItem[] = [
 const communityAdminNav: NavItem[] = [
   { href: "/admin/members", label: "Members", icon: Users },
   { href: "/admin/billing", label: "Billing", icon: CreditCard },
+  { href: "/admin/plaid", label: "Plaid", icon: Landmark },
   { href: "/admin/refer-and-earn", label: "Refer & Earn", icon: Gift },
   { href: "/admin/guests", label: "Guest Users", icon: UserPlus },
   { href: "/admin/messages", label: "Messages", icon: MessageSquare },

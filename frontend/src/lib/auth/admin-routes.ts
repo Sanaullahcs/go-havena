@@ -21,6 +21,7 @@ export const SYSTEM_ADMIN_ROUTE_PREFIXES = [
 export const COMMUNITY_ADMIN_ROUTE_PREFIXES = [
   "/admin/members",
   "/admin/billing",
+  "/admin/plaid",
   "/admin/guests",
   "/admin/messages",
   "/admin/notices",

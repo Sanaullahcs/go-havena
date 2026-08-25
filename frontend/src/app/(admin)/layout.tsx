@@ -46,6 +46,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/refer-and-earn": "Refer & Earn",
   "/admin/members": "Members",
   "/admin/billing": "Billing",
+  "/admin/plaid": "Plaid",
   "/admin/billing/pay": "Checkout",
   "/admin/billing/done": "Return to app",
   "/admin/setup": "Community setup",
