@@ -38,8 +38,22 @@ function getPackagerHost() {
   return String(raw).split(":")[0];
 }
 
+function isPublicTunnelHost(host) {
+  if (!host) return false;
+  const hostname = String(host).toLowerCase();
+  return (
+    hostname.includes("exp.direct") ||
+    hostname.endsWith(".trycloudflare.com") ||
+    hostname.endsWith(".ngrok-free.app") ||
+    hostname.endsWith(".ngrok.io") ||
+    hostname.endsWith(".ngrok.app") ||
+    hostname.endsWith(".loca.lt")
+  );
+}
+
 function lanApiFromHost(host) {
   if (!host || host === "localhost" || host === "127.0.0.1") return null;
+  if (isPublicTunnelHost(host)) return null;
   return `http://${host}:${DEFAULT_LAN_PORT}/api/v1`;
 }
 
@@ -47,13 +61,7 @@ function lanApiFromHost(host) {
 function isDevTunnelApiUrl(url) {
   if (!url) return false;
   try {
-    const { hostname } = new URL(url);
-    return (
-      hostname.endsWith(".loca.lt") ||
-      hostname.endsWith(".ngrok-free.app") ||
-      hostname.endsWith(".ngrok.io") ||
-      hostname.endsWith(".trycloudflare.com")
-    );
+    return isPublicTunnelHost(new URL(url).hostname);
   } catch {
     return false;
   }
@@ -86,7 +94,7 @@ function resolveApiBaseUrl() {
   }
 
   const packagerHost = getPackagerHost();
-  const isTunnelHost = packagerHost?.includes("exp.direct");
+  const isTunnelHost = isPublicTunnelHost(packagerHost);
   const envLanUrl =
     envUrl && /^http:\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(envUrl)
       ? envUrl
