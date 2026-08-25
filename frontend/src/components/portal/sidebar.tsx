@@ -18,6 +18,7 @@ const mainNav: NavItem[] = [
   { href: "/wellness",    label: "Wellness",       icon: NavIconWellness  },
   { href: "/marketplace", label: "Marketplace",    icon: NavIconMarket    },
   { href: "/property",    label: "Property",       icon: NavIconProperty  },
+  { href: "/agreements",  label: "Agreements",     icon: NavIconAgreements },
 ];
 
 const accountNav: NavItem[] = [
@@ -175,4 +176,5 @@ function NavIconMessages() { return <svg width="16" height="16" viewBox="0 0 16 
 function NavIconWellness() { return <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden><path d="M8 13.5C4 11 1.5 8.5 1.5 5.5A3 3 0 017 3.7a3 3 0 015.5 1.8c0 3-2.5 5.5-4.5 8z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /></svg>; }
 function NavIconMarket()   { return <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden><path d="M3 6h10l-.8 7H3.8L3 6z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /><path d="M5.5 6V4.5a2.5 2.5 0 015 0V6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>; }
 function NavIconProperty() { return <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden><path d="M2 13V7l4-3 4 3v6H2z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /><path d="M10 13V9l3 2v2" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /><path d="M2 13h11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>; }
+function NavIconAgreements() { return <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden><path d="M4 2.5h6.5L13 5v8.5H4V2.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /><path d="M10.5 2.5V5H13" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /><path d="M6 9.2c.8-1.4 2.6-1.4 3.3 0 .4.8-.2 1.6-1.1 2.1L8 12.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>; }
 function NavIconProfile()  { return <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden><circle cx="8" cy="5.5" r="2.2" stroke="currentColor" strokeWidth="1.3" /><path d="M3.5 13c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>; }

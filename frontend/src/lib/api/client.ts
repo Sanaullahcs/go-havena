@@ -43,6 +43,7 @@ api.interceptors.response.use(
         pathname.startsWith("/wellness") ||
         pathname.startsWith("/marketplace") ||
         pathname.startsWith("/property") ||
+        pathname.startsWith("/agreements") ||
         pathname.startsWith("/profile") ||
         pathname.startsWith("/support")
           ? "/resident-login"

@@ -406,6 +406,18 @@ export default function RootLayout() {
           name="screens/property-management/documents/document-form"
           options={{ headerShown: false }}
         />
+        <Stack.Screen
+          name="screens/property-management/agreements/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/property-management/agreements/detail"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/property-management/agreements/form"
+          options={{ headerShown: false }}
+        />
 
         <Stack.Screen
           name="screens/community-feed/index"

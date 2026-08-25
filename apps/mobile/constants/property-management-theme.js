@@ -69,6 +69,13 @@ export const PROPERTY_SERVICE_META = {
     bg: "#CCFBF1",
     border: "rgba(15, 118, 110, 0.22)",
   },
+  agreements: {
+    lucide: "PenLine",
+    icon: "edit-3",
+    color: "#1B4F8A",
+    bg: "#E8F0F7",
+    border: "rgba(27, 79, 138, 0.22)",
+  },
   bookings: {
     lucide: "BookmarkCheck",
     icon: "bookmark",
@@ -239,6 +246,13 @@ export function getPropertyCommunityServices(t) {
       title: t("services.documents"),
       subtitle: t("services.documentsSub"),
       routeKey: "DOCUMENTS",
+    },
+    {
+      id: "agreements",
+      key: "agreements",
+      title: t("services.agreements"),
+      subtitle: t("services.agreementsSub"),
+      routeKey: "AGREEMENTS",
     },
   ];
 }

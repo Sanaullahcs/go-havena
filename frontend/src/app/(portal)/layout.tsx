@@ -17,11 +17,13 @@ const PAGE_TITLES: Record<string, string> = {
   "/wellness":    "Wellness",
   "/marketplace": "Marketplace",
   "/property":    "Property",
+  "/agreements":  "Agreements",
   "/profile":     "My Profile",
   "/support":     "Help & Support",
 };
 
 function getTitle(pathname: string) {
+  if (pathname.startsWith("/agreements")) return "Agreements";
   return PAGE_TITLES[pathname] ?? "Resident Portal";
 }
 

@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /**
@@ -68,6 +69,7 @@ class DemoContentSeeder extends Seeder
         $this->call(NoticeAndDealTranslationSeeder::class);
         $this->seedRules($cid, $adminId, $residents);
         $this->seedDocuments($cid, $adminId);
+        $this->seedAgreements($cid, $adminId, $residents);
         $this->seedMessages($residents, $adminId);
         $this->seedNotifications($residents, $adminId);
         $this->seedPoints($cid, $residents);
@@ -721,6 +723,115 @@ class DemoContentSeeder extends Seeder
             ."4 0 obj<</Length {$len}>>stream\n{$content}\nendstream endobj\n"
             ."5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n"
             ."trailer<</Root 1 0 R>>\n%%EOF";
+    }
+
+    private function seedAgreements(int $cid, int $adminId, array $residents): void
+    {
+        if (! Schema::hasTable('agreements')) {
+            return;
+        }
+
+        $body = "FLORIDA MAIN STREET — RESIDENT ACKNOWLEDGMENT\n\n"
+            ."This agreement confirms that you have received the community living standards for Florida Main Street, "
+            ."including quiet hours (10:00 PM – 7:00 AM), amenity booking rules, guest registration, and pet policies.\n\n"
+            ."By applying a paid digital signature you certify that you are the named resident, that you have read this "
+            ."document in full, and that this electronic signature is legally binding for community records.\n\n"
+            ."A cryptographic certificate will be stored with your unit file after you sign.";
+
+        $living = [
+            'created_by' => $adminId,
+            'category' => 'lease',
+            'body' => $body,
+            'status' => 'sent',
+            'audience' => 'all',
+            'signature_fee_cents' => 0,
+            'due_at' => now()->addDays(14),
+            'sent_at' => now()->subDay(),
+            'updated_at' => now(),
+            'created_at' => now()->subDay(),
+        ];
+        if (Schema::hasColumn('agreements', 'is_required')) {
+            $living['is_required'] = true;
+        }
+        if (Schema::hasColumn('agreements', 'cover_message')) {
+            $living['cover_message'] = 'Please review our living standards before the 14-day deadline. This is required for occupancy records.';
+        }
+
+        DB::table('agreements')->updateOrInsert(
+            ['community_id' => $cid, 'title' => 'Resident Living Standards Acknowledgment'],
+            $living
+        );
+
+        $agreementId = DB::table('agreements')
+            ->where('community_id', $cid)
+            ->where('title', 'Resident Living Standards Acknowledgment')
+            ->value('id');
+
+        if (! $agreementId) {
+            return;
+        }
+
+        $waiver = [
+            'created_by' => $adminId,
+            'category' => 'amenity',
+            'body' => "I acknowledge that use of Florida Main Street amenities is at my own risk. I will follow posted hours, capacity limits, and safety rules, and I will supervise any guests I bring into amenity areas.\n\nA paid digital signature certificate will be stored with my unit file.",
+            'status' => 'sent',
+            'audience' => 'all',
+            'signature_fee_cents' => 299,
+            'due_at' => now()->addDays(21),
+            'sent_at' => now()->subHours(6),
+            'updated_at' => now(),
+            'created_at' => now()->subHours(6),
+        ];
+        if (Schema::hasColumn('agreements', 'is_required')) {
+            $waiver['is_required'] = false;
+        }
+        if (Schema::hasColumn('agreements', 'cover_message')) {
+            $waiver['cover_message'] = 'Optional amenity waiver — a $2.99 certificate fee is authorized in-app before you sign.';
+        }
+
+        DB::table('agreements')->updateOrInsert(
+            ['community_id' => $cid, 'title' => 'Amenity Use Waiver'],
+            $waiver
+        );
+
+        $waiverId = DB::table('agreements')
+            ->where('community_id', $cid)
+            ->where('title', 'Amenity Use Waiver')
+            ->value('id');
+
+        $userIds = array_values(array_filter($residents));
+        $now = now();
+        foreach ($userIds as $uid) {
+            $role = DB::table('users')->where('id', $uid)->value('role');
+            if ($role !== 'resident') {
+                continue;
+            }
+            $this->ensureAgreementRecipient((int) $agreementId, (int) $uid, 'not_required', $now);
+            if ($waiverId) {
+                $this->ensureAgreementRecipient((int) $waiverId, (int) $uid, 'unpaid', $now);
+            }
+        }
+    }
+
+    private function ensureAgreementRecipient(int $agreementId, int $userId, string $paymentStatus, $now): void
+    {
+        $exists = DB::table('agreement_recipients')
+            ->where('agreement_id', $agreementId)
+            ->where('user_id', $userId)
+            ->exists();
+        if ($exists) {
+            return;
+        }
+
+        DB::table('agreement_recipients')->insert([
+            'agreement_id' => $agreementId,
+            'user_id' => $userId,
+            'status' => 'pending',
+            'payment_status' => $paymentStatus,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
     }
 
     /* ─────────────────────────── Messages ─────────────────────────── */

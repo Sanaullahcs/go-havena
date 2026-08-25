@@ -30,6 +30,7 @@ use App\Http\Controllers\Api\V1\AdminUserController;
 use App\Http\Controllers\Api\V1\ContactController;
 use App\Http\Controllers\Api\V1\CommunityRuleController;
 use App\Http\Controllers\Api\V1\CommunityDocumentController;
+use App\Http\Controllers\Api\V1\AgreementController;
 use App\Http\Controllers\Api\V1\GuestAccessController;
 use App\Http\Controllers\Api\V1\GuestController;
 use App\Http\Controllers\Api\V1\ResidentGuestController;
@@ -288,6 +289,20 @@ Route::prefix('v1')->group(function () {
                 Route::patch('/documents/{id}',            [CommunityDocumentController::class, 'update']);
                 Route::delete('/documents/{id}',           [CommunityDocumentController::class, 'destroy']);
 
+                /* Agreements + paid digital signatures */
+                Route::get('/agreements',                  [AgreementController::class, 'adminIndex']);
+                Route::post('/agreements',                 [AgreementController::class, 'store']);
+                Route::get('/agreements/{id}',             [AgreementController::class, 'adminShow']);
+                Route::patch('/agreements/{id}',           [AgreementController::class, 'update']);
+                Route::delete('/agreements/{id}',          [AgreementController::class, 'destroy']);
+                Route::post('/agreements/{id}/send',       [AgreementController::class, 'send']);
+                Route::post('/agreements/{id}/remind',     [AgreementController::class, 'remind']);
+                Route::post('/agreements/{id}/duplicate',  [AgreementController::class, 'duplicate']);
+                Route::post('/agreements/{id}/reopen',     [AgreementController::class, 'reopen']);
+                Route::post('/agreements/{id}/withdraw',   [AgreementController::class, 'withdraw']);
+                Route::post('/agreements/{id}/recipients/{userId}/reopen', [AgreementController::class, 'reopenRecipient']);
+                Route::delete('/agreements/{id}/recipients/{userId}',      [AgreementController::class, 'removeRecipient']);
+
                 /* Guest users — admin CRUD */
                 Route::get('/guests',                     [GuestController::class, 'index']);
                 Route::get('/guests/{id}',                [GuestController::class, 'show']);
@@ -407,6 +422,13 @@ Route::prefix('v1')->group(function () {
         Route::get('/documents',                                [CommunityDocumentController::class, 'index']);
         Route::get('/documents/{id}',                           [CommunityDocumentController::class, 'show']);
         Route::post('/documents/{id}/download',                 [CommunityDocumentController::class, 'recordDownload']);
+
+        /* Agreements — resident inbox + digital signature */
+        Route::get('/agreements',                               [AgreementController::class, 'index']);
+        Route::get('/agreements/{id}',                          [AgreementController::class, 'show']);
+        Route::post('/agreements/{id}/authorize-fee',           [AgreementController::class, 'authorizeFee']);
+        Route::post('/agreements/{id}/sign',                    [AgreementController::class, 'sign']);
+        Route::post('/agreements/{id}/decline',                 [AgreementController::class, 'decline']);
 
         /* Resident report filing */
         Route::post('/reports', [ReportController::class, 'store']);

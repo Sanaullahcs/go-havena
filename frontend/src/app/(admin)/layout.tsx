@@ -57,6 +57,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/alerts": "Alerts",
   "/admin/community-rules": "Community Rules",
   "/admin/documents": "Documents",
+  "/admin/agreements": "Agreements",
   "/admin/amenities": "Amenities",
   "/admin/moderation": "Moderation",
   "/admin/marketplace": "Marketplace",
@@ -77,6 +78,7 @@ function routeForNextStep(nextStep: string): string {
 }
 
 function getTitle(pathname: string) {
+  if (pathname.startsWith("/admin/agreements")) return "Agreements";
   return PAGE_TITLES[pathname] ?? "Admin Portal";
 }
 

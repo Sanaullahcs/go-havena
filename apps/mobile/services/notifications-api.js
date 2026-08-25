@@ -321,6 +321,17 @@ export function resolveNotificationRoute(notification) {
     return { pathname: "/screens/guest-approvals" };
   }
 
+  const agreementMatch = pathname.match(/\/agreements\/(\d+)/i);
+  if (agreementMatch) {
+    return withParams("/(tabs)/services/agreements/detail", {
+      agreementId: agreementMatch[1],
+      agreement_id: agreementMatch[1],
+    });
+  }
+  if (pathname.includes("/agreements")) {
+    return { pathname: "/(tabs)/services/agreements" };
+  }
+
   if (pathname.startsWith("/screens/") || pathname.startsWith("/(tabs)/")) {
     if (!isAllowedMobilePath(pathname)) {
       return resolveNotificationRouteFallback(notification);
