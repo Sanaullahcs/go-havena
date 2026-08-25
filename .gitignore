@@ -81,6 +81,8 @@ frontend/out/
 # misc
 .tmp-export/
 /expo-qr.png
+/expo-go-qr.png
+/expo-go-qr-new.png
 apps/mobile/expo-qr.png
 apps/mobile/.tmp-bundle-check/
 apps/mobile/.tmp-notify-check*/
