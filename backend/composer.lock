@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "3c7890f1f1225f3d3a99f5b5428f8fef",
+    "content-hash": "b203badea34ab26a3c6317c0f0c22bc2",
     "packages": [
         {
             "name": "brick/math",
@@ -134,6 +134,63 @@
                 }
             ],
             "time": "2024-02-09T16:56:22+00:00"
+        },
+        {
+            "name": "chkltlabs/plaid-sdk-php",
+            "version": "2.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/chkltlabs/plaid-sdk-php.git",
+                "reference": "d16e1f1bba27c9f49a526688dffca94aa2538515"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/chkltlabs/plaid-sdk-php/zipball/d16e1f1bba27c9f49a526688dffca94aa2538515",
+                "reference": "d16e1f1bba27c9f49a526688dffca94aa2538515",
+                "shasum": ""
+            },
+            "require": {
+                "ext-curl": "*",
+                "ext-json": "*",
+                "nimbly/shuttle": "^2.0",
+                "php": "^8.2",
+                "psr/http-client": "^1.0",
+                "psr/http-factory": "^1.0",
+                "psr/http-message": "^2.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.0",
+                "symfony/var-dumper": "^5.0|^6.0|^7.0",
+                "vimeo/psalm": "^6.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "ChkltLabs\\Plaid\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Brent Scheffler",
+                    "email": "brent@brentscheffler.com"
+                }
+            ],
+            "description": "PHP implementation of Plaid's API as an SDK.",
+            "homepage": "https://github.com/chkltlabs/plaid-sdk-php",
+            "keywords": [
+                "php",
+                "plaid",
+                "sdk"
+            ],
+            "support": {
+                "issues": "https://github.com/chkltlabs/plaid-sdk-php/issues",
+                "source": "https://github.com/chkltlabs/plaid-sdk-php"
+            },
+            "time": "2026-06-11T20:52:59+00:00"
         },
         {
             "name": "dflydev/dot-access-data",
@@ -2504,6 +2561,120 @@
                 "source": "https://github.com/nikic/PHP-Parser/tree/v5.7.0"
             },
             "time": "2025-12-06T11:56:16+00:00"
+        },
+        {
+            "name": "nimbly/capsule",
+            "version": "3.0.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/nimbly/Capsule.git",
+                "reference": "7e0e438f2311a10f5c270ea59c4b988720ec28de"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/nimbly/Capsule/zipball/7e0e438f2311a10f5c270ea59c4b988720ec28de",
+                "reference": "7e0e438f2311a10f5c270ea59c4b988720ec28de",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.2",
+                "psr/http-factory": "^1.0",
+                "psr/http-message": "^1.0|^2.0"
+            },
+            "provide": {
+                "psr/http-factory-implementation": "^1.0",
+                "psr/http-message-implementation": "^1.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.0",
+                "symfony/var-dumper": "^4.3",
+                "vimeo/psalm": "^6.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Nimbly\\Capsule\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Brent Scheffler",
+                    "email": "brent@brentscheffler.com"
+                }
+            ],
+            "description": "Capsule is a simple PSR-7 HTTP message and PSR-17 HTTP factory implementation.",
+            "support": {
+                "issues": "https://github.com/nimbly/Capsule/issues",
+                "source": "https://github.com/nimbly/Capsule/tree/3.0.1"
+            },
+            "time": "2025-02-27T01:04:16+00:00"
+        },
+        {
+            "name": "nimbly/shuttle",
+            "version": "2.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/nimbly/Shuttle.git",
+                "reference": "4a4fd0b8fc40dfbaf112af92cfe7190cd04a6876"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/nimbly/Shuttle/zipball/4a4fd0b8fc40dfbaf112af92cfe7190cd04a6876",
+                "reference": "4a4fd0b8fc40dfbaf112af92cfe7190cd04a6876",
+                "shasum": ""
+            },
+            "require": {
+                "ext-json": "*",
+                "nimbly/capsule": "^3.0",
+                "php": "^8.2",
+                "psr/http-client": "^1.0"
+            },
+            "provide": {
+                "psr/http-client-implementation": "^1.0"
+            },
+            "require-dev": {
+                "guzzlehttp/psr7": "^2.7",
+                "phpunit/phpunit": "^10.0",
+                "symfony/var-dumper": "^5.0",
+                "vimeo/psalm": "^6.0"
+            },
+            "suggest": {
+                "ext-curl": "Use cURL library to make HTTP calls."
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Nimbly\\Shuttle\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Brent Scheffler",
+                    "email": "brent@brentscheffler.com"
+                }
+            ],
+            "description": "Simple PSR-18 HTTP client.",
+            "keywords": [
+                "client",
+                "curl",
+                "http",
+                "http client",
+                "psr-18",
+                "stream context"
+            ],
+            "support": {
+                "issues": "https://github.com/nimbly/Shuttle/issues",
+                "source": "https://github.com/nimbly/Shuttle/tree/2.0"
+            },
+            "time": "2025-02-27T20:43:26+00:00"
         },
         {
             "name": "nunomaduro/termwind",
