@@ -409,7 +409,7 @@ function SideMenuPanel({ visible, onClose }) {
                   onPress={openProfile}
                 >
                   <Text style={styles.profileName} numberOfLines={2}>
-                    {isNewProfile ? t("nav.welcome") : profile.displayName}
+                    {profile.displayName || profile.displayPhone || t("nav.welcome")}
                   </Text>
                   <Text style={styles.profileAddress} numberOfLines={2}>
                     {profile.unitNumber

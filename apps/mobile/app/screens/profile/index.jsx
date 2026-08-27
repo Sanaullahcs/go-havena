@@ -143,11 +143,13 @@ export default function Profile() {
                 </View>
               </Pressable>
 
-              <Text style={styles.name}>{fields.displayName}</Text>
+              <Text style={styles.name}>
+                {fields.displayName || fields.displayPhone || t("nav.welcome")}
+              </Text>
 
-              {fields.displayEmail ? (
+              {fields.displayEmail || (fields.displayName && fields.displayPhone) ? (
                 <Text style={styles.emailLine} numberOfLines={1}>
-                  {fields.displayEmail}
+                  {fields.displayEmail || fields.displayPhone}
                 </Text>
               ) : null}
 

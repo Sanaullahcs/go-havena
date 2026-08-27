@@ -65,6 +65,7 @@ import {
   type PendingVerb,
 } from "@/lib/admin/dashboard-confirmations";
 import { NL } from "@/lib/design-tokens";
+import { formatPhonesInText } from "@/lib/phone/format";
 
 function relTime(ts: string) {
   const diff = Date.now() - new Date(ts).getTime();
@@ -483,8 +484,8 @@ export default function AdminOverviewPage() {
               {data.recent_activity.map((log) => (
                 <DashboardActivityItem
                   key={log.id}
-                  userName={log.user_name ?? "System"}
-                  description={log.description}
+                  userName={formatPhonesInText(log.user_name) || log.user_name || "System"}
+                  description={formatPhonesInText(log.description) || log.description}
                   action={log.action}
                   severity={log.severity}
                   relTime={relTime(log.created_at)}

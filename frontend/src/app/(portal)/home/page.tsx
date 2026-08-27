@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { getUser } from "@/lib/auth/session";
+import { formatAccountDisplayName } from "@/lib/user/email-display";
 import { ResidentEngagementChart, ResidentWellnessChart } from "@/components/shared/charts";
 
 const QUICK_LINKS = [
@@ -28,7 +29,7 @@ const STATS = [
 
 export default function ResidentHomePage() {
   const user = getUser();
-  const name = user?.name || user?.profile?.display_name || user?.email?.split("@")[0] || "Neighbor";
+  const name = formatAccountDisplayName(user, "Neighbor");
 
   return (
     <div className="space-y-6">

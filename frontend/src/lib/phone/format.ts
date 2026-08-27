@@ -52,11 +52,6 @@ function formatNanpPartial(digits: string): string {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
 }
 
-function formatNanpInternational(digits: string): string {
-  if (digits.length !== 10) return digits;
-  return `+1 ${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
-}
-
 /** Normalize raw stored value to E.164 when possible. */
 export function normalizePhoneE164(input: string | null | undefined): string {
   const raw = String(input ?? "").trim();
@@ -257,6 +252,24 @@ export function toE164(digits: string, country = DEFAULT_PHONE_COUNTRY): string 
   return "";
 }
 
+function formatParsedPhoneDisplay(parsed: NonNullable<ReturnType<typeof parsePhoneNumberFromString>>): string {
+  const national = String(parsed.nationalNumber ?? "").replace(/\D/g, "");
+  if (
+    (parsed.country === "US" || parsed.country === "CA" || parsed.countryCallingCode === "1") &&
+    national.length === 10 &&
+    isValidNanpNational(national)
+  ) {
+    return formatNanpNational(national);
+  }
+  try {
+    return parsed.country === "US" || parsed.country === "CA"
+      ? parsed.formatNational()
+      : parsed.formatInternational();
+  } catch {
+    return parsed.number ?? national;
+  }
+}
+
 /** Format stored E.164 or raw phone for display in tables and detail views. */
 export function formatPhoneDisplay(input: string | null | undefined): string {
   const raw = String(input ?? "").trim();
@@ -270,36 +283,49 @@ export function formatPhoneDisplay(input: string | null | undefined): string {
   if (e164) {
     const parsed = parsePhoneNumberFromString(e164);
     if (parsed) {
-      try {
-        return parsed.formatInternational();
-      } catch {
-        /* fall through */
-      }
+      const formatted = formatParsedPhoneDisplay(parsed);
+      if (formatted) return formatted;
     }
     const national = e164.replace(/^\+1/, "").replace(/\D/g, "");
     if (national.length === 10 && isValidNanpNational(national)) {
-      return formatNanpInternational(national);
+      return formatNanpNational(national);
     }
   }
 
   const digits = raw.replace(/\D/g, "");
   if (digits.length === 10 && isValidNanpNational(digits)) {
-    return formatNanpInternational(digits);
+    return formatNanpNational(digits);
   }
   if (digits.length === 11 && digits.startsWith("1") && isValidNanpNational(digits.slice(1))) {
-    return formatNanpInternational(digits.slice(1));
+    return formatNanpNational(digits.slice(1));
   }
 
   const parsed = parsePhoneNumberFromString(raw.startsWith("+") ? raw : raw, "US" as never);
   if (parsed) {
-    try {
-      return parsed.formatInternational();
-    } catch {
-      /* fall through */
-    }
+    const formatted = formatParsedPhoneDisplay(parsed);
+    if (formatted) return formatted;
   }
 
   return raw;
+}
+
+/** Replace E.164 / raw phone tokens inside mixed dashboard copy. */
+export function formatPhonesInText(input: string | null | undefined): string {
+  const raw = String(input ?? "").trim();
+  if (!raw) return "";
+  const withoutPlaceholderEmail = raw.replace(
+    /(\+?\d[\d\s().+-]{6,}\d)@phone\.havena\.local/gi,
+    (_, phone: string) => {
+      const formatted = formatPhoneDisplay(phone);
+      return !formatted || formatted === "—" ? phone : formatted;
+    },
+  );
+  return withoutPlaceholderEmail.replace(/\+?\d[\d\s().-]{6,}\d/g, (match) => {
+    const digits = match.replace(/\D/g, "");
+    if (digits.length < 10) return match;
+    const formatted = formatPhoneDisplay(match);
+    return !formatted || formatted === "—" ? match : formatted;
+  });
 }
 
 export function parseE164ToFields(e164: string | null | undefined): {

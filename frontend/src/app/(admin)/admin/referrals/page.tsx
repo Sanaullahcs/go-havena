@@ -41,6 +41,7 @@ import {
 } from "@/lib/api/referrals";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
+import { formatPhoneDisplay } from "@/lib/phone/format";
 
 type SettingsForm = {
   reward_type: ReferralRewardType;
@@ -562,12 +563,12 @@ export default function ReferralsAdminPage() {
                 <DtRow key={row.id}>
                   <DtCell first>
                     <p className="font-medium text-slate-900">
-                      {row.referrer?.name || row.referrer?.phone || `#${row.referrer?.id}`}
+                      {row.referrer?.name || formatPhoneDisplay(row.referrer?.phone) || `#${row.referrer?.id}`}
                     </p>
                   </DtCell>
                   <DtCell>
                     <p className="font-medium text-slate-800">
-                      {row.referee?.name || row.referee?.phone || `#${row.referee?.id}`}
+                      {row.referee?.name || formatPhoneDisplay(row.referee?.phone) || `#${row.referee?.id}`}
                     </p>
                   </DtCell>
                   <DtCell>{row.referee_community?.name ?? "—"}</DtCell>

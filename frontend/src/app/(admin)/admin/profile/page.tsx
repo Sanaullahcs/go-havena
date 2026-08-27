@@ -44,6 +44,7 @@ import { DashboardPanel } from "@/components/admin/dashboard/dashboard-panel";
 import { AdminBadge } from "@/components/admin/ui";
 import { statusLabel, type MembershipStatus } from "@/lib/api/members";
 import { NL } from "@/lib/design-tokens";
+import { formatAccountContact, formatAccountDisplayName, formatDisplayEmail } from "@/lib/user/email-display";
 
 const NOTIFICATION_PREFS = [
   { key: "newMemberAlerts" as const, label: "New member alerts", desc: "When a resident joins or requests approval" },
@@ -120,7 +121,12 @@ export default function AdminProfilePage() {
     loadProfile();
   }, [loadProfile]);
 
-  const name = form.name || form.email.split("@")[0] || "Admin";
+  const name = formatAccountDisplayName(
+    { name: form.name, phone: form.phone, email: form.email },
+    "Admin",
+  );
+  const contactLine = formatAccountContact({ phone: form.phone, email: form.email });
+  const displayEmail = formatDisplayEmail(form.email);
   const initials = name
     .split(" ")
     .map((n) => n[0])
@@ -279,7 +285,7 @@ export default function AdminProfilePage() {
                 {name}
               </h1>
               <p className="mt-0.5 text-[13px]" style={{ color: NL.textSecondary }}>
-                {form.role} · {form.email}
+                {form.role}{contactLine ? ` · ${contactLine}` : ""}
               </p>
             </div>
 
@@ -352,7 +358,7 @@ export default function AdminProfilePage() {
                   </div>
                   <div>
                     <label className="nl-label mb-1.5">Email</label>
-                    <input className="nl-input w-full bg-slate-50" value={form.email} disabled />
+                    <input className="nl-input w-full bg-slate-50" value={displayEmail ?? ""} placeholder="Phone sign-in — no email on file" disabled />
                   </div>
                   <div className="sm:col-span-2">
                     <label className="nl-label mb-1.5">Phone</label>
@@ -433,7 +439,7 @@ export default function AdminProfilePage() {
               <dl className="space-y-2">
                 {[
                   { label: "Full Name", value: form.name || "—" },
-                  { label: "Email", value: form.email },
+                  { label: "Email", value: displayEmail ?? "—" },
                   { label: "Phone", value: form.phone ? <PhoneDisplay value={form.phone} /> : "—" },
                   { label: "Role", value: form.role },
                   { label: "Bio", value: form.bio.trim() || "Not set" },

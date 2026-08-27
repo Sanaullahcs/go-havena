@@ -1,6 +1,7 @@
 import { API_BASE_URL } from "../constants/api-config";
 import { resolveSeedMediaSource } from "../constants/seed-media";
 import { formatDisplayEmail } from "./form-validation";
+import { toDisplayPhone } from "./phone";
 import { isGuestUser } from "../services/community-access";
 import i18n from "../i18n";
 
@@ -185,11 +186,22 @@ const PLACEHOLDER_DISPLAY_NAMES = new Set([
   i18n.t("onboarding.profileStep"),
 ]);
 
+function isPhoneLikeLabel(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return false;
+  if (raw.toLowerCase().includes("@phone.havena.local")) return true;
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length < 10 || digits.length > 15) return false;
+  const compact = raw.replace(/[\s().+-]/g, "");
+  return compact === digits || compact === `+${digits}`;
+}
+
 /** True when the API still has the default placeholder name — show empty in profile forms. */
 export function isPlaceholderDisplayName(name) {
   const trimmed = String(name ?? "").trim();
   if (!trimmed) return true;
   if (PLACEHOLDER_DISPLAY_NAMES.has(trimmed)) return true;
+  if (isPhoneLikeLabel(trimmed)) return true;
   return /^profile$/i.test(trimmed);
 }
 
@@ -207,6 +219,8 @@ export function getProfileFields(user) {
       bio: "",
       email: "",
       displayEmail: null,
+      displayPhone: "",
+      contactLine: "",
       role: "resident",
     };
   }
@@ -228,6 +242,8 @@ export function getProfileFields(user) {
     bio: profile.bio ?? user.bio ?? "",
     email: user.email ?? "",
     displayEmail: formatDisplayEmail(user.email),
+    displayPhone: toDisplayPhone(user.phone || user.email) || "",
+    contactLine: formatDisplayEmail(user.email) || toDisplayPhone(user.phone || user.email) || "",
     role: isGuestUser(user) ? "guest" : (user.role ?? "resident"),
   };
 }

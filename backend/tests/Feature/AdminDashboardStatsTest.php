@@ -231,4 +231,52 @@ class AdminDashboardStatsTest extends TestCase
         $this->assertArrayNotHasKey('activity_chart', $response->json('data'));
         $this->assertArrayNotHasKey('top_communities_by_members', $response->json('data'));
     }
+
+    public function test_dashboard_pending_member_phone_uses_national_format(): void
+    {
+        $this->seed(SystemAdminSeeder::class);
+        Sanctum::actingAs(User::query()->where('email', 'admin@havena.app')->firstOrFail());
+
+        $region = Region::query()->create([
+            'title'       => 'Cairo Metro',
+            'area'        => 'Cairo',
+            'state'       => 'EG',
+            'users_label' => '0 users',
+            'sort_order'  => 1,
+            'status'      => 'active',
+        ]);
+
+        $community = Community::query()->create([
+            'name'          => 'Oak Valley',
+            'region_id'     => $region->id,
+            'region'        => $region->title,
+            'status'        => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        $resident = User::factory()->create([
+            'name'   => 'Dana Resident',
+            'role'   => 'resident',
+            'status' => 'active',
+            'phone'  => '+15555550100',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $resident->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'pending',
+        ]);
+
+        $response = $this->getJson('/api/v1/admin/dashboard/stats');
+
+        $response->assertOk();
+        $pending = collect($response->json('data.pending_actions'))
+            ->firstWhere('type', 'membership');
+
+        $this->assertNotNull($pending);
+        $this->assertSame('Dana Resident', $pending['title']);
+        $this->assertSame('(555) 555-0100', $pending['detail']);
+        $this->assertStringNotContainsString('+15555550100', (string) $pending['detail']);
+    }
 }

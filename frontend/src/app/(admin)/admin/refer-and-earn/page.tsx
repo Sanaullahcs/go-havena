@@ -23,6 +23,8 @@ import {
 } from "@/lib/api/referrals";
 import { apiError } from "@/lib/api/client";
 import { toastError, toastSuccess } from "@/lib/alert";
+import { PhoneDisplay } from "@/components/admin/phone-display";
+import { formatPhoneDisplay } from "@/lib/phone/format";
 
 function statusBadge(row: ReferralAttributionRow) {
   const display = row.display_status;
@@ -45,7 +47,7 @@ function statusBadge(row: ReferralAttributionRow) {
 }
 
 function refereeLabel(row: ReferralAttributionRow): string {
-  return row.referee?.name || row.referee?.phone || `User #${row.referee?.id ?? "?"}`;
+  return row.referee?.name || formatPhoneDisplay(row.referee?.phone) || `User #${row.referee?.id ?? "?"}`;
 }
 
 function formatReferralDate(value?: string | null) {
@@ -335,7 +337,9 @@ export default function ReferAndEarnPage() {
                   <DtCell first>
                     <p className="font-medium text-slate-900">{refereeLabel(row)}</p>
                     {row.referee?.phone ? (
-                      <p className="mt-0.5 text-[12px] text-slate-500">{row.referee.phone}</p>
+                      <p className="mt-0.5 text-[12px] text-slate-500">
+                        <PhoneDisplay value={row.referee.phone} compact />
+                      </p>
                     ) : null}
                   </DtCell>
                   <DtCell>{row.referee_community?.name ?? "—"}</DtCell>

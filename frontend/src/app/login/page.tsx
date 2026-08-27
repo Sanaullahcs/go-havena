@@ -24,7 +24,7 @@ import {
 import { OtpVerifyStep } from "@/components/auth/otp-verify-step";
 import { PhoneSignInStep } from "@/components/auth/phone-sign-in-step";
 import { AuthRedirectOverlay } from "@/components/shared/loaders";
-import { emptyPhoneField, phoneFieldFromE164, type PhoneFieldState } from "@/lib/phone/format";
+import { emptyPhoneField, formatPhoneDisplay, phoneFieldFromE164, type PhoneFieldState } from "@/lib/phone/format";
 import { CommunityAuthHero } from "@/components/auth/community-auth-hero";
 import { HavenaMark } from "@/components/shared/havena-mark";
 import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
@@ -260,7 +260,7 @@ function LoginPageInner() {
                   setPhoneResetKey((k) => k + 1);
                   setError(null);
                 }}
-                demoLabel={`Try demo · ${COMMUNITY_DEMO_PHONE}`}
+                demoLabel={`Try demo · ${formatPhoneDisplay(COMMUNITY_DEMO_PHONE)}`}
                 sending={otpSending}
                 disabled={otpSendingLocked || !phone.valid}
               />

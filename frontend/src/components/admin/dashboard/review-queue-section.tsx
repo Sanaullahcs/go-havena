@@ -17,6 +17,7 @@ import {
 import type { AdminDashboardPendingAction } from "@/lib/api/dashboard";
 import { actionTypeLabel } from "@/components/admin/dashboard/dashboard-shared";
 import type { DashboardTone } from "@/components/admin/dashboard/dashboard-shared";
+import { formatPhonesInText } from "@/lib/phone/format";
 
 const TYPE_META: Record<
   AdminDashboardPendingAction["type"],
@@ -73,13 +74,15 @@ function ReviewQueueRow({
 
       <div className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <p className="truncate text-[13.5px] font-semibold text-slate-900">{action.title}</p>
+          <p className="truncate text-[13.5px] font-semibold text-slate-900">
+            {formatPhonesInText(action.title) || action.title}
+          </p>
           <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
             {actionTypeLabel(action.type)}
           </span>
         </div>
         <p className="mt-0.5 truncate text-[12px] text-slate-500">
-          {[action.subtitle, action.detail].filter(Boolean).join(" · ")}
+          {formatPhonesInText([action.subtitle, action.detail].filter(Boolean).join(" · "))}
         </p>
       </div>
 

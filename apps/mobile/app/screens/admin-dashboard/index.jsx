@@ -24,6 +24,7 @@ import { Colors } from "../../../constants/tokens";
 import { sf, sw } from "../../../utils/responsive";
 import { chevronForward } from "../../../utils/rtl";
 import { fetchAdminStats, approveMember } from "../../../services/admin-api";
+import { formatPhonesInText } from "../../../utils/phone";
 import { MarketplaceRoutes, withMarketplaceRole } from "../../../constants/marketplace-routes";
 import { PropertyManagementRoutes } from "../../../constants/property-management-routes";
 import { useApiAction } from "../../../hooks/use-api-action";
@@ -194,7 +195,7 @@ function ReviewSectionHeader({ pendingTotal, t }) {
 function QueueRow({ action, approving, onApprove, onReview, showDivider, t }) {
   const meta = ACTION_TYPE_META[action.type] ?? DEFAULT_ACTION_META;
   const isMember = action.type === "membership";
-  const detail = (action.detail || action.subtitle || "").trim();
+  const detail = formatPhonesInText((action.detail || action.subtitle || "").trim());
   const metaLine = detail ? `${t(meta.label)} · ${detail}` : t(meta.label);
   const timeLabel = action.created_at ? relTime(action.created_at, t) : "";
 
@@ -214,7 +215,7 @@ function QueueRow({ action, approving, onApprove, onReview, showDivider, t }) {
             style={({ pressed }) => pressed && styles.pressedSoft}
           >
             <Text style={styles.reviewTitle} numberOfLines={1} ellipsizeMode="tail">
-              {action.title || t("admin.untitled")}
+              {formatPhonesInText(action.title) || action.title || t("admin.untitled")}
             </Text>
             <Text style={styles.reviewMeta} numberOfLines={1} ellipsizeMode="tail">
               {metaLine}

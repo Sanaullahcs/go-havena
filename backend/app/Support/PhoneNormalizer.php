@@ -123,4 +123,65 @@ class PhoneNormalizer
     {
         return self::normalize($phone) !== null;
     }
+
+    /**
+     * Format a stored phone for UI. US/CA numbers use (555) 555-0100.
+     * Other numbers stay in +E.164. Returns null when empty.
+     */
+    public static function formatForDisplay(?string $phone): ?string
+    {
+        $normalized = self::normalize($phone);
+        if (! $normalized) {
+            $trimmed = trim((string) $phone);
+
+            return $trimmed !== '' ? $trimmed : null;
+        }
+
+        if (preg_match('/^\+1([2-9]\d{2}[2-9]\d{6})$/', $normalized, $matches)) {
+            $digits = $matches[1];
+
+            return sprintf(
+                '(%s) %s-%s',
+                substr($digits, 0, 3),
+                substr($digits, 3, 3),
+                substr($digits, 6),
+            );
+        }
+
+        return $normalized;
+    }
+
+    /** Prefer a display-formatted phone, then a real email (never the phone-signup placeholder). */
+    public static function displayContact(?string $phone, ?string $email = null): string
+    {
+        $formatted = self::formatForDisplay($phone);
+        if ($formatted) {
+            return $formatted;
+        }
+
+        $email = trim((string) $email);
+        if ($email !== '' && str_ends_with(strtolower($email), '@phone.havena.local')) {
+            $local = strstr($email, '@', true) ?: '';
+
+            return self::formatForDisplay($local) ?: '';
+        }
+
+        return $email;
+    }
+
+    /** Person label for dashboards: real name, otherwise (555) 555-0100. */
+    public static function displayName(?string $name, ?string $phone = null, ?string $email = null, string $fallback = 'Resident'): string
+    {
+        $trimmed = trim((string) $name);
+        $isPlaceholderEmail = $trimmed !== '' && str_ends_with(strtolower($trimmed), '@phone.havena.local');
+        $isRawPhone = $trimmed !== '' && (bool) preg_match('/^\+?\d[\d\s().-]{6,}\d$/', $trimmed);
+
+        if ($trimmed !== '' && ! $isPlaceholderEmail && ! $isRawPhone) {
+            return $trimmed;
+        }
+
+        return self::formatForDisplay($phone)
+            ?: self::displayContact(null, $email)
+            ?: $fallback;
+    }
 }

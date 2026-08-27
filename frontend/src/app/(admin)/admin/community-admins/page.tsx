@@ -28,7 +28,7 @@ import { confirmAction, toastError, toastSuccess } from "@/lib/alert";
 import { apiError } from "@/lib/api/client";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { UtilityBillPreview } from "@/components/admin/utility-bill-preview";
-import { formatDisplayEmail } from "@/lib/user/email-display";
+import { formatAccountContact, formatAccountDisplayName, formatDisplayEmail } from "@/lib/user/email-display";
 
 type StatusTab = "pending" | "approved" | "suspended" | "reassign" | "rejected";
 
@@ -415,16 +415,18 @@ export default function CommunityAdminsPage() {
                     <DtCell first>
                       <div className="flex items-center gap-3">
                         <UserAvatar
-                          name={item.profile?.display_name ?? item.name}
+                          name={formatAccountDisplayName(item, "Community admin")}
                           src={item.avatar_url ?? item.profile?.avatar_url}
                           size={36}
                         />
                         <div>
-                          <p className="font-semibold text-slate-900">{item.name}</p>
+                          <p className="font-semibold text-slate-900">
+                            {formatAccountDisplayName(item, "Community admin")}
+                          </p>
                           <p className="text-[12px] text-slate-400">
                             {item.needs_reassign && item.reassign_summary
                               ? item.reassign_summary
-                              : formatDisplayEmail(item.email) ?? "—"}
+                              : formatAccountContact(item) || "—"}
                           </p>
                         </div>
                       </div>
@@ -618,8 +620,8 @@ function CommunityAdminDetailModal({
           {!isReassignRow ? (
             <>
               <ProfileRow label="Email" value={formatDisplayEmail(item.email) ?? "—"} />
-              <ProfileRow label="Phone" value={item.phone ? <PhoneDisplay value={item.phone} /> : "—"} />
-              <ProfileRow label="Display name" value={item.profile?.display_name ?? item.name} />
+              <ProfileRow label="Phone" value={item.phone ? <PhoneDisplay value={item.phone} /> : formatAccountContact(item) || "—"} />
+              <ProfileRow label="Display name" value={formatAccountDisplayName(item, "—")} />
               <ProfileRow label="Unit" value={item.profile?.unit_number ?? "—"} />
               <ProfileRow label="Residence" value={capitalize(item.profile?.residence_type)} />
             </>

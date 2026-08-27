@@ -307,7 +307,47 @@ export function toE164(digits, country = DEFAULT_PHONE_COUNTRY) {
 export function toDisplayPhone(input) {
   const raw = String(input ?? "").trim();
   if (!raw) return "";
+  if (raw.toLowerCase().includes("@phone.havena.local")) {
+    return toDisplayPhone(raw.replace(/@phone\.havena\.local$/i, ""));
+  }
   const parsed = parsePhoneNumberFromString(raw);
-  if (parsed) return parsed.formatInternational();
+  if (parsed) {
+    const national = String(parsed.nationalNumber ?? "").replace(/\D/g, "");
+    if (
+      (parsed.country === "US" || parsed.country === "CA" || parsed.countryCallingCode === "1") &&
+      isValidNanpNational(national)
+    ) {
+      return formatNationalDisplay(national, parsed.country || "US");
+    }
+    try {
+      return parsed.country === "US" || parsed.country === "CA"
+        ? parsed.formatNational()
+        : parsed.formatInternational();
+    } catch {
+      return parsed.number || raw;
+    }
+  }
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("1") && isValidNanpNational(digits.slice(1))) {
+    return formatNationalDisplay(digits.slice(1), "US");
+  }
+  if (digits.length === 10 && isValidNanpNational(digits)) {
+    return formatNationalDisplay(digits, "US");
+  }
   return raw;
+}
+
+/** Replace E.164 / raw phone tokens inside mixed dashboard copy. */
+export function formatPhonesInText(input) {
+  const raw = String(input ?? "").trim();
+  if (!raw) return "";
+  const withoutPlaceholderEmail = raw.replace(
+    /(\+?\d[\d\s().+-]{6,}\d)@phone\.havena\.local/gi,
+    (_, phone) => toDisplayPhone(phone) || phone,
+  );
+  return withoutPlaceholderEmail.replace(/\+?\d[\d\s().-]{6,}\d/g, (match) => {
+    const digits = match.replace(/\D/g, "");
+    if (digits.length < 10) return match;
+    return toDisplayPhone(match) || match;
+  });
 }

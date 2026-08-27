@@ -22,7 +22,14 @@ export function isPlaceholderEmail(email: string | null | undefined): boolean {
 
 export function isPlaceholderDisplayName(name: string | null | undefined): boolean {
   const trimmed = String(name ?? "").trim();
-  return !trimmed || trimmed === "My Profile" || trimmed === "Neighbor";
+  if (!trimmed || trimmed === "My Profile" || trimmed === "Neighbor") return true;
+  if (trimmed.toLowerCase().includes(PLACEHOLDER_EMAIL_SUFFIX)) return true;
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length >= 10 && digits.length <= 15) {
+    const compact = trimmed.replace(/[\s().+-]/g, "");
+    if (compact === digits || compact === `+${digits}`) return true;
+  }
+  return false;
 }
 
 export type UtilityFileInput =

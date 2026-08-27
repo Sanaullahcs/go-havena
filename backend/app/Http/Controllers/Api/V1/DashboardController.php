@@ -9,6 +9,7 @@ use App\Models\FamilyAddMemberRequest;
 use App\Models\Region;
 use App\Models\User;
 use App\Services\AdminRoleService;
+use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -560,9 +561,7 @@ class DashboardController extends Controller
             ->get()
             ->unique('membership_id')
             ->map(function ($row) {
-                $contact = $row->unit_number
-                    ? "Unit {$row->unit_number} · ".($row->phone ?? $row->email)
-                    : ($row->phone ?? $row->email);
+                $contact = $this->dashboardContact($row->phone, $row->email, $row->unit_number);
                 $detail = $row->family_number
                     ? "Family add · {$row->family_number} · {$contact}"
                     : $contact;
@@ -572,7 +571,7 @@ class DashboardController extends Controller
                     'id'            => (int) $row->membership_id,
                     'user_id'       => (int) $row->user_id,
                     'community_id'  => (int) $row->community_id,
-                    'title'         => $row->name,
+                    'title'         => PhoneNormalizer::displayName($row->name, $row->phone, $row->email),
                     'subtitle'      => $row->community_name ?? 'Unknown community',
                     'detail'        => $detail,
                     'utility_bill_url' => $this->resolveMediaUrl($row->utility_bill_url ?? null),
@@ -607,7 +606,11 @@ class DashboardController extends Controller
             ->limit(15)
             ->get()
             ->map(function (FamilyAddMemberRequest $request) {
-                $name = trim("{$request->first_name} {$request->last_name}") ?: ($request->candidate?->name ?? 'Resident');
+                $name = PhoneNormalizer::displayName(
+                    trim("{$request->first_name} {$request->last_name}") ?: ($request->candidate?->name ?? ''),
+                    $request->phone ?? $request->candidate?->phone,
+                    $request->email ?? $request->candidate?->email,
+                );
                 $familyNumber = $request->family?->family_number;
                 $communityName = $request->family?->community?->name ?? 'Unknown community';
 
@@ -619,8 +622,8 @@ class DashboardController extends Controller
                     'title'        => $name,
                     'subtitle'     => $communityName,
                     'detail'       => $familyNumber
-                        ? "Family add · {$familyNumber} · ".($request->phone ?: $request->email)
-                        : ($request->phone ?: $request->email),
+                        ? "Family add · {$familyNumber} · ".$this->dashboardContact($request->phone, $request->email)
+                        : $this->dashboardContact($request->phone, $request->email),
                     'created_at'   => $request->created_at?->toIso8601String(),
                     'action_label' => 'Review family member',
                     'action_href'  => '/admin/members?status=pending',
@@ -667,11 +670,18 @@ class DashboardController extends Controller
                         'id'               => $user->id,
                         'user_id'          => $user->id,
                         'community_id'     => $community?->id,
-                        'title'            => $profile?->display_name ?: $user->name,
+                        'title'            => PhoneNormalizer::displayName(
+                            $profile?->display_name ?: $user->name,
+                            $user->phone,
+                            $user->email,
+                            'Community admin',
+                        ),
                         'subtitle'         => $community?->name ?? 'Community admin application',
-                        'detail'           => $profile?->unit_number
-                            ? 'Unit '.$profile->unit_number.' · '.($user->phone ?? $user->email)
-                            : ($user->phone ?? $user->email),
+                        'detail'           => $this->dashboardContact(
+                            $user->phone,
+                            $user->email,
+                            $profile?->unit_number,
+                        ),
                         'utility_bill_url' => $this->resolveMediaUrl($profile?->utility_bill_url),
                         'created_at'       => $user->created_at?->toIso8601String(),
                         'action_label'     => 'Review application',
@@ -824,6 +834,18 @@ class DashboardController extends Controller
             ->values()
             ->take(15)
             ->all();
+    }
+
+    private function dashboardContact(?string $phone, ?string $email = null, mixed $unitNumber = null): string
+    {
+        $contact = PhoneNormalizer::displayContact($phone, $email);
+        $unit = trim((string) $unitNumber);
+
+        if ($unit !== '') {
+            return $contact !== '' ? "Unit {$unit} · {$contact}" : "Unit {$unit}";
+        }
+
+        return $contact;
     }
 
     private function resolveMediaUrl(?string $url): ?string

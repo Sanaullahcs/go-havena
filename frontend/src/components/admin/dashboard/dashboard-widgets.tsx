@@ -10,6 +10,7 @@ import {
 import type { AdminDashboardPendingAction } from "@/lib/api/dashboard";
 import type { DashboardTone } from "@/components/admin/dashboard/dashboard-shared";
 import { actionTypeLabel } from "@/components/admin/dashboard/dashboard-shared";
+import { formatPhonesInText } from "@/lib/phone/format";
 import { DASHBOARD_TONE, toneIcon } from "@/components/admin/dashboard/dashboard-theme";
 import { NL } from "@/lib/design-tokens";
 
@@ -61,14 +62,14 @@ export function DashboardPendingCard({
             </span>
           </div>
           <h4 className="mt-2 text-[14px] font-bold" style={{ color: NL.textPrimary }}>
-            {action.title}
+            {formatPhonesInText(action.title) || action.title}
           </h4>
           <p className="mt-0.5 text-[13px]" style={{ color: NL.textSecondary }}>
-            {action.subtitle}
+            {formatPhonesInText(action.subtitle)}
           </p>
           {action.detail ? (
             <p className="mt-1 truncate text-[12px]" style={{ color: NL.textMuted }}>
-              {action.detail}
+              {formatPhonesInText(action.detail)}
             </p>
           ) : null}
         </div>

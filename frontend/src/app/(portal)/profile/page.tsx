@@ -12,6 +12,7 @@ import { PhoneDisplay } from "@/components/admin/phone-display";
 import { emptyPhoneField, phoneFieldFromE164, type PhoneFieldState } from "@/lib/phone/format";
 import { disableWebPush, enableWebPush, isWebPushEnabledLocally } from "@/lib/firebase/web-push";
 import { PageLoader } from "@/components/shared/page-states";
+import { formatAccountContact, formatAccountDisplayName, formatDisplayEmail } from "@/lib/user/email-display";
 
 const ACHIEVEMENTS = [
   { id: 1, label: "Early Adopter",    color: "#7c3aed", desc: "One of the first 50 residents to join" },
@@ -30,7 +31,7 @@ const NOTIFICATION_PREFS = [
 export default function ProfilePage() {
   const router   = useRouter();
   const user     = getUser();
-  const email    = user?.email ?? "resident@havena.app";
+  const email    = formatDisplayEmail(user?.email);
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [editing, setEditing]     = useState(false);
@@ -79,7 +80,11 @@ export default function ProfilePage() {
     setPrefs((prev) => ({ ...prev, [key]: value }));
   };
 
-  const name     = form.name || user?.name || email.split("@")[0] || "Resident";
+  const name     = formatAccountDisplayName(
+    { name: form.name || user?.name, phone: form.phone || user?.phone, email: user?.email },
+    "Resident",
+  );
+  const contactLine = formatAccountContact({ phone: form.phone || user?.phone, email: user?.email });
   const initials = name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
 
   const handleSave = async (e: React.FormEvent) => {
@@ -150,7 +155,7 @@ export default function ProfilePage() {
 
             <div className="min-w-0 flex-1 pb-1">
               <h1 className="text-xl font-bold text-slate-900">{name}</h1>
-              <p className="text-[13px] text-slate-500">{form.unit || "—"} · {email}</p>
+              <p className="text-[13px] text-slate-500">{form.unit || "—"}{contactLine ? ` · ${contactLine}` : ""}</p>
             </div>
 
             <button
@@ -225,7 +230,7 @@ export default function ProfilePage() {
               <dl className="space-y-3">
                 {[
                   { label: "Full Name", value: form.name  },
-                  { label: "Email",     value: email       },
+                  { label: "Email",     value: email ?? "—" },
                   { label: "Phone",     value: form.phone ? <PhoneDisplay value={form.phone} compact /> : "—" },
                   { label: "Unit",      value: form.unit   },
                   { label: "Bio",       value: form.bio    },

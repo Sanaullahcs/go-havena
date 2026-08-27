@@ -64,7 +64,7 @@ const EMPTY_STATS: MemberStats = { total: 0, approved: 0, pending: 0, banned: 0,
 function contactDisplay(m: Member) {
   const email = formatDisplayEmail(m.email);
   if (email) return <span className="text-[12px] text-slate-600 truncate">{email}</span>;
-  if (m.phone) return <PhoneDisplay value={m.phone} compact />;
+  if (m.phone || m.email) return <PhoneDisplay value={m.phone || m.email} compact />;
   return <span className="text-[12px] text-slate-400">—</span>;
 }
 

@@ -8,6 +8,7 @@ import { NotificationBell, type AppNotification } from "@/components/shared/noti
 import { resolvePortalNotificationHref } from "@/lib/notifications/resolve-portal-notification-href";
 import { confirmAction } from "@/lib/alert";
 import { logout } from "@/lib/api/auth";
+import { formatAccountContact, formatAccountDisplayName } from "@/lib/user/email-display";
 
 const RESIDENT_NOTIFICATIONS: AppNotification[] = [
   { id: 1, type: "info", title: "Maintenance scheduled", body: "Your kitchen faucet repair is scheduled for today, 2–5 PM.", time: "5m ago", read: false },
@@ -46,9 +47,8 @@ export function PortalTopBar({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const displayName =
-    user?.name || user?.profile?.display_name || user?.email?.split("@")[0] || "Resident";
-  const email = user?.email || "resident@havena.app";
+  const displayName = formatAccountDisplayName(user, "Resident");
+  const contactLine = formatAccountContact(user);
 
   const initials = displayName
     .split(" ")
@@ -139,7 +139,9 @@ export function PortalTopBar({
                     </div>
                     <div className="min-w-0">
                       <p className="truncate text-[13px] font-semibold text-slate-900">{displayName}</p>
-                      <p className="truncate text-[11px] text-slate-400">{email}</p>
+                      {contactLine ? (
+                        <p className="truncate text-[11px] text-slate-400">{contactLine}</p>
+                      ) : null}
                     </div>
                   </div>
 

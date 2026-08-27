@@ -10,6 +10,7 @@ import { UserAvatar } from "@/components/admin/user-avatar";
 import { confirmAction } from "@/lib/alert";
 import { logout } from "@/lib/api/auth";
 import { NL } from "@/lib/design-tokens";
+import { formatAccountContact, formatAccountDisplayName } from "@/lib/user/email-display";
 
 const ADMIN_NOTIFICATIONS: AppNotification[] = [
   { id: 1, type: "warning", title: "New moderation report", body: "James Okafor filed a noise complaint for Apt 3C.", time: "2m ago", read: false },
@@ -59,9 +60,8 @@ export function AdminTopBar({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const displayName =
-    user?.name || user?.profile?.display_name || user?.email?.split("@")[0] || "Admin";
-  const email = user?.email || "admin@havena.app";
+  const displayName = formatAccountDisplayName(user, "Admin");
+  const contactLine = formatAccountContact(user);
   const avatarUrl = user?.profile?.avatar_url ?? user?.profile?.avatar ?? null;
 
   const handleLogout = async () => {
@@ -151,7 +151,9 @@ export function AdminTopBar({
                     />
                     <div className="min-w-0">
                       <p className="truncate text-[13px] font-semibold text-slate-900">{displayName}</p>
-                      <p className="truncate text-[11px] text-slate-400">{email}</p>
+                      {contactLine ? (
+                        <p className="truncate text-[11px] text-slate-400">{contactLine}</p>
+                      ) : null}
                     </div>
                   </div>
 

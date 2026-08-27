@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { getUser } from "@/lib/auth/session";
+import { formatAccountDisplayName } from "@/lib/user/email-display";
 import { confirmDelete, toastSuccess, toastInfo, toastError } from "@/lib/alert";
 import {
   fetchFeed, createPost, deletePost, likePost,
@@ -78,7 +79,7 @@ export default function FeedPage() {
   const user      = getUser();
   const searchParams = useSearchParams();
   const highlightPostId = searchParams.get("post");
-  const myName    = user?.name || user?.email?.split("@")[0] || "You";
+  const myName    = formatAccountDisplayName(user, "You");
   const myInitials = myName.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
   const highlightedRef = useRef<HTMLElement | null>(null);
 
