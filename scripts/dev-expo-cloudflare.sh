@@ -63,7 +63,17 @@ EXPO_PUBLIC_API_URL=${API_URL}
 EXPO_PUBLIC_ADMIN_URL=${ADMIN_URL:-http://localhost:3000}
 EOF
 
-# Cloudflare tunnel → Metro
+PROXY_PORT="${EXPO_PROXY_PORT:-8082}"
+PROXY_LOG="/tmp/metro-proxy.log"
+
+# Manifest proxy so Camera / Expo Go scans get JSON instead of web HTML
+if $TMUX has-session -t "=metro-proxy" 2>/dev/null; then
+  $TMUX kill-session -t metro-proxy 2>/dev/null || true
+fi
+$TMUX new-session -d -s metro-proxy -c "$ROOT" -- \
+  "bash -lc 'EXPO_PROXY_PORT=${PROXY_PORT} EXPO_PROXY_TARGET_PORT=${METRO_PORT} node ${ROOT}/scripts/expo-manifest-proxy.js 2>&1 | tee ${PROXY_LOG}'"
+
+# Cloudflare tunnel → proxy (not Metro directly)
 if $TMUX has-session -t "=metro-tunnel" 2>/dev/null; then
   METRO_TUNNEL="$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$METRO_LOG" 2>/dev/null | head -1 || true)"
   if [[ -z "$METRO_TUNNEL" ]] || ! curl -sf -o /dev/null "$METRO_TUNNEL/"; then
@@ -75,7 +85,7 @@ fi
 if [[ -z "${METRO_TUNNEL:-}" ]]; then
   rm -f "$METRO_LOG"
   $TMUX new-session -d -s metro-tunnel -c "$ROOT" -- \
-    "bash -lc 'npx --yes cloudflared tunnel --url http://127.0.0.1:${METRO_PORT} 2>&1 | tee ${METRO_LOG}'"
+    "bash -lc 'npx --yes cloudflared tunnel --protocol http2 --url http://127.0.0.1:${PROXY_PORT} 2>&1 | tee ${METRO_LOG}'"
   METRO_TUNNEL="$(wait_for_tunnel "$METRO_LOG")"
 fi
 
