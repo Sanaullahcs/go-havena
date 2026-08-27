@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Database\Seeders\CommunitySeeder;
 use Database\Seeders\DemoContentSeeder;
 use Database\Seeders\MobileTestAccountsSeeder;
 use Illuminate\Console\Command;
@@ -32,11 +33,12 @@ class SeedDemoCommand extends Command
 
         $this->syncSeedImagesToMobile();
 
+        $this->info('Ensuring a community and mobile test accounts…');
+        $this->call('db:seed', ['--class' => CommunitySeeder::class, '--force' => true]);
+        $this->call('db:seed', ['--class' => MobileTestAccountsSeeder::class, '--force' => true]);
+
         $this->info('Seeding demo content…');
         $this->call('db:seed', ['--class' => DemoContentSeeder::class, '--force' => true]);
-
-        $this->info('Ensuring mobile test accounts…');
-        $this->call('db:seed', ['--class' => MobileTestAccountsSeeder::class, '--force' => true]);
 
         $this->newLine();
         $this->info('Demo data ready.');

@@ -28,7 +28,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-play-store-
 | `apps/mobile/store/play/feature_graphic_1024x500.png` | **1024 × 500** | PNG, opaque | Store listing → Feature graphic |
 | `apps/mobile/store/play/app_icon_source_1024.png` | 1024 × 1024 | PNG | Reference only — do not upload |
 
-Play icon rules used: 512×512, 32-bit PNG, **no transparency**, mark on `#1B4F8A` so it matches the Android adaptive icon users see on the home screen.
+Play icon rules used: 512×512, 32-bit PNG, **no transparency**, mark on **white** so both infinity loops stay visible. Android adaptive icon background is also `#FFFFFF`.
 
 ---
 
@@ -38,14 +38,14 @@ Play needs **at least 2** phone screenshots. Use **4–6**. Do **not** change th
 
 **Play rules:** JPEG or 24-bit PNG (no alpha), shortest side ≥ 320 px, longest side ≤ 3840 px. Recommended **1080 × 1920** (9:16 portrait).
 
-| # | Screen | Route | Caption (≤80 chars) | Suggested filename |
-|---|--------|-------|---------------------|--------------------|
-| 1 | Home | `/(tabs)/home` | Stay connected to your community | `screenshot_01_home_1080x1920.png` |
-| 2 | Community | `/(tabs)/community` | Notices, neighbors, and local life | `screenshot_02_community_1080x1920.png` |
-| 3 | Marketplace | `/(tabs)/marketplace` | Buy, sell, and discover nearby | `screenshot_03_marketplace_1080x1920.png` |
-| 4 | Services | `/(tabs)/services` | Book amenities and community services | `screenshot_04_services_1080x1920.png` |
-| 5 | Profile | `/(tabs)/profile` | Your home profile in one place | `screenshot_05_profile_1080x1920.png` |
-| 6 | Sign-in (optional) | `/screens/login` | Secure phone sign-in for residents | `screenshot_06_login_1080x1920.png` |
+| # | Screen | Route | Screenshot URL (Expo Go) | Caption (≤80 chars) | Suggested filename |
+|---|--------|-------|--------------------------|---------------------|--------------------|
+| 1 | Home | `/(tabs)/home` | [exp://192.168.0.134:8081/--/home](exp://192.168.0.134:8081/--/home) | Stay connected to your community | `screenshot_01_home_1080x1920.png` |
+| 2 | Community | `/(tabs)/community` | [exp://192.168.0.134:8081/--/community](exp://192.168.0.134:8081/--/community) | Notices, neighbors, and local life | `screenshot_02_community_1080x1920.png` |
+| 3 | Marketplace | `/(tabs)/marketplace` | [exp://192.168.0.134:8081/--/marketplace](exp://192.168.0.134:8081/--/marketplace) | Buy, sell, and discover nearby | `screenshot_03_marketplace_1080x1920.png` |
+| 4 | Services | `/(tabs)/services` | [exp://192.168.0.134:8081/--/services](exp://192.168.0.134:8081/--/services) | Book amenities and community services | `screenshot_04_services_1080x1920.png` |
+| 5 | Profile | `/(tabs)/profile` | [exp://192.168.0.134:8081/--/profile](exp://192.168.0.134:8081/--/profile) | Your home profile in one place | `screenshot_05_profile_1080x1920.png` |
+| 6 | Sign-in (optional) | `/screens/login` | [exp://192.168.0.134:8081/--/screens/login](exp://192.168.0.134:8081/--/screens/login) | Secure phone sign-in for residents | `screenshot_06_login_1080x1920.png` |
 
 Save captures **in this folder**. How:
 
@@ -65,7 +65,7 @@ These ship **inside the app**. They are already set. Do not swap them for listin
 | Asset | Path | Size / notes | Play-ready? |
 |-------|------|----------------|-------------|
 | Expo icon | `apps/mobile/assets/images/app-icon.png` | 1024×1024, used by EAS/iOS | Yes for the binary |
-| Adaptive foreground | `apps/mobile/assets/images/android-icon-foreground.png` | Infinity mark | Yes; `app.json` background `#1B4F8A` |
+| Adaptive foreground | `apps/mobile/assets/images/android-icon-foreground.png` | Transparent mark | Yes; `app.json` background `#FFFFFF` |
 | Splash | `apps/mobile/assets/images/splash-icon.png` | Infinity, contain, **white** splash | Yes |
 | Unused Expo defaults | `android-icon-background.png`, `android-icon-monochrome.png` | Not referenced in `app.json` | Ignore |
 

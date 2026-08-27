@@ -74,6 +74,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => true,
                 'slot_duration_minutes' => 60,
                 'icon_key' => 'pool',
+                'image' => 'amenity-pool',
             ],
             [
                 'name' => 'Fitness Center',
@@ -92,6 +93,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => true,
                 'slot_duration_minutes' => null,
                 'icon_key' => 'gym',
+                'image' => 'amenity-gym',
             ],
             [
                 'name' => 'Community Hall',
@@ -110,6 +112,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => true,
                 'slot_duration_minutes' => 120,
                 'icon_key' => 'hall',
+                'image' => 'amenity-clubhouse',
             ],
             [
                 'name' => 'Tennis Court',
@@ -128,6 +131,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => true,
                 'slot_duration_minutes' => 60,
                 'icon_key' => 'sports',
+                'image' => 'amenity-gym',
             ],
             [
                 'name' => 'BBQ Terrace',
@@ -146,6 +150,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => true,
                 'slot_duration_minutes' => 90,
                 'icon_key' => 'dining',
+                'image' => 'event-bbq',
             ],
             [
                 'name' => 'Kids Playground',
@@ -164,6 +169,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => true,
                 'slot_duration_minutes' => null,
                 'icon_key' => 'playground',
+                'image' => 'listing-plants',
             ],
             [
                 'name' => 'Meeting Room',
@@ -182,6 +188,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => false,
                 'slot_duration_minutes' => 60,
                 'icon_key' => 'meeting',
+                'image' => 'event-townhall',
             ],
             [
                 'name' => 'Residents Lounge',
@@ -200,6 +207,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => false,
                 'slot_duration_minutes' => null,
                 'icon_key' => 'building',
+                'image' => 'amenity-clubhouse',
             ],
             [
                 'name' => 'Yoga Studio (Pending)',
@@ -218,6 +226,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => true,
                 'slot_duration_minutes' => 60,
                 'icon_key' => 'spa',
+                'image' => 'wellness-exercise',
             ],
             [
                 'name' => 'Guest Parking Bay (Pending)',
@@ -236,6 +245,7 @@ class AmenitySeeder extends Seeder
                 'weekends_available' => true,
                 'slot_duration_minutes' => 120,
                 'icon_key' => 'parking',
+                'image' => 'community-cover',
             ],
         ];
 
@@ -248,12 +258,15 @@ class AmenitySeeder extends Seeder
                 ->where('name', $row['name'])
                 ->value('id');
 
+            $imageUrl = ! empty($row['image']) ? '/storage/seed/'.$row['image'].'.jpg' : null;
+
             if ($existingId) {
                 DB::table('amenities')->where('id', $existingId)->update([
                     'name_es' => $row['name_es'] ?? null,
                     'name_ar' => $row['name_ar'] ?? null,
                     'description_es' => $row['description_es'] ?? null,
                     'description_ar' => $row['description_ar'] ?? null,
+                    'image_url' => $imageUrl,
                     'updated_at' => $now,
                 ]);
                 $amenityIdsByName[$row['name']] = (int) $existingId;
@@ -283,6 +296,7 @@ class AmenitySeeder extends Seeder
                     'weekends_available' => $row['weekends_available'],
                     'slot_duration_minutes' => $row['slot_duration_minutes'],
                     'icon_key' => $row['icon_key'],
+                    'image_url' => $imageUrl,
                     'updated_at' => $now,
                 ]);
                 $amenityIdsByName[$row['name']] = (int) $fuzzyId;
@@ -307,7 +321,7 @@ class AmenitySeeder extends Seeder
                 'end_time' => $row['end_time'],
                 'weekends_available' => $row['weekends_available'],
                 'slot_duration_minutes' => $row['slot_duration_minutes'],
-                'image_url' => null,
+                'image_url' => $imageUrl,
                 'icon_key' => $row['icon_key'],
                 'created_at' => $now,
                 'updated_at' => $now,
@@ -345,6 +359,17 @@ class AmenitySeeder extends Seeder
         array $residentIds,
         $now,
     ): int {
+        $screenshotUserId = DB::table('users')
+            ->where('phone', '+15555550100')
+            ->orWhere('email', 'test.resident@havena.app')
+            ->value('id');
+        if ($screenshotUserId) {
+            $residentIds = array_values(array_unique(array_merge(
+                [(int) $screenshotUserId],
+                $residentIds,
+            )));
+        }
+
         if ($residentIds === []) {
             return 0;
         }
@@ -371,7 +396,7 @@ class AmenitySeeder extends Seeder
                 'date' => $tomorrow,
                 'time_slot' => '10:00 AM - 11:00 AM',
                 'guests' => 2,
-                'status' => 'pending',
+                'status' => 'confirmed',
                 'notes' => 'Family swim — please keep shallow end clear.',
             ] : null,
             $poolId && isset($residentIds[1]) ? [
@@ -398,8 +423,17 @@ class AmenitySeeder extends Seeder
                 'date' => $dayAfter,
                 'time_slot' => '08:00 AM - 09:00 AM',
                 'guests' => 2,
-                'status' => 'pending',
+                'status' => 'confirmed',
                 'notes' => 'Doubles practice.',
+            ] : null,
+            $hallId ? [
+                'amenity_id' => (int) $hallId,
+                'user_id' => $residentIds[0],
+                'date' => $nextWeek,
+                'time_slot' => '06:00 PM - 08:00 PM',
+                'guests' => 8,
+                'status' => 'confirmed',
+                'notes' => 'Neighbors dinner — clubhouse reserved.',
             ] : null,
         ]));
 

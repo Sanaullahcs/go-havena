@@ -745,7 +745,7 @@ class DemoContentSeeder extends Seeder
         ];
 
         foreach ($threads as [$other, $type, $messages]) {
-            if (! $other) {
+            if (! $other || (int) $other === (int) $resident) {
                 continue;
             }
 
@@ -770,14 +770,15 @@ class DemoContentSeeder extends Seeder
             ]);
 
             foreach ([$resident, $other] as $participant) {
-                DB::table('conversation_participants')->insert([
-                    'conversation_id' => $conversationId,
-                    'user_id' => $participant,
-                    'unread_count' => $participant === $resident ? 1 : 0,
-                    'last_read_at' => now()->subDays(1),
-                    'created_at' => now()->subDays(4),
-                    'updated_at' => now(),
-                ]);
+                DB::table('conversation_participants')->updateOrInsert(
+                    ['conversation_id' => $conversationId, 'user_id' => $participant],
+                    [
+                        'unread_count' => (int) $participant === (int) $resident ? 1 : 0,
+                        'last_read_at' => now()->subDays(1),
+                        'updated_at' => now(),
+                        'created_at' => now()->subDays(4),
+                    ]
+                );
             }
 
             foreach ($messages as [$senderId, $body, $daysAgo]) {
