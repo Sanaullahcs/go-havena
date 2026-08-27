@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 /**
- * Forward Metro (:8081) and inject Expo-Platform on manifest routes.
- * Expo Go / iOS Camera often fetch "/" without that header; Metro then
- * returns the web HTML page and Expo Go fails with
- * "Failed to parse manifest JSON".
+ * Forward Metro and always return a native JSON manifest for "/", "/manifest",
+ * and "/index.exp".
+ *
+ * Without this, Camera / Expo Go often fetch without Expo-Platform (Metro then
+ * serves the web HTML page) or with Accept: multipart/mixed (body is not JSON).
+ * Both produce: "Failed to parse manifest JSON".
  */
 const http = require("http");
 const net = require("net");
@@ -27,17 +29,12 @@ function guessPlatform(req) {
 
 function rewriteManifestRequest(req) {
   if (!isManifestPath(req.url)) return;
-  if (!req.headers["expo-platform"] && !req.headers["exponent-platform"]) {
-    req.headers["expo-platform"] = guessPlatform(req);
-  }
-  const accept = String(req.headers.accept || "");
-  if (!accept || accept === "*/*" || accept.includes("text/html")) {
-    req.headers.accept = "application/expo+json, application/json";
-  }
+  req.headers["expo-platform"] = guessPlatform(req);
+  req.headers.accept = "application/expo+json, application/json";
+  delete req.headers["expo-expect-signature"];
 }
 
-const server = http.createServer((req, res) => {
-  rewriteManifestRequest(req);
+function forward(req, res) {
   const proxy = http.request(
     {
       hostname: TARGET_HOST,
@@ -56,6 +53,11 @@ const server = http.createServer((req, res) => {
     res.end(`expo-manifest-proxy: ${err.message}`);
   });
   req.pipe(proxy);
+}
+
+const server = http.createServer((req, res) => {
+  rewriteManifestRequest(req);
+  forward(req, res);
 });
 
 server.on("upgrade", (req, socket, head) => {

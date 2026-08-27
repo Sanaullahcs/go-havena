@@ -99,7 +99,7 @@ $TMUX new-session -d -s mobile-expo-dev -c "$MOBILE" -- \
 
 wait_for_metro
 
-EXPO_URL="exp://${METRO_TUNNEL#https://}"
+EXPO_URL="exp://${METRO_TUNNEL#https://}:443"
 node -e "
   const qr = require('${ROOT}/frontend/node_modules/qrcode');
   qr.toFile('${ROOT}/expo-go-qr.png', process.argv[1], { width: 400, margin: 2 }, (err) => {
