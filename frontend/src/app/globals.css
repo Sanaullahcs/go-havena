@@ -307,6 +307,7 @@ body {
 /* One logo only: hero on desktop, form on mobile */
 .nl-login-brand--hero {
   display: flex;
+  overflow: visible;
 }
 .nl-login-brand--form {
   display: none !important;
@@ -316,6 +317,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0.625rem;
+  overflow: visible;
 }
 .nl-login-brand__mark {
   display: flex;
@@ -324,11 +326,11 @@ body {
   align-items: center;
   justify-content: center;
   border-radius: 0.75rem;
-  background: #1B4F8A;
+  background: #ffffff;
   color: #fff;
   box-shadow: none;
-  padding: 0.375rem;
-  overflow: visible;
+  padding: 0.2rem;
+  overflow: hidden;
 }
 .nl-login-brand__name {
   font-size: 0.9375rem;
@@ -389,18 +391,22 @@ body {
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(27, 79, 138, 0.08);
   transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.auth-mode-switch[data-active="system"] .auth-mode-switch__slider {
+.auth-mode-switch[data-active="system"] .auth-mode-switch__slider,
+.auth-mode-switch[data-active="register"] .auth-mode-switch__slider {
   transform: translateX(100%);
 }
 .auth-mode-switch__tab {
   position: relative;
   z-index: 1;
+  display: block;
   border: none;
   background: transparent;
   padding: 0.5rem 0.75rem;
   font-size: 0.8125rem;
   font-weight: 600;
   color: #64748b;
+  text-align: center;
+  text-decoration: none;
   cursor: pointer;
   transition: color 0.2s;
 }

@@ -3,22 +3,7 @@
 import Link from "next/link";
 import { LogOut } from "lucide-react";
 import { OnboardingProgress } from "@/components/admin/onboarding/onboarding-ui";
-
-function HavenaMark() {
-  return (
-    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#1B4F8A] shadow-sm">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-        <path
-          d="M3 9l9-6 9 6v11a1 1 0 01-1 1H4a1 1 0 01-1-1V9z"
-          stroke="white"
-          strokeWidth="1.8"
-          strokeLinejoin="round"
-        />
-        <path d="M9 21V12h6v9" stroke="white" strokeWidth="1.8" strokeLinejoin="round" />
-      </svg>
-    </span>
-  );
-}
+import { HavenaMark } from "@/components/shared/havena-mark";
 
 export function AdminOnboardingTopBar({
   title,
@@ -43,7 +28,7 @@ export function AdminOnboardingTopBar({
           href="/"
           className="flex shrink-0 items-center gap-2 rounded-lg outline-none ring-teal-500/30 focus-visible:ring-2"
         >
-          <HavenaMark />
+          <HavenaMark size={32} />
           <span className="hidden text-[13px] font-bold tracking-tight text-slate-900 sm:inline">
             Havena
           </span>

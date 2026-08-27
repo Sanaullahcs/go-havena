@@ -4,7 +4,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AuthLogo from "../ui/auth-logo";
 import AuthStepDots from "./auth-step-dots";
 import BackButton from "../ui/back-button";
-import { ScreenBrand } from "../../constants/screen-brand";
 
 /** Fixed top row: logo (left) + step progress (right). Optional back on verify. */
 export default function AuthFlowTopBar({
@@ -29,11 +28,7 @@ export default function AuthFlowTopBar({
         {showBack ? (
           <BackButton style={styles.back} onPress={onBack} />
         ) : null}
-        <AuthLogo
-          size={logoSize}
-          compact
-          tileColor={brandPrimaryLogo ? ScreenBrand.primary : undefined}
-        />
+        <AuthLogo size={logoSize} compact />
       </View>
       <AuthStepDots current={current} total={total} inline />
     </View>

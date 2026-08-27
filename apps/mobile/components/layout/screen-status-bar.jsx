@@ -34,8 +34,8 @@ export default function ScreenStatusBar({
       applySplashChrome();
       registerScreenChrome({
         color: SPLASH_CHROME_COLOR,
-        barStyle: "light-content",
-        expoStyle: "light",
+        barStyle: "dark-content",
+        expoStyle: "dark",
         edgeToEdge: false,
         variant: "splash",
       });
@@ -64,7 +64,7 @@ export default function ScreenStatusBar({
   return (
     <>
       {shouldReapplyOnFocus ? <ChromeOnFocus applyChrome={applyChrome} /> : null}
-      <StatusBar style={variant === "splash" ? "light" : style} />
+      <StatusBar style={variant === "splash" ? "dark" : style} />
     </>
   );
 }

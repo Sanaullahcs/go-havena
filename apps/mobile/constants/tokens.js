@@ -49,7 +49,7 @@ export const Colors = {
 };
 
 export const SolidFills = {
-  splash: NAVY,
+  splash: "#FFFFFF",
   notice: NAVY,
   cta: PRIMARY,
   authScreen: "#FFFFFF",

@@ -142,7 +142,7 @@ export default function WelcomeScreen() {
 
   return (
     <>
-      <ScreenStatusBar style="light" variant="splash" />
+      <ScreenStatusBar style="dark" variant="splash" />
       <View style={styles.container}>
       <View style={styles.content}>
         <View style={styles.brand}>
@@ -165,13 +165,13 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: 28,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#1B4F8A",
     lineHeight: 34,
   },
   subtitle: {
     fontFamily: Fonts.regular,
     fontSize: 13,
-    color: "rgba(255,255,255,0.78)",
+    color: "rgba(27,79,138,0.62)",
     lineHeight: 18,
   },
   loader: {
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
     height: 30,
     borderRadius: 15,
     borderWidth: 2.5,
-    borderColor: "rgba(255,255,255,0.35)",
-    borderTopColor: "rgba(255,255,255,0.85)",
+    borderColor: "rgba(27,79,138,0.22)",
+    borderTopColor: "#1B4F8A",
   },
 });

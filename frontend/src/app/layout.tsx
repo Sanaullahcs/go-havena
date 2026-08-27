@@ -31,8 +31,8 @@ export const metadata: Metadata = {
   },
   description: "Havena community & wellness platform",
   icons: {
-    icon: [{ url: "/favicon.png", type: "image/png" }],
-    apple: [{ url: "/app-icon.png" }],
+    icon: [{ url: "/favicon.png?v=20260827c", type: "image/png" }],
+    apple: [{ url: "/app-icon.png?v=20260827c" }],
   },
 };
 

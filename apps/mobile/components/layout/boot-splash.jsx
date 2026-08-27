@@ -4,7 +4,7 @@ import AuthLogo from "../ui/auth-logo";
 import ScreenStatusBar from "./screen-status-bar";
 import { applySplashChrome, SPLASH_CHROME_COLOR } from "./system-chrome";
 
-/** Shown while fonts load — keeps blue chrome if native splash hides early. */
+/** Shown while fonts load — keeps white chrome if native splash hides early. */
 export default function BootSplash() {
   useEffect(() => {
     applySplashChrome();
@@ -12,7 +12,7 @@ export default function BootSplash() {
 
   return (
     <>
-      <ScreenStatusBar style="light" variant="splash" />
+      <ScreenStatusBar style="dark" variant="splash" />
       <View style={styles.fill}>
         <AuthLogo size={86} compact variant="splash" />
       </View>

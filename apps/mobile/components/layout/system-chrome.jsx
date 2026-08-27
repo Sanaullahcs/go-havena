@@ -9,7 +9,7 @@ export const SYSTEM_CHROME_COLOR = "#FFFFFF";
 export const PAGE_CHROME_COLOR = "#F8FAFC";
 
 /** Splash / welcome — matches expo-splash-screen backgroundColor. */
-export const SPLASH_CHROME_COLOR = Colors.brandPrimaryDeep;
+export const SPLASH_CHROME_COLOR = "#FFFFFF";
 
 /** Single source of truth for status bar + window background on Android. */
 export function setAppChrome({ color, barStyle, edgeToEdge = false }) {
@@ -30,11 +30,11 @@ export function setAppChrome({ color, barStyle, edgeToEdge = false }) {
   StatusBar.setBarStyle(barStyle);
 }
 
-/** Opaque blue bar — reliable during native splash, font load, and welcome screen. */
+/** Opaque white bar — native splash, font load, and welcome screen. */
 export function applySplashChrome() {
   setAppChrome({
     color: SPLASH_CHROME_COLOR,
-    barStyle: "light-content",
+    barStyle: "dark-content",
     edgeToEdge: false,
   });
 }

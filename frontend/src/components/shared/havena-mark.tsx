@@ -1,59 +1,53 @@
+"use client";
+
+import { useState } from "react";
+import havenaMark from "@/assets/havena-mark.png";
+
+const BUNDLED_SRC = typeof havenaMark === "string" ? havenaMark : havenaMark.src;
+const FALLBACKS = [BUNDLED_SRC, "/havena-logo.png"];
+
+function BrandImage({
+  size,
+  className,
+}: {
+  size: number;
+  className: string;
+}) {
+  const [index, setIndex] = useState(0);
+  const src = FALLBACKS[Math.min(index, FALLBACKS.length - 1)];
+
+  return (
+    <img
+      src={src}
+      alt="Havena"
+      width={size}
+      height={size}
+      className={`object-contain ${className}`.trim()}
+      onError={() => {
+        setIndex((current) => (current < FALLBACKS.length - 1 ? current + 1 : current));
+      }}
+    />
+  );
+}
+
 /**
- * Havena brand mark — clean H monogram.
- * Teal crossbar = the “link” between neighbors; no house-icon cliché.
+ * Havena brand mark — original two-tone infinity PNG.
  */
 export function HavenaMark({
   size = 36,
   className = "",
-  tone = "brand",
+  tone: _tone = "brand",
 }: {
   size?: number;
   className?: string;
   tone?: "brand" | "light";
 }) {
-  const tile = tone === "light" ? "#FFFFFF" : "#1B4F8A";
-  const stem = tone === "light" ? "#1B4F8A" : "#FFFFFF";
-
-  return (
-    <svg
-      viewBox="0 0 40 40"
-      width={size}
-      height={size}
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      className={className}
-    >
-      <rect width="40" height="40" rx="11" fill={tile} />
-      <path
-        d="M13 12.5 V27.5"
-        fill="none"
-        stroke={stem}
-        strokeWidth="3.2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M27 12.5 V27.5"
-        fill="none"
-        stroke={stem}
-        strokeWidth="3.2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M13 20 H27"
-        fill="none"
-        stroke="#14B8A6"
-        strokeWidth="3.2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+  return <BrandImage size={size} className={className} />;
 }
 
 /** Compact glyph for tinted tiles (no filled background). */
 export function HavenaHouseIcon({
   size = 20,
-  color = "#1B4F8A",
-  accent = "#14B8A6",
   className = "",
 }: {
   size?: number;
@@ -61,34 +55,5 @@ export function HavenaHouseIcon({
   accent?: string;
   className?: string;
 }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      className={className}
-    >
-      <path
-        d="M7 5.5 V18.5"
-        stroke={color}
-        strokeWidth="2.1"
-        strokeLinecap="round"
-      />
-      <path
-        d="M17 5.5 V18.5"
-        stroke={color}
-        strokeWidth="2.1"
-        strokeLinecap="round"
-      />
-      <path
-        d="M7 12 H17"
-        stroke={accent}
-        strokeWidth="2.1"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+  return <BrandImage size={size} className={className} />;
 }

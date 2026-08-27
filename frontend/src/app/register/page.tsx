@@ -20,6 +20,7 @@ import {
   AuthBackLink,
   AuthErrorBanner,
   AuthStepDots,
+  CommunityAuthTabs,
 } from "@/components/auth/auth-form-shell";
 import { OtpVerifyStep } from "@/components/auth/otp-verify-step";
 import { PhoneSignInStep } from "@/components/auth/phone-sign-in-step";
@@ -49,6 +50,7 @@ function RegisterPageInner() {
   const planQuery = planHint
     ? `?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
     : "";
+  const tabQuery = searchParams.toString() ? `?${searchParams.toString()}` : "";
   const billingReturnPath = planHint
     ? `/admin/billing?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
     : "/admin/billing";
@@ -238,7 +240,9 @@ function RegisterPageInner() {
               <span className="nl-login-brand__name">Havena</span>
             </div>
 
-            {otpStep === "code" ? (
+            {otpStep === "phone" ? (
+              <CommunityAuthTabs active="register" query={tabQuery} />
+            ) : (
               <AuthBackLink
                 onClick={() => {
                   setOtpStep("phone");
@@ -248,7 +252,7 @@ function RegisterPageInner() {
               >
                 Back to phone
               </AuthBackLink>
-            ) : null}
+            )}
 
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -315,11 +319,7 @@ function RegisterPageInner() {
             )}
 
             <p className="mt-8 text-center text-[12px] text-slate-500">
-              Already registered?{" "}
-              <Link href={`/login${planQuery}`} className="font-semibold text-[#0d9488] hover:underline">
-                Sign in
-              </Link>
-              {" · "}
+              Looking for a plan?{" "}
               <a href="/plans" className="font-semibold text-[#0d9488] hover:underline">
                 View plans
               </a>
