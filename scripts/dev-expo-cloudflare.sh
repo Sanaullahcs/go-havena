@@ -99,10 +99,12 @@ $TMUX new-session -d -s mobile-expo-dev -c "$MOBILE" -- \
 
 wait_for_metro
 
-EXPO_URL="exp://${METRO_TUNNEL#https://}:443"
+# exps:// = HTTPS. exp://host:443 is HTTP-on-443; iOS Expo Go then
+# tries to parse the TLS handshake and shows "Failed to parse manifest JSON".
+EXPO_URL="exps://${METRO_TUNNEL#https://}"
 node -e "
   const qr = require('${ROOT}/frontend/node_modules/qrcode');
-  qr.toFile('${ROOT}/expo-go-qr.png', process.argv[1], { width: 400, margin: 2 }, (err) => {
+  qr.toFile('${ROOT}/expo-go-qr.png', process.argv[1], { width: 800, margin: 3, errorCorrectionLevel: 'M' }, (err) => {
     if (err) { console.error(err); process.exit(1); }
     console.log(process.argv[1]);
   });
