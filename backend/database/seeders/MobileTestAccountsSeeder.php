@@ -113,7 +113,7 @@ class MobileTestAccountsSeeder extends Seeder
             ['user_id' => $user->id],
             [
                 'display_name'   => $displayName,
-                'avatar_url'     => 'https://i.pravatar.cc/300?img=8',
+                'avatar_url'     => '/storage/seed/avatar-alex.jpg',
                 'unit_number'    => $unit,
                 'residence_type' => $residenceType,
                 'bio'            => "Resident at {$community->name}. Weekend runner and farmers-market regular.",
@@ -160,6 +160,7 @@ class MobileTestAccountsSeeder extends Seeder
             ['user_id' => $user->id],
             [
                 'display_name'   => $name,
+                'avatar_url'     => '/storage/seed/avatar-admin.jpg',
                 'unit_number'    => 'Management Office',
                 'residence_type' => 'Office',
                 'bio'            => "Test community admin for {$community->name}.",
@@ -177,6 +178,11 @@ class MobileTestAccountsSeeder extends Seeder
                 'status' => 'approved',
             ],
         );
+
+        CommunityMembership::query()
+            ->where('user_id', $user->id)
+            ->where('community_id', '!=', $community->id)
+            ->delete();
 
         $this->command?->info("  Community admin ready: {$phone} → {$community->name}");
     }

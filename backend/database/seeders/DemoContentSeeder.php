@@ -103,7 +103,7 @@ class DemoContentSeeder extends Seeder
         ];
 
         $map = [];
-        foreach ($people as [$name, $email, $unit, $type, $bio, $avatarN, $status, $role]) {
+        foreach ($people as $index => [$name, $email, $unit, $type, $bio, $avatarN, $status, $role]) {
             DB::table('users')->updateOrInsert(
                 ['email' => $email],
                 [
@@ -120,12 +120,13 @@ class DemoContentSeeder extends Seeder
 
             $userId = DB::table('users')->where('email', $email)->value('id');
             $map[$email] = $userId;
+            $avatarFile = 'avatar-'.str_pad((string) (($index % 14) + 1), 2, '0', STR_PAD_LEFT).'.jpg';
 
             DB::table('profiles')->updateOrInsert(
                 ['user_id' => $userId],
                 [
                     'display_name' => $name,
-                    'avatar_url' => "https://i.pravatar.cc/300?img={$avatarN}",
+                    'avatar_url' => "{$this->img}/{$avatarFile}",
                     'bio' => $bio,
                     'unit_number' => $unit,
                     'residence_type' => $type,
@@ -147,12 +148,16 @@ class DemoContentSeeder extends Seeder
         }
 
         // Give the standing test accounts avatars too, if present.
-        foreach (['test.resident@havena.app' => 8, 'test.community.admin@havena.app' => 3, 'community.admin@havena.app' => 11] as $email => $n) {
+        foreach ([
+            'test.resident@havena.app' => 'avatar-alex.jpg',
+            'test.community.admin@havena.app' => 'avatar-admin.jpg',
+            'community.admin@havena.app' => 'avatar-admin.jpg',
+        ] as $email => $avatarFile) {
             $uid = DB::table('users')->where('email', $email)->value('id');
             if ($uid) {
                 DB::table('profiles')->updateOrInsert(
                     ['user_id' => $uid],
-                    ['avatar_url' => "https://i.pravatar.cc/300?img={$n}", 'updated_at' => now()]
+                    ['avatar_url' => "{$this->img}/{$avatarFile}", 'updated_at' => now()]
                 );
                 $map[$email] = $uid;
             }
@@ -965,7 +970,7 @@ class DemoContentSeeder extends Seeder
                 ['user_id' => $uid],
                 [
                     'display_name' => $name,
-                    'avatar_url' => 'https://i.pravatar.cc/300?img='.(52 + $i),
+                    'avatar_url' => "{$this->img}/avatar-".str_pad((string) (($i % 14) + 1), 2, '0', STR_PAD_LEFT).'.jpg',
                     'utility_bill_url' => "{$this->img}/notice-maintenance.jpg",
                     'unit_number' => 'Management Office',
                     'residence_type' => 'Office',

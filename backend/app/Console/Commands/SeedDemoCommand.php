@@ -25,7 +25,13 @@ class SeedDemoCommand extends Command
             $this->call('storage:link');
         }
 
-        $this->info('Generating demo seed images…');
+        $this->info('Downloading real demo photos…');
+        $code = $this->downloadSeedPhotos();
+        if ($code !== 0) {
+            $this->warn('  Photo download had failures — falling back to any existing files.');
+        }
+
+        $this->info('Filling any missing seed images…');
         $code = $this->generateSeedImages();
         if ($code !== 0) {
             return self::FAILURE;
@@ -47,6 +53,25 @@ class SeedDemoCommand extends Command
         $this->line('  Legacy resident:       (555) 555-5555  ·  OTP 123456');
 
         return self::SUCCESS;
+    }
+
+    private function downloadSeedPhotos(): int
+    {
+        $script = base_path('scripts/download-seed-photos.php');
+        if (! is_file($script)) {
+            $this->warn('  Missing scripts/download-seed-photos.php');
+
+            return self::FAILURE;
+        }
+
+        $args = escapeshellarg($script);
+        if ($this->option('force-images')) {
+            $args .= ' --force';
+        }
+
+        passthru(PHP_BINARY.' '.$args, $code);
+
+        return $code;
     }
 
     private function generateSeedImages(): int

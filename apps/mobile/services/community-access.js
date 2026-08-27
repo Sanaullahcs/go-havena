@@ -341,12 +341,19 @@ export function isCommunityAdmin(user) {
 }
 
 /** Primary approved admin community membership */
-export function getAdminMembership(user) {
-  return (user?.memberships ?? []).find(
+export function getAdminMembership(user, preferredCommunityId) {
+  const admins = (user?.memberships ?? []).filter(
     (m) =>
       m.status === "approved" &&
       ["admin", "moderator"].includes(m.role),
-  ) ?? null;
+  );
+  if (preferredCommunityId != null) {
+    const match = admins.find(
+      (m) => String(m.community_id) === String(preferredCommunityId),
+    );
+    if (match) return match;
+  }
+  return admins[0] ?? null;
 }
 
 /** Apply a membership-rejection API error onto cached session user data. */

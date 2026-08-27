@@ -23,9 +23,16 @@ class CommunitySeeder extends Seeder
             ->get()
             ->keyBy('title');
 
+        // Only use an admin who does not already manage an approved community.
+        // Attaching a second pending community to the demo admin breaks the mobile dashboard.
         $requester = User::query()
             ->where('role', 'community_admin')
             ->where('community_admin_status', 'approved')
+            ->whereDoesntHave('memberships', function ($query) {
+                $query->where('status', 'approved')
+                    ->whereIn('role', ['admin', 'moderator']);
+            })
+            ->orderBy('id')
             ->first();
 
         $activeCommunities = [

@@ -114,7 +114,10 @@ export async function verifyOtp(phone, code, { intent = "login", role = "residen
     }
   }
 
-  const approved = result.user?.memberships?.find((m) => m.status === "approved");
+  const adminMembership = result.user?.memberships?.find(
+    (m) => m.status === "approved" && ["admin", "moderator"].includes(m.role),
+  );
+  const approved = adminMembership ?? result.user?.memberships?.find((m) => m.status === "approved");
   if (approved?.community_id) {
     await setCommunityId(approved.community_id);
   }

@@ -153,7 +153,7 @@ class AdminRoleService
     /**
      * Admin API community scope.
      * System admin: null = all communities, or a specific id when requested.
-     * Community admin: always their managed community; 403 if another is requested.
+     * Community admin: the requested community if they manage it, otherwise their own.
      */
     public static function resolveAdminCommunityScope(User $user, Request $request): ?int
     {
@@ -169,19 +169,17 @@ class AdminRoleService
             return $requested;
         }
 
+        if ($requested && self::canManageCommunity($user, $requested)) {
+            return $requested;
+        }
+
         $membership = self::getApprovedAdminMembership($user)
             ?? self::getAdminMembershipIncludingPending($user);
         if (! $membership) {
             abort(403, 'No managed community assigned to your account.');
         }
 
-        $ownedId = (int) $membership->community_id;
-
-        if ($requested && $requested !== $ownedId) {
-            abort(403, 'You cannot access data for another community.');
-        }
-
-        return $ownedId;
+        return (int) $membership->community_id;
     }
 
     /** Community admins must operate within one community; system admins must pick one. */
@@ -209,9 +207,30 @@ class AdminRoleService
             return true;
         }
 
-        $membership = self::getApprovedAdminMembership($user)
-            ?? self::getAdminMembershipIncludingPending($user);
+        $hasApprovedAdminRole = DB::table('community_memberships')
+            ->where('user_id', $user->id)
+            ->where('community_id', $communityId)
+            ->where('status', 'approved')
+            ->whereIn('role', ['admin', 'moderator'])
+            ->exists();
 
-        return $membership && (int) $membership->community_id === $communityId;
+        if ($hasApprovedAdminRole) {
+            return true;
+        }
+
+        if (self::isCommunityAdminApproved($user)) {
+            return DB::table('community_memberships')
+                ->where('user_id', $user->id)
+                ->where('community_id', $communityId)
+                ->where('status', 'approved')
+                ->exists();
+        }
+
+        return DB::table('community_memberships')
+            ->where('user_id', $user->id)
+            ->where('community_id', $communityId)
+            ->whereIn('role', ['admin', 'moderator'])
+            ->whereIn('status', ['approved', 'pending'])
+            ->exists();
     }
 }

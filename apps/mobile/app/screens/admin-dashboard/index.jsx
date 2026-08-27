@@ -24,6 +24,8 @@ import { Colors } from "../../../constants/tokens";
 import { sf, sw } from "../../../utils/responsive";
 import { chevronForward } from "../../../utils/rtl";
 import { fetchAdminStats, approveMember } from "../../../services/admin-api";
+import { getCommunityId, getUser, setCommunityId } from "../../../services/auth-session";
+import { getAdminMembership } from "../../../services/community-access";
 import { MarketplaceRoutes, withMarketplaceRole } from "../../../constants/marketplace-routes";
 import { PropertyManagementRoutes } from "../../../constants/property-management-routes";
 import { useApiAction } from "../../../hooks/use-api-action";
@@ -350,6 +352,12 @@ export default function AdminDashboardScreen() {
     if (!silent && !hasStatsRef.current) setLoading(true);
     setLoadError(null);
     try {
+      const user = await getUser();
+      const storedCommunityId = await getCommunityId();
+      const adminCommunityId = getAdminMembership(user, storedCommunityId)?.community_id;
+      if (adminCommunityId) {
+        await setCommunityId(adminCommunityId);
+      }
       const dashboard = await fetchAdminStats();
       const nextCommunityName = dashboard?.scope?.label ?? t("admin.yourCommunity");
       const nextStats = dashboard?.stats ?? {};

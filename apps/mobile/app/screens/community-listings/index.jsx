@@ -474,11 +474,16 @@ export default function CommunityListingsScreen({ embedded = false }) {
               <View style={styles.headerRow}>
                 <BackButton iconOnly compact />
                 <View style={styles.headerTitleWrap}>
-                  <Text style={styles.headerTitle} numberOfLines={1}>
-                    {t("marketplace.communityListings")}
-                  </Text>
-                  <View style={styles.headerSubtitleWrap}>
-                    {renderListingCount()}
+                  <View style={styles.headerTitleRow}>
+                    <Text style={styles.headerTitle} numberOfLines={1}>
+                      {t("marketplace.communityListings")}
+                    </Text>
+                    <View style={styles.headerCountBadge}>
+                      <Text style={styles.headerCountText}>{visible.length}</Text>
+                    </View>
+                    {searching ? (
+                      <ActivityIndicator size="small" color={M.teal} />
+                    ) : null}
                   </View>
                 </View>
                 {renderSearchIconButton()}
@@ -642,15 +647,39 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  headerTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minWidth: 0,
+  },
   headerTitle: {
+    flexShrink: 1,
     fontFamily: Fonts.bold,
     fontSize: MarketplaceType.title,
     lineHeight: MarketplaceType.titleLine,
     color: M.text,
     fontWeight: "700",
   },
-  headerSubtitleWrap: {
-    marginTop: 4,
+  headerCountBadge: {
+    flexShrink: 0,
+    minWidth: 24,
+    height: 24,
+    paddingHorizontal: 7,
+    borderRadius: 8,
+    backgroundColor: M.mint,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(20, 184, 166, 0.25)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerCountText: {
+    fontFamily: Fonts.bold,
+    fontSize: MarketplaceType.body,
+    lineHeight: MarketplaceType.bodyLine,
+    color: M.teal,
+    fontWeight: "800",
+    includeFontPadding: false,
   },
   listingCountRow: {
     flexDirection: "row",
