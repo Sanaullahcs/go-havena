@@ -4,6 +4,16 @@ export function resolveApiRoot(): string {
     process.env.NEXT_PUBLIC_API_URL ||
     process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/v1\/?$/, "");
 
+  // Local preview must hit the local API. A public tunnel URL in
+  // NEXT_PUBLIC_API_URL is for phones/browsers on the Cloudflare host;
+  // it does not resolve from this VM's DNS.
+  if (typeof window !== "undefined") {
+    const { hostname } = window.location;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return normalizeApiRoot("http://127.0.0.1:8000/api");
+    }
+  }
+
   if (typeof window === "undefined") {
     return normalizeApiRoot(envUrl || "http://127.0.0.1:8000/api");
   }
@@ -13,10 +23,6 @@ export function resolveApiRoot(): string {
   }
 
   const { hostname } = window.location;
-  if (hostname === "localhost" || hostname === "127.0.0.1") {
-    return normalizeApiRoot(envUrl || "http://127.0.0.1:8000/api");
-  }
-
   return `http://${hostname}:8000/api`;
 }
 
