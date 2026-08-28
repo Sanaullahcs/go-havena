@@ -8,7 +8,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import BackButton from "../../../components/ui/back-button";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
-import LocaleTextInput from "../../../components/ui/locale-text-input";
+import AuthEmailField from "../../../components/auth/auth-email-field";
 import AuthLogo from "../../../components/ui/auth-logo";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
 import { Fonts } from "../../../constants/font";
@@ -23,7 +23,6 @@ import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import { ScreenBrand } from "../../../constants/screen-brand";
-import { authLayoutStyles as layout } from "../../../constants/auth-layout";
 
 const ROLE_BADGE = {
   admin: {
@@ -148,19 +147,11 @@ export default function SignupScreen() {
 
         <View style={styles.formSection}>
           <Text style={styles.inputLabel}>{t("auth.emailAddress")}</Text>
-          <LocaleTextInput
+          <AuthEmailField
             value={email}
             onChangeText={handleEmailChange}
             placeholder={t("auth.emailPlaceholder")}
-            placeholderTextColor="#9CA3AF"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete="email"
-            textContentType="emailAddress"
-            forceLtr
-            textAlign="left"
-            style={[layout.emailInput, showEmailError && styles.inputError]}
+            error={showEmailError}
           />
         </View>
       </KeyboardSafeScreen>
@@ -246,9 +237,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: ScreenBrand.navy,
     lineHeight: 20,
-  },
-  inputError: {
-    borderColor: "#DC2626",
   },
   footerText: {
     textAlign: "center",

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { SafeAreaView } from "react-native-safe-area-context";
-import LocaleTextInput from "../../../components/ui/locale-text-input";
+import AuthEmailField from "../../../components/auth/auth-email-field";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
 import AuthFlowTopBar from "../../../components/auth/auth-flow-top-bar";
@@ -207,19 +207,11 @@ export default function LoginScreen() {
 
             <View style={layout.fieldBlock}>
               <Text style={layout.fieldLabel}>{t("auth.emailAddress")}</Text>
-              <LocaleTextInput
+              <AuthEmailField
                 value={email}
                 onChangeText={handleEmailChange}
                 placeholder={t("auth.emailPlaceholder")}
-                placeholderTextColor="#9CA3AF"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="email"
-                textContentType="emailAddress"
-                forceLtr
-                textAlign="left"
-                style={[layout.emailInput, showEmailError && styles.inputError]}
+                error={showEmailError}
               />
               {showEmailError ? (
                 <Text style={styles.inputErrorText}>{t("auth.enterValidEmail")}</Text>
@@ -301,9 +293,6 @@ const styles = StyleSheet.create({
     color: ScreenBrand.link,
     fontWeight: "600",
     fontFamily: Fonts.semiBold,
-  },
-  inputError: {
-    borderColor: "#DC2626",
   },
   inputErrorText: {
     marginTop: 6,

@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
+import AuthEmailField from "../../../components/auth/auth-email-field";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -328,19 +329,10 @@ export default function GuestLoginScreen() {
             {step === "email" ? (
               <View style={layout.fieldBlock}>
                 <Text style={layout.fieldLabel}>{t("auth.emailAddress")}</Text>
-                <LocaleTextInput
+                <AuthEmailField
                   value={email}
                   onChangeText={setEmail}
                   placeholder={t("auth.emailPlaceholder")}
-                  placeholderTextColor="#9CA3AF"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoComplete="email"
-                  textContentType="emailAddress"
-                  forceLtr
-                  textAlign="left"
-                  style={layout.emailInput}
                 />
                 {__DEV__ ? (
                   <Text style={layout.devHint}>
