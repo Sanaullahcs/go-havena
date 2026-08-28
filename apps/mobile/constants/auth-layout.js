@@ -1,4 +1,4 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { Fonts } from "./font";
 import { Colors } from "./tokens";
 import { ScreenBrand as B } from "./screen-brand";
@@ -70,20 +70,38 @@ export const authLayoutStyles = StyleSheet.create({
   },
   emailField: {
     width: "100%",
-    height: 52,
+    height: 56,
     borderWidth: 1,
     borderColor: "#E5E7EB",
     borderRadius: 12,
     backgroundColor: "#FFF",
     justifyContent: "center",
     paddingHorizontal: 14,
+    position: "relative",
+    overflow: "hidden",
   },
   emailFieldError: {
     borderColor: "#DC2626",
   },
+  emailPlaceholder: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    top: 0,
+    bottom: 0,
+    fontFamily: Fonts.regular,
+    fontSize: 16,
+    lineHeight: 54,
+    color: "#9CA3AF",
+    textAlign: "left",
+    textAlignVertical: "center",
+    includeFontPadding: false,
+    zIndex: 1,
+  },
   emailInput: {
     width: "100%",
-    padding: 0,
+    height: "100%",
+    paddingVertical: 0,
     margin: 0,
     fontFamily: Fonts.regular,
     fontSize: 16,
@@ -91,6 +109,9 @@ export const authLayoutStyles = StyleSheet.create({
     textAlign: "left",
     textAlignVertical: "center",
     includeFontPadding: false,
+    backgroundColor: "transparent",
+    zIndex: 2,
+    ...(Platform.OS === "web" ? { lineHeight: 54, outlineStyle: "none" } : {}),
   },
   footerInner: {
     gap: 12,
