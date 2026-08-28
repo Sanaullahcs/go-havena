@@ -2,9 +2,8 @@
 
 namespace App\Console\Commands;
 
+use Database\Seeders\CommunitySeeder;
 use Database\Seeders\DemoContentSeeder;
-use Database\Seeders\FamilySeeder;
-use Database\Seeders\GuestInvitationSeeder;
 use Database\Seeders\MobileTestAccountsSeeder;
 use Illuminate\Console\Command;
 
@@ -13,7 +12,7 @@ class SeedDemoCommand extends Command
     protected $signature = 'havena:seed-demo
                             {--force-images : Regenerate demo seed images}';
 
-    protected $description = 'Seed presentation-ready demo data (notices, events, feed, marketplace, deals, amenities, family, guests)';
+    protected $description = 'Seed presentation-ready demo data (notices, events, feed, marketplace, deals, amenities)';
 
     public function handle(): int
     {
@@ -26,7 +25,13 @@ class SeedDemoCommand extends Command
             $this->call('storage:link');
         }
 
-        $this->info('Generating demo seed images…');
+        $this->info('Downloading real demo photos…');
+        $code = $this->downloadSeedPhotos();
+        if ($code !== 0) {
+            $this->warn('  Photo download had failures — falling back to any existing files.');
+        }
+
+        $this->info('Filling any missing seed images…');
         $code = $this->generateSeedImages();
         if ($code !== 0) {
             return self::FAILURE;
@@ -34,24 +39,39 @@ class SeedDemoCommand extends Command
 
         $this->syncSeedImagesToMobile();
 
+        $this->info('Ensuring a community and mobile test accounts…');
+        $this->call('db:seed', ['--class' => CommunitySeeder::class, '--force' => true]);
+        $this->call('db:seed', ['--class' => MobileTestAccountsSeeder::class, '--force' => true]);
+
         $this->info('Seeding demo content…');
         $this->call('db:seed', ['--class' => DemoContentSeeder::class, '--force' => true]);
 
-        $this->info('Ensuring mobile test accounts…');
-        $this->call('db:seed', ['--class' => MobileTestAccountsSeeder::class, '--force' => true]);
-
-        $this->info('Seeding family and guest demo data…');
-        $this->call('db:seed', ['--class' => FamilySeeder::class, '--force' => true]);
-        $this->call('db:seed', ['--class' => GuestInvitationSeeder::class, '--force' => true]);
-
         $this->newLine();
-        $otp = (string) (config('otp.fixed_code') ?: '123456');
         $this->info('Demo data ready.');
-        $this->line("  Resident login:        (555) 555-0100  ·  OTP {$otp}");
-        $this->line("  Community admin login: (555) 555-0200  ·  OTP {$otp}");
-        $this->line("  Legacy resident:       (555) 555-5555  ·  OTP {$otp}");
+        $this->line('  Resident login:        (555) 555-0100  ·  OTP 123456');
+        $this->line('  Community admin login: (555) 555-0200  ·  OTP 123456');
+        $this->line('  Legacy resident:       (555) 555-5555  ·  OTP 123456');
 
         return self::SUCCESS;
+    }
+
+    private function downloadSeedPhotos(): int
+    {
+        $script = base_path('scripts/download-seed-photos.php');
+        if (! is_file($script)) {
+            $this->warn('  Missing scripts/download-seed-photos.php');
+
+            return self::FAILURE;
+        }
+
+        $args = escapeshellarg($script);
+        if ($this->option('force-images')) {
+            $args .= ' --force';
+        }
+
+        passthru(PHP_BINARY.' '.$args, $code);
+
+        return $code;
     }
 
     private function generateSeedImages(): int

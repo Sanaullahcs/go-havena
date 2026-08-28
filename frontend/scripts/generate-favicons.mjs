@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const svg = readFileSync(join(__dirname, "brand-mark.svg"));
+const logo = readFileSync(join(__dirname, "../public/havena-logo.png"));
 
 const outputs = [
   { path: join(__dirname, "../public/favicon.png"), size: 32 },
@@ -22,7 +22,7 @@ const outputs = [
 
 for (const { path, size } of outputs) {
   mkdirSync(dirname(path), { recursive: true });
-  const png = await sharp(svg).resize(size, size).png().toBuffer();
+  const png = await sharp(logo).ensureAlpha().resize(size, size).png({ force: true }).toBuffer();
   writeFileSync(path, png);
   console.log(`Wrote ${path} (${size}x${size})`);
 }

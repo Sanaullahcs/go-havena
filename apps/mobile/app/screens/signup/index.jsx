@@ -147,7 +147,7 @@ export default function SignupScreen() {
         }
       >
         <View style={styles.logoContainer}>
-          <AuthLogo compact size={56} tileColor={ScreenBrand.primary} />
+          <AuthLogo compact size={56} />
           <Text style={styles.title}>{t("auth.createAccount")}</Text>
           <Text style={styles.subtitle}>
             {t("auth.enterPhoneToStart")}

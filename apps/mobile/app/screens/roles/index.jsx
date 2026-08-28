@@ -87,7 +87,7 @@ export default function Roles() {
 
         <View style={styles.body}>
           <View style={styles.hero}>
-            <HavenaLogo size={40} compact tileColor={T.navy} />
+            <HavenaLogo size={40} compact />
             <Text style={styles.pageTitle}>{t("roles.joinHavena")}</Text>
             <Text style={styles.pageSubTitle}>
               {t("roles.chooseRole")}

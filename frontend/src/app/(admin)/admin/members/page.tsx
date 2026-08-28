@@ -155,13 +155,21 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
       setInitialLoading(false);
       setRefreshing(false);
     }
-  }, [filter, debouncedSearch, page, scopeCommunityId]);
+  }, [filter, debouncedSearch, page, scopeCommunityId, isSystemResidents]);
 
-  useEffect(() => { load(); }, [load]);
-
+  // Reset to page 1 when filters change; skip the stale-page fetch that would otherwise fire first.
+  const filterKey = `${filter}|${debouncedSearch}|${scopeCommunityId ?? ""}`;
+  const prevFilterKey = useRef(filterKey);
   useEffect(() => {
-    setPage(1);
-  }, [filter, debouncedSearch, scopeCommunityId]);
+    if (prevFilterKey.current !== filterKey) {
+      prevFilterKey.current = filterKey;
+      if (page !== 1) {
+        setPage(1);
+        return;
+      }
+    }
+    void load();
+  }, [filterKey, page, load]);
 
   useEffect(() => {
     fetchAdminCommunities()

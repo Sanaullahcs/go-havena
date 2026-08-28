@@ -59,8 +59,8 @@ class MobileTestAccountsSeeder extends Seeder
         $this->seedResident(
             phone: self::RESIDENT_PHONE,
             email: self::RESIDENT_EMAIL,
-            name: 'Test Resident',
-            displayName: 'Test Resident',
+            name: 'Alex Rivera',
+            displayName: 'Alex Rivera',
             unit: 'Apt 101',
             residenceType: 'Two-bedroom',
             region: $region,
@@ -113,9 +113,10 @@ class MobileTestAccountsSeeder extends Seeder
             ['user_id' => $user->id],
             [
                 'display_name'   => $displayName,
+                'avatar_url'     => '/storage/seed/avatar-alex.jpg',
                 'unit_number'    => $unit,
                 'residence_type' => $residenceType,
-                'bio'            => "Test resident at {$community->name}.",
+                'bio'            => "Resident at {$community->name}. Weekend runner and farmers-market regular.",
                 'region_id'      => $region?->id ?? $community->region_id,
             ],
         );
@@ -159,6 +160,7 @@ class MobileTestAccountsSeeder extends Seeder
             ['user_id' => $user->id],
             [
                 'display_name'   => $name,
+                'avatar_url'     => '/storage/seed/avatar-admin.jpg',
                 'unit_number'    => 'Management Office',
                 'residence_type' => 'Office',
                 'bio'            => "Test community admin for {$community->name}.",
@@ -176,6 +178,11 @@ class MobileTestAccountsSeeder extends Seeder
                 'status' => 'approved',
             ],
         );
+
+        CommunityMembership::query()
+            ->where('user_id', $user->id)
+            ->where('community_id', '!=', $community->id)
+            ->delete();
 
         $this->command?->info("  Community admin ready: {$phone} → {$community->name}");
     }

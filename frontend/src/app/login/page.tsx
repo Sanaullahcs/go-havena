@@ -20,6 +20,7 @@ import {
   AuthBackLink,
   AuthErrorBanner,
   AuthStepDots,
+  CommunityAuthTabs,
 } from "@/components/auth/auth-form-shell";
 import { OtpVerifyStep } from "@/components/auth/otp-verify-step";
 import { PhoneSignInStep } from "@/components/auth/phone-sign-in-step";
@@ -170,7 +171,7 @@ function LoginPageInner() {
       </>
     ) : (
       <>
-        Start your <em>community</em>
+        Sign in to your <em>community</em>
       </>
     );
 
@@ -181,7 +182,7 @@ function LoginPageInner() {
         : "Enter the 6-digit SMS code to continue"
       : planHint
         ? `New or returning — after OTP you’ll set up your community and start ${planHint} checkout`
-        : "Sign in with the phone number on your community admin account. New? Create an account first.";
+        : "Sign in with the phone number on your community admin account.";
 
   return (
     <>
@@ -228,9 +229,11 @@ function LoginPageInner() {
               <span className="nl-login-brand__name">Havena</span>
             </div>
 
-            {otpStep === "code" ? (
+            {otpStep === "phone" ? (
+              <CommunityAuthTabs active="login" query={planQuery} />
+            ) : (
               <AuthBackLink onClick={goBackToPhone}>Back to phone</AuthBackLink>
-            ) : null}
+            )}
 
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -283,17 +286,14 @@ function LoginPageInner() {
             <p className="mt-8 text-center text-[12px] text-slate-500">
               {otpIntent === "signup" && otpStep === "code"
                 ? "Creating your account… next you’ll name your community, then start your free trial."
-                : "New community admin?"}{" "}
-              <a
-                href={`/register${planQuery}`}
-                className="font-semibold text-[#0d9488] hover:underline"
-              >
-                Create an account
-              </a>
-              {" · "}
-              <a href="/plans" className="font-semibold text-[#0d9488] hover:underline">
-                View plans
-              </a>
+                : (
+                  <>
+                    Looking for a plan?{" "}
+                    <a href="/plans" className="font-semibold text-[#0d9488] hover:underline">
+                      View plans
+                    </a>
+                  </>
+                )}
             </p>
           </div>
         </div>

@@ -75,6 +75,11 @@ class CommunityAdminSeeder extends Seeder
             ],
         );
 
+        CommunityMembership::query()
+            ->where('user_id', $user->id)
+            ->where('community_id', '!=', $community->id)
+            ->delete();
+
         $this->command?->info('CommunityAdminSeeder: '.self::DEV_PHONE.' → '.$community->name.' (approved admin)');
     }
 }

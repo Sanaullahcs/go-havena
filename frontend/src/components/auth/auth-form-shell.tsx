@@ -44,6 +44,43 @@ export function AuthModeSwitch({
   );
 }
 
+export function CommunityAuthTabs({
+  active,
+  query = "",
+}: {
+  active: "login" | "register";
+  query?: string;
+}) {
+  const suffix = !query || query.startsWith("?") ? query : `?${query}`;
+
+  return (
+    <div
+      className="auth-mode-switch mb-6"
+      data-active={active}
+      role="tablist"
+      aria-label="Login or register"
+    >
+      <span className="auth-mode-switch__slider" aria-hidden />
+      <Link
+        href={`/login${suffix}`}
+        role="tab"
+        aria-selected={active === "login"}
+        className="auth-mode-switch__tab no-underline"
+      >
+        Login
+      </Link>
+      <Link
+        href={`/register${suffix}`}
+        role="tab"
+        aria-selected={active === "register"}
+        className="auth-mode-switch__tab no-underline"
+      >
+        Register
+      </Link>
+    </div>
+  );
+}
+
 export function AuthStepDots({ step }: { step: 1 | 2 }) {
   return (
     <div className="auth-step-dots" aria-label={`Step ${step} of 2`}>

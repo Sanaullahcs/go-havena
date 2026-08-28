@@ -147,7 +147,7 @@ export default function VerifyRegistrationScreen() {
         >
           <View style={styles.formBlock}>
             <View style={styles.logoContainer}>
-              <AuthLogo compact size={68} tileColor={B.primary} />
+              <AuthLogo compact size={68} />
               <Text style={styles.title}>{t("auth.verifyYourNumber")}</Text>
               <Text style={styles.subtitle}>{t("auth.enterCodeSentTo")}</Text>
               <Text style={styles.numberDisplay}>{phoneDisplay}</Text>

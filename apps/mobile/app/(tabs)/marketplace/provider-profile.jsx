@@ -18,7 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { MarketplaceRoutes, withMarketplaceRole } from "../../../constants/marketplace-routes";
 import { fetchBusiness } from "../../../services/businesses-api";
 import { fetchBusinessDeals } from "../../../services/deals-api";
-import { chevronForward } from "../../../utils/rtl";
+import { ionChevronForward } from "../../../utils/rtl";
 
 const BIZ_PLACEHOLDER = require("../../../assets/images/ok-resturant.png");
 
@@ -143,10 +143,6 @@ export default function ProviderProfileScreen() {
               contentPosition="center"
               transition={200}
             />
-            <View
-              style={[styles.heroFade, { backgroundColor: "rgba(248, 250, 252, 0.55)" }]}
-              pointerEvents="none"
-            />
           </View>
 
           <View style={styles.profileCard}>
@@ -176,15 +172,19 @@ export default function ProviderProfileScreen() {
             {description ? (
               <Text style={styles.descText}>{description}</Text>
             ) : null}
-<View style={styles.statsRow}>
+            <View style={styles.statsRow}>
               <View style={styles.statBox}>
                 <Text style={styles.statValue}>{dealCount ?? "—"}</Text>
-                <Text style={styles.statLabel}>{t("marketplace.activeDeals")}</Text>
+                <Text style={styles.statLabel} numberOfLines={2}>
+                  {t("marketplace.activeDeals")}
+                </Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statBox}>
                 <Text style={styles.statValue}>{amenityList.length || "—"}</Text>
-                <Text style={styles.statLabel}>{t("marketplace.highlights")}</Text>
+                <Text style={styles.statLabel} numberOfLines={2}>
+                  {t("marketplace.highlights")}
+                </Text>
               </View>
             </View>
           </View>
@@ -226,7 +226,7 @@ export default function ProviderProfileScreen() {
                     : t("marketplace.browseOffers")}
                 </Text>
               </View>
-              <Ionicons name={chevronForward()} size={20} color="#FFFFFF" />
+              <Ionicons name={ionChevronForward()} size={20} color="#FFFFFF" />
             </View>
           </TouchableOpacity>
         </ScrollView>
@@ -277,13 +277,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     width: "100%",
     height: "100%",
-  },
-  heroFade: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 56,
   },
   badgeRow: {
     flexDirection: "row",
@@ -363,7 +356,7 @@ const styles = StyleSheet.create({
   statsRow: {
     marginTop: 16,
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "stretch",
     backgroundColor: "#F8FAFC",
     borderRadius: 14,
     paddingVertical: 12,
@@ -371,21 +364,30 @@ const styles = StyleSheet.create({
   statBox: {
     flex: 1,
     alignItems: "center",
+    justifyContent: "flex-start",
   },
   statValue: {
     fontFamily: Fonts.bold,
     fontSize: MarketplaceType.stat,
+    lineHeight: MarketplaceType.stat + 4,
     color: "#1B4F8A",
     fontWeight: "700",
+    textAlign: "center",
+    includeFontPadding: false,
   },
   statLabel: {
     marginTop: 2,
+    minHeight: MarketplaceType.captionLine * 2,
     fontFamily: Fonts.regular,
     fontSize: MarketplaceType.caption,
+    lineHeight: MarketplaceType.captionLine,
     color: "#64748B",
+    textAlign: "center",
+    includeFontPadding: false,
   },
   statDivider: {
     width: 1,
+    alignSelf: "center",
     height: 32,
     backgroundColor: "#E5E7EB",
   },

@@ -33,6 +33,7 @@ import { isGuestUser } from "../../services/community-access";
 import { fetchMe } from "../../services/profile-api";
 import { getProfileFields } from "../../utils/profile-display";
 import ProfilePhotoAvatar from "../profile/profile-photo-avatar";
+import HavenaLogo from "./havena-logo";
 import { useProfilePhoto } from "../../hooks/use-profile-photo";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
 import { wellnessDetailRouteParams } from "../../constants/wellness-categories";
@@ -365,7 +366,7 @@ function SideMenuPanel({ visible, onClose }) {
               <View style={styles.headerRow}>
                 <View style={styles.brandBlock}>
                   <View style={styles.brandMark}>
-                    <Feather name="home" size={16} color="#FFFFFF" />
+                    <HavenaLogo size={36} compact />
                   </View>
                   <View style={styles.brandCopy}>
                     <Text style={styles.brandTitle}>Havena</Text>
@@ -612,10 +613,9 @@ const styles = StyleSheet.create({
   brandMark: {
     width: 36,
     height: 36,
-    borderRadius: 11,
-    backgroundColor: "#1B4F8A",
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "transparent",
   },
   brandCopy: {
     flex: 1,

@@ -30,7 +30,9 @@ export function CommunityAuthHero({
 
       <div className="relative z-10 flex flex-1 flex-col justify-between gap-6 p-6 sm:p-8 lg:p-10 xl:p-14">
         <div className="nl-login-brand nl-login-brand--hero">
-          <HavenaMark size={40} tone="light" />
+          <span className="nl-login-brand__mark">
+            <HavenaMark size={28} />
+          </span>
           <span className="text-[15px] font-bold text-white">Havena</span>
         </div>
 
@@ -49,11 +51,11 @@ export function CommunityAuthHero({
           ) : null}
           <ul className="nl-login-hero__points mt-5 space-y-2.5">
             {points.map((item) => (
-              <li key={item.text} className="flex items-start gap-2.5 text-[13px] text-white/80">
-                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white/12 text-teal-100">
+              <li key={item.text} className="flex items-center gap-2.5 text-[13px] leading-none text-white/80">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white/12 text-teal-100">
                   <item.icon className="h-3.5 w-3.5" strokeWidth={2.2} aria-hidden />
                 </span>
-                {item.text}
+                <span className="leading-snug">{item.text}</span>
               </li>
             ))}
           </ul>
