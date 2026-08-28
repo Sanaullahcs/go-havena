@@ -12,6 +12,8 @@ function lanDevOrigins(): string[] {
     "*.ngrok-free.app",
     "*.ngrok.io",
     "*.ngrok.app",
+    "*.cursor.sh",
+    "*.cursor.app",
   ]);
 
   for (let octet = 16; octet <= 31; octet += 1) {
@@ -36,6 +38,15 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: lanDevOrigins(),
   skipTrailingSlashRedirect: true,
   skipProxyUrlNormalize: true,
+  // Same-origin /api and /storage so Cursor port-forward and Cloudflare
+  // frontend URLs reach Laravel without CORS or a dead localhost:8000.
+  async rewrites() {
+    const backend = (process.env.HAVENA_API_ORIGIN || "http://127.0.0.1:8000").replace(/\/$/, "");
+    return [
+      { source: "/api/:path*", destination: `${backend}/api/:path*` },
+      { source: "/storage/:path*", destination: `${backend}/storage/:path*` },
+    ];
+  },
   // Allow production deploy while residual admin TS strictness issues are cleaned up.
   typescript: {
     ignoreBuildErrors: true,
