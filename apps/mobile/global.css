@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* RN-web inherits text-align:center from centered parents; keep email fields start-aligned. */
+input[type="email"] {
+  text-align: left;
+}
+
 @layer components {
   .section-label {
     @apply font-bold text-[13px] uppercase tracking-wider text-[#14B8A6];

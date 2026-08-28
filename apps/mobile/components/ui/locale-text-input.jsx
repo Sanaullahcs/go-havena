@@ -4,12 +4,13 @@ import { useLanguage } from "../../providers/language-provider";
 import { useInputLocale } from "../../hooks/use-input-locale";
 import { syncKeyboardForFocusedInput } from "../../utils/native-app-locale";
 
-/** Keyboard types that should stay LTR (digits / phone), even in Arabic. */
+/** Keyboard types that should stay LTR (digits / phone / email), even in Arabic. */
 const LTR_KEYBOARD_TYPES = new Set([
   "number-pad",
   "numeric",
   "phone-pad",
   "decimal-pad",
+  "email-address",
 ]);
 
 /**
@@ -50,8 +51,16 @@ const LocaleTextInput = forwardRef(function LocaleTextInput(
       {...rest}
       keyboardType={keyboardType}
       onFocus={handleFocus}
-      style={[textInputProps.style, style]}
       textAlign={resolvedTextAlign}
+      textAlignVertical={rest.multiline ? rest.textAlignVertical ?? "top" : "center"}
+      style={[
+        textInputProps.style,
+        style,
+        {
+          textAlign: resolvedTextAlign,
+          ...(rest.multiline ? null : { textAlignVertical: "center" }),
+        },
+      ]}
     />
   );
 });

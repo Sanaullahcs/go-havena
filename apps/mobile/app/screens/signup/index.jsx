@@ -23,6 +23,7 @@ import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import { ScreenBrand } from "../../../constants/screen-brand";
+import { authLayoutStyles as layout } from "../../../constants/auth-layout";
 
 const ROLE_BADGE = {
   admin: {
@@ -151,12 +152,15 @@ export default function SignupScreen() {
             value={email}
             onChangeText={handleEmailChange}
             placeholder={t("auth.emailPlaceholder")}
+            placeholderTextColor="#9CA3AF"
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
             autoComplete="email"
             textContentType="emailAddress"
-            style={[styles.emailInput, showEmailError && styles.inputError]}
+            forceLtr
+            textAlign="left"
+            style={[layout.emailInput, showEmailError && styles.inputError]}
           />
         </View>
       </KeyboardSafeScreen>
@@ -230,6 +234,10 @@ const styles = StyleSheet.create({
   },
   formSection: {
     marginTop: 14,
+    width: "100%",
+    maxWidth: 360,
+    alignSelf: "center",
+    alignItems: "stretch",
   },
   inputLabel: {
     marginBottom: 6,
@@ -238,18 +246,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: ScreenBrand.navy,
     lineHeight: 20,
-  },
-  emailInput: {
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontFamily: Fonts.regular,
-    fontSize: 16,
-    backgroundColor: ScreenBrand.white,
-    color: ScreenBrand.navy,
-    marginBottom: 8,
   },
   inputError: {
     borderColor: "#DC2626",

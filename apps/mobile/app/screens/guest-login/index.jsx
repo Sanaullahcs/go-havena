@@ -332,12 +332,15 @@ export default function GuestLoginScreen() {
                   value={email}
                   onChangeText={setEmail}
                   placeholder={t("auth.emailPlaceholder")}
+                  placeholderTextColor="#9CA3AF"
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                   autoComplete="email"
                   textContentType="emailAddress"
-                  style={styles.input}
+                  forceLtr
+                  textAlign="left"
+                  style={layout.emailInput}
                 />
                 {__DEV__ ? (
                   <Text style={layout.devHint}>

@@ -59,6 +59,7 @@ export const authLayoutStyles = StyleSheet.create({
   fieldBlock: {
     gap: 6,
     width: "100%",
+    alignItems: "stretch",
   },
   fieldLabel: {
     fontFamily: Fonts.medium,
@@ -66,6 +67,23 @@ export const authLayoutStyles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: "500",
     color: Colors.textPrimary,
+  },
+  emailInput: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    height: 52,
+    paddingHorizontal: 14,
+    paddingVertical: 0,
+    fontFamily: Fonts.regular,
+    fontSize: 16,
+    lineHeight: 22,
+    backgroundColor: "#FFF",
+    color: Colors.textPrimary,
+    textAlign: "left",
+    textAlignVertical: "center",
+    includeFontPadding: false,
   },
   footerInner: {
     gap: 12,

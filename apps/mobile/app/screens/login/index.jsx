@@ -211,12 +211,15 @@ export default function LoginScreen() {
                 value={email}
                 onChangeText={handleEmailChange}
                 placeholder={t("auth.emailPlaceholder")}
+                placeholderTextColor="#9CA3AF"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
                 autoComplete="email"
                 textContentType="emailAddress"
-                style={[styles.input, showEmailError && styles.inputError]}
+                forceLtr
+                textAlign="left"
+                style={[layout.emailInput, showEmailError && styles.inputError]}
               />
               {showEmailError ? (
                 <Text style={styles.inputErrorText}>{t("auth.enterValidEmail")}</Text>
@@ -298,17 +301,6 @@ const styles = StyleSheet.create({
     color: ScreenBrand.link,
     fontWeight: "600",
     fontFamily: Fonts.semiBold,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontFamily: Fonts.regular,
-    fontSize: 16,
-    backgroundColor: "#FFF",
-    color: Colors.textPrimary,
   },
   inputError: {
     borderColor: "#DC2626",
