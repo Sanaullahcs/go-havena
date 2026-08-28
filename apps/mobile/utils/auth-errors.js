@@ -1,5 +1,5 @@
 import i18n from "../i18n";
-import { describeApiConnectionHint, isDevTestPhone } from "../constants/api-config";
+import { describeApiConnectionHint, isDevTestEmail, isDevTestPhone } from "../constants/api-config";
 import { setBlockedAccountNotice } from "../services/auth-session";
 import { getApiErrorCode, getApiErrorMessage } from "./api-error-core";
 import {
@@ -44,7 +44,7 @@ export function loginRouteWithSuspendedNotice() {
 }
 
 /** Contextual auth error handling with interactive dialog actions. */
-export async function handleAuthApiError(error, dialog, router, { phone } = {}) {
+export async function handleAuthApiError(error, dialog, router, { phone, email } = {}) {
   const code = getApiErrorCode(error);
   const message = getApiErrorMessage(error);
 
@@ -109,8 +109,11 @@ export async function handleAuthApiError(error, dialog, router, { phone } = {}) 
     return;
   }
 
-  if (code === "INVALID_PHONE") {
-    await dialog.showError(i18n.t("auth.invalidPhoneNumber"), message);
+  if (code === "INVALID_PHONE" || code === "INVALID_EMAIL") {
+    await dialog.showError(
+      code === "INVALID_EMAIL" ? i18n.t("auth.invalidEmail") : i18n.t("auth.invalidPhoneNumber"),
+      message,
+    );
     return;
   }
 
@@ -148,7 +151,7 @@ export async function handleAuthApiError(error, dialog, router, { phone } = {}) 
 
   if (code === "TIMEOUT" || code === "NETWORK_ERROR") {
     const devHint =
-      __DEV__ && phone && isDevTestPhone(phone)
+      __DEV__ && ((email && isDevTestEmail(email)) || (phone && isDevTestPhone(phone)))
         ? "\n\nEnsure `npm run backend` is running. Android emulator uses http://10.0.2.2:8000 automatically."
         : "";
     await dialog.showError(

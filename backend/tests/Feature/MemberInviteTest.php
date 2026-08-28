@@ -74,15 +74,15 @@ class MemberInviteTest extends TestCase
         $invitedUserId = $inviteResponse->json('data.id');
         $this->assertNotEmpty($inviteCode);
 
-        $phone = '+15555550123';
+        $email = 'invite.claimant@example.com';
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone'  => $phone,
+            'email'  => $email,
             'intent' => 'signup',
         ])->assertStatus(202);
 
         $verify = $this->postJson('/api/v1/auth/otp/verify', [
-            'phone'  => $phone,
+            'email'  => $email,
             'code'   => '123456',
             'intent' => 'signup',
             'role'   => 'resident',

@@ -8,18 +8,17 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import BackButton from "../../../components/ui/back-button";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
-import { SignupPhoneInput } from "../../../components/ui/phone-input";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import AuthLogo from "../../../components/ui/auth-logo";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
 import { Fonts } from "../../../constants/font";
 import RoleIcon from "../../../components/ui/role-icon";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { setCurrentRole } from "../../../constants/role-session";
-import { DEFAULT_PHONE_COUNTRY } from "../../../constants/phone-countries";
-import { isValidPhone, toE164 } from "../../../utils/phone";
+import { EMAIL_RE } from "../../../utils/form-validation";
 import { requestOtp } from "../../../services/auth-api";
 import { handleAuthApiError, showApiSuccess } from "../../../utils/auth-errors";
-import { encodeRoutePhone, paramString } from "../../../utils/route-params";
+import { encodeRouteEmail, paramString } from "../../../utils/route-params";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
@@ -54,43 +53,35 @@ export default function SignupScreen() {
     setCurrentRole(role);
   }, [role]);
 
-  const [phoneDigits, setPhoneDigits] = useState("");
-  const [phoneCountry, setPhoneCountry] = useState(DEFAULT_PHONE_COUNTRY);
-  const [showPhoneError, setShowPhoneError] = useState(false);
+  const [email, setEmail] = useState("");
+  const [showEmailError, setShowEmailError] = useState(false);
   const { submitting, run } = useSubmitLock();
-  const isValid = isValidPhone(phoneDigits, phoneCountry);
+  const isValid = EMAIL_RE.test(email.trim());
 
-  const handlePhoneChange = (digits) => {
-    setPhoneDigits(digits);
-    if (showPhoneError && isValidPhone(digits, phoneCountry)) {
-      setShowPhoneError(false);
-    }
-  };
-
-  const handleCountryChange = (country) => {
-    setPhoneCountry(country);
-    if (showPhoneError && isValidPhone(phoneDigits, country)) {
-      setShowPhoneError(false);
+  const handleEmailChange = (value) => {
+    setEmail(value);
+    if (showEmailError && EMAIL_RE.test(value.trim())) {
+      setShowEmailError(false);
     }
   };
 
   const handleSendCode = () => {
     if (!isValid || submitting) {
-      if (!isValid) setShowPhoneError(true);
+      if (!isValid) setShowEmailError(true);
       return;
     }
 
-    const e164 = toE164(phoneDigits, phoneCountry);
+    const normalizedEmail = email.trim().toLowerCase();
     run(async () => {
       try {
-        await requestOtp(e164, { intent: "signup" });
+        await requestOtp(normalizedEmail, { intent: "signup" });
         await showApiSuccess(dialog, t("auth.codeSent"), t("auth.codeSentMsg"));
         router.push({
           pathname: "/screens/verifyregistration",
-          params: { role, phone: encodeRoutePhone(e164) },
+          params: { role, email: encodeRouteEmail(normalizedEmail) },
         });
       } catch (err) {
-        await handleAuthApiError(err, dialog, router, { phone: e164 });
+        await handleAuthApiError(err, dialog, router, { email: normalizedEmail });
       }
     });
   };
@@ -150,21 +141,22 @@ export default function SignupScreen() {
           <AuthLogo compact size={56} />
           <Text style={styles.title}>{t("auth.createAccount")}</Text>
           <Text style={styles.subtitle}>
-            {t("auth.enterPhoneToStart")}
+            {t("auth.enterEmailToStart")}
           </Text>
         </View>
 
         <View style={styles.formSection}>
-          <Text style={styles.inputLabel}>{t("auth.phoneNumber")}</Text>
-          <SignupPhoneInput
-            digits={phoneDigits}
-            onChangeDigits={handlePhoneChange}
-            country={phoneCountry}
-            onCountryChange={handleCountryChange}
-            showError={showPhoneError}
-            showHints
-            containerStyle={styles.phoneInput}
-            rowStyle={styles.phoneRow}
+          <Text style={styles.inputLabel}>{t("auth.emailAddress")}</Text>
+          <LocaleTextInput
+            value={email}
+            onChangeText={handleEmailChange}
+            placeholder={t("auth.emailPlaceholder")}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="email"
+            textContentType="emailAddress"
+            style={[styles.emailInput, showEmailError && styles.inputError]}
           />
         </View>
       </KeyboardSafeScreen>
@@ -247,11 +239,20 @@ const styles = StyleSheet.create({
     color: ScreenBrand.navy,
     lineHeight: 20,
   },
-  phoneInput: {
+  emailInput: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontFamily: Fonts.regular,
+    fontSize: 16,
+    backgroundColor: ScreenBrand.white,
+    color: ScreenBrand.navy,
     marginBottom: 8,
   },
-  phoneRow: {
-    marginTop: 0,
+  inputError: {
+    borderColor: "#DC2626",
   },
   footerText: {
     textAlign: "center",

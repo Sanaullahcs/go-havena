@@ -17,7 +17,6 @@ import { Fonts } from "../../../constants/font";
 import { authStyles } from "../../../constants/auth-styles";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { toDisplayPhone } from "../../../utils/phone";
 import { setCurrentRole } from "../../../constants/role-session";
 import {
   requestOtp,
@@ -33,16 +32,16 @@ import { useOtpCountdown } from "../../../hooks/use-otp-countdown";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import AuthSuccessOverlay from "../../../components/ui/auth-success-overlay";
 import { navigateAfterAuth } from "../../../constants/onboarding-routes";
-import { decodeRoutePhone, paramString } from "../../../utils/route-params";
+import { decodeRouteEmail, paramString } from "../../../utils/route-params";
 import { ScreenBrand as B } from "../../../constants/screen-brand";
 
 export default function VerifyRegistrationScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const dialog = useAppDialog();
-  const { role: roleParam = "resident", phone: phoneParam = "" } = useLocalSearchParams();
+  const { role: roleParam = "resident", email: emailParam = "", phone: phoneParam = "" } = useLocalSearchParams();
   const role = paramString(roleParam, "resident");
-  const phone = decodeRoutePhone(phoneParam);
+  const email = decodeRouteEmail(emailParam) || decodeRouteEmail(phoneParam);
   const [otp, setOtp] = useState("");
   const [showOtpError, setShowOtpError] = useState(false);
   const [otpRefocusToken, setOtpRefocusToken] = useState(0);
@@ -51,7 +50,7 @@ export default function VerifyRegistrationScreen() {
   const [verifiedUser, setVerifiedUser] = useState(null);
   const { canResend, countdownLabel, resetCountdown } = useOtpCountdown();
   const isValid = otp.length === 6;
-  const phoneDisplay = toDisplayPhone(phone) || "+1 555-123-4567";
+  const emailDisplay = email || t("auth.yourEmail");
 
   const handleVerify = () => {
     if (!isValid || submitting) {
@@ -62,7 +61,7 @@ export default function VerifyRegistrationScreen() {
     Keyboard.dismiss();
     run(async () => {
       try {
-        const result = await verifyOtp(phone, otp, {
+        const result = await verifyOtp(email, otp, {
           intent: "signup",
           role,
         });
@@ -77,7 +76,7 @@ export default function VerifyRegistrationScreen() {
         setShowSuccess(true);
       } catch (err) {
         setShowOtpError(true);
-        await handleAuthApiError(err, dialog, router, { phone });
+        await handleAuthApiError(err, dialog, router, { email });
         setOtpRefocusToken((token) => token + 1);
       }
     });
@@ -88,11 +87,11 @@ export default function VerifyRegistrationScreen() {
 
     run(async () => {
       try {
-        await requestOtp(phone, { intent: "signup" });
+        await requestOtp(email, { intent: "signup" });
         resetCountdown();
         await showApiSuccess(dialog, t("auth.codeSent"), t("auth.newVerificationCodeSent"));
       } catch (err) {
-        await handleAuthApiError(err, dialog, router, { phone });
+        await handleAuthApiError(err, dialog, router, { email });
       }
     });
   };
@@ -128,7 +127,7 @@ export default function VerifyRegistrationScreen() {
       <ScreenStatusBar style="dark" opaque />
       <AuthSuccessOverlay
         visible={showSuccess}
-        title={t("auth.numberVerified")}
+        title={t("auth.emailVerified")}
         subtitle={role === "admin" ? t("auth.chooseRegionAdmin") : t("auth.chooseRegionNext")}
         onComplete={() => {
           setShowSuccess(false);
@@ -148,9 +147,9 @@ export default function VerifyRegistrationScreen() {
           <View style={styles.formBlock}>
             <View style={styles.logoContainer}>
               <AuthLogo compact size={68} />
-              <Text style={styles.title}>{t("auth.verifyYourNumber")}</Text>
+              <Text style={styles.title}>{t("auth.verifyYourEmail")}</Text>
               <Text style={styles.subtitle}>{t("auth.enterCodeSentTo")}</Text>
-              <Text style={styles.numberDisplay}>{phoneDisplay}</Text>
+              <Text style={styles.numberDisplay}>{emailDisplay}</Text>
             </View>
 
             <View style={styles.otpContainer}>

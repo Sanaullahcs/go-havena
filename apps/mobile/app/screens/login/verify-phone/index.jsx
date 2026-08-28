@@ -14,7 +14,6 @@ import { authStyles } from "../../../../constants/auth-styles";
 import { authLayoutStyles as layout } from "../../../../constants/auth-layout";
 import { syncRoleFromUser } from "../../../../constants/role-session";
 import { isCommunityAdminRole } from "../../../../services/community-access";
-import { toDisplayPhone } from "../../../../utils/phone";
 import {
   requestOtp,
   verifyOtp,
@@ -26,7 +25,7 @@ import { useOtpCountdown } from "../../../../hooks/use-otp-countdown";
 import { useSubmitLock } from "../../../../hooks/use-submit-lock";
 import AuthSuccessOverlay from "../../../../components/ui/auth-success-overlay";
 import { navigateAfterAuth } from "../../../../constants/onboarding-routes";
-import { decodeRoutePhone, paramString } from "../../../../utils/route-params";
+import { decodeRouteEmail, paramString } from "../../../../utils/route-params";
 import { ScreenBrand as B } from "../../../../constants/screen-brand";
 import { DEV_OTP_HINT } from "../../../../constants/api-config";
 
@@ -35,10 +34,11 @@ export default function VerifyPhoneScreen() {
   const router = useRouter();
   const dialog = useAppDialog();
   const {
+    email: emailParam = "",
     phone: phoneParam = "",
     sending: sendingParam = "",
   } = useLocalSearchParams();
-  const phone = decodeRoutePhone(phoneParam);
+  const email = decodeRouteEmail(emailParam) || decodeRouteEmail(phoneParam);
   const shouldSendOnMount = paramString(sendingParam) === "1";
 
   const [otp, setOtp] = useState("");
@@ -52,12 +52,12 @@ export default function VerifyPhoneScreen() {
   const { canResend, countdownLabel, resetCountdown } = useOtpCountdown();
   const otpDigits = otp.replace(/[^0-9]/g, "");
   const isValid = otpDigits.length === 6;
-  const phoneDisplay = toDisplayPhone(phone) || t("auth.yourPhone");
+  const emailDisplay = email || t("auth.yourEmail");
   const verifyLockRef = useRef(false);
   const initialSendRef = useRef(false);
 
   useEffect(() => {
-    if (!shouldSendOnMount || !phone || initialSendRef.current) return;
+    if (!shouldSendOnMount || !email || initialSendRef.current) return;
     initialSendRef.current = true;
 
     let cancelled = false;
@@ -65,11 +65,11 @@ export default function VerifyPhoneScreen() {
     (async () => {
       setOtpSending(true);
       try {
-        await requestOtp(phone, { intent: "login" });
+        await requestOtp(email, { intent: "login" });
         if (!cancelled) resetCountdown();
       } catch (err) {
         if (!cancelled) {
-          await handleAuthApiError(err, dialog, router, { phone });
+          await handleAuthApiError(err, dialog, router, { email });
         }
       } finally {
         if (!cancelled) setOtpSending(false);
@@ -79,7 +79,7 @@ export default function VerifyPhoneScreen() {
     return () => {
       cancelled = true;
     };
-  }, [shouldSendOnMount, phone, dialog, router, resetCountdown]);
+  }, [shouldSendOnMount, email, dialog, router, resetCountdown]);
 
   const submitVerification = useCallback(
     (code) => {
@@ -93,7 +93,7 @@ export default function VerifyPhoneScreen() {
 
       run(async () => {
         try {
-          const result = await verifyOtp(phone, digits, { intent: "login" });
+          const result = await verifyOtp(email, digits, { intent: "login" });
           let user = result.user;
           try {
             user = await fetchMe();
@@ -106,12 +106,12 @@ export default function VerifyPhoneScreen() {
         } catch (err) {
           verifyLockRef.current = false;
           setShowOtpError(true);
-          await handleAuthApiError(err, dialog, router, { phone });
+          await handleAuthApiError(err, dialog, router, { email });
           setOtpRefocusToken((token) => token + 1);
         }
       });
     },
-    [submitting, otpSending, run, phone, dialog, router],
+    [submitting, otpSending, run, email, dialog, router],
   );
 
   const handleVerify = () => {
@@ -124,12 +124,12 @@ export default function VerifyPhoneScreen() {
     run(async () => {
       setOtpSending(true);
       try {
-        await requestOtp(phone, { intent: "login" });
+        await requestOtp(email, { intent: "login" });
         resetCountdown();
         setResendNotice(true);
         setTimeout(() => setResendNotice(false), 2500);
       } catch (err) {
-        await handleAuthApiError(err, dialog, router, { phone });
+        await handleAuthApiError(err, dialog, router, { email });
       } finally {
         setOtpSending(false);
       }
@@ -213,11 +213,11 @@ export default function VerifyPhoneScreen() {
               title={t("auth.enterVerificationCode")}
               subtitle={
                 otpSending ? (
-                  t("auth.sendingCodeToPhone")
+                  t("auth.sendingCodeToEmail")
                 ) : (
                   <>
                     {t("auth.weSentCodeTo") + " "}
-                    <Text style={layout.phoneHighlight}>{phoneDisplay}</Text>
+                    <Text style={layout.phoneHighlight}>{emailDisplay}</Text>
                   </>
                 )
               }
@@ -225,7 +225,7 @@ export default function VerifyPhoneScreen() {
 
             <View style={layout.fieldBlock}>
               {otpSending ? (
-                <AuthInlineLoader text={t("auth.sendingTo", { phone: phoneDisplay })} />
+                <AuthInlineLoader text={t("auth.sendingTo", { phone: emailDisplay })} />
               ) : (
                 <>
                   <Text style={layout.fieldLabel}>{t("auth.verificationCode")}</Text>

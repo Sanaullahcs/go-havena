@@ -145,7 +145,7 @@ class AuthAccountBlockTest extends TestCase
         ]);
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone'  => $admin->phone,
+            'email'  => $admin->email,
             'intent' => 'login',
             'portal' => 'community_admin_dashboard',
         ])
@@ -174,7 +174,7 @@ class AuthAccountBlockTest extends TestCase
         ]);
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone'  => $admin->phone,
+            'email'  => $admin->email,
             'intent' => 'login',
             'portal' => 'community_admin_dashboard',
         ])
@@ -193,13 +193,12 @@ class AuthAccountBlockTest extends TestCase
         ]);
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone'  => $admin->phone,
+            'email'  => $admin->email,
             'intent' => 'login',
             'portal' => 'community_admin_dashboard',
         ])
-            ->assertStatus(422)
-            ->assertJsonPath('code', 'COMMUNITY_ADMIN_PENDING')
-            ->assertJsonPath('status', 'pending');
+            ->assertStatus(202)
+            ->assertJsonPath('data.email', $admin->email);
     }
 
     public function test_rejected_community_admin_can_be_reapproved(): void

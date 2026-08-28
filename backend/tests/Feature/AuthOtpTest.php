@@ -12,42 +12,54 @@ class AuthOtpTest extends TestCase
 
     public function test_signup_otp_request_and_verify_flow(): void
     {
-        $phone = '+15555555555';
+        $email = 'resident.signup@example.com';
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone' => '55555555555',
+            'email' => $email,
             'intent' => 'signup',
-        ])->assertStatus(202);
+        ])->assertStatus(202)
+            ->assertJsonPath('data.email', $email);
 
         $response = $this->postJson('/api/v1/auth/otp/verify', [
-            'phone' => $phone,
+            'email' => $email,
             'code' => '123456',
             'intent' => 'signup',
             'role' => 'resident',
         ])->assertOk();
 
-        $response->assertJsonStructure(['token', 'user' => ['id', 'uuid', 'phone', 'profile', 'memberships']]);
+        $response->assertJsonStructure(['token', 'user' => ['id', 'uuid', 'email', 'phone', 'profile', 'memberships']]);
         $response->assertJsonPath('user.role', 'resident');
+        $response->assertJsonPath('user.email', $email);
+        $response->assertJsonPath('user.phone', null);
 
         $token = $response->json('token');
 
         $this->withToken($token)
             ->getJson('/api/v1/me')
             ->assertOk()
-            ->assertJsonPath('data.phone', $phone);
+            ->assertJsonPath('data.email', $email);
+
+        $this->assertDatabaseHas('users', [
+            'email' => $email,
+            'phone' => null,
+            'role' => 'resident',
+        ]);
+        $this->assertDatabaseMissing('users', [
+            'email' => 'residentsignup@phone.havena.local',
+        ]);
     }
 
     public function test_admin_signup_creates_pending_community_admin(): void
     {
-        $phone = '+15556667777';
+        $email = 'community.admin.signup@example.com';
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone' => $phone,
+            'email' => $email,
             'intent' => 'signup',
         ])->assertStatus(202);
 
         $response = $this->postJson('/api/v1/auth/otp/verify', [
-            'phone' => $phone,
+            'email' => $email,
             'code' => '123456',
             'intent' => 'signup',
             'role' => 'admin',
@@ -55,71 +67,83 @@ class AuthOtpTest extends TestCase
 
         $response->assertJsonPath('user.role', 'community_admin');
         $response->assertJsonPath('user.community_admin_status', 'pending');
+        $response->assertJsonPath('user.email', $email);
     }
 
     public function test_signup_rejects_existing_verified_user(): void
     {
-        $phone = '+15555555555';
+        $email = 'already.registered@example.com';
 
         User::factory()->create([
-            'phone' => $phone,
-            'phone_verified_at' => now(),
-            'email' => '55555555555@phone.havena.local',
+            'email' => $email,
+            'email_verified_at' => now(),
+            'phone' => '+15555555555',
         ]);
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone' => $phone,
+            'email' => $email,
             'intent' => 'signup',
         ])->assertStatus(422)
             ->assertJsonPath('code', 'ACCOUNT_EXISTS_USE_LOGIN');
     }
 
-    public function test_login_rejects_unknown_phone_on_request(): void
+    public function test_login_rejects_unknown_email_on_request(): void
     {
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone' => '+15555555555',
+            'email' => 'unknown.user@example.com',
             'intent' => 'login',
         ])->assertStatus(422)
             ->assertJsonPath('code', 'ACCOUNT_NOT_FOUND_USE_SIGNUP');
     }
 
+    public function test_login_rejects_placeholder_email(): void
+    {
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email' => '15555555555@phone.havena.local',
+            'intent' => 'login',
+        ])->assertStatus(422)
+            ->assertJsonPath('code', 'INVALID_EMAIL');
+    }
+
     public function test_login_otp_flow_for_existing_user(): void
     {
-        $phone = '+15555555555';
+        $email = 'existing.resident@example.com';
 
         User::factory()->create([
-            'phone' => $phone,
+            'email' => $email,
+            'email_verified_at' => now(),
+            'phone' => '+15555555555',
             'phone_verified_at' => now(),
-            'email' => '55555555555@phone.havena.local',
         ]);
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone' => $phone,
+            'email' => $email,
             'intent' => 'login',
         ])->assertStatus(202);
 
         $response = $this->postJson('/api/v1/auth/otp/verify', [
-            'phone' => $phone,
+            'email' => $email,
             'code' => '123456',
             'intent' => 'login',
         ])->assertOk();
 
         $response->assertJsonStructure(['token', 'user']);
+        $response->assertJsonPath('user.email', $email);
     }
 
     public function test_join_by_invite_code(): void
     {
         $this->seed(\Database\Seeders\CommunitySeeder::class);
 
-        $phone = '+15555555555';
+        $email = 'invite.joiner@example.com';
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone' => $phone,
+            'email' => $email,
             'intent' => 'signup',
         ])->assertStatus(202);
 
         $verify = $this->postJson('/api/v1/auth/otp/verify', [
-            'phone' => $phone,
+            'email' => $email,
             'code' => '123456',
             'intent' => 'signup',
             'role' => 'resident',
@@ -136,24 +160,26 @@ class AuthOtpTest extends TestCase
 
     public function test_community_admin_dashboard_otp_login(): void
     {
-        $phone = '+15556668888';
+        $email = 'community.admin@havena.app';
 
         User::factory()->create([
-            'phone' => $phone,
+            'email' => $email,
+            'email_verified_at' => now(),
+            'phone' => '+15556668888',
             'phone_verified_at' => now(),
-            'email' => 'community.admin@havena.app',
             'role' => 'community_admin',
             'community_admin_status' => 'approved',
         ]);
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone' => $phone,
+            'email' => $email,
             'intent' => 'login',
             'portal' => 'community_admin_dashboard',
-        ])->assertStatus(202);
+        ])->assertStatus(202)
+            ->assertJsonPath('data.email', $email);
 
         $response = $this->postJson('/api/v1/auth/otp/verify', [
-            'phone' => $phone,
+            'email' => $email,
             'code' => '123456',
             'intent' => 'login',
             'portal' => 'community_admin_dashboard',
@@ -164,107 +190,48 @@ class AuthOtpTest extends TestCase
 
     public function test_resident_rejected_from_community_admin_dashboard(): void
     {
-        $phone = '+15555555555';
+        $email = 'plain.resident@example.com';
 
         User::factory()->create([
-            'phone' => $phone,
+            'email' => $email,
+            'email_verified_at' => now(),
+            'phone' => '+15555555555',
             'phone_verified_at' => now(),
-            'email' => '55555555555@phone.havena.local',
             'role' => 'resident',
         ]);
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone' => $phone,
+            'email' => $email,
             'intent' => 'login',
             'portal' => 'community_admin_dashboard',
         ])->assertStatus(422)
             ->assertJsonPath('code', 'NOT_AUTHORIZED_COMMUNITY_ADMIN');
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone' => $phone,
+            'email' => $email,
             'intent' => 'login',
         ])->assertStatus(202);
 
         $this->postJson('/api/v1/auth/otp/verify', [
-            'phone' => $phone,
+            'email' => $email,
             'code' => '123456',
             'intent' => 'login',
             'portal' => 'community_admin_dashboard',
         ])->assertStatus(422)
             ->assertJsonPath('code', 'NOT_AUTHORIZED_COMMUNITY_ADMIN');
-    }
-
-    public function test_community_admin_dashboard_otp_login_with_misstored_international_phone(): void
-    {
-        User::factory()->create([
-            'phone' => '+12017777777',
-            'phone_verified_at' => now(),
-            'email' => '2017777777@phone.havena.local',
-            'role' => 'community_admin',
-            'community_admin_status' => 'approved',
-        ]);
-
-        $this->postJson('/api/v1/auth/otp/request', [
-            'phone' => '+2017777777',
-            'intent' => 'login',
-            'portal' => 'community_admin_dashboard',
-        ])->assertStatus(202)
-            ->assertJsonPath('data.phone', '+2017777777');
-
-        $this->assertDatabaseHas('users', [
-            'phone' => '+2017777777',
-            'role' => 'community_admin',
-        ]);
-
-        $this->postJson('/api/v1/auth/otp/verify', [
-            'phone' => '+2017777777',
-            'code' => '123456',
-            'intent' => 'login',
-            'portal' => 'community_admin_dashboard',
-        ])->assertOk()
-            ->assertJsonPath('user.role', 'community_admin');
-    }
-
-    public function test_signup_completes_for_legacy_misstored_international_phone(): void
-    {
-        User::factory()->create([
-            'phone' => '+12018888888',
-            'phone_verified_at' => null,
-            'email' => '12018888888@phone.havena.local',
-            'role' => 'resident',
-        ]);
-
-        $this->postJson('/api/v1/auth/otp/request', [
-            'phone' => '+201888888888',
-            'intent' => 'signup',
-        ])->assertStatus(202);
-
-        $response = $this->postJson('/api/v1/auth/otp/verify', [
-            'phone' => '+201888888888',
-            'code' => '123456',
-            'intent' => 'signup',
-            'role' => 'resident',
-        ])->assertOk();
-
-        $response->assertJsonPath('user.phone', '+201888888888');
-
-        $this->assertDatabaseHas('users', [
-            'phone' => '+201888888888',
-            'email' => '201888888888@phone.havena.local',
-        ]);
     }
 
     public function test_wrong_code_does_not_expire_a_valid_otp(): void
     {
-        $phone = '+15555550500';
+        $email = 'retry.code@example.com';
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone' => $phone,
+            'email' => $email,
             'intent' => 'signup',
         ])->assertStatus(202);
 
         $this->postJson('/api/v1/auth/otp/verify', [
-            'phone' => $phone,
+            'email' => $email,
             'code' => '000000',
             'intent' => 'signup',
             'role' => 'admin',
@@ -272,27 +239,27 @@ class AuthOtpTest extends TestCase
             ->assertJsonPath('code', 'INVALID_OTP');
 
         $this->postJson('/api/v1/auth/otp/verify', [
-            'phone' => $phone,
+            'email' => $email,
             'code' => '123456',
             'intent' => 'signup',
             'role' => 'admin',
         ])->assertOk()
-            ->assertJsonPath('user.phone', $phone);
+            ->assertJsonPath('user.email', $email);
     }
 
     public function test_otp_expires_after_two_minutes(): void
     {
-        $phone = '+15555555555';
+        $email = 'expired.otp@example.com';
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone' => $phone,
+            'email' => $email,
             'intent' => 'signup',
         ])->assertStatus(202);
 
         $this->travel(3)->minutes();
 
         $this->postJson('/api/v1/auth/otp/verify', [
-            'phone' => $phone,
+            'email' => $email,
             'code' => '123456',
             'intent' => 'signup',
             'role' => 'resident',

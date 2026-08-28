@@ -1,10 +1,10 @@
 import type { LucideIcon } from "lucide-react";
-import { CreditCard, Smartphone, Users } from "lucide-react";
+import { CreditCard, Mail, Users } from "lucide-react";
 import { HavenaMark } from "@/components/shared/havena-mark";
 import { landingImages } from "@/lib/landing/site";
 
 const DEFAULT_POINTS: Array<{ icon: LucideIcon; text: string }> = [
-  { icon: Smartphone, text: "Phone OTP — no password to manage" },
+  { icon: Mail, text: "Email OTP — no password to manage" },
   { icon: Users, text: "Plans from 50 to 500 resident seats" },
   { icon: CreditCard, text: "Billing unlocks invites after signup" },
 ];

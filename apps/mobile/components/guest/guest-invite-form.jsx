@@ -433,8 +433,8 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
       return;
     }
 
-    const phoneE164 = toE164(phoneDigits, phoneCountry);
-    if (!phoneE164) {
+    const phoneE164 = phoneDigits.trim() ? toE164(phoneDigits, phoneCountry) : "";
+    if (phoneDigits.trim() && !phoneE164) {
       showFailure(t("guests.invalidPhone"), new Error(t("guests.enterValidPhone")));
       return;
     }
@@ -443,7 +443,7 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
       const payload = {
         guest_name: guestName.trim(),
         guest_email: guestEmail.trim(),
-        guest_phone: phoneE164,
+        guest_phone: phoneE164 || undefined,
         starts_at: startsAtIso,
         ends_at: endsAtIso,
         permissions: normalizeGuestPermissions(permissions),
@@ -562,8 +562,8 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
 
           <IconField
             icon="phone"
-            label={t("guests.phoneNumber")}
-            required
+            label={t("guests.phoneOptional")}
+            required={false}
             error={showError("guest_phone", fieldErrorsLive)}
           >
             <FormPhoneInput

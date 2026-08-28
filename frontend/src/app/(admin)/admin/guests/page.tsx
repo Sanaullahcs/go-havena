@@ -316,16 +316,16 @@ export default function GuestsPage() {
       toastError("Enter a valid email address.");
       return;
     }
-    if (!phoneField.valid || !phoneField.e164) {
+    if (phoneField.digits && (!phoneField.valid || !phoneField.e164)) {
       setPhoneShowError(true);
-      toastError("Enter a valid phone number.");
+      toastError("Enter a valid phone number, or leave phone blank.");
       return;
     }
     setSubmitting(true);
     try {
       const payload = {
         ...form,
-        guest_phone: phoneField.e164,
+        guest_phone: phoneField.e164 || "",
         starts_at: new Date(form.starts_at).toISOString(),
         ends_at: new Date(form.ends_at).toISOString(),
         permissions: normalizeGuestPermissions(form.permissions),
@@ -595,11 +595,11 @@ export default function GuestsPage() {
                   <div>
                     <label className="mb-1.5 flex items-center gap-2 text-[13px] font-medium text-slate-700">
                       <Phone className="h-3.5 w-3.5 text-slate-400" />
-                      Phone *
+                      Phone (optional)
                     </label>
                     <AdminPhoneInput
                       resetKey={inviteFormKey}
-                      required
+                      required={false}
                       showError={phoneShowError}
                       onChange={(state) => {
                         setPhoneField(state);

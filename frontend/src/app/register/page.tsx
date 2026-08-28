@@ -23,13 +23,12 @@ import {
   CommunityAuthTabs,
 } from "@/components/auth/auth-form-shell";
 import { OtpVerifyStep } from "@/components/auth/otp-verify-step";
-import { PhoneSignInStep } from "@/components/auth/phone-sign-in-step";
+import { EmailSignInStep } from "@/components/auth/email-sign-in-step";
 import { AuthRedirectOverlay } from "@/components/shared/loaders";
-import { emptyPhoneField, type PhoneFieldState } from "@/lib/phone/format";
 import { CommunityAuthHero } from "@/components/auth/community-auth-hero";
 import { HavenaMark } from "@/components/shared/havena-mark";
 import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
-import { Building2, CreditCard, ShieldCheck, Smartphone, UserRound } from "lucide-react";
+import { Building2, CreditCard, Mail, ShieldCheck, UserRound } from "lucide-react";
 import {
   clearPersistedReferralCode,
   normalizeReferralCode,
@@ -38,7 +37,11 @@ import {
 } from "@/lib/auth/referral-storage";
 import { ApiError } from "@/lib/api/client";
 
-type OtpStep = "phone" | "code";
+type OtpStep = "email" | "code";
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
 
 function RegisterPageInner() {
   const router = useRouter();
@@ -54,9 +57,9 @@ function RegisterPageInner() {
   const billingReturnPath = planHint
     ? `/admin/billing?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
     : "/admin/billing";
-  const [phone, setPhone] = useState<PhoneFieldState>(emptyPhoneField());
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
-  const [otpStep, setOtpStep] = useState<OtpStep>("phone");
+  const [otpStep, setOtpStep] = useState<OtpStep>("email");
   const [otpSending, setOtpSending] = useState(false);
   const [loading, setLoading] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
@@ -65,7 +68,7 @@ function RegisterPageInner() {
 
   const isBusy = loading || redirecting;
   const otpSendingLocked = isBusy || otpSending;
-  const communityStep = otpStep === "phone" ? 1 : 2;
+  const communityStep = otpStep === "email" ? 1 : 2;
 
   useEffect(() => {
     if (!referralRawFromUrl) return;
@@ -83,7 +86,7 @@ function RegisterPageInner() {
     }
 
     clearPersistedReferralCode();
-    setOtpStep("phone");
+    setOtpStep("email");
     setError(
       "This referral link is invalid or incomplete. You can still create an account without a referral code.",
     );
@@ -110,7 +113,7 @@ function RegisterPageInner() {
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phone.valid || !phone.e164 || otpSending) return;
+    if (!isValidEmail(email) || otpSending) return;
 
     const resolvedReferral =
       normalizeReferralCode(referralRawFromUrl) ?? readPersistedReferralCode();
@@ -123,7 +126,7 @@ function RegisterPageInner() {
       const qs = params.toString();
       router.replace(qs ? `/register?${qs}` : "/register");
       setError(
-        "That referral link was invalid, so it was removed. Enter your phone to continue without a referral.",
+        "That referral link was invalid, so it was removed. Enter your email to continue without a referral.",
       );
       return;
     }
@@ -136,7 +139,7 @@ function RegisterPageInner() {
     setOtp("");
     setOtpSending(true);
     try {
-      await requestCommunityAdminOtp(phone.e164, "signup");
+      await requestCommunityAdminOtp(email.trim(), "signup");
       setOtpStep("code");
     } catch (err) {
       await handleLoginError(err, setError);
@@ -152,7 +155,7 @@ function RegisterPageInner() {
     setLoading(true);
     try {
       const res = await verifyCommunityAdminOtp(
-        phone.e164!,
+        email.trim(),
         code,
         "signup",
         referralCode,
@@ -177,7 +180,7 @@ function RegisterPageInner() {
             : "";
       if (/referral/i.test(message)) {
         clearPersistedReferralCode();
-        setOtpStep("phone");
+        setOtpStep("email");
         setError(
           "This referral link is invalid. You can continue signup without a referral, or open a fresh invite link.",
         );
@@ -193,11 +196,11 @@ function RegisterPageInner() {
   };
 
   const resendOtp = async () => {
-    if (!phone.e164) return;
+    if (!isValidEmail(email)) return;
     setError(null);
     setOtpSending(true);
     try {
-      await requestCommunityAdminOtp(phone.e164, "signup");
+      await requestCommunityAdminOtp(email.trim(), "signup");
     } catch (err) {
       await handleLoginError(err, setError);
     } finally {
@@ -221,7 +224,7 @@ function RegisterPageInner() {
           title="Create your"
           subtitle="community admin account"
           points={[
-            { icon: Smartphone, text: "Verify your phone with a one-time code" },
+            { icon: Mail, text: "Verify your email with a one-time code" },
             { icon: Building2, text: "Create your community" },
             { icon: UserRound, text: "Complete your profile" },
             { icon: CreditCard, text: "Add a card — trial starts after approval" },
@@ -244,17 +247,17 @@ function RegisterPageInner() {
               <span className="nl-login-brand__name">Havena</span>
             </div>
 
-            {otpStep === "phone" ? (
+            {otpStep === "email" ? (
               <CommunityAuthTabs active="register" query={tabQuery} />
             ) : (
               <AuthBackLink
                 onClick={() => {
-                  setOtpStep("phone");
+                  setOtpStep("email");
                   setOtp("");
                   setError(null);
                 }}
               >
-                Back to phone
+                Back to email
               </AuthBackLink>
             )}
 
@@ -273,10 +276,10 @@ function RegisterPageInner() {
                 </h1>
                 <p className="nl-login-subtitle">
                   {otpStep === "code"
-                    ? "Enter the 6-digit SMS code to create your Havena admin account"
+                    ? "Enter the 6-digit email code to create your Havena admin account"
                     : planHint
                       ? `After signup you’ll set up your community and start the ${planHint} trial`
-                      : "Use your phone number — we’ll create your community admin account"}
+                      : "Use your email address — we’ll create your community admin account"}
                 </p>
               </div>
               <AuthStepDots step={communityStep} />
@@ -288,27 +291,27 @@ function RegisterPageInner() {
               </div>
             ) : null}
 
-            {otpStep === "phone" && referralCode && !error ? (
+            {otpStep === "email" && referralCode && !error ? (
               <div className="mt-4 rounded-xl border border-teal-200 bg-teal-50 px-3.5 py-2.5 text-[13px] text-teal-900">
                 Referral code <span className="font-semibold">{referralCode}</span> will be applied when you create your account.
               </div>
             ) : null}
 
-            {otpStep === "phone" ? (
-              <PhoneSignInStep
-                phoneValue={phone.e164}
-                onPhoneChange={(state) => {
-                  setPhone(state);
+            {otpStep === "email" ? (
+              <EmailSignInStep
+                email={email}
+                onEmailChange={(value) => {
+                  setEmail(value);
                   setError(null);
                 }}
                 onSubmit={handleSendOtp}
                 sending={otpSending}
-                disabled={otpSendingLocked || !phone.valid}
+                disabled={otpSendingLocked || !isValidEmail(email)}
                 submitLabel="Create account"
               />
             ) : (
               <OtpVerifyStep
-                phoneE164={phone.e164!}
+                destination={email.trim()}
                 otp={otp}
                 onOtpChange={(value) => {
                   setOtp(value);

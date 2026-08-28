@@ -187,7 +187,7 @@ class FamilyController extends Controller
             'first_name' => 'required|string|max:80',
             'last_name'  => 'required|string|max:80',
             'email'      => 'required|email|max:191',
-            'phone'      => 'required|string|max:32',
+            'phone'      => 'nullable|string|max:32',
             'age'        => 'required|integer|min:1|max:120',
             'unit_number'=> 'required|string|max:50',
         ]);

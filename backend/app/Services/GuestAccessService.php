@@ -334,7 +334,9 @@ class GuestAccessService
             return $block;
         }
 
-        if (! self::findLoginInvitationForPhone($user->phone ?? '')) {
+        $loginInvitation = self::findLoginInvitationForEmail($user->email ?? '')
+            ?? self::findLoginInvitationForPhone($user->phone ?? '');
+        if (! $loginInvitation) {
             return [
                 'message' => self::MSG_ACCESS_REVOKED,
                 'code'    => 'GUEST_ACCESS_REVOKED',
@@ -353,6 +355,33 @@ class GuestAccessService
 
         return GuestInvitation::query()
             ->where('guest_phone', $phone)
+            ->whereIn('status', ['pending_verification', 'pending_approval', 'active'])
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    public static function findLatestInvitationForEmail(string $emailInput): ?GuestInvitation
+    {
+        $email = ContactIdentityService::normalizeEmail($emailInput);
+        if (! $email || ContactIdentityService::isPlaceholderEmail($email)) {
+            return null;
+        }
+
+        return GuestInvitation::query()
+            ->whereRaw('LOWER(guest_email) = ?', [$email])
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    public static function findLoginInvitationForEmail(string $emailInput): ?GuestInvitation
+    {
+        $email = ContactIdentityService::normalizeEmail($emailInput);
+        if (! $email || ContactIdentityService::isPlaceholderEmail($email)) {
+            return null;
+        }
+
+        return GuestInvitation::query()
+            ->whereRaw('LOWER(guest_email) = ?', [$email])
             ->whereIn('status', ['pending_verification', 'pending_approval', 'active'])
             ->orderByDesc('id')
             ->first();

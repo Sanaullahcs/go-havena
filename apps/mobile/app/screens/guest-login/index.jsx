@@ -11,12 +11,10 @@ import AuthFlowTopBar from "../../../components/auth/auth-flow-top-bar";
 import AuthHeroText from "../../../components/auth/auth-hero-text";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
 import AuthInlineLoader from "../../../components/auth/auth-inline-loader";
-import LoginPhoneInput from "../../../components/ui/phone-input";
 import OTPInput from "../../../components/ui/otp-input";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
-import { DEFAULT_PHONE_COUNTRY } from "../../../constants/phone-countries";
-import { isValidPhone, toE164, toDisplayPhone } from "../../../utils/phone";
+import { EMAIL_RE } from "../../../utils/form-validation";
 import { normalizeInviteCode } from "../../../utils/guest-invite";
 import { requestGuestOtp, verifyGuestOtp, verifyGuestInvite } from "../../../services/guests-api";
 import { setSession } from "../../../services/auth-session";
@@ -32,11 +30,11 @@ import { sf, sw } from "../../../utils/responsive";
 import { guestAccessNoticeMessage } from "../../../utils/guest-access-schedule";
 
 const getStepMeta = (t) => ({
-  phone: {
+  email: {
     current: 1,
     eyebrow: t("guest.guestAccess"),
     title: t("guest.loginAsGuest"),
-    subtitle: t("guest.useInvitationPhone"),
+    subtitle: t("guest.useInvitationEmail"),
     button: t("auth.sendCode"),
     loading: t("auth.sending"),
   },
@@ -64,9 +62,8 @@ export default function GuestLoginScreen() {
   const { notice } = useLocalSearchParams();
   const { submitting, run } = useSubmitLock();
   const { showFailure, dialog } = useApiAction();
-  const [step, setStep] = useState("phone");
-  const [phoneDigits, setPhoneDigits] = useState("");
-  const [phoneCountry, setPhoneCountry] = useState(DEFAULT_PHONE_COUNTRY);
+  const [step, setStep] = useState("email");
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [showOtpError, setShowOtpError] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
@@ -74,19 +71,19 @@ export default function GuestLoginScreen() {
   const [otpInputKey, setOtpInputKey] = useState(0);
   const [otpRefocusToken, setOtpRefocusToken] = useState(0);
   const [inviteCode, setInviteCode] = useState("");
-  const phoneE164 = toE164(phoneDigits, phoneCountry);
-  const phoneDisplay = toDisplayPhone(phoneE164) || t("auth.yourPhone");
+  const normalizedEmail = email.trim().toLowerCase();
+  const emailDisplay = normalizedEmail || t("auth.yourEmail");
   const otpDigits = otp.replace(/[^0-9]/g, "");
   const STEP_META = getStepMeta(t);
-  const meta = STEP_META[step] ?? STEP_META.phone;
+  const meta = STEP_META[step] ?? STEP_META.email;
   const { canResend, countdownLabel, resetCountdown } = useOtpCountdown();
   const verifyLockRef = useRef(false);
 
   const canSubmit = useMemo(() => {
-    if (step === "phone") return isValidPhone(phoneDigits, phoneCountry);
+    if (step === "email") return EMAIL_RE.test(email.trim());
     if (step === "otp") return otpDigits.length === 6;
     return inviteCode.trim().length > 0;
-  }, [step, phoneDigits, phoneCountry, otpDigits, inviteCode]);
+  }, [step, email, otpDigits, inviteCode]);
 
   const busy = submitting || otpSending;
 
@@ -139,7 +136,7 @@ export default function GuestLoginScreen() {
   }, [router]);
 
   const handleBack = () => {
-    if (step === "phone") {
+    if (step === "email") {
       if (router.canGoBack?.()) {
         router.back();
       } else {
@@ -154,15 +151,15 @@ export default function GuestLoginScreen() {
     setOtp("");
     setShowOtpError(false);
     setOtpInputKey((key) => key + 1);
-    setStep("phone");
+    setStep("email");
   };
 
   const sendOtp = () => {
-    if (!isValidPhone(phoneDigits, phoneCountry)) return;
+    if (!EMAIL_RE.test(email.trim())) return;
     run(async () => {
       setOtpSending(true);
       try {
-        await requestGuestOtp(phoneE164);
+        await requestGuestOtp(normalizedEmail);
         resetCountdown();
         setOtp("");
         setShowOtpError(false);
@@ -186,7 +183,7 @@ export default function GuestLoginScreen() {
 
       run(async () => {
         try {
-          const res = await verifyGuestOtp(phoneE164, digits);
+          const res = await verifyGuestOtp(normalizedEmail, digits);
           if (res.needs_invite_code) {
             verifyLockRef.current = false;
             setStep("invite");
@@ -201,7 +198,7 @@ export default function GuestLoginScreen() {
         }
       });
     },
-    [otpDigits, submitting, otpSending, run, phoneE164, finishLogin, showFailure],
+    [otpDigits, submitting, otpSending, run, normalizedEmail, finishLogin, showFailure],
   );
 
   const handleResend = () => {
@@ -210,7 +207,7 @@ export default function GuestLoginScreen() {
     run(async () => {
       setOtpSending(true);
       try {
-        await requestGuestOtp(phoneE164);
+        await requestGuestOtp(normalizedEmail);
         resetCountdown();
         setOtp("");
         setShowOtpError(false);
@@ -237,23 +234,23 @@ export default function GuestLoginScreen() {
 
   const verifyInviteStep = () => {
     run(async () => {
-      const res = await verifyGuestInvite(phoneE164, otp, normalizeInviteCode(inviteCode));
+      const res = await verifyGuestInvite(normalizedEmail, otp, normalizeInviteCode(inviteCode));
       await finishLogin(res);
     }).catch((err) => showFailure(t("guest.inviteVerificationFailed"), err));
   };
 
   const handleSubmit = () => {
-    if (step === "phone") sendOtp();
+    if (step === "email") sendOtp();
     else if (step === "otp") verifyOtpStep();
     else verifyInviteStep();
   };
 
   const otpSubtitle = otpSending ? (
-    t("auth.sendingCodeToPhone")
+    t("auth.sendingCodeToEmail")
   ) : (
     <>
       {t("auth.weSentCodeTo") + " "}
-      <Text style={layout.phoneHighlight}>{phoneDisplay}</Text>
+      <Text style={layout.phoneHighlight}>{emailDisplay}</Text>
     </>
   );
 
@@ -275,7 +272,7 @@ export default function GuestLoginScreen() {
   const footerNote =
     step === "otp" ? (
       resendFooter
-    ) : step !== "phone" ? (
+    ) : step !== "email" ? (
       <Text style={layout.footerNote}>
         <Text style={layout.footerLink} onPress={handleBack}>
           {t("guest.goBack")}
@@ -297,7 +294,7 @@ export default function GuestLoginScreen() {
         <AuthFlowTopBar
           current={meta.current}
           total={3}
-          showBack={step !== "phone"}
+          showBack={step !== "email"}
           onBack={handleBack}
         />
 
@@ -328,15 +325,19 @@ export default function GuestLoginScreen() {
               subtitle={step === "otp" ? otpSubtitle : meta.subtitle}
             />
 
-            {step === "phone" ? (
+            {step === "email" ? (
               <View style={layout.fieldBlock}>
-                <Text style={layout.fieldLabel}>{t("auth.phoneNumber")}</Text>
-                <LoginPhoneInput
-                  digits={phoneDigits}
-                  country={phoneCountry}
-                  onChangeDigits={setPhoneDigits}
-                  onCountryChange={setPhoneCountry}
-                  showHints={false}
+                <Text style={layout.fieldLabel}>{t("auth.emailAddress")}</Text>
+                <LocaleTextInput
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder={t("auth.emailPlaceholder")}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="email"
+                  textContentType="emailAddress"
+                  style={styles.input}
                 />
                 {__DEV__ ? (
                   <Text style={layout.devHint}>
@@ -349,7 +350,7 @@ export default function GuestLoginScreen() {
             {step === "otp" ? (
               <View style={layout.fieldBlock}>
                 {otpSending ? (
-                  <AuthInlineLoader text={t("auth.sendingTo", { phone: phoneDisplay })} />
+                  <AuthInlineLoader text={t("auth.sendingTo", { phone: emailDisplay })} />
                 ) : (
                   <>
                     <Text style={layout.fieldLabel}>{t("auth.verificationCode")}</Text>

@@ -3,10 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OtpInput } from "@/components/auth/otp-input";
 import { LoadingButton, InlineLoader } from "@/components/shared/loaders";
-import { formatPhoneDisplay } from "@/lib/phone/format";
-
 type OtpVerifyStepProps = {
-  phoneE164: string;
+  destination: string;
   otp: string;
   onOtpChange: (value: string) => void;
   onVerify: (code: string) => void | Promise<void>;
@@ -20,7 +18,7 @@ type OtpVerifyStepProps = {
 const RESEND_SECONDS = 30;
 
 export function OtpVerifyStep({
-  phoneE164,
+  destination,
   otp,
   onOtpChange,
   onVerify,
@@ -38,7 +36,7 @@ export function OtpVerifyStep({
   useEffect(() => {
     if (sending) return;
     setResendIn(RESEND_SECONDS);
-  }, [sending, phoneE164]);
+  }, [sending, destination]);
 
   useEffect(() => {
     if (sending || resendIn <= 0) return;
@@ -80,12 +78,12 @@ export function OtpVerifyStep({
   return (
     <div className="auth-step-enter mt-5 space-y-5">
       {sending ? (
-        <InlineLoader text={`Sending to ${formatPhoneDisplay(phoneE164)}…`} />
+        <InlineLoader text={`Sending to ${destination}…`} />
       ) : (
         <>
           <p className="rounded-xl border border-slate-100 bg-slate-50/80 px-3.5 py-2.5 text-[13px] text-slate-600">
             Code sent to{" "}
-            <span className="font-semibold text-slate-900">{formatPhoneDisplay(phoneE164)}</span>
+            <span className="font-semibold text-slate-900">{destination}</span>
           </p>
           <OtpInput
             value={otp}
@@ -96,7 +94,7 @@ export function OtpVerifyStep({
             onComplete={handleComplete}
           />
           <p className="text-center text-[11px] text-slate-400">
-            Dev · <span className="font-mono text-slate-500">221322</span>
+            Dev · <span className="font-mono text-slate-500">123456</span>
           </p>
         </>
       )}

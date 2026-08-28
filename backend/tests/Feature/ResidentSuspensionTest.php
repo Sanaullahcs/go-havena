@@ -39,7 +39,7 @@ class ResidentSuspensionTest extends TestCase
             'status'            => 'active',
             'phone'             => '+201700000099',
             'phone_verified_at' => now(),
-            'email'             => '201700000099@phone.havena.local',
+            'email'             => 'suspended.resident@example.com',
         ]);
 
         CommunityMembership::query()->create([
@@ -62,7 +62,7 @@ class ResidentSuspensionTest extends TestCase
         ]);
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone'  => $resident->phone,
+            'email'  => $resident->email,
             'intent' => 'login',
         ])->assertStatus(422)
             ->assertJsonPath('code', 'ACCOUNT_SUSPENDED');
@@ -78,7 +78,7 @@ class ResidentSuspensionTest extends TestCase
         ]);
 
         $this->postJson('/api/v1/auth/otp/verify', [
-            'phone'  => $resident->phone,
+            'email'  => $resident->email,
             'code'   => '123456',
             'intent' => 'login',
         ])->assertStatus(422)
@@ -110,7 +110,7 @@ class ResidentSuspensionTest extends TestCase
             ->assertJsonStructure(['suspended_at']);
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone'  => $resident->phone,
+            'email'  => $resident->email,
             'intent' => 'login',
         ])->assertStatus(422)
             ->assertJsonPath('code', 'ACCOUNT_SUSPENDED');

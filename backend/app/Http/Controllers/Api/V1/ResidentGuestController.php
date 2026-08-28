@@ -47,8 +47,8 @@ class ResidentGuestController extends Controller
 
         $data = $request->validate(array_merge([
             'guest_name'  => 'required|string|max:100',
-            'guest_email' => 'nullable|email|max:200',
-            'guest_phone' => 'required|string|max:30',
+            'guest_email' => 'required|email|max:200',
+            'guest_phone' => 'nullable|string|max:30',
             'starts_at'   => 'required|date',
             'ends_at'     => 'required|date|after:starts_at',
         ], GuestAccessService::permissionValidationRules()));

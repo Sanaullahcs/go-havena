@@ -23,18 +23,21 @@ import {
   CommunityAuthTabs,
 } from "@/components/auth/auth-form-shell";
 import { OtpVerifyStep } from "@/components/auth/otp-verify-step";
-import { PhoneSignInStep } from "@/components/auth/phone-sign-in-step";
+import { EmailSignInStep } from "@/components/auth/email-sign-in-step";
 import { AuthRedirectOverlay } from "@/components/shared/loaders";
-import { emptyPhoneField, formatPhoneDisplay, phoneFieldFromE164, type PhoneFieldState } from "@/lib/phone/format";
 import { CommunityAuthHero } from "@/components/auth/community-auth-hero";
 import { HavenaMark } from "@/components/shared/havena-mark";
 import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
 import { consumeWebHandoffIfPresent } from "@/lib/auth/web-handoff";
 import { Suspense } from "react";
 
-type OtpStep = "phone" | "code";
+type OtpStep = "email" | "code";
 
-const COMMUNITY_DEMO_PHONE = "+15555550200";
+const COMMUNITY_DEMO_EMAIL = "test.community.admin@havena.app";
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
 
 function LoginPageInner() {
   const router = useRouter();
@@ -47,10 +50,9 @@ function LoginPageInner() {
   const billingReturnPath = planHint
     ? `/admin/billing?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
     : "/admin/billing";
-  const [phone, setPhone] = useState<PhoneFieldState>(emptyPhoneField());
-  const [phoneResetKey, setPhoneResetKey] = useState(0);
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
-  const [otpStep, setOtpStep] = useState<OtpStep>("phone");
+  const [otpStep, setOtpStep] = useState<OtpStep>("email");
   const [otpIntent, setOtpIntent] = useState<CommunityAdminOtpIntent>("login");
   const [otpSending, setOtpSending] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -60,7 +62,7 @@ function LoginPageInner() {
 
   const isBusy = loading || redirecting;
   const otpSendingLocked = isBusy || otpSending;
-  const communityStep = otpStep === "phone" ? 1 : 2;
+  const communityStep = otpStep === "email" ? 1 : 2;
 
   useEffect(() => {
     let cancelled = false;
@@ -104,12 +106,12 @@ function LoginPageInner() {
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phone.valid || !phone.e164 || otpSending) return;
+    if (!isValidEmail(email) || otpSending) return;
     setError(null);
     setOtp("");
     setOtpSending(true);
     try {
-      const { intent } = await requestCommunityAdminOtp(phone.e164, "login");
+      const { intent } = await requestCommunityAdminOtp(email.trim(), "login");
       setOtpIntent(intent);
       setOtpStep("code");
     } catch (err) {
@@ -125,7 +127,7 @@ function LoginPageInner() {
     setError(null);
     setLoading(true);
     try {
-      const res = await verifyCommunityAdminOtp(phone.e164!, code, otpIntent);
+      const res = await verifyCommunityAdminOtp(email.trim(), code, otpIntent);
       setSession(res.token, res.user);
       setRedirecting(true);
       const step = getCommunityAdminNextStep(res.user);
@@ -145,11 +147,11 @@ function LoginPageInner() {
   };
 
   const resendOtp = async () => {
-    if (!phone.e164) return;
+    if (!isValidEmail(email)) return;
     setError(null);
     setOtpSending(true);
     try {
-      const { intent } = await requestCommunityAdminOtp(phone.e164, "login");
+      const { intent } = await requestCommunityAdminOtp(email.trim(), "login");
       setOtpIntent(intent);
     } catch (err) {
       await handleLoginError(err, setError);
@@ -158,8 +160,8 @@ function LoginPageInner() {
     }
   };
 
-  const goBackToPhone = () => {
-    setOtpStep("phone");
+  const goBackToEmail = () => {
+    setOtpStep("email");
     setOtp("");
     setError(null);
   };
@@ -179,10 +181,10 @@ function LoginPageInner() {
     otpStep === "code"
       ? otpIntent === "signup"
         ? "Enter the code to create your community admin account"
-        : "Enter the 6-digit SMS code to continue"
-      : planHint
+        : "Enter the 6-digit email code to continue"
+        : planHint
         ? `New or returning — after OTP you’ll set up your community and start ${planHint} checkout`
-        : "Sign in with the phone number on your community admin account.";
+        : "Sign in with the email on your community admin account.";
 
   return (
     <>
@@ -229,10 +231,10 @@ function LoginPageInner() {
               <span className="nl-login-brand__name">Havena</span>
             </div>
 
-            {otpStep === "phone" ? (
+            {otpStep === "email" ? (
               <CommunityAuthTabs active="login" query={planQuery} />
             ) : (
-              <AuthBackLink onClick={goBackToPhone}>Back to phone</AuthBackLink>
+              <AuthBackLink onClick={goBackToEmail}>Back to email</AuthBackLink>
             )}
 
             <div className="flex items-start justify-between gap-4">
@@ -249,27 +251,25 @@ function LoginPageInner() {
               </div>
             ) : null}
 
-            {otpStep === "phone" ? (
-              <PhoneSignInStep
-                phoneValue={phone.e164}
-                phoneResetKey={phoneResetKey}
-                onPhoneChange={(state) => {
-                  setPhone(state);
+            {otpStep === "email" ? (
+              <EmailSignInStep
+                email={email}
+                onEmailChange={(value) => {
+                  setEmail(value);
                   setError(null);
                 }}
                 onSubmit={handleSendOtp}
                 onDemoFill={() => {
-                  setPhone(phoneFieldFromE164(COMMUNITY_DEMO_PHONE));
-                  setPhoneResetKey((k) => k + 1);
+                  setEmail(COMMUNITY_DEMO_EMAIL);
                   setError(null);
                 }}
-                demoLabel={`Try demo · ${formatPhoneDisplay(COMMUNITY_DEMO_PHONE)}`}
+                demoLabel={`Try demo · ${COMMUNITY_DEMO_EMAIL}`}
                 sending={otpSending}
-                disabled={otpSendingLocked || !phone.valid}
+                disabled={otpSendingLocked || !isValidEmail(email)}
               />
             ) : (
               <OtpVerifyStep
-                phoneE164={phone.e164!}
+                destination={email.trim()}
                 otp={otp}
                 onOtpChange={(value) => {
                   setOtp(value);

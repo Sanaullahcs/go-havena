@@ -113,7 +113,7 @@ class CommunityLifecycleTest extends TestCase
         });
 
         $this->postJson('/api/v1/auth/otp/verify', [
-            'phone' => $resident->phone,
+            'email' => $resident->email,
             'code'  => '123456',
             'intent' => 'login',
         ])->assertStatus(422)

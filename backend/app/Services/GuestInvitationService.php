@@ -39,7 +39,7 @@ class GuestInvitationService
     }
 
     /**
-     * @param  array{guest_name:string,guest_email?:?string,guest_phone:string,starts_at:string,ends_at:string}  $data
+     * @param  array{guest_name:string,guest_email:string,guest_phone?:?string,starts_at:string,ends_at:string}  $data
      */
     public static function create(
         int $communityId,
@@ -47,8 +47,14 @@ class GuestInvitationService
         string $invitationType,
         array $data,
     ): GuestInvitation {
-        $phone = PhoneNormalizer::normalize($data['guest_phone']);
-        if (! $phone) {
+        $guestEmail = ContactIdentityService::normalizeEmail($data['guest_email'] ?? null);
+        if (! $guestEmail || ContactIdentityService::isPlaceholderEmail($guestEmail)) {
+            abort(422, 'A guest email address is required.');
+        }
+
+        $rawPhone = trim((string) ($data['guest_phone'] ?? ''));
+        $phone = $rawPhone !== '' ? PhoneNormalizer::normalize($rawPhone) : null;
+        if ($rawPhone !== '' && ! $phone) {
             abort(422, 'Enter a valid guest phone number.');
         }
 
@@ -59,7 +65,6 @@ class GuestInvitationService
             abort(422, 'End date must be after start date.');
         }
 
-        $guestEmail = isset($data['guest_email']) ? trim((string) $data['guest_email']) : null;
         ContactIdentityService::assertAvailableForGuestInvite($guestEmail, $phone);
 
         $code = self::generateInviteCode();
@@ -80,7 +85,7 @@ class GuestInvitationService
 
         ActivityLogService::user(
             'guest_invited',
-            "Invited guest {$invitation->guest_name} ({$phone})",
+            "Invited guest {$invitation->guest_name} ({$guestEmail})",
             'GuestInvitation',
             $invitation->id,
             'info',
@@ -91,11 +96,11 @@ class GuestInvitationService
         return $invitation;
     }
 
-    public static function verifyInviteForPhone(string $phoneInput, string $inviteCode): GuestInvitation
+    public static function verifyInviteForEmail(string $emailInput, string $inviteCode): GuestInvitation
     {
-        $phone = PhoneNormalizer::normalize($phoneInput);
-        if (! $phone) {
-            abort(422, 'Enter a valid phone number.');
+        $email = ContactIdentityService::normalizeEmail($emailInput);
+        if (! $email || ContactIdentityService::isPlaceholderEmail($email)) {
+            abort(422, 'Enter a valid email address.');
         }
 
         $invitation = GuestInvitation::query()
@@ -106,8 +111,8 @@ class GuestInvitationService
             abort(422, 'Invalid invite code.');
         }
 
-        if ($invitation->guest_phone !== $phone) {
-            abort(422, 'This invite code does not match your phone number.');
+        if (strtolower(trim((string) $invitation->guest_email)) !== $email) {
+            abort(422, 'This invite code does not match your email address.');
         }
 
         if ($block = GuestAccessService::loginTerminationBlock($invitation)) {
@@ -254,24 +259,23 @@ class GuestInvitationService
     public static function findOrCreateGuestUser(GuestInvitation $invitation): User
     {
         $phone = $invitation->guest_phone;
-        $user = PhoneNormalizer::findUserByPhone($phone);
+        $email = ContactIdentityService::normalizeEmail($invitation->guest_email);
+        $user = $email ? ContactIdentityService::findActiveUserByEmail($email) : null;
 
-        if ($user) {
-            return self::prepareExistingGuestUser($user, $invitation);
+        if (! $user && $phone) {
+            $user = PhoneNormalizer::findUserByPhone($phone);
         }
 
-        if ($invitation->guest_email) {
-            $byEmail = User::query()->where('email', trim($invitation->guest_email))->first();
-            if ($byEmail && $byEmail->role === 'guest') {
-                return self::prepareExistingGuestUser($byEmail, $invitation, $phone);
-            }
+        if ($user) {
+            return self::prepareExistingGuestUser($user, $invitation, $phone);
         }
 
         $user = User::query()->create([
             'name'              => $invitation->guest_name,
             'email'             => self::resolveGuestEmail($invitation),
             'phone'             => $phone,
-            'phone_verified_at' => now(),
+            'email_verified_at' => now(),
+            'phone_verified_at' => $phone ? now() : null,
             'password'          => Str::random(32),
             'status'            => 'active',
             'role'              => 'guest',
@@ -288,16 +292,17 @@ class GuestInvitationService
     private static function prepareExistingGuestUser(User $user, GuestInvitation $invitation, ?string $phone = null): User
     {
         if ($user->role === 'resident') {
-            abort(422, 'This phone number is registered as a resident. Use resident login instead.');
+            abort(422, 'This email is registered as a resident. Use resident login instead.');
         }
 
         if ($user->role !== 'guest' && $user->role !== null) {
-            abort(422, 'This phone number belongs to a non-guest account.');
+            abort(422, 'This email belongs to a non-guest account.');
         }
 
         $updates = [
             'name'              => $invitation->guest_name,
-            'phone_verified_at' => now(),
+            'email_verified_at' => now(),
+            'phone_verified_at' => $phone ? now() : $user->phone_verified_at,
             'role'              => 'guest',
             'status'            => 'active',
         ];
@@ -318,17 +323,12 @@ class GuestInvitationService
 
     private static function resolveGuestEmail(GuestInvitation $invitation): string
     {
-        $guestEmail = trim((string) ($invitation->guest_email ?? ''));
-        if ($guestEmail !== '' && ! User::query()->where('email', $guestEmail)->exists()) {
+        $guestEmail = ContactIdentityService::normalizeEmail($invitation->guest_email);
+        if ($guestEmail && ! ContactIdentityService::isPlaceholderEmail($guestEmail)) {
             return $guestEmail;
         }
 
-        $phoneEmail = str_replace('+', '', $invitation->guest_phone).'@guest.havena.local';
-        if (! User::query()->where('email', $phoneEmail)->exists()) {
-            return $phoneEmail;
-        }
-
-        return str_replace('+', '', $invitation->guest_phone).'.'.$invitation->id.'@guest.havena.local';
+        abort(422, 'A guest email address is required.');
     }
 
     private static function activateGuest(GuestInvitation $invitation, User $guestUser, int $activatedByUserId): GuestInvitation

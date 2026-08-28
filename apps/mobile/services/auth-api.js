@@ -69,11 +69,10 @@ export async function syncUserFromApi(data) {
   return syncSessionFromMe(data);
 }
 
-export async function requestOtp(phone, { intent = "login" } = {}) {
-  const normalized = normalizePhone(phone);
-  const body = { phone: normalized, intent };
+export async function requestOtp(email, { intent = "login" } = {}) {
+  const normalized = String(email ?? "").trim().toLowerCase();
+  const body = { email: normalized, intent };
 
-  // Always hit the API so an OTP record exists before verify (dev code 221322 in local env).
   return apiRequest("/auth/otp/request", {
     method: "POST",
     body,
@@ -82,20 +81,16 @@ export async function requestOtp(phone, { intent = "login" } = {}) {
   });
 }
 
-export async function verifyOtp(phone, code, { intent = "login", role = "resident", password, passwordConfirmation } = {}) {
-  const normalized = normalizePhone(phone);
+export async function verifyOtp(email, code, { intent = "login", role = "resident" } = {}) {
+  const normalized = String(email ?? "").trim().toLowerCase();
   const payload = {
-    phone: normalized,
+    email: normalized,
     code: String(code).replace(/\D/g, ""),
     intent,
   };
 
   if (intent === "signup") {
     payload.role = role;
-    if (password) {
-      payload.password = password;
-      payload.password_confirmation = passwordConfirmation ?? password;
-    }
   }
 
   const result = await apiRequest("/auth/otp/verify", {

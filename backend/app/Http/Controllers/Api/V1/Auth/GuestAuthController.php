@@ -6,11 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\GuestInvitation;
 use App\Models\User;
+use App\Services\ContactIdentityService;
 use App\Services\GuestAccessService;
 use App\Services\GuestActivityService;
 use App\Services\GuestInvitationService;
 use App\Services\OtpService;
-use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -21,17 +21,17 @@ class GuestAuthController extends Controller
     public function requestOtp(Request $request, OtpService $otp): JsonResponse
     {
         $validated = $request->validate([
-            'phone' => ['required', 'string', 'max:30'],
+            'email' => ['required', 'email', 'max:191'],
         ]);
 
-        $phone = PhoneNormalizer::normalize($validated['phone']);
-        if (! $phone) {
-            return response()->json(['message' => 'Enter a valid phone number.', 'code' => 'INVALID_PHONE'], 422);
+        $email = ContactIdentityService::normalizeEmail($validated['email']);
+        if (! $email || ContactIdentityService::isPlaceholderEmail($email)) {
+            return response()->json(['message' => 'Enter a valid email address.', 'code' => 'INVALID_EMAIL'], 422);
         }
 
-        $user = PhoneNormalizer::findUserByPhone($validated['phone']);
-        $validInvitation = GuestAccessService::findLoginInvitationForPhone($validated['phone']);
-        $latestInvitation = GuestAccessService::findLatestInvitationForPhone($validated['phone']);
+        $user = ContactIdentityService::findActiveUserByEmail($email);
+        $validInvitation = GuestAccessService::findLoginInvitationForEmail($email);
+        $latestInvitation = GuestAccessService::findLatestInvitationForEmail($email);
 
         if ($block = GuestAccessService::resolveGuestLoginBlock($validInvitation, $latestInvitation)) {
             return response()->json($block, 422);
@@ -43,7 +43,7 @@ class GuestAuthController extends Controller
 
         if (! $user && ! $validInvitation) {
             return response()->json([
-                'message' => 'No guest invitation found for this phone number.',
+                'message' => 'No guest invitation found for this email address.',
                 'code'    => 'NO_GUEST_INVITATION',
             ], 422);
         }
@@ -51,7 +51,7 @@ class GuestAuthController extends Controller
         if ($user && ! in_array($user->role, ['guest', 'resident'], true) && $user->role !== null) {
             if ($user->role !== 'guest' && ! $validInvitation) {
                 return response()->json([
-                    'message' => 'This phone number is not registered for guest access.',
+                    'message' => 'This email is not registered for guest access.',
                     'code'    => 'NOT_GUEST_ACCOUNT',
                 ], 422);
             }
@@ -59,7 +59,7 @@ class GuestAuthController extends Controller
 
         if ($user && $user->role === 'resident') {
             return response()->json([
-                'message' => 'This phone number is registered as a resident. Use resident login instead.',
+                'message' => 'This email is registered as a resident. Use resident login instead.',
                 'code'    => 'USE_RESIDENT_LOGIN',
             ], 422);
         }
@@ -70,27 +70,27 @@ class GuestAuthController extends Controller
         }
         RateLimiter::hit($key, 60);
 
-        $otp->send($phone);
+        $otp->send($email);
 
-        return response()->json(['data' => ['message' => 'OTP dispatched', 'phone' => $phone]], 202);
+        return response()->json(['data' => ['message' => 'OTP dispatched', 'email' => $email]], 202);
     }
 
     /** POST /v1/auth/guest/otp/verify */
     public function verifyOtp(Request $request, OtpService $otp): JsonResponse
     {
         $validated = $request->validate([
-            'phone' => ['required', 'string', 'max:30'],
+            'email' => ['required', 'email', 'max:191'],
             'code'  => ['required', 'string', 'size:6'],
         ]);
 
-        $phone = PhoneNormalizer::normalize($validated['phone']);
-        if (! $phone || ! $otp->check($phone, $validated['code'])) {
+        $email = ContactIdentityService::normalizeEmail($validated['email']);
+        if (! $email || ! $otp->check($email, $validated['code'])) {
             return response()->json(['message' => 'Invalid or expired verification code.', 'code' => 'INVALID_OTP'], 422);
         }
 
-        $user = PhoneNormalizer::findUserByPhone($validated['phone']);
-        $validInvitation = GuestAccessService::findLoginInvitationForPhone($validated['phone']);
-        $latestInvitation = GuestAccessService::findLatestInvitationForPhone($validated['phone']);
+        $user = ContactIdentityService::findActiveUserByEmail($email);
+        $validInvitation = GuestAccessService::findLoginInvitationForEmail($email);
+        $latestInvitation = GuestAccessService::findLatestInvitationForEmail($email);
 
         if ($block = GuestAccessService::resolveGuestLoginBlock($validInvitation, $latestInvitation)) {
             return response()->json($block, 422);
@@ -102,9 +102,9 @@ class GuestAuthController extends Controller
 
         if ($user && $user->role === 'guest') {
             if (GuestAccessService::canGuestAccessDashboard($user)) {
-                $otp->consume($phone);
+                $otp->consume($email);
                 $token = $user->createToken('mobile')->plainTextToken;
-                $user->update(['phone_verified_at' => now()]);
+                $user->update(['email_verified_at' => now()]);
                 GuestActivityService::logForUser($user, 'login', 'Guest logged in');
 
                 return response()->json([
@@ -126,7 +126,7 @@ class GuestAuthController extends Controller
                     return response()->json($block, 422);
                 }
 
-                return $this->respondForPendingGuestInvitation($otp, $phone, $pending, $user);
+                return $this->respondForPendingGuestInvitation($otp, $email, $pending, $user);
             }
         }
 
@@ -146,7 +146,7 @@ class GuestAuthController extends Controller
         if ($invitation->status === 'active' && $invitation->guest_user_id) {
             $guestUser = User::query()->find($invitation->guest_user_id);
             if ($guestUser && GuestAccessService::canGuestAccessDashboard($guestUser)) {
-                $otp->consume($phone);
+                $otp->consume($email);
                 $token = $guestUser->createToken('mobile')->plainTextToken;
                 GuestActivityService::log($invitation, 'login', 'Guest logged in');
 
@@ -164,14 +164,14 @@ class GuestAuthController extends Controller
                 ? User::query()->find($invitation->guest_user_id)
                 : null;
 
-            return $this->respondForPendingGuestInvitation($otp, $phone, $invitation, $guestUser);
+            return $this->respondForPendingGuestInvitation($otp, $email, $invitation, $guestUser);
         }
 
-        $otp->extend($phone);
+        $otp->extend($email);
 
         return response()->json([
             'needs_invite_code' => true,
-            'phone_verified'    => true,
+            'email_verified'    => true,
             'invitation_status' => $invitation->status,
         ]);
     }
@@ -180,24 +180,24 @@ class GuestAuthController extends Controller
     public function verifyInvite(Request $request, OtpService $otp): JsonResponse
     {
         $validated = $request->validate([
-            'phone'       => ['required', 'string', 'max:30'],
+            'email'       => ['required', 'email', 'max:191'],
             'code'        => ['required', 'string', 'size:6'],
             'invite_code' => ['required', 'string', 'max:32'],
         ]);
 
-        $phone = PhoneNormalizer::normalize($validated['phone']);
-        if (! $phone) {
-            return response()->json(['message' => 'Enter a valid phone number.', 'code' => 'INVALID_PHONE'], 422);
+        $email = ContactIdentityService::normalizeEmail($validated['email']);
+        if (! $email) {
+            return response()->json(['message' => 'Enter a valid email address.', 'code' => 'INVALID_EMAIL'], 422);
         }
 
-        $otp->extend($phone);
+        $otp->extend($email);
 
-        if (! $otp->check($phone, $validated['code'])) {
+        if (! $otp->check($email, $validated['code'])) {
             return response()->json(['message' => 'Invalid or expired verification code.', 'code' => 'INVALID_OTP'], 422);
         }
 
         try {
-            $invitation = GuestInvitationService::verifyInviteForPhone($validated['phone'], $validated['invite_code']);
+            $invitation = GuestInvitationService::verifyInviteForEmail($email, $validated['invite_code']);
 
             if ($block = GuestAccessService::loginTerminationBlock($invitation)) {
                 return response()->json($block, 422);
@@ -210,7 +210,7 @@ class GuestAuthController extends Controller
             $guestUser = GuestInvitationService::findOrCreateGuestUser($invitation);
 
             if ($invitation->status === 'active' && GuestAccessService::canGuestAccessDashboard($guestUser)) {
-                $otp->consume($phone);
+                $otp->consume($email);
                 $token = $guestUser->createToken('mobile')->plainTextToken;
                 GuestActivityService::log($invitation, 'login', 'Guest logged in');
 
@@ -233,7 +233,7 @@ class GuestAuthController extends Controller
                 ], 422);
             }
 
-            $otp->consume($phone);
+            $otp->consume($email);
             $token = $guestUser->createToken('mobile')->plainTextToken;
 
             return response()->json([
@@ -259,11 +259,11 @@ class GuestAuthController extends Controller
 
     private function respondForPendingGuestInvitation(
         OtpService $otp,
-        string $phone,
+        string $email,
         GuestInvitation $invitation,
         ?User $guestUser,
     ): JsonResponse {
-        $otp->extend($phone);
+        $otp->extend($email);
 
         if ($block = GuestAccessService::loginTerminationBlock($invitation)) {
             return response()->json($block, 422);
@@ -276,12 +276,12 @@ class GuestAuthController extends Controller
         if ($invitation->status === 'pending_verification' || ! $guestUser) {
             return response()->json([
                 'needs_invite_code' => true,
-                'phone_verified'    => true,
+                'email_verified'    => true,
                 'invitation_status' => $invitation->status,
             ]);
         }
 
-        $otp->consume($phone);
+        $otp->consume($email);
         $token = $guestUser->createToken('mobile')->plainTextToken;
 
         return response()->json([

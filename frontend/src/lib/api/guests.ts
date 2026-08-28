@@ -19,7 +19,7 @@ export type GuestInvitation = {
   invitation_type: "resident" | "admin";
   guest_name: string;
   guest_email?: string | null;
-  guest_phone: string;
+  guest_phone?: string | null;
   invite_code: string;
   invite_qr_value?: string;
   starts_at: string;
@@ -45,7 +45,7 @@ export type GuestActivity = {
 export type GuestForm = {
   guest_name: string;
   guest_email: string;
-  guest_phone: string;
+  guest_phone?: string | null;
   starts_at: string;
   ends_at: string;
   permissions?: GuestPermissions;

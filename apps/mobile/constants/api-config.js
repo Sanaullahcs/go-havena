@@ -11,6 +11,8 @@ const DEV_IOS_SIMULATOR = "http://127.0.0.1:8000/api/v1";
 const DEFAULT_LAN_PORT = "8000";
 
 /** Dev/test credentials — use on login & signup in local builds */
+export const DEV_TEST_EMAIL = "test.resident@havena.app";
+export const DEV_COMMUNITY_ADMIN_EMAIL = "test.community.admin@havena.app";
 export const DEV_TEST_PHONE_DIGITS = "5555550100";
 export const DEV_TEST_PHONE_RAW = "5555550100";
 export const DEV_TEST_PHONE_DISPLAY = "(555) 555-0100";
@@ -24,7 +26,7 @@ export const DEV_COMMUNITY_ADMIN_PHONE_E164 = "+15555550200";
 /** Legacy resident dev phone (Sarah Mitchell) */
 export const DEV_LEGACY_RESIDENT_PHONE_DISPLAY = "(555) 555-5555";
 export const DEV_LEGACY_RESIDENT_PHONE_E164 = "+15555555555";
-export const DEV_OTP_HINT = "221322";
+export const DEV_OTP_HINT = "123456";
 export const DEV_INVITE_CODE = "MAPLE-2024-XYZ";
 export const DEV_OFFLINE_TOKEN = "dev-offline-token";
 
@@ -169,6 +171,11 @@ if (__DEV__) {
 export function isDevTestPhone(input) {
   const digits = extractNationalDigits(input);
   return digits === DEV_TEST_PHONE_DIGITS || digits === DEV_COMMUNITY_ADMIN_PHONE_DIGITS;
+}
+
+export function isDevTestEmail(input) {
+  const email = String(input ?? "").trim().toLowerCase();
+  return email === DEV_TEST_EMAIL || email === DEV_COMMUNITY_ADMIN_EMAIL;
 }
 
 export function isRemoteApi() {

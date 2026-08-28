@@ -11,18 +11,18 @@ class CommunityAdminSelfServeTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_unknown_phone_can_signup_via_community_admin_portal_otp(): void
+    public function test_unknown_email_can_signup_via_community_admin_portal_otp(): void
     {
-        $phone = '+15553334444';
+        $email = 'self.serve.admin@example.com';
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone' => $phone,
+            'email' => $email,
             'intent' => 'signup',
             'portal' => 'community_admin_dashboard',
         ])->assertStatus(202);
 
         $verify = $this->postJson('/api/v1/auth/otp/verify', [
-            'phone' => $phone,
+            'email' => $email,
             'code' => '123456',
             'intent' => 'signup',
             'role' => 'admin',
@@ -33,7 +33,8 @@ class CommunityAdminSelfServeTest extends TestCase
             ->assertJsonPath('user.community_admin_status', 'pending');
 
         $this->assertDatabaseHas('users', [
-            'phone' => $phone,
+            'email' => $email,
+            'phone' => null,
             'role' => 'community_admin',
             'community_admin_status' => 'pending',
         ]);

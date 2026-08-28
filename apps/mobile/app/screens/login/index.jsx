@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { SafeAreaView } from "react-native-safe-area-context";
-import LoginPhoneInput from "../../../components/ui/phone-input";
+import LocaleTextInput from "../../../components/ui/locale-text-input";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
 import AuthFlowTopBar from "../../../components/auth/auth-flow-top-bar";
@@ -12,13 +12,11 @@ import BiometricAuthButtons from "../../../components/ui/biometric-auth-buttons"
 import FingerprintDialog from "../../../components/biometric/fingerprint-dialog";
 import FaceIdDialog from "../../../components/biometric/faceid-dialog";
 import {
-  DEV_TEST_PHONE_DISPLAY,
-  DEV_COMMUNITY_ADMIN_PHONE_DISPLAY,
+  DEV_TEST_EMAIL,
+  DEV_COMMUNITY_ADMIN_EMAIL,
   DEV_OTP_HINT,
-  isRemoteApi,
 } from "../../../constants/api-config";
-import { DEFAULT_PHONE_COUNTRY } from "../../../constants/phone-countries";
-import { isValidPhone, toE164 } from "../../../utils/phone";
+import { EMAIL_RE } from "../../../utils/form-validation";
 import { requestOtp } from "../../../services/auth-api";
 import {
   buildBlockedAccountDialogOptions,
@@ -31,7 +29,7 @@ import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import { checkBiometricLoginReady } from "../../../components/biometric/biometric-service";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { useBiometricCapabilities } from "../../../hooks/use-biometric-capabilities";
-import { encodeRoutePhone } from "../../../utils/route-params";
+import { encodeRouteEmail } from "../../../utils/route-params";
 import { getUser, hasBiometricUnlock } from "../../../services/auth-session";
 import { authLayoutStyles as layout } from "../../../constants/auth-layout";
 import { Colors } from "../../../constants/tokens";
@@ -45,9 +43,8 @@ export default function LoginScreen() {
   const dialog = useAppDialog();
   const { suspended } = useLocalSearchParams();
   const suspendedNoticeShown = useRef(false);
-  const [phoneDigits, setPhoneDigits] = useState("");
-  const [phoneCountry, setPhoneCountry] = useState(DEFAULT_PHONE_COUNTRY);
-  const [showPhoneError, setShowPhoneError] = useState(false);
+  const [email, setEmail] = useState("");
+  const [showEmailError, setShowEmailError] = useState(false);
   const [showFingerprintDialog, setShowFingerprintDialog] = useState(false);
   const [showFaceIdDialog, setShowFaceIdDialog] = useState(false);
   const [biometricOpening, setBiometricOpening] = useState(false);
@@ -55,7 +52,7 @@ export default function LoginScreen() {
   const [isReturningUser, setIsReturningUser] = useState(false);
   const [welcomeReady, setWelcomeReady] = useState(false);
   const { submitting, run } = useSubmitLock();
-  const isValid = isValidPhone(phoneDigits, phoneCountry);
+  const isValid = EMAIL_RE.test(email.trim());
   const biometricCaps = useBiometricCapabilities();
 
   useEffect(() => {
@@ -65,7 +62,7 @@ export default function LoginScreen() {
       const biometricUnlock = await hasBiometricUnlock();
       // Token alone is not enough (stale session) — prefer a real user record
       if (mounted) {
-        setIsReturningUser(Boolean(user?.id || user?.phone || biometricUnlock));
+        setIsReturningUser(Boolean(user?.id || user?.email || user?.phone || biometricUnlock));
         setWelcomeReady(true);
       }
     })();
@@ -128,36 +125,29 @@ export default function LoginScreen() {
 
   const handleSendCode = () => {
     if (!isValid || submitting) {
-      if (!isValid) setShowPhoneError(true);
+      if (!isValid) setShowEmailError(true);
       return;
     }
 
-    const e164 = toE164(phoneDigits, phoneCountry);
+    const normalizedEmail = email.trim().toLowerCase();
 
     run(async () => {
       try {
-        await requestOtp(e164, { intent: "login" });
+        await requestOtp(normalizedEmail, { intent: "login" });
         router.push({
           pathname: "/screens/login/verify-phone",
-          params: { phone: encodeRoutePhone(e164) },
+          params: { email: encodeRouteEmail(normalizedEmail) },
         });
       } catch (err) {
-        await handleAuthApiError(err, dialog, router, { phone: e164 });
+        await handleAuthApiError(err, dialog, router, { email: normalizedEmail });
       }
     });
   };
 
-  const handlePhoneChange = (digits) => {
-    setPhoneDigits(digits);
-    if (showPhoneError && isValidPhone(digits, phoneCountry)) {
-      setShowPhoneError(false);
-    }
-  };
-
-  const handleCountryChange = (country) => {
-    setPhoneCountry(country);
-    if (showPhoneError && isValidPhone(phoneDigits, country)) {
-      setShowPhoneError(false);
+  const handleEmailChange = (value) => {
+    setEmail(value);
+    if (showEmailError && EMAIL_RE.test(value.trim())) {
+      setShowEmailError(false);
     }
   };
 
@@ -212,22 +202,28 @@ export default function LoginScreen() {
             <AuthHeroText
               eyebrow={t("auth.signIn")}
               title={welcomeReady && isReturningUser ? t("auth.welcomeBack") : t("auth.signIn")}
-              subtitle={t("auth.enterPhone")}
+              subtitle={t("auth.enterEmail")}
             />
 
             <View style={layout.fieldBlock}>
-              <Text style={layout.fieldLabel}>{t("auth.phoneNumber")}</Text>
-              <LoginPhoneInput
-                digits={phoneDigits}
-                onChangeDigits={handlePhoneChange}
-                country={phoneCountry}
-                onCountryChange={handleCountryChange}
-                showError={showPhoneError}
-                showHints={false}
+              <Text style={layout.fieldLabel}>{t("auth.emailAddress")}</Text>
+              <LocaleTextInput
+                value={email}
+                onChangeText={handleEmailChange}
+                placeholder={t("auth.emailPlaceholder")}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                textContentType="emailAddress"
+                style={[styles.input, showEmailError && styles.inputError]}
               />
+              {showEmailError ? (
+                <Text style={styles.inputErrorText}>{t("auth.enterValidEmail")}</Text>
+              ) : null}
               {__DEV__ ? (
                 <Text style={styles.devHint}>
-                  Test login: {DEV_TEST_PHONE_DISPLAY} (resident) or {DEV_COMMUNITY_ADMIN_PHONE_DISPLAY} (admin) · OTP {DEV_OTP_HINT}
+                  Test login: {DEV_TEST_EMAIL} (resident) or {DEV_COMMUNITY_ADMIN_EMAIL} (admin) · OTP {DEV_OTP_HINT}
                 </Text>
               ) : null}
             </View>
@@ -302,5 +298,25 @@ const styles = StyleSheet.create({
     color: ScreenBrand.link,
     fontWeight: "600",
     fontFamily: Fonts.semiBold,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontFamily: Fonts.regular,
+    fontSize: 16,
+    backgroundColor: "#FFF",
+    color: Colors.textPrimary,
+  },
+  inputError: {
+    borderColor: "#DC2626",
+  },
+  inputErrorText: {
+    marginTop: 6,
+    fontSize: 12,
+    color: "#DC2626",
+    fontFamily: Fonts.regular,
   },
 });

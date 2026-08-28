@@ -61,18 +61,26 @@ export async function rejectGuestInvitation(id, reason) {
   return res.data;
 }
 
-export async function requestGuestOtp(phone) {
-  return apiRequest("/auth/guest/otp/request", { method: "POST", body: { phone }, auth: false });
+export async function requestGuestOtp(email) {
+  return apiRequest("/auth/guest/otp/request", {
+    method: "POST",
+    body: { email: String(email ?? "").trim().toLowerCase() },
+    auth: false,
+  });
 }
 
-export async function verifyGuestOtp(phone, code) {
-  return apiRequest("/auth/guest/otp/verify", { method: "POST", body: { phone, code }, auth: false });
+export async function verifyGuestOtp(email, code) {
+  return apiRequest("/auth/guest/otp/verify", {
+    method: "POST",
+    body: { email: String(email ?? "").trim().toLowerCase(), code },
+    auth: false,
+  });
 }
 
-export async function verifyGuestInvite(phone, code, invite_code) {
+export async function verifyGuestInvite(email, code, invite_code) {
   return apiRequest("/auth/guest/verify-invite", {
     method: "POST",
-    body: { phone, code, invite_code },
+    body: { email: String(email ?? "").trim().toLowerCase(), code, invite_code },
     auth: false,
   });
 }

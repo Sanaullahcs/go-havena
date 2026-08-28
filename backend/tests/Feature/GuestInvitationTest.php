@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Community;
 use App\Models\CommunityMembership;
+use App\Models\CommunitySubscription;
 use App\Models\GuestInvitation;
 use App\Models\Region;
 use App\Models\User;
@@ -47,6 +48,15 @@ class GuestInvitationTest extends TestCase
             'community_id' => $community->id,
             'role'         => 'admin',
             'status'       => 'approved',
+        ]);
+
+        CommunitySubscription::query()->create([
+            'community_id' => $community->id,
+            'plan_slug' => 'starter',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_ACTIVE,
+            'seat_limit' => 100,
+            'meta' => ['card_on_file' => true, 'activated_via' => 'manual'],
         ]);
 
         return [$community, $admin];
@@ -103,6 +113,7 @@ class GuestInvitationTest extends TestCase
 
         $response = $this->postJson('/api/v1/guest-invitations', [
             'guest_name'  => 'Bob Visitor',
+            'guest_email' => 'bob.visitor@example.com',
             'guest_phone' => '+15559876543',
             'starts_at'   => now()->addHour()->toIso8601String(),
             'ends_at'     => now()->addDays(2)->toIso8601String(),
@@ -156,10 +167,10 @@ class GuestInvitationTest extends TestCase
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
-        app(OtpService::class)->send('+15551112222');
+        app(OtpService::class)->send('activeguest@example.com');
 
         $verify = $this->postJson('/api/v1/auth/guest/verify-invite', [
-            'phone'       => '+15551112222',
+            'email'       => 'activeguest@example.com',
             'code'        => '123456',
             'invite_code' => $create['invite_code'],
         ]);
@@ -191,7 +202,7 @@ class GuestInvitationTest extends TestCase
         ]);
 
         $this->assertDatabaseHas('users', [
-            'phone' => '+15551112222',
+            'email'       => 'activeguest@example.com',
             'role'  => 'guest',
         ]);
     }
@@ -204,15 +215,16 @@ class GuestInvitationTest extends TestCase
 
         $create = $this->postJson('/api/v1/guest-invitations', [
             'guest_name'  => 'Pending Guest',
+            'guest_email' => 'pending.guest@example.com',
             'guest_phone' => '+15553334444',
             'starts_at'   => now()->subHour()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
-        app(OtpService::class)->send('+15553334444');
+        app(OtpService::class)->send('pending.guest@example.com');
 
         $verify = $this->postJson('/api/v1/auth/guest/verify-invite', [
-            'phone'       => '+15553334444',
+            'email'       => 'pending.guest@example.com',
             'code'        => '123456',
             'invite_code' => $create['invite_code'],
         ]);
@@ -240,17 +252,17 @@ class GuestInvitationTest extends TestCase
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
-        app(OtpService::class)->send('+15554443333');
+        app(OtpService::class)->send('twostep@example.com');
 
         $this->postJson('/api/v1/auth/guest/otp/verify', [
-            'phone' => '+15554443333',
+            'email'       => 'twostep@example.com',
             'code'  => '123456',
         ])
             ->assertOk()
             ->assertJsonPath('needs_invite_code', true);
 
         $verify = $this->postJson('/api/v1/auth/guest/verify-invite', [
-            'phone'       => '+15554443333',
+            'email'       => 'twostep@example.com',
             'code'        => '123456',
             'invite_code' => $create['invite_code'],
         ]);
@@ -280,16 +292,16 @@ class GuestInvitationTest extends TestCase
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
-        app(OtpService::class)->send('+15551230123');
+        app(OtpService::class)->send('scheduled@example.com');
 
         $this->postJson('/api/v1/auth/guest/otp/request', [
-            'phone' => '+15551230123',
+            'email'       => 'scheduled@example.com',
         ])
             ->assertStatus(422)
             ->assertJsonPath('code', 'ACCESS_NOT_STARTED');
 
         $this->postJson('/api/v1/auth/guest/verify-invite', [
-            'phone'       => '+15551230123',
+            'email'       => 'scheduled@example.com',
             'code'        => '123456',
             'invite_code' => $create['invite_code'],
         ])
@@ -297,10 +309,10 @@ class GuestInvitationTest extends TestCase
             ->assertJsonPath('code', 'ACCESS_NOT_STARTED');
 
         $this->travel(2)->hours();
-        app(OtpService::class)->send('+15551230123');
+        app(OtpService::class)->send('scheduled@example.com');
 
         $this->postJson('/api/v1/auth/guest/verify-invite', [
-            'phone'       => '+15551230123',
+            'email'       => 'scheduled@example.com',
             'code'        => '123456',
             'invite_code' => $create['invite_code'],
         ])->assertOk()->assertJsonPath('invitation_status', 'pending_approval');
@@ -335,10 +347,10 @@ class GuestInvitationTest extends TestCase
             'ends_at'     => now()->subHour()->toIso8601String(),
         ])->json('data');
 
-        app(OtpService::class)->send('+15551230999');
+        app(OtpService::class)->send('expiredwindow@example.com');
 
         $this->postJson('/api/v1/auth/guest/otp/request', [
-            'phone' => '+15551230999',
+            'email'       => 'expiredwindow@example.com',
         ])
             ->assertStatus(422)
             ->assertJsonPath('code', 'GUEST_ACCESS_EXPIRED')
@@ -358,9 +370,9 @@ class GuestInvitationTest extends TestCase
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
-        app(OtpService::class)->send('+15551230555');
+        app(OtpService::class)->send('revoked@example.com');
         $this->postJson('/api/v1/auth/guest/verify-invite', [
-            'phone'       => '+15551230555',
+            'email'       => 'revoked@example.com',
             'code'        => '123456',
             'invite_code' => $create['invite_code'],
         ])->assertOk();
@@ -404,9 +416,9 @@ class GuestInvitationTest extends TestCase
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
-        app(OtpService::class)->send('+15551230666');
+        app(OtpService::class)->send('norelogin@example.com');
         $this->postJson('/api/v1/auth/guest/verify-invite', [
-            'phone'       => '+15551230666',
+            'email'       => 'norelogin@example.com',
             'code'        => '123456',
             'invite_code' => $create['invite_code'],
         ])->assertOk();
@@ -416,23 +428,23 @@ class GuestInvitationTest extends TestCase
         $this->patchJson("/api/v1/admin/guests/{$invitation->id}/revoke")->assertOk();
 
         $this->postJson('/api/v1/auth/guest/otp/request', [
-            'phone' => '+15551230666',
+            'email'       => 'norelogin@example.com',
         ])
             ->assertStatus(422)
             ->assertJsonPath('code', 'GUEST_ACCESS_REVOKED')
             ->assertJsonPath('message', GuestAccessService::MSG_ACCESS_REVOKED);
 
-        app(OtpService::class)->send('+15551230666');
+        app(OtpService::class)->send('norelogin@example.com');
         $this->postJson('/api/v1/auth/guest/otp/verify', [
-            'phone' => '+15551230666',
+            'email'       => 'norelogin@example.com',
             'code'  => '123456',
         ])
             ->assertStatus(422)
             ->assertJsonPath('code', 'GUEST_ACCESS_REVOKED');
 
-        app(OtpService::class)->send('+15551230666');
+        app(OtpService::class)->send('norelogin@example.com');
         $this->postJson('/api/v1/auth/guest/verify-invite', [
-            'phone'       => '+15551230666',
+            'email'       => 'norelogin@example.com',
             'code'        => '123456',
             'invite_code' => $create['invite_code'],
         ])
@@ -453,9 +465,9 @@ class GuestInvitationTest extends TestCase
             'ends_at'     => now()->addHour()->toIso8601String(),
         ])->json('data');
 
-        app(OtpService::class)->send('+15551230444');
+        app(OtpService::class)->send('timed@example.com');
         $verify = $this->postJson('/api/v1/auth/guest/verify-invite', [
-            'phone'       => '+15551230444',
+            'email'       => 'timed@example.com',
             'code'        => '123456',
             'invite_code' => $create['invite_code'],
         ])->assertOk();
@@ -555,14 +567,15 @@ class GuestInvitationTest extends TestCase
 
         $create = $this->postJson('/api/v1/guest-invitations', [
             'guest_name'  => 'Admin Approves Me',
+            'guest_email' => 'admin.approves@example.com',
             'guest_phone' => '+15556667777',
             'starts_at'   => now()->subHour()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
-        app(OtpService::class)->send('+15556667777');
+        app(OtpService::class)->send('admin.approves@example.com');
         $this->postJson('/api/v1/auth/guest/verify-invite', [
-            'phone'       => '+15556667777',
+            'email'       => 'admin.approves@example.com',
             'code'        => '123456',
             'invite_code' => $create['invite_code'],
         ])->assertOk()->assertJsonPath('invitation_status', 'pending_approval');
@@ -594,14 +607,15 @@ class GuestInvitationTest extends TestCase
 
         $create = $this->postJson('/api/v1/guest-invitations', [
             'guest_name'  => 'Not Your Guest',
+            'guest_email' => 'not.your.guest@example.com',
             'guest_phone' => '+15558889999',
             'starts_at'   => now()->subHour()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
-        app(OtpService::class)->send('+15558889999');
+        app(OtpService::class)->send('not.your.guest@example.com');
         $this->postJson('/api/v1/auth/guest/verify-invite', [
-            'phone'       => '+15558889999',
+            'email'       => 'not.your.guest@example.com',
             'code'        => '123456',
             'invite_code' => $create['invite_code'],
         ])->assertOk()->assertJsonPath('invitation_status', 'pending_approval');
@@ -621,14 +635,15 @@ class GuestInvitationTest extends TestCase
 
         $create = $this->postJson('/api/v1/guest-invitations', [
             'guest_name'  => 'Admin Rejects Me',
+            'guest_email' => 'admin.rejects@example.com',
             'guest_phone' => '+15558889999',
             'starts_at'   => now()->subHour()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
-        app(OtpService::class)->send('+15558889999');
+        app(OtpService::class)->send('admin.rejects@example.com');
         $this->postJson('/api/v1/auth/guest/verify-invite', [
-            'phone'       => '+15558889999',
+            'email'       => 'admin.rejects@example.com',
             'code'        => '123456',
             'invite_code' => $create['invite_code'],
         ])->assertOk()->assertJsonPath('invitation_status', 'pending_approval');
@@ -655,9 +670,9 @@ class GuestInvitationTest extends TestCase
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
-        app(OtpService::class)->send('+15557778888');
+        app(OtpService::class)->send('readonly@example.com');
         $login = $this->postJson('/api/v1/auth/guest/verify-invite', [
-            'phone'       => '+15557778888',
+            'email'       => 'readonly@example.com',
             'code'        => '123456',
             'invite_code' => $create['invite_code'],
         ]);
@@ -684,10 +699,10 @@ class GuestInvitationTest extends TestCase
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
-        app(OtpService::class)->send('+15556667777');
+        app(OtpService::class)->send('retry@example.com');
 
         $this->postJson('/api/v1/auth/guest/verify-invite', [
-            'phone'       => '+15556667777',
+            'email'       => 'retry@example.com',
             'code'        => '123456',
             'invite_code' => 'GST-WRONG-0000',
         ])
@@ -695,7 +710,7 @@ class GuestInvitationTest extends TestCase
             ->assertJsonPath('code', 'INVALID_INVITE');
 
         $this->postJson('/api/v1/auth/guest/verify-invite', [
-            'phone'       => '+15556667777',
+            'email'       => 'retry@example.com',
             'code'        => '123456',
             'invite_code' => $create['invite_code'],
         ])
@@ -716,12 +731,12 @@ class GuestInvitationTest extends TestCase
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
-        app(OtpService::class)->send('+15556668888');
+        app(OtpService::class)->send('spaced@example.com');
 
         $spacedCode = str_replace('-', ' - ', $create['invite_code']);
 
         $this->postJson('/api/v1/auth/guest/verify-invite', [
-            'phone'       => '+15556668888',
+            'email'       => 'spaced@example.com',
             'code'        => '123456',
             'invite_code' => $spacedCode,
         ])

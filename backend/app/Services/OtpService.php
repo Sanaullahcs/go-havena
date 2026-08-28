@@ -2,9 +2,10 @@
 
 namespace App\Services;
 
-use App\Models\PhoneOtp;
-use App\Support\PhoneNormalizer;
+use App\Mail\AuthOtpMail;
+use App\Models\EmailOtp;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class OtpService
 {
@@ -12,43 +13,44 @@ class OtpService
 
     public const EXPIRE_MINUTES = 2;
 
-    public function send(string $phone): void
+    public function send(string $email): void
     {
-        $phone = $this->normalizedPhone($phone);
+        $email = $this->normalizedEmail($email);
         $code = $this->issueCode();
 
-        PhoneOtp::query()->where('phone', $phone)->delete();
+        EmailOtp::query()->where('email', $email)->delete();
 
-        PhoneOtp::query()->create([
-            'phone' => $phone,
+        EmailOtp::query()->create([
+            'email' => $email,
             'code_hash' => self::hashCode($code),
             'attempts' => 0,
             'expires_at' => now()->addMinutes($this->expireMinutes()),
         ]);
 
-        // No SMS provider yet — always log when using a fixed/demo code so ops can recover.
-        if ($this->usesFixedCode()) {
-            Log::info('Havena OTP', ['phone' => $phone, 'code' => $code]);
+        Log::info('Havena OTP', ['email' => $email, 'code' => $this->usesFixedCode() ? $code : '[hidden]']);
+
+        if ($this->shouldSendMail()) {
+            Mail::to($email)->send(new AuthOtpMail($code));
         }
     }
 
-    public function verify(string $phone, string $code): bool
+    public function verify(string $email, string $code): bool
     {
-        if (! $this->check($phone, $code)) {
+        if (! $this->check($email, $code)) {
             return false;
         }
 
-        PhoneOtp::query()->where('phone', $this->normalizedPhone($phone))->delete();
+        EmailOtp::query()->where('email', $this->normalizedEmail($email))->delete();
 
         return true;
     }
 
     /** Validate OTP without consuming it (for multi-step guest login). */
-    public function check(string $phone, string $code): bool
+    public function check(string $email, string $code): bool
     {
-        $phone = $this->normalizedPhone($phone);
-        $otp = PhoneOtp::query()
-            ->where('phone', $phone)
+        $email = $this->normalizedEmail($email);
+        $otp = EmailOtp::query()
+            ->where('email', $email)
             ->where('expires_at', '>', now())
             ->latest('id')
             ->first();
@@ -71,23 +73,23 @@ class OtpService
         return true;
     }
 
-    public function consume(string $phone): void
+    public function consume(string $email): void
     {
-        PhoneOtp::query()->where('phone', $this->normalizedPhone($phone))->delete();
+        EmailOtp::query()->where('email', $this->normalizedEmail($email))->delete();
     }
 
     /** Keep OTP alive for multi-step flows (e.g. guest invite entry). */
-    public function extend(string $phone, int $minutes = 15): void
+    public function extend(string $email, int $minutes = 15): void
     {
-        PhoneOtp::query()
-            ->where('phone', $this->normalizedPhone($phone))
+        EmailOtp::query()
+            ->where('email', $this->normalizedEmail($email))
             ->where('expires_at', '>', now())
             ->update(['expires_at' => now()->addMinutes($minutes)]);
     }
 
-    private function normalizedPhone(string $phone): string
+    public function normalizedEmail(string $email): string
     {
-        return PhoneNormalizer::normalize($phone) ?? $phone;
+        return strtolower(trim($email));
     }
 
     private function issueCode(): string
@@ -102,9 +104,15 @@ class OtpService
         return $this->fixedCode() !== null;
     }
 
+    private function shouldSendMail(): bool
+    {
+        $mailer = (string) config('mail.default', 'log');
+
+        return ! in_array($mailer, ['array', 'log'], true) || app()->environment('local');
+    }
+
     /**
      * Fixed demo code when OTP_FIXED_CODE is set, or on local/testing/uat.
-     * Production with no SMS must set OTP_FIXED_CODE explicitly.
      */
     private function fixedCode(): ?string
     {
@@ -127,7 +135,6 @@ class OtpService
         return $minutes > 0 ? $minutes : self::EXPIRE_MINUTES;
     }
 
-    /** Short-lived OTP codes use HMAC (not bcrypt) for fast send/verify. */
     private static function hashCode(string $code): string
     {
         return hash_hmac('sha256', $code, (string) config('app.key'));

@@ -28,9 +28,7 @@ function validateForm(form, phoneCountry, t) {
   const errors = {};
   if (!form.first_name.trim()) errors.first_name = t("family.addMemberForm.firstNameRequired");
   if (!form.last_name.trim()) errors.last_name = t("family.addMemberForm.lastNameRequired");
-  if (!form.phone.trim()) {
-    errors.phone = t("family.addMemberForm.phoneRequired");
-  } else if (!toE164(form.phone, phoneCountry)) {
+  if (form.phone.trim() && !toE164(form.phone, phoneCountry)) {
     errors.phone = t("family.addMemberForm.invalidPhone");
   }
   if (!form.email.trim()) {
@@ -99,8 +97,8 @@ export default function AddFamilyMemberScreen() {
       return;
     }
 
-    const phone = toE164(form.phone, phoneCountry);
-    if (!phone) {
+    const phone = form.phone.trim() ? toE164(form.phone, phoneCountry) : null;
+    if (form.phone.trim() && !phone) {
       setErrors((prev) => ({ ...prev, phone: t("family.addMemberForm.invalidPhone") }));
       focusField("phone");
       return;
@@ -112,7 +110,7 @@ export default function AddFamilyMemberScreen() {
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
         email: form.email.trim().toLowerCase(),
-        phone,
+        phone: phone || undefined,
         age: Number(form.age),
         unit_number: form.unit_number.trim(),
       });
@@ -198,7 +196,7 @@ export default function AddFamilyMemberScreen() {
             />
           </Field>
 
-          <Field label={t("family.addMemberForm.phoneNumber")} error={errors.phone} onLayout={rememberFieldOffset("phone")}>
+          <Field label={t("family.addMemberForm.phoneOptional")} error={errors.phone} onLayout={rememberFieldOffset("phone")}>
             <FormPhoneInput
               digits={form.phone}
               onChangeDigits={(value) => update("phone", value)}

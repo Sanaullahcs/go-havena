@@ -82,18 +82,18 @@ export type CommunityAdminOtpIntent = "login" | "signup";
 
 /**
  * Community-admin OTP request.
- * - mode "auto": try login first; unknown phones fall back to signup
+ * - mode "auto": try login first; unknown emails fall back to signup
  * - mode "signup": force signup (register page)
  * - mode "login": login only
  */
 export async function requestCommunityAdminOtp(
-  phone: string,
+  email: string,
   mode: "auto" | "login" | "signup" = "auto",
 ): Promise<{ intent: CommunityAdminOtpIntent }> {
   if (mode === "signup") {
     try {
       await api.post("/v1/auth/otp/request", {
-        phone,
+        email,
         intent: "signup",
         portal: "community_admin_dashboard",
       });
@@ -105,7 +105,7 @@ export async function requestCommunityAdminOtp(
 
   try {
     await api.post("/v1/auth/otp/request", {
-      phone,
+      email,
       intent: "login",
       portal: "community_admin_dashboard",
     });
@@ -118,7 +118,7 @@ export async function requestCommunityAdminOtp(
     ) {
       try {
         await api.post("/v1/auth/otp/request", {
-          phone,
+          email,
           intent: "signup",
           portal: "community_admin_dashboard",
         });
@@ -132,7 +132,7 @@ export async function requestCommunityAdminOtp(
 }
 
 export async function verifyCommunityAdminOtp(
-  phone: string,
+  email: string,
   code: string,
   intent: CommunityAdminOtpIntent = "login",
   referralCode?: string | null,
@@ -140,7 +140,7 @@ export async function verifyCommunityAdminOtp(
   try {
     const cleanReferral = normalizeReferralCode(referralCode);
     const res = await api.post("/v1/auth/otp/verify", {
-      phone,
+      email,
       code,
       intent,
       portal: "community_admin_dashboard",
@@ -150,7 +150,7 @@ export async function verifyCommunityAdminOtp(
     const data = res.data;
     const token = data.token;
     const raw = data.user ?? data.data;
-    const user = mapAuthUser(raw ?? {}, { phone });
+    const user = mapAuthUser(raw ?? {}, { email });
     if (!token) throw new ApiError("Login failed — no token returned.");
     return { token, user, intent };
   } catch (err) {
@@ -158,10 +158,10 @@ export async function verifyCommunityAdminOtp(
   }
 }
 
-export async function requestSignupOtp(phone: string): Promise<void> {
+export async function requestSignupOtp(email: string): Promise<void> {
   try {
     await api.post("/v1/auth/otp/request", {
-      phone,
+      email,
       intent: "signup",
     });
   } catch (err) {
@@ -170,7 +170,7 @@ export async function requestSignupOtp(phone: string): Promise<void> {
         message?: string;
         errors?: Record<string, string[]>;
       } | undefined;
-      const fieldMsg = data?.errors?.phone?.[0];
+      const fieldMsg = data?.errors?.email?.[0];
       const msg = fieldMsg ?? data?.message ?? "Unable to send verification code.";
       throw new ApiError(msg, err.response?.status ?? 500);
     }
@@ -179,13 +179,13 @@ export async function requestSignupOtp(phone: string): Promise<void> {
 }
 
 export async function verifySignupOtp(
-  phone: string,
+  email: string,
   code: string,
   role: "admin" | "resident",
 ): Promise<{ token: string; user: AuthUser }> {
   try {
     const res = await api.post("/v1/auth/otp/verify", {
-      phone,
+      email,
       code,
       intent: "signup",
       role,
@@ -193,7 +193,7 @@ export async function verifySignupOtp(
     const data = res.data;
     const token = data.token;
     const raw = data.user ?? data.data;
-    const user = mapAuthUser(raw ?? {}, { phone });
+    const user = mapAuthUser(raw ?? {}, { email });
     if (!token) throw new ApiError("Sign up failed — no token returned.");
     return { token, user };
   } catch (err) {
@@ -202,7 +202,7 @@ export async function verifySignupOtp(
         message?: string;
         errors?: Record<string, string[]>;
       } | undefined;
-      const fieldMsg = data?.errors?.phone?.[0] ?? data?.errors?.code?.[0];
+      const fieldMsg = data?.errors?.email?.[0] ?? data?.errors?.code?.[0];
       const msg = fieldMsg ?? data?.message ?? "Invalid verification code.";
       throw new ApiError(msg, err.response?.status ?? 500);
     }

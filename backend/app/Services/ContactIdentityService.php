@@ -128,9 +128,9 @@ class ContactIdentityService
     /**
      * Block guest invites when email/phone are already registered or on another active invite.
      */
-    public static function assertAvailableForGuestInvite(?string $email, string $phone): void
+    public static function assertAvailableForGuestInvite(?string $email, ?string $phone): void
     {
-        if (self::findActiveUserByPhone($phone)) {
+        if ($phone && self::findActiveUserByPhone($phone)) {
             self::failDuplicate('guest_phone', self::DUPLICATE_PHONE_MESSAGE);
         }
 
@@ -138,7 +138,7 @@ class ContactIdentityService
             self::failDuplicate('guest_email', self::DUPLICATE_EMAIL_MESSAGE);
         }
 
-        if (self::hasActiveGuestInvitationForPhone($phone)) {
+        if ($phone && self::hasActiveGuestInvitationForPhone($phone)) {
             self::failDuplicate('guest_phone', self::DUPLICATE_PHONE_MESSAGE);
         }
 

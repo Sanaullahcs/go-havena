@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Community;
 use App\Models\CommunityMembership;
+use App\Models\CommunitySubscription;
 use App\Models\Family;
 use App\Models\FamilyAddMemberRequest;
 use App\Models\FamilyBlock;
@@ -35,6 +36,15 @@ class FamilyTest extends TestCase
             'region'        => $region->title,
             'status'        => 'active',
             'review_status' => 'approved',
+        ]);
+
+        CommunitySubscription::query()->create([
+            'community_id' => $community->id,
+            'plan_slug' => 'starter',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_ACTIVE,
+            'seat_limit' => 100,
+            'meta' => ['card_on_file' => true, 'activated_via' => 'manual'],
         ]);
 
         return [$community, $region];

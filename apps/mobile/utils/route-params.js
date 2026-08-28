@@ -22,3 +22,11 @@ export function decodeRoutePhone(value) {
     return raw;
   }
 }
+
+export function encodeRouteEmail(email) {
+  return encodeRoutePhone(email);
+}
+
+export function decodeRouteEmail(value) {
+  return decodeRoutePhone(value).trim().toLowerCase();
+}

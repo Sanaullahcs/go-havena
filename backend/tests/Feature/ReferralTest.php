@@ -91,16 +91,16 @@ class ReferralTest extends TestCase
     public function test_signup_locks_referral_attribution_with_valid_code(): void
     {
         [, $code] = $this->seedReferrerWithCode();
-        $phone = '+15557778888';
+        $email = 'referral.signup@example.com';
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone' => $phone,
+            'email' => $email,
             'intent' => 'signup',
             'portal' => 'community_admin_dashboard',
         ])->assertStatus(202);
 
         $verify = $this->postJson('/api/v1/auth/otp/verify', [
-            'phone' => $phone,
+            'email' => $email,
             'code' => '123456',
             'intent' => 'signup',
             'role' => 'admin',
@@ -276,16 +276,16 @@ class ReferralTest extends TestCase
     public function test_system_admin_can_update_settings_and_list_attributions(): void
     {
         [, $code] = $this->seedReferrerWithCode();
-        $phone = '+15554443322';
+        $email = 'referral.settings@example.com';
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone' => $phone,
+            'email' => $email,
             'intent' => 'signup',
             'portal' => 'community_admin_dashboard',
         ])->assertStatus(202);
 
         $this->postJson('/api/v1/auth/otp/verify', [
-            'phone' => $phone,
+            'email' => $email,
             'code' => '123456',
             'intent' => 'signup',
             'role' => 'admin',
@@ -429,16 +429,16 @@ class ReferralTest extends TestCase
 
     public function test_invalid_referral_code_is_ignored_on_signup(): void
     {
-        $phone = '+15550001122';
+        $email = 'referral.invalid@example.com';
 
         $this->postJson('/api/v1/auth/otp/request', [
-            'phone' => $phone,
+            'email' => $email,
             'intent' => 'signup',
             'portal' => 'community_admin_dashboard',
         ])->assertStatus(202);
 
         $this->postJson('/api/v1/auth/otp/verify', [
-            'phone' => $phone,
+            'email' => $email,
             'code' => '123456',
             'intent' => 'signup',
             'role' => 'admin',

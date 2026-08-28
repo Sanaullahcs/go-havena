@@ -733,7 +733,10 @@ class FamilyService
         self::assertFamilyHead($family, $actor);
 
         $email = strtolower(trim($data['email']));
-        $phone = PhoneNormalizer::normalize(trim($data['phone'])) ?? trim($data['phone']);
+        $rawPhone = trim((string) ($data['phone'] ?? ''));
+        $phone = $rawPhone !== ''
+            ? (PhoneNormalizer::normalize($rawPhone) ?? $rawPhone)
+            : '';
         $firstName = trim($data['first_name']);
         $lastName = trim($data['last_name']);
         $age = (int) $data['age'];
@@ -800,7 +803,7 @@ class FamilyService
                 'first_name'           => $firstName,
                 'last_name'            => $lastName,
                 'email'                => $email,
-                'phone'                => $phone,
+                'phone'                => $phone !== '' ? $phone : null,
                 'age'                  => $age,
                 'unit_number'          => $unitNumber !== '' ? $unitNumber : null,
                 'status'               => FamilyAddMemberRequest::STATUS_PENDING_ADMIN,
@@ -1141,7 +1144,7 @@ class FamilyService
         string $unitNumber = '',
     ): User {
         $byEmail = ContactIdentityService::findActiveUserByEmail($email);
-        $byPhone = ContactIdentityService::findActiveUserByPhone($phone);
+        $byPhone = $phone !== '' ? ContactIdentityService::findActiveUserByPhone($phone) : null;
 
         if ($byEmail && $byPhone && (int) $byEmail->id !== (int) $byPhone->id) {
             throw ValidationException::withMessages([
@@ -1184,12 +1187,12 @@ class FamilyService
             return $candidate->fresh(['profile']);
         }
 
-        ContactIdentityService::assertAvailableForRegistration($email, $phone);
+        ContactIdentityService::assertAvailableForRegistration($email, $phone !== '' ? $phone : null);
 
         $user = User::query()->create([
             'name'     => $displayName,
             'email'    => $email,
-            'phone'    => $phone,
+            'phone'    => $phone !== '' ? $phone : null,
             'password' => Hash::make(Str::random(32)),
             'status'   => 'active',
             'role'     => 'resident',

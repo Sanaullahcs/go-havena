@@ -48,7 +48,11 @@ export const PLACEHOLDER_EMAIL_SUFFIX = "@phone.havena.local";
 
 export function isPlaceholderEmail(email) {
   const value = String(email ?? "").trim().toLowerCase();
-  return !value || value.endsWith(PLACEHOLDER_EMAIL_SUFFIX);
+  return (
+    !value ||
+    value.endsWith(PLACEHOLDER_EMAIL_SUFFIX) ||
+    value.endsWith("@guest.havena.local")
+  );
 }
 
 export function formatDisplayEmail(email) {
@@ -478,9 +482,7 @@ export function validateGuestInviteForm(form, { phoneCountry } = {}) {
   if (nameErr) errors.guest_name = nameErr;
 
   const digits = String(form.phone_digits ?? "").trim();
-  if (!digits) {
-    errors.guest_phone = i18n.t("validation.phoneRequired");
-  } else {
+  if (digits) {
     const phoneErr = getPhoneValidationError(digits, phoneCountry);
     if (phoneErr) errors.guest_phone = phoneErr;
   }
