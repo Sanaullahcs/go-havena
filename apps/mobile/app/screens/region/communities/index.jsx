@@ -10,7 +10,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import BackButton from "../../../../components/ui/back-button";
 import { getCurrentRole } from "../../../../constants/role-session";
 import { saveRegionSelection, joinCommunity } from "../../../../services/auth-api";
-import { chevronForward } from "../../../../utils/rtl";
+import { ionChevronForward } from "../../../../utils/rtl";
 import { fetchCommunitiesInRegion } from "../../../../services/regions-api";
 import { getApiErrorMessage } from "../../../../utils/auth-errors";
 import { goToCompleteProfile } from "../../../../constants/onboarding-routes";
@@ -262,7 +262,7 @@ export default function RegionCommunitiesScreen() {
                     <View style={[styles.communityIconWrap, isDisabled && styles.communityIconWrapDisabled]}>
                       <Building2
                         size={16}
-                        color={isDisabled ? T.gray : T.teal}
+                        color={isDisabled ? T.gray : T.navy}
                         strokeWidth={1.75}
                       />
                     </View>
@@ -285,7 +285,7 @@ export default function RegionCommunitiesScreen() {
                       <Ionicons name="lock-closed-outline" size={16} color={T.gray} />
                     ) : (
                       <View style={styles.chevronWrap}>
-                        <Ionicons name={chevronForward()} size={16} color={T.teal} />
+                        <Ionicons name={ionChevronForward()} size={16} color={T.navy} />
                       </View>
                     )}
                   </TouchableOpacity>
