@@ -11,11 +11,6 @@ import AuthHeroText from "../../../components/auth/auth-hero-text";
 import BiometricAuthButtons from "../../../components/ui/biometric-auth-buttons";
 import FingerprintDialog from "../../../components/biometric/fingerprint-dialog";
 import FaceIdDialog from "../../../components/biometric/faceid-dialog";
-import {
-  DEV_TEST_EMAIL,
-  DEV_COMMUNITY_ADMIN_EMAIL,
-  DEV_OTP_HINT,
-} from "../../../constants/api-config";
 import { EMAIL_RE } from "../../../utils/form-validation";
 import { requestOtp } from "../../../services/auth-api";
 import {
@@ -216,11 +211,6 @@ export default function LoginScreen() {
               {showEmailError ? (
                 <Text style={styles.inputErrorText}>{t("auth.enterValidEmail")}</Text>
               ) : null}
-              {__DEV__ ? (
-                <Text style={styles.devHint}>
-                  Test login: {DEV_TEST_EMAIL} (resident) or {DEV_COMMUNITY_ADMIN_EMAIL} (admin) · OTP {DEV_OTP_HINT}
-                </Text>
-              ) : null}
             </View>
 
             {showBiometricSection ? (
@@ -281,13 +271,6 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontFamily: Fonts.medium,
     textTransform: "lowercase",
-  },
-  devHint: {
-    marginTop: 10,
-    fontSize: 12,
-    lineHeight: 17,
-    color: Colors.textMuted,
-    fontFamily: Fonts.regular,
   },
   brandLink: {
     color: ScreenBrand.link,
