@@ -1,13 +1,13 @@
 /**
  * Font family keys used across StyleSheets / NativeWind.
- * For Arabic we load Noto Sans Arabic under these same keys so every
- * existing `Fonts.*` / `font-regular` usage renders readable Arabic glyphs.
+ * LTR loads Poppins (Havena brand); Arabic loads Noto Sans Arabic
+ * under the same keys so every `Fonts.*` / `font-regular` usage stays readable.
  */
 export const Fonts = {
-  regular: "Inter-Regular",
-  bold: "Inter-Bold",
-  medium: "Inter-Medium",
-  semiBold: "Inter-SemiBold",
+  regular: "Poppins-Regular",
+  bold: "Poppins-Bold",
+  medium: "Poppins-Medium",
+  semiBold: "Poppins-SemiBold",
 };
 
 export function isArabicLanguage(lang) {

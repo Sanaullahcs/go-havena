@@ -42,7 +42,7 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [bootLang, setBootLang] = useState(null);
 
-  // Resolve language before fonts so Arabic loads Noto under the Inter-* keys.
+  // Resolve language before fonts so Arabic loads Noto under the Poppins-* keys.
   useEffect(() => {
     let cancelled = false;
     (async () => {

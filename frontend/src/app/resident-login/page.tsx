@@ -70,7 +70,9 @@ export default function ResidentLoginPage() {
               <NbrLogoMark />
             </span>
             <div>
-              <p className="text-[15px] font-bold leading-tight tracking-tight text-slate-900">Havena</p>
+              <p className="font-[family-name:var(--font-wordmark)] text-[15px] font-semibold leading-tight tracking-tight text-slate-900">
+                Havena
+              </p>
               <p className="text-[11px] leading-tight text-slate-500">Resident Portal</p>
             </div>
           </div>

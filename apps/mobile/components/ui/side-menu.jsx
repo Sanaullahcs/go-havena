@@ -34,6 +34,7 @@ import { fetchMe } from "../../services/profile-api";
 import { getProfileFields } from "../../utils/profile-display";
 import ProfilePhotoAvatar from "../profile/profile-photo-avatar";
 import HavenaLogo from "./havena-logo";
+import HavenaWordmark from "./havena-wordmark";
 import { useProfilePhoto } from "../../hooks/use-profile-photo";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
 import { wellnessDetailRouteParams } from "../../constants/wellness-categories";
@@ -369,7 +370,7 @@ function SideMenuPanel({ visible, onClose }) {
                     <HavenaLogo size={36} compact />
                   </View>
                   <View style={styles.brandCopy}>
-                    <Text style={styles.brandTitle}>Havena</Text>
+                    <HavenaWordmark height={20} />
                     <Text style={styles.brandSubtitle}>{t("nav.tagline")}</Text>
                   </View>
                 </View>
@@ -620,15 +621,6 @@ const styles = StyleSheet.create({
   brandCopy: {
     flex: 1,
     minWidth: 0,
-  },
-  brandTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#0F172A",
-    lineHeight: 26,
-    flexShrink: 1,
-    includeFontPadding: true,
   },
   brandSubtitle: {
     fontFamily: Fonts.regular,

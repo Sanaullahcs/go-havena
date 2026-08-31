@@ -1,12 +1,12 @@
 import React from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import LocaleTextInput from "../ui/locale-text-input";
 import { authLayoutStyles as layout } from "../../constants/auth-layout";
 
 /**
- * Email field with placeholder in the vertical middle of the box.
- * Native TextInput placeholders sit high on Android/web, so the hint is
- * a centered Text overlay until the user types.
+ * Email field. Placeholder and typed value share the same left + vertical
+ * alignment. The native placeholder is used so iOS does not clip a 56px overlay
+ * against the 1px border.
  */
 export default function AuthEmailField({
   value,
@@ -17,19 +17,14 @@ export default function AuthEmailField({
   inputStyle,
   ...rest
 }) {
-  const empty = !String(value ?? "").length;
-
   return (
     <View style={[layout.emailField, error && layout.emailFieldError, style]}>
-      {empty ? (
-        <Text pointerEvents="none" style={layout.emailPlaceholder}>
-          {placeholder}
-        </Text>
-      ) : null}
       <LocaleTextInput
+        {...rest}
         value={value}
         onChangeText={onChangeText}
-        placeholder=""
+        placeholder={placeholder}
+        placeholderTextColor="#9CA3AF"
         keyboardType="email-address"
         autoCapitalize="none"
         autoCorrect={false}
@@ -39,7 +34,6 @@ export default function AuthEmailField({
         textAlign="left"
         underlineColorAndroid="transparent"
         style={[layout.emailInput, inputStyle]}
-        {...rest}
       />
     </View>
   );

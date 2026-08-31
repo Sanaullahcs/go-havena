@@ -1,27 +1,21 @@
 import type { Metadata } from "next";
-import { DM_Sans, Plus_Jakarta_Sans, Source_Serif_4 } from "next/font/google";
+import { Poppins, Quicksand } from "next/font/google";
 import "./globals.css";
 import { APP_NAME } from "@/lib/constants";
 import { StripTrailingSlash } from "@/components/shared/strip-trailing-slash";
 
-const sans = DM_Sans({
-  variable: "--font-inter",
-  subsets: ["latin"],
+const poppins = Poppins({
+  subsets: ["latin", "latin-ext"],
+  weight: ["400", "500", "600", "700", "800"],
   display: "swap",
+  variable: "--font-havena",
 });
 
-const display = Plus_Jakarta_Sans({
-  variable: "--font-display",
-  subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
+const quicksand = Quicksand({
+  subsets: ["latin", "latin-ext"],
+  weight: ["500", "600", "700"],
   display: "swap",
-});
-
-const brand = Source_Serif_4({
-  variable: "--font-brand",
-  subsets: ["latin"],
-  weight: ["600", "700"],
-  display: "swap",
+  variable: "--font-wordmark",
 });
 
 export const metadata: Metadata = {
@@ -44,10 +38,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${sans.variable} ${display.variable} ${brand.variable} h-full antialiased`}
+      className={`${poppins.variable} ${quicksand.variable} ${poppins.className} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full overflow-x-hidden" suppressHydrationWarning>
+      <body className={`${poppins.className} min-h-full overflow-x-hidden`} suppressHydrationWarning>
         <StripTrailingSlash />
         {children}
       </body>

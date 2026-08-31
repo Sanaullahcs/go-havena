@@ -2,13 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Vertically center placeholder in the 56px email box on Expo web. */
+/* Auth email field: left-aligned, vertically centered. Do not force 56px
+   height on the inner input — the box is already 56px including the border. */
 .havena-email-input,
 input[type="email"],
 input[inputmode="email"] {
   box-sizing: border-box;
-  height: 56px !important;
-  line-height: 54px !important;
   padding-top: 0 !important;
   padding-bottom: 0 !important;
   margin: 0 !important;

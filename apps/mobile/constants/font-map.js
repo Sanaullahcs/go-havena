@@ -1,9 +1,13 @@
 import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-} from "@expo-google-fonts/inter";
+  Poppins_400Regular,
+  Poppins_500Medium,
+  Poppins_600SemiBold,
+  Poppins_700Bold,
+} from "@expo-google-fonts/poppins";
+import {
+  Quicksand_600SemiBold,
+  Quicksand_700Bold,
+} from "@expo-google-fonts/quicksand";
 import {
   NotoSansArabic_400Regular,
   NotoSansArabic_500Medium,
@@ -12,24 +16,28 @@ import {
 } from "@expo-google-fonts/noto-sans-arabic";
 import { isArabicLanguage } from "../constants/font";
 
-/**
- * Map the shared Inter-* keys to either Inter (LTR) or Noto Sans Arabic (RTL).
- * Keeping the same keys means StyleSheet / NativeWind don't need per-screen changes.
- */
+const WORDMARK = {
+  "Quicksand-SemiBold": Quicksand_600SemiBold,
+  "Quicksand-Bold": Quicksand_700Bold,
+};
+
+/** Register Poppins (LTR) or Noto Sans Arabic (RTL), plus Quicksand for the Havena wordmark. */
 export function fontMapForLanguage(lang) {
   if (isArabicLanguage(lang)) {
     return {
-      "Inter-Regular": NotoSansArabic_400Regular,
-      "Inter-Medium": NotoSansArabic_500Medium,
-      "Inter-SemiBold": NotoSansArabic_600SemiBold,
-      "Inter-Bold": NotoSansArabic_700Bold,
+      "Poppins-Regular": NotoSansArabic_400Regular,
+      "Poppins-Medium": NotoSansArabic_500Medium,
+      "Poppins-SemiBold": NotoSansArabic_600SemiBold,
+      "Poppins-Bold": NotoSansArabic_700Bold,
+      ...WORDMARK,
     };
   }
 
   return {
-    "Inter-Regular": Inter_400Regular,
-    "Inter-Medium": Inter_500Medium,
-    "Inter-SemiBold": Inter_600SemiBold,
-    "Inter-Bold": Inter_700Bold,
+    "Poppins-Regular": Poppins_400Regular,
+    "Poppins-Medium": Poppins_500Medium,
+    "Poppins-SemiBold": Poppins_600SemiBold,
+    "Poppins-Bold": Poppins_700Bold,
+    ...WORDMARK,
   };
 }
