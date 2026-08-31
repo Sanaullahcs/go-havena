@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import AuthLogo from "../components/ui/auth-logo";
+import HavenaWordmark from "../components/ui/havena-wordmark";
 import { useRouter, useRootNavigationState } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../constants/font";
@@ -147,7 +148,7 @@ export default function WelcomeScreen() {
       <View style={styles.content}>
         <View style={styles.brand}>
           <AuthLogo size={86} compact variant="splash" />
-          <Text style={styles.title}>Havena</Text>
+          <HavenaWordmark height={32} />
           <Text style={styles.subtitle}>{t("nav.tagline")}</Text>
         </View>
         <Animated.View style={[styles.loader, { transform: [{ rotate: loaderRotation }] }]} />
@@ -161,13 +162,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: SolidFills.splash },
   content: { flex: 1, justifyContent: "center", alignItems: "center" },
   brand: { alignItems: "center", gap: 10 },
-  title: {
-    fontFamily: Fonts.bold,
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#1B4F8A",
-    lineHeight: 34,
-  },
   subtitle: {
     fontFamily: Fonts.regular,
     fontSize: 13,
