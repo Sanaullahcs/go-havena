@@ -210,13 +210,13 @@ body {
   display: flex;
   flex-direction: column;
   width: 100%;
-  min-height: 15.5rem;
+  min-height: 11.5rem;
   flex-shrink: 0;
   overflow: hidden;
   background: #1B4F8A;
 }
-@media (min-width: 768px) {
-  .nl-login-hero { min-height: 18rem; }
+@media (min-width: 640px) {
+  .nl-login-hero { min-height: 13.5rem; }
 }
 @media (min-width: 1024px) {
   .nl-login-split { flex-direction: row; }
@@ -227,6 +227,25 @@ body {
 }
 @media (min-width: 1280px) {
   .nl-login-hero { width: 48%; }
+}
+
+@media (max-width: 1023px) {
+  .nl-login-hero__copy {
+    max-width: 28rem;
+  }
+  .nl-login-hero__copy h2 {
+    font-size: clamp(1.35rem, 5vw, 1.75rem) !important;
+  }
+  .nl-login-hero__copy h2 span {
+    font-size: clamp(0.95rem, 3.5vw, 1.1rem) !important;
+    margin-top: 0.35rem !important;
+  }
+  .nl-login-form-wrap {
+    padding-inline: clamp(1rem, 4vw, 1.5rem);
+  }
+  .nl-login-topbar {
+    padding-inline: clamp(1rem, 4vw, 1.5rem);
+  }
 }
 
 .nl-login-hero__photo {
@@ -304,18 +323,33 @@ body {
 .nl-login-hero__legal {
   display: none;
 }
+.nl-login-hero__body,
+.nl-login-hero__points {
+  display: none;
+}
 @media (min-width: 1024px) {
-  .nl-login-hero__legal { display: block; }
-  .nl-login-hero__body { display: block; }
+  .nl-login-hero__legal,
+  .nl-login-hero__body,
+  .nl-login-hero__points {
+    display: block;
+  }
 }
 
-/* One logo only: hero on desktop, form on mobile */
-.nl-login-brand--hero {
-  display: flex;
+/* One logo: form on mobile/tablet, hero on desktop split */
+.nl-login-brand.nl-login-brand--hero {
+  display: none;
   overflow: visible;
 }
-.nl-login-brand--form {
-  display: none !important;
+.nl-login-brand.nl-login-brand--form {
+  display: flex !important;
+}
+@media (min-width: 1024px) {
+  .nl-login-brand.nl-login-brand--hero {
+    display: flex;
+  }
+  .nl-login-brand.nl-login-brand--form {
+    display: none !important;
+  }
 }
 
 .nl-login-brand {

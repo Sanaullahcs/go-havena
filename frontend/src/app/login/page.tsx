@@ -27,7 +27,6 @@ import { EmailSignInStep } from "@/components/auth/email-sign-in-step";
 import { AuthRedirectOverlay } from "@/components/shared/loaders";
 import { CommunityAuthHero } from "@/components/auth/community-auth-hero";
 import { HavenaMark } from "@/components/shared/havena-mark";
-import { AuthLegalLinks } from "@/components/auth/auth-legal-links";
 import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
 import { consumeWebHandoffIfPresent } from "@/lib/auth/web-handoff";
 import { Suspense } from "react";
@@ -284,19 +283,11 @@ function LoginPageInner() {
               />
             )}
 
-            <p className="mt-8 text-center text-[12px] text-slate-500">
-              {otpIntent === "signup" && otpStep === "code"
-                ? "Creating your account… next you’ll name your community, then start your free trial."
-                : (
-                  <>
-                    Looking for a plan?{" "}
-                    <a href="/plans" className="font-semibold text-[#0d9488] hover:underline">
-                      View plans
-                    </a>
-                  </>
-                )}
-            </p>
-            <AuthLegalLinks className="mt-4" />
+            {otpIntent === "signup" && otpStep === "code" ? (
+              <p className="mt-8 text-center text-[12px] text-slate-500">
+                Creating your account… next you’ll name your community, then start your free trial.
+              </p>
+            ) : null}
           </div>
         </div>
       </div>

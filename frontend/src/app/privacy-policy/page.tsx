@@ -1,12 +1,19 @@
 import type { Metadata } from "next";
-import { LegalPageShell } from "@/components/landing/LegalPageShell";
-import { privacyPolicy } from "@/lib/landing/legal-content";
+import { LegalPageShell } from "@/components/marketing/legal-page-shell";
+import { privacyPolicy } from "@/lib/marketing/legal";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy",
-  description: privacyPolicy.description,
+  title: privacyPolicy.title,
+  description: privacyPolicy.intro,
 };
 
 export default function PrivacyPolicyPage() {
-  return <LegalPageShell document={privacyPolicy} />;
+  return (
+    <LegalPageShell
+      title={privacyPolicy.title}
+      updatedAt={privacyPolicy.updatedAt}
+      intro={privacyPolicy.intro}
+      sections={privacyPolicy.sections}
+    />
+  );
 }

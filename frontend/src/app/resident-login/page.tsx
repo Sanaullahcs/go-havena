@@ -77,7 +77,7 @@ export default function ResidentLoginPage() {
               <p className="text-[11px] leading-tight text-slate-500">Resident Portal</p>
             </div>
           </div>
-          <a href="/login" className="resident-header-cta hidden sm:inline-flex">
+          <a href="/login" className="resident-header-cta inline-flex text-[13px] sm:text-sm">
             Admin Portal
             <ArrowRightIcon />
           </a>

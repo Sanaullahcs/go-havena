@@ -1,8 +1,15 @@
 import type { Metadata } from "next";
-import { Poppins, Quicksand } from "next/font/google";
+import { Poppins, Quicksand, Inter } from "next/font/google";
 import "./globals.css";
 import { APP_NAME } from "@/lib/constants";
 import { StripTrailingSlash } from "@/components/shared/strip-trailing-slash";
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 const poppins = Poppins({
   subsets: ["latin", "latin-ext"],
@@ -38,7 +45,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${poppins.variable} ${quicksand.variable} ${poppins.className} h-full antialiased`}
+      className={`${inter.variable} ${poppins.variable} ${quicksand.variable} ${poppins.className} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className={`${poppins.className} min-h-full overflow-x-hidden`} suppressHydrationWarning>

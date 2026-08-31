@@ -3,7 +3,7 @@
 import { useState } from "react";
 import havenaMark from "@/assets/havena-mark.png";
 
-const BUNDLED_SRC = typeof havenaMark === "string" ? havenaMark : havenaMark.src;
+const BUNDLED_SRC = havenaMark.src;
 const FALLBACKS = [BUNDLED_SRC, "/havena-logo.png"];
 
 function BrandImage({
