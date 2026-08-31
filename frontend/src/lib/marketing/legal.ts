@@ -115,7 +115,7 @@ export const termsAndConditions = {
       id: "accounts",
       title: "2. Accounts and communities",
       paragraphs: [
-        "You are responsible for the accuracy of information you provide and for keeping login credentials secure.",
+        "You sign in with your email and a one-time code. There is no password. You are responsible for the accuracy of information you provide and for keeping access to that email secure.",
         "Community administrators are responsible for inviting members, managing permissions, moderating community content, and complying with applicable laws.",
       ],
     },

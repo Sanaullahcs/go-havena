@@ -1,6 +1,6 @@
 # Havena store submission
 
-Use these values in **App Store Connect** and **Google Play Console**. Do not invent different demo phones.
+Use these values in **App Store Connect** and **Google Play Console**. Do not invent different demo emails.
 
 | Field | Value |
 |-------|--------|
@@ -9,7 +9,7 @@ Use these values in **App Store Connect** and **Google Play Console**. Do not in
 | Version | `1.0.0` |
 | Support email | `hello@gohavena.com` |
 | Privacy policy | https://gohavena.com/privacy-policy |
-| Terms | https://gohavena.com/terms-of-service |
+| Terms | https://gohavena.com/terms-and-conditions |
 | Marketing site | https://gohavena.com |
 | Category | Lifestyle (secondary: Social) |
 
@@ -17,16 +17,16 @@ Use these values in **App Store Connect** and **Google Play Console**. Do not in
 
 Do **not** delete these accounts during review.
 
-| Role | Phone | OTP |
+| Role | Email | OTP |
 |------|--------|-----|
-| Resident | `555 555 0100` | `123456` or `221322` |
-| Community admin | `555 555 0200` | `123456` or `221322` |
+| Resident | `test.resident@havena.app` | `123456` |
+| Community admin | `test.community.admin@havena.app` | `123456` |
 
 Notes for reviewers:
 
-- Sign in with phone + OTP. No password.
-- After OTP, the resident opens Home. The community admin opens the same community with admin tools.
-- Account deletion lives in **Profile → Settings → Delete Account**. Please use a newly created phone if you need to test deletion.
+- Sign in with email + OTP. No password. On Sign In, enter the email, tap **Send Code**, then enter `123456`.
+- After OTP, the resident opens Home. The community admin can also complete web dashboard login and open `/admin`.
+- Account deletion lives in **Profile → Settings → Delete Account**. Please use a newly created email if you need to test deletion.
 
 ## App Store Connect
 
@@ -65,11 +65,14 @@ Havena is invite- or approval-based. It is not a public social network.
 ```
 Havena is a private community app. Sign in with email OTP (no password).
 
+1. On Sign In, enter the email and tap Send Code.
+2. Enter the 6-digit OTP.
+
 Resident: test.resident@havena.app
 Community admin: test.community.admin@havena.app
-OTP: 123456 (also accepted: 221322)
+OTP: 123456
 
-After login you will see Florida Main Street demo data (feed, notices, marketplace, amenities).
+These accounts were verified on production. After login the resident opens Home. The community admin can also complete dashboard login and open /admin.
 
 Privacy policy: https://gohavena.com/privacy-policy
 Account deletion: Profile → Settings → Delete Account
@@ -94,7 +97,7 @@ Havena helps HOAs and neighborhoods run daily community life in one private app.
 • Amenity booking
 • Community admin tools for approved managers
 
-Sign in with your phone. Access is limited to your community.
+Sign in with your email and a one-time code. Access is limited to your community.
 
 Privacy policy: https://gohavena.com/privacy-policy
 Support: hello@gohavena.com
@@ -110,8 +113,8 @@ Support: hello@gohavena.com
 | Data | Collected | Shared | Required | Purpose |
 |------|-----------|--------|----------|---------|
 | Name | Yes | No (community-only) | Yes | App functionality |
-| Email | Yes | No | Optional | Account / notifications |
-| Phone | Yes | No | Yes | Account sign-in |
+| Email | Yes | No | Yes | Account sign-in |
+| Phone | Yes | No | Optional | Account / contact |
 | Photos | Yes | No (community-only) | Optional | Profile / posts |
 | User content | Yes | No (community-only) | Optional | Feed, messages, listings |
 | Approximate location | No | — | — | — |
