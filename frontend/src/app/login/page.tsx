@@ -283,18 +283,11 @@ function LoginPageInner() {
               />
             )}
 
-            <p className="mt-8 text-center text-[12px] text-slate-500">
-              {otpIntent === "signup" && otpStep === "code"
-                ? "Creating your account… next you’ll name your community, then start your free trial."
-                : (
-                  <>
-                    Looking for a plan?{" "}
-                    <a href="/plans" className="font-semibold text-[#0d9488] hover:underline">
-                      View plans
-                    </a>
-                  </>
-                )}
-            </p>
+            {otpIntent === "signup" && otpStep === "code" ? (
+              <p className="mt-8 text-center text-[12px] text-slate-500">
+                Creating your account… next you’ll name your community, then start your free trial.
+              </p>
+            ) : null}
           </div>
         </div>
       </div>

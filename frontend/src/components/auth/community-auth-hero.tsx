@@ -1,7 +1,9 @@
 import type { LucideIcon } from "lucide-react";
 import { CreditCard, Mail, Users } from "lucide-react";
 import { HavenaMark } from "@/components/shared/havena-mark";
-import { landingImages } from "@/lib/landing/site";
+
+const AUTH_HERO_IMAGE =
+  "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=2200&q=88";
 
 const DEFAULT_POINTS: Array<{ icon: LucideIcon; text: string }> = [
   { icon: Mail, text: "Email OTP — no password to manage" },
@@ -25,7 +27,7 @@ export function CommunityAuthHero({
   return (
     <aside className="nl-login-hero">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={landingImages.hero} alt="" className="nl-login-hero__photo" aria-hidden />
+      <img src={AUTH_HERO_IMAGE} alt="" className="nl-login-hero__photo" aria-hidden />
       <div className="nl-login-hero__veil" aria-hidden />
 
       <div className="relative z-10 flex flex-1 flex-col justify-between gap-6 p-6 sm:p-8 lg:p-10 xl:p-14">
