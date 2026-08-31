@@ -76,6 +76,9 @@ export const authLayoutStyles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: "#FFF",
     justifyContent: "center",
+    alignItems: "stretch",
+    overflow: "hidden",
+    position: "relative",
     paddingHorizontal: 14,
   },
   emailFieldError: {
@@ -83,6 +86,7 @@ export const authLayoutStyles = StyleSheet.create({
   },
   emailInput: {
     width: "100%",
+    alignSelf: "stretch",
     height: "100%",
     paddingVertical: 0,
     paddingHorizontal: 0,
@@ -96,6 +100,17 @@ export const authLayoutStyles = StyleSheet.create({
     includeFontPadding: false,
     backgroundColor: "transparent",
     ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),
+  },
+  emailPlaceholder: {
+    width: "100%",
+    height: 56,
+    textAlign: "center",
+    textAlignVertical: "center",
+    fontFamily: Fonts.regular,
+    fontSize: 16,
+    lineHeight: 56,
+    color: "#9CA3AF",
+    includeFontPadding: false,
   },
   footerInner: {
     gap: 12,

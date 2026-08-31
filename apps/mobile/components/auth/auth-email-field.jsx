@@ -1,11 +1,12 @@
 import React from "react";
-import { View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import LocaleTextInput from "../ui/locale-text-input";
 import { authLayoutStyles as layout } from "../../constants/auth-layout";
 
 /**
- * Email field. Uses the native placeholder so typed text never draws on top
- * of a leftover overlay hint.
+ * Email field with centered placeholder and typed value.
+ * iOS often ignores textAlign on the native placeholder, so the hint is a
+ * centered overlay that only mounts while the field is empty.
  */
 export default function AuthEmailField({
   value,
@@ -16,12 +17,20 @@ export default function AuthEmailField({
   inputStyle,
   ...rest
 }) {
+  const showPlaceholder = !String(value ?? "").length;
+
   return (
     <View style={[layout.emailField, error && layout.emailFieldError, style]}>
+      {showPlaceholder ? (
+        <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+          <Text style={layout.emailPlaceholder}>{placeholder}</Text>
+        </View>
+      ) : null}
       <LocaleTextInput
+        {...rest}
         value={value}
         onChangeText={onChangeText}
-        placeholder={placeholder}
+        placeholder=""
         placeholderTextColor="#9CA3AF"
         keyboardType="email-address"
         autoCapitalize="none"
@@ -31,8 +40,8 @@ export default function AuthEmailField({
         forceLtr
         textAlign="center"
         underlineColorAndroid="transparent"
+        className="havena-email-input"
         style={[layout.emailInput, inputStyle]}
-        {...rest}
       />
     </View>
   );

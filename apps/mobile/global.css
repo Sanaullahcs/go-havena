@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Vertically center placeholder in the 56px email box on Expo web. */
+/* Center placeholder and typed email in the 56px auth email box. */
 .havena-email-input,
 input[type="email"],
 input[inputmode="email"] {
@@ -12,7 +12,7 @@ input[inputmode="email"] {
   padding-top: 0 !important;
   padding-bottom: 0 !important;
   margin: 0 !important;
-  text-align: left;
+  text-align: center;
 }
 
 @layer components {
