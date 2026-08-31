@@ -91,7 +91,7 @@ export const authLayoutStyles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 22,
     color: Colors.textPrimary,
-    textAlign: "left",
+    textAlign: "center",
     textAlignVertical: "center",
     includeFontPadding: false,
     backgroundColor: "transparent",

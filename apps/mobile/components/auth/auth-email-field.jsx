@@ -29,7 +29,7 @@ export default function AuthEmailField({
         autoComplete="email"
         textContentType="emailAddress"
         forceLtr
-        textAlign="left"
+        textAlign="center"
         underlineColorAndroid="transparent"
         style={[layout.emailInput, inputStyle]}
         {...rest}
