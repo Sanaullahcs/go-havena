@@ -40,6 +40,16 @@ function isPdfAsset(asset) {
   return mime === "application/pdf" || uri.endsWith(".pdf");
 }
 
+const PLACEHOLDER_COLOR = "#9CA3AF";
+
+/** Inline so the global text-metrics patch cannot force a tall line box. */
+const singleLineInputStyle = {
+  lineHeight: 20,
+  includeFontPadding: false,
+  paddingTop: Platform.OS === "ios" ? 16 : 0,
+  paddingBottom: Platform.OS === "ios" ? 16 : 0,
+};
+
 export default function CompleteProfile() {
   const { t } = useTranslation();
   const dialog = useAppDialog();
@@ -727,9 +737,9 @@ export default function CompleteProfile() {
                 {t("onboarding.fullName")} <Text style={styles.requiredMark}>*</Text>
               </Text>
               <LocaleTextInput
-                style={[styles.input, showError("name", liveErrors) && styles.inputError]}
+                style={[styles.input, singleLineInputStyle, showError("name", liveErrors) && styles.inputError]}
                 placeholder={t("onboarding.namePlaceholder")}
-                placeholderTextColor={T.gray}
+                placeholderTextColor={PLACEHOLDER_COLOR}
                 value={name}
                 onChangeText={(text) => {
                   setName(text);
@@ -756,9 +766,9 @@ export default function CompleteProfile() {
                 {t("onboarding.emailAddress")} <Text style={styles.requiredMark}>*</Text>
               </Text>
               <LocaleTextInput
-                style={[styles.input, showError("email", liveErrors) && styles.inputError]}
+                style={[styles.input, singleLineInputStyle, showError("email", liveErrors) && styles.inputError]}
                 placeholder={t("onboarding.emailPlaceholder")}
-                placeholderTextColor={T.gray}
+                placeholderTextColor={PLACEHOLDER_COLOR}
                 value={email}
                 onChangeText={(text) => {
                   setEmail(text);
@@ -781,7 +791,7 @@ export default function CompleteProfile() {
               <LocaleTextInput
                 style={[styles.input, styles.textArea, showError("bio", liveErrors) && styles.inputError]}
                 placeholder={t("onboarding.bioPlaceholder")}
-                placeholderTextColor={T.gray}
+                placeholderTextColor={PLACEHOLDER_COLOR}
                 value={bio}
                 onChangeText={(text) => {
                   setBio(text);
@@ -803,9 +813,9 @@ export default function CompleteProfile() {
                 {!isGuestProfile ? <Text style={styles.requiredMark}> *</Text> : null}
               </Text>
               <LocaleTextInput
-                style={[styles.input, showError("unitNumber", liveErrors) && styles.inputError]}
+                style={[styles.input, singleLineInputStyle, showError("unitNumber", liveErrors) && styles.inputError]}
                 placeholder={t("onboarding.unitPlaceholder")}
-                placeholderTextColor={T.gray}
+                placeholderTextColor={PLACEHOLDER_COLOR}
                 value={unitNumber}
                 onChangeText={(text) => {
                   setUnitNumber(text);
@@ -955,11 +965,12 @@ export default function CompleteProfile() {
                     style={[
                       styles.input,
                       styles.familyInput,
+                      singleLineInputStyle,
                       (familyNumberError || showError("familyNumber", liveErrors)) && styles.inputError,
                       familyNumberLocked && styles.inputReadOnly,
                     ]}
                     placeholder={familyMode === "join" ? t("onboarding.enterFamilyNumber") : "FAM-XXXXXX"}
-                    placeholderTextColor={T.gray}
+                    placeholderTextColor={PLACEHOLDER_COLOR}
                     value={familyNumber}
                     onChangeText={(text) => {
                       if (familyNumberLocked) return;
@@ -1343,9 +1354,12 @@ const styles = StyleSheet.create({
     backgroundColor: T.white,
     height: 52,
     paddingHorizontal: 16,
+    paddingTop: 0,
+    paddingBottom: 0,
     fontFamily: Fonts.regular,
     fontSize: 14,
     color: T.navy,
+    textAlignVertical: "center",
   },
   familyNumberSection: {
     marginTop: 14,
