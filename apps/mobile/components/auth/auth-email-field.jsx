@@ -33,7 +33,15 @@ export default function AuthEmailField({
         forceLtr
         textAlign="left"
         underlineColorAndroid="transparent"
-        style={[layout.emailInput, inputStyle]}
+        style={[
+          layout.emailInput,
+          // Inline so the global text-metrics patch cannot force a taller line box.
+          {
+            lineHeight: 20,
+            includeFontPadding: false,
+          },
+          inputStyle,
+        ]}
       />
     </View>
   );

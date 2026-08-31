@@ -83,9 +83,13 @@ export const authLayoutStyles = StyleSheet.create({
   },
   emailInput: {
     width: "100%",
+    height: "100%",
     margin: 0,
-    paddingVertical: 0,
     paddingHorizontal: 0,
+    // Poppins sits optically low in a 56px iOS field; extra bottom pad lifts both
+    // placeholder and typed value without changing left inset or box size.
+    paddingTop: 0,
+    paddingBottom: Platform.OS === "ios" ? 6 : 0,
     fontFamily: Fonts.regular,
     fontSize: 16,
     color: Colors.textPrimary,
