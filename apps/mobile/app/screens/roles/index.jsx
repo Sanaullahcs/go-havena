@@ -64,6 +64,8 @@ export default function Roles() {
   const insets = useSafeAreaInsets();
   const ROLE_CARDS = getRoleCards(t);
   const [joinPrefix, joinSuffix] = String(t("roles.joinHavena")).split("Havena");
+  const joinLead = joinPrefix ? joinPrefix.replace(/\s+$/, "") : "";
+  const joinTail = joinSuffix ? joinSuffix.replace(/^\s+/, "") : "";
 
   const goLogin = () => {
     prepareAuthScreenChrome();
@@ -91,9 +93,9 @@ export default function Roles() {
           <View style={styles.hero}>
             <HavenaLogo size={40} compact />
             <View style={styles.pageTitleWrap}>
-              {joinPrefix ? <Text style={styles.pageTitle}>{joinPrefix}</Text> : null}
-              <HavenaWordmark height={22} />
-              {joinSuffix ? <Text style={styles.pageTitle}>{joinSuffix}</Text> : null}
+              {joinLead ? <Text style={styles.pageTitle}>{joinLead}</Text> : null}
+              <HavenaWordmark height={25} />
+              {joinTail ? <Text style={styles.pageTitle}>{joinTail}</Text> : null}
             </View>
             <Text style={styles.pageSubTitle}>
               {t("roles.chooseRole")}
@@ -198,6 +200,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "center",
+    gap: 8,
   },
   pageTitle: {
     fontFamily: Fonts.bold,
