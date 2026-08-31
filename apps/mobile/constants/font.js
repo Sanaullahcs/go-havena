@@ -1,13 +1,13 @@
 /**
  * Font family keys used across StyleSheets / NativeWind.
- * LTR loads Nunito (Havena brand) under these keys; Arabic loads Noto Sans
- * Arabic so every `Fonts.*` / `font-regular` usage stays readable.
+ * LTR loads Poppins (Havena brand); Arabic loads Noto Sans Arabic
+ * under the same keys so every `Fonts.*` / `font-regular` usage stays readable.
  */
 export const Fonts = {
-  regular: "Nunito-Regular",
-  bold: "Nunito-Bold",
-  medium: "Nunito-Medium",
-  semiBold: "Nunito-SemiBold",
+  regular: "Poppins-Regular",
+  bold: "Poppins-Bold",
+  medium: "Poppins-Medium",
+  semiBold: "Poppins-SemiBold",
 };
 
 export function isArabicLanguage(lang) {

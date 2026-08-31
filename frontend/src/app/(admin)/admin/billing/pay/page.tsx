@@ -44,7 +44,7 @@ const stripeAppearance = {
     colorText: "#0f172a",
     colorDanger: "#e11d48",
     colorTextSecondary: "#64748b",
-    fontFamily: "Nunito, ui-sans-serif, system-ui, sans-serif",
+    fontFamily: "Poppins, ui-sans-serif, system-ui, sans-serif",
     fontSizeBase: "15px",
     borderRadius: "12px",
     spacingUnit: "4px",

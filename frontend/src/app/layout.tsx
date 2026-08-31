@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
-import { Nunito } from "next/font/google";
+import { Poppins } from "next/font/google";
 import "./globals.css";
 import { APP_NAME } from "@/lib/constants";
 import { StripTrailingSlash } from "@/components/shared/strip-trailing-slash";
 
-/** Single Havena UI face — wired to existing --font-inter / display / brand vars. */
-const nunito = Nunito({
+const poppins = Poppins({
   subsets: ["latin", "latin-ext"],
   weight: ["400", "500", "600", "700", "800"],
   display: "swap",
-  variable: "--font-nunito",
+  variable: "--font-havena",
 });
 
 export const metadata: Metadata = {
@@ -32,10 +31,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${nunito.variable} ${nunito.className} h-full antialiased`}
+      className={`${poppins.variable} ${poppins.className} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className={`${nunito.className} min-h-full overflow-x-hidden`} suppressHydrationWarning>
+      <body className={`${poppins.className} min-h-full overflow-x-hidden`} suppressHydrationWarning>
         <StripTrailingSlash />
         {children}
       </body>

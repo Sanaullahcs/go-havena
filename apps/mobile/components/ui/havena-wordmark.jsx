@@ -1,16 +1,25 @@
-import { Image } from "react-native";
+import { Text } from "react-native";
+import { Fonts } from "../../constants/font";
 
-const WORDMARK = require("../../assets/images/havena-wordmark.png");
-const ASPECT = 741 / 160;
-
-/** Official Havena wordmark only — does not include the infinity mark. */
+/** Havena wordmark — same Poppins face as the rest of the product. */
 export default function HavenaWordmark({ height = 28, style }) {
   return (
-    <Image
-      source={WORDMARK}
-      style={[{ height, width: Math.round(height * ASPECT) }, style]}
-      resizeMode="contain"
-      accessibilityLabel="Havena"
-    />
+    <Text
+      style={[
+        {
+          fontFamily: Fonts.semiBold,
+          fontWeight: "600",
+          fontSize: Math.round(height * 0.82),
+          lineHeight: Math.round(height * 1.05),
+          color: "#03194B",
+          letterSpacing: 0.15,
+          includeFontPadding: false,
+        },
+        style,
+      ]}
+      accessibilityRole="text"
+    >
+      Havena
+    </Text>
   );
 }

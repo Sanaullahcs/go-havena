@@ -1,9 +1,9 @@
 import {
-  Nunito_400Regular,
-  Nunito_500Medium,
-  Nunito_600SemiBold,
-  Nunito_700Bold,
-} from "@expo-google-fonts/nunito";
+  Poppins_400Regular,
+  Poppins_500Medium,
+  Poppins_600SemiBold,
+  Poppins_700Bold,
+} from "@expo-google-fonts/poppins";
 import {
   NotoSansArabic_400Regular,
   NotoSansArabic_500Medium,
@@ -12,23 +12,21 @@ import {
 } from "@expo-google-fonts/noto-sans-arabic";
 import { isArabicLanguage } from "../constants/font";
 
-/**
- * Register Nunito (LTR) or Noto Sans Arabic (RTL) under the Fonts.* family names.
- */
+/** Register Poppins (LTR) or Noto Sans Arabic (RTL) under the Fonts.* names. */
 export function fontMapForLanguage(lang) {
   if (isArabicLanguage(lang)) {
     return {
-      "Nunito-Regular": NotoSansArabic_400Regular,
-      "Nunito-Medium": NotoSansArabic_500Medium,
-      "Nunito-SemiBold": NotoSansArabic_600SemiBold,
-      "Nunito-Bold": NotoSansArabic_700Bold,
+      "Poppins-Regular": NotoSansArabic_400Regular,
+      "Poppins-Medium": NotoSansArabic_500Medium,
+      "Poppins-SemiBold": NotoSansArabic_600SemiBold,
+      "Poppins-Bold": NotoSansArabic_700Bold,
     };
   }
 
   return {
-    "Nunito-Regular": Nunito_400Regular,
-    "Nunito-Medium": Nunito_500Medium,
-    "Nunito-SemiBold": Nunito_600SemiBold,
-    "Nunito-Bold": Nunito_700Bold,
+    "Poppins-Regular": Poppins_400Regular,
+    "Poppins-Medium": Poppins_500Medium,
+    "Poppins-SemiBold": Poppins_600SemiBold,
+    "Poppins-Bold": Poppins_700Bold,
   };
 }

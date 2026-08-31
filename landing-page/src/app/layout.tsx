@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { Nunito } from "next/font/google";
+import { Poppins } from "next/font/google";
 import "./globals.css";
 
-const nunito = Nunito({
+const poppins = Poppins({
   subsets: ["latin", "latin-ext"],
   weight: ["400", "500", "600", "700", "800"],
   display: "swap",
@@ -74,8 +74,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${nunito.variable} ${nunito.className}`}>
-      <body className={`${nunito.className} min-h-screen bg-white text-ink-primary antialiased`}>
+    <html lang="en" className={`${poppins.variable} ${poppins.className}`}>
+      <body className={`${poppins.className} min-h-screen bg-white text-ink-primary antialiased`}>
         {children}
       </body>
     </html>

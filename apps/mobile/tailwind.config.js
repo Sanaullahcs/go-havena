@@ -41,10 +41,10 @@ module.exports = {
         },
       },
       fontFamily: {
-        regular: ["Nunito-Regular"],
-        medium: ["Nunito-Medium"],
-        semibold: ["Nunito-SemiBold"],
-        bold: ["Nunito-Bold"],
+        regular: ["Poppins-Regular"],
+        medium: ["Poppins-Medium"],
+        semibold: ["Poppins-SemiBold"],
+        bold: ["Poppins-Bold"],
       },
       fontSize: {
         section: ["13px", { lineHeight: "18px", letterSpacing: "1.1px", fontWeight: "700" }],

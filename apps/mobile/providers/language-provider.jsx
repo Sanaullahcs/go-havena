@@ -28,8 +28,8 @@ function languageNeedsRTL(lng) {
 
 /**
  * Layout stays LTR app-wide (no I18nManager.forceRTL / no root `direction:'rtl'`)
- * so screens are not mirrored. Arabic uses Noto Sans Arabic (loaded under Inter-*
- * keys) plus LocaleTextInput writingDirection for typing. LTR uses Nunito. Text clip fixes run from
+ * so screens are not mirrored. Arabic uses Noto Sans Arabic (loaded under Poppins-*
+ * keys) plus LocaleTextInput writingDirection for typing. LTR uses Poppins. Text clip fixes run from
  * index.js / setArabicTextMetricsEnabled so Noto glyphs are not cropped on top.
  *
  * I18nManager.forceRTL must stay false. If a previous build left native
