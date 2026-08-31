@@ -167,7 +167,7 @@ class CommunityAdminReassignTest extends TestCase
         $this->postJson("/api/v1/admin/communities/{$community->id}/assign-admin", [
             'assign_self' => true,
         ])->assertStatus(422)
-            ->assertJsonPath('message', 'Provide user_id or new admin contact details.');
+            ->assertJsonPath('message', 'Provide user_id or a new admin email.');
 
         $this->postJson("/api/v1/admin/communities/{$community->id}/assign-admin", [
             'user_id' => $systemAdmin->id,

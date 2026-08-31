@@ -27,6 +27,7 @@ import { EmailSignInStep } from "@/components/auth/email-sign-in-step";
 import { AuthRedirectOverlay } from "@/components/shared/loaders";
 import { CommunityAuthHero } from "@/components/auth/community-auth-hero";
 import { HavenaMark } from "@/components/shared/havena-mark";
+import { AuthLegalLinks } from "@/components/auth/auth-legal-links";
 import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
 import { Building2, CreditCard, Mail, ShieldCheck, UserRound } from "lucide-react";
 import {
@@ -331,6 +332,7 @@ function RegisterPageInner() {
                 View plans
               </a>
             </p>
+            <AuthLegalLinks className="mt-4" />
           </div>
         </div>
       </div>

@@ -63,10 +63,10 @@ Havena is invite- or approval-based. It is not a public social network.
 **Review notes (paste):**
 
 ```
-Havena is a private community app. Sign in with phone OTP (no password).
+Havena is a private community app. Sign in with email OTP (no password).
 
-Resident: 555 555 0100
-Community admin: 555 555 0200
+Resident: test.resident@havena.app
+Community admin: test.community.admin@havena.app
 OTP: 123456 (also accepted: 221322)
 
 After login you will see Florida Main Street demo data (feed, notices, marketplace, amenities).

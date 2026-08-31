@@ -6,10 +6,8 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Maps dummy phone numbers to existing test users.
- * In local env the OTP code is always 123456 (any phone).
- * This seeder just ensures users.phone is set so the
- * OtpController can find them after OTP verify.
+ * Maps optional contact phones onto existing email-login test users.
+ * Sign-in is email OTP (123456 in local/uat). Phone is contact-only.
  */
 class DevPhoneSeeder extends Seeder
 {

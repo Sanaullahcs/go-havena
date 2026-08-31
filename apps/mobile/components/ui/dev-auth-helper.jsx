@@ -4,7 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { sw, sf } from "../../utils/responsive";
 import {
-  DEV_TEST_PHONE_DIGITS,
+  DEV_TEST_EMAIL,
   DEV_OTP_HINT,
   DEV_INVITE_CODE,
 } from "../../constants/api-config";
@@ -15,11 +15,11 @@ export function DevPhoneFill({ onFill }) {
   return (
     <Pressable
       style={styles.chip}
-      onPress={() => onFill?.(DEV_TEST_PHONE_DIGITS)}
+      onPress={() => onFill?.(DEV_TEST_EMAIL)}
       hitSlop={8}
     >
-      <Feather name="smartphone" size={sf(12)} color="#64748B" />
-      <Text style={styles.chipText}>Use test number</Text>
+      <Feather name="mail" size={sf(12)} color="#64748B" />
+      <Text style={styles.chipText}>Use test email</Text>
     </Pressable>
   );
 }

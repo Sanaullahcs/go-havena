@@ -39,7 +39,7 @@ class InviteCodeService
 
     /**
      * When a resident redeems an admin member invite, merge the placeholder invited
-     * account into the phone-authenticated user so invitation email/name/unit can be reused.
+     * account into the email-authenticated user so invitation email/name/unit can be reused.
      *
      * @return array{display_name:string,email:string,unit_number:?string}|null
      */

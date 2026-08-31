@@ -46,7 +46,14 @@ export function Footer() {
           <p>
             © {year} {site.name}. All rights reserved.
           </p>
-          <p>Built for modern community living.</p>
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <Link href="/privacy-policy" className="lp-footer__link">
+              Privacy Policy
+            </Link>
+            <Link href="/terms-of-service" className="lp-footer__link">
+              Terms of Service
+            </Link>
+          </p>
         </div>
       </Container>
     </footer>

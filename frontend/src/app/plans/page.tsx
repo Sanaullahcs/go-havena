@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Footer } from "@/components/landing/sections/Footer";
 import { Pricing } from "@/components/landing/sections/Pricing";
 import { PlansHero } from "@/components/landing/sections/PlansHero";
 import { Logo } from "@/components/landing/ui/Logo";
@@ -39,6 +40,7 @@ export default function PlansPage() {
         <PlansHero />
         <Pricing hideIntro />
       </main>
+      <Footer />
     </div>
   );
 }

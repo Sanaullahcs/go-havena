@@ -48,7 +48,7 @@ export function AssignCommunityAdminModal({
   if (!open || !target) return null;
 
   const isReassign = target.mode === "reassign" || Boolean(target.previousAdminName) || Boolean(target.reassignReason);
-  const canSubmitNew = form.email.trim().length > 0 && phone.valid;
+  const canSubmitNew = form.email.trim().length > 0 && (!phone.digits.trim() || phone.valid);
 
   const contextBanner = (() => {
     if (target.reassignSummary) {
@@ -75,7 +75,7 @@ export function AssignCommunityAdminModal({
   const handleAssignNew = async () => {
     setFormTouched(true);
     if (!canSubmitNew) {
-      toastError("Enter a valid email and complete phone number.");
+      toastError("Enter a valid email address.");
       return;
     }
     setSubmitting(true);
@@ -83,7 +83,7 @@ export function AssignCommunityAdminModal({
       const res = await assignCommunityAdmin(target.communityId, {
         name: form.name.trim() || undefined,
         email: form.email.trim(),
-        phone: phone.e164,
+        phone: phone.valid ? phone.e164 : undefined,
       });
       toastSuccess(res.message);
       onAssigned?.();
@@ -152,7 +152,7 @@ export function AssignCommunityAdminModal({
                 placeholder="admin@example.com"
               />
             </Field>
-            <Field label="Phone number" required hint="One phone number can only manage one community">
+            <Field label="Phone number" hint="Optional contact number">
               <AdminPhoneInput
                 resetKey={open ? "open" : "closed"}
                 required

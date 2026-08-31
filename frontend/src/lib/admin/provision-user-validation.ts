@@ -28,7 +28,7 @@ export type ProvisionResidentForm = {
 export type ProvisionFieldErrors = FieldErrors;
 
 function validatePhone(phone: PhoneFieldState): string | null {
-  if (!phone.digits.trim()) return "Phone number is required.";
+  if (!phone.digits.trim()) return null;
   if (!phone.valid) {
     return getPhoneValidationError(phone.digits, phone.country) ?? "Enter a valid phone number.";
   }

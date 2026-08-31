@@ -123,7 +123,7 @@
     "deleteAccountSub": "Permanently delete your account",
     "deleteAccountMsg": "Please contact support to delete your account.",
     "deleteAccountConfirm": "Delete",
-    "deleteAccountConfirmMsg": "This permanently deletes your Havena account and signs you out. You can create a new account later with the same phone number.",
+    "deleteAccountConfirmMsg": "This permanently deletes your Havena account and signs you out. You can create a new account later with the same email address.",
     "deleteAccountDone": "Account deleted",
     "deleteAccountDoneMsg": "Your account has been deleted.",
     "deleteAccountFailed": "Could not delete your account. Please try again or email hello@gohavena.com.",
@@ -635,7 +635,7 @@
     "notIncluded": "Not included",
     "whatYouCanDo": "What you can do",
     "contactResidentOrAdmin": "Contact the resident or community admin who invited you. They can update guest permissions on your invitation.",
-    "yourPhone": "your phone"
+    "yourPhone": "your email"
   },
   "roles": {
     "communityAdmin": "Community Admin",

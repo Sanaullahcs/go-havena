@@ -6,6 +6,7 @@ import { loginWithEmail } from "@/lib/api/auth";
 import { setSession, getToken } from "@/lib/auth/session";
 import { handleLoginError } from "@/lib/auth/login-error";
 import { AuthRedirectOverlay, LoadingButton } from "@/components/shared/loaders";
+import { AuthLegalLinks } from "@/components/auth/auth-legal-links";
 
 const DEMO_ACCOUNTS = [
   { label: "Resident", email: "sarah@havena.app",  password: "password", accent: "#059669" },
@@ -237,6 +238,7 @@ export default function ResidentLoginPage() {
               <p className="mt-5 text-center text-[12px] text-slate-400">
                 Havena Resident Portal · Community access
               </p>
+              <AuthLegalLinks className="mt-3" />
             </div>
           </div>
         </div>

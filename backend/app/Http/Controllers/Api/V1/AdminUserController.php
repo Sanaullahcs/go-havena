@@ -31,7 +31,7 @@ class AdminUserController extends Controller
                 'email',
                 'max:255',
             ],
-            'phone' => ['required', 'string', 'max:30'],
+            'phone' => ['nullable', 'string', 'max:30'],
             'region_id' => ['required', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
             'community_name' => ['required_if:type,community_admin', 'nullable', 'string', 'max:255'],
             'community_address' => ['nullable', 'string', 'max:500'],
@@ -39,11 +39,14 @@ class AdminUserController extends Controller
             'community_id' => ['required_if:type,resident', 'nullable', 'integer', Rule::exists('communities', 'id')],
         ]);
 
-        $phone = PhoneNormalizer::normalize($validated['phone']);
-        if (! $phone) {
-            throw ValidationException::withMessages([
-                'phone' => ['Enter a valid phone number in international format (e.g. +2017777777).'],
-            ]);
+        $phone = null;
+        if (filled($validated['phone'] ?? null)) {
+            $phone = PhoneNormalizer::normalize($validated['phone']);
+            if (! $phone) {
+                throw ValidationException::withMessages([
+                    'phone' => ['Enter a valid phone number in international format (e.g. +2017777777).'],
+                ]);
+            }
         }
 
         $restorableUser = $this->findRestorableUser($phone, $validated['email']);
@@ -64,7 +67,7 @@ class AdminUserController extends Controller
 
         ActivityLogService::user(
             'user_provisioned',
-            "Provisioned {$validated['type']} {$displayName} ({$phone})",
+            "Provisioned {$validated['type']} {$displayName} ({$validated['email']})",
             'User',
             $result['user']->id,
         );
@@ -75,7 +78,7 @@ class AdminUserController extends Controller
         ], 201);
     }
 
-    private function createCommunityAdmin(array $validated, string $phone, Region $region, string $displayName): array
+    private function createCommunityAdmin(array $validated, ?string $phone, Region $region, string $displayName): array
     {
         $community = Community::query()->create([
             'name' => $validated['community_name'],
@@ -93,7 +96,7 @@ class AdminUserController extends Controller
             'name' => $displayName,
             'email' => $validated['email'],
             'phone' => $phone,
-            'phone_verified_at' => now(),
+            'phone_verified_at' => $phone ? now() : null,
             'password' => Str::random(32),
             'status' => 'active',
             'role' => 'community_admin',
@@ -122,7 +125,7 @@ class AdminUserController extends Controller
         ];
     }
 
-    private function createResident(array $validated, string $phone, Region $region, string $displayName, ?User $restorableUser = null): array
+    private function createResident(array $validated, ?string $phone, Region $region, string $displayName, ?User $restorableUser = null): array
     {
         $community = Community::query()
             ->where('id', $validated['community_id'])
@@ -148,7 +151,7 @@ class AdminUserController extends Controller
             'name' => $displayName,
             'email' => $validated['email'],
             'phone' => $phone,
-            'phone_verified_at' => now(),
+            'phone_verified_at' => $phone ? now() : null,
             'password' => Str::random(32),
             'status' => 'active',
             'role' => 'resident',
@@ -178,7 +181,7 @@ class AdminUserController extends Controller
     private function restoreResident(
         User $user,
         array $validated,
-        string $phone,
+        ?string $phone,
         Region $region,
         string $displayName,
         Community $community,
@@ -191,7 +194,7 @@ class AdminUserController extends Controller
             'name' => $displayName,
             'email' => $validated['email'],
             'phone' => $phone,
-            'phone_verified_at' => now(),
+            'phone_verified_at' => $phone ? now() : null,
             'password' => Str::random(32),
             'status' => 'active',
             'role' => 'resident',
@@ -228,11 +231,13 @@ class AdminUserController extends Controller
         ];
     }
 
-    private function findRestorableUser(string $phone, string $email): ?User
+    private function findRestorableUser(?string $phone, string $email): ?User
     {
-        $byPhone = User::withTrashed()->where('phone', $phone)->first();
-        if ($byPhone?->trashed()) {
-            return $byPhone;
+        if ($phone) {
+            $byPhone = User::withTrashed()->where('phone', $phone)->first();
+            if ($byPhone?->trashed()) {
+                return $byPhone;
+            }
         }
 
         $byEmail = User::withTrashed()->where('email', $email)->first();

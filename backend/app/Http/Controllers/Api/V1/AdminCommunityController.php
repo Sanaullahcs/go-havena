@@ -467,10 +467,10 @@ class AdminCommunityController extends Controller
             'phone'   => ['nullable', 'string', 'max:30'],
         ]);
 
-        $hasNewUser = $request->filled('email') && $request->filled('phone');
+        $hasNewUser = $request->filled('email');
         if (empty($validated['user_id']) && ! $hasNewUser) {
             return response()->json([
-                'message' => 'Provide user_id or new admin contact details.',
+                'message' => 'Provide user_id or a new admin email.',
                 'errors'  => ['user_id' => ['A community admin must be selected or created.']],
             ], 422);
         }
@@ -478,15 +478,23 @@ class AdminCommunityController extends Controller
         $community = Community::query()->findOrFail($id);
 
         if ($hasNewUser) {
-            $phone = \App\Support\PhoneNormalizer::normalize($validated['phone']);
-            if (! $phone) {
-                return response()->json(['message' => 'Invalid phone number.', 'errors' => ['phone' => ['Invalid phone format.']]], 422);
+            $phone = null;
+            if ($request->filled('phone')) {
+                $phone = \App\Support\PhoneNormalizer::normalize($validated['phone']);
+                if (! $phone) {
+                    return response()->json(['message' => 'Invalid phone number.', 'errors' => ['phone' => ['Invalid phone format.']]], 422);
+                }
             }
 
-            $existingUser = User::query()->where('phone', $phone)->first();
+            $existingUser = $phone
+                ? User::query()->where('phone', $phone)->first()
+                : User::query()->where('email', $validated['email'])->first();
             if ($existingUser) {
                 if (($existingUser->role ?? '') === 'resident') {
-                    ContactIdentityService::failDuplicate('phone', ContactIdentityService::DUPLICATE_PHONE_MESSAGE);
+                    ContactIdentityService::failDuplicate(
+                        $phone ? 'phone' : 'email',
+                        $phone ? ContactIdentityService::DUPLICATE_PHONE_MESSAGE : ContactIdentityService::DUPLICATE_EMAIL_MESSAGE,
+                    );
                 }
 
                 try {

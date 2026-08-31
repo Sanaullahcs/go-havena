@@ -13,21 +13,31 @@ use Illuminate\Console\Command;
 class EnsureCommunityAdminCommand extends Command
 {
     protected $signature = 'havena:ensure-community-admin
-                            {phone : Phone in international format, e.g. +2017777777}
+                            {email : Login email}
+                            {--phone= : Optional contact phone in international format}
                             {--name=Community Admin : Display name}
                             {--approve : Mark community admin as approved (default true)}';
 
-    protected $description = 'Create or fix a community admin account with the correct E.164 phone';
+    protected $description = 'Create or fix a community admin account that signs in with email OTP';
 
     public function handle(): int
     {
-        $rawPhone = (string) $this->argument('phone');
-        $phone = PhoneNormalizer::normalize($rawPhone);
-
-        if (! $phone) {
-            $this->error("Invalid phone: {$rawPhone}");
+        $email = strtolower(trim((string) $this->argument('email')));
+        if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->error("Invalid email: {$email}");
 
             return self::FAILURE;
+        }
+
+        $phone = null;
+        $rawPhone = trim((string) $this->option('phone'));
+        if ($rawPhone !== '') {
+            $phone = PhoneNormalizer::normalize($rawPhone);
+            if (! $phone) {
+                $this->error("Invalid phone: {$rawPhone}");
+
+                return self::FAILURE;
+            }
         }
 
         $community = Community::query()
@@ -46,27 +56,24 @@ class EnsureCommunityAdminCommand extends Command
 
         $region = Region::query()->where('status', 'active')->orderBy('sort_order')->first();
 
-        $user = User::query()->where('phone', $phone)->first();
-
-        if (! $user) {
-            foreach (PhoneNormalizer::alternatesForLookup($phone) as $alternate) {
-                $user = User::query()->where('phone', $alternate)->first();
-                if ($user) {
-                    break;
-                }
-            }
+        $user = User::query()->where('email', $email)->first();
+        if (! $user && $phone) {
+            $user = User::query()->where('phone', $phone)->first();
         }
 
         $attributes = [
             'name' => (string) $this->option('name'),
-            'phone' => $phone,
-            'email' => str_replace('+', '', $phone).'@phone.havena.local',
+            'email' => $email,
             'password' => 'password',
             'role' => 'community_admin',
             'community_admin_status' => 'approved',
             'status' => 'active',
-            'phone_verified_at' => now(),
+            'email_verified_at' => now(),
         ];
+        if ($phone) {
+            $attributes['phone'] = $phone;
+            $attributes['phone_verified_at'] = now();
+        }
 
         if ($user) {
             $user->update($attributes);
@@ -95,7 +102,7 @@ class EnsureCommunityAdminCommand extends Command
             ],
         );
 
-        $this->info("Community admin ready: {$phone} / OTP 123456 (local) → {$community->name}");
+        $this->info("Community admin ready: {$email} / OTP 123456 (local) → {$community->name}");
 
         return self::SUCCESS;
     }

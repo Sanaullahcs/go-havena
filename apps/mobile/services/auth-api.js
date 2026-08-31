@@ -156,7 +156,7 @@ export async function logout({ revokeServer = false } = {}) {
       // ignore network errors on logout
     }
   }
-  // Keep unlock credentials so fingerprint / Face ID work without phone OTP again
+  // Keep unlock credentials so fingerprint / Face ID work without email OTP again
   await clearSession({ keepBiometricUnlock: true });
 }
 

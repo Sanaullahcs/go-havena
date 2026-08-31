@@ -27,6 +27,7 @@ import { EmailSignInStep } from "@/components/auth/email-sign-in-step";
 import { AuthRedirectOverlay } from "@/components/shared/loaders";
 import { CommunityAuthHero } from "@/components/auth/community-auth-hero";
 import { HavenaMark } from "@/components/shared/havena-mark";
+import { AuthLegalLinks } from "@/components/auth/auth-legal-links";
 import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
 import { consumeWebHandoffIfPresent } from "@/lib/auth/web-handoff";
 import { Suspense } from "react";
@@ -295,6 +296,7 @@ function LoginPageInner() {
                   </>
                 )}
             </p>
+            <AuthLegalLinks className="mt-4" />
           </div>
         </div>
       </div>

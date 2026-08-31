@@ -72,7 +72,7 @@ paths:
   /auth/otp/request:
     post:
       tags: [Auth]
-      summary: Request an SMS OTP for a phone number
+      summary: Request an email OTP
       security: []
       requestBody:
         required: true
@@ -80,9 +80,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [phone]
+              required: [email]
               properties:
-                phone: { type: string }
+                email: { type: string, format: email }
       responses:
         '202': { description: OTP dispatched }
         '429': { $ref: '#/components/responses/RateLimited' }
@@ -90,7 +90,7 @@ paths:
   /auth/otp/verify:
     post:
       tags: [Auth]
-      summary: Verify an SMS OTP and authenticate
+      summary: Verify an email OTP and authenticate
       security: []
       requestBody:
         required: true
@@ -98,9 +98,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [phone, code]
+              required: [email, code]
               properties:
-                phone: { type: string }
+                email: { type: string, format: email }
                 code: { type: string }
       responses:
         '200': { $ref: '#/components/responses/AuthToken' }

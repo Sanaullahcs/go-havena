@@ -316,7 +316,7 @@ export function ProvisionUserModal({
                 placeholder="user@example.com"
               />
             </Field>
-            <Field label="Phone number" required className="sm:col-span-2">
+            <Field label="Phone number" className="sm:col-span-2">
               <AdminPhoneInput
                 resetKey={`${type}-${open}`}
                 showError={showError("phone")}

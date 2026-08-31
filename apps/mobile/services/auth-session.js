@@ -4,7 +4,7 @@ import { Platform } from "react-native";
 const TOKEN_KEY = "nbr_auth_token";
 const USER_KEY = "nbr_auth_user";
 const COMMUNITY_KEY = "nbr_community_id";
-/** Kept after logout so fingerprint / Face ID can unlock without phone OTP again */
+/** Kept after logout so fingerprint / Face ID can unlock without email OTP again */
 const BIOMETRIC_TOKEN_KEY = "nbr_biometric_token";
 const BIOMETRIC_USER_KEY = "nbr_biometric_user";
 const BLOCKED_NOTICE_KEY = "nbr_blocked_notice";

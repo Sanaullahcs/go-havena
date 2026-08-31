@@ -11,8 +11,8 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
 /**
- * Dev community admin — mobile OTP login and web dashboard OTP login.
- * Phone: (555) 666-8888 / +15556668888, OTP: 123456 (local env)
+ * Dev community admin — email OTP login on mobile and web.
+ * Email: community.admin@havena.app, OTP: 123456 (local env)
  */
 class CommunityAdminSeeder extends Seeder
 {
@@ -41,15 +41,16 @@ class CommunityAdminSeeder extends Seeder
         }
 
         $user = User::query()->updateOrCreate(
-            ['phone' => self::DEV_PHONE],
+            ['email' => self::DEV_EMAIL],
             [
                 'uuid'                   => (string) Str::ulid(),
                 'name'                   => 'Community Admin Demo',
-                'email'                  => self::DEV_EMAIL,
+                'phone'                  => self::DEV_PHONE,
                 'password'               => bcrypt('password'),
                 'role'                   => 'community_admin',
                 'community_admin_status' => 'approved',
                 'status'                 => 'active',
+                'email_verified_at'      => now(),
                 'phone_verified_at'      => now(),
             ],
         );
@@ -80,6 +81,6 @@ class CommunityAdminSeeder extends Seeder
             ->where('community_id', '!=', $community->id)
             ->delete();
 
-        $this->command?->info('CommunityAdminSeeder: '.self::DEV_PHONE.' → '.$community->name.' (approved admin)');
+        $this->command?->info('CommunityAdminSeeder: '.self::DEV_EMAIL.' → '.$community->name.' (approved admin)');
     }
 }

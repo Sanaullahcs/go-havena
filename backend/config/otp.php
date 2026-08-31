@@ -8,7 +8,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | When set, every request uses this code and verify accepts it.
-    | Leave empty in real production once an SMS provider is wired.
+    | Leave empty in real production once a mail provider is wired.
     | Local / testing / uat always fall back to 123456 when this is empty.
     |
     */

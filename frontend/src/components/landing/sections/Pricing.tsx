@@ -108,7 +108,7 @@ export function Pricing({ hideIntro = false }: { hideIntro?: boolean }) {
         <ol className="lp-pricing__flow" aria-label="What happens when you choose a plan">
           <li>
             <span>1</span>
-            {signedInAdmin ? "Open Billing with your plan" : "Create account or sign in (phone OTP)"}
+            {signedInAdmin ? "Open Billing with your plan" : "Create account or sign in (email OTP)"}
           </li>
           <li>
             <span>2</span>

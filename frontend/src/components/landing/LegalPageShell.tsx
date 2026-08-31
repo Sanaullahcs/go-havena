@@ -71,11 +71,19 @@ export function LegalPageShell({ document }: LegalPageShellProps) {
           </article>
 
           <div className="lp-legal__note">
-            Questions?{" "}
+            Questions? Email{" "}
             <a href={`mailto:${site.contactEmail}`} className="lp-legal__note-link">
-              Contact us
-            </a>{" "}
-            or return to the{" "}
+              {site.contactEmail}
+            </a>
+            . Also see our{" "}
+            <Link href="/privacy-policy" className="lp-legal__note-link">
+              Privacy Policy
+            </Link>{" "}
+            and{" "}
+            <Link href="/terms-of-service" className="lp-legal__note-link">
+              Terms of Service
+            </Link>
+            , or return to the{" "}
             <Link href="/" className="lp-legal__note-link">
               homepage
             </Link>

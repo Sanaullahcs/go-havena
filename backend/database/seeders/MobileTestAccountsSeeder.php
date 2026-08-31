@@ -11,14 +11,10 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
 /**
- * Fully onboarded mobile test accounts — OTP 123456 in local/uat env.
+ * Fully onboarded mobile test accounts — email OTP 123456 in local/uat env.
  *
- * Resident:        (555) 555-0100  / +15555550100  → opens Home tab
- * Community admin: (555) 555-0200  / +15555550200  → opens Home tab (admin)
- *
- * Legacy dev phones (still updated):
- *   (555) 555-5555 / +15555555555 — Sarah Mitchell, resident
- *   (555) 666-8888 / +15556668888 — community admin demo
+ * Resident:        test.resident@havena.app
+ * Community admin: test.community.admin@havena.app
  */
 class MobileTestAccountsSeeder extends Seeder
 {
@@ -79,11 +75,11 @@ class MobileTestAccountsSeeder extends Seeder
         $this->command?->call('db:seed', ['--class' => CommunityAdminSeeder::class]);
 
         $this->command?->info('');
-        $this->command?->info('Mobile test accounts (OTP 123456 in local env):');
-        $this->command?->info('  Resident:        (555) 555-0100  → Home');
-        $this->command?->info('  Community admin: (555) 555-0200  → Home (admin nav)');
-        $this->command?->info('  Legacy resident: (555) 555-5555  → Sarah Mitchell');
-        $this->command?->info('  Legacy admin:    (555) 666-8888  → Community Admin Demo');
+        $this->command?->info('Mobile test accounts (email OTP 123456 in local env):');
+        $this->command?->info('  Resident:        test.resident@havena.app');
+        $this->command?->info('  Community admin: test.community.admin@havena.app');
+        $this->command?->info('  Legacy resident: sarah@havena.app');
+        $this->command?->info('  Legacy admin:    community.admin@havena.app');
     }
 
     private function seedResident(
@@ -97,14 +93,15 @@ class MobileTestAccountsSeeder extends Seeder
         Community $community,
     ): void {
         $user = User::query()->updateOrCreate(
-            ['phone' => $phone],
+            ['email' => $email],
             [
                 'uuid'              => (string) Str::ulid(),
                 'name'              => $name,
-                'email'             => $email,
+                'phone'             => $phone,
                 'password'          => bcrypt('password'),
                 'role'              => 'resident',
                 'status'            => 'active',
+                'email_verified_at' => now(),
                 'phone_verified_at' => now(),
             ],
         );
@@ -132,7 +129,7 @@ class MobileTestAccountsSeeder extends Seeder
             ],
         );
 
-        $this->command?->info("  Resident ready: {$phone} → {$community->name}");
+        $this->command?->info("  Resident ready: {$email} → {$community->name}");
     }
 
     private function seedCommunityAdmin(
@@ -143,15 +140,16 @@ class MobileTestAccountsSeeder extends Seeder
         Community $community,
     ): void {
         $user = User::query()->updateOrCreate(
-            ['phone' => $phone],
+            ['email' => $email],
             [
                 'uuid'                   => (string) Str::ulid(),
                 'name'                   => $name,
-                'email'                  => $email,
+                'phone'                  => $phone,
                 'password'               => bcrypt('password'),
                 'role'                   => 'community_admin',
                 'community_admin_status' => 'approved',
                 'status'                 => 'active',
+                'email_verified_at'      => now(),
                 'phone_verified_at'      => now(),
             ],
         );
@@ -184,7 +182,7 @@ class MobileTestAccountsSeeder extends Seeder
             ->where('community_id', '!=', $community->id)
             ->delete();
 
-        $this->command?->info("  Community admin ready: {$phone} → {$community->name}");
+        $this->command?->info("  Community admin ready: {$email} → {$community->name}");
     }
 
     private function refreshLegacyResident(?Region $region, Community $community): void

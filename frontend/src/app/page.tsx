@@ -19,6 +19,18 @@ export default function HomePage() {
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
           <Link
+            href="/privacy-policy"
+            className="hidden rounded-xl px-2 py-2 text-[13px] font-semibold text-white/80 underline underline-offset-2 transition hover:text-white sm:inline"
+          >
+            Privacy
+          </Link>
+          <Link
+            href="/terms-of-service"
+            className="hidden rounded-xl px-2 py-2 text-[13px] font-semibold text-white/80 underline underline-offset-2 transition hover:text-white sm:inline"
+          >
+            Terms
+          </Link>
+          <Link
             href="/login"
             className="rounded-xl px-3 py-2 text-[13px] font-semibold text-white/85 transition hover:text-white sm:px-4"
           >
@@ -62,8 +74,25 @@ export default function HomePage() {
           <Link href="/plans" className="hover:text-white">
             View plans
           </Link>
+          <Link href="/privacy-policy" className="hover:text-white">
+            Privacy Policy
+          </Link>
+          <Link href="/terms-of-service" className="hover:text-white">
+            Terms of Service
+          </Link>
         </div>
       </main>
+      <footer className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-center gap-x-5 gap-y-2 pt-4 text-[13px] text-white/70">
+        <Link href="/privacy-policy" className="underline underline-offset-2 hover:text-white">
+          Privacy Policy
+        </Link>
+        <span aria-hidden="true" className="text-white/35">
+          ·
+        </span>
+        <Link href="/terms-of-service" className="underline underline-offset-2 hover:text-white">
+          Terms of Service
+        </Link>
+      </footer>
     </div>
   );
 }
