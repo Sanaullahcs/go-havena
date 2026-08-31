@@ -91,10 +91,10 @@ export default function Roles() {
 
         <View style={styles.body}>
           <View style={styles.hero}>
-            <HavenaLogo size={40} compact />
+            <HavenaLogo size={34} compact />
             <View style={styles.pageTitleWrap}>
               {joinLead ? <Text style={styles.pageTitle}>{joinLead}</Text> : null}
-              <HavenaWordmark height={25} />
+              <HavenaWordmark height={32} />
               {joinTail ? <Text style={styles.pageTitle}>{joinTail}</Text> : null}
             </View>
             <Text style={styles.pageSubTitle}>
