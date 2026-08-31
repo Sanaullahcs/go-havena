@@ -765,24 +765,38 @@ export default function CompleteProfile() {
               <Text style={styles.inputText}>
                 {t("onboarding.emailAddress")} <Text style={styles.requiredMark}>*</Text>
               </Text>
-              <LocaleTextInput
-                style={[styles.input, singleLineInputStyle, showError("email", liveErrors) && styles.inputError]}
-                placeholder={t("onboarding.emailPlaceholder")}
-                placeholderTextColor={PLACEHOLDER_COLOR}
-                value={email}
-                onChangeText={(text) => {
-                  setEmail(text);
-                  clearError("email");
-                }}
-                onBlur={() => touch("email")}
-                onFocus={() => handleFieldFocus(emailFieldRef)}
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="email"
-                textContentType="emailAddress"
-                keyboardType="email-address"
-                maxLength={LIMITS.profileEmail}
-              />
+              <View style={[styles.emailField, showError("email", liveErrors) && styles.inputError]}>
+                <LocaleTextInput
+                  style={[
+                    styles.emailValue,
+                    {
+                      height: 22,
+                      lineHeight: 20,
+                      includeFontPadding: false,
+                      paddingTop: 0,
+                      paddingBottom: 0,
+                    },
+                  ]}
+                  placeholder={t("onboarding.emailPlaceholder")}
+                  placeholderTextColor={PLACEHOLDER_COLOR}
+                  value={email}
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    clearError("email");
+                  }}
+                  onBlur={() => touch("email")}
+                  onFocus={() => handleFieldFocus(emailFieldRef)}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="email"
+                  textContentType="emailAddress"
+                  keyboardType="email-address"
+                  maxLength={LIMITS.profileEmail}
+                  forceLtr
+                  textAlign="left"
+                  underlineColorAndroid="transparent"
+                />
+              </View>
               {showError("email", liveErrors) ? <Text style={styles.errorText}>{showError("email", liveErrors)}</Text> : null}
             </View>
 
@@ -1360,6 +1374,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: T.navy,
     textAlignVertical: "center",
+  },
+  emailField: {
+    height: 52,
+    borderWidth: 1,
+    borderColor: T.border,
+    borderRadius: 12,
+    backgroundColor: T.white,
+    paddingHorizontal: 16,
+    justifyContent: "center",
+  },
+  emailValue: {
+    width: "100%",
+    height: 22,
+    flexGrow: 0,
+    margin: 0,
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
+    fontFamily: Fonts.regular,
+    fontSize: 14,
+    color: T.navy,
+    textAlign: "left",
+    textAlignVertical: "center",
+    backgroundColor: "transparent",
   },
   familyNumberSection: {
     marginTop: 14,

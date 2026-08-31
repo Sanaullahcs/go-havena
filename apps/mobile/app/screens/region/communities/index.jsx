@@ -165,9 +165,19 @@ export default function RegionCommunitiesScreen() {
             onChangeText={setSearchText}
             placeholder={t("region.searchCommunities")}
             placeholderTextColor={T.gray}
-            style={styles.searchInput}
+            style={[
+              styles.searchInput,
+              {
+                height: 20,
+                lineHeight: 20,
+                includeFontPadding: false,
+                paddingTop: 0,
+                paddingBottom: 0,
+              },
+            ]}
             returnKeyType="search"
             autoCorrect={false}
+            underlineColorAndroid="transparent"
           />
           {isSearchPending || refreshing ? (
             <ActivityIndicator size="small" color={T.teal} />
