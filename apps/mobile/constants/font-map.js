@@ -1,9 +1,9 @@
 import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-} from "@expo-google-fonts/inter";
+  Nunito_400Regular,
+  Nunito_500Medium,
+  Nunito_600SemiBold,
+  Nunito_700Bold,
+} from "@expo-google-fonts/nunito";
 import {
   NotoSansArabic_400Regular,
   NotoSansArabic_500Medium,
@@ -13,7 +13,7 @@ import {
 import { isArabicLanguage } from "../constants/font";
 
 /**
- * Map the shared Inter-* keys to either Inter (LTR) or Noto Sans Arabic (RTL).
+ * Map the shared Inter-* keys to Nunito (LTR) or Noto Sans Arabic (RTL).
  * Keeping the same keys means StyleSheet / NativeWind don't need per-screen changes.
  */
 export function fontMapForLanguage(lang) {
@@ -27,9 +27,9 @@ export function fontMapForLanguage(lang) {
   }
 
   return {
-    "Inter-Regular": Inter_400Regular,
-    "Inter-Medium": Inter_500Medium,
-    "Inter-SemiBold": Inter_600SemiBold,
-    "Inter-Bold": Inter_700Bold,
+    "Inter-Regular": Nunito_400Regular,
+    "Inter-Medium": Nunito_500Medium,
+    "Inter-SemiBold": Nunito_600SemiBold,
+    "Inter-Bold": Nunito_700Bold,
   };
 }

@@ -1,27 +1,15 @@
 import type { Metadata } from "next";
-import { DM_Sans, Plus_Jakarta_Sans, Source_Serif_4 } from "next/font/google";
+import { Nunito } from "next/font/google";
 import "./globals.css";
 import { APP_NAME } from "@/lib/constants";
 import { StripTrailingSlash } from "@/components/shared/strip-trailing-slash";
 
-const sans = DM_Sans({
-  variable: "--font-inter",
-  subsets: ["latin"],
+/** Single Havena UI face — wired to existing --font-inter / display / brand vars. */
+const nunito = Nunito({
+  subsets: ["latin", "latin-ext"],
+  weight: ["400", "500", "600", "700", "800"],
   display: "swap",
-});
-
-const display = Plus_Jakarta_Sans({
-  variable: "--font-display",
-  subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
-  display: "swap",
-});
-
-const brand = Source_Serif_4({
-  variable: "--font-brand",
-  subsets: ["latin"],
-  weight: ["600", "700"],
-  display: "swap",
+  variable: "--font-nunito",
 });
 
 export const metadata: Metadata = {
@@ -44,7 +32,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${sans.variable} ${display.variable} ${brand.variable} h-full antialiased`}
+      className={`${nunito.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full overflow-x-hidden" suppressHydrationWarning>

@@ -43,7 +43,10 @@ html,
 body {
   background-color: var(--brand-canvas);
   color: var(--brand-secondary);
-  font-family: var(--font-inter, "Inter"), system-ui, -apple-system, sans-serif;
+  --font-inter: var(--font-nunito), "Nunito", sans-serif;
+  --font-display: var(--font-nunito), "Nunito", sans-serif;
+  --font-brand: var(--font-nunito), "Nunito", sans-serif;
+  font-family: var(--font-nunito, "Nunito"), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
