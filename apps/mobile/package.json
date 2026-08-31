@@ -25,6 +25,7 @@
   "dependencies": {
     "@expo-google-fonts/noto-sans-arabic": "^0.4.3",
     "@expo-google-fonts/poppins": "^0.4.1",
+    "@expo-google-fonts/quicksand": "^0.4.1",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-community/datetimepicker": "9.1.0",
     "app-locale": "file:./modules/app-locale",

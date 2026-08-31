@@ -101,10 +101,11 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--font-wordmark), "Quicksand", sans-serif;
   font-size: 0.9375rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.25;
-  letter-spacing: -0.015em;
+  letter-spacing: 0.01em;
   color: var(--brand-secondary);
 }
 
@@ -337,9 +338,10 @@ body {
   overflow: hidden;
 }
 .nl-login-brand__name {
+  font-family: var(--font-wordmark), "Quicksand", sans-serif;
   font-size: 0.9375rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   color: #0f172a;
 }
 

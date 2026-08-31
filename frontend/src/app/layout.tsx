@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Poppins } from "next/font/google";
+import { Poppins, Quicksand } from "next/font/google";
 import "./globals.css";
 import { APP_NAME } from "@/lib/constants";
 import { StripTrailingSlash } from "@/components/shared/strip-trailing-slash";
@@ -9,6 +9,13 @@ const poppins = Poppins({
   weight: ["400", "500", "600", "700", "800"],
   display: "swap",
   variable: "--font-havena",
+});
+
+const quicksand = Quicksand({
+  subsets: ["latin", "latin-ext"],
+  weight: ["500", "600", "700"],
+  display: "swap",
+  variable: "--font-wordmark",
 });
 
 export const metadata: Metadata = {
@@ -31,7 +38,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${poppins.variable} ${poppins.className} h-full antialiased`}
+      className={`${poppins.variable} ${quicksand.variable} ${poppins.className} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className={`${poppins.className} min-h-full overflow-x-hidden`} suppressHydrationWarning>

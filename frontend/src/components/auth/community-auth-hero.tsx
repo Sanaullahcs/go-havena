@@ -33,7 +33,9 @@ export function CommunityAuthHero({
           <span className="nl-login-brand__mark">
             <HavenaMark size={28} />
           </span>
-          <span className="text-[15px] font-bold text-white">Havena</span>
+          <span className="font-[family-name:var(--font-wordmark)] text-[15px] font-semibold text-white">
+            Havena
+          </span>
         </div>
 
         <div className="nl-login-hero__copy">
