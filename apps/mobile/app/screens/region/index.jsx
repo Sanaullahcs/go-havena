@@ -9,7 +9,7 @@ import { MapPin } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getCurrentRole } from "../../../constants/role-session";
 import { saveRegionSelection } from "../../../services/auth-api";
-import { chevronForward, arrowForward } from "../../../utils/rtl";
+import { ionChevronForward, arrowForward } from "../../../utils/rtl";
 import { fetchRegionsOnly } from "../../../services/regions-api";
 import { getApiErrorMessage } from "../../../utils/auth-errors";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
@@ -187,7 +187,7 @@ export default function RegionScreen() {
                   onPress={() => handleRegionSelect(region)}
                 >
                   <View style={styles.iconWell}>
-                    <MapPin size={16} color={T.teal} strokeWidth={1.75} />
+                    <MapPin size={16} color={T.navy} strokeWidth={1.75} />
                   </View>
 
                   <View style={styles.cardTextWrap}>
@@ -204,7 +204,7 @@ export default function RegionScreen() {
                     <ActivityIndicator size="small" color={T.teal} />
                   ) : (
                     <View style={styles.chevronWrap}>
-                      <Ionicons name={chevronForward()} size={16} color={T.teal} />
+                      <Ionicons name={ionChevronForward()} size={16} color={T.navy} />
                     </View>
                   )}
                 </TouchableOpacity>
