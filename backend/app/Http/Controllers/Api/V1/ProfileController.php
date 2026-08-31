@@ -404,6 +404,33 @@ class ProfileController extends Controller
         return response()->json(['message' => 'Password changed successfully']);
     }
 
+    /** DELETE /v1/me — App Store / Play require in-app account deletion. */
+    public function destroy(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $userId = (int) $user->id;
+
+        DB::transaction(function () use ($user) {
+            $stamp = now()->format('ymdHis');
+            $user->forceFill([
+                'status' => 'deleted',
+                'name' => 'Deleted User',
+                'email' => "deleted-{$user->id}-{$stamp}@deleted.havena.local",
+                'phone' => substr('+1999'.$user->id.$stamp, 0, 20),
+                'phone_verified_at' => null,
+                'google_id' => null,
+                'apple_id' => null,
+            ])->save();
+
+            $user->tokens()->delete();
+            $user->delete();
+        });
+
+        ActivityLogService::user('account_deleted', 'User deleted their own account', 'User', $userId, 'warning');
+
+        return response()->json(['message' => 'Account deleted']);
+    }
+
     private function storeProfileImage(UploadedFile $file, string $folder): string
     {
         $path = $file->store($folder, 'public');

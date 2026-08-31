@@ -7,14 +7,12 @@ import { Fonts } from "../../../constants/font";
 import { Ionicons } from "@expo/vector-icons";
 import { MapPin } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as Location from "expo-location";
 import { getCurrentRole } from "../../../constants/role-session";
 import { saveRegionSelection } from "../../../services/auth-api";
 import { chevronForward, arrowForward } from "../../../utils/rtl";
 import { fetchRegionsOnly } from "../../../services/regions-api";
 import { getApiErrorMessage } from "../../../utils/auth-errors";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
-import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { HomeTheme as T } from "../../../constants/home-theme";
 
 const SEARCH_DEBOUNCE_MS = 400;
@@ -36,7 +34,6 @@ export default function RegionScreen() {
   const [error, setError] = useState(null);
   const [selectingId, setSelectingId] = useState(null);
   const hasLoadedOnce = useRef(false);
-  const { showError } = useAppDialog();
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchText.trim()), SEARCH_DEBOUNCE_MS);
@@ -72,20 +69,6 @@ export default function RegionScreen() {
   useEffect(() => {
     loadRegions();
   }, [loadRegions]);
-
-  useEffect(() => {
-    const requestLocationPermission = async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        await showError(
-          t("region.locationPermission"),
-          t("region.locationHelps"),
-        );
-      }
-    };
-
-    requestLocationPermission();
-  }, [showError]);
 
   const handleRegionSelect = async (region) => {
     if (selectingId) return;

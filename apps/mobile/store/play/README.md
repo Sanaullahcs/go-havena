@@ -79,11 +79,11 @@ Splash in `app.json`: `splash-icon.png` on `#FFFFFF`. That is a product choice, 
 |-------|--------|
 | Play high-res icon 512×512 PNG, no alpha | **Ready** — `ic_launcher_playstore_512.png` |
 | Feature graphic 1024×500 | **Ready** — `feature_graphic_1024x500.png` |
-| Phone screenshots ≥ 2 | **Missing** — capture into this folder |
-| Short description ≤ 80 characters | **Missing** — write in Play Console |
-| Full description | **Missing** — write in Play Console |
-| Privacy policy URL | **Missing** — required for account/sign-in apps |
-| Contact email | **Missing** — Play Console |
+| Phone screenshots ≥ 2 | **Ready** — `01_Home.png` … `08_Profile.png` |
+| Short description ≤ 80 characters | **Ready** — see `store/STORE_SUBMISSION.md` |
+| Full description | **Ready** — see `store/STORE_SUBMISSION.md` |
+| Privacy policy URL | **Ready** — https://gohavena.com/privacy-policy |
+| Contact email | **Ready** — hello@gohavena.com |
 | Category | Suggest **Lifestyle** or **Social** |
 | Production Android App Bundle (AAB) | Build with `eas build --platform android --profile production` |
 | Play App Signing / EAS Android submit | `eas.json` `submit.production` is **iOS only** today |

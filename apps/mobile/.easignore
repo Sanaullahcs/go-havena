@@ -1,0 +1,33 @@
+# EAS upload ignore. Do NOT use **/android or **/ios here — that would
+# drop the local app-locale native module and break Gradle.
+
+node_modules/
+.expo/
+.expo-*/
+.expo-tmp-*/
+.expo-test-bundle/
+.tmp-*
+dist/
+web-build/
+expo-env.d.ts
+expo-start.log
+
+# Generated native project only (project root). Keep modules/*/android and ios.
+/android/
+/ios/
+
+android-secrets/
+apple-secrets/
+credentials.json
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+.env
+.env*.local
+google-services.json
+GoogleService-Info.plist
+.ngrok-token
+expo-qr.png

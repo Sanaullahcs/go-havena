@@ -8,11 +8,20 @@ import ListRow from "../../../components/ui/list-row";
 import { Fonts } from "../../../constants/font";
 import { HomeTheme as T } from "../../../constants/home-theme";
 import { useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { confirmSignOut } from "../../../services/sign-out";
+import { deleteAccount } from "../../../services/auth-api";
+import { getApiErrorMessage } from "../../../utils/auth-errors";
+import { setCurrentRole } from "../../../constants/role-session";
+import {
+  CONTACT_URL,
+  PRIVACY_POLICY_URL,
+  SUPPORT_EMAIL,
+  TERMS_OF_SERVICE_URL,
+} from "../../../constants/legal";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { usePushNotificationSettings } from "../../../hooks/use-push-notification-settings";
 import { useLanguage } from "../../../providers/language-provider";
-import { SUPPORTED } from "../../../i18n";
 import { sw, sf } from "../../../utils/responsive";
 
 const LANGUAGE_OPTIONS = [
@@ -72,6 +81,33 @@ export default function ProfileSetting() {
 
   const handleLogout = () => confirmSignOut(dialog);
 
+  const openLegalUrl = async (url) => {
+    await WebBrowser.openBrowserAsync(url, {
+      presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+    });
+  };
+
+  const handleDeleteAccount = async () => {
+    const choice = await dialog.showConfirm(
+      t("settings.deleteAccount"),
+      t("settings.deleteAccountConfirmMsg"),
+      { confirmLabel: t("settings.deleteAccountConfirm"), cancelLabel: t("common.cancel"), destructive: true },
+    );
+    if (choice !== "confirm") return;
+
+    try {
+      await deleteAccount();
+      setCurrentRole("resident");
+      if (router.canDismiss?.()) {
+        router.dismissAll();
+      }
+      router.replace("/screens/login");
+      await dialog.showSuccess(t("settings.deleteAccountDone"), t("settings.deleteAccountDoneMsg"));
+    } catch (err) {
+      await dialog.showError(t("settings.deleteAccount"), getApiErrorMessage(err) || t("settings.deleteAccountFailed"));
+    }
+  };
+
   const accountData = [
     {
       id: 1,
@@ -118,10 +154,12 @@ export default function ProfileSetting() {
   ];
 
   const support = [
-    { id: 1, title: t("settings.helpCenter"), subTitle: t("settings.helpCenterSub"), icon: "help-circle", iconColor: "#1B4F8A", iconBg: "#D1FAF5", chevron: true, onPress: () => {} },
-    { id: 2, title: t("settings.aboutHavena"), subTitle: t("common.version", { version: "1.0.0" }), icon: "info", iconColor: "#6B7280", iconBg: "#F3F4F6", chevron: true, onPress: () => {} },
-    { id: 3, title: t("settings.logOut"), subTitle: t("settings.logOutSub"), icon: "log-out", iconColor: "#DC2626", iconBg: "#FEF2F2", danger: true, onPress: handleLogout },
-    { id: 4, title: t("settings.deleteAccount"), subTitle: t("settings.deleteAccountSub"), icon: "trash-2", iconColor: "#DC2626", iconBg: "#FEF2F2", danger: true, onPress: () => dialog.showError(t("settings.deleteAccount"), t("settings.deleteAccountMsg")) },
+    { id: 1, title: t("settings.helpCenter"), subTitle: t("settings.helpCenterSub"), icon: "help-circle", iconColor: "#1B4F8A", iconBg: "#D1FAF5", chevron: true, onPress: () => openLegalUrl(CONTACT_URL) },
+    { id: 2, title: t("settings.privacyPolicy"), subTitle: t("settings.privacyPolicySub"), icon: "shield", iconColor: "#1B4F8A", iconBg: "#D1FAF5", chevron: true, onPress: () => openLegalUrl(PRIVACY_POLICY_URL) },
+    { id: 3, title: t("settings.termsOfService"), subTitle: t("settings.termsOfServiceSub"), icon: "file-text", iconColor: "#1B4F8A", iconBg: "#D1FAF5", chevron: true, onPress: () => openLegalUrl(TERMS_OF_SERVICE_URL) },
+    { id: 4, title: t("settings.aboutHavena"), subTitle: t("common.version", { version: "1.0.0" }), icon: "info", iconColor: "#6B7280", iconBg: "#F3F4F6", chevron: true, onPress: () => dialog.showSuccess(t("settings.aboutHavena"), t("settings.aboutHavenaMsg", { email: SUPPORT_EMAIL })) },
+    { id: 5, title: t("settings.logOut"), subTitle: t("settings.logOutSub"), icon: "log-out", iconColor: "#DC2626", iconBg: "#FEF2F2", danger: true, onPress: handleLogout },
+    { id: 6, title: t("settings.deleteAccount"), subTitle: t("settings.deleteAccountSub"), icon: "trash-2", iconColor: "#DC2626", iconBg: "#FEF2F2", danger: true, onPress: handleDeleteAccount },
   ];
 
   const currentLang = LANGUAGE_OPTIONS.find((l) => l.code === language) ?? LANGUAGE_OPTIONS[0];

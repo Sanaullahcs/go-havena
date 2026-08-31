@@ -1,6 +1,7 @@
 import { apiRequest, ApiError } from "./api-client";
 import { canAccessDashboard } from "./community-access";
 import { setCommunityId, setSession, clearSession, getToken, getUser } from "./auth-session";
+import { unregisterPushDeviceOnSignOut } from "./push-notifications";
 import { parsePhoneNumberFromString } from "libphonenumber-js/min";
 import { toE164, extractNationalDigits } from "../utils/phone";
 import { paramString } from "../utils/route-params";
@@ -157,6 +158,17 @@ export async function logout({ revokeServer = false } = {}) {
   }
   // Keep unlock credentials so fingerprint / Face ID work without phone OTP again
   await clearSession({ keepBiometricUnlock: true });
+}
+
+/** Permanently delete the signed-in account, then wipe local session. */
+export async function deleteAccount() {
+  try {
+    await unregisterPushDeviceOnSignOut();
+  } catch {
+    // continue even if push unregister fails
+  }
+  await apiRequest("/me", { method: "DELETE", community: false });
+  await clearSession({ keepBiometricUnlock: false });
 }
 
 export async function fetchMe() {

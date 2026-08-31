@@ -83,6 +83,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/guest-access/status',   [GuestAccessController::class, 'status']);
         Route::get('/neighbors/{id}', [ProfileController::class, 'showNeighbor'])->whereNumber('id');
         Route::put('/me',             [ProfileController::class, 'update']);
+        Route::delete('/me',          [ProfileController::class, 'destroy']);
         Route::post('/me/avatar',         [ProfileController::class, 'uploadAvatar']);
         Route::post('/me/utility-bill',   [ProfileController::class, 'uploadUtilityBill']);
         Route::put('/me/password',        [ProfileController::class, 'changePassword']);

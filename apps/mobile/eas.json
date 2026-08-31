@@ -16,13 +16,16 @@
     },
     "production": {
       "autoIncrement": true,
+      "credentialsSource": "local",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://apis.gohavena.com/api/v1",
         "EXPO_PUBLIC_ADMIN_URL": "https://gohavena.com"
       },
+      "android": {
+        "buildType": "app-bundle"
+      },
       "ios": {
-        "resourceClass": "m-medium",
-        "credentialsSource": "local"
+        "resourceClass": "m-medium"
       }
     },
     "apk": {

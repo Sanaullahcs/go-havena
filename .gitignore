@@ -58,7 +58,11 @@ app-example
 
 # generated native folders (mobile)
 **/ios/
+!apps/mobile/modules/**/ios/
+!apps/mobile/modules/**/ios/**
 **/android/
+!apps/mobile/modules/**/android/
+!apps/mobile/modules/**/android/**
 
 # Next.js (frontend)
 .next/
