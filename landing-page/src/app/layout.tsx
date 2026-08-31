@@ -74,8 +74,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={nunito.variable}>
-      <body className="min-h-screen bg-white text-ink-primary antialiased">
+    <html lang="en" className={`${nunito.variable} ${nunito.className}`}>
+      <body className={`${nunito.className} min-h-screen bg-white text-ink-primary antialiased`}>
         {children}
       </body>
     </html>

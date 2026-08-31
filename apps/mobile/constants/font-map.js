@@ -13,23 +13,22 @@ import {
 import { isArabicLanguage } from "../constants/font";
 
 /**
- * Map the shared Inter-* keys to Nunito (LTR) or Noto Sans Arabic (RTL).
- * Keeping the same keys means StyleSheet / NativeWind don't need per-screen changes.
+ * Register Nunito (LTR) or Noto Sans Arabic (RTL) under the Fonts.* family names.
  */
 export function fontMapForLanguage(lang) {
   if (isArabicLanguage(lang)) {
     return {
-      "Inter-Regular": NotoSansArabic_400Regular,
-      "Inter-Medium": NotoSansArabic_500Medium,
-      "Inter-SemiBold": NotoSansArabic_600SemiBold,
-      "Inter-Bold": NotoSansArabic_700Bold,
+      "Nunito-Regular": NotoSansArabic_400Regular,
+      "Nunito-Medium": NotoSansArabic_500Medium,
+      "Nunito-SemiBold": NotoSansArabic_600SemiBold,
+      "Nunito-Bold": NotoSansArabic_700Bold,
     };
   }
 
   return {
-    "Inter-Regular": Nunito_400Regular,
-    "Inter-Medium": Nunito_500Medium,
-    "Inter-SemiBold": Nunito_600SemiBold,
-    "Inter-Bold": Nunito_700Bold,
+    "Nunito-Regular": Nunito_400Regular,
+    "Nunito-Medium": Nunito_500Medium,
+    "Nunito-SemiBold": Nunito_600SemiBold,
+    "Nunito-Bold": Nunito_700Bold,
   };
 }

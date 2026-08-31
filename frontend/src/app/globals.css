@@ -32,6 +32,7 @@
   --nl-shadow-card: 0 2px 8px rgba(10, 42, 67, 0.06);
   --nl-radius-card: 16px;
   --nl-radius-button: 9999px;
+  --font-sans: var(--font-nunito), "Nunito", ui-sans-serif, system-ui, sans-serif;
 }
 
 html {

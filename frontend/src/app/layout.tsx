@@ -32,10 +32,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${nunito.variable} h-full antialiased`}
+      className={`${nunito.variable} ${nunito.className} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full overflow-x-hidden" suppressHydrationWarning>
+      <body className={`${nunito.className} min-h-full overflow-x-hidden`} suppressHydrationWarning>
         <StripTrailingSlash />
         {children}
       </body>

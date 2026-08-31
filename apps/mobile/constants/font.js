@@ -4,10 +4,10 @@
  * Arabic so every `Fonts.*` / `font-regular` usage stays readable.
  */
 export const Fonts = {
-  regular: "Inter-Regular",
-  bold: "Inter-Bold",
-  medium: "Inter-Medium",
-  semiBold: "Inter-SemiBold",
+  regular: "Nunito-Regular",
+  bold: "Nunito-Bold",
+  medium: "Nunito-Medium",
+  semiBold: "Nunito-SemiBold",
 };
 
 export function isArabicLanguage(lang) {
