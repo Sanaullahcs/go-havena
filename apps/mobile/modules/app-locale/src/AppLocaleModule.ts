@@ -1,4 +1,4 @@
-import { requireNativeModule } from "expo";
+import { requireOptionalNativeModule } from "expo";
 
 type AppLocaleNative = {
   isAvailable(): boolean;
@@ -18,9 +18,10 @@ const unavailable: AppLocaleNative = {
 
 function loadModule(): AppLocaleNative {
   try {
-    return requireNativeModule<AppLocaleNative>("AppLocale");
+    // Optional: Expo Go does not ship this native module. requireNativeModule
+    // can take down the Go process instead of throwing a JS error.
+    return requireOptionalNativeModule<AppLocaleNative>("AppLocale") ?? unavailable;
   } catch {
-    // Expo Go / web without native binary — keyboard locale sync unavailable.
     return unavailable;
   }
 }

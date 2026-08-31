@@ -35,6 +35,7 @@ import { fontMapForLanguage } from "../constants/font-map";
 import { getSavedLanguage } from "../i18n";
 import { setArabicTextMetricsEnabled } from "../utils/arabic-text-metrics";
 import { isArabicLanguage } from "../constants/font";
+import { isExpoGo } from "../utils/expo-runtime";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -121,7 +122,7 @@ export default function RootLayout() {
     <NotificationBannerProvider>
     <ImageSourcePickerProvider>
     <GuestSessionGuard />
-    <PushNotificationBootstrap />
+    {isExpoGo() ? null : <PushNotificationBootstrap />}
     <InAppNotificationMonitor />
     <ThemeProvider value={DefaultTheme}>
       <View style={styles.root}>

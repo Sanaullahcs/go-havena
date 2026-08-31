@@ -7,6 +7,7 @@ import { Colors } from "../constants/tokens";
 import { fontMapForLanguage } from "../constants/font-map";
 import { setNativeAppLocale } from "../utils/native-app-locale";
 import { setArabicTextMetricsEnabled } from "../utils/arabic-text-metrics";
+import { isExpoGo } from "../utils/expo-runtime";
 
 const LanguageContext = createContext({
   language: "en",
@@ -37,6 +38,9 @@ function languageNeedsRTL(lng) {
  */
 async function ensureNativeRtlIsOff() {
   if (!I18nManager.isRTL) return;
+  // forceRTL() reloads the native host. On Expo Go (especially SDK 56) that
+  // reload often kills the process right after the first screen appears.
+  if (isExpoGo()) return;
 
   I18nManager.allowRTL(false);
   I18nManager.forceRTL(false);
