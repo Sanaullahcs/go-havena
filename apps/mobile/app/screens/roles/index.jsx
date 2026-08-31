@@ -14,6 +14,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { ShieldCheck, Ticket } from "lucide-react-native";
 import { ionChevronForward } from "../../../utils/rtl";
 import HavenaLogo from "../../../components/ui/havena-logo";
+import HavenaWordmark from "../../../components/ui/havena-wordmark";
 import BackButton from "../../../components/ui/back-button";
 import { Routes } from "../../../constants/onboarding-routes";
 import { setCurrentRole } from "../../../constants/role-session";
@@ -62,6 +63,7 @@ export default function Roles() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const ROLE_CARDS = getRoleCards(t);
+  const [joinPrefix, joinSuffix] = String(t("roles.joinHavena")).split("Havena");
 
   const goLogin = () => {
     prepareAuthScreenChrome();
@@ -88,7 +90,11 @@ export default function Roles() {
         <View style={styles.body}>
           <View style={styles.hero}>
             <HavenaLogo size={40} compact />
-            <Text style={styles.pageTitle}>{t("roles.joinHavena")}</Text>
+            <View style={styles.pageTitleWrap}>
+              {joinPrefix ? <Text style={styles.pageTitle}>{joinPrefix}</Text> : null}
+              <HavenaWordmark height={22} />
+              {joinSuffix ? <Text style={styles.pageTitle}>{joinSuffix}</Text> : null}
+            </View>
             <Text style={styles.pageSubTitle}>
               {t("roles.chooseRole")}
             </Text>
@@ -186,8 +192,14 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     gap: 4,
   },
-  pageTitle: {
+  pageTitleWrap: {
     marginTop: 4,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pageTitle: {
     fontFamily: Fonts.bold,
     fontSize: 22,
     lineHeight: 28,
