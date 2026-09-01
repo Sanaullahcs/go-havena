@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl, Platform } from "react-native";
 import LocaleTextInput from "../../../../components/ui/locale-text-input";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -20,12 +20,13 @@ import { HomeTheme as T } from "../../../../constants/home-theme";
 
 const SEARCH_DEBOUNCE_MS = 400;
 
-/** Inline so the StyleSheet text-metrics patch cannot add lineHeight (iOS top-aligns). */
+/** Inline — no lineHeight (iOS top-aligns). Fixed 22px line so the input cannot grow. */
 const searchFieldTextStyle = {
   fontFamily: Fonts.regular,
   fontSize: 13,
   color: T.navy,
-  paddingTop: 0,
+  height: 22,
+  paddingTop: Platform.OS === "ios" ? 3 : 0,
   paddingBottom: 0,
   margin: 0,
   includeFontPadding: false,
@@ -171,7 +172,9 @@ export default function RegionCommunitiesScreen() {
 
         <View style={styles.searchWrap}>
           <View style={styles.searchInner}>
-            <Ionicons name="search-outline" size={18} color={T.gray} />
+            <View style={styles.searchIconWrap}>
+              <Ionicons name="search-outline" size={18} color={T.gray} />
+            </View>
             <View style={styles.searchInputWrap}>
               <LocaleTextInput
                 value={searchText}
@@ -387,10 +390,18 @@ const styles = StyleSheet.create({
   searchInner: {
     flexDirection: "row",
     alignItems: "center",
+    height: 22,
     gap: 12,
+  },
+  searchIconWrap: {
+    width: 18,
+    height: 22,
+    alignItems: "center",
+    justifyContent: "center",
   },
   searchInputWrap: {
     flex: 1,
+    height: 22,
     justifyContent: "center",
   },
   centerState: {
