@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { MarketingNavLink } from "@/components/marketing/nav-link";
-import { trustLogos } from "@/lib/marketing/content";
 
 function HeroMockup() {
   return (
@@ -78,19 +77,6 @@ export function MarketingHero() {
             <MarketingNavLink href="/#product" className="lp-hero__link">
               Explore the platform
             </MarketingNavLink>
-          </div>
-        </div>
-
-        <div className="lp-hero__logos" aria-label="Trusted by">
-          <div className="lp-hero__logos-label">
-            <span>Trusted by</span>
-          </div>
-          <div className="lp-hero__logos-list">
-            {trustLogos.map((name) => (
-              <span key={name} className="lp-hero__logo">
-                {name}
-              </span>
-            ))}
           </div>
         </div>
       </div>
