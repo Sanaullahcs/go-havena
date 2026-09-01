@@ -107,7 +107,7 @@ export function MarketingCtaBanner() {
               and beautifully yours.
             </p>
           </div>
-          <Link href="/register" className="lp-btn-white lp-cta-banner__btn">
+          <Link href="/request-demo" className="lp-btn-white lp-cta-banner__btn">
             Request a demo
             <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>

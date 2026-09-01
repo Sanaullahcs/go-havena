@@ -52,13 +52,13 @@ export function MarketingHeader() {
         scrolled ? "is-scrolled" : ""
       }`}
     >
-      <div className="lp-container flex h-[3.75rem] items-center justify-between gap-3 sm:h-[4.25rem] sm:gap-4">
+      <div className="lp-container flex h-[4rem] items-center justify-between gap-3 sm:h-[4.5rem] sm:gap-4">
         <Link
           href="/"
-          className="lp-header__brand flex min-w-0 items-center gap-2.5"
+          className="lp-header__brand flex min-w-0 items-center gap-3.5"
           onClick={closeMenu}
         >
-          <HavenaMark size={32} />
+          <HavenaMark size={40} />
           <span className="lp-brand-name">Havena</span>
         </Link>
 
@@ -72,8 +72,8 @@ export function MarketingHeader() {
 
         <div className="flex items-center gap-2 sm:gap-3">
           <Link
-            href="/login"
-            className="hidden text-[0.9375rem] font-medium text-[var(--lp-gray-600)] hover:text-[var(--lp-blue)] sm:inline"
+            href="/request-demo"
+            className="lp-header__demo-link text-[0.9375rem] font-medium text-[var(--lp-gray-600)] hover:text-[var(--lp-blue)]"
           >
             Request demo
           </Link>
@@ -112,7 +112,7 @@ export function MarketingHeader() {
               ))}
             </nav>
             <div className="lp-header__drawer-actions">
-              <Link href="/login" className="lp-header__drawer-link" onClick={closeMenu}>
+              <Link href="/request-demo" className="lp-header__drawer-link" onClick={closeMenu}>
                 Request demo
               </Link>
               <Link href="/register" className="lp-btn-primary w-full" onClick={closeMenu}>

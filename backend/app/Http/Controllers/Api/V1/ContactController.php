@@ -39,6 +39,12 @@ class ContactController extends Controller
     public function adminIndex(Request $request): JsonResponse
     {
         $query = ContactSubmission::query();
+        $source = $request->string('source')->trim()->toString();
+        $demoOnly = $source === 'demo';
+
+        if ($demoOnly) {
+            $query->where('message', 'like', '[Demo request]%');
+        }
 
         if ($status = $request->string('status')->trim()->toString()) {
             if (in_array($status, ['new', 'read', 'archived'], true)) {
@@ -55,7 +61,12 @@ class ContactController extends Controller
             });
         }
 
-        $statusCounts = ContactSubmission::query()
+        $statsQuery = ContactSubmission::query();
+        if ($demoOnly) {
+            $statsQuery->where('message', 'like', '[Demo request]%');
+        }
+
+        $statusCounts = $statsQuery
             ->selectRaw("SUM(CASE WHEN status = 'new' THEN 1 ELSE 0 END) as new_count")
             ->selectRaw("SUM(CASE WHEN status = 'read' THEN 1 ELSE 0 END) as read_count")
             ->selectRaw("SUM(CASE WHEN status = 'archived' THEN 1 ELSE 0 END) as archived_count")
@@ -112,25 +123,81 @@ class ContactController extends Controller
     /** @return array<string, mixed> */
     private function transform(ContactSubmission $submission, bool $detailed = false): array
     {
+        $demo = $this->parseDemoRequest($submission->message);
+
         $data = [
-            'id'         => $submission->id,
-            'role'       => $submission->role,
-            'name'       => $submission->name,
-            'email'      => $submission->email,
-            'community'  => $submission->community,
-            'message'    => $submission->message,
-            'status'     => $submission->status,
-            'created_at' => $submission->created_at?->toIso8601String(),
-            'updated_at' => $submission->updated_at?->toIso8601String(),
+            'id'               => $submission->id,
+            'role'             => $submission->role,
+            'name'             => $submission->name,
+            'email'            => $submission->email,
+            'community'        => $submission->community,
+            'message'          => $submission->message,
+            'status'           => $submission->status,
+            'is_demo_request'  => $demo !== null,
+            'demo'             => $demo,
+            'created_at'       => $submission->created_at?->toIso8601String(),
+            'updated_at'       => $submission->updated_at?->toIso8601String(),
         ];
 
         if ($detailed) {
             $data['ip_address'] = $submission->ip_address;
             $data['user_agent'] = $submission->user_agent;
         } else {
-            $data['message_preview'] = \Illuminate\Support\Str::limit($submission->message, 80);
+            $previewSource = $demo['note'] ?? $submission->message;
+            $data['message_preview'] = \Illuminate\Support\Str::limit($previewSource, 80);
         }
 
         return $data;
+    }
+
+    /** @return array{phone: ?string, community_size: ?string, preferred_time: ?string, note: string}|null */
+    private function parseDemoRequest(?string $message): ?array
+    {
+        $raw = trim((string) $message);
+        if ($raw === '' || ! str_starts_with($raw, '[Demo request]')) {
+            return null;
+        }
+
+        $phone = null;
+        $size = null;
+        $time = null;
+        $noteLines = [];
+        $pastMeta = false;
+
+        foreach (preg_split("/\r\n|\n|\r/", $raw) ?: [] as $index => $line) {
+            $trimmed = trim($line);
+
+            if ($index === 0 && str_starts_with($trimmed, '[Demo request]')) {
+                continue;
+            }
+
+            if (! $pastMeta) {
+                if (preg_match('/^Phone:\s*(.+)$/i', $trimmed, $matches) === 1) {
+                    $phone = trim($matches[1]);
+                    continue;
+                }
+                if (preg_match('/^Community size:\s*(.+)$/i', $trimmed, $matches) === 1) {
+                    $size = trim($matches[1]);
+                    continue;
+                }
+                if (preg_match('/^Preferred time:\s*(.+)$/i', $trimmed, $matches) === 1) {
+                    $time = trim($matches[1]);
+                    continue;
+                }
+                if ($trimmed === '') {
+                    $pastMeta = true;
+                    continue;
+                }
+            }
+
+            $noteLines[] = $line;
+        }
+
+        return [
+            'phone'           => $phone !== '' ? $phone : null,
+            'community_size'  => $size !== '' ? $size : null,
+            'preferred_time'  => $time !== '' ? $time : null,
+            'note'            => trim(implode("\n", $noteLines)),
+        ];
     }
 }

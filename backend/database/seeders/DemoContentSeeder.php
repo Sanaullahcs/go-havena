@@ -923,12 +923,54 @@ class DemoContentSeeder extends Seeder
     private function seedContactSubmissions(): void
     {
         $rows = [
-            ['resident', 'Olivia Brooks', 'olivia.brooks@example.com', 'Harbor Point Residences', "I would love to bring Havena to our building. Who should I connect with about getting our HOA set up?", 'new'],
-            ['admin', 'Marcus Reid', 'marcus.reid@example.com', 'Cedar Ridge Community', "We manage three properties and are interested in a demo for our board meeting next month.", 'new'],
-            ['resident', 'Hannah Kim', 'hannah.kim@example.com', 'Lakeside Villas', "Does the app support event RSVPs and amenity booking? Our residents have been asking for this.", 'read'],
-            ['admin', 'Derek Alvarado', 'derek.alvarado@example.com', 'Metro Lofts', "Following up on pricing for a 250 unit community. Please send details.", 'read'],
-            ['resident', 'Sophia Nguyen', 'sophia.nguyen@example.com', null, "Just wanted to say the marketplace feature is a fantastic idea. Hope our community adopts it soon.", 'archived'],
-            ['admin', 'Patricia Gomez', 'patricia.gomez@example.com', 'Bayfront Towers', "Our previous portal was clunky. Havena looks much cleaner. Can we schedule a walkthrough?", 'new'],
+            [
+                'admin',
+                'Olivia Brooks',
+                'olivia.brooks@example.com',
+                'Harbor Point Residences',
+                "[Demo request]\nPhone: +1 555 010 1201\nCommunity size: 51–200 residents\nPreferred time: Weekday morning\n\nI would love to bring Havena to our building. Who should I connect with about getting our HOA set up?",
+                'new',
+            ],
+            [
+                'admin',
+                'Marcus Reid',
+                'marcus.reid@example.com',
+                'Cedar Ridge Community',
+                "[Demo request]\nPhone: +1 555 010 2202\nCommunity size: 201–500 residents\nPreferred time: Weekday afternoon\n\nWe manage three properties and are interested in a demo for our board meeting next month.",
+                'new',
+            ],
+            [
+                'other',
+                'Hannah Kim',
+                'hannah.kim@example.com',
+                'Lakeside Villas',
+                "[Demo request]\nCommunity size: 1–50 residents\nPreferred time: Flexible / anytime\n\nDoes the app support event RSVPs and amenity booking? Our residents have been asking for this.",
+                'read',
+            ],
+            [
+                'admin',
+                'Derek Alvarado',
+                'derek.alvarado@example.com',
+                'Metro Lofts',
+                "[Demo request]\nPhone: +1 555 010 3404\nCommunity size: 201–500 residents\nPreferred time: Weekday evening\n\nFollowing up on pricing for a 250 unit community. Please send details.",
+                'read',
+            ],
+            [
+                'other',
+                'Sophia Nguyen',
+                'sophia.nguyen@example.com',
+                'Bay View Co-op',
+                "[Demo request]\nCommunity size: Not sure yet\nPreferred time: Flexible / anytime\n\nJust exploring options for our board. Hope our community adopts Havena soon.",
+                'archived',
+            ],
+            [
+                'admin',
+                'Patricia Gomez',
+                'patricia.gomez@example.com',
+                'Bayfront Towers',
+                "[Demo request]\nPhone: +1 555 010 5606\nCommunity size: 500+ residents\nPreferred time: Weekday morning\n\nOur previous portal was clunky. Havena looks much cleaner. Can we schedule a walkthrough?",
+                'new',
+            ],
         ];
 
         foreach ($rows as [$role, $name, $email, $community, $message, $status]) {

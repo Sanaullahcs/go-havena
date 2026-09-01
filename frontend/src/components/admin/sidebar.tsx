@@ -19,7 +19,6 @@ import {
   HeartPulse,
   Landmark,
   LayoutDashboard,
-  Mail,
   MapPin,
   Megaphone,
   MessageSquare,
@@ -50,7 +49,7 @@ const systemAdminNav: NavItem[] = [
   { href: "/admin/residents", label: "Residents", icon: Users },
   { href: "/admin/communities", label: "Community Requests", icon: Building2 },
   { href: "/admin/regions", label: "Regions", icon: MapPin },
-  { href: "/admin/contact-messages", label: "Contact Messages", icon: Mail },
+  { href: "/admin/request-demo", label: "Request a Demo", icon: CalendarCheck },
   { href: "/admin/wellness", label: "Wellness Programs", icon: HeartPulse },
   { href: "/admin/billing-plans", label: "Billing & Plans", icon: CreditCard },
   { href: "/admin/billing-coupons", label: "Coupons", icon: Ticket },
@@ -167,9 +166,9 @@ function Brand() {
   return (
     <Link href="/admin" className="nl-sidebar-brand">
       <span className="nl-sidebar-brand-mark nl-sidebar-brand-mark--solid">
-        <HavenaMark size={36} />
+        <HavenaMark size={48} />
       </span>
-      <span className="flex min-w-0 flex-col justify-center gap-0">
+      <span className="flex min-w-0 flex-col justify-center gap-0.5">
         <span className="nl-sidebar-brand-name">Havena</span>
         <span className="nl-sidebar-brand-role">{roleLabel}</span>
       </span>

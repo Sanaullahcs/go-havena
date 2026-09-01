@@ -107,4 +107,39 @@ class ContactSubmissionTest extends TestCase
             'status' => 'archived',
         ]);
     }
+
+    public function test_system_admin_can_list_demo_requests_only(): void
+    {
+        $this->seed(SystemAdminSeeder::class);
+        $admin = User::query()->where('role', 'system_admin')->firstOrFail();
+        Sanctum::actingAs($admin);
+
+        ContactSubmission::query()->create([
+            'role'      => 'admin',
+            'name'      => 'Demo Person',
+            'email'     => 'demo@example.com',
+            'community' => 'Demo HOA',
+            'message'   => "[Demo request]\nPhone: +15550100\nCommunity size: 1–50 residents\nPreferred time: Weekday morning\n\nWe want a walkthrough.",
+            'status'    => 'new',
+        ]);
+
+        ContactSubmission::query()->create([
+            'role'      => 'resident',
+            'name'      => 'General Contact',
+            'email'     => 'hello@example.com',
+            'community' => 'Somewhere',
+            'message'   => 'Just a general question.',
+            'status'    => 'new',
+        ]);
+
+        $response = $this->getJson('/api/v1/admin/contact-submissions?source=demo');
+
+        $response->assertOk()
+            ->assertJsonPath('meta.stats.total', 1)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.is_demo_request', true)
+            ->assertJsonPath('data.0.demo.community_size', '1–50 residents')
+            ->assertJsonPath('data.0.demo.preferred_time', 'Weekday morning')
+            ->assertJsonPath('data.0.demo.note', 'We want a walkthrough.');
+    }
 }

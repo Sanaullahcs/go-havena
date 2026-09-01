@@ -21,6 +21,7 @@ const SYSTEM_PATH_PREFIXES = [
   "/admin/residents",
   "/admin/communities",
   "/admin/regions",
+  "/admin/request-demo",
   "/admin/contact-messages",
   "/admin/wellness",
   "/admin/billing-plans",

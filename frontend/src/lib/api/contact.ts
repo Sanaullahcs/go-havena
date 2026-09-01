@@ -3,6 +3,13 @@ import api from "./client";
 export type ContactRole = "resident" | "admin" | "other";
 export type ContactStatus = "new" | "read" | "archived";
 
+export interface DemoRequestDetails {
+  phone: string | null;
+  community_size: string | null;
+  preferred_time: string | null;
+  note: string;
+}
+
 export interface ContactSubmission {
   id: number;
   role: ContactRole;
@@ -12,6 +19,8 @@ export interface ContactSubmission {
   message: string;
   message_preview?: string;
   status: ContactStatus;
+  is_demo_request?: boolean;
+  demo?: DemoRequestDetails | null;
   ip_address?: string | null;
   user_agent?: string | null;
   created_at?: string;

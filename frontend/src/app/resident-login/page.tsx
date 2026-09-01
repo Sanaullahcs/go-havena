@@ -65,15 +65,15 @@ export default function ResidentLoginPage() {
       {/* Top header */}
       <header className="z-20 w-full shrink-0 border-b border-slate-200/70 bg-white">
         <div className="flex w-full items-center justify-between gap-4 px-5 py-3 sm:px-8">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1B4F8A] text-white">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#1B4F8A] text-white">
               <NbrLogoMark />
             </span>
             <div>
-              <p className="font-[family-name:var(--font-wordmark)] text-[15px] font-semibold leading-tight tracking-tight text-slate-900">
+              <p className="font-[family-name:var(--font-wordmark)] text-[1.75rem] font-bold leading-none tracking-[-0.02em] text-[#0b1f3a]">
                 Havena
               </p>
-              <p className="text-[11px] leading-tight text-slate-500">Resident Portal</p>
+              <p className="text-[12px] leading-tight text-slate-500">Resident Portal</p>
             </div>
           </div>
           <a href="/login" className="resident-header-cta inline-flex text-[13px] sm:text-sm">
@@ -304,7 +304,7 @@ function ArrowRightIcon({ className = "" }: { className?: string }) {
 }
 
 function NbrLogoMark() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M3 9l9-6 9 6v11a1 1 0 01-1 1H4a1 1 0 01-1-1V9z" stroke="white" strokeWidth="1.8" strokeLinejoin="round" /><path d="M9 21V12h6v9" stroke="white" strokeWidth="1.8" strokeLinejoin="round" /></svg>;
+  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M3 9l9-6 9 6v11a1 1 0 01-1 1H4a1 1 0 01-1-1V9z" stroke="white" strokeWidth="1.8" strokeLinejoin="round" /><path d="M9 21V12h6v9" stroke="white" strokeWidth="1.8" strokeLinejoin="round" /></svg>;
 }
 
 function IconEmail() {
