@@ -36,8 +36,6 @@ class ProfileController extends Controller
         );
 
         if ($block) {
-            $user->currentAccessToken()?->delete();
-
             return response()->json(
                 app(CommunityLifecycleService::class)->enrichBlockResponse($block, $user),
                 403,

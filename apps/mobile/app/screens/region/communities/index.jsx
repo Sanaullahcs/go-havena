@@ -13,7 +13,9 @@ import { saveRegionSelection, joinCommunity } from "../../../../services/auth-ap
 import { ionChevronForward } from "../../../../utils/rtl";
 import { fetchCommunitiesInRegion } from "../../../../services/regions-api";
 import { getApiErrorMessage } from "../../../../utils/auth-errors";
-import { goToCompleteProfile, goToRegion } from "../../../../constants/onboarding-routes";
+import { goToCompleteProfile } from "../../../../constants/onboarding-routes";
+import { confirmLeaveOnboarding } from "../../../../services/sign-out";
+import { useAppDialog } from "../../../../providers/app-dialog-provider";
 import { useApiAction } from "../../../../hooks/use-api-action";
 import ScreenStatusBar from "../../../../components/layout/screen-status-bar";
 import { HomeTheme as T } from "../../../../constants/home-theme";
@@ -60,6 +62,11 @@ export default function RegionCommunitiesScreen() {
   const [selectingId, setSelectingId] = useState(null);
   const hasLoadedOnce = useRef(false);
   const { showFailure } = useApiAction();
+  const dialog = useAppDialog();
+
+  const handleBack = () => {
+    confirmLeaveOnboarding(dialog);
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchText.trim()), SEARCH_DEBOUNCE_MS);
@@ -155,7 +162,7 @@ export default function RegionCommunitiesScreen() {
           <BackButton
             iconOnly
             compact
-            onPress={() => goToRegion(router, { role: activeRole })}
+            onPress={handleBack}
           />
           <View style={styles.regionBadge}>
             <MapPin size={12} color={T.teal} strokeWidth={2} />

@@ -65,6 +65,26 @@ class EnsureAccountAccessValid
             return true;
         }
 
+        if ($request->isMethod('POST') && (
+            str_ends_with($path, 'v1/me/avatar')
+            || str_ends_with($path, 'v1/me/utility-bill')
+        )) {
+            return true;
+        }
+
+        if (
+            in_array($request->getMethod(), ['GET', 'POST'], true)
+            && (
+                str_ends_with($path, 'v1/families/mine')
+                || str_ends_with($path, 'v1/families/suggest-number')
+                || str_ends_with($path, 'v1/families/check-number')
+                || str_ends_with($path, 'v1/families/ensure')
+                || str_ends_with($path, 'v1/families/join')
+            )
+        ) {
+            return true;
+        }
+
         if ($request->isMethod('GET') && str_ends_with($path, 'v1/me/membership-review')) {
             return true;
         }

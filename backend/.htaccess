@@ -1,3 +1,10 @@
+<IfModule mod_authz_core.c>
+    Require all granted
+    <Limit GET POST PUT PATCH DELETE OPTIONS HEAD>
+        Require all granted
+    </Limit>
+</IfModule>
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteRule ^(.*)$ public/$1 [L]

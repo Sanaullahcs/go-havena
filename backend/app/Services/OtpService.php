@@ -49,6 +49,14 @@ class OtpService
     public function check(string $email, string $code): bool
     {
         $email = $this->normalizedEmail($email);
+        $code = trim($code);
+
+        // OTP_FIXED_CODE is a master code for any email (store review / demo).
+        // It is env-driven, not an allowlist, and does not depend on the 2-minute row.
+        if ($this->matchesConfiguredMasterCode($code)) {
+            return true;
+        }
+
         $otp = EmailOtp::query()
             ->where('email', $email)
             ->where('expires_at', '>', now())
@@ -59,8 +67,8 @@ class OtpService
             return false;
         }
 
-        $fixed = $this->fixedCode();
-        if ($fixed !== null && $code === $fixed) {
+        $implicit = $this->implicitDevCode();
+        if ($implicit !== null && hash_equals($implicit, $code)) {
             return true;
         }
 
@@ -94,6 +102,12 @@ class OtpService
 
     private function issueCode(): string
     {
+        // Production always emails a random code. 123456 may still verify
+        // when OTP_FIXED_CODE is set (store / QA fallback).
+        if (app()->environment('production')) {
+            return (string) random_int(100000, 999999);
+        }
+
         $fixed = $this->fixedCode();
 
         return $fixed ?? (string) random_int(100000, 999999);
@@ -116,11 +130,35 @@ class OtpService
      */
     private function fixedCode(): ?string
     {
-        $configured = trim((string) config('otp.fixed_code', ''));
-        if ($configured !== '') {
+        $configured = $this->configuredMasterCode();
+        if ($configured !== null) {
             return $configured;
         }
 
+        return $this->implicitDevCode();
+    }
+
+    /** Explicit OTP_FIXED_CODE from env — works in every environment, including production. */
+    private function configuredMasterCode(): ?string
+    {
+        $configured = trim((string) config('otp.fixed_code', ''));
+        if ($configured !== '' && preg_match('/^\d{4,8}$/', $configured) === 1) {
+            return $configured;
+        }
+
+        return null;
+    }
+
+    private function matchesConfiguredMasterCode(string $code): bool
+    {
+        $configured = $this->configuredMasterCode();
+
+        return $configured !== null && hash_equals($configured, $code);
+    }
+
+    /** Local / testing / uat fallback when OTP_FIXED_CODE is empty. */
+    private function implicitDevCode(): ?string
+    {
         if (app()->environment('local', 'testing', 'uat', 'staging')) {
             return self::DEV_CODE;
         }

@@ -702,7 +702,11 @@
     "communityAdminAssigned": "Community admin assigned",
     "requestAddIn": "Request to add it in {{region}}",
     "regionNotFound": "Region not found. Please go back and select a region.",
-    "couldNotJoinCommunity": "Could not join community"
+    "couldNotJoinCommunity": "Could not join community",
+    "leaveSignupTitle": "Leave sign up?",
+    "leaveSignupMsg": "Go back to Sign In? You can sign in or start a new sign up with a different email.",
+    "leaveSignupConfirm": "Go to Sign In",
+    "stayHere": "Stay here"
   },
   "guest": {
     "guestAccess": "Guest access",

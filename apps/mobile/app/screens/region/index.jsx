@@ -12,6 +12,9 @@ import { saveRegionSelection } from "../../../services/auth-api";
 import { ionChevronForward, arrowForward } from "../../../utils/rtl";
 import { fetchRegionsOnly } from "../../../services/regions-api";
 import { getApiErrorMessage } from "../../../utils/auth-errors";
+import BackButton from "../../../components/ui/back-button";
+import { confirmLeaveOnboarding } from "../../../services/sign-out";
+import { useAppDialog } from "../../../providers/app-dialog-provider";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import { HomeTheme as T } from "../../../constants/home-theme";
 
@@ -20,6 +23,7 @@ const SEARCH_DEBOUNCE_MS = 400;
 export default function RegionScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const dialog = useAppDialog();
   const { role: roleParam } = useLocalSearchParams();
   const activeRole =
     roleParam === "admin" || roleParam === "resident"
@@ -99,6 +103,9 @@ export default function RegionScreen() {
     <SafeAreaView style={styles.container} edges={["top", "left", "right", "bottom"]}>
       <ScreenStatusBar style="dark" opaque androidBackgroundColor={T.canvas} />
       <View style={styles.topSection}>
+        <View style={styles.headerRow}>
+          <BackButton iconOnly compact onPress={() => confirmLeaveOnboarding(dialog)} />
+        </View>
         <Text style={styles.title}>{t("region.chooseRegion")}</Text>
         <Text style={styles.subtitle}>
           {activeRole === "admin"
@@ -259,6 +266,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 2,
     paddingBottom: 12,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
   },
   title: {
     fontFamily: Fonts.bold,

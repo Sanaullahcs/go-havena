@@ -1,4 +1,5 @@
 <IfModule mod_authz_core.c>
+    Require all granted
     <Limit GET POST PUT PATCH DELETE OPTIONS HEAD>
         Require all granted
     </Limit>

@@ -27,6 +27,22 @@ export async function performSignOut() {
   router.replace("/screens/login");
 }
 
+/** Leave resident / community-admin signup and return to Sign In. */
+export async function confirmLeaveOnboarding(dialog) {
+  const result = await dialog.showConfirm(
+    i18n.t("region.leaveSignupTitle"),
+    i18n.t("region.leaveSignupMsg"),
+    {
+      confirmLabel: i18n.t("region.leaveSignupConfirm"),
+      cancelLabel: i18n.t("region.stayHere"),
+    },
+  );
+
+  if (result === "confirm") {
+    await performSignOut();
+  }
+}
+
 /** Interactive logout confirmation using app dialog. */
 export async function confirmSignOut(dialog) {
   const result = await dialog.showConfirm(

@@ -702,7 +702,11 @@
     "communityAdminAssigned": "تم تعيين مدير المجتمع",
     "requestAddIn": "طلب إضافته في {{region}}",
     "regionNotFound": "المنطقة غير موجودة. ارجع واختر منطقة.",
-    "couldNotJoinCommunity": "تعذّر الانضمام للمجتمع"
+    "couldNotJoinCommunity": "تعذّر الانضمام للمجتمع",
+    "leaveSignupTitle": "مغادرة التسجيل؟",
+    "leaveSignupMsg": "العودة لتسجيل الدخول؟ يمكنك الدخول أو إنشاء حساب ببريد آخر.",
+    "leaveSignupConfirm": "تسجيل الدخول",
+    "stayHere": "البقاء هنا"
   },
   "guest": {
     "guestAccess": "دخول الضيوف",

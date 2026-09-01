@@ -59,12 +59,8 @@ class OtpController extends Controller
             $email = ContactIdentityService::normalizeEmail($user->email) ?? $email;
         }
 
-        if ($intent === 'signup' && $user && ! $user->trashed() && $this->isRegisteredUser($user)) {
-            $this->failValidation(
-                'email',
-                ContactIdentityService::DUPLICATE_EMAIL_MESSAGE,
-                'ACCOUNT_EXISTS_USE_LOGIN',
-            );
+        if ($intent === 'signup') {
+            $this->assertEmailAvailableForSignup($user);
         }
 
         $key = 'otp-request:'.($request->ip() ?? 'unknown');
@@ -120,6 +116,8 @@ class OtpController extends Controller
             }
 
             $this->assertAuthenticationAllowed($user, $validated['portal'] ?? null);
+        } else {
+            $this->assertEmailAvailableForSignup($user);
         }
 
         if (! $otp->verify($email, $validated['code'])) {
@@ -131,14 +129,6 @@ class OtpController extends Controller
                 'email_verified_at' => now(),
             ]);
         } else {
-            if ($user && ! $user->trashed() && $this->isRegisteredUser($user)) {
-                $this->failValidation(
-                    'email',
-                    ContactIdentityService::DUPLICATE_EMAIL_MESSAGE,
-                    'ACCOUNT_EXISTS_USE_LOGIN',
-                );
-            }
-
             $role = $validated['role'] ?? 'resident';
             $userRole = $role === 'admin' ? 'community_admin' : 'resident';
             $adminStatus = $role === 'admin' ? 'pending' : null;
@@ -268,6 +258,17 @@ class OtpController extends Controller
                 return $existing->fresh();
             }
 
+            $this->failValidation(
+                'email',
+                ContactIdentityService::DUPLICATE_EMAIL_MESSAGE,
+                'ACCOUNT_EXISTS_USE_LOGIN',
+            );
+        }
+    }
+
+    private function assertEmailAvailableForSignup(?User $user): void
+    {
+        if ($user && ! $user->trashed()) {
             $this->failValidation(
                 'email',
                 ContactIdentityService::DUPLICATE_EMAIL_MESSAGE,

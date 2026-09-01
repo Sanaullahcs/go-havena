@@ -702,7 +702,11 @@
     "communityAdminAssigned": "Administrador de comunidad asignado",
     "requestAddIn": "Solicitar agregarla en {{region}}",
     "regionNotFound": "Región no encontrada. Regresa y selecciona una región.",
-    "couldNotJoinCommunity": "No se pudo unir a la comunidad"
+    "couldNotJoinCommunity": "No se pudo unir a la comunidad",
+    "leaveSignupTitle": "¿Salir del registro?",
+    "leaveSignupMsg": "¿Volver a Iniciar sesión? Puedes entrar o registrarte con otro correo.",
+    "leaveSignupConfirm": "Ir a Iniciar sesión",
+    "stayHere": "Quedarme"
   },
   "guest": {
     "guestAccess": "Acceso de invitado",

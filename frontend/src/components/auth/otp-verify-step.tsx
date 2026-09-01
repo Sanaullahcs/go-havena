@@ -93,9 +93,11 @@ export function OtpVerifyStep({
             autoFocus
             onComplete={handleComplete}
           />
-          <p className="text-center text-[11px] text-slate-400">
-            Dev · <span className="font-mono text-slate-500">123456</span>
-          </p>
+          {process.env.NODE_ENV === "development" ? (
+            <p className="text-center text-[11px] text-slate-400">
+              Dev · <span className="font-mono text-slate-500">123456</span>
+            </p>
+          ) : null}
         </>
       )}
 

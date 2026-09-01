@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\EmailOtp;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -77,12 +78,38 @@ class AuthOtpTest extends TestCase
         User::factory()->create([
             'email' => $email,
             'email_verified_at' => now(),
-            'phone' => '+15555555555',
+            'phone' => '+15555550111',
         ]);
 
         $this->postJson('/api/v1/auth/otp/request', [
             'email' => $email,
             'intent' => 'signup',
+        ])->assertStatus(422)
+            ->assertJsonPath('code', 'ACCOUNT_EXISTS_USE_LOGIN');
+    }
+
+    public function test_signup_rejects_existing_unverified_user_and_verify(): void
+    {
+        $email = 'unverified.existing@example.com';
+
+        User::factory()->create([
+            'email' => $email,
+            'email_verified_at' => null,
+            'phone' => '+15555550112',
+            'phone_verified_at' => null,
+        ]);
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email' => $email,
+            'intent' => 'signup',
+        ])->assertStatus(422)
+            ->assertJsonPath('code', 'ACCOUNT_EXISTS_USE_LOGIN');
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'email' => $email,
+            'code' => '123456',
+            'intent' => 'signup',
+            'role' => 'resident',
         ])->assertStatus(422)
             ->assertJsonPath('code', 'ACCOUNT_EXISTS_USE_LOGIN');
     }
@@ -195,7 +222,7 @@ class AuthOtpTest extends TestCase
         User::factory()->create([
             'email' => $email,
             'email_verified_at' => now(),
-            'phone' => '+15555555555',
+            'phone' => '+15555550113',
             'phone_verified_at' => now(),
             'role' => 'resident',
         ]);
@@ -247,23 +274,44 @@ class AuthOtpTest extends TestCase
             ->assertJsonPath('user.email', $email);
     }
 
-    public function test_otp_expires_after_two_minutes(): void
+    public function test_hashed_otp_expires_when_it_is_not_the_master_code(): void
     {
         $email = 'expired.otp@example.com';
+        $stored = '654321';
+
+        EmailOtp::query()->create([
+            'email' => $email,
+            'code_hash' => hash_hmac('sha256', $stored, (string) config('app.key')),
+            'attempts' => 0,
+            'expires_at' => now()->subMinute(),
+        ]);
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'email' => $email,
+            'code' => $stored,
+            'intent' => 'signup',
+            'role' => 'resident',
+        ])->assertStatus(422)
+            ->assertJsonPath('code', 'INVALID_OTP');
+    }
+
+    public function test_configured_master_otp_works_for_any_email_after_expiry(): void
+    {
+        $email = 'reviewer.any@example.com';
 
         $this->postJson('/api/v1/auth/otp/request', [
             'email' => $email,
             'intent' => 'signup',
         ])->assertStatus(202);
 
-        $this->travel(3)->minutes();
+        $this->travel(30)->minutes();
 
         $this->postJson('/api/v1/auth/otp/verify', [
             'email' => $email,
             'code' => '123456',
             'intent' => 'signup',
             'role' => 'resident',
-        ])->assertStatus(422)
-            ->assertJsonPath('code', 'INVALID_OTP');
+        ])->assertOk()
+            ->assertJsonPath('user.email', $email);
     }
 }

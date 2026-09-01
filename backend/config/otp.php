@@ -7,9 +7,9 @@ return [
     | Fixed OTP (demo / no SMS provider)
     |--------------------------------------------------------------------------
     |
-    | When set, every request uses this code and verify accepts it.
-    | Leave empty in real production once a mail provider is wired.
-    | Local / testing / uat always fall back to 123456 when this is empty.
+    | Leave empty in production so each request emails a random 6-digit code.
+    | Set OTP_FIXED_CODE only for local / demo. Local, testing, and uat
+    | fall back to 123456 when this is empty.
     |
     */
 
