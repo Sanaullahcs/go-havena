@@ -21,23 +21,42 @@ import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import { HomeTheme as T } from "../../../constants/home-theme";
 import { ScreenBrand as B } from "../../../constants/screen-brand";
 
+const FIELD_BOX_HEIGHT = 52;
+const FIELD_FONT_SIZE = 14;
+/** Tight iOS text band. A 52px UITextField leaves Poppins sitting low; do not set lineHeight. */
+const IOS_TEXT_BAND = 22;
+const IOS_TEXT_PAD_TOP = 0;
+const IOS_TEXT_PAD_BOTTOM = 6;
+
 /**
- * TextInput metrics (inline so StyleSheet text-metrics cannot add lineHeight).
- * iOS ignores textAlignVertical and bottom-aligns Poppins in a short box.
- * Fill the 52px field, zero vertical padding, no lineHeight.
+ * Inline so StyleSheet text-metrics cannot inject lineHeight.
+ * iOS ignores textAlignVertical — center by padding a short text band.
+ * Android uses the full 52px box + textAlignVertical.
  */
 const fieldTextStyle = {
   fontFamily: Fonts.regular,
-  fontSize: 14,
+  fontSize: FIELD_FONT_SIZE,
   color: T.navy,
-  height: 52,
+  height: Platform.OS === "ios" ? IOS_TEXT_BAND : FIELD_BOX_HEIGHT,
   width: "100%",
+  flexGrow: 0,
+  flexShrink: 0,
   margin: 0,
-  paddingVertical: 0,
-  paddingTop: 0,
-  paddingBottom: Platform.OS === "ios" ? 3 : 0,
   paddingHorizontal: 0,
+  paddingTop: Platform.OS === "ios" ? IOS_TEXT_PAD_TOP : 0,
+  paddingBottom: Platform.OS === "ios" ? IOS_TEXT_PAD_BOTTOM : 0,
   textAlignVertical: "center",
+  includeFontPadding: false,
+};
+
+/** Placeholder drawn as Text so iOS does not use UITextField's low Poppins baseline. */
+const placeholderTextStyle = {
+  fontFamily: Fonts.regular,
+  fontSize: FIELD_FONT_SIZE,
+  color: T.gray,
+  margin: 0,
+  paddingTop: 0,
+  paddingBottom: Platform.OS === "ios" ? 1 : 0,
   includeFontPadding: false,
 };
 
@@ -224,6 +243,13 @@ export default function RequestForCommunityScreen() {
             {t('guests.communityNameLabel')} <Text style={styles.required}>*</Text>
           </Text>
           <View style={[styles.inputBox, showError("communityName", liveErrors) && styles.inputError]}>
+            {communityName.length === 0 ? (
+              <View style={styles.namePlaceholderOverlay} pointerEvents="none">
+                <Text style={placeholderTextStyle} numberOfLines={1}>
+                  {t('guests.communityNamePlaceholder')}
+                </Text>
+              </View>
+            ) : null}
             <LocaleTextInput
               value={communityName}
               onChangeText={(text) => {
@@ -232,11 +258,12 @@ export default function RequestForCommunityScreen() {
               }}
               onBlur={() => touch("communityName")}
               placeholder={t('guests.communityNamePlaceholder')}
-              placeholderTextColor={T.gray}
+              placeholderTextColor="transparent"
               style={fieldTextStyle}
               maxLength={LIMITS.communityName}
               underlineColorAndroid="transparent"
               textAlignVertical="center"
+              allowFontScaling={false}
             />
           </View>
           {showError("communityName", liveErrors) ? (
@@ -247,21 +274,33 @@ export default function RequestForCommunityScreen() {
             {t('guests.addressLabel')} <Text style={styles.required}>*</Text>
           </Text>
           <View style={[styles.addressInputWrap, showError("address", liveErrors) && styles.inputError]}>
-            <MapPin size={16} color={T.gray} strokeWidth={1.75} />
-            <LocaleTextInput
-              value={address}
-              onChangeText={(text) => {
-                setAddress(text);
-                clearError("address");
-              }}
-              onBlur={() => touch("address")}
-              placeholder={t('guests.addressPlaceholder')}
-              placeholderTextColor={T.gray}
-              style={[fieldTextStyle, styles.addressInput]}
-              maxLength={LIMITS.communityAddress}
-              underlineColorAndroid="transparent"
-              textAlignVertical="center"
-            />
+            <View style={styles.addressIconSlot} pointerEvents="none">
+              <MapPin size={16} color={T.gray} strokeWidth={1.75} />
+            </View>
+            <View style={styles.addressTextSlot}>
+              {address.length === 0 ? (
+                <View style={styles.placeholderOverlay} pointerEvents="none">
+                  <Text style={placeholderTextStyle} numberOfLines={1}>
+                    {t('guests.addressPlaceholder')}
+                  </Text>
+                </View>
+              ) : null}
+              <LocaleTextInput
+                value={address}
+                onChangeText={(text) => {
+                  setAddress(text);
+                  clearError("address");
+                }}
+                onBlur={() => touch("address")}
+                placeholder={t('guests.addressPlaceholder')}
+                placeholderTextColor="transparent"
+                style={fieldTextStyle}
+                maxLength={LIMITS.communityAddress}
+                underlineColorAndroid="transparent"
+                textAlignVertical="center"
+                allowFontScaling={false}
+              />
+            </View>
           </View>
           {showError("address", liveErrors) ? (
             <Text style={styles.errorText}>{showError("address", liveErrors)}</Text>
@@ -456,33 +495,57 @@ const styles = StyleSheet.create({
   },
   inputBox: {
     marginTop: 8,
-    height: 52,
+    height: FIELD_BOX_HEIGHT,
     borderWidth: 1,
     borderColor: T.border,
     borderRadius: 14,
     paddingHorizontal: 14,
     backgroundColor: T.white,
     overflow: "hidden",
+    justifyContent: "center",
+  },
+  namePlaceholderOverlay: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
+  },
+  placeholderOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
   },
   labelSpacing: {
     marginTop: 20,
   },
   addressInputWrap: {
     marginTop: 8,
-    height: 52,
+    height: FIELD_BOX_HEIGHT,
     borderWidth: 1,
     borderColor: T.border,
     borderRadius: 14,
     paddingHorizontal: 14,
     backgroundColor: T.white,
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "stretch",
     gap: 8,
     overflow: "hidden",
   },
-  addressInput: {
+  addressIconSlot: {
+    width: 16,
+    height: FIELD_BOX_HEIGHT,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addressTextSlot: {
     flex: 1,
-    width: undefined,
+    height: FIELD_BOX_HEIGHT,
+    justifyContent: "center",
   },
   stepsCard: {
     marginTop: 20,
