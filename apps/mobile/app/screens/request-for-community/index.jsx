@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from "react-native";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -21,15 +21,23 @@ import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import { HomeTheme as T } from "../../../constants/home-theme";
 import { ScreenBrand as B } from "../../../constants/screen-brand";
 
-/** Inline — no lineHeight. iOS TextInput sits low when StyleSheet adds a tall line box. */
+/**
+ * TextInput metrics (inline so StyleSheet text-metrics cannot add lineHeight).
+ * iOS ignores textAlignVertical and bottom-aligns Poppins in a short box.
+ * Fill the 52px field, zero vertical padding, no lineHeight.
+ */
 const fieldTextStyle = {
   fontFamily: Fonts.regular,
   fontSize: 14,
   color: T.navy,
-  height: 22,
-  paddingTop: 0,
-  paddingBottom: 0,
+  height: 52,
+  width: "100%",
   margin: 0,
+  paddingVertical: 0,
+  paddingTop: 0,
+  paddingBottom: Platform.OS === "ios" ? 3 : 0,
+  paddingHorizontal: 0,
+  textAlignVertical: "center",
   includeFontPadding: false,
 };
 
@@ -228,6 +236,7 @@ export default function RequestForCommunityScreen() {
               style={fieldTextStyle}
               maxLength={LIMITS.communityName}
               underlineColorAndroid="transparent"
+              textAlignVertical="center"
             />
           </View>
           {showError("communityName", liveErrors) ? (
@@ -238,26 +247,21 @@ export default function RequestForCommunityScreen() {
             {t('guests.addressLabel')} <Text style={styles.required}>*</Text>
           </Text>
           <View style={[styles.addressInputWrap, showError("address", liveErrors) && styles.inputError]}>
-            <View style={styles.addressInner}>
-              <View style={styles.addressIconWrap}>
-                <MapPin size={16} color={T.gray} strokeWidth={1.75} />
-              </View>
-              <View style={styles.addressFieldWrap}>
-                <LocaleTextInput
-                  value={address}
-                  onChangeText={(text) => {
-                    setAddress(text);
-                    clearError("address");
-                  }}
-                  onBlur={() => touch("address")}
-                  placeholder={t('guests.addressPlaceholder')}
-                  placeholderTextColor={T.gray}
-                  style={fieldTextStyle}
-                  maxLength={LIMITS.communityAddress}
-                  underlineColorAndroid="transparent"
-                />
-              </View>
-            </View>
+            <MapPin size={16} color={T.gray} strokeWidth={1.75} />
+            <LocaleTextInput
+              value={address}
+              onChangeText={(text) => {
+                setAddress(text);
+                clearError("address");
+              }}
+              onBlur={() => touch("address")}
+              placeholder={t('guests.addressPlaceholder')}
+              placeholderTextColor={T.gray}
+              style={[fieldTextStyle, styles.addressInput]}
+              maxLength={LIMITS.communityAddress}
+              underlineColorAndroid="transparent"
+              textAlignVertical="center"
+            />
           </View>
           {showError("address", liveErrors) ? (
             <Text style={styles.errorText}>{showError("address", liveErrors)}</Text>
@@ -458,7 +462,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 14,
     backgroundColor: T.white,
-    justifyContent: "center",
+    overflow: "hidden",
   },
   labelSpacing: {
     marginTop: 20,
@@ -471,24 +475,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 14,
     backgroundColor: T.white,
-    justifyContent: "center",
-  },
-  addressInner: {
     flexDirection: "row",
     alignItems: "center",
-    height: 22,
     gap: 8,
+    overflow: "hidden",
   },
-  addressIconWrap: {
-    width: 16,
-    height: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  addressFieldWrap: {
+  addressInput: {
     flex: 1,
-    height: 22,
-    justifyContent: "center",
+    width: undefined,
   },
   stepsCard: {
     marginTop: 20,
