@@ -21,6 +21,18 @@ import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import { HomeTheme as T } from "../../../constants/home-theme";
 import { ScreenBrand as B } from "../../../constants/screen-brand";
 
+/** Inline — no lineHeight. iOS TextInput sits low when StyleSheet adds a tall line box. */
+const fieldTextStyle = {
+  fontFamily: Fonts.regular,
+  fontSize: 14,
+  color: T.navy,
+  height: 22,
+  paddingTop: 0,
+  paddingBottom: 0,
+  margin: 0,
+  includeFontPadding: false,
+};
+
 export default function RequestForCommunityScreen() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -203,18 +215,21 @@ export default function RequestForCommunityScreen() {
           <Text style={[styles.label, styles.labelSpacing]}>
             {t('guests.communityNameLabel')} <Text style={styles.required}>*</Text>
           </Text>
-          <LocaleTextInput
-            value={communityName}
-            onChangeText={(text) => {
-              setCommunityName(text);
-              clearError("communityName");
-            }}
-            onBlur={() => touch("communityName")}
-            placeholder={t('guests.communityNamePlaceholder')}
-            placeholderTextColor={T.gray}
-            style={[styles.input, showError("communityName", liveErrors) && styles.inputError]}
-            maxLength={LIMITS.communityName}
-          />
+          <View style={[styles.inputBox, showError("communityName", liveErrors) && styles.inputError]}>
+            <LocaleTextInput
+              value={communityName}
+              onChangeText={(text) => {
+                setCommunityName(text);
+                clearError("communityName");
+              }}
+              onBlur={() => touch("communityName")}
+              placeholder={t('guests.communityNamePlaceholder')}
+              placeholderTextColor={T.gray}
+              style={fieldTextStyle}
+              maxLength={LIMITS.communityName}
+              underlineColorAndroid="transparent"
+            />
+          </View>
           {showError("communityName", liveErrors) ? (
             <Text style={styles.errorText}>{showError("communityName", liveErrors)}</Text>
           ) : null}
@@ -223,19 +238,26 @@ export default function RequestForCommunityScreen() {
             {t('guests.addressLabel')} <Text style={styles.required}>*</Text>
           </Text>
           <View style={[styles.addressInputWrap, showError("address", liveErrors) && styles.inputError]}>
-            <MapPin size={16} color={T.gray} strokeWidth={1.75} />
-            <LocaleTextInput
-              value={address}
-              onChangeText={(text) => {
-                setAddress(text);
-                clearError("address");
-              }}
-              onBlur={() => touch("address")}
-              placeholder={t('guests.addressPlaceholder')}
-              placeholderTextColor={T.gray}
-              style={styles.addressInput}
-              maxLength={LIMITS.communityAddress}
-            />
+            <View style={styles.addressInner}>
+              <View style={styles.addressIconWrap}>
+                <MapPin size={16} color={T.gray} strokeWidth={1.75} />
+              </View>
+              <View style={styles.addressFieldWrap}>
+                <LocaleTextInput
+                  value={address}
+                  onChangeText={(text) => {
+                    setAddress(text);
+                    clearError("address");
+                  }}
+                  onBlur={() => touch("address")}
+                  placeholder={t('guests.addressPlaceholder')}
+                  placeholderTextColor={T.gray}
+                  style={fieldTextStyle}
+                  maxLength={LIMITS.communityAddress}
+                  underlineColorAndroid="transparent"
+                />
+              </View>
+            </View>
           </View>
           {showError("address", liveErrors) ? (
             <Text style={styles.errorText}>{showError("address", liveErrors)}</Text>
@@ -428,17 +450,15 @@ const styles = StyleSheet.create({
     color: T.gray,
     lineHeight: 17,
   },
-  input: {
+  inputBox: {
     marginTop: 8,
     height: 52,
     borderWidth: 1,
     borderColor: T.border,
     borderRadius: 14,
     paddingHorizontal: 14,
-    fontFamily: Fonts.regular,
-    fontSize: 14,
-    color: T.navy,
     backgroundColor: T.white,
+    justifyContent: "center",
   },
   labelSpacing: {
     marginTop: 20,
@@ -451,15 +471,24 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 14,
     backgroundColor: T.white,
+    justifyContent: "center",
+  },
+  addressInner: {
     flexDirection: "row",
     alignItems: "center",
+    height: 22,
     gap: 8,
   },
-  addressInput: {
+  addressIconWrap: {
+    width: 16,
+    height: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addressFieldWrap: {
     flex: 1,
-    fontFamily: Fonts.regular,
-    fontSize: 14,
-    color: T.navy,
+    height: 22,
+    justifyContent: "center",
   },
   stepsCard: {
     marginTop: 20,
