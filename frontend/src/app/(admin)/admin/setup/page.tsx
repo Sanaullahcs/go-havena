@@ -382,22 +382,25 @@ function SearchField({
   searching?: boolean;
 }) {
   return (
-    <label className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-3.5">
-      <Search className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+    <label className="relative block">
+      <Search
+        className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+        aria-hidden
+      />
       <input
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+        className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50/70 py-0 pl-10 pr-10 text-sm leading-[48px] text-slate-900 outline-none placeholder:leading-[48px] placeholder:text-slate-400 [appearance:textfield] [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none"
       />
       {searching ? (
-        <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-[#1B4F8A]" />
+        <span className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin rounded-full border-2 border-slate-200 border-t-[#1B4F8A]" />
       ) : value ? (
         <button
           type="button"
           onClick={() => onChange("")}
-          className="rounded-full p-0.5 text-slate-400 hover:text-slate-700"
+          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 hover:text-slate-700"
           aria-label="Clear search"
         >
           <X className="h-4 w-4" />
