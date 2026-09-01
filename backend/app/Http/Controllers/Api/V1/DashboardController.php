@@ -129,6 +129,7 @@ class DashboardController extends Controller
         $rejectedCommunityAdmins = (int) ($communityAdminCounts['rejected'] ?? 0);
 
         $contactCounts = ContactSubmission::query()
+            ->where('message', 'like', '[Demo request]%')
             ->selectRaw('status, COUNT(*) as aggregate')
             ->groupBy('status')
             ->pluck('aggregate', 'status');

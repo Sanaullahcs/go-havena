@@ -12,7 +12,7 @@ type RevealProps = {
 
 /**
  * Lightweight scroll reveal — toggles `.is-inview` when visible.
- * Honors prefers-reduced-motion via CSS.
+ * Honors prefers-reduced-motion via CSS. Uses lighter thresholds on small screens.
  */
 export function Reveal({ children, className = "", delay = 0, as: Tag = "div" }: RevealProps) {
   const ref = useRef<HTMLElement | null>(null);
@@ -26,13 +26,17 @@ export function Reveal({ children, className = "", delay = 0, as: Tag = "div" }:
       return;
     }
 
+    const mobile = window.matchMedia("(max-width: 767px)").matches;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting) return;
         node.classList.add("is-inview");
         observer.unobserve(node);
       },
-      { threshold: 0.14, rootMargin: "0px 0px -6% 0px" },
+      {
+        threshold: mobile ? 0.06 : 0.14,
+        rootMargin: mobile ? "0px 0px -2% 0px" : "0px 0px -6% 0px",
+      },
     );
 
     observer.observe(node);

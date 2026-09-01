@@ -28,8 +28,8 @@ export function AdminOnboardingTopBar({
           href="/"
           className="flex shrink-0 items-center gap-2 rounded-lg outline-none ring-teal-500/30 focus-visible:ring-2"
         >
-          <HavenaMark size={32} />
-          <span className="hidden font-[family-name:var(--font-wordmark)] text-[13px] font-semibold tracking-tight text-slate-900 sm:inline">
+          <HavenaMark size={44} />
+          <span className="hidden font-[family-name:var(--font-wordmark)] text-[1.75rem] font-bold leading-none tracking-[-0.02em] text-[#0b1f3a] sm:inline">
             Havena
           </span>
         </Link>

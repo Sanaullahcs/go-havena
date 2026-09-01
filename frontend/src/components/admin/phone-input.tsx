@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   PHONE_COUNTRIES,
   formatDialLabel,
   getCountryByCode,
-  getCountryFlag,
 } from "@/lib/phone/countries";
 import {
   buildPhoneField,
@@ -47,8 +46,11 @@ export function AdminPhoneInput({
   const generatedId = useId();
   const inputId = id ?? generatedId;
   const hintId = `${inputId}-hint`;
+  const listId = `${inputId}-countries`;
+  const countryRootRef = useRef<HTMLDivElement>(null);
   const [field, setField] = useState<PhoneFieldState>(() => phoneFieldFromE164(value));
   const [touched, setTouched] = useState(false);
+  const [countryOpen, setCountryOpen] = useState(false);
 
   useEffect(() => {
     // Parent often passes E.164 only — don't wipe in-progress digits when value is still empty.
@@ -62,6 +64,27 @@ export function AdminPhoneInput({
     setField(phoneFieldFromE164(value));
     setTouched(false);
   }, [value, resetKey]);
+
+  useEffect(() => {
+    if (!countryOpen) return;
+
+    const onPointerDown = (event: MouseEvent) => {
+      if (!countryRootRef.current?.contains(event.target as Node)) {
+        setCountryOpen(false);
+      }
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setCountryOpen(false);
+    };
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [countryOpen]);
 
   const display = formatNationalDisplay(field.digits, field.country);
   const validationError = getPhoneValidationError(field.digits, field.country);
@@ -94,11 +117,17 @@ export function AdminPhoneInput({
     );
   };
 
+  const selectCountry = (code: string) => {
+    updateField(code, field.digits);
+    setCountryOpen(false);
+  };
+
   return (
     <div className={className}>
       <div
         className={[
-          "flex overflow-hidden rounded-xl border bg-white shadow-sm transition-all",
+          "flex rounded-xl border bg-white shadow-sm transition-all",
+          countryOpen ? "overflow-visible" : "overflow-hidden",
           showValidation
             ? "border-red-300 ring-2 ring-red-100"
             : field.valid
@@ -107,40 +136,100 @@ export function AdminPhoneInput({
           disabled ? "opacity-60" : "",
         ].join(" ")}
       >
-        {/* Country selector — flag + dial code only (no duplicate "US us +1") */}
-        <div className="relative shrink-0 border-r border-slate-200 bg-slate-50/90">
-          <div
-            className="pointer-events-none flex h-11 items-center gap-1.5 pl-3 pr-8"
-            aria-hidden
-          >
-            <span className="text-base leading-none">{getCountryFlag(field.country)}</span>
-            <span className="text-sm font-semibold tabular-nums text-slate-800">{dial}</span>
-          </div>
-          <select
-            aria-label={`Country — ${selected.name} ${dial}`}
+        <div
+          ref={countryRootRef}
+          className="relative shrink-0 border-r border-slate-200 bg-slate-50/90"
+        >
+          <button
+            type="button"
             disabled={disabled}
-            value={field.country}
-            onChange={(e) => updateField(e.target.value, field.digits)}
-            className="absolute inset-0 h-full w-full min-w-[5.5rem] cursor-pointer appearance-none bg-transparent opacity-0"
+            aria-label={`Country — ${selected.name} ${dial}`}
+            aria-haspopup="listbox"
+            aria-expanded={countryOpen}
+            aria-controls={listId}
+            onClick={() => {
+              if (disabled) return;
+              setCountryOpen((open) => !open);
+            }}
+            className={[
+              "flex h-11 min-w-[6.25rem] items-center gap-1.5 pl-3.5 pr-8 text-left outline-none transition-colors",
+              "hover:bg-slate-100/80 focus-visible:bg-slate-100/80",
+              countryOpen ? "bg-slate-100" : "",
+              disabled ? "cursor-not-allowed" : "cursor-pointer",
+            ].join(" ")}
           >
-            {PHONE_COUNTRIES.map((item) => (
-              <option key={item.code} value={item.code}>
-                {item.name} ({formatDialLabel(item.code)})
-              </option>
-            ))}
-          </select>
+            <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              {field.country}
+            </span>
+            <span className="text-sm font-semibold tabular-nums text-slate-800">{dial}</span>
+          </button>
+
           <svg
-            className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            className={[
+              "pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-transform duration-200",
+              countryOpen ? "rotate-180" : "",
+            ].join(" ")}
             viewBox="0 0 20 20"
             fill="none"
             aria-hidden
           >
             <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
           </svg>
+
+          {countryOpen ? (
+            <div
+              id={listId}
+              role="listbox"
+              aria-label="Select country code"
+              className="absolute left-0 top-[calc(100%+0.4rem)] z-50 w-[min(18.5rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.14)]"
+            >
+              <div className="max-h-64 overflow-auto overscroll-contain py-1.5">
+                {PHONE_COUNTRIES.map((item) => {
+                  const itemDial = formatDialLabel(item.code);
+                  const active = item.code === field.country;
+                  return (
+                    <button
+                      key={item.code}
+                      type="button"
+                      role="option"
+                      aria-selected={active}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => selectCountry(item.code)}
+                      className={[
+                        "flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors",
+                        active
+                          ? "bg-blue-50 text-blue-700"
+                          : "text-slate-700 hover:bg-slate-50",
+                      ].join(" ")}
+                    >
+                      <span
+                        className={[
+                          "inline-flex min-w-[2.1rem] items-center justify-center rounded-md px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide",
+                          active ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500",
+                        ].join(" ")}
+                      >
+                        {item.code}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
+                        {item.name}
+                      </span>
+                      <span
+                        className={[
+                          "shrink-0 text-[13px] font-semibold tabular-nums",
+                          active ? "text-blue-700" : "text-slate-500",
+                        ].join(" ")}
+                      >
+                        {itemDial}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
 
-        {/* National number input */}
-        <div className="relative flex min-w-0 flex-1 items-center">
+        <div className="relative flex min-w-0 flex-1 items-center overflow-hidden rounded-r-xl">
           <input
             id={inputId}
             type="text"
@@ -158,7 +247,7 @@ export function AdminPhoneInput({
               onBlur?.();
             }}
             onChange={(e) => handleInputChange(e.target.value)}
-            className="nl-phone-national-input h-11 w-full min-w-0 border-0 bg-transparent px-3 pr-3 text-[15px] font-medium tabular-nums tracking-wide text-slate-900 outline-none placeholder:font-normal placeholder:text-slate-400"
+            className="nl-phone-national-input h-11 w-full min-w-0 border-0 bg-transparent px-3.5 text-[15px] font-medium tabular-nums tracking-wide text-slate-900 outline-none placeholder:font-normal placeholder:text-slate-400"
           />
           {field.valid ? (
             <span

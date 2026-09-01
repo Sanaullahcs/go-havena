@@ -34,7 +34,7 @@ function BrandImage({
  * Havena brand mark — original two-tone infinity PNG.
  */
 export function HavenaMark({
-  size = 36,
+  size = 48,
   className = "",
   tone: _tone = "brand",
 }: {

@@ -11,12 +11,36 @@ export function MarketingFooter() {
         <div className="lp-footer__grid">
           <div className="lp-footer__brand">
             <Link href="/" className="lp-footer__logo">
-              <HavenaMark size={28} />
+              <HavenaMark size={36} />
               <span>{marketingSite.name}</span>
             </Link>
             <p>
               A digital home for real communities: calm, useful, and built around belonging.
             </p>
+          </div>
+
+          {footerColumns.map((column) => (
+            <div key={column.title} className="lp-footer__col">
+              <h3>{column.title}</h3>
+              <ul>
+                {column.links.map((link) => (
+                  <li key={link.label}>
+                    <MarketingNavLink
+                      href={link.href}
+                      externalBlank={
+                        link.href.startsWith("http://") || link.href.startsWith("https://")
+                      }
+                    >
+                      {link.label}
+                    </MarketingNavLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+
+          <div className="lp-footer__col lp-footer__emails-col">
+            <h3>Contact</h3>
             <ul className="lp-footer__emails">
               <li>
                 <span>{marketingContact.contactUs.label}</span>
@@ -40,26 +64,6 @@ export function MarketingFooter() {
               </li>
             </ul>
           </div>
-
-          {footerColumns.map((column) => (
-            <div key={column.title} className="lp-footer__col">
-              <h3>{column.title}</h3>
-              <ul>
-                {column.links.map((link) => (
-                  <li key={link.label}>
-                    <MarketingNavLink
-                      href={link.href}
-                      externalBlank={
-                        link.href.startsWith("http://") || link.href.startsWith("https://")
-                      }
-                    >
-                      {link.label}
-                    </MarketingNavLink>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
         </div>
 
         <div className="lp-footer__bottom">

@@ -91,9 +91,9 @@ function Brand() {
   return (
     <Link href="/home" className="nl-sidebar-brand">
       <span className="nl-sidebar-brand-mark nl-sidebar-brand-mark--solid">
-        <HavenaMark size={36} />
+        <HavenaMark size={48} />
       </span>
-      <span className="flex min-w-0 flex-col justify-center gap-0">
+      <span className="flex min-w-0 flex-col justify-center gap-0.5">
         <span className="nl-sidebar-brand-name">Havena</span>
         <span className="nl-sidebar-brand-role">Resident Portal</span>
       </span>

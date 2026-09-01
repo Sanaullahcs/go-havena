@@ -86,7 +86,7 @@ export const footerColumns = [
     links: [
       { label: "About Us", href: "/#company" },
       { label: "Careers", href: "/#company" },
-      { label: "Contact", href: "https://mail.google.com/mail/?view=cm&fs=1&to=hello%40gohavena.com" },
+      { label: "Request a Demo", href: "/request-demo" },
     ],
   },
   {
