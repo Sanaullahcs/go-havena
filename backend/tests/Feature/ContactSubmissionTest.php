@@ -142,4 +142,24 @@ class ContactSubmissionTest extends TestCase
             ->assertJsonPath('data.0.demo.preferred_time', 'Weekday morning')
             ->assertJsonPath('data.0.demo.note', 'We want a walkthrough.');
     }
+
+    public function test_demo_request_sends_notification_email(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+
+        $response = $this->postJson('/api/v1/contact', [
+            'role'      => 'admin',
+            'name'      => 'Jordan Hale',
+            'email'     => 'jordan@community.org',
+            'community' => 'Phoenix Tower HOA',
+            'message'   => "[Demo request]\nPhone: +15551234567\nCommunity size: 51–200 residents\nPreferred time: Weekday morning\n\nShow us notices and membership.",
+        ]);
+
+        $response->assertCreated();
+
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\DemoRequestSubmittedMail::class, function ($mail) {
+            return $mail->submission->email === 'jordan@community.org'
+                && $mail->hasTo(config('mail.contact_to'));
+        });
+    }
 }

@@ -91,9 +91,9 @@ function Brand() {
   return (
     <Link href="/home" className="nl-sidebar-brand">
       <span className="nl-sidebar-brand-mark nl-sidebar-brand-mark--solid">
-        <HavenaMark size={48} />
+        <HavenaMark size={40} />
       </span>
-      <span className="flex min-w-0 flex-col justify-center gap-0.5">
+      <span className="nl-sidebar-brand-copy">
         <span className="nl-sidebar-brand-name">Havena</span>
         <span className="nl-sidebar-brand-role">Resident Portal</span>
       </span>
@@ -113,7 +113,7 @@ function SidebarInner({
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
       {!hideBrand && (
-        <div className="mb-2.5 shrink-0 border-b border-slate-100 pb-2.5">
+        <div className="mb-1.5 shrink-0 border-b border-slate-100 pb-1.5">
           <Brand />
         </div>
       )}
@@ -152,7 +152,7 @@ export function PortalSidebar({
         <div className="fixed inset-0 z-40 md:hidden">
           <div className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm" onClick={onClose} aria-hidden />
           <aside className="absolute left-0 top-0 flex h-full w-[17.5rem] flex-col border-r border-slate-200 bg-white px-3 py-4 shadow-2xl">
-            <div className="mb-2.5 flex shrink-0 items-center justify-between border-b border-slate-100 pb-2.5">
+            <div className="mb-1.5 flex shrink-0 items-start justify-between gap-2 border-b border-slate-100 pb-1.5">
               <Brand />
               <button onClick={onClose} className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">

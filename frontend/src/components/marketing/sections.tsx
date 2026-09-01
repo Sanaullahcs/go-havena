@@ -57,15 +57,15 @@ export function MarketingFeatures() {
                   <span />
                   <span />
                 </div>
-                <span className="lp-features__preview-label">Community admin · Notices</span>
+                <span className="lp-features__preview-label">Community admin · Dashboard</span>
               </div>
               <div className="lp-features__preview-shot">
                 <span className="lp-features__preview-shine" aria-hidden />
                 <img
-                  src="/marketing/dashboard-features.png?v=10"
-                  alt="Havena notices dashboard with published community announcements"
-                  width={1440}
-                  height={900}
+                  src="/marketing/dashboard-hero.png?v=7"
+                  alt="Havena community admin dashboard showing member growth, membership status, and community metrics"
+                  width={2833}
+                  height={1770}
                 />
               </div>
             </div>
@@ -91,6 +91,28 @@ export function MarketingFeatures() {
               <p>
                 Ready, easy, and private. Discover and connect without constant notification noise.
               </p>
+            </Reveal>
+
+            <Reveal as="article" className="lp-features__side-preview lp-reveal--scale" delay={300}>
+              <div className="lp-features__preview">
+                <div className="lp-features__preview-bar">
+                  <div className="lp-features__preview-dots" aria-hidden>
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <span className="lp-features__preview-label">Community admin · Notices</span>
+                </div>
+                <div className="lp-features__preview-shot">
+                  <span className="lp-features__preview-shine" aria-hidden />
+                  <img
+                    src="/marketing/dashboard-features.png?v=10"
+                    alt="Havena notices dashboard with published community announcements"
+                    width={1440}
+                    height={900}
+                  />
+                </div>
+              </div>
             </Reveal>
           </div>
         </div>

@@ -52,13 +52,13 @@ export function MarketingHeader() {
         scrolled ? "is-scrolled" : ""
       }`}
     >
-      <div className="lp-container flex h-[4rem] items-center justify-between gap-3 sm:h-[4.5rem] sm:gap-4">
+      <div className="lp-container flex h-[3.25rem] items-center justify-between gap-3 sm:h-[4rem] sm:gap-4 lg:h-[4.5rem]">
         <Link
           href="/"
-          className="lp-header__brand flex min-w-0 items-center gap-3.5"
+          className="lp-header__brand flex min-w-0 items-center gap-2"
           onClick={closeMenu}
         >
-          <HavenaMark size={40} />
+          <HavenaMark size={36} tight />
           <span className="lp-brand-name">Havena</span>
         </Link>
 

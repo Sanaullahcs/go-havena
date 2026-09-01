@@ -244,7 +244,7 @@ function RegisterPageInner() {
 
           <div className="nl-login-form-wrap">
             <div className="nl-login-brand nl-login-brand--form mb-6">
-              <HavenaMark size={52} />
+              <HavenaMark size={52} tight />
               <span className="nl-login-brand__name">Havena</span>
             </div>
 

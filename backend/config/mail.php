@@ -100,4 +100,11 @@ return [
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Contact / demo request inbox
+    |--------------------------------------------------------------------------
+    */
+    'contact_to' => env('MAIL_CONTACT_TO', env('MAIL_FROM_ADDRESS', 'hello@gohavena.com')),
+
 ];
