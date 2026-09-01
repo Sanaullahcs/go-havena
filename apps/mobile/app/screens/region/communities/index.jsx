@@ -20,6 +20,17 @@ import { HomeTheme as T } from "../../../../constants/home-theme";
 
 const SEARCH_DEBOUNCE_MS = 400;
 
+/** Inline so the StyleSheet text-metrics patch cannot add lineHeight (iOS top-aligns). */
+const searchFieldTextStyle = {
+  fontFamily: Fonts.regular,
+  fontSize: 13,
+  color: T.navy,
+  paddingTop: 0,
+  paddingBottom: 0,
+  margin: 0,
+  includeFontPadding: false,
+};
+
 export default function RegionCommunitiesScreen() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -159,38 +170,31 @@ export default function RegionCommunitiesScreen() {
         </Text>
 
         <View style={styles.searchWrap}>
-          <Ionicons name="search-outline" size={18} color={T.gray} />
-          <View style={styles.searchInputWrap}>
-            <LocaleTextInput
-              value={searchText}
-              onChangeText={setSearchText}
-              placeholder={t("region.searchCommunities")}
-              placeholderTextColor={T.gray}
-              style={[
-                styles.searchInput,
-                {
-                  height: 22,
-                  lineHeight: 20,
-                  includeFontPadding: false,
-                  paddingTop: 0,
-                  paddingBottom: 0,
-                },
-              ]}
-              returnKeyType="search"
-              autoCorrect={false}
-              underlineColorAndroid="transparent"
-            />
+          <View style={styles.searchInner}>
+            <Ionicons name="search-outline" size={18} color={T.gray} />
+            <View style={styles.searchInputWrap}>
+              <LocaleTextInput
+                value={searchText}
+                onChangeText={setSearchText}
+                placeholder={t("region.searchCommunities")}
+                placeholderTextColor={T.gray}
+                style={searchFieldTextStyle}
+                returnKeyType="search"
+                autoCorrect={false}
+                underlineColorAndroid="transparent"
+              />
+            </View>
+            {isSearchPending || refreshing ? (
+              <ActivityIndicator size="small" color={T.teal} />
+            ) : searchText.length > 0 ? (
+              <TouchableOpacity
+                onPress={() => setSearchText("")}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close-circle" size={18} color={T.gray} />
+              </TouchableOpacity>
+            ) : null}
           </View>
-          {isSearchPending || refreshing ? (
-            <ActivityIndicator size="small" color={T.teal} />
-          ) : searchText.length > 0 ? (
-            <TouchableOpacity
-              onPress={() => setSearchText("")}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="close-circle" size={18} color={T.gray} />
-            </TouchableOpacity>
-          ) : null}
         </View>
       </View>
 
@@ -376,21 +380,18 @@ const styles = StyleSheet.create({
     backgroundColor: T.white,
     borderWidth: 1,
     borderColor: T.border,
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    height: 52,
+  },
+  searchInner: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
     gap: 12,
-    height: 52,
   },
   searchInputWrap: {
     flex: 1,
-    height: 52,
     justifyContent: "center",
-  },
-  searchInput: {
-    fontFamily: Fonts.regular,
-    fontSize: 13,
-    color: T.navy,
   },
   centerState: {
     flex: 1,
