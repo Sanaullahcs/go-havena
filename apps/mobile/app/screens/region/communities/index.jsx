@@ -13,7 +13,7 @@ import { saveRegionSelection, joinCommunity } from "../../../../services/auth-ap
 import { ionChevronForward } from "../../../../utils/rtl";
 import { fetchCommunitiesInRegion } from "../../../../services/regions-api";
 import { getApiErrorMessage } from "../../../../utils/auth-errors";
-import { goToCompleteProfile } from "../../../../constants/onboarding-routes";
+import { goToCompleteProfile, goToRegion } from "../../../../constants/onboarding-routes";
 import { useApiAction } from "../../../../hooks/use-api-action";
 import ScreenStatusBar from "../../../../components/layout/screen-status-bar";
 import { HomeTheme as T } from "../../../../constants/home-theme";
@@ -152,7 +152,11 @@ export default function RegionCommunitiesScreen() {
 
       <View style={styles.topSection}>
         <View style={styles.headerRow}>
-          <BackButton iconOnly compact />
+          <BackButton
+            iconOnly
+            compact
+            onPress={() => goToRegion(router, { role: activeRole })}
+          />
           <View style={styles.regionBadge}>
             <MapPin size={12} color={T.teal} strokeWidth={2} />
             <Text style={styles.regionBadgeText} numberOfLines={1}>

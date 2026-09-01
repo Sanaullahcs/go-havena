@@ -556,13 +556,8 @@ class CommunityLifecycleService
             }
 
             if ($community->review_status === 'rejected') {
-                return [
-                    'message'     => 'Your community request was not approved.',
-                    'code'        => 'COMMUNITY_REQUEST_REJECTED',
-                    'status'      => 'rejected',
-                    'reason'      => $community->rejection_reason,
-                    'rejected_by' => 'system_admin',
-                ];
+                // Stay signed in so the user can submit a new community request.
+                continue;
             }
 
             if ($membership->status === 'rejected' && $community->review_status !== 'rejected') {

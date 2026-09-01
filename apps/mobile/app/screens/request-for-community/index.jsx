@@ -13,7 +13,7 @@ import { requestCommunity } from "../../../services/auth-api";
 import { fetchRegionsOnly } from "../../../services/regions-api";
 import { showApiFailure } from "../../../utils/auth-errors";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
-import { goToCompleteProfile } from "../../../constants/onboarding-routes";
+import { goToCompleteProfile, goToRegion } from "../../../constants/onboarding-routes";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { validateCommunityRequestForm, hasFieldErrors, LIMITS } from "../../../utils/form-validation";
@@ -125,7 +125,24 @@ export default function RequestForCommunityScreen() {
       <ScreenStatusBar style="dark" opaque androidBackgroundColor={T.canvas} />
 
       <View style={styles.headerRow}>
-        <BackButton iconOnly compact />
+        <BackButton
+          iconOnly
+          compact
+          onPress={() => {
+            if (selectedRegionId) {
+              router.replace({
+                pathname: "/screens/region/communities",
+                params: {
+                  role: role === "admin" || role === "resident" ? role : "resident",
+                  regionId: String(selectedRegionId),
+                  regionTitle: selectedRegionLabel || String(regionTitleParam || ""),
+                },
+              });
+              return;
+            }
+            goToRegion(router, { role: role === "admin" ? "admin" : "resident" });
+          }}
+        />
         <Text style={styles.headerTitle} numberOfLines={1}>
           {t('guests.requestAddCommunity')}
         </Text>

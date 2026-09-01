@@ -206,4 +206,43 @@ class CommunityAdminSingleCommunityTest extends TestCase
         $this->assertSame(1, Community::query()->where('review_status', 'pending')->count());
         $this->assertSame(2, Community::query()->where('review_status', 'rejected')->count());
     }
+
+    public function test_rejected_community_request_can_submit_a_new_request(): void
+    {
+        $region = $this->seedRegion();
+        $admin = User::factory()->create([
+            'role'                   => 'community_admin',
+            'community_admin_status' => 'pending',
+            'status'                 => 'active',
+            'phone'                  => '+2017888888',
+        ]);
+
+        $rejected = Community::query()->create([
+            'name'                 => 'Old Request',
+            'address'              => '1 Old St, City, ST 12345',
+            'region_id'            => $region->id,
+            'region'               => $region->title,
+            'status'               => 'inactive',
+            'review_status'        => 'rejected',
+            'requested_by_user_id' => $admin->id,
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $admin->id,
+            'community_id' => $rejected->id,
+            'role'         => 'admin',
+            'status'       => 'rejected',
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/v1/communities/request', [
+            'community_name' => 'New Request',
+            'address'        => '456 New St, City, ST 12345',
+            'region_id'      => $region->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.community.name', 'New Request')
+            ->assertJsonPath('data.community.review_status', 'pending');
+    }
 }

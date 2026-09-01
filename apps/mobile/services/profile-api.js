@@ -51,7 +51,7 @@ export function openNeighborProfile(router, { userId, isMine } = {}) {
 
 export async function updateMe(payload) {
   const res = await apiRequest("/me", {
-    method: "PUT",
+    method: "POST",
     body: payload,
     community: false,
   });

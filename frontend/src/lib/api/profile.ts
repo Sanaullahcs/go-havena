@@ -101,25 +101,21 @@ export async function updateMe(data: {
   residence_type?: string;
   region_id?: number | null;
 }): Promise<MeProfile> {
-  const res = await api.put("/v1/me", data);
+  const res = await api.post("/v1/me", data);
   return res.data.data as MeProfile;
 }
 
 export async function uploadUtilityBill(file: File): Promise<{ utility_bill_url: string }> {
   const form = new FormData();
   form.append("utility_bill", file);
-  const res = await api.post("/v1/me/utility-bill", form, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  const res = await api.post("/v1/me/utility-bill", form);
   return res.data.data as { utility_bill_url: string };
 }
 
 export async function uploadAvatar(file: File) {
   const form = new FormData();
   form.append("avatar", file);
-  const res = await api.post("/v1/me/avatar", form, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  const res = await api.post("/v1/me/avatar", form);
   return res.data.data as { avatar_url: string };
 }
 

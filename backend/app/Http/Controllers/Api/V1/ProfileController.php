@@ -351,6 +351,11 @@ class ProfileController extends Controller
         $request->validate(['avatar' => 'required|image|max:5120']);
 
         $path = $request->file('avatar')->store('avatars', 'public');
+        if (! is_string($path) || $path === '') {
+            throw ValidationException::withMessages([
+                'avatar' => ['Could not save the photo. Storage is not writable.'],
+            ]);
+        }
         $relative = MediaUrl::normalize(Storage::url($path)) ?? '/storage/'.$path;
 
         $user = $request->user();
@@ -434,6 +439,11 @@ class ProfileController extends Controller
     private function storeProfileImage(UploadedFile $file, string $folder): string
     {
         $path = $file->store($folder, 'public');
+        if (! is_string($path) || $path === '') {
+            throw ValidationException::withMessages([
+                'file' => ['Could not save the file. Storage is not writable.'],
+            ]);
+        }
 
         return url(Storage::url($path));
     }

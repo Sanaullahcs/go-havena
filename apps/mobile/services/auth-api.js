@@ -244,7 +244,7 @@ async function patchLocalProfile(partial) {
 export async function updateProfile(payload) {
   try {
     const result = await apiRequest("/me", {
-      method: "PUT",
+      method: "POST",
       body: payload,
       community: false,
     });
@@ -384,6 +384,14 @@ export async function joinByInviteCode(inviteCode) {
 
 export async function requestCommunity({ communityName, address, regionId }) {
   try {
+    const token = await getToken();
+    if (!token) {
+      throw new ApiError("Please sign in again to request a community.", {
+        status: 401,
+        code: "UNAUTHENTICATED",
+      });
+    }
+
     const result = await apiRequest("/communities/request", {
       method: "POST",
       body: {

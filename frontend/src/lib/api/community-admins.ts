@@ -98,21 +98,21 @@ export async function fetchCommunityAdmins(params?: {
 }
 
 export async function approveCommunityAdmin(id: number) {
-  const res = await api.patch(`/v1/admin/community-admins/${id}/approve`);
+  const res = await api.post(`/v1/admin/community-admins/${id}/approve`);
   return res.data;
 }
 
 export async function reapproveCommunityAdmin(id: number) {
-  const res = await api.patch(`/v1/admin/community-admins/${id}/reapprove`);
+  const res = await api.post(`/v1/admin/community-admins/${id}/reapprove`);
   return res.data;
 }
 
 export async function rejectCommunityAdmin(id: number, reason?: string) {
-  const res = await api.patch(`/v1/admin/community-admins/${id}/reject`, { reason });
+  const res = await api.post(`/v1/admin/community-admins/${id}/reject`, { reason });
   return res.data;
 }
 
 export async function suspendCommunityAdmin(id: number) {
-  const res = await api.patch(`/v1/admin/community-admins/${id}/suspend`);
+  const res = await api.post(`/v1/admin/community-admins/${id}/suspend`);
   return res.data as { data: CommunityAdminApplicant; message: string };
 }

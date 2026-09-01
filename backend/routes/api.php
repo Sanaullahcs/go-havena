@@ -83,6 +83,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/guest-access/status',   [GuestAccessController::class, 'status']);
         Route::get('/neighbors/{id}', [ProfileController::class, 'showNeighbor'])->whereNumber('id');
         Route::put('/me',             [ProfileController::class, 'update']);
+        Route::post('/me',            [ProfileController::class, 'update']);
         Route::delete('/me',          [ProfileController::class, 'destroy']);
         Route::post('/me/avatar',         [ProfileController::class, 'uploadAvatar']);
         Route::post('/me/utility-bill',   [ProfileController::class, 'uploadUtilityBill']);
@@ -241,17 +242,17 @@ Route::prefix('v1')->group(function () {
             /* System admin — approve community admins & community requests (for now) */
             Route::middleware('system.admin')->group(function () {
                 Route::get('/community-admins', [AdminCommunityAdminController::class, 'index']);
-                Route::patch('/community-admins/{id}/approve', [AdminCommunityAdminController::class, 'approve']);
-                Route::patch('/community-admins/{id}/reapprove', [AdminCommunityAdminController::class, 'approve']);
-                Route::patch('/community-admins/{id}/reject', [AdminCommunityAdminController::class, 'reject']);
-                Route::patch('/community-admins/{id}/suspend', [AdminCommunityAdminController::class, 'suspend']);
+                Route::match(['patch', 'post'], '/community-admins/{id}/approve', [AdminCommunityAdminController::class, 'approve']);
+                Route::match(['patch', 'post'], '/community-admins/{id}/reapprove', [AdminCommunityAdminController::class, 'approve']);
+                Route::match(['patch', 'post'], '/community-admins/{id}/reject', [AdminCommunityAdminController::class, 'reject']);
+                Route::match(['patch', 'post'], '/community-admins/{id}/suspend', [AdminCommunityAdminController::class, 'suspend']);
 
                 Route::post('/users', [AdminUserController::class, 'store']);
 
                 Route::get('/community-requests', [AdminCommunityController::class, 'index']);
                 Route::get('/community-requests/{id}', [AdminCommunityController::class, 'show']);
-                Route::patch('/community-requests/{id}/approve', [AdminCommunityController::class, 'approve']);
-                Route::patch('/community-requests/{id}/reject', [AdminCommunityController::class, 'reject']);
+                Route::match(['patch', 'post'], '/community-requests/{id}/approve', [AdminCommunityController::class, 'approve']);
+                Route::match(['patch', 'post'], '/community-requests/{id}/reject', [AdminCommunityController::class, 'reject']);
 
                 Route::put('/communities/{id}', [AdminCommunityController::class, 'update']);
                 Route::delete('/communities/{id}', [AdminCommunityController::class, 'destroy']);

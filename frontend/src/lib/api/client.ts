@@ -22,6 +22,19 @@ api.interceptors.request.use((config) => {
   if (needsNgrokBrowserBypass(config.baseURL)) {
     config.headers["ngrok-skip-browser-warning"] = "true";
   }
+  // Let the browser set multipart boundary. A bare "multipart/form-data"
+  // header makes Laravel drop the file and profile save fails.
+  if (typeof FormData !== "undefined" && config.data instanceof FormData) {
+    const headers = config.headers;
+    if (headers && typeof headers.delete === "function") {
+      headers.delete("Content-Type");
+      headers.delete("content-type");
+    } else if (headers) {
+      delete (headers as Record<string, unknown>)["Content-Type"];
+      delete (headers as Record<string, unknown>)["content-type"];
+    }
+    config.timeout = Math.max(config.timeout ?? 0, 60_000);
+  }
   return config;
 });
 

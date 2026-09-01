@@ -1,3 +1,9 @@
+<IfModule mod_authz_core.c>
+    <Limit GET POST PUT PATCH DELETE OPTIONS HEAD>
+        Require all granted
+    </Limit>
+</IfModule>
+
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes

@@ -24,7 +24,14 @@ class EnsureAccountAccessValid
         );
 
         if ($block) {
-            $user->currentAccessToken()?->delete();
+            // Keep the token for re-application flows. Killing it makes the next
+            // "add community" submit return 401 Unauthenticated.
+            if (! in_array($block['code'] ?? null, [
+                'COMMUNITY_REQUEST_REJECTED',
+                'MEMBERSHIP_REJECTED',
+            ], true)) {
+                $user->currentAccessToken()?->delete();
+            }
 
             return response()->json(
                 app(CommunityLifecycleService::class)->enrichBlockResponse($block, $user),
@@ -51,11 +58,23 @@ class EnsureAccountAccessValid
             return true;
         }
 
-        if ($request->isMethod('PUT') && (str_ends_with($path, 'v1/me') || $path === 'me')) {
+        if (
+            in_array($request->getMethod(), ['PUT', 'POST'], true)
+            && (str_ends_with($path, 'v1/me') || $path === 'me')
+        ) {
             return true;
         }
 
         if ($request->isMethod('GET') && str_ends_with($path, 'v1/me/membership-review')) {
+            return true;
+        }
+
+        if ($request->isMethod('POST') && (
+            str_ends_with($path, 'v1/communities/request')
+            || str_ends_with($path, 'v1/communities/self-serve')
+            || str_ends_with($path, 'v1/communities/join-by-invite')
+            || (bool) preg_match('#(?:^|/)v1/communities/\d+/join$#', $path)
+        )) {
             return true;
         }
 

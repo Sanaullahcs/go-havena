@@ -144,14 +144,14 @@ export async function fetchCommunityRequest(id: number) {
 }
 
 export async function approveCommunityRequest(id: number, regionId: number) {
-  const res = await api.patch(`/v1/admin/community-requests/${id}/approve`, {
+  const res = await api.post(`/v1/admin/community-requests/${id}/approve`, {
     region_id: regionId,
   });
   return res.data as { data: CommunityRequest; message: string };
 }
 
 export async function rejectCommunityRequest(id: number, reason?: string) {
-  const res = await api.patch(`/v1/admin/community-requests/${id}/reject`, {
+  const res = await api.post(`/v1/admin/community-requests/${id}/reject`, {
     reason,
   });
   return res.data as { data: CommunityRequest; message: string };
