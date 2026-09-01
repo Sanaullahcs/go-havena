@@ -160,25 +160,27 @@ export default function RegionCommunitiesScreen() {
 
         <View style={styles.searchWrap}>
           <Ionicons name="search-outline" size={18} color={T.gray} />
-          <LocaleTextInput
-            value={searchText}
-            onChangeText={setSearchText}
-            placeholder={t("region.searchCommunities")}
-            placeholderTextColor={T.gray}
-            style={[
-              styles.searchInput,
-              {
-                height: 20,
-                lineHeight: 20,
-                includeFontPadding: false,
-                paddingTop: 0,
-                paddingBottom: 0,
-              },
-            ]}
-            returnKeyType="search"
-            autoCorrect={false}
-            underlineColorAndroid="transparent"
-          />
+          <View style={styles.searchInputWrap}>
+            <LocaleTextInput
+              value={searchText}
+              onChangeText={setSearchText}
+              placeholder={t("region.searchCommunities")}
+              placeholderTextColor={T.gray}
+              style={[
+                styles.searchInput,
+                {
+                  height: 22,
+                  lineHeight: 20,
+                  includeFontPadding: false,
+                  paddingTop: 0,
+                  paddingBottom: 0,
+                },
+              ]}
+              returnKeyType="search"
+              autoCorrect={false}
+              underlineColorAndroid="transparent"
+            />
+          </View>
           {isSearchPending || refreshing ? (
             <ActivityIndicator size="small" color={T.teal} />
           ) : searchText.length > 0 ? (
@@ -380,8 +382,12 @@ const styles = StyleSheet.create({
     gap: 12,
     height: 52,
   },
-  searchInput: {
+  searchInputWrap: {
     flex: 1,
+    height: 52,
+    justifyContent: "center",
+  },
+  searchInput: {
     fontFamily: Fonts.regular,
     fontSize: 13,
     color: T.navy,
