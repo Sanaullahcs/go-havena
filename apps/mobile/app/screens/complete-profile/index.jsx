@@ -42,12 +42,24 @@ function isPdfAsset(asset) {
 
 const PLACEHOLDER_COLOR = "#9CA3AF";
 
-/** Inline so the global text-metrics patch cannot force a tall line box. */
+/** Family field still uses the old TextInput-as-box layout. */
 const singleLineInputStyle = {
   lineHeight: 20,
   includeFontPadding: false,
   paddingTop: Platform.OS === "ios" ? 16 : 0,
   paddingBottom: Platform.OS === "ios" ? 16 : 0,
+};
+
+/** Inline — no lineHeight. iOS TextInput top-aligns when lineHeight is set. */
+const fieldTextStyle = {
+  fontFamily: Fonts.regular,
+  fontSize: 14,
+  color: T.navy,
+  width: "100%",
+  margin: 0,
+  paddingTop: 0,
+  paddingBottom: 0,
+  includeFontPadding: false,
 };
 
 export default function CompleteProfile() {
@@ -736,28 +748,31 @@ export default function CompleteProfile() {
               <Text style={styles.inputText}>
                 {t("onboarding.fullName")} <Text style={styles.requiredMark}>*</Text>
               </Text>
-              <LocaleTextInput
-                style={[styles.input, singleLineInputStyle, showError("name", liveErrors) && styles.inputError]}
-                placeholder={t("onboarding.namePlaceholder")}
-                placeholderTextColor={PLACEHOLDER_COLOR}
-                value={name}
-                onChangeText={(text) => {
-                  setName(text);
-                  clearError("name");
-                }}
-                onBlur={() => touch("name")}
-                onFocus={() => {
-                  if (name && isPlaceholderDisplayName(name)) {
-                    setName("");
-                  }
-                  handleFieldFocus(nameFieldRef);
-                }}
-                autoComplete="off"
-                textContentType="none"
-                importantForAutofill="no"
-                autoCorrect={false}
-                maxLength={LIMITS.profileName}
-              />
+              <View style={[styles.inputBox, showError("name", liveErrors) && styles.inputError]}>
+                <LocaleTextInput
+                  style={fieldTextStyle}
+                  placeholder={t("onboarding.namePlaceholder")}
+                  placeholderTextColor={PLACEHOLDER_COLOR}
+                  value={name}
+                  onChangeText={(text) => {
+                    setName(text);
+                    clearError("name");
+                  }}
+                  onBlur={() => touch("name")}
+                  onFocus={() => {
+                    if (name && isPlaceholderDisplayName(name)) {
+                      setName("");
+                    }
+                    handleFieldFocus(nameFieldRef);
+                  }}
+                  autoComplete="off"
+                  textContentType="none"
+                  importantForAutofill="no"
+                  autoCorrect={false}
+                  maxLength={LIMITS.profileName}
+                  underlineColorAndroid="transparent"
+                />
+              </View>
               {showError("name", liveErrors) ? <Text style={styles.errorText}>{showError("name", liveErrors)}</Text> : null}
             </View>
 
@@ -765,18 +780,9 @@ export default function CompleteProfile() {
               <Text style={styles.inputText}>
                 {t("onboarding.emailAddress")} <Text style={styles.requiredMark}>*</Text>
               </Text>
-              <View style={[styles.emailField, showError("email", liveErrors) && styles.inputError]}>
+              <View style={[styles.inputBox, showError("email", liveErrors) && styles.inputError]}>
                 <LocaleTextInput
-                  style={[
-                    styles.emailValue,
-                    {
-                      height: 22,
-                      lineHeight: 20,
-                      includeFontPadding: false,
-                      paddingTop: 0,
-                      paddingBottom: 0,
-                    },
-                  ]}
+                  style={fieldTextStyle}
                   placeholder={t("onboarding.emailPlaceholder")}
                   placeholderTextColor={PLACEHOLDER_COLOR}
                   value={email}
@@ -826,19 +832,22 @@ export default function CompleteProfile() {
                 {t("onboarding.unitNumber")}
                 {!isGuestProfile ? <Text style={styles.requiredMark}> *</Text> : null}
               </Text>
-              <LocaleTextInput
-                style={[styles.input, singleLineInputStyle, showError("unitNumber", liveErrors) && styles.inputError]}
-                placeholder={t("onboarding.unitPlaceholder")}
-                placeholderTextColor={PLACEHOLDER_COLOR}
-                value={unitNumber}
-                onChangeText={(text) => {
-                  setUnitNumber(text);
-                  clearError("unitNumber");
-                }}
-                onBlur={() => touch("unitNumber")}
-                onFocus={() => handleFieldFocus(unitFieldRef)}
-                maxLength={LIMITS.profileUnit}
-              />
+              <View style={[styles.inputBox, showError("unitNumber", liveErrors) && styles.inputError]}>
+                <LocaleTextInput
+                  style={fieldTextStyle}
+                  placeholder={t("onboarding.unitPlaceholder")}
+                  placeholderTextColor={PLACEHOLDER_COLOR}
+                  value={unitNumber}
+                  onChangeText={(text) => {
+                    setUnitNumber(text);
+                    clearError("unitNumber");
+                  }}
+                  onBlur={() => touch("unitNumber")}
+                  onFocus={() => handleFieldFocus(unitFieldRef)}
+                  maxLength={LIMITS.profileUnit}
+                  underlineColorAndroid="transparent"
+                />
+              </View>
               {showError("unitNumber", liveErrors) ? <Text style={styles.errorText}>{showError("unitNumber", liveErrors)}</Text> : null}
             </View>
 
@@ -1375,7 +1384,7 @@ const styles = StyleSheet.create({
     color: T.navy,
     textAlignVertical: "center",
   },
-  emailField: {
+  inputBox: {
     height: 52,
     borderWidth: 1,
     borderColor: T.border,
@@ -1383,21 +1392,6 @@ const styles = StyleSheet.create({
     backgroundColor: T.white,
     paddingHorizontal: 16,
     justifyContent: "center",
-  },
-  emailValue: {
-    width: "100%",
-    height: 22,
-    flexGrow: 0,
-    margin: 0,
-    paddingHorizontal: 0,
-    paddingTop: 0,
-    paddingBottom: 0,
-    fontFamily: Fonts.regular,
-    fontSize: 14,
-    color: T.navy,
-    textAlign: "left",
-    textAlignVertical: "center",
-    backgroundColor: "transparent",
   },
   familyNumberSection: {
     marginTop: 14,
