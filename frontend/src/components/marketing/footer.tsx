@@ -11,7 +11,7 @@ export function MarketingFooter() {
         <div className="lp-footer__grid">
           <div className="lp-footer__brand">
             <Link href="/" className="lp-footer__logo">
-              <HavenaMark size={36} />
+              <HavenaMark size={36} tight />
               <span>{marketingSite.name}</span>
             </Link>
             <p>

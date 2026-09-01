@@ -166,9 +166,9 @@ function Brand() {
   return (
     <Link href="/admin" className="nl-sidebar-brand">
       <span className="nl-sidebar-brand-mark nl-sidebar-brand-mark--solid">
-        <HavenaMark size={48} />
+        <HavenaMark size={40} />
       </span>
-      <span className="flex min-w-0 flex-col justify-center gap-0.5">
+      <span className="nl-sidebar-brand-copy">
         <span className="nl-sidebar-brand-name">Havena</span>
         <span className="nl-sidebar-brand-role">{roleLabel}</span>
       </span>
@@ -220,7 +220,7 @@ function SidebarInner({
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
       {!hideBrand && (
-        <div className="mb-2.5 shrink-0 border-b border-slate-100 pb-2.5">
+        <div className="mb-1.5 shrink-0 border-b border-slate-100 pb-1.5">
           <Brand />
         </div>
       )}
@@ -285,7 +285,7 @@ export function AdminSidebar({
             aria-hidden
           />
           <aside className="absolute left-0 top-0 flex h-full w-[17.5rem] flex-col border-r border-slate-200 bg-white px-3 py-4 shadow-2xl">
-            <div className="mb-2.5 flex shrink-0 items-center justify-between border-b border-slate-100 pb-2.5">
+            <div className="mb-1.5 flex shrink-0 items-start justify-between gap-2 border-b border-slate-100 pb-1.5">
               <Brand />
               <button
                 onClick={onClose}

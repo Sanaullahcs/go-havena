@@ -38,17 +38,20 @@ function BrandImage({
 
 /**
  * Havena brand mark — original two-tone infinity PNG.
+ * @param tight — pull right edge in for horizontal wordmark lockups (skip inside boxed marks).
  */
 export function HavenaMark({
   size = 48,
   className = "",
   tone: _tone = "brand",
+  tight = false,
 }: {
   size?: number;
   className?: string;
   tone?: "brand" | "light";
+  tight?: boolean;
 }) {
-  return <BrandImage size={size} className={className} tight />;
+  return <BrandImage size={size} className={className} tight={tight} />;
 }
 
 /** Compact glyph for tinted tiles (no filled background). */
