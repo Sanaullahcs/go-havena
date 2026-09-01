@@ -9,12 +9,17 @@ const FALLBACKS = [BUNDLED_SRC, "/havena-logo.png"];
 function BrandImage({
   size,
   className,
+  tight = false,
 }: {
   size: number;
   className: string;
+  tight?: boolean;
 }) {
   const [index, setIndex] = useState(0);
   const src = FALLBACKS[Math.min(index, FALLBACKS.length - 1)];
+
+  // Soften PNG side padding so mark↔wordmark reads as a balanced lockup.
+  const style = tight ? { marginInlineEnd: Math.round(size * -0.08) } : undefined;
 
   return (
     <img
@@ -23,6 +28,7 @@ function BrandImage({
       width={size}
       height={size}
       className={`object-contain ${className}`.trim()}
+      style={style}
       onError={() => {
         setIndex((current) => (current < FALLBACKS.length - 1 ? current + 1 : current));
       }}
@@ -42,7 +48,7 @@ export function HavenaMark({
   className?: string;
   tone?: "brand" | "light";
 }) {
-  return <BrandImage size={size} className={className} />;
+  return <BrandImage size={size} className={className} tight />;
 }
 
 /** Compact glyph for tinted tiles (no filled background). */

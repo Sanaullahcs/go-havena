@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Mail\DemoRequestSubmittedMail;
 use App\Models\ContactSubmission;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 
 class ContactController extends Controller
@@ -29,10 +32,33 @@ class ContactController extends Controller
             'user_agent' => $request->userAgent(),
         ]);
 
+        $this->notifyInbox($submission);
+
         return response()->json([
             'data' => $this->transform($submission),
             'message' => 'Thank you — your message has been received.',
         ], 201);
+    }
+
+    private function notifyInbox(ContactSubmission $submission): void
+    {
+        if (! str_starts_with(trim((string) $submission->message), '[Demo request]')) {
+            return;
+        }
+
+        $to = (string) config('mail.contact_to');
+        if ($to === '') {
+            return;
+        }
+
+        try {
+            Mail::to($to)->send(new DemoRequestSubmittedMail($submission));
+        } catch (\Throwable $e) {
+            Log::error('Failed to send demo request notification email.', [
+                'submission_id' => $submission->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /** GET /v1/admin/contact-submissions */

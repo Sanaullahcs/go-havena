@@ -55,7 +55,7 @@ export function MarketingHeader() {
       <div className="lp-container flex h-[4rem] items-center justify-between gap-3 sm:h-[4.5rem] sm:gap-4">
         <Link
           href="/"
-          className="lp-header__brand flex min-w-0 items-center gap-3.5"
+          className="lp-header__brand flex min-w-0 items-center gap-2"
           onClick={closeMenu}
         >
           <HavenaMark size={40} />
