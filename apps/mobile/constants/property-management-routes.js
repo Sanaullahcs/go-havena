@@ -16,7 +16,18 @@ export const PropertyManagementRoutes = {
   DOCUMENTS: "/(tabs)/services/documents",
   DOCUMENT_DETAIL: "/(tabs)/services/documents/document-detail",
   DOCUMENT_FORM: "/(tabs)/services/documents/document-form",
+  DOCUMENTS_SCREEN: "/screens/property-management/documents",
+  DOCUMENT_DETAIL_SCREEN: "/screens/property-management/documents/document-detail",
+  DOCUMENT_FORM_SCREEN: "/screens/property-management/documents/document-form",
   MY_BOOKING: "/(tabs)/services/my-booking",
+  /** Root-stack copies so Home quick actions can push and Back returns to Home. */
+  AMENITY_SCREEN: "/screens/property-management/amenity",
+  MY_BOOKING_SCREEN: "/screens/property-management/my-booking",
+  ALL_FACILITIES_SCREEN: "/screens/property-management/amenity/all-facilities",
+  RESERVATION_CALENDAR_SCREEN:
+    "/screens/property-management/amenity/all-facilities/reservation-calender",
+  RESERVATION_RULE_DETAILS_SCREEN:
+    "/screens/property-management/amenity/all-facilities/reservation-calender/rule-details",
   AMENITY_FORM: "/(tabs)/services/amenity-form",
   ADMIN_BOOKINGS: "/screens/admin-bookings",
   ADMIN_AMENITIES: "/screens/admin-amenities",
@@ -27,6 +38,67 @@ export const PropertyManagementRoutes = {
 
 /** Tab hub roots — always land on the main screen, not a stale nested route. */
 const HUB_TAB_ROUTE_KEYS = new Set(["MARKETPLACE", "NOTICES", "HOME"]);
+
+export function isPropertyManagementRootPath(pathname) {
+  return String(pathname ?? "").includes("/screens/property-management");
+}
+
+/** Keep amenity drill-in on the same stack that opened the list. */
+export function amenityFlowRoutes(pathname) {
+  if (isPropertyManagementRootPath(pathname)) {
+    return {
+      allFacilities: PropertyManagementRoutes.ALL_FACILITIES_SCREEN,
+      reservationCalendar: PropertyManagementRoutes.RESERVATION_CALENDAR_SCREEN,
+      ruleDetails: PropertyManagementRoutes.RESERVATION_RULE_DETAILS_SCREEN,
+      myBooking: PropertyManagementRoutes.MY_BOOKING_SCREEN,
+      documentDetail: PropertyManagementRoutes.DOCUMENT_DETAIL_SCREEN,
+      documentForm: PropertyManagementRoutes.DOCUMENT_FORM_SCREEN,
+    };
+  }
+  return {
+    allFacilities: PropertyManagementRoutes.ALL_FACILITIES,
+    reservationCalendar: PropertyManagementRoutes.RESERVATION_CALENDAR,
+    ruleDetails: PropertyManagementRoutes.RESERVATION_RULE_DETAILS,
+    myBooking: PropertyManagementRoutes.MY_BOOKING,
+    documentDetail: PropertyManagementRoutes.DOCUMENT_DETAIL,
+    documentForm: PropertyManagementRoutes.DOCUMENT_FORM,
+  };
+}
+
+/** Open the Services hub root, dropping leftover amenity/booking screens. */
+export function openServicesHub(navigation, router, pathname) {
+  const path = String(pathname ?? "");
+
+  if (isPropertyManagementRootPath(path)) {
+    try {
+      if (router?.canDismiss?.()) router.dismissAll();
+    } catch {
+      // ignore
+    }
+    navigation?.navigate?.("services", { screen: "index" });
+    return;
+  }
+
+  if (navigation?.navigate) {
+    navigation.navigate("services", { screen: "index" });
+  }
+
+  const nestedInServicesTab =
+    path.includes("/services/") || /(^|\/)services$/.test(path);
+
+  if (nestedInServicesTab) {
+    try {
+      router?.dismissTo?.("/(tabs)/services");
+    } catch {
+      router?.replace?.("/(tabs)/services");
+    }
+    return;
+  }
+
+  if (!navigation?.navigate) {
+    router?.navigate?.("/(tabs)/services");
+  }
+}
 
 /**
  * Navigate from the Services hub (or similar) without broken cross-tab pushes.

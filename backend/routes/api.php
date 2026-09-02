@@ -209,6 +209,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/dashboard/stats',            [DashboardController::class, 'residentStats']);
 
         /* ── Messaging ── */
+        Route::get('/conversations/unread-count',           [MessageController::class, 'unreadCount']);
         Route::get('/conversations',                        [MessageController::class, 'conversations']);
         Route::get('/community-members',                  [MessageController::class, 'communityMembers']);
         Route::post('/conversations',                       [MessageController::class, 'startConversation']);

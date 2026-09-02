@@ -1,4 +1,4 @@
-import { ActivityIndicator, Switch, StyleSheet, Text, View, Pressable } from "react-native";
+import { ActivityIndicator, Linking, Switch, StyleSheet, Text, View, Pressable } from "react-native";
 import React, { useState } from "react";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -82,9 +82,20 @@ export default function ProfileSetting() {
   const handleLogout = () => confirmSignOut(dialog);
 
   const openLegalUrl = async (url) => {
-    await WebBrowser.openBrowserAsync(url, {
-      presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
-    });
+    try {
+      await WebBrowser.openBrowserAsync(url, {
+        enableBarCollapsing: true,
+        showTitle: true,
+      });
+      return;
+    } catch {
+      // Fall through to the system browser if the in-app browser is unavailable.
+    }
+    try {
+      await Linking.openURL(url);
+    } catch {
+      await dialog.showError(t("common.error"), url);
+    }
   };
 
   const handleDeleteAccount = async () => {

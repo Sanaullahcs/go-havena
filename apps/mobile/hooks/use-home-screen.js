@@ -55,21 +55,19 @@ export function useHomeScreen() {
       }
 
       const criticalPromise = Promise.allSettled([
-        fetchNotices({ categoryGroup: "notices", perPage: 30 }),
-        fetchNotices({ categoryGroup: "alerts", perPage: 10 }),
-        fetchNotices({ category: "event", perPage: 30 }),
+        fetchNotices({ perPage: 24 }),
         fetchFeed({ perPage: HOME_SECTION_CARD_LIMIT }),
       ]);
 
       const secondaryPromise = Promise.allSettled([
-        fetchDeals({ perPage: HOME_SECTION_CARD_LIMIT * 3 }),
+        fetchDeals({ perPage: HOME_SECTION_CARD_LIMIT }),
         fetchWellnessHub(),
         fetchAmenities(),
       ]);
 
-      const [carouselResult, alertsResult, eventsResult, feedResult] = await criticalPromise;
+      const [noticesResult, feedResult] = await criticalPromise;
 
-      for (const result of [carouselResult, alertsResult, eventsResult, feedResult]) {
+      for (const result of [noticesResult, feedResult]) {
         if (result.status === "rejected" && isAccountRestrictedError(result.reason)) {
           const restricted = await resolveLoadRestriction("feed", result.reason);
           if (restricted) {
@@ -82,15 +80,11 @@ export function useHomeScreen() {
 
       setRestrictionError(null);
 
-      const carouselItems =
-        carouselResult.status === "fulfilled" ? carouselResult.value.notices ?? [] : [];
-      const alertItems =
-        alertsResult.status === "fulfilled" ? alertsResult.value.notices ?? [] : [];
-      const eventItems =
-        eventsResult.status === "fulfilled" ? eventsResult.value.notices ?? [] : [];
+      const allNotices =
+        noticesResult.status === "fulfilled" ? noticesResult.value.notices ?? [] : [];
 
-      setNotices([...alertItems, ...carouselItems, ...eventItems]);
-      setUpcomingEvents(pickUpcomingEvents(eventItems));
+      setNotices(allNotices);
+      setUpcomingEvents(pickUpcomingEvents(allNotices));
 
       if (feedResult.status === "fulfilled") {
         setPosts(pickHomeFeedPosts(feedResult.value.posts ?? []));

@@ -6,8 +6,13 @@ export async function fetchConversations() {
 }
 
 export async function fetchMessageUnreadCount() {
-  const conversations = await fetchConversations();
-  return conversations.reduce((sum, row) => sum + (row.unread_count ?? 0), 0);
+  try {
+    const res = await apiRequest("/conversations/unread-count");
+    return Number(res.data?.unread_count ?? 0);
+  } catch {
+    const conversations = await fetchConversations();
+    return conversations.reduce((sum, row) => sum + (row.unread_count ?? 0), 0);
+  }
 }
 
 export async function fetchCommunityMembers(search = "") {

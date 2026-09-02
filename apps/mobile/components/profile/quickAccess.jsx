@@ -5,17 +5,18 @@ import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { chevronForward } from "../../utils/rtl";
 import { Colors, Layout } from "../../constants/tokens";
-import { useRouter } from "expo-router";
+import { useRouter, useNavigation } from "expo-router";
 import {
   formatUnreadNotificationLabel,
   useNotificationUnread,
 } from "../../hooks/use-notification-unread";
 import NotificationCountBadge from "../ui/notification-count-badge";
-import { PropertyManagementRoutes } from "../../constants/property-management-routes";
+import { PropertyManagementRoutes, openServicesHub } from "../../constants/property-management-routes";
 import { sw, sf } from "../../utils/responsive";
 
 export default function QuickAccess() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { t } = useTranslation();
   const { unread } = useNotificationUnread();
 
@@ -52,7 +53,13 @@ export default function QuickAccess() {
         {ITEMS.map((item, index) => (
           <Pressable
             key={item.id}
-            onPress={() => router.push(item.route)}
+            onPress={() => {
+              if (item.id === "property") {
+                openServicesHub(navigation, router);
+                return;
+              }
+              router.push(item.route);
+            }}
             android_ripple={{ color: "rgba(0,82,223,0.08)" }}
             style={[styles.row, index < ITEMS.length - 1 && styles.rowBorder]}
           >

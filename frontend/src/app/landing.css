@@ -76,20 +76,20 @@
 
 @media (min-width: 1024px) {
   .marketing-landing .lp-hero__grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.9fr);
     grid-template-areas:
       "intro media"
       "actions media"
       "proof media";
-    column-gap: clamp(2.5rem, 5vw, 4rem);
+    column-gap: clamp(1.75rem, 3.5vw, 3rem);
     row-gap: 0;
-    align-items: center;
+    align-items: start;
   }
 }
 
 .marketing-landing .lp-hero__intro {
   grid-area: intro;
-  max-width: 34rem;
+  max-width: 40rem;
 }
 
 .marketing-landing .lp-hero__media {
@@ -126,24 +126,40 @@
 }
 
 .marketing-landing .lp-hero__title {
-  margin-top: 1rem;
-  font-size: clamp(2.75rem, 5.5vw, 4rem);
+  margin-top: 0.85rem;
+  font-size: clamp(1.75rem, 1.15rem + 2.2vw, 2.55rem);
   font-weight: 700;
-  line-height: 1.05;
-  letter-spacing: -0.035em;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
   color: #0f172a;
+  text-wrap: pretty;
+}
+
+.marketing-landing .lp-hero__title-line {
+  display: block;
 }
 
 .marketing-landing .lp-hero__title-accent {
   color: var(--lp-blue);
 }
 
+.marketing-landing .lp-hero__title-line:first-child {
+  white-space: nowrap;
+}
+
+@media (min-width: 720px) {
+  .marketing-landing .lp-hero__title-line {
+    white-space: nowrap;
+  }
+}
+
 .marketing-landing .lp-hero__lead {
-  margin-top: 1.25rem;
-  max-width: 32rem;
+  margin-top: 1.1rem;
+  max-width: 34rem;
   font-size: 1.0625rem;
-  line-height: 1.7;
+  line-height: 1.65;
   color: #667085;
+  text-wrap: pretty;
 }
 
 .marketing-landing .lp-hero__actions {
@@ -151,13 +167,13 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 1rem 1.25rem;
-  margin-top: 0.25rem;
-  max-width: 34rem;
+  margin-top: 1.25rem;
+  max-width: 40rem;
 }
 
 @media (min-width: 1024px) {
   .marketing-landing .lp-hero__actions {
-    margin-top: 2rem;
+    margin-top: 1.5rem;
   }
 }
 
@@ -181,14 +197,14 @@
 .marketing-landing .lp-hero__proof {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-top: 0;
-  max-width: 34rem;
+  gap: 0.85rem;
+  margin-top: 0.85rem;
+  max-width: 40rem;
 }
 
 @media (min-width: 1024px) {
   .marketing-landing .lp-hero__proof {
-    margin-top: 1.75rem;
+    margin-top: 1.25rem;
   }
 }
 
@@ -417,11 +433,12 @@
 }
 
 .marketing-landing .lp-h2 {
-  font-size: clamp(1.875rem, 3.5vw, 2.625rem);
+  font-size: clamp(1.5rem, 2.4vw, 2.15rem);
   font-weight: 700;
-  line-height: 1.12;
-  letter-spacing: -0.025em;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
   color: var(--lp-navy);
+  text-wrap: pretty;
 }
 
 .marketing-landing .lp-lead {
@@ -568,7 +585,7 @@
 
 .marketing-landing .lp-features__title {
   margin-top: 0;
-  max-width: 18rem;
+  max-width: 28rem;
   font-size: clamp(1.25rem, 2vw, 1.5rem);
   font-weight: 650;
   letter-spacing: -0.02em;
@@ -723,6 +740,56 @@
 
 .marketing-landing .lp-features__card--blue p {
   color: rgba(255, 255, 255, 0.88);
+}
+
+/* ── Store badges + apps ── */
+.marketing-landing .lp-store-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.marketing-landing .lp-store-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.9rem 0.4rem 0.75rem;
+  border-radius: 0.75rem;
+  background: #0f172a;
+  color: #ffffff;
+  line-height: 1.05;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.marketing-landing .lp-store-badge:hover {
+  transform: translateY(-1px);
+  opacity: 0.92;
+}
+
+.marketing-landing .lp-store-badge svg {
+  flex-shrink: 0;
+}
+
+.marketing-landing .lp-store-badge span {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.92rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.marketing-landing .lp-store-badge small {
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.marketing-landing .lp-store-badges--dark .lp-store-badge {
+  background: #ffffff;
+  color: #0f172a;
 }
 
 /* ── People (third section) ── */
@@ -973,97 +1040,91 @@
   text-align: center;
 }
 
-.marketing-landing .lp-quotes__grid {
-  display: grid;
-  gap: var(--lp-card-gap);
-  margin-top: var(--lp-block-gap);
+.marketing-landing .lp-quotes-carousel {
+  margin-top: 2rem;
+  max-width: 40rem;
+  margin-inline: auto;
 }
 
-@media (min-width: 900px) {
-  .marketing-landing .lp-quotes__grid {
-    grid-template-columns: 1.2fr 0.8fr;
-    align-items: stretch;
-  }
-}
-
-.marketing-landing .lp-quotes__featured {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 1.75rem;
+.marketing-landing .lp-quotes-carousel__card {
   border-radius: 1.25rem;
-  background: #f3f6fb;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
-  padding: clamp(1.5rem, 3vw, 2.25rem);
+  background: #f6f8fb;
+  padding: clamp(1.6rem, 3.5vw, 2.25rem);
 }
 
-.marketing-landing .lp-quotes__featured > p {
-  font-size: clamp(1.25rem, 2.2vw, 1.625rem);
+.marketing-landing .lp-quotes-carousel__quote {
+  margin: 0;
+  animation: lp-quote-in 0.4s ease;
+}
+
+.marketing-landing .lp-quotes-carousel__quote p {
+  margin: 0;
+  font-size: clamp(1.05rem, 1.8vw, 1.35rem);
   font-weight: 600;
-  line-height: 1.45;
+  line-height: 1.5;
   letter-spacing: -0.02em;
   color: var(--lp-navy);
 }
 
-.marketing-landing .lp-quotes__featured footer,
-.marketing-landing .lp-quotes__card footer {
+.marketing-landing .lp-quotes-carousel__quote footer {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-top: 1.35rem;
 }
 
-.marketing-landing .lp-quotes__featured footer img,
-.marketing-landing .lp-quotes__card footer img {
-  border-radius: 9999px;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
-.marketing-landing .lp-quotes__featured footer strong,
-.marketing-landing .lp-quotes__card footer strong {
-  display: block;
+.marketing-landing .lp-quotes-carousel__quote footer strong {
   font-size: 0.875rem;
   font-weight: 650;
   color: var(--lp-navy);
 }
 
-.marketing-landing .lp-quotes__featured footer span,
-.marketing-landing .lp-quotes__card footer span {
-  display: block;
-  margin-top: 0.1rem;
+.marketing-landing .lp-quotes-carousel__quote footer span {
   font-size: 0.75rem;
   color: #667085;
 }
 
-.marketing-landing .lp-quotes__stack {
-  display: grid;
-  gap: var(--lp-card-gap);
-}
-
-.marketing-landing .lp-quotes__card {
+.marketing-landing .lp-quotes-carousel__controls {
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 1.25rem;
-  border-radius: 1.15rem;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
-  padding: 1.35rem 1.35rem 1.25rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  margin-top: 1.25rem;
 }
 
-.marketing-landing .lp-quotes__card--mint {
-  background: #eefaf4;
+.marketing-landing .lp-quotes-carousel__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  color: #94a3b8;
 }
 
-.marketing-landing .lp-quotes__card--sky {
-  background: #eef5ff;
+.marketing-landing .lp-quotes-carousel__nav:hover {
+  color: var(--lp-navy);
 }
 
-.marketing-landing .lp-quotes__card > p {
-  font-size: 0.9375rem;
-  line-height: 1.6;
-  color: #334155;
+.marketing-landing .lp-quotes-carousel__dots {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.marketing-landing .lp-quotes-carousel__dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 9999px;
+  background: #d5dbe3;
+}
+
+.marketing-landing .lp-quotes-carousel__dot.is-active {
+  background: var(--lp-blue);
+}
+
+@keyframes lp-quote-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* ── CTA banner ── */
@@ -1105,15 +1166,22 @@
 .marketing-landing .lp-cta-banner__copy {
   position: relative;
   z-index: 1;
-  max-width: 36rem;
+  min-width: 0;
 }
 
 .marketing-landing .lp-cta-banner__copy h2 {
-  font-size: clamp(1.5rem, 3vw, 2.125rem);
+  font-size: clamp(1.35rem, 2vw, 1.75rem);
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: -0.025em;
   color: #ffffff;
+  white-space: nowrap;
+}
+
+@media (max-width: 719px) {
+  .marketing-landing .lp-cta-banner__copy h2 {
+    white-space: normal;
+  }
 }
 
 .marketing-landing .lp-cta-banner__copy p {
@@ -1213,6 +1281,20 @@
   font-size: 0.875rem;
   line-height: 1.6;
   color: #667085;
+}
+
+.marketing-landing .lp-footer__brand .lp-store-badges {
+  margin-top: 1rem;
+}
+
+.marketing-landing .lp-footer__brand .lp-store-badge {
+  min-height: 2.45rem;
+  padding: 0.3rem 0.75rem 0.3rem 0.6rem;
+  border-radius: 0.65rem;
+}
+
+.marketing-landing .lp-footer__brand .lp-store-badge span {
+  font-size: 0.82rem;
 }
 
 .marketing-landing .lp-footer__emails {
@@ -1587,7 +1669,7 @@
   }
 
   .marketing-landing .lp-hero__title {
-    font-size: clamp(2.125rem, 10vw, 2.75rem);
+    font-size: clamp(1.65rem, 6.4vw, 2.05rem);
   }
 
   .marketing-landing .lp-h2 {
@@ -1886,16 +1968,12 @@
 }
 
 .marketing-landing .lp-features__card,
-.marketing-landing .lp-people__card,
-.marketing-landing .lp-quotes__card,
-.marketing-landing .lp-quotes__featured {
+.marketing-landing .lp-people__card {
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .marketing-landing .lp-features__card:hover,
-.marketing-landing .lp-people__card:hover,
-.marketing-landing .lp-quotes__card:hover,
-.marketing-landing .lp-quotes__featured:hover {
+.marketing-landing .lp-people__card:hover {
   transform: translateY(-3px);
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
 }
@@ -2130,11 +2208,13 @@
 
   .marketing-landing .lp-features__card:hover,
   .marketing-landing .lp-people__card:hover,
-  .marketing-landing .lp-quotes__card:hover,
-  .marketing-landing .lp-quotes__featured:hover,
   .marketing-landing .lp-btn-primary:hover,
   .marketing-landing .lp-btn-white:hover {
     transform: none;
+  }
+
+  .marketing-landing .lp-quotes-carousel__quote {
+    animation: none;
   }
 
   .marketing-landing .lp-nav-link::after {
@@ -2218,8 +2298,6 @@
 
   .marketing-landing .lp-features__card:hover,
   .marketing-landing .lp-people__card:hover,
-  .marketing-landing .lp-quotes__card:hover,
-  .marketing-landing .lp-quotes__featured:hover,
   .marketing-landing .lp-btn-primary:hover,
   .marketing-landing .lp-btn-white:hover,
   .marketing-landing .lp-hero-visual:hover .lp-hero-visual__back {

@@ -35,18 +35,18 @@ import { localizedField } from "../../i18n";
 
 const QUICK_ACTIONS = [
   { id: "post", titleKey: "home.qa.post", icon: "edit-3", route: "/screens/create-post" },
-  { id: "book", titleKey: "home.qa.book", icon: "calendar", route: PropertyManagementRoutes.AMENITY },
+  { id: "book", titleKey: "home.qa.book", icon: "home", route: PropertyManagementRoutes.AMENITY_SCREEN },
   { id: "sell", titleKey: "home.qa.sell", icon: "shopping-bag", route: MarketplaceRoutes.CREATE_LISTING },
   { id: "notices", titleKey: "home.qa.notices", icon: "bell", route: PropertyManagementRoutes.NOTICES },
   { id: "feed", titleKey: "home.qa.feed", icon: "message-circle", route: "/screens/community-feed" },
   { id: "deals", titleKey: "home.qa.deals", icon: "percent", route: MarketplaceRoutes.DEALS },
   { id: "wellness", titleKey: "home.qa.wellness", icon: "heart", route: "/(tabs)/wellness" },
-  { id: "docs", titleKey: "home.qa.docs", icon: "file-text", route: PropertyManagementRoutes.DOCUMENTS },
-  { id: "bookings", titleKey: "home.qa.bookings", icon: "clipboard", route: PropertyManagementRoutes.MY_BOOKING },
+  { id: "docs", titleKey: "home.qa.docs", icon: "file-text", route: PropertyManagementRoutes.DOCUMENTS_SCREEN },
+  { id: "bookings", titleKey: "home.qa.bookings", icon: "clipboard", route: PropertyManagementRoutes.MY_BOOKING_SCREEN },
   { id: "chat", titleKey: "home.qa.chat", icon: "mail", route: "/screens/messages" },
 ];
 
-const QA_TILE_W = sw(64);
+const QA_TILE_W = sw(72);
 const QA_GAP = sw(20);
 
 const HERO_HEIGHT = sw(175);

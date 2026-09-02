@@ -38,6 +38,15 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: lanDevOrigins(),
   skipTrailingSlashRedirect: true,
   skipProxyUrlNormalize: true,
+  async redirects() {
+    return [
+      {
+        source: "/terms-of-service",
+        destination: "/terms-and-conditions",
+        permanent: true,
+      },
+    ];
+  },
   // Same-origin /api and /storage so Cursor port-forward and Cloudflare
   // frontend URLs reach Laravel without CORS or a dead localhost:8000.
   async rewrites() {

@@ -11,7 +11,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter, useFocusEffect, usePathname } from "expo-router";
 import ScreenHeader from "../../../../components/layout/screen-header";
 import AmenityIcon from "../../../../components/property/amenity-icon";
 import { Fonts } from "../../../../constants/font";
@@ -19,8 +19,8 @@ import { Colors, Layout } from "../../../../constants/tokens";
 import { sw, sf } from "../../../../utils/responsive";
 import { pageStyles } from "../../../../constants/page-styles";
 import {
-  PropertyManagementRoutes,
   amenityFacilityParams,
+  amenityFlowRoutes,
 } from "../../../../constants/property-management-routes";
 import { fetchAmenities, fetchMyBookings } from "../../../../services/amenity-api";
 import {
@@ -113,6 +113,7 @@ function AmenityCard({ amenity, onPress, alreadyBooked = false }) {
 export default function Amenity() {
   const { t } = useTranslation();
   const router = useRouter();
+  const pathname = usePathname();
   const [amenities, setAmenities] = useState([]);
   const [myBookings, setMyBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -166,7 +167,7 @@ export default function Amenity() {
 
   const openDetail = (amenity) => {
     router.push({
-      pathname: PropertyManagementRoutes.ALL_FACILITIES,
+      pathname: amenityFlowRoutes(pathname).allFacilities,
       params: amenityFacilityParams(amenity),
     });
   };

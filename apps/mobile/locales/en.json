@@ -161,7 +161,7 @@
     "achievements": "Achievements",
     "quickAccess": "Quick access",
     "notificationsAccess": "Notifications",
-    "propertyManagement": "Property management",
+    "propertyManagement": "Services",
     "settingsAccess": "Settings",
     "tabs": {
       "profile": "Profile",
@@ -266,9 +266,9 @@
     "noEvents": "No upcoming events",
     "qa": {
       "post": "Post",
-      "book": "Book",
+      "book": "Amenities",
       "sell": "Sell",
-      "notices": "Notices",
+      "notices": "Updates",
       "feed": "Feed",
       "deals": "Deals",
       "wellness": "Wellness",
@@ -351,6 +351,7 @@
       "emptySensitive": "Comments are disabled because this post was marked as sensitive content.",
       "emptyStart": "Start the conversation — your neighbors would love to hear from you.",
       "writeComment": "Write a comment",
+      "send": "Send",
       "viewAllReplies_one": "View all {{count}} reply",
       "viewAllReplies_other": "View all {{count}} replies",
       "hideReplies": "Hide replies",
@@ -420,8 +421,14 @@
       "adminWillReview": "Community admins will review this post.",
       "downloadPhoto": "Download photo",
       "reportPost": "Report post",
+      "editPost": "Edit post",
+      "deletePost": "Delete post",
+      "deleteConfirm": "This post will be removed from the community feed.",
+      "postDeleted": "Post deleted",
+      "postDeletedMsg": "Your post was removed.",
       "postOptions": "Post options",
-      "optionsMessage": "Download the photo or report this post to community admins."
+      "optionsMessage": "Download the photo or report this post to community admins.",
+      "ownOptionsMessage": "Edit or delete this post."
     },
     "report": {
       "title": "Report post",
@@ -460,6 +467,8 @@
     "couldNotLike": "Could not update like",
     "postBy": "Post by {{name}}",
     "shareMessage": "Check out this post on Havena!",
+    "shareWithNeighbors": "Share with a neighbor",
+    "shareWithNeighborsSub": "Send this post as a message to someone in your community.",
     "seeTranslation": "See Translation",
     "hideTranslation": "Hide Translation",
     "translatedFrom": "Translated from {{language}}",
@@ -3807,7 +3816,8 @@
     "channelName": "Havena Alerts",
     "missingProjectId": "Missing Expo project ID. Rebuild the app after updating app.json.",
     "permissionDenied": "Notification permission was denied. Enable notifications in your phone settings.",
-    "couldNotGetToken": "Could not get an Expo push token."
+    "couldNotGetToken": "Could not get an Expo push token.",
+    "firebaseUnavailable": "Push notifications need a store or development build with Firebase configured. Expo Go cannot register this device."
   },
   "amenities": {
     "timedSlots": "Timed slots",

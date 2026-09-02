@@ -362,11 +362,15 @@ async function uploadWithReactNativeFormData({
 
   const uploadUri = ensureUploadUri(uri);
   const formData = new FormData();
-  formData.append(fieldName, {
-    uri: uploadUri,
-    name: fileName || "upload.jpg",
-    type: mimeType || "image/jpeg",
-  });
+  try {
+    formData.append(fieldName, new File(uploadUri));
+  } catch {
+    formData.append(fieldName, {
+      uri: uploadUri,
+      name: fileName || "upload.jpg",
+      type: mimeType || "image/jpeg",
+    });
+  }
 
   const response = await fetch(url, {
     method: "POST",
@@ -466,18 +470,13 @@ export async function uploadMultipartFile({
       }
     : await prepareUploadFile(uri, { ...assetMeta, mimeType }, defaultBaseName);
 
-  const resolvedFileName =
-    prepared.fileName ||
-    guessImageMeta(prepared.uri, assetMeta, defaultBaseName).fileName;
-
   try {
-    return await uploadWithReactNativeFormData({
+    return await uploadWithLegacyMultipart({
       url,
       uri: prepared.uri,
       fieldName,
       token,
       mimeType: prepared.mimeType,
-      fileName: resolvedFileName,
       headers: extraHeaders,
     });
   } catch (primaryError) {
@@ -489,71 +488,16 @@ export async function uploadMultipartFile({
         { ...assetMeta, mimeType, uploadPrepared: false },
         defaultBaseName,
       );
-      return uploadWithReactNativeFormData({
+      return uploadWithLegacyMultipart({
         url,
         uri: rebuilt.uri,
         fieldName,
         token,
         mimeType: rebuilt.mimeType,
-        fileName: rebuilt.fileName || resolvedFileName,
         headers: extraHeaders,
       });
     }
 
-    if (primaryMessage.includes("Could not read the selected file")) {
-      throw primaryError;
-    }
-
-    try {
-      return await uploadWithLegacyMultipart({
-        url,
-        uri: prepared.uri,
-        fieldName,
-        token,
-        mimeType: prepared.mimeType,
-        headers: extraHeaders,
-      });
-    } catch (legacyError) {
-      const legacyMessage = String(legacyError?.message ?? "");
-
-      if (legacyMessage.includes("Could not read the selected file") && assetMeta.uploadPrepared) {
-        const rebuilt = await prepareUploadFile(
-          uri,
-          { ...assetMeta, mimeType, uploadPrepared: false },
-          defaultBaseName,
-        );
-        return uploadWithLegacyMultipart({
-          url,
-          uri: rebuilt.uri,
-          fieldName,
-          token,
-          mimeType: rebuilt.mimeType,
-          headers: extraHeaders,
-        });
-      }
-
-      if (legacyMessage.includes("Could not read the selected file")) {
-        throw legacyError;
-      }
-
-      try {
-        const file = new File(prepared.uri);
-        const uploadTask = file.createUploadTask(url, {
-          uploadType: UploadType.MULTIPART,
-          fieldName,
-          mimeType: prepared.mimeType,
-          httpMethod: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-            ...extraHeaders,
-          },
-        });
-        const result = await uploadTask.uploadAsync();
-        return parseUploadResult(result, fieldName);
-      } catch {
-        throw primaryError;
-      }
-    }
+    throw primaryError;
   }
 }

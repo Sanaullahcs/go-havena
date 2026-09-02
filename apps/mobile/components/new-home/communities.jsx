@@ -6,10 +6,9 @@ import {
   useWindowDimensions,
   Animated,
   Platform,
-  Share,
   FlatList,
 } from "react-native";
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LIKE_HEART_RED } from "../feed/feed-engagement";
@@ -30,6 +29,7 @@ import {
   isSensitivePost,
 } from "../../services/feed-api";
 import FeedSensitiveContent from "../feed/feed-sensitive-content";
+import SharePostSheet from "../feed/share-post-sheet";
 import { openNeighborProfile } from "../../services/profile-api";
 import { useNow } from "../../hooks/use-now";
 import { sw, sf } from "../../utils/responsive";
@@ -207,6 +207,7 @@ export default function Communities({ posts = [], onPostsChange }) {
   const router = useRouter();
   const { t } = useTranslation();
   const now = useNow(30000);
+  const [sharePost, setSharePost] = useState(null);
   const { width: screenWidth } = useWindowDimensions();
 
   const layout = useMemo(() => {
@@ -243,19 +244,8 @@ export default function Communities({ posts = [], onPostsChange }) {
     [posts, onPostsChange],
   );
 
-  const handleShare = useCallback(async (post) => {
-    try {
-      const display = parsePostDisplayContent(post);
-      const text = display.mainText || post.content || post.body || "";
-      const preview = text.length > 80 ? `${text.slice(0, 80)}...` : text;
-      const author = post.user?.display_name ?? post.user?.name ?? t("feed.neighbor");
-      await Share.share({
-        title: t("feed.postBy", { name: author }),
-        message: preview || t("feed.shareMessage"),
-      });
-    } catch {
-      // user dismissed
-    }
+  const handleShare = useCallback((post) => {
+    setSharePost(post);
   }, []);
 
   const renderItem = useCallback(
@@ -332,6 +322,11 @@ export default function Communities({ posts = [], onPostsChange }) {
         })}
         ItemSeparatorComponent={() => <View style={{ width: CARD_GAP }} />}
         contentContainerStyle={styles.listContent}
+      />
+      <SharePostSheet
+        visible={Boolean(sharePost)}
+        post={sharePost}
+        onClose={() => setSharePost(null)}
       />
     </View>
   );

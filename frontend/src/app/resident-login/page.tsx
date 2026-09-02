@@ -94,16 +94,15 @@ export default function ResidentLoginPage() {
 
           <div className="relative flex flex-1 flex-col justify-between p-10 xl:p-14">
             <div className="pt-4 xl:pt-8">
-              <p className="text-sm text-white/70">Resident Portal · Your Community Portal</p>
+              <p className="text-sm text-white/70">Resident portal</p>
               <h2 className="mt-4 text-3xl font-bold tracking-tight text-white xl:text-[2.5rem]">
-                <span className="block">Connect with your</span>
-                <span className="block text-teal-200">neighborhood community.</span>
+                <span className="block">Your neighborhood,</span>
+                <span className="block text-teal-200">on your phone.</span>
               </h2>
               <ul className="mt-5 flex max-w-md flex-col gap-2 list-none p-0 text-[13.5px] text-white/65">
-                <HeroBullet>Stay up to date with community notices and events.</HeroBullet>
-                <HeroBullet>Connect with neighbors through the community feed.</HeroBullet>
-                <HeroBullet>Browse local marketplace deals and resident services.</HeroBullet>
-                <HeroBullet>Track wellness progress and earn community points.</HeroBullet>
+                <HeroBullet>Read notices and events from your community</HeroBullet>
+                <HeroBullet>Join a private feed meant only for neighbors</HeroBullet>
+                <HeroBullet>Find deals, amenities, and wellness in one place</HeroBullet>
               </ul>
             </div>
 

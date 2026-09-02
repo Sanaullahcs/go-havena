@@ -29,7 +29,6 @@ import { CommunityAuthHero } from "@/components/auth/community-auth-hero";
 import { HavenaMark } from "@/components/shared/havena-mark";
 import { AuthLegalLinks } from "@/components/auth/auth-legal-links";
 import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
-import { Building2, CreditCard, Mail, ShieldCheck, UserRound } from "lucide-react";
 import {
   clearPersistedReferralCode,
   normalizeReferralCode,
@@ -221,16 +220,10 @@ function RegisterPageInner() {
 
       <div className="nl-login-split">
         <CommunityAuthHero
-          eyebrow="Community admin signup"
-          title="Create your"
-          subtitle="community admin account"
-          points={[
-            { icon: Mail, text: "Verify your email with a one-time code" },
-            { icon: Building2, text: "Create your community" },
-            { icon: UserRound, text: "Complete your profile" },
-            { icon: CreditCard, text: "Add a card — trial starts after approval" },
-            { icon: ShieldCheck, text: "Wait for Havena system approval" },
-          ]}
+          eyebrow="Community admin"
+          title="Open the neighborhood"
+          subtitle="to the people who live there."
+          body="One admin account for the board. A private app for every resident."
         />
 
         <div className="nl-login-panel">
@@ -277,10 +270,10 @@ function RegisterPageInner() {
                 </h1>
                 <p className="nl-login-subtitle">
                   {otpStep === "code"
-                    ? "Enter the 6-digit email code to create your Havena admin account"
+                    ? "Enter the six-digit code we emailed you"
                     : planHint
-                      ? `After signup you’ll set up your community and start the ${planHint} trial`
-                      : "Use your email address — we’ll create your community admin account"}
+                      ? `Next you will set up your community and continue with ${planHint}`
+                      : "Enter your work email and we will send a one-time code."}
                 </p>
               </div>
               <AuthStepDots step={communityStep} />

@@ -1,26 +1,80 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import AdminRowActionsMenu from "../admin/admin-row-actions-menu";
 import FeedPostReportSheet from "./feed-post-report-sheet";
-import { reportFeedPost } from "../../services/feed-api";
+import { deletePost, reportFeedPost } from "../../services/feed-api";
+import { getCachedUser, getUser } from "../../services/auth-session";
 import { useApiAction } from "../../hooks/use-api-action";
+import { useAppDialog } from "../../providers/app-dialog-provider";
+
+function postIsOwnedByCurrentUser(post, user) {
+  if (post?.is_mine) return true;
+  const uid = user?.id;
+  const authorId = post?.user_id ?? post?.author_id ?? post?.user?.id;
+  return uid != null && authorId != null && String(uid) === String(authorId);
+}
 
 /**
- * More-menu + report sheet wiring for feed posts.
+ * More-menu for feed posts: own posts get Edit/Delete; others get Report.
  */
-export default function FeedPostOptions({ post }) {
+export default function FeedPostOptions({ post, onDeleted }) {
   const { t } = useTranslation();
+  const router = useRouter();
+  const dialog = useAppDialog();
   const { runAction, showFailure, showSuccess } = useApiAction();
   const [reportOpen, setReportOpen] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const [currentUser, setCurrentUser] = useState(() => getCachedUser());
+
+  useEffect(() => {
+    if (currentUser?.id) return;
+    let cancelled = false;
+    getUser()
+      .then((user) => {
+        if (!cancelled && user) setCurrentUser(user);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id]);
 
   const hasImage = Boolean(post?.image_url);
+  const isMine = postIsOwnedByCurrentUser(post, currentUser);
 
   const handleDownload = useCallback(async () => {
     if (!hasImage) return;
     const { saveImageToGallery } = await import("../../utils/save-media-to-gallery");
     await saveImageToGallery(post.image_url, { showError: showFailure, showSuccess });
   }, [hasImage, post?.image_url, showFailure, showSuccess]);
+
+  const handleEdit = useCallback(() => {
+    if (!post?.id) return;
+    router.push({
+      pathname: "/screens/create-post",
+      params: { postId: String(post.id) },
+    });
+  }, [post?.id, router]);
+
+  const handleDelete = useCallback(async () => {
+    if (!post?.id) return;
+    const choice = await dialog.showConfirm(
+      t("feed.options.deletePost"),
+      t("feed.options.deleteConfirm"),
+      { confirmLabel: t("common.delete"), cancelLabel: t("common.cancel"), destructive: true },
+    );
+    if (choice !== "confirm") return;
+
+    const result = await runAction({
+      action: () => deletePost(post.id),
+      successTitle: t("feed.options.postDeleted"),
+      successMessage: t("feed.options.postDeletedMsg"),
+      silentSuccess: false,
+    });
+    if (result === null) return;
+    onDeleted?.(post.id);
+  }, [dialog, onDeleted, post?.id, router, runAction, t]);
 
   const handleReportSubmit = useCallback(
     async (payload) => {
@@ -42,11 +96,11 @@ export default function FeedPostOptions({ post }) {
         setReporting(false);
       }
     },
-    [post?.id, runAction],
+    [post?.id, runAction, t],
   );
 
-  const actions = useMemo(
-    () => [
+  const actions = useMemo(() => {
+    const list = [
       {
         id: "download",
         label: t("feed.options.downloadPhoto"),
@@ -55,16 +109,37 @@ export default function FeedPostOptions({ post }) {
         hidden: !hasImage,
         onPress: handleDownload,
       },
-      {
+    ];
+
+    if (isMine) {
+      list.push(
+        {
+          id: "edit",
+          label: t("feed.options.editPost"),
+          icon: "create-outline",
+          tone: "primary",
+          onPress: handleEdit,
+        },
+        {
+          id: "delete",
+          label: t("feed.options.deletePost"),
+          icon: "trash-outline",
+          tone: "danger",
+          onPress: handleDelete,
+        },
+      );
+    } else {
+      list.push({
         id: "report",
         label: t("feed.options.reportPost"),
         icon: "flag-outline",
         tone: "danger",
         onPress: () => setReportOpen(true),
-      },
-    ],
-    [hasImage, handleDownload, t],
-  );
+      });
+    }
+
+    return list;
+  }, [hasImage, isMine, handleDownload, handleEdit, handleDelete, t]);
 
   return (
     <>
@@ -73,17 +148,22 @@ export default function FeedPostOptions({ post }) {
         disabled={reporting}
         compact
         title={t("feed.options.postOptions")}
-        message={t("feed.options.optionsMessage")}
+        message={
+          isMine
+            ? t("feed.options.ownOptionsMessage")
+            : t("feed.options.optionsMessage")
+        }
         headerIcon={hasImage ? "image-outline" : "document-text-outline"}
       />
-      <FeedPostReportSheet
-        visible={reportOpen}
-        post={post}
-        submitting={reporting}
-        onClose={() => setReportOpen(false)}
-        onSubmit={handleReportSubmit}
-      />
+      {isMine ? null : (
+        <FeedPostReportSheet
+          visible={reportOpen}
+          post={post}
+          submitting={reporting}
+          onClose={() => setReportOpen(false)}
+          onSubmit={handleReportSubmit}
+        />
+      )}
     </>
   );
 }
-

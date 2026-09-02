@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { HavenaMark } from "@/components/shared/havena-mark";
 import { MarketingNavLink } from "@/components/marketing/nav-link";
-import { footerColumns, footerSocialLinks, marketingSite } from "@/lib/marketing/content";
+import { footerColumns, footerCopy, footerSocialLinks, marketingSite } from "@/lib/marketing/content";
+import { StoreBadges } from "@/components/marketing/store-badges";
 import { gmailComposeUrl, marketingContact } from "@/lib/marketing/legal";
 
 export function MarketingFooter() {
@@ -14,9 +15,8 @@ export function MarketingFooter() {
               <HavenaMark size={36} tight />
               <span>{marketingSite.name}</span>
             </Link>
-            <p>
-              A digital home for real communities: calm, useful, and built around belonging.
-            </p>
+            <p>{footerCopy.blurb}</p>
+            <StoreBadges />
           </div>
 
           {footerColumns.map((column) => (

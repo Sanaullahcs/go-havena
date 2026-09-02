@@ -161,7 +161,7 @@
     "achievements": "Logros",
     "quickAccess": "Acceso rápido",
     "notificationsAccess": "Notificaciones",
-    "propertyManagement": "Gestión de servicios",
+    "propertyManagement": "Servicios",
     "settingsAccess": "Ajustes",
     "tabs": {
       "profile": "Perfil",
@@ -266,9 +266,9 @@
     "noEvents": "No hay eventos próximos",
     "qa": {
       "post": "Publicar",
-      "book": "Reservar",
+      "book": "Amenidades",
       "sell": "Vender",
-      "notices": "Avisos",
+      "notices": "Actualizaciones",
       "feed": "Inicio",
       "deals": "Ofertas",
       "wellness": "Bienestar",
@@ -351,6 +351,7 @@
       "emptySensitive": "Los comentarios están desactivados porque esta publicación fue marcada como contenido sensible.",
       "emptyStart": "Inicia la conversación — a tus vecinos les encantaría saber de ti.",
       "writeComment": "Escribir un comentario",
+      "send": "Enviar",
       "viewAllReplies_one": "Ver {{count}} respuesta",
       "viewAllReplies_other": "Ver todas las {{count}} respuestas",
       "hideReplies": "Ocultar respuestas",
@@ -420,8 +421,14 @@
       "adminWillReview": "Los administradores revisarán esta publicación.",
       "downloadPhoto": "Descargar foto",
       "reportPost": "Reportar publicación",
+      "editPost": "Editar publicación",
+      "deletePost": "Eliminar publicación",
+      "deleteConfirm": "Esta publicación se quitará del muro de la comunidad.",
+      "postDeleted": "Publicación eliminada",
+      "postDeletedMsg": "Tu publicación fue eliminada.",
       "postOptions": "Opciones de publicación",
-      "optionsMessage": "Descarga la foto o reporta esta publicación a los administradores."
+      "optionsMessage": "Descarga la foto o reporta esta publicación a los administradores.",
+      "ownOptionsMessage": "Edita o elimina esta publicación."
     },
     "report": {
       "title": "Reportar publicación",
@@ -460,6 +467,8 @@
     "couldNotLike": "No se pudo actualizar",
     "postBy": "Publicación de {{name}}",
     "shareMessage": "¡Mira esta publicación en Havena!",
+    "shareWithNeighbors": "Compartir con un vecino",
+    "shareWithNeighborsSub": "Envía esta publicación por mensaje a alguien de tu comunidad.",
     "seeTranslation": "Ver traducción",
     "hideTranslation": "Ocultar traducción",
     "translatedFrom": "Traducido del {{language}}",
@@ -3780,7 +3789,8 @@
     "channelName": "Alertas de Havena",
     "missingProjectId": "Falta el ID del proyecto Expo. Reconstruye la aplicación después de actualizar app.json.",
     "permissionDenied": "El permiso de notificaciones fue denegado. Habilita las notificaciones en la configuración de tu teléfono.",
-    "couldNotGetToken": "No se pudo obtener un token de push de Expo."
+    "couldNotGetToken": "No se pudo obtener un token de push de Expo.",
+    "firebaseUnavailable": "Las notificaciones push requieren una build de desarrollo o tienda con Firebase. Expo Go no puede registrar este dispositivo."
   },
   "amenities": {
     "timedSlots": "Horarios programados",

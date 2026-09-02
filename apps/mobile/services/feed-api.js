@@ -188,6 +188,7 @@ export function normalizePost(raw) {
       ? (raw.sensitive_message || getSensitivePostMessage())
       : null,
     user: {
+      id: raw.user_id ?? raw.user?.id ?? null,
       name: authorName,
       display_name: authorName,
       avatar: avatarUrl,
@@ -298,6 +299,18 @@ export function parsePostDisplayContent(post) {
     hasImage,
     isPhotoOnly: hasImage && !mainText && !feeling && !location,
   };
+}
+
+/** Plain-text preview used when sending a post to a neighbor in Messages. */
+export function formatPostShareMessage(post, t) {
+  const author = post?.user?.display_name ?? post?.user?.name ?? t("feed.neighbor");
+  const display = parsePostDisplayContent(post);
+  const text = display.mainText || "";
+  const preview = text.length > 280 ? `${text.slice(0, 280)}…` : text;
+  const header = t("feed.postBy", { name: author });
+  if (preview) return `${header}\n\n${preview}`;
+  if (display.hasImage) return `${header}\n\n${t("feed.shareMessage")}`;
+  return t("feed.shareMessage");
 }
 
 /** Restore create-post form fields from a stored post body. */

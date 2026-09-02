@@ -3,12 +3,18 @@
 namespace App\Services;
 
 use App\Support\NoticeSchedule;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class ScheduledNoticeService
 {
     /** Publish notices/events whose scheduled_at has passed. Returns count published. */
     public static function publishDue(): int
+    {
+        return (int) Cache::remember('notices:publish-due', 60, fn () => self::publishDueNow());
+    }
+
+    private static function publishDueNow(): int
     {
         $candidates = DB::table('notices')
             ->whereNull('deleted_at')

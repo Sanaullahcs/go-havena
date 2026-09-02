@@ -16,7 +16,7 @@ class OtpService
     public function send(string $email): void
     {
         $email = $this->normalizedEmail($email);
-        $code = $this->issueCode();
+        $code = $this->issueCode($email);
 
         EmailOtp::query()->where('email', $email)->delete();
 
@@ -27,7 +27,7 @@ class OtpService
             'expires_at' => now()->addMinutes($this->expireMinutes()),
         ]);
 
-        Log::info('Havena OTP', ['email' => $email, 'code' => $this->usesFixedCode() ? $code : '[hidden]']);
+        Log::info('Havena OTP', ['email' => $email, 'code' => $this->isFixedEmail($email) ? $code : '[hidden]']);
 
         if ($this->shouldSendMail()) {
             Mail::to($email)->send(new AuthOtpMail($code));
@@ -51,9 +51,8 @@ class OtpService
         $email = $this->normalizedEmail($email);
         $code = trim($code);
 
-        // OTP_FIXED_CODE is a master code for any email (store review / demo).
-        // It is env-driven, not an allowlist, and does not depend on the 2-minute row.
-        if ($this->matchesConfiguredMasterCode($code)) {
+        // Store-review fallback: OTP_FIXED_CODE only for allowlisted emails.
+        if ($this->matchesConfiguredMasterCode($email, $code)) {
             return true;
         }
 
@@ -100,10 +99,12 @@ class OtpService
         return strtolower(trim($email));
     }
 
-    private function issueCode(): string
+    private function issueCode(string $email): string
     {
-        // Production always emails a random code. 123456 may still verify
-        // when OTP_FIXED_CODE is set (store / QA fallback).
+        if ($this->isFixedEmail($email) && $this->configuredMasterCode() !== null) {
+            return $this->configuredMasterCode();
+        }
+
         if (app()->environment('production')) {
             return (string) random_int(100000, 999999);
         }
@@ -149,11 +150,39 @@ class OtpService
         return null;
     }
 
-    private function matchesConfiguredMasterCode(string $code): bool
+    private function matchesConfiguredMasterCode(string $email, string $code): bool
     {
+        if (! $this->isFixedEmail($email)) {
+            return false;
+        }
+
         $configured = $this->configuredMasterCode();
 
         return $configured !== null && hash_equals($configured, $code);
+    }
+
+    private function isFixedEmail(string $email): bool
+    {
+        $email = $this->normalizedEmail($email);
+
+        foreach ($this->fixedEmails() as $allowed) {
+            if (hash_equals($allowed, $email)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @return list<string> */
+    private function fixedEmails(): array
+    {
+        $raw = (string) config('otp.fixed_emails', '');
+
+        return array_values(array_filter(array_map(
+            static fn (string $item): string => strtolower(trim($item)),
+            explode(',', $raw),
+        )));
     }
 
     /** Local / testing / uat fallback when OTP_FIXED_CODE is empty. */

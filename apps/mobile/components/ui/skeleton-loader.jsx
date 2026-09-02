@@ -933,6 +933,38 @@ export function SidebarWellnessHubSkeleton({ count = 5 }) {
   );
 }
 
+/** Full comments screen — post card + comment list, matches comments.jsx layout. */
+export function CommentScreenSkeleton() {
+  return (
+    <View>
+      <View style={styles.commentScreenPost}>
+        <View style={styles.commentScreenPostHead}>
+          <SkeletonLine width={sw(40)} height={sw(40)} />
+          <View style={styles.commentScreenPostCopy}>
+            <SkeletonLine width="48%" height={13} />
+            <SkeletonLine width="32%" height={10} style={{ marginTop: 6 }} />
+          </View>
+        </View>
+        <SkeletonLine width="92%" height={12} style={{ marginTop: 14 }} />
+        <SkeletonLine width="78%" height={12} style={{ marginTop: 8 }} />
+        <SkeletonLine width="100%" height={sw(160)} style={{ marginTop: 14, borderRadius: sw(12) }} />
+        <View style={styles.commentScreenEngagement}>
+          <SkeletonLine width="48%" height={sw(36)} style={{ borderRadius: sw(10) }} />
+          <SkeletonLine width="48%" height={sw(36)} style={{ borderRadius: sw(10) }} />
+        </View>
+      </View>
+
+      <View style={styles.commentScreenList}>
+        <View style={styles.commentScreenListHead}>
+          <SkeletonLine width={sw(110)} height={14} />
+          <SkeletonLine width={sw(88)} height={18} radius={999} />
+        </View>
+        <CommentListSkeleton count={4} />
+      </View>
+    </View>
+  );
+}
+
 /** Comment thread rows */
 export function CommentListSkeleton({ count = 3 }) {
   return (
@@ -1212,6 +1244,49 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 8,
+  },
+  commentScreenPost: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: sw(14),
+    borderWidth: 1,
+    borderColor: "#E4E6EB",
+    padding: sw(14),
+    marginTop: sw(8),
+    marginBottom: sw(10),
+  },
+  commentScreenPostHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(10),
+  },
+  commentScreenPostCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  commentScreenEngagement: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: sw(10),
+    marginTop: sw(14),
+    paddingTop: sw(12),
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E4E6EB",
+  },
+  commentScreenList: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: sw(14),
+    borderWidth: 1,
+    borderColor: "#E4E6EB",
+    padding: sw(16),
+  },
+  commentScreenListHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: sw(16),
+    paddingBottom: sw(12),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E5E7EB",
   },
   noticeSkeletonWrap: { paddingBottom: 24 },
   noticeStatsRow: {

@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { APP_NAME } from "@/lib/constants";
 import { StripTrailingSlash } from "@/components/shared/strip-trailing-slash";
@@ -13,12 +13,20 @@ const fontVars = {
   "--font-wordmark": "Quicksand, sans-serif",
 } as CSSProperties;
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#1B4F8A",
+};
+
 export const metadata: Metadata = {
   title: {
     default: APP_NAME,
     template: `%s · ${APP_NAME}`,
   },
-  description: "Havena community & wellness platform",
+  description:
+    "One trusted place for the whole neighborhood.",
   icons: {
     icon: [{ url: "/favicon.png?v=20260827c", type: "image/png" }],
     apple: [{ url: "/app-icon.png?v=20260827c" }],

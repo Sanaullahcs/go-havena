@@ -287,7 +287,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               void confirmAdminSignOutAndRedirect(router);
             }}
           />
-          <main className="mx-auto w-full min-w-0 overflow-x-hidden px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
+          <main
+            className={[
+              "mx-auto w-full min-w-0 overflow-x-hidden sm:px-6 sm:py-6 lg:px-8 lg:py-8",
+              pathname.startsWith("/admin/billing") ? "px-3 py-3" : "px-4 py-4",
+            ].join(" ")}
+          >
             {children}
           </main>
         </div>

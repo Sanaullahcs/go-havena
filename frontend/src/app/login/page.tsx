@@ -180,11 +180,9 @@ function LoginPageInner() {
 
   const subtitle =
     otpStep === "code"
-      ? otpIntent === "signup"
-        ? "Enter the code to create your community admin account"
-        : "Enter the 6-digit email code to continue"
-        : planHint
-        ? `New or returning — after OTP you’ll set up your community and start ${planHint} checkout`
+      ? "Enter the six-digit code we emailed you"
+      : planHint
+        ? `After you verify, we will continue with ${planHint}`
         : "Sign in with the email on your community admin account.";
 
   return (
@@ -212,9 +210,9 @@ function LoginPageInner() {
       <div className="nl-login-split">
         <CommunityAuthHero
           eyebrow="Community admin"
-          title="Havena"
-          subtitle="One subscription. Invite every resident."
-          body="Create your community account, choose a seat plan, and onboard neighbors — residents never pay Havena."
+          title="Welcome back"
+          subtitle="to the community you already run."
+          body="Notices, members, guests, and billing are waiting in your admin account."
         />
 
         <div className="nl-login-panel">

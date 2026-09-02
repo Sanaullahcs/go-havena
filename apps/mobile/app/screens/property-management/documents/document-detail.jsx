@@ -10,7 +10,7 @@ import {
   Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect, usePathname } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import i18n from "../../../../i18n";
@@ -20,7 +20,7 @@ import { pageStyles } from "../../../../constants/page-styles";
 import { propertyStyles } from "../../../../constants/property-styles";
 import { Fonts } from "../../../../constants/font";
 import { sw, sf, hp } from "../../../../utils/responsive";
-import { PropertyManagementRoutes } from "../../../../constants/property-management-routes";
+import { amenityFlowRoutes } from "../../../../constants/property-management-routes";
 import {
   deleteCommunityDocument,
   fetchCommunityDocument,
@@ -37,6 +37,7 @@ function formatDocDate(value) {
 export default function DocumentDetail() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
+  const pathname = usePathname();
   const { documentId } = useLocalSearchParams();
   const isAdmin = getCurrentRole() === "admin";
   const { submitting, run } = useSubmitLock();
@@ -92,7 +93,7 @@ export default function DocumentDetail() {
 
   const handleEdit = () => {
     router.push({
-      pathname: PropertyManagementRoutes.DOCUMENT_FORM,
+      pathname: amenityFlowRoutes(pathname).documentForm,
       params: { documentId: String(doc.id) },
     });
   };

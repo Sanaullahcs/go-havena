@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { MarketingNavLink } from "@/components/marketing/nav-link";
+import { heroCopy } from "@/lib/marketing/content";
 
 function HeroMockup() {
   return (
@@ -26,16 +27,14 @@ export function MarketingHero() {
       <div className="lp-container">
         <div className="lp-hero__grid">
           <div className="lp-hero__intro">
-            <p className="lp-hero__eyebrow">A social platform for your community</p>
+            <p className="lp-hero__eyebrow">{heroCopy.eyebrow}</p>
 
             <h1 className="lp-hero__title">
-              A better place to <span className="lp-hero__title-accent">belong.</span>
+              <span className="lp-hero__title-line">{heroCopy.titleBefore}</span>
+              <span className="lp-hero__title-line lp-hero__title-accent">{heroCopy.titleAccent}</span>
             </h1>
 
-            <p className="lp-hero__lead">
-              Havena brings people, conversations, events, and trusted resources together in one
-              beautifully simple community platform.
-            </p>
+            <p className="lp-hero__lead">{heroCopy.lead}</p>
           </div>
 
           <div className="lp-hero__media">
@@ -66,16 +65,16 @@ export function MarketingHero() {
                 height={36}
               />
             </div>
-            <p>Trusted by independent creators, organizations, and brands.</p>
+            <p>{heroCopy.proof}</p>
           </div>
 
           <div className="lp-hero__actions">
             <Link href="/register" className="lp-btn-primary lp-hero__cta">
-              Bring your community to Havena
+              {heroCopy.cta}
               <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
             <MarketingNavLink href="/#product" className="lp-hero__link">
-              Explore the platform
+              {heroCopy.secondary}
             </MarketingNavLink>
           </div>
         </div>

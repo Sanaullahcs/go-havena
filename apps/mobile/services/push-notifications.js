@@ -25,14 +25,18 @@ export function isAppActiveForPush() {
   return appIsActive;
 }
 
-/** Remote Expo push is not available in Android Expo Go (SDK 53+). */
+/** Remote Expo push is not available in Expo Go on Android (SDK 53+). */
+function isExpoGoClient() {
+  return (
+    Constants.appOwnership === "expo" ||
+    Constants.executionEnvironment === ExecutionEnvironment.StoreClient
+  );
+}
+
 export function isRemotePushSupported() {
   if (Platform.OS === "web") return false;
   if (!Device.isDevice) return false;
-
-  const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
-  if (isExpoGo && Platform.OS === "android") return false;
-
+  if (isExpoGoClient() && Platform.OS === "android") return false;
   return true;
 }
 
@@ -41,7 +45,7 @@ export function getRemotePushUnavailableMessage() {
     return i18n.t("push.requiresDevice");
   }
 
-  const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+  const isExpoGo = isExpoGoClient();
   if (isExpoGo && Platform.OS === "android") {
     return i18n.t("push.expoGoAndroid");
   }
@@ -154,7 +158,16 @@ export async function getExpoPushToken() {
 
   await ensureAndroidChannel(Notifications);
 
-  const tokenResult = await Notifications.getExpoPushTokenAsync({ projectId });
+  let tokenResult;
+  try {
+    tokenResult = await Notifications.getExpoPushTokenAsync({ projectId });
+  } catch (err) {
+    const raw = String(err?.message ?? err ?? "");
+    if (/firebase messaging|google-services|Default FirebaseApp/i.test(raw)) {
+      throw new Error(i18n.t("push.firebaseUnavailable"));
+    }
+    throw err instanceof Error ? err : new Error(raw || i18n.t("push.couldNotGetToken"));
+  }
   const token = tokenResult?.data?.trim();
   if (!token) {
     throw new Error(i18n.t("push.couldNotGetToken"));
@@ -169,14 +182,24 @@ export async function enablePushNotifications() {
     return null;
   }
 
-  const token = await getExpoPushToken();
-  const platform = Platform.OS === "ios" ? "ios" : "android";
+  try {
+    const token = await getExpoPushToken();
+    const platform = Platform.OS === "ios" ? "ios" : "android";
 
-  await registerDevice({ expoPushToken: token, platform });
-  await setPushNotificationsEnabled(true);
-  await setStoredPushToken(token);
+    await registerDevice({ expoPushToken: token, platform });
+    await setPushNotificationsEnabled(true);
+    await setStoredPushToken(token);
 
-  return token;
+    return token;
+  } catch (err) {
+    const raw = String(err?.message ?? err ?? "");
+    if (/firebase messaging|google-services|Default FirebaseApp|firebaseUnavailable/i.test(raw)) {
+      console.warn("[push] remote token unavailable; enabling in-app alerts only", err);
+      await setPushNotificationsEnabled(true);
+      return null;
+    }
+    throw err;
+  }
 }
 
 export async function disablePushNotifications() {

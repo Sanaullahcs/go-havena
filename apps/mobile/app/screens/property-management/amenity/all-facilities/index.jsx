@@ -3,14 +3,14 @@ import React, { useCallback, useState } from "react";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect, usePathname } from "expo-router";
 import ScreenHeader from "../../../../../components/layout/screen-header";
 import AmenityIcon from "../../../../../components/property/amenity-icon";
 import { Fonts } from "../../../../../constants/font";
 import { Colors, Layout } from "../../../../../constants/tokens";
 import { sw, sf } from "../../../../../utils/responsive";
 import { pageStyles } from "../../../../../constants/page-styles";
-import { PropertyManagementRoutes } from "../../../../../constants/property-management-routes";
+import { PropertyManagementRoutes, amenityFlowRoutes } from "../../../../../constants/property-management-routes";
 import { fetchMyBookings } from "../../../../../services/amenity-api";
 import {
   getAmenityVisual,
@@ -24,6 +24,7 @@ import { localizedField } from "../../../../../i18n";
 export default function AllFacilities() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
+  const pathname = usePathname();
   const {
     id,
     name: nameEn,
@@ -112,7 +113,7 @@ export default function AllFacilities() {
       return;
     }
     router.push({
-      pathname: PropertyManagementRoutes.RESERVATION_CALENDAR,
+      pathname: amenityFlowRoutes(pathname).reservationCalendar,
       params: {
         id: String(id ?? ""),
         name,

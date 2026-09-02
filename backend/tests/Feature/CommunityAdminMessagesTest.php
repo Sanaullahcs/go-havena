@@ -109,4 +109,22 @@ class CommunityAdminMessagesTest extends TestCase
 
         $this->assertContains($resident->id, $otherIds);
     }
+
+    public function test_unread_count_endpoint(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityAdminInbox();
+
+        Sanctum::actingAs($resident);
+        $this->withHeader('X-Community-Id', (string) $community->id)
+            ->postJson('/api/v1/conversations', [
+                'recipient_id' => $admin->id,
+                'message'      => 'Hello from resident',
+            ])
+            ->assertCreated();
+
+        Sanctum::actingAs($admin);
+        $this->getJson('/api/v1/conversations/unread-count')
+            ->assertOk()
+            ->assertJsonPath('data.unread_count', 1);
+    }
 }

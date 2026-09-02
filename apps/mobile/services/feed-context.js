@@ -40,10 +40,20 @@ export async function ensureFeedCommunityContext() {
   }
 
   const storedId = await getCommunityId();
+  if (storedId) {
+    return storedId;
+  }
+
+  const cachedUser = await getUser();
+  const cachedId = pickApprovedCommunityId(cachedUser, null);
+  if (cachedId) {
+    await setCommunityId(cachedId);
+    return cachedId;
+  }
 
   try {
     const fresh = await fetchMe();
-    const communityId = pickApprovedCommunityId(fresh, storedId);
+    const communityId = pickApprovedCommunityId(fresh, null);
     if (communityId) {
       await setCommunityId(communityId);
       return communityId;
@@ -51,16 +61,6 @@ export async function ensureFeedCommunityContext() {
     await setCommunityId(null);
     return null;
   } catch {
-    const user = await getUser();
-    const communityId = pickApprovedCommunityId(user, storedId);
-    if (communityId) {
-      await setCommunityId(communityId);
-      return communityId;
-    }
-
-    if (storedId) {
-      await setCommunityId(null);
-    }
     return null;
   }
 }

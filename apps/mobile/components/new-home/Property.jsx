@@ -1,6 +1,6 @@
 import { Text, View, StyleSheet, Pressable, useWindowDimensions, FlatList, Platform } from "react-native";
 import React, { useMemo } from "react";
-import { useRouter } from "expo-router";
+import { useRouter, useNavigation } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
@@ -12,6 +12,7 @@ import AmenityIcon from "../property/amenity-icon";
 import {
   PropertyManagementRoutes,
   amenityFacilityParams,
+  openServicesHub,
 } from "../../constants/property-management-routes";
 import { getAmenityVisual, getAmenityStatus } from "../../utils/amenity-display";
 import { sw, sf } from "../../utils/responsive";
@@ -79,6 +80,7 @@ function AmenityCard({ item, width, onPress }) {
 
 export default function PropertyNew({ items = [] }) {
   const router = useRouter();
+  const navigation = useNavigation();
   const { t } = useTranslation();
   const { width: screenWidth } = useWindowDimensions();
 
@@ -93,7 +95,7 @@ export default function PropertyNew({ items = [] }) {
 
   const openAmenity = (amenity) => {
     router.push({
-      pathname: PropertyManagementRoutes.ALL_FACILITIES,
+      pathname: PropertyManagementRoutes.ALL_FACILITIES_SCREEN,
       params: amenityFacilityParams(amenity),
     });
   };
@@ -112,7 +114,7 @@ export default function PropertyNew({ items = [] }) {
     <View style={homeStyles.sectionLast}>
       <HomeSectionHeader
         label={t("home.services")}
-        onPress={() => router.push(PropertyManagementRoutes.HOME)}
+        onPress={() => openServicesHub(navigation, router)}
       />
       {cards.length === 0 ? (
         <HomeSectionEmpty

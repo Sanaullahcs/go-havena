@@ -36,50 +36,64 @@ import { cameFromMobileApp, withAppReturnParams } from "@/lib/auth/app-return";
 
 const TRIAL_DAYS = 30;
 
-const stripeAppearance = {
-  theme: "stripe" as const,
-  variables: {
-    colorPrimary: "#0d9488",
-    colorBackground: "#ffffff",
-    colorText: "#0f172a",
-    colorDanger: "#e11d48",
-    colorTextSecondary: "#64748b",
-    fontFamily: "Poppins, ui-sans-serif, system-ui, sans-serif",
-    fontSizeBase: "15px",
-    borderRadius: "12px",
-    spacingUnit: "4px",
-    gridRowSpacing: "14px",
-  },
-  rules: {
-    ".Label": {
-      fontWeight: "600",
-      fontSize: "12px",
-      letterSpacing: "0.01em",
-      color: "#334155",
-      marginBottom: "6px",
+function useCompactViewport() {
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const sync = () => setCompact(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  return compact;
+}
+
+function stripeAppearance(compact: boolean) {
+  return {
+    theme: "stripe" as const,
+    variables: {
+      colorPrimary: "#0d9488",
+      colorBackground: "#ffffff",
+      colorText: "#0f172a",
+      colorDanger: "#e11d48",
+      colorTextSecondary: "#64748b",
+      fontFamily: "Poppins, ui-sans-serif, system-ui, sans-serif",
+      fontSizeBase: compact ? "16px" : "15px",
+      borderRadius: "12px",
+      spacingUnit: compact ? "3px" : "4px",
+      gridRowSpacing: compact ? "12px" : "14px",
     },
-    ".Input": {
-      border: "1px solid #e2e8f0",
-      boxShadow: "none",
-      backgroundColor: "#f8fafc",
-      padding: "12px 14px",
-      lineHeight: "1.4",
+    rules: {
+      ".Label": {
+        fontWeight: "600",
+        fontSize: compact ? "13px" : "12px",
+        letterSpacing: "0.01em",
+        color: "#334155",
+        marginBottom: "6px",
+      },
+      ".Input": {
+        border: "1px solid #e2e8f0",
+        boxShadow: "none",
+        backgroundColor: "#f8fafc",
+        padding: compact ? "14px 12px" : "12px 14px",
+        lineHeight: "1.4",
+      },
+      ".Input:focus": {
+        border: "1px solid #14b8a6",
+        boxShadow: "0 0 0 3px rgba(13, 148, 136, 0.16)",
+        backgroundColor: "#ffffff",
+      },
+      ".Tab": {
+        border: "1px solid #e2e8f0",
+        boxShadow: "none",
+      },
+      ".Tab--selected": {
+        border: "1px solid #14b8a6",
+        boxShadow: "0 0 0 3px rgba(13, 148, 136, 0.12)",
+      },
     },
-    ".Input:focus": {
-      border: "1px solid #14b8a6",
-      boxShadow: "0 0 0 3px rgba(13, 148, 136, 0.16)",
-      backgroundColor: "#ffffff",
-    },
-    ".Tab": {
-      border: "1px solid #e2e8f0",
-      boxShadow: "none",
-    },
-    ".Tab--selected": {
-      border: "1px solid #14b8a6",
-      boxShadow: "0 0 0 3px rgba(13, 148, 136, 0.12)",
-    },
-  },
-};
+  };
+}
 
 const stripePromiseByKey = new Map<string, Promise<Stripe | null>>();
 
@@ -91,9 +105,9 @@ function stripePromiseFor(publishableKey: string) {
   return created;
 }
 
-function paymentElementOptions(hasEmail: boolean) {
+function paymentElementOptions(hasEmail: boolean, compact: boolean) {
   return {
-    layout: { type: "tabs" as const },
+    layout: { type: compact ? ("accordion" as const) : ("tabs" as const) },
     paymentMethodOrder: ["card"],
     wallets: {
       applePay: "never" as const,
@@ -192,6 +206,7 @@ function CheckoutForm({
   onApplyCoupon,
   onRemoveCoupon,
   couponLoading,
+  compact,
 }: {
   session: CheckoutSession;
   onPaid: () => Promise<void>;
@@ -202,6 +217,7 @@ function CheckoutForm({
   onApplyCoupon: () => Promise<void>;
   onRemoveCoupon: () => Promise<void>;
   couponLoading: boolean;
+  compact: boolean;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -284,15 +300,15 @@ function CheckoutForm({
   };
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
+    <form onSubmit={onSubmit} className="space-y-4 sm:space-y-5">
       {session.showPromoCode ? (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4">
           <p className="text-[12px] font-semibold text-slate-700">Promo code</p>
           <p className="mt-1 text-[12px] text-slate-500">{session.promoHint}</p>
           {appliedCoupon ? (
             <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2.5">
-              <div>
-                <p className="text-sm font-semibold text-teal-900">{appliedCoupon.code}</p>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-teal-900">{appliedCoupon.code}</p>
                 <p className="text-[12px] text-teal-800">
                   Save {formatMoney(appliedCoupon.savings_cents, appliedCoupon.currency)} per {session.plan.interval}
                 </p>
@@ -301,24 +317,24 @@ function CheckoutForm({
                 type="button"
                 onClick={() => void onRemoveCoupon()}
                 disabled={couponLoading}
-                className="text-[12px] font-semibold text-teal-700 hover:text-teal-900"
+                className="shrink-0 text-[12px] font-semibold text-teal-700 hover:text-teal-900"
               >
                 Remove
               </button>
             </div>
           ) : (
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
               <input
                 value={couponCode}
                 onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                 placeholder="Enter code"
-                className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base sm:py-2 sm:text-sm"
               />
               <button
                 type="button"
                 onClick={() => void onApplyCoupon()}
                 disabled={couponLoading || !couponCode.trim()}
-                className="rounded-xl bg-[#1B4F8A] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                className="h-11 rounded-xl bg-[#1B4F8A] px-4 text-sm font-semibold text-white disabled:opacity-60 sm:h-auto sm:py-2"
               >
                 Apply
               </button>
@@ -330,18 +346,18 @@ function CheckoutForm({
       {session.customerEmail ? (
         <div>
           <p className="text-[12px] font-semibold text-slate-600">Email</p>
-          <p className="mt-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-[14px] text-slate-800">
+          <p className="mt-1.5 break-all rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-[14px] text-slate-800">
             {session.customerEmail}
           </p>
         </div>
       ) : null}
 
-      <div>
+      <div className="min-w-0">
         <p className="mb-2 text-[12px] font-semibold text-slate-600">Card details</p>
-        <div className="rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-4">
+        <div className="havena-checkout-element min-w-0 overflow-x-hidden rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
           <PaymentElement
             id="havena-card-element"
-            options={paymentElementOptions(Boolean(session.customerEmail))}
+            options={paymentElementOptions(Boolean(session.customerEmail), compact)}
           />
         </div>
       </div>
@@ -352,39 +368,66 @@ function CheckoutForm({
         </p>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={!stripe || submitting}
-        className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-600 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-600/30 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <Lock className="h-4 w-4" aria-hidden />
-        {submitting
-          ? session.trialDays > 0
-            ? session.trialStartsOnApproval
-              ? "Saving your card…"
-              : "Starting your trial…"
-            : "Saving your card…"
-          : session.trialDays > 0
-            ? session.trialStartsOnApproval
-              ? "Save card"
-              : `Start ${session.trialDays}-day free trial`
-            : "Save card and resume billing"}
-      </button>
+      <div className="hidden sm:block">
+        <SubmitCardButton session={session} submitting={submitting} stripeReady={Boolean(stripe)} />
+        <CheckoutLegal session={session} />
+      </div>
 
-      <p className="text-center text-[11px] leading-relaxed text-slate-500 sm:text-[12px]">
-        {session.trialDays <= 0
-          ? "Your community has already used its one-time free trial. Your card is saved by Stripe and billing starts on the plan you selected."
-          : session.trialStartsOnApproval
-            ? `You’ll see the full plan price. Your ${session.trialDays}-day trial starts after a system administrator approves you — the first charge is only after that trial ends.`
-            : `You’ll see the full plan price. Your card is saved by Stripe and billed in USD after the trial unless you cancel.`}
-      </p>
+      <div className="h-24 sm:hidden" aria-hidden />
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:hidden">
+        <SubmitCardButton session={session} submitting={submitting} stripeReady={Boolean(stripe)} />
+      </div>
     </form>
+  );
+}
+
+function SubmitCardButton({
+  session,
+  submitting,
+  stripeReady,
+}: {
+  session: CheckoutSession;
+  submitting: boolean;
+  stripeReady: boolean;
+}) {
+  return (
+    <button
+      type="submit"
+      disabled={!stripeReady || submitting}
+      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-600 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-600/30 disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <Lock className="h-4 w-4" aria-hidden />
+      {submitting
+        ? session.trialDays > 0
+          ? session.trialStartsOnApproval
+            ? "Saving your card…"
+            : "Starting your trial…"
+          : "Saving your card…"
+        : session.trialDays > 0
+          ? session.trialStartsOnApproval
+            ? "Save card"
+            : `Start ${session.trialDays}-day free trial`
+          : "Save card and resume billing"}
+    </button>
+  );
+}
+
+function CheckoutLegal({ session }: { session: CheckoutSession }) {
+  return (
+    <p className="mt-3 text-center text-[11px] leading-relaxed text-slate-500 sm:text-[12px]">
+      {session.trialDays <= 0
+        ? "Your community has already used its one-time free trial. Your card is saved by Stripe and billing starts on the plan you selected."
+        : session.trialStartsOnApproval
+          ? `You’ll see the full plan price. Your ${session.trialDays}-day trial starts after a system administrator approves you — the first charge is only after that trial ends.`
+          : `You’ll see the full plan price. Your card is saved by Stripe and billed in USD after the trial unless you cancel.`}
+    </p>
   );
 }
 
 function PayInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const compact = useCompactViewport();
   const planSlug = searchParams.get("plan") || "";
   const interval: BillingInterval = searchParams.get("interval") === "year" ? "year" : "month";
 
@@ -625,7 +668,7 @@ function PayInner() {
   if (!session || !stripePromise) return null;
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-5xl pb-8">
+    <div className="mx-auto w-full min-w-0 max-w-5xl pb-2 sm:pb-8">
       <Link
         href={withAppReturnParams("/admin/billing")}
         className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-slate-600 transition hover:text-slate-900"
@@ -634,16 +677,16 @@ function PayInner() {
         Back to plans
       </Link>
 
-      <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,18.5rem)_minmax(0,1fr)] lg:items-start">
-        <aside className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-[#1B4F8A] via-[#163A66] to-[#1B4F8A] p-5 text-white shadow-md">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-teal-100/80">
+      <div className="mt-3 grid min-w-0 gap-4 sm:mt-4 sm:gap-5 lg:grid-cols-[minmax(0,18.5rem)_minmax(0,1fr)] lg:items-start">
+        <aside className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-[#1B4F8A] via-[#163A66] to-[#1B4F8A] p-4 text-white shadow-md sm:p-5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-teal-100/80 sm:text-[11px]">
             {session.trialDays > 0 ? `Try Havena ${session.plan.name}` : `Resume ${session.plan.name}`}
           </p>
-          <h1 className="mt-2 font-[family-name:var(--font-brand)] text-[1.75rem] font-bold leading-tight">
+          <h1 className="mt-1.5 font-[family-name:var(--font-brand)] text-[1.45rem] font-bold leading-tight sm:mt-2 sm:text-[1.75rem]">
             {formatMoney(billedPriceCents, session.plan.currency)}
-            <span className="text-[1rem] font-semibold text-white/70"> / {period}</span>
+            <span className="text-[0.95rem] font-semibold text-white/70"> / {period}</span>
           </h1>
-          <p className="mt-2 text-[13px] leading-relaxed text-white/75">
+          <p className="mt-2 text-[12px] leading-relaxed text-white/75 sm:text-[13px]">
             {session.trialDays <= 0
               ? `Paid after approval. Your community already used its one-time free trial.`
               : `First ${session.trialDays} days on us${
@@ -657,7 +700,7 @@ function PayInner() {
                 }`}
           </p>
 
-          <ul className="mt-5 space-y-2.5 border-t border-white/15 pt-4 text-[13px] text-white/85">
+          <ul className="mt-4 grid grid-cols-1 gap-2 border-t border-white/15 pt-3 text-[12px] text-white/85 sm:mt-5 sm:grid-cols-2 sm:gap-2.5 sm:pt-4 lg:grid-cols-1 lg:text-[13px]">
             {session.trialDays > 0 ? (
               <li className="flex items-center gap-2">
                 <Check className="h-4 w-4 shrink-0 text-teal-300" aria-hidden />
@@ -673,11 +716,11 @@ function PayInner() {
               <Check className="h-4 w-4 shrink-0 text-teal-300" aria-hidden />
               {session.plan.seat_limit} resident seats
             </li>
-            <li className="flex items-center gap-2">
+            <li className="flex min-w-0 items-center gap-2">
               <Check className="h-4 w-4 shrink-0 text-teal-300" aria-hidden />
-              For {session.communityName}
+              <span className="truncate">For {session.communityName}</span>
             </li>
-            <li className="flex items-center gap-2">
+            <li className="flex items-center gap-2 sm:col-span-2 lg:col-span-1">
               <ShieldCheck className="h-4 w-4 shrink-0 text-teal-300" aria-hidden />
               {session.trialDays <= 0
                 ? "Billing starts after approval"
@@ -688,22 +731,23 @@ function PayInner() {
           </ul>
         </aside>
 
-        <section className="relative z-10 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        <section className="relative z-10 min-w-0 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm sm:p-6">
           <h2 className="text-[16px] font-bold text-slate-900">Enter payment details</h2>
           <p className="mt-1 text-[13px] text-slate-500">
             Card number, expiry, and CVC only. No billing address required.
           </p>
-          <div className="mt-5">
+          <div className="mt-4 min-w-0 sm:mt-5">
             <Elements
-              key={session.clientSecret}
+              key={`${session.clientSecret}-${compact ? "m" : "d"}`}
               stripe={stripePromise}
               options={{
                 clientSecret: session.clientSecret,
-                appearance: stripeAppearance,
+                appearance: stripeAppearance(compact),
               }}
             >
               <CheckoutForm
                 session={session}
+                compact={compact}
                 onPaid={onPaid}
                 onIntentExpired={async () => {
                   setSession(null);

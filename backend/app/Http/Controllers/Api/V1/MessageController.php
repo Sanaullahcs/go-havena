@@ -92,6 +92,16 @@ class MessageController extends Controller
         return response()->json(['data' => $conversations]);
     }
 
+    /** GET /conversations/unread-count */
+    public function unreadCount(Request $request): JsonResponse
+    {
+        $count = (int) DB::table('conversation_participants')
+            ->where('user_id', $request->user()->id)
+            ->sum('unread_count');
+
+        return response()->json(['data' => ['unread_count' => $count]]);
+    }
+
     /** GET /conversations/{id}/messages */
     public function messages(Request $request, int $id): JsonResponse
     {

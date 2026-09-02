@@ -7,7 +7,6 @@ import {
   Pressable,
   TouchableOpacity,
   RefreshControl,
-  Share,
   Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -15,6 +14,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import UserAvatar from "../ui/user-avatar";
 import { CommunityFeedSkeleton } from "../ui/skeleton-loader";
 import FeedPostCard from "../feed/feed-post-card";
+import SharePostSheet from "../feed/share-post-sheet";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import {
@@ -48,6 +48,7 @@ export default function CommunityFeedPanel() {
   const [error, setError] = useState(null);
   const [emptyReason, setEmptyReason] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [sharePost, setSharePost] = useState(null);
   const { showFailure } = useApiAction();
 
   const load = useCallback(async (silent = false) => {
@@ -81,6 +82,8 @@ export default function CommunityFeedPanel() {
     }
   }, []);
 
+  const hasLoadedRef = React.useRef(false);
+
   useEffect(() => {
     load();
     getUser().then(setCurrentUser);
@@ -93,6 +96,10 @@ export default function CommunityFeedPanel() {
 
   useFocusEffect(
     useCallback(() => {
+      if (!hasLoadedRef.current) {
+        hasLoadedRef.current = true;
+        return;
+      }
       load(true);
     }, [load]),
   );
@@ -124,14 +131,8 @@ export default function CommunityFeedPanel() {
     [showFailure],
   );
 
-  const handleShare = useCallback(async (post) => {
-    try {
-      const text = post.content || post.body || "";
-      const preview = text.length > 80 ? text.slice(0, 80) + "..." : text;
-      await Share.share({
-        message: preview || t("feed.shareMessage"),
-      });
-    } catch (_) {}
+  const handleShare = useCallback((post) => {
+    setSharePost(post);
   }, []);
 
   const filtered = useMemo(() => {
@@ -145,6 +146,7 @@ export default function CommunityFeedPanel() {
   const accessBlocked = Boolean(error && isFeatureAccessBlockedError(error));
 
   return (
+    <>
     <ScrollView
       style={styles.scroll}
       showsVerticalScrollIndicator={false}
@@ -289,10 +291,19 @@ export default function CommunityFeedPanel() {
               })
             }
             onShare={() => handleShare(post)}
+            onDeleted={(postId) =>
+              setPosts((prev) => prev.filter((item) => String(item.id) !== String(postId)))
+            }
           />
         ))
       )}
     </ScrollView>
+    <SharePostSheet
+      visible={Boolean(sharePost)}
+      post={sharePost}
+      onClose={() => setSharePost(null)}
+    />
+    </>
   );
 }
 

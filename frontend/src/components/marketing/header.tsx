@@ -75,7 +75,7 @@ export function MarketingHeader() {
             href="/request-demo"
             className="lp-header__demo-link text-[0.9375rem] font-medium text-[var(--lp-gray-600)] hover:text-[var(--lp-blue)]"
           >
-            Request demo
+            Request a demo
           </Link>
           <Link
             href="/register"
@@ -113,7 +113,7 @@ export function MarketingHeader() {
             </nav>
             <div className="lp-header__drawer-actions">
               <Link href="/request-demo" className="lp-header__drawer-link" onClick={closeMenu}>
-                Request demo
+                Request a demo
               </Link>
               <Link href="/register" className="lp-btn-primary w-full" onClick={closeMenu}>
                 Get started

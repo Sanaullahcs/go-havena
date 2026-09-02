@@ -52,7 +52,7 @@ export function useNotificationUnread({ refreshOnFocus = true } = {}) {
       }
     });
 
-    const intervalId = setInterval(refresh, 30000);
+    const intervalId = setInterval(refresh, 60000);
 
     return () => {
       sub.remove();

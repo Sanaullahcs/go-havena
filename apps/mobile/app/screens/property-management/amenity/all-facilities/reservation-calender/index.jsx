@@ -10,12 +10,12 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect, usePathname } from "expo-router";
 import InternalScreenHeader from "../../../../../../components/layout/internal-screen-header";
 import { Fonts } from "../../../../../../constants/font";
 import { Colors, Layout } from "../../../../../../constants/tokens";
 import { sw, sf } from "../../../../../../utils/responsive";
-import { PropertyManagementRoutes } from "../../../../../../constants/property-management-routes";
+import { PropertyManagementRoutes, amenityFlowRoutes } from "../../../../../../constants/property-management-routes";
 import {
   bookAmenity,
   fetchAmenitySlots,
@@ -34,6 +34,7 @@ const DATES = buildUpcomingDates(14);
 export default function ReservationCalender() {
   const { t } = useTranslation();
   const router = useRouter();
+  const pathname = usePathname();
   const { id, name, status, isMine } = useLocalSearchParams();
   const amenityId = Number(id);
   const isOpenMode = String(status) === "open";
@@ -132,7 +133,7 @@ export default function ReservationCalender() {
             : t("propertyMgmt.requestSlotSent", { name, date: formatLongDate(selectedDate), slot: selectedSlot });
         },
         errorTitle: t("propertyMgmt.couldNotBook"),
-        onSuccess: () => router.replace(PropertyManagementRoutes.MY_BOOKING),
+        onSuccess: () => router.replace(amenityFlowRoutes(pathname).myBooking),
       });
     });
   };

@@ -193,7 +193,7 @@ function OnboardingBillingHero({
       ];
 
   return (
-    <section className="relative overflow-hidden rounded-[28px] bg-[#1B4F8A] px-5 py-6 text-white sm:px-8 sm:py-8 lg:px-10 lg:py-9">
+    <section className="relative overflow-hidden rounded-2xl bg-[#1B4F8A] px-4 py-5 text-white sm:rounded-[28px] sm:px-8 sm:py-8 lg:px-10 lg:py-9">
       <div
         className="pointer-events-none absolute -right-10 -top-16 h-56 w-56 rounded-full bg-white/10 blur-3xl"
         aria-hidden
@@ -203,16 +203,16 @@ function OnboardingBillingHero({
         aria-hidden
       />
 
-      <div className="relative grid items-end gap-8 lg:grid-cols-[minmax(0,1.3fr)_minmax(16rem,20rem)]">
+      <div className="relative grid min-w-0 items-end gap-5 sm:gap-8 lg:grid-cols-[minmax(0,1.3fr)_minmax(16rem,20rem)]">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-teal-100 ring-1 ring-white/15">
               {trialEligible ? <Gift className="h-3 w-3" aria-hidden /> : <CreditCard className="h-3 w-3" aria-hidden />}
               {trialEligible ? `First ${trialDays} days on us` : "Paid subscription"}
             </span>
-            <span className="truncate text-[13px] font-medium text-white/70">{communityName}</span>
+            <span className="max-w-full truncate text-[13px] font-medium text-white/70">{communityName}</span>
           </div>
-          <h1 className="mt-4 max-w-2xl font-[family-name:var(--font-brand)] text-[2rem] font-bold leading-[1.08] tracking-tight sm:text-[2.55rem]">
+          <h1 className="mt-3 max-w-2xl font-[family-name:var(--font-brand)] text-[1.45rem] font-bold leading-[1.12] tracking-tight sm:mt-4 sm:text-[2.55rem] sm:leading-[1.08]">
             {trialEligible
               ? priceLabel
                 ? `${priceLabel} — try it first`
@@ -240,18 +240,23 @@ function OnboardingBillingHero({
           </ul>
         </div>
 
-        <ol className="relative space-y-0">
+        <ol className="relative grid grid-cols-3 gap-2 lg:block lg:space-y-0">
           {steps.map((step, index) => (
-            <li key={step.label} className="flex gap-3">
-              <div className="flex w-6 flex-col items-center">
+            <li key={step.label} className="flex min-w-0 gap-2 lg:gap-3">
+              <div className="hidden w-6 flex-col items-center lg:flex">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-[11px] font-bold text-[#1B4F8A]">
                   {index + 1}
                 </span>
                 {index < steps.length - 1 ? <span className="w-px flex-1 bg-white/25" aria-hidden /> : null}
               </div>
-              <div className={index < steps.length - 1 ? "pb-4" : ""}>
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-teal-100/90">{step.label}</p>
-                <p className="mt-0.5 text-[14px] font-semibold">{step.value}</p>
+              <div className={index < steps.length - 1 ? "lg:pb-4" : ""}>
+                <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-teal-100/90 sm:text-[10px]">
+                  <span className="mr-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-white text-[9px] font-bold text-[#1B4F8A] lg:hidden">
+                    {index + 1}
+                  </span>
+                  {step.label}
+                </p>
+                <p className="mt-0.5 text-[12px] font-semibold leading-snug sm:text-[14px]">{step.value}</p>
               </div>
             </li>
           ))}
@@ -337,7 +342,7 @@ function OnboardingPlanOption({
       aria-checked={selected}
       onClick={onSelect}
       className={[
-        "relative flex h-full w-full min-w-0 flex-col rounded-[24px] p-5 text-left transition-all duration-200 sm:p-6",
+        "relative flex h-full w-full min-w-0 flex-col rounded-2xl p-4 text-left transition-all duration-200 sm:rounded-[24px] sm:p-6",
         featured
           ? "bg-[#1B4F8A] text-white shadow-[0_18px_40px_-18px_rgba(27,79,138,0.55)] ring-1 ring-[#1B4F8A]"
           : "bg-white text-slate-900 ring-1 ring-slate-200 hover:ring-[#1B4F8A]/35",
@@ -359,7 +364,7 @@ function OnboardingPlanOption({
               Seat pack
             </span>
           )}
-          <p className="font-[family-name:var(--font-brand)] text-[1.65rem] font-bold leading-none tracking-tight">
+          <p className="font-[family-name:var(--font-brand)] text-[1.4rem] font-bold leading-none tracking-tight sm:text-[1.65rem]">
             {plan.name}
           </p>
           <p className={["mt-2 text-[13px] leading-snug", featured ? "text-white/70" : "text-slate-500"].join(" ")}>
@@ -384,7 +389,7 @@ function OnboardingPlanOption({
       </div>
 
       <div className="mt-6">
-        <p className="font-[family-name:var(--font-brand)] text-[2.4rem] font-bold leading-none tracking-tight">
+        <p className="font-[family-name:var(--font-brand)] text-[1.85rem] font-bold leading-none tracking-tight sm:text-[2.4rem]">
           {formatMoney(price, plan.currency)}
           <span className={["ml-1 text-[15px] font-medium", featured ? "text-white/60" : "text-slate-400"].join(" ")}>
             /{periodShort}
@@ -515,8 +520,8 @@ function OnboardingPlanPicker({
             </button>
           </div>
 
-          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:hidden">
-            <div className="flex items-center gap-3">
+          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:hidden">
+            <div className="flex min-w-0 items-center gap-3">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] font-bold text-slate-900">{selectedPlan.name}</p>
                 <p className="truncate text-[11px] text-slate-500">
@@ -529,7 +534,7 @@ function OnboardingPlanPicker({
                 type="button"
                 disabled={busy || checkoutDisabled}
                 onClick={() => onCheckout(selectedPlan.slug)}
-                className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-[#1B4F8A] px-4 text-[13px] font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-11 min-w-[6.75rem] shrink-0 items-center justify-center rounded-xl bg-[#1B4F8A] px-3 text-[13px] font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {busy ? "Starting…" : "Add card"}
               </button>

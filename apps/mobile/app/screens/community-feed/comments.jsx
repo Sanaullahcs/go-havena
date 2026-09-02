@@ -12,7 +12,7 @@ import FeedPostCard from "../../../components/feed/feed-post-card";
 import {
   FeedCommentBubble,
 } from "../../../components/feed/feed-engagement";
-import { CommentListSkeleton } from "../../../components/ui/skeleton-loader";
+import { CommentListSkeleton, CommentScreenSkeleton } from "../../../components/ui/skeleton-loader";
 import UserAvatar from "../../../components/ui/user-avatar";
 import { Fonts } from "../../../constants/font";
 import { Colors } from "../../../constants/tokens";
@@ -424,31 +424,35 @@ export default function FeedCommentsScreen() {
                     setDraft(text);
                     clearError("body");
                   }}
-                  placeholder={replyTo ? t("feed.comments.replyPlaceholder", { name: replyTo.name }) : t("feed.comments.placeholder")}
+                  placeholder={replyTo ? t("feed.comments.replyPlaceholder", { name: replyTo.name }) : t("feed.comments.writeComment")}
                   placeholderTextColor="#9CA3AF"
                   style={[styles.input]}
                   multiline
                   maxLength={LIMITS.feedComment}
                 />
-                {showError("body", liveErrors) ? <Text style={styles.errorText}>{showError("body", liveErrors)}</Text> : null}
-              </View>
-              <TouchableOpacity
-                style={[styles.sendBtn, !canComment && styles.sendBtnDisabled]}
-                onPress={submit}
-                disabled={!canComment}
-                activeOpacity={0.85}
-              >
-                <View
-                  style={styles.sendBtnInner}
+                <TouchableOpacity
+                  style={[styles.sendBtn, !canComment && styles.sendBtnDisabled]}
+                  onPress={submit}
+                  disabled={!canComment}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("feed.comments.send")}
                 >
-                  <Feather name="send" size={16} color="#FFFFFF" />
-                </View>
-              </TouchableOpacity>
+                  <Feather name="send" size={15} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
             </View>
+            {showError("body", liveErrors) ? (
+              <Text style={styles.errorText}>{showError("body", liveErrors)}</Text>
+            ) : null}
             </>
           )
         }
       >
+          {loading && !post ? (
+            <CommentScreenSkeleton />
+          ) : (
+            <>
           {post ? (
             <>
               <FeedPostCard
@@ -458,6 +462,9 @@ export default function FeedCommentsScreen() {
                 style={styles.postCard}
                 onLike={handleLike}
                 onComments={focusComposer}
+                onDeleted={() => {
+                  if (router.canGoBack?.()) router.back();
+                }}
                 onProfile={() =>
                   openNeighborProfile(router, {
                     userId: post.user_id ?? post.user?.id,
@@ -495,8 +502,19 @@ export default function FeedCommentsScreen() {
                     : t("feed.comments.emptyStart")}
                 </Text>
                 {!isSensitive ? (
-                  <TouchableOpacity style={styles.emptyBtn} onPress={focusComposer}>
-                    <Text style={styles.emptyBtnText}>{t("feed.comments.writeComment")}</Text>
+                  <TouchableOpacity
+                    style={styles.emptyBtn}
+                    onPress={focusComposer}
+                    activeOpacity={0.85}
+                  >
+                    <Text
+                      style={styles.emptyBtnText}
+                      numberOfLines={2}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                    >
+                      {t("feed.comments.writeComment")}
+                    </Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -552,6 +570,8 @@ export default function FeedCommentsScreen() {
               })
             )}
           </View>
+            </>
+          )}
       </KeyboardSafeScreen>
     </SafeAreaView>
   );
@@ -566,12 +586,14 @@ const styles = StyleSheet.create({
     marginTop: sw(8),
   },
   commentsCard: {
+    alignSelf: "stretch",
+    width: "100%",
     backgroundColor: "#FFFFFF",
     borderRadius: sw(14),
     padding: sw(16),
     borderWidth: 1,
     borderColor: "#E4E6EB",
-    overflow: "hidden",
+    overflow: "visible",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -623,8 +645,10 @@ const styles = StyleSheet.create({
   },
   emptyWrap: {
     alignItems: "center",
+    alignSelf: "stretch",
+    width: "100%",
     paddingVertical: sw(28),
-    paddingHorizontal: sw(16),
+    paddingHorizontal: sw(8),
   },
   emptyIcon: {
     width: sw(64),
@@ -650,23 +674,34 @@ const styles = StyleSheet.create({
     marginBottom: sw(16),
   },
   emptyBtn: {
+    alignSelf: "stretch",
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: "#D1FAF5",
-    paddingHorizontal: sw(18),
-    paddingVertical: sw(10),
+    paddingHorizontal: sw(16),
+    paddingVertical: sw(12),
     borderRadius: sw(10),
     borderWidth: 1,
     borderColor: "rgba(20, 184, 166, 0.28)",
+    minHeight: sw(44),
   },
   emptyBtnText: {
+    width: "100%",
     fontFamily: Fonts.semiBold,
     fontSize: sf(13),
+    lineHeight: sf(18),
     color: Colors.brandPrimaryDeep,
     fontWeight: "600",
+    textAlign: "center",
+    flexShrink: 1,
   },
   composerWrap: {
     backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
     borderTopColor: "#E4E6EB",
+    paddingHorizontal: 0,
+    paddingTop: 0,
     paddingBottom: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
@@ -721,42 +756,53 @@ const styles = StyleSheet.create({
   },
   inputWrap: {
     flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "flex-end",
     backgroundColor: "#F0F2F5",
-    borderRadius: sw(18),
-    paddingHorizontal: sw(12),
-    paddingVertical: sw(6),
-    minHeight: sw(34),
+    borderRadius: sw(20),
+    paddingStart: sw(12),
+    paddingEnd: sw(4),
+    paddingVertical: sw(4),
+    minHeight: sw(40),
     maxHeight: sw(96),
-    justifyContent: "center",
     borderWidth: 1,
     borderColor: "#E4E6EB",
   },
   input: {
+    flex: 1,
+    minWidth: 0,
     fontFamily: Fonts.regular,
     fontSize: sf(13),
     lineHeight: sf(18),
     color: "#050505",
     maxHeight: sw(72),
-    paddingVertical: 0,
+    paddingVertical: sw(8),
+    paddingEnd: sw(8),
+    includeFontPadding: false,
   },
   inputError: {
     borderColor: "#DC2626",
   },
   errorText: {
-    marginTop: sw(4),
+    marginTop: sw(2),
+    marginStart: sw(52),
+    marginBottom: sw(6),
     fontFamily: Fonts.regular,
     fontSize: sf(11),
     color: "#DC2626",
   },
   sendBtn: {
-    borderRadius: sw(17),
-    overflow: "hidden",
-  },
-  sendBtnInner: {
-    width: sw(34),
-    height: sw(34),
+    width: sw(32),
+    height: sw(32),
+    borderRadius: sw(16),
+    backgroundColor: "#1B4F8A",
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
+    marginBottom: sw(0),
   },
-  sendBtnDisabled: { opacity: 0.7 },
+  sendBtnDisabled: {
+    backgroundColor: "#94A3B8",
+  },
 });

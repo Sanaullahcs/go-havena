@@ -33,7 +33,7 @@ const PAGE_SIZE = 15;
 function NotificationRow({ item, onPress }) {
   return (
     <TouchableOpacity activeOpacity={0.9} onPress={() => onPress(item)}>
-      <View style={styles.notificationItem}>
+      <View style={[styles.notificationItem, item.read && styles.notificationItemRead]}>
         <View style={styles.itemRow}>
           <View>
             <Image source={item.icon} style={styles.itemIcon} />
@@ -196,12 +196,7 @@ export default function Notifications() {
       const route = resolveNotificationRoute(item);
       if (route?.pathname) {
         router.push(route);
-        return;
       }
-
-      await showFailure(t("notifications.unableToOpen"), {
-        message: t("notifications.noRelatedScreen"),
-      });
     },
     [router, showFailure, t],
   );
@@ -349,6 +344,9 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginBottom: sw(10),
     flex: 1,
+  },
+  notificationItemRead: {
+    borderColor: "rgba(148, 163, 184, 1)",
   },
   itemRow: {
     flexDirection: "row",

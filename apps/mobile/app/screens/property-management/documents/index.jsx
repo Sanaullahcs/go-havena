@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, ActivityIndicator } from "react-native";
 import LocaleTextInput from "../../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter, useFocusEffect, usePathname } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import i18n from "../../../../i18n";
@@ -14,7 +14,7 @@ import { propertyStyles } from "../../../../constants/property-styles";
 import { Fonts } from "../../../../constants/font";
 import { HomeTheme as T } from "../../../../constants/home-theme";
 import { sw, sf } from "../../../../utils/responsive";
-import { PropertyManagementRoutes } from "../../../../constants/property-management-routes";
+import { amenityFlowRoutes } from "../../../../constants/property-management-routes";
 import { fetchCommunityDocuments } from "../../../../services/documents-api";
 import { getCurrentRole } from "../../../../constants/role-session";
 
@@ -70,6 +70,7 @@ function DocumentRow({ doc, onPress, showDownloads, actionIcon = "download" }) {
 export default function Documents() {
   const { t } = useTranslation();
   const router = useRouter();
+  const pathname = usePathname();
   const isAdmin = getCurrentRole() === "admin";
 
   const [documents, setDocuments] = useState([]);
@@ -129,13 +130,13 @@ export default function Documents() {
 
   const openDocument = (doc) => {
     router.push({
-      pathname: PropertyManagementRoutes.DOCUMENT_DETAIL,
+      pathname: amenityFlowRoutes(pathname).documentDetail,
       params: { documentId: String(doc.id) },
     });
   };
 
   const openAddDocument = () => {
-    router.push(PropertyManagementRoutes.DOCUMENT_FORM);
+    router.push(amenityFlowRoutes(pathname).documentForm);
   };
 
   if (loading && !hasLoadedOnce.current) {

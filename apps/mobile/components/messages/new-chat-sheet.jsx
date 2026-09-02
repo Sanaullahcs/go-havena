@@ -70,7 +70,14 @@ function MemberRow({ member, loading, onPress }) {
   );
 }
 
-export default function NewChatSheet({ visible, onClose, onStarted }) {
+export default function NewChatSheet({
+  visible,
+  onClose,
+  onStarted,
+  title,
+  subtitle,
+  initialMessage,
+}) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(false);
@@ -252,7 +259,10 @@ export default function NewChatSheet({ visible, onClose, onStarted }) {
     setStartingId(member.id);
     setError("");
     try {
-      const data = await startConversation(member.id);
+      const data = await startConversation(
+        member.id,
+        initialMessage ? { message: initialMessage } : {},
+      );
       onStarted?.({
         conversationId: data.conversation_id,
         recipientName: member.name,
@@ -296,8 +306,8 @@ export default function NewChatSheet({ visible, onClose, onStarted }) {
               <Ionicons name="people" size={20} color="#14B8A6" />
             </View>
             <View style={styles.headerCopy}>
-              <Text style={styles.title}>{t("messages.newMessage")}</Text>
-              <Text style={styles.subtitle}>{t("messages.chooseNeighbor")}</Text>
+              <Text style={styles.title}>{title ?? t("messages.newMessage")}</Text>
+              <Text style={styles.subtitle}>{subtitle ?? t("messages.chooseNeighbor")}</Text>
             </View>
             <Pressable
               style={styles.closeBtn}

@@ -7,14 +7,13 @@ import { DemoRequestForm } from "@/components/marketing/demo-request-form";
 
 export const metadata: Metadata = {
   title: "Request a demo",
-  description:
-    "Book a Havena walkthrough for your community. See notices, membership, and engagement tools in action.",
+  description: "A focused walkthrough of the Havena admin dashboard and resident app.",
 };
 
 const DEMO_POINTS = [
-  "Live walkthrough of the community admin dashboard",
-  "Notices, membership, and resident engagement flows",
-  "Guidance on plans, seats, and rollout for your community",
+  "Admin dashboard for members, notices, and activity",
+  "Resident app for feed, deals, and amenities",
+  "How seat plans and billing work for the board",
 ] as const;
 
 export default function RequestDemoPage() {
@@ -24,11 +23,10 @@ export default function RequestDemoPage() {
       <main className="lp-demo">
         <div className="lp-container lp-demo__layout">
           <aside className="lp-demo__aside">
-            <p className="lp-eyebrow">Demo</p>
+            <p className="lp-eyebrow">A conversation, not a pitch</p>
             <h1 className="lp-h2 mt-3">See Havena with your community in mind.</h1>
             <p className="lp-demo__lead">
-              Tell us a little about your community and we will schedule a focused walkthrough.
-              No pressure, no long sales call.
+              Thirty minutes on the admin dashboard and resident app. We reply within one business day.
             </p>
             <ul className="lp-demo__points">
               {DEMO_POINTS.map((item) => (
@@ -54,7 +52,7 @@ export default function RequestDemoPage() {
           <section className="lp-demo__panel" aria-label="Demo request form">
             <div className="lp-demo__panel-head">
               <h2>Request a demo</h2>
-              <p>Usually we reply within one business day.</p>
+              <p>We typically reply within one business day.</p>
             </div>
             <DemoRequestForm />
           </section>

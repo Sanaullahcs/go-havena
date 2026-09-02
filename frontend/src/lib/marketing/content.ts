@@ -1,8 +1,22 @@
 export const marketingSite = {
   name: "Havena",
-  tagline: "A better place to belong.",
-  description:
-    "Havena brings people, conversations, events, and trusted resources together in one beautifully simple community platform.",
+  tagline: "One trusted place for the whole neighborhood.",
+  description: "One trusted place for the whole neighborhood.",
+} as const;
+
+export const heroCopy = {
+  eyebrow: "For HOAs, neighborhoods, and every resident",
+  titleBefore: "One trusted place for",
+  titleAccent: "the whole neighborhood.",
+  lead: "HOAs, neighborhoods, and everyday community life. Membership, guests, events, and a private app for every resident.",
+  proof: "Trusted by neighborhoods and communities around the world.",
+  cta: "Start your community",
+  secondary: "Explore the product",
+} as const;
+
+export const storeLinks = {
+  apple: "https://apps.apple.com/app/id6800697897",
+  play: "https://play.google.com/store/apps/details?id=com.zsquare.havena",
 } as const;
 
 export const navLinks = [
@@ -14,62 +28,105 @@ export const navLinks = [
 
 export const trustLogos = [
   "Neighborhoods",
-  "Schools",
-  "Organizations",
-  "Workplaces",
-  "Management",
+  "HOAs",
+  "Apartments",
+  "Campuses",
+  "Community boards",
 ] as const;
+
+export const productCopy = {
+  eyebrow: "The product",
+  titleLine1: "A dashboard for the board.",
+  titleLine2: "An app for every resident.",
+  mainTag: "Community admin",
+  mainTitleLine1: "Begin the day with a clear picture",
+  mainTitleLine2: "of the community.",
+  mainText:
+    "Membership, notices, and activity live in one view — so you are not reconstructing the week from email threads and group chats.",
+  cards: [
+    {
+      title: "Verified access across the whole community.",
+      text: "Membership, guests, amenities, the resident feed, and marketplace stay with people who belong there.",
+    },
+    {
+      title: "A resident app built for daily neighborhood life.",
+      text: "Feed, local deals, and amenities arrive with the plan. Neighbors do not need a second product to participate.",
+    },
+  ],
+} as const;
+
+export const peopleCopy = {
+  eyebrow: "Who Havena is for",
+  title: "For neighborhoods, schools, workplaces, and more.",
+} as const;
 
 export const peopleCards = [
   {
     title: "Neighborhoods & HOAs",
-    description: "Facilitate deeper, more respectful connection in a trusted space.",
+    description: "Notices, guest access, amenities, and a private feed for the people who actually live there.",
     icon: "home",
   },
   {
     title: "Schools & Families",
-    description:
-      "Keep families informed, engaged, and connected to the people and programs around their children.",
+    description: "Keep programs and events with verified families — not in a public group anyone can join.",
     icon: "school",
   },
   {
     title: "Organizations",
-    description:
-      "Build modular communities that meet membership, sharing, review, and governance needs.",
+    description: "Membership, roles, and shared resources for associations that need a closed community.",
     icon: "users",
   },
   {
     title: "Workplaces",
-    description:
-      "Create a private internal culture with spaces for teams, hobbies, volunteers, and mission-led initiatives.",
+    description: "Internal notices and groups for teams or campus housing, kept off public social apps.",
     icon: "building",
   },
 ] as const;
 
+export const trustCopy = {
+  eyebrow: "Trust & safety",
+  title: "Closed to the public. Open to the people who live there.",
+  lead: "Havena treats privacy as the product. Roles decide who sees what, and the board keeps moderation in hand.",
+} as const;
+
 export const trustFeatures = [
-  "Role-based access and community permissions",
-  "Verified membership options",
-  "Simple reporting and moderation workflows",
-  "No engagement-at-any-cost algorithms",
+  "Separate access for admins, residents, and guests",
+  "Membership is verified before community content appears",
+  "Reporting and moderation tools for community staff",
 ] as const;
 
-export const testimonials = {
-  featured: {
+export const quotesCopy = {
+  eyebrow: "From community leaders",
+  title: "What changes when the neighborhood has one place to go.",
+} as const;
+
+export const testimonials = [
+  {
     quote:
-      "Havena feels less like another platform and more like the digital front door our community has been missing.",
-    role: "Community Executive",
+      "Notices left our inboxes. The board finally has a single dashboard, and residents know where to look.",
+    name: "Amira Cole",
+    role: "HOA Board President",
   },
-  cards: [
-    {
-      quote: "People understood it immediately. That matters more than another long list of features.",
-      role: "Program Director",
-    },
-    {
-      quote:
-        "The product feels welcoming without looking clunky. It gives us the trust of enterprise software with the ease of a consumer app.",
-      role: "Operations Lead",
-    },
-  ],
+  {
+    quote: "People understood it on the first morning. We did not need a training session.",
+    name: "Priya Shah",
+    role: "Community Manager",
+  },
+  {
+    quote: "The board, residents, and guests each see only what they should. That clarity is the whole point.",
+    name: "Chris Nguyen",
+    role: "Resident Services Lead",
+  },
+] as const;
+
+export const ctaCopy = {
+  title: "Bring your community onto Havena.",
+  lead: "Create an admin account, choose a seat plan, and invite residents. They are never billed by Havena.",
+  button: "Request a demo",
+} as const;
+
+export const footerCopy = {
+  blurb: "One trusted place for the whole neighborhood.",
 } as const;
 
 export const footerColumns = [

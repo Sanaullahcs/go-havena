@@ -12,6 +12,7 @@ const HIDDEN_TAB_PATH_PARTS = [
   "guest-login",
   "invite-code",
   "messages/chat",
+  "community-feed/comments",
   "signup",
   "verify-phone",
   "verifyregistration",

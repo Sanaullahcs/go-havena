@@ -1,5 +1,5 @@
-import { Building2, GraduationCap, Home, Megaphone, Sparkles, Users } from "lucide-react";
-import { peopleCards, trustLogos } from "@/lib/marketing/content";
+import { Building2, GraduationCap, Home, Shield, Sparkles, Users } from "lucide-react";
+import { peopleCards, peopleCopy, productCopy, trustLogos } from "@/lib/marketing/content";
 import { Reveal } from "@/components/marketing/reveal";
 
 const peopleIcons = {
@@ -31,24 +31,24 @@ export function MarketingFeatures() {
       <div className="lp-container">
         <Reveal className="lp-features__header">
           <div>
-            <p className="lp-eyebrow">Everything in one place</p>
-            <h2 className="lp-h2 mt-2 max-w-xl">
-              Community software that feels calm, useful, and human.
+            <p className="lp-eyebrow">{productCopy.eyebrow}</p>
+            <h2 className="lp-h2 mt-2">
+              {productCopy.titleLine1}
+              <br />
+              {productCopy.titleLine2}
             </h2>
           </div>
-          <p className="lp-features__intro">
-            Give every member a clear starting point, keep updates relevant, and make participation
-            feel simple, without another noisy feed to manage.
-          </p>
         </Reveal>
 
         <div className="lp-features__grid">
           <Reveal as="article" className="lp-features__main lp-reveal--scale" delay={80}>
-            <p className="lp-features__tag">Connection by design</p>
-            <h3 className="lp-features__title">Give every member a clear place to start.</h3>
-            <p className="lp-features__text">
-              A calm home feed, notices, and tools in one view, so members always know where to begin.
-            </p>
+            <p className="lp-features__tag">{productCopy.mainTag}</p>
+            <h3 className="lp-features__title">
+              {productCopy.mainTitleLine1}
+              <br />
+              {productCopy.mainTitleLine2}
+            </h3>
+            <p className="lp-features__text">{productCopy.mainText}</p>
 
             <div className="lp-features__preview">
               <div className="lp-features__preview-bar">
@@ -74,23 +74,18 @@ export function MarketingFeatures() {
           <div className="lp-features__side">
             <Reveal as="article" className="lp-features__card lp-features__card--blue" delay={160}>
               <div className="lp-features__icon lp-features__icon--on-blue">
-                <Megaphone className="h-4 w-4" aria-hidden />
+                <Shield className="h-4 w-4" aria-hidden />
               </div>
-              <h3>Relevant, not noisy.</h3>
-              <p>
-                Members join the conversations, events, and updates that matter to them, without an
-                endless feed.
-              </p>
+              <h3>{productCopy.cards[0].title}</h3>
+              <p>{productCopy.cards[0].text}</p>
             </Reveal>
 
             <Reveal as="article" className="lp-features__card" delay={240}>
               <div className="lp-features__icon">
                 <Sparkles className="h-4 w-4" aria-hidden />
               </div>
-              <h3>Participation made simple.</h3>
-              <p>
-                Ready, easy, and private. Discover and connect without constant notification noise.
-              </p>
+              <h3>{productCopy.cards[1].title}</h3>
+              <p>{productCopy.cards[1].text}</p>
             </Reveal>
 
             <Reveal as="article" className="lp-features__side-preview lp-reveal--scale" delay={300}>
@@ -127,15 +122,9 @@ export function MarketingPeopleGrid() {
       <div className="lp-container">
         <Reveal className="lp-people__header">
           <div>
-            <p className="lp-eyebrow">Built around people</p>
-            <h2 className="lp-h2 mt-3 max-w-xl">
-              Flexible enough for the communities people already live in.
-            </h2>
+            <p className="lp-eyebrow">{peopleCopy.eyebrow}</p>
+            <h2 className="lp-h2 mt-3 max-w-xl">{peopleCopy.title}</h2>
           </div>
-          <p className="lp-people__intro">
-            From neighborhoods to workplaces, Havena adapts to the way people already gather,
-            without forcing a one-size-fits-all community model.
-          </p>
         </Reveal>
 
         <div className="lp-people__grid">

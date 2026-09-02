@@ -7,7 +7,7 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter, useSegments, usePathname } from "expo-router";
+import { useRouter, useSegments, usePathname, useNavigation } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -22,6 +22,7 @@ import { guestCanAccessFeature } from "../../constants/guest-permissions";
 import { navigateAppRoute } from "../../utils/app-navigation";
 import { useKeyboardVisible } from "./keyboard-safe-screen";
 import { shouldHideTabBar } from "../../constants/tab-bar-visibility";
+import { openServicesHub } from "../../constants/property-management-routes";
 
 const BRAND = Colors.brandPrimary;
 const ACTIVE = BRAND;
@@ -125,6 +126,7 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
   const [guestUser, setGuestUser] = useState(null);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const navigation = useNavigation();
   const segments = useSegments();
   const pathname = usePathname();
 
@@ -190,14 +192,14 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
         navigateAppRoute(router, item.href);
         return;
       }
-      // Prefer hub root for Services so nested amenity/docs screens don't stick.
+      // Always land on the Services hub, not a leftover amenity/booking screen.
       if (item.name === "services") {
-        router.navigate("/(tabs)/services");
+        openServicesHub(navigation, router, pathname);
         return;
       }
       router.navigate(item.href);
     },
-    [haptic, router],
+    [haptic, router, navigation, pathname],
   );
 
   const onCenterPress = useCallback(() => {
