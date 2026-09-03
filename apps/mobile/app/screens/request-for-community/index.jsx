@@ -23,40 +23,24 @@ import { ScreenBrand as B } from "../../../constants/screen-brand";
 
 const FIELD_BOX_HEIGHT = 52;
 const FIELD_FONT_SIZE = 14;
-/** Tight iOS text band. A 52px UITextField leaves Poppins sitting low; do not set lineHeight. */
-const IOS_TEXT_BAND = 22;
-const IOS_TEXT_PAD_TOP = 0;
-const IOS_TEXT_PAD_BOTTOM = 6;
 
 /**
- * Inline so StyleSheet text-metrics cannot inject lineHeight.
- * iOS ignores textAlignVertical — center by padding a short text band.
- * Android uses the full 52px box + textAlignVertical.
+ * Match complete-profile single-line fields. iOS shifts placeholder + value
+ * down when lineHeight, a 52px input height, and paddingVertical are combined.
+ * The wrapper owns the 52px box; the TextInput stays intrinsically sized and
+ * centered. A little extra bottom padding lifts Poppins on iOS.
  */
 const fieldTextStyle = {
   fontFamily: Fonts.regular,
   fontSize: FIELD_FONT_SIZE,
   color: T.navy,
-  height: Platform.OS === "ios" ? IOS_TEXT_BAND : FIELD_BOX_HEIGHT,
   width: "100%",
-  flexGrow: 0,
-  flexShrink: 0,
   margin: 0,
   paddingHorizontal: 0,
-  paddingTop: Platform.OS === "ios" ? IOS_TEXT_PAD_TOP : 0,
-  paddingBottom: Platform.OS === "ios" ? IOS_TEXT_PAD_BOTTOM : 0,
-  textAlignVertical: "center",
-  includeFontPadding: false,
-};
-
-/** Placeholder drawn as Text so iOS does not use UITextField's low Poppins baseline. */
-const placeholderTextStyle = {
-  fontFamily: Fonts.regular,
-  fontSize: FIELD_FONT_SIZE,
-  color: T.gray,
-  margin: 0,
+  paddingVertical: 0,
   paddingTop: 0,
-  paddingBottom: Platform.OS === "ios" ? 1 : 0,
+  paddingBottom: Platform.OS === "ios" ? 3 : 0,
+  textAlignVertical: "center",
   includeFontPadding: false,
 };
 
@@ -260,13 +244,6 @@ export default function RequestForCommunityScreen() {
             {t('guests.communityNameLabel')} <Text style={styles.required}>*</Text>
           </Text>
           <View style={[styles.inputBox, showError("communityName", liveErrors) && styles.inputError]}>
-            {communityName.length === 0 ? (
-              <View style={styles.namePlaceholderOverlay} pointerEvents="none">
-                <Text style={placeholderTextStyle} numberOfLines={1}>
-                  {t('guests.communityNamePlaceholder')}
-                </Text>
-              </View>
-            ) : null}
             <LocaleTextInput
               value={communityName}
               onChangeText={(text) => {
@@ -275,7 +252,7 @@ export default function RequestForCommunityScreen() {
               }}
               onBlur={() => touch("communityName")}
               placeholder={t('guests.communityNamePlaceholder')}
-              placeholderTextColor="transparent"
+              placeholderTextColor={T.gray}
               style={fieldTextStyle}
               maxLength={LIMITS.communityName}
               underlineColorAndroid="transparent"
@@ -295,13 +272,6 @@ export default function RequestForCommunityScreen() {
               <MapPin size={16} color={T.gray} strokeWidth={1.75} />
             </View>
             <View style={styles.addressTextSlot}>
-              {address.length === 0 ? (
-                <View style={styles.placeholderOverlay} pointerEvents="none">
-                  <Text style={placeholderTextStyle} numberOfLines={1}>
-                    {t('guests.addressPlaceholder')}
-                  </Text>
-                </View>
-              ) : null}
               <LocaleTextInput
                 value={address}
                 onChangeText={(text) => {
@@ -310,7 +280,7 @@ export default function RequestForCommunityScreen() {
                 }}
                 onBlur={() => touch("address")}
                 placeholder={t('guests.addressPlaceholder')}
-                placeholderTextColor="transparent"
+                placeholderTextColor={T.gray}
                 style={fieldTextStyle}
                 maxLength={LIMITS.communityAddress}
                 underlineColorAndroid="transparent"
@@ -521,22 +491,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     justifyContent: "center",
   },
-  namePlaceholderOverlay: {
-    position: "absolute",
-    left: 14,
-    right: 14,
-    top: 0,
-    bottom: 0,
-    justifyContent: "center",
-  },
-  placeholderOverlay: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    justifyContent: "center",
-  },
   labelSpacing: {
     marginTop: 20,
   },
@@ -549,19 +503,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     backgroundColor: T.white,
     flexDirection: "row",
-    alignItems: "stretch",
+    alignItems: "center",
     gap: 8,
     overflow: "hidden",
   },
   addressIconSlot: {
     width: 16,
-    height: FIELD_BOX_HEIGHT,
+    height: "100%",
     alignItems: "center",
     justifyContent: "center",
   },
   addressTextSlot: {
     flex: 1,
-    height: FIELD_BOX_HEIGHT,
+    height: "100%",
     justifyContent: "center",
   },
   stepsCard: {

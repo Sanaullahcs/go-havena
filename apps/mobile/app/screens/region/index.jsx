@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
 import { Ionicons } from "@expo/vector-icons";
 import { MapPin } from "lucide-react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { getCurrentRole } from "../../../constants/role-session";
 import { saveRegionSelection } from "../../../services/auth-api";
 import { ionChevronForward, arrowForward } from "../../../utils/rtl";
@@ -24,6 +24,7 @@ export default function RegionScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const dialog = useAppDialog();
+  const insets = useSafeAreaInsets();
   const { role: roleParam } = useLocalSearchParams();
   const activeRole =
     roleParam === "admin" || roleParam === "resident"
@@ -100,13 +101,15 @@ export default function RegionScreen() {
   const showEmpty = !loading && !error && regions.length === 0;
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "left", "right", "bottom"]}>
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       <ScreenStatusBar style="dark" opaque androidBackgroundColor={T.canvas} />
       <View style={styles.topSection}>
         <View style={styles.headerRow}>
           <BackButton iconOnly compact onPress={() => confirmLeaveOnboarding(dialog)} />
+          <Text style={styles.title} numberOfLines={1}>
+            {t("region.chooseRegion")}
+          </Text>
         </View>
-        <Text style={styles.title}>{t("region.chooseRegion")}</Text>
         <Text style={styles.subtitle}>
           {activeRole === "admin"
             ? t("region.adminRegionHint")
@@ -221,7 +224,7 @@ export default function RegionScreen() {
         </ScrollView>
       )}
 
-      <View style={styles.bottomSection}>
+      <View style={[styles.bottomSection, { paddingBottom: insets.bottom }]}>
         {activeRole === "admin" ? (
           <>
             <Text style={styles.mutedText}>{t("region.dontSeeCommunity")}</Text>
@@ -239,19 +242,17 @@ export default function RegionScreen() {
           </>
         ) : null}
 
-        <View style={styles.inviteRow}>
-          {activeRole !== "admin" ? (
-            <>
-              <Text style={styles.mutedText}>{t("region.haveInviteCode") + " "}</Text>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => router.push("/screens/invite-code")}
-              >
-                <Text style={styles.tealLink}>{t("region.enterHere")}</Text>
-              </TouchableOpacity>
-            </>
-          ) : null}
-        </View>
+        {activeRole !== "admin" ? (
+          <View style={styles.inviteRow}>
+            <Text style={styles.mutedText}>{t("region.haveInviteCode") + " "}</Text>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => router.push("/screens/invite-code")}
+            >
+              <Text style={styles.tealLink}>{t("region.enterHere")}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </View>
     </SafeAreaView>
   );
@@ -270,9 +271,11 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    gap: 12,
   },
   title: {
+    flex: 1,
+    minWidth: 0,
     fontFamily: Fonts.bold,
     fontSize: 17,
     lineHeight: 22,
@@ -423,8 +426,7 @@ const styles = StyleSheet.create({
   bottomSection: {
     borderTopWidth: 1,
     borderTopColor: T.border,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingTop: 8,
     paddingHorizontal: 24,
     alignItems: "center",
     backgroundColor: T.canvas,

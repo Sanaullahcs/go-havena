@@ -1,29 +1,100 @@
-import { Text, View, StyleSheet, Pressable, useWindowDimensions, FlatList, Platform } from "react-native";
+import { Text, View, Image, StyleSheet, Pressable, useWindowDimensions, FlatList, Platform } from "react-native";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import Svg, { Path } from "react-native-svg";
+import { Apple, BookOpen, Heart, Moon, Users, Wind } from "lucide-react-native";
 import { Fonts } from "../../constants/font";
 import { Home, homeStyles } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
+import { Media } from "../../constants/media";
 import HomeSectionHeader from "./section-header";
 import HomeSectionEmpty from "./home-section-empty";
-import WellnessCategoryIcon from "../wellness/wellness-category-icon";
 import { wellnessDetailRouteParams } from "../../constants/wellness-categories";
-import { getWellnessCategoryMeta } from "../../constants/wellness-theme";
+import { twoUpCardWidth, snapInterval } from "../../constants/carousel";
 import { sw, sf } from "../../utils/responsive";
 import { arrowForward } from "../../utils/rtl";
 
-const CARD_GAP = sw(12);
-const PEEK = sw(32);
-const RADIUS = sw(16);
-const ICON_WELL = sw(44);
+const CARD_GAP = sw(10);
+const PEEK = sw(16);
+const RADIUS = sw(18);
+const HERO_HEIGHT = sw(112);
+const WAVE_HEIGHT = sw(32);
+const ICON_BADGE = sw(32);
+const PURPLE = "#4338CA";
+
+const IMG_WEIGHT = Media.wellnessWeightBowl;
+const IMG_EXERCISE = Media.wellnessExerciseShoes;
+const IMG_CALM = Media.wellnessCalmStill;
+const IMG_SOCIAL = Media.wellnessSocial;
+const IMG_LEARNING = Media.wellnessLearning;
+
+function SneakerIcon({ color, size = 18 }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M4.2 16.4c0 1.1 3.1 2.2 8.1 2.2s8.1-1.1 8.1-2.2c0-.45-.22-.86-.62-1.16L18.4 9.6A3.1 3.1 0 0 0 15.5 7.6h-4.3c-1 0-1.95.5-2.5 1.32L6.1 13.2c-.8.7-1.9 1.6-1.9 3.2z"
+        stroke={color}
+        strokeWidth={1.7}
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M7.2 13.4h9.2M8.6 11h5.4"
+        stroke={color}
+        strokeWidth={1.7}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
+function HeroWave({ width, blobColor }) {
+  return (
+    <View pointerEvents="none" style={[styles.waveWrap, { width }]}>
+      <Svg
+        width={width}
+        height={WAVE_HEIGHT}
+        viewBox="0 0 200 40"
+        preserveAspectRatio="none"
+      >
+        <Path
+          fill={blobColor}
+          opacity={0.18}
+          d="M0 10C46 -2 86 6 118 20C146 32 172 30 200 18V40H0V10Z"
+        />
+        <Path
+          fill={T.white}
+          d="M0 20C40 6 78 5 108 16C140 28 168 34 200 24V40H0V20Z"
+        />
+      </Svg>
+    </View>
+  );
+}
+
+const VISUALS = {
+  weight: { image: IMG_WEIGHT, accent: T.navy, blob: T.navy, Icon: Apple },
+  nutrition: { image: IMG_WEIGHT, accent: T.navy, blob: T.navy, Icon: Apple },
+  exercise: { image: IMG_EXERCISE, accent: T.teal, blob: T.teal, Icon: SneakerIcon },
+  stress: { image: IMG_CALM, accent: PURPLE, blob: PURPLE, Icon: Wind },
+  mindful: { image: IMG_CALM, accent: PURPLE, blob: PURPLE, Icon: Heart },
+  sleep: { image: IMG_CALM, accent: PURPLE, blob: PURPLE, Icon: Moon },
+  learning: { image: IMG_LEARNING, accent: T.navy, blob: T.navy, Icon: BookOpen },
+  social: { image: IMG_SOCIAL, accent: T.teal, blob: T.teal, Icon: Users },
+};
+
+const DEFAULT_VISUAL = VISUALS.weight;
+
+function getHomeWellnessVisual(key) {
+  return VISUALS[String(key ?? "").toLowerCase()] ?? DEFAULT_VISUAL;
+}
 
 function WellnessCard({ item, width, onPress }) {
   const { t } = useTranslation();
-  const meta = getWellnessCategoryMeta(item.iconKey ?? item.key);
-  const accent = item.color ?? meta.color;
+  const visual = getHomeWellnessVisual(item.iconKey ?? item.key);
+  const Icon = visual.Icon;
   const progress = Math.min(100, Math.max(0, item.progressPercent ?? 0));
+  const iconIsSneaker = Icon === SneakerIcon;
 
   return (
     <Pressable
@@ -35,37 +106,49 @@ function WellnessCard({ item, width, onPress }) {
       ]}
     >
       <View style={styles.cardInner}>
-        {/* Top colored band */}
-        <View style={[styles.topBand, { backgroundColor: accent }]}>
-          <View style={styles.iconWell}>
-            <WellnessCategoryIcon categoryKey={item.iconKey ?? item.key} size={sw(28)} />
+        <View style={[styles.hero, { width }]} collapsable={false}>
+          <Image
+            source={visual.image}
+            style={[styles.heroImage, { width, height: HERO_HEIGHT }]}
+            resizeMode="cover"
+          />
+          <HeroWave width={width} blobColor={visual.blob} />
+          <View style={styles.iconBadge}>
+            {iconIsSneaker ? (
+              <SneakerIcon color={visual.accent} size={sf(16)} />
+            ) : (
+              <Icon size={sf(16)} color={visual.accent} strokeWidth={2} />
+            )}
           </View>
         </View>
 
-        {/* Content */}
         <View style={styles.body}>
-          <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
+          <Text style={styles.title} numberOfLines={1}>
+            {item.title}
+          </Text>
           <Text style={styles.sub} numberOfLines={1}>
             {item.coursesLabel || item.subtitle}
           </Text>
 
-          {/* Progress */}
           <View style={styles.progressWrap}>
             <View style={styles.progressTrack}>
               <View
                 style={[
                   styles.progressFill,
-                  { width: `${progress}%`, backgroundColor: accent },
+                  { width: `${progress}%`, backgroundColor: visual.accent },
                 ]}
               />
             </View>
-            <Text style={[styles.progressLabel, { color: accent }]}>{progress}%</Text>
+            <Text style={[styles.progressLabel, { color: visual.accent }]}>
+              {progress}%
+            </Text>
           </View>
 
-          {/* CTA */}
           <View style={styles.ctaRow}>
-            <Text style={[styles.ctaText, { color: accent }]}>{t("common.continue")}</Text>
-            <Feather name={arrowForward()} size={sf(12)} color={accent} />
+            <Text style={[styles.ctaText, { color: visual.accent }]}>
+              {t("common.continue")}
+            </Text>
+            <Feather name={arrowForward()} size={sf(13)} color={visual.accent} />
           </View>
         </View>
       </View>
@@ -79,10 +162,8 @@ export default function WellnessNew({ items = [] }) {
   const { width: screenWidth } = useWindowDimensions();
 
   const layout = useMemo(() => {
-    const contentWidth = screenWidth - Home.gutter * 2;
-    const cardWidth = Math.floor((contentWidth - CARD_GAP - PEEK) / 2);
-    const snap = cardWidth + CARD_GAP;
-    return { cardWidth, snap };
+    const cardWidth = twoUpCardWidth(screenWidth, Home.gutter, CARD_GAP, PEEK);
+    return { cardWidth, snap: snapInterval(cardWidth, CARD_GAP) };
   }, [screenWidth]);
 
   const renderItem = ({ item }) => (
@@ -140,85 +221,100 @@ export default function WellnessNew({ items = [] }) {
 }
 
 const styles = StyleSheet.create({
-  carousel: { flexGrow: 0, alignSelf: "stretch" },
-  listContent: { paddingEnd: PEEK, alignItems: "flex-start" },
+  carousel: { flexGrow: 0, alignSelf: "stretch", overflow: "visible" },
+  listContent: {
+    paddingEnd: PEEK,
+    paddingTop: sw(2),
+    paddingBottom: sw(8),
+    alignItems: "flex-start",
+  },
   card: {
     borderRadius: RADIUS,
     ...(Platform.OS === "ios"
       ? {
           backgroundColor: T.white,
           shadowColor: T.navy,
-          shadowOffset: { width: 0, height: 3 },
+          shadowOffset: { width: 0, height: 4 },
           shadowOpacity: 0.08,
           shadowRadius: 10,
           borderCurve: "continuous",
         }
-      : { elevation: 2 }),
+      : { elevation: 2, backgroundColor: T.white }),
   },
-  cardPressed: { opacity: 0.93, transform: [{ scale: 0.97 }] },
+  cardPressed: { opacity: 0.96, transform: [{ scale: 0.985 }] },
   cardInner: {
     borderRadius: RADIUS,
     overflow: "hidden",
     backgroundColor: T.white,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: T.border,
     ...(Platform.OS === "ios" ? { borderCurve: "continuous" } : null),
   },
-  topBand: {
-    height: sw(56),
-    alignItems: "center",
-    justifyContent: "flex-end",
-    paddingBottom: 0,
+  hero: {
+    height: HERO_HEIGHT,
+    backgroundColor: T.canvas,
+    overflow: "hidden",
   },
-  iconWell: {
-    width: ICON_WELL,
-    height: ICON_WELL,
-    borderRadius: ICON_WELL / 2,
+  heroImage: {
+    width: "100%",
+    height: HERO_HEIGHT,
+  },
+  waveWrap: {
+    position: "absolute",
+    left: 0,
+    bottom: -1,
+    height: WAVE_HEIGHT,
+    zIndex: 1,
+  },
+  iconBadge: {
+    position: "absolute",
+    start: sw(10),
+    top: sw(12),
+    width: ICON_BADGE,
+    height: ICON_BADGE,
+    borderRadius: ICON_BADGE / 2,
     backgroundColor: T.white,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: -ICON_WELL / 2,
     shadowColor: T.navy,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 3,
+    elevation: 2,
+    zIndex: 2,
   },
   body: {
-    paddingTop: ICON_WELL / 2 + sw(8),
+    paddingTop: sw(4),
     paddingHorizontal: sw(12),
-    paddingBottom: sw(14),
-    alignItems: "center",
+    paddingBottom: sw(12),
   },
   title: {
     fontFamily: Fonts.bold,
-    fontSize: sf(13),
-    lineHeight: sf(17),
+    fontSize: sf(15),
+    lineHeight: sf(19),
     color: T.navy,
     fontWeight: "700",
-    textAlign: "center",
+    includeFontPadding: false,
   },
   sub: {
     fontFamily: Fonts.regular,
-    fontSize: sf(10.5),
+    fontSize: sf(11),
     lineHeight: sf(14),
     color: T.gray,
-    marginTop: sw(2),
-    marginBottom: sw(10),
-    textAlign: "center",
+    marginTop: sw(3),
+    includeFontPadding: false,
   },
   progressWrap: {
     width: "100%",
     flexDirection: "row",
     alignItems: "center",
-    gap: sw(6),
+    gap: sw(8),
+    marginTop: sw(10),
     marginBottom: sw(10),
   },
   progressTrack: {
     flex: 1,
-    height: sw(5),
+    height: sw(4),
     borderRadius: 999,
-    backgroundColor: T.canvas,
+    backgroundColor: "rgba(27, 79, 138, 0.08)",
     overflow: "hidden",
   },
   progressFill: {
@@ -226,20 +322,25 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   progressLabel: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(10),
-    fontWeight: "700",
-    minWidth: sw(26),
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(11),
+    lineHeight: sf(14),
+    fontWeight: "600",
+    minWidth: sw(28),
     textAlign: "auto",
+    includeFontPadding: false,
   },
   ctaRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: sw(4),
   },
   ctaText: {
     fontFamily: Fonts.semiBold,
-    fontSize: sf(11),
+    fontSize: sf(13),
+    lineHeight: sf(17),
     fontWeight: "600",
+    includeFontPadding: false,
   },
 });

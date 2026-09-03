@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../../constants/font";
 import { Ionicons } from "@expo/vector-icons";
 import { Building2, MapPin } from "lucide-react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import BackButton from "../../../../components/ui/back-button";
 import { getCurrentRole } from "../../../../constants/role-session";
 import { saveRegionSelection, joinCommunity } from "../../../../services/auth-api";
@@ -14,8 +14,6 @@ import { ionChevronForward } from "../../../../utils/rtl";
 import { fetchCommunitiesInRegion } from "../../../../services/regions-api";
 import { getApiErrorMessage } from "../../../../utils/auth-errors";
 import { goToCompleteProfile } from "../../../../constants/onboarding-routes";
-import { confirmLeaveOnboarding } from "../../../../services/sign-out";
-import { useAppDialog } from "../../../../providers/app-dialog-provider";
 import { useApiAction } from "../../../../hooks/use-api-action";
 import ScreenStatusBar from "../../../../components/layout/screen-status-bar";
 import { HomeTheme as T } from "../../../../constants/home-theme";
@@ -37,6 +35,7 @@ const searchFieldTextStyle = {
 export default function RegionCommunitiesScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const {
     regionId,
     regionTitle = "Region",
@@ -62,10 +61,16 @@ export default function RegionCommunitiesScreen() {
   const [selectingId, setSelectingId] = useState(null);
   const hasLoadedOnce = useRef(false);
   const { showFailure } = useApiAction();
-  const dialog = useAppDialog();
 
   const handleBack = () => {
-    confirmLeaveOnboarding(dialog);
+    if (router.canGoBack?.()) {
+      router.back();
+      return;
+    }
+    router.replace({
+      pathname: "/screens/region",
+      params: { role: activeRole },
+    });
   };
 
   useEffect(() => {
@@ -154,7 +159,7 @@ export default function RegionCommunitiesScreen() {
   const showEmpty = !loading && !error && communities.length === 0;
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "left", "right", "bottom"]}>
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       <ScreenStatusBar style="dark" opaque androidBackgroundColor={T.canvas} />
 
       <View style={styles.topSection}>
@@ -327,7 +332,7 @@ export default function RegionCommunitiesScreen() {
       )}
 
       {isAdminOnboarding && !loading && !error ? (
-        <View style={styles.bottomSection}>
+        <View style={[styles.bottomSection, { paddingBottom: insets.bottom }]}>
           <Text style={styles.mutedText}>{t("region.dontSeeCommunity")}</Text>
           <TouchableOpacity activeOpacity={0.8} onPress={goRequestCommunity}>
             <Text style={styles.tealLink}>{t("region.requestAddIn", { region: regionTitle })}</Text>
@@ -576,8 +581,7 @@ const styles = StyleSheet.create({
   bottomSection: {
     borderTopWidth: 1,
     borderTopColor: T.border,
-    paddingTop: 14,
-    paddingBottom: 12,
+    paddingTop: 8,
     paddingHorizontal: 24,
     alignItems: "center",
     backgroundColor: T.canvas,

@@ -21,6 +21,16 @@ export const Media = {
   wellnessCalm: require("../assets/images/wellness-meditation.jpg"),
   /** 400×400 — exercise card */
   wellnessActive: require("../assets/images/wellness-fitness.jpg"),
+  /** Home wellness — Weight & Diet hero */
+  wellnessWeightBowl: require("../assets/images/wellness-weight-bowl.jpg"),
+  /** Home wellness — Exercise hero */
+  wellnessExerciseShoes: require("../assets/images/wellness-exercise-shoes.jpg"),
+  /** Home wellness — calm / other pillars */
+  wellnessCalmStill: require("../assets/images/wellness-calm-still.jpg"),
+  /** Home wellness — Social hero */
+  wellnessSocial: require("../assets/images/wellness-social-mugs.jpg"),
+  /** Home wellness — Learning hero */
+  wellnessLearning: require("../assets/images/wellness-learning-books.jpg"),
   /** 400×400 — default profile / side menu */
   avatarProfile: require("../assets/images/avatar-profile.jpg"),
   avatarJessica: require("../assets/images/avatar-jessica.jpg"),
