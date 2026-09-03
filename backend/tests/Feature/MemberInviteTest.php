@@ -111,6 +111,12 @@ class MemberInviteTest extends TestCase
             'display_name' => 'Jane Resident',
             'unit_number'  => 'Unit 12B',
         ]);
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id'          => $claimantId,
+            'community_id'     => $community->id,
+            'status'           => 'approved',
+            'invite_code_used' => $inviteCode,
+        ]);
 
         Sanctum::actingAs($claimant);
 

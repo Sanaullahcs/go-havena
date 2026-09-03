@@ -150,9 +150,12 @@ export default function VerifyPhoneScreen() {
 
   const busy = submitting || otpSending;
 
-  const successSubtitle = verifiedUser && isCommunityAdminRole(verifiedUser)
-    ? t("auth.openingAdminDashboard")
-    : t("auth.signedInToHavena");
+  const successSubtitle =
+    verifiedUser &&
+    isCommunityAdminRole(verifiedUser) &&
+    verifiedUser?.access?.next_step === "ready"
+      ? t("auth.openingAdminDashboard")
+      : t("auth.signedInToHavena");
 
   const resendFooter = resendNotice ? (
     <Text style={[layout.footerNote, layout.resendSuccess]}>{t("auth.newCodeSent")}</Text>

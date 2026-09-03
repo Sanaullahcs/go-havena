@@ -58,7 +58,7 @@ const LocaleTextInput = forwardRef(function LocaleTextInput(
         style,
         {
           textAlign: resolvedTextAlign,
-          ...(rest.multiline ? null : { textAlignVertical: "center" }),
+          textAlignVertical: rest.multiline ? rest.textAlignVertical ?? "top" : "center",
         },
       ]}
     />

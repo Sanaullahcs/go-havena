@@ -277,6 +277,21 @@ export function isCommunityAdminRole(user) {
   return user?.role === "community_admin";
 }
 
+/** Joined because a community admin (or invite code) added them — not a self-serve request. */
+export function joinedViaAdminInvite(user) {
+  return (user?.memberships ?? []).some((m) => Boolean(m?.invite_code_used));
+}
+
+/**
+ * Utility bill is only for self-serve residents proving they live in the community.
+ * Skip for guests, community admins, and residents invited by an admin.
+ */
+export function shouldSkipUtilityBill(user, { role } = {}) {
+  if (isGuestUser(user)) return true;
+  if (role === "admin" || isCommunityAdminRole(user)) return true;
+  return joinedViaAdminInvite(user);
+}
+
 /** User applied as community admin but system admin has not approved yet. */
 export function isCommunityAdminPending(user) {
   return isCommunityAdminRole(user) && (user?.community_admin_status ?? "pending") === "pending";

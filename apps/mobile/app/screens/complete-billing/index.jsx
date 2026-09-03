@@ -33,10 +33,16 @@ WebBrowser.maybeCompleteAuthSession();
 export const options = { headerShown: false };
 
 function resolveAdminPortalUrl(fromAccess) {
+  // Expo Go on a phone cannot open localhost or the production site while the
+  // API/frontend are on LAN. Always use the Metro LAN host on port 3000.
+  if (__DEV__) {
+    return `${resolveAdminPortalBaseUrl()}/admin/billing`;
+  }
+
   const candidate = String(fromAccess?.billing_url || "").trim();
   const unusable =
     !candidate ||
-    /localhost|127\.0\.0\.1|0\.0\.0\.0|admin\.gohavena\.com/i.test(candidate);
+    /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(candidate);
 
   if (!unusable) {
     return candidate.replace(/\/$/, "");
@@ -222,56 +228,50 @@ export default function CompleteBillingScreen() {
       const code = await createWebHandoff();
       if (code) url = appendQuery(url, { handoff: code });
     } catch {
-      // Still open the portal — they'll sign in with the same phone number.
+      // Still open the portal — they can sign in with the same email.
     }
 
-    // Expo Go / LAN: openAuthSessionAsync often fails on plain http:// URLs.
-    // Prefer the system browser so billing can load on the phone.
+    if (__DEV__) {
+      console.log("[Havena] Opening billing portal:", url);
+    }
+
+    // HTTP LAN URLs: Chrome Custom Tabs often close immediately. Open the
+    // system browser. HTTPS: same in-app browser as Terms of Service.
+    const isPlainHttp = /^http:\/\//i.test(url);
     let waitedForReturn = false;
     try {
-      const isPlainHttp = /^http:\/\//i.test(url);
-      if (isPlainHttp || __DEV__) {
-        const canOpen = await Linking.canOpenURL(url);
-        if (canOpen) {
-          await Linking.openURL(url);
-        } else {
-          await WebBrowser.openBrowserAsync(url, {
+      if (isPlainHttp) {
+        await Linking.openURL(url);
+      } else {
+        try {
+          waitedForReturn = true;
+          await WebBrowser.openAuthSessionAsync(url, returnUrl, {
             showInRecents: true,
-            createTask: true,
+            createTask: false,
+          });
+        } catch {
+          waitedForReturn = false;
+          await WebBrowser.openBrowserAsync(url, {
+            enableBarCollapsing: true,
+            showTitle: true,
+            showInRecents: true,
           });
         }
-      } else {
-        waitedForReturn = true;
-        const result = await WebBrowser.openAuthSessionAsync(url, returnUrl, {
-          showInRecents: true,
-          createTask: false,
-        });
-        if (result?.type === "cancel" || result?.type === "dismiss") {
-          // User closed the sheet — still refresh in case they finished checkout.
-        }
       }
-    } catch (err) {
+    } catch {
       try {
         await Linking.openURL(url);
       } catch {
-        try {
-          await WebBrowser.openBrowserAsync(url, {
-            showInRecents: true,
-            createTask: true,
-          });
-        } catch {
-          openedPortalRef.current = false;
-          await dialog.showError(
-            t("common.error", { defaultValue: "Error" }),
-            t("billing.cannotOpenBrowser", {
-              defaultValue: "Could not open the admin portal. Try again or use a desktop browser.",
-            }) + `\n\n${url}`,
-          );
-        }
+        openedPortalRef.current = false;
+        await dialog.showError(
+          t("common.error", { defaultValue: "Error" }),
+          t("billing.cannotOpenBrowser", {
+            defaultValue: "Could not open the admin portal. Try again or use a desktop browser.",
+          }) + `\n\n${url}`,
+        );
       }
     } finally {
       setOpening(false);
-      // Auth session waits until return; Linking does not — AppState handles that path.
       if (waitedForReturn) {
         await refreshAfterBrowserReturn();
       }

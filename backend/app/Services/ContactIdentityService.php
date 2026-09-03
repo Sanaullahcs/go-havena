@@ -53,20 +53,28 @@ class ContactIdentityService
         return $normalized !== '' ? $normalized : null;
     }
 
-    public static function findActiveUserByEmail(string $email, ?int $excludeUserId = null): ?User
+    public static function findUserByEmail(string $email, bool $withTrashed = false): ?User
     {
         $normalized = self::normalizeEmail($email);
         if (! $normalized || self::isPlaceholderEmail($normalized)) {
             return null;
         }
 
-        $query = User::query()->whereNull('deleted_at')->where('email', $normalized);
+        $query = $withTrashed
+            ? User::withTrashed()
+            : User::query()->whereNull('deleted_at');
 
-        if ($excludeUserId) {
-            $query->where('id', '!=', $excludeUserId);
+        return $query->whereRaw('LOWER(email) = ?', [$normalized])->first();
+    }
+
+    public static function findActiveUserByEmail(string $email, ?int $excludeUserId = null): ?User
+    {
+        $user = self::findUserByEmail($email);
+        if ($excludeUserId && $user && (int) $user->id === $excludeUserId) {
+            return null;
         }
 
-        return $query->first();
+        return $user;
     }
 
     public static function findActiveUserByPhone(string $phone, ?int $excludeUserId = null): ?User

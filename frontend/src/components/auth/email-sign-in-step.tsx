@@ -7,22 +7,28 @@ type EmailSignInStepProps = {
   email: string;
   onEmailChange: (value: string) => void;
   onSubmit: (e: React.FormEvent) => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
   onDemoFill?: () => void;
   demoLabel?: string;
   sending?: boolean;
   disabled?: boolean;
   submitLabel?: string;
+  error?: string | null;
 };
 
 export function EmailSignInStep({
   email,
   onEmailChange,
   onSubmit,
+  onFocus,
+  onBlur,
   onDemoFill,
   demoLabel,
   sending = false,
   disabled = false,
   submitLabel = "Continue",
+  error = null,
 }: EmailSignInStepProps) {
   return (
     <form onSubmit={onSubmit} className="auth-step-enter mt-5 space-y-5" noValidate>
@@ -35,10 +41,19 @@ export function EmailSignInStep({
           inputMode="email"
           value={email}
           required
+          aria-invalid={Boolean(error)}
           onChange={(e) => onEmailChange(e.target.value)}
+          onFocus={onFocus}
+          onBlur={onBlur}
           placeholder="you@example.com"
           className="nl-input w-full"
+          style={error ? { borderColor: "#DC2626" } : undefined}
         />
+        {error ? (
+          <p className="mt-2 text-sm text-red-600" role="alert">
+            {error}
+          </p>
+        ) : null}
       </div>
 
       <LoadingButton

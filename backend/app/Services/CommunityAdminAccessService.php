@@ -107,7 +107,44 @@ class CommunityAdminAccessService
         $profile = $user->profile;
         $name = trim((string) ($profile?->display_name ?: $user->name ?: ''));
 
-        return $name !== '';
+        if ($name === '' || $this->isPlaceholderDisplayName($name)) {
+            return false;
+        }
+
+        if (! $profile) {
+            return true;
+        }
+
+        if (trim((string) ($profile->unit_number ?? '')) === '') {
+            return false;
+        }
+
+        // System-admin invite/create writes a stub profile; first login must complete it.
+        if ($this->isUnsubmittedOnboardingProfile($profile)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function isPlaceholderDisplayName(string $name): bool
+    {
+        return in_array($name, [
+            'Neighbor',
+            'My Profile',
+            'Profile',
+            'Complete Your Profile',
+            'Complete your profile',
+        ], true);
+    }
+
+    private function isUnsubmittedOnboardingProfile($profile): bool
+    {
+        if (! $profile->created_at || ! $profile->updated_at) {
+            return false;
+        }
+
+        return $profile->updated_at->getTimestamp() <= $profile->created_at->getTimestamp() + 2;
     }
 
     /**
@@ -161,7 +198,7 @@ class CommunityAdminAccessService
         $billingComplete = $this->isBillingComplete($communityId);
         $profileComplete = $this->isProfileComplete($user);
         $hasCommunity = $communityId !== null;
-        $canUse = $platformApproved && $billingComplete;
+        $canUse = $platformApproved && $billingComplete && $profileComplete;
 
         $blocking = [];
         if (! $profileComplete) {

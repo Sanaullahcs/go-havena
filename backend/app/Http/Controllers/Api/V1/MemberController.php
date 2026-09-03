@@ -466,15 +466,6 @@ class MemberController extends Controller
             'updated_at'   => now(),
         ]);
 
-        DB::table('community_memberships')->insert([
-            'user_id'      => $userId,
-            'community_id' => $communityId,
-            'role'         => $role,
-            'status'       => 'approved',
-            'created_at'   => now(),
-            'updated_at'   => now(),
-        ]);
-
         $invite = InviteCodeService::createForCommunity(
             communityId: $communityId,
             createdBy: $request->user()->id,
@@ -482,6 +473,16 @@ class MemberController extends Controller
             expiresAt: now()->addDays(30),
             invitedUserId: $userId,
         );
+
+        DB::table('community_memberships')->insert([
+            'user_id'          => $userId,
+            'community_id'     => $communityId,
+            'role'             => $role,
+            'status'           => 'approved',
+            'invite_code_used' => $invite->code,
+            'created_at'       => now(),
+            'updated_at'       => now(),
+        ]);
 
         $communityName = Community::query()->where('id', $communityId)->value('name') ?? 'your community';
         $qrPayload = InviteCodeService::qrPayload($invite->code);

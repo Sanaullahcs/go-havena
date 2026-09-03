@@ -38,8 +38,7 @@ class OtpController extends Controller
         }
 
         $intent = $validated['intent'] ?? 'login';
-        $user = ContactIdentityService::findActiveUserByEmail($email)
-            ?? User::withTrashed()->where('email', $email)->first();
+        $user = ContactIdentityService::findUserByEmail($email, withTrashed: true);
 
         if ($intent === 'login') {
             if (! $user || $user->trashed()) {
@@ -99,8 +98,7 @@ class OtpController extends Controller
         }
 
         $intent = $validated['intent'] ?? 'login';
-        $user = ContactIdentityService::findActiveUserByEmail($email)
-            ?? User::withTrashed()->where('email', $email)->first();
+        $user = ContactIdentityService::findUserByEmail($email, withTrashed: true);
 
         if ($intent === 'login') {
             if (! $user || $user->trashed()) {
@@ -240,7 +238,7 @@ class OtpController extends Controller
 
             return $user;
         } catch (UniqueConstraintViolationException) {
-            $existing = User::withTrashed()->where('email', $email)->first();
+            $existing = ContactIdentityService::findUserByEmail($email, withTrashed: true);
 
             if ($existing?->trashed()) {
                 $existing->restore();

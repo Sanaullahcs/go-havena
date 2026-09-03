@@ -156,7 +156,7 @@ export default function Roles() {
                 <ShieldCheck size={16} color={T.deepTeal} strokeWidth={2} />
               </View>
               <Text style={styles.trustText}>
-                {t("roles.verifiedPhonesTrust")}
+                {t("roles.verifiedEmailsTrust")}
               </Text>
             </View>
 

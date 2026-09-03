@@ -172,10 +172,21 @@ class ProfileController extends Controller
         }
 
         if (! empty($profileData)) {
-            $user->profile()->updateOrCreate(
+            $profile = $user->profile()->updateOrCreate(
                 ['user_id' => $user->id],
                 $profileData
             );
+            $profile->refresh();
+            // Same-second SQLite timestamps would still look like a provisioned stub.
+            if (
+                $profile->created_at
+                && $profile->updated_at
+                && $profile->updated_at->getTimestamp() <= $profile->created_at->getTimestamp() + 2
+            ) {
+                $profile->forceFill([
+                    'updated_at' => $profile->created_at->copy()->addSeconds(5),
+                ])->saveQuietly();
+            }
 
             if ($request->filled('display_name') && ! $request->filled('name')) {
                 $user->update(['name' => $request->display_name]);
