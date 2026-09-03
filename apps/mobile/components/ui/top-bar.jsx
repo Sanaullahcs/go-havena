@@ -66,10 +66,9 @@ export default function TopBar({ onMenuPress }) {
         <View style={styles.row}>
           <View style={styles.left}>
             <BurgerButton onPress={onMenuPress} compact plain iconColor={T.navy} />
-            <Pressable
+            <View
               style={styles.location}
               accessibilityLabel={t("topBar.communityLocation", { name: title })}
-              onPress={() => router.push("/(tabs)/profile")}
             >
               <View style={styles.pinWrap}>
                 <Feather name="map-pin" size={sf(13)} color={T.white} />
@@ -90,7 +89,7 @@ export default function TopBar({ onMenuPress }) {
                 </Text>
               </View>
               <Feather name="chevron-down" size={sf(14)} color={T.gray} />
-            </Pressable>
+            </View>
           </View>
 
           <View style={styles.right}>

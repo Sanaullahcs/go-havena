@@ -3,18 +3,20 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import Svg, { Path } from "react-native-svg";
-import { Apple, BookOpen, Heart, Moon, Users, Wind } from "lucide-react-native";
 import { Fonts } from "../../constants/font";
 import { Home, homeStyles } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
-import { Media } from "../../constants/media";
 import HomeSectionHeader from "./section-header";
 import HomeSectionEmpty from "./home-section-empty";
 import { wellnessDetailRouteParams } from "../../constants/wellness-categories";
 import { twoUpCardWidth, snapInterval } from "../../constants/carousel";
 import { sw, sf } from "../../utils/responsive";
 import { arrowForward } from "../../utils/rtl";
+import {
+  getWellnessVisual,
+  SneakerIcon,
+  WellnessHeroWave,
+} from "../../constants/wellness-visuals";
 
 const CARD_GAP = sw(10);
 const PEEK = sw(16);
@@ -22,76 +24,10 @@ const RADIUS = sw(18);
 const HERO_HEIGHT = sw(112);
 const WAVE_HEIGHT = sw(32);
 const ICON_BADGE = sw(32);
-const PURPLE = "#4338CA";
-
-const IMG_WEIGHT = Media.wellnessWeightBowl;
-const IMG_EXERCISE = Media.wellnessExerciseShoes;
-const IMG_CALM = Media.wellnessCalmStill;
-const IMG_SOCIAL = Media.wellnessSocial;
-const IMG_LEARNING = Media.wellnessLearning;
-
-function SneakerIcon({ color, size = 18 }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M4.2 16.4c0 1.1 3.1 2.2 8.1 2.2s8.1-1.1 8.1-2.2c0-.45-.22-.86-.62-1.16L18.4 9.6A3.1 3.1 0 0 0 15.5 7.6h-4.3c-1 0-1.95.5-2.5 1.32L6.1 13.2c-.8.7-1.9 1.6-1.9 3.2z"
-        stroke={color}
-        strokeWidth={1.7}
-        strokeLinejoin="round"
-      />
-      <Path
-        d="M7.2 13.4h9.2M8.6 11h5.4"
-        stroke={color}
-        strokeWidth={1.7}
-        strokeLinecap="round"
-      />
-    </Svg>
-  );
-}
-
-function HeroWave({ width, blobColor }) {
-  return (
-    <View pointerEvents="none" style={[styles.waveWrap, { width }]}>
-      <Svg
-        width={width}
-        height={WAVE_HEIGHT}
-        viewBox="0 0 200 40"
-        preserveAspectRatio="none"
-      >
-        <Path
-          fill={blobColor}
-          opacity={0.18}
-          d="M0 10C46 -2 86 6 118 20C146 32 172 30 200 18V40H0V10Z"
-        />
-        <Path
-          fill={T.white}
-          d="M0 20C40 6 78 5 108 16C140 28 168 34 200 24V40H0V20Z"
-        />
-      </Svg>
-    </View>
-  );
-}
-
-const VISUALS = {
-  weight: { image: IMG_WEIGHT, accent: T.navy, blob: T.navy, Icon: Apple },
-  nutrition: { image: IMG_WEIGHT, accent: T.navy, blob: T.navy, Icon: Apple },
-  exercise: { image: IMG_EXERCISE, accent: T.teal, blob: T.teal, Icon: SneakerIcon },
-  stress: { image: IMG_CALM, accent: PURPLE, blob: PURPLE, Icon: Wind },
-  mindful: { image: IMG_CALM, accent: PURPLE, blob: PURPLE, Icon: Heart },
-  sleep: { image: IMG_CALM, accent: PURPLE, blob: PURPLE, Icon: Moon },
-  learning: { image: IMG_LEARNING, accent: T.navy, blob: T.navy, Icon: BookOpen },
-  social: { image: IMG_SOCIAL, accent: T.teal, blob: T.teal, Icon: Users },
-};
-
-const DEFAULT_VISUAL = VISUALS.weight;
-
-function getHomeWellnessVisual(key) {
-  return VISUALS[String(key ?? "").toLowerCase()] ?? DEFAULT_VISUAL;
-}
 
 function WellnessCard({ item, width, onPress }) {
   const { t } = useTranslation();
-  const visual = getHomeWellnessVisual(item.iconKey ?? item.key);
+  const visual = getWellnessVisual(item.iconKey ?? item.key);
   const Icon = visual.Icon;
   const progress = Math.min(100, Math.max(0, item.progressPercent ?? 0));
   const iconIsSneaker = Icon === SneakerIcon;
@@ -112,7 +48,7 @@ function WellnessCard({ item, width, onPress }) {
             style={[styles.heroImage, { width, height: HERO_HEIGHT }]}
             resizeMode="cover"
           />
-          <HeroWave width={width} blobColor={visual.blob} />
+          <WellnessHeroWave width={width} blobColor={visual.blob} height={WAVE_HEIGHT} />
           <View style={styles.iconBadge}>
             {iconIsSneaker ? (
               <SneakerIcon color={visual.accent} size={sf(16)} />
@@ -256,13 +192,6 @@ const styles = StyleSheet.create({
   heroImage: {
     width: "100%",
     height: HERO_HEIGHT,
-  },
-  waveWrap: {
-    position: "absolute",
-    left: 0,
-    bottom: -1,
-    height: WAVE_HEIGHT,
-    zIndex: 1,
   },
   iconBadge: {
     position: "absolute",

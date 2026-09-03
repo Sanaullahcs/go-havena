@@ -13,12 +13,16 @@ use Illuminate\Support\Facades\DB;
  */
 class AmenitySeeder extends Seeder
 {
+    public ?int $targetCommunityId = null;
+
     public function run(): void
     {
-        $community = DB::table('communities')
-            ->where('status', 'active')
-            ->orderBy('id')
-            ->first();
+        $community = $this->targetCommunityId
+            ? DB::table('communities')->where('id', $this->targetCommunityId)->first()
+            : DB::table('communities')
+                ->where('status', 'active')
+                ->orderBy('id')
+                ->first();
 
         if (! $community) {
             $this->command?->warn('AmenitySeeder: no active community found.');
@@ -363,7 +367,10 @@ class AmenitySeeder extends Seeder
             ->where('phone', '+15555550100')
             ->orWhere('email', 'test.resident@havena.app')
             ->value('id');
-        if ($screenshotUserId) {
+        if (
+            $screenshotUserId
+            && in_array((int) $screenshotUserId, $residentIds, true)
+        ) {
             $residentIds = array_values(array_unique(array_merge(
                 [(int) $screenshotUserId],
                 $residentIds,

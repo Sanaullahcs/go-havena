@@ -31,6 +31,10 @@ export const Media = {
   wellnessSocial: require("../assets/images/wellness-social-mugs.jpg"),
   /** Home wellness — Learning hero */
   wellnessLearning: require("../assets/images/wellness-learning-books.jpg"),
+  /** Weight & Diet course — Balanced Nutrition Basics */
+  wellnessCourseNutrition: require("../assets/images/wellness-course-balanced-meal.jpg"),
+  /** Weight & Diet course — Meal Prep Mastery */
+  wellnessCourseMealPrep: require("../assets/images/wellness-course-meal-prep.jpg"),
   /** 400×400 — default profile / side menu */
   avatarProfile: require("../assets/images/avatar-profile.jpg"),
   avatarJessica: require("../assets/images/avatar-jessica.jpg"),

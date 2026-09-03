@@ -65,9 +65,39 @@ export function amenityFlowRoutes(pathname) {
   };
 }
 
+function navigatorWithRoute(navigation, routeName) {
+  let current = navigation;
+  const seen = new Set();
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    const names = current.getState?.()?.routeNames;
+    if (Array.isArray(names) && names.includes(routeName)) {
+      return current;
+    }
+    current = typeof current.getParent === "function" ? current.getParent() : null;
+  }
+  return null;
+}
+
+function navigateServicesTab(navigation, router) {
+  // useNavigation() from the custom tab bar is the root stack, which has
+  // "(tabs)" — not a sibling named "services". Nested navigate resets the hub.
+  const rootNav = navigatorWithRoute(navigation, "(tabs)");
+  if (rootNav) {
+    rootNav.navigate("(tabs)", {
+      screen: "services",
+      params: { screen: "index" },
+    });
+    return;
+  }
+
+  router?.navigate?.(PropertyManagementRoutes.HOME);
+}
+
 /** Open the Services hub root, dropping leftover amenity/booking screens. */
 export function openServicesHub(navigation, router, pathname) {
   const path = String(pathname ?? "");
+  const hub = PropertyManagementRoutes.HOME;
 
   if (isPropertyManagementRootPath(path)) {
     try {
@@ -75,12 +105,8 @@ export function openServicesHub(navigation, router, pathname) {
     } catch {
       // ignore
     }
-    navigation?.navigate?.("services", { screen: "index" });
+    navigateServicesTab(navigation, router);
     return;
-  }
-
-  if (navigation?.navigate) {
-    navigation.navigate("services", { screen: "index" });
   }
 
   const nestedInServicesTab =
@@ -88,16 +114,14 @@ export function openServicesHub(navigation, router, pathname) {
 
   if (nestedInServicesTab) {
     try {
-      router?.dismissTo?.("/(tabs)/services");
+      router?.dismissTo?.(hub);
     } catch {
-      router?.replace?.("/(tabs)/services");
+      router?.replace?.(hub);
     }
     return;
   }
 
-  if (!navigation?.navigate) {
-    router?.navigate?.("/(tabs)/services");
-  }
+  navigateServicesTab(navigation, router);
 }
 
 /**

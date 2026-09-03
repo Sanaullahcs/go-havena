@@ -28,7 +28,7 @@ export default function WellnessCourseCard({
   if (durationMin > 0) metaParts.push(t("wellness.minDuration", { minutes: durationMin }));
 
   return (
-    <View style={[styles.card, { borderColor: WellnessTheme.border }]}>
+    <View style={styles.card}>
       <TouchableOpacity
         activeOpacity={0.75}
         onPress={onPress}
@@ -74,7 +74,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 14,
     borderWidth: 1,
+    borderColor: WellnessTheme.border,
     marginBottom: sw(12),
+    overflow: "hidden",
   },
   row: {
     flexDirection: "row",

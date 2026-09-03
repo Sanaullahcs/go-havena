@@ -1,144 +1,210 @@
 import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, Text, StyleSheet, Pressable, Platform } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
-import { getWellnessCategoryMeta } from "../../constants/wellness-theme";
+import { WellnessTheme } from "../../constants/wellness-theme";
+import { HomeTheme as T } from "../../constants/home-theme";
 import { sf, sw } from "../../utils/responsive";
 import { chevronForward } from "../../utils/rtl";
 
-/** Lesson row — icon, title/subtitle, trailing action. */
+const NUM = sw(36);
+const TICK = sf(16);
+const GAP = sw(10);
+const TICK_GAP = sw(8);
+
+/** Standalone lesson card matching the course-detail reference layout. */
 export default function WellnessLessonRow({
-  categoryKey,
   index = 0,
   title,
+  description,
   timeLabel,
   completed = false,
   isWatching = false,
+  expanded = false,
   onPress,
 }) {
   const { t } = useTranslation();
-  const meta = getWellnessCategoryMeta(categoryKey);
+  const indent = completed ? NUM + GAP + TICK + TICK_GAP : NUM + GAP;
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.pressable, pressed && styles.pressed]}
-    >
-      <View style={styles.row}>
-        <View
-          style={[
-            styles.iconWrap,
-            { backgroundColor: completed ? "#ECFDF5" : meta.bg },
-          ]}
-        >
+    <View style={styles.card}>
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [pressed && styles.pressed]}
+      >
+        <View style={styles.topRow}>
+          <View style={styles.numWrap}>
+            <Text style={styles.numText}>{index + 1}</Text>
+          </View>
           {completed ? (
-            <Feather name="check" size={sf(15)} color="#059669" />
-          ) : isWatching ? (
-            <Feather name="play" size={sf(14)} color={meta.color} />
-          ) : (
-            <Text style={[styles.indexText, { color: meta.color }]}>
-              {index + 1}
-            </Text>
-          )}
-        </View>
-
-        <View style={styles.text}>
-          <Text style={styles.title} numberOfLines={1}>
+            <Feather
+              name="check-circle"
+              size={TICK}
+              color={T.deepTeal}
+              style={styles.tick}
+            />
+          ) : null}
+          <Text
+            style={[styles.title, { marginStart: completed ? TICK_GAP : GAP }]}
+            numberOfLines={1}
+          >
             {title}
           </Text>
-          <Text style={styles.subtitle} numberOfLines={1}>
-            {timeLabel}
-            {isWatching ? ` · ${t("wellness.upNext")}` : completed ? ` · ${t("wellness.lessonDone")}` : ""}
-          </Text>
+          <Feather name={chevronForward()} size={sf(16)} color="#CBD5E1" />
         </View>
 
-        {isWatching ? (
-          <View style={[styles.startPill, { backgroundColor: meta.color }]}>
-            <Text style={styles.startText}>{t("wellness.start")}</Text>
-          </View>
-        ) : (
-          <View style={styles.chevronWrap}>
-            <Feather name={chevronForward()} size={sf(16)} color="#CBD5E1" />
-          </View>
-        )}
-      </View>
-    </Pressable>
+        {description ? (
+          <Text
+            style={[styles.description, { marginStart: indent }]}
+            numberOfLines={expanded ? 8 : 2}
+          >
+            {description}
+          </Text>
+        ) : null}
+
+        <View style={[styles.metaRow, { marginStart: indent }]}>
+          {timeLabel ? (
+            <View style={styles.duration}>
+              <Feather name="clock" size={sf(12)} color={WellnessTheme.caption} />
+              <Text style={styles.meta} numberOfLines={1}>
+                {timeLabel}
+              </Text>
+            </View>
+          ) : null}
+          {completed ? (
+            <View style={styles.donePill}>
+              <Text style={styles.donePillText} numberOfLines={1}>
+                {t("wellness.lessonDone")}
+              </Text>
+            </View>
+          ) : isWatching ? (
+            <View style={styles.nextPill}>
+              <Text style={styles.nextPillText} numberOfLines={1}>
+                {t("wellness.upNext")}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  pressable: {
-    width: "100%",
-    alignSelf: "stretch",
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: sw(18),
+    borderWidth: 1,
+    borderColor: WellnessTheme.border,
+    paddingVertical: sw(14),
+    paddingHorizontal: sw(14),
+    marginBottom: sw(10),
+    ...Platform.select({
+      ios: {
+        shadowColor: "#0F172A",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+      },
+      android: { elevation: 1 },
+    }),
   },
-  pressed: { backgroundColor: "#F8FAFC" },
-  row: {
+  pressed: {
+    opacity: 0.92,
+  },
+  topRow: {
     flexDirection: "row",
     alignItems: "center",
-    width: "100%",
-    minHeight: sw(56),
-    paddingVertical: sw(12),
-    paddingHorizontal: sw(14),
-    backgroundColor: "#FFFFFF",
   },
-  iconWrap: {
-    width: sw(36),
-    height: sw(36),
-    borderRadius: sw(10),
+  numWrap: {
+    width: NUM,
+    height: NUM,
+    borderRadius: sw(12),
+    backgroundColor: T.mint,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-    marginEnd: sw(12),
   },
-  indexText: {
+  numText: {
     fontFamily: Fonts.bold,
-    fontSize: sf(12),
-    lineHeight: sf(16),
+    fontSize: sf(15),
+    lineHeight: sf(19),
     fontWeight: "700",
+    color: T.deepTeal,
     includeFontPadding: false,
   },
-  text: {
-    flex: 1,
-    minWidth: 0,
-    justifyContent: "center",
-    marginEnd: sw(8),
+  tick: {
+    marginStart: GAP,
+    flexShrink: 0,
   },
   title: {
+    flex: 1,
+    minWidth: 0,
+    marginEnd: sw(8),
     fontFamily: Fonts.bold,
-    fontSize: sf(13),
-    lineHeight: sf(18),
-    color: "#101828",
+    fontSize: sf(14),
+    lineHeight: sf(19),
     fontWeight: "700",
+    color: WellnessTheme.text,
     includeFontPadding: false,
   },
-  subtitle: {
+  description: {
     fontFamily: Fonts.regular,
+    fontSize: sf(12),
+    lineHeight: sf(17),
+    color: WellnessTheme.textMuted,
+    marginTop: sw(6),
+    includeFontPadding: false,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "nowrap",
+    gap: sw(8),
+    marginTop: sw(8),
+  },
+  duration: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(5),
+    flexShrink: 0,
+  },
+  meta: {
+    fontFamily: Fonts.medium,
     fontSize: sf(11),
     lineHeight: sf(15),
-    color: "#6A7282",
-    marginTop: sw(2),
+    color: WellnessTheme.caption,
     includeFontPadding: false,
   },
-  startPill: {
-    paddingVertical: sw(6),
-    paddingHorizontal: sw(12),
+  donePill: {
+    backgroundColor: T.teal,
+    paddingHorizontal: sw(10),
+    paddingVertical: sw(4),
     borderRadius: 999,
     flexShrink: 0,
   },
-  startText: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(10),
+  donePillText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(11),
     lineHeight: sf(14),
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#FFFFFF",
     includeFontPadding: false,
   },
-  chevronWrap: {
-    width: sw(20),
-    height: sw(20),
-    alignItems: "center",
-    justifyContent: "center",
+  nextPill: {
+    backgroundColor: "#E8F1FA",
+    paddingHorizontal: sw(10),
+    paddingVertical: sw(4),
+    borderRadius: 999,
     flexShrink: 0,
+  },
+  nextPillText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(11),
+    lineHeight: sf(14),
+    fontWeight: "600",
+    color: T.navy,
+    includeFontPadding: false,
   },
 });

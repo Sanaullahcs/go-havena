@@ -18,19 +18,33 @@ class DemoContentSeeder extends Seeder
 {
     private string $img = '/storage/seed';
 
+    public ?int $targetCommunityId = null;
+
+    public bool $preserveCommunityIdentity = false;
+
+    public bool $seedSystemScope = true;
+
+    public bool $seedFoundationalCatalogs = true;
+
+    /** @var list<array<int, mixed>>|null */
+    public ?array $customResidents = null;
+
+    /** @var array<string, string> */
+    public array $emailAliases = [];
+
+    private string $copyName = 'Florida Main Street';
+
     public function run(): void
     {
-        // Foundational catalogs (idempotent seeders).
-        $this->call([
-            RegionSeeder::class,
-            CommunitySeeder::class,
-            WellnessHubSeeder::class,
-        ]);
+        if ($this->seedFoundationalCatalogs) {
+            $this->call([
+                RegionSeeder::class,
+                CommunitySeeder::class,
+                WellnessHubSeeder::class,
+            ]);
+        }
 
-        $community = DB::table('communities')
-            ->where('status', 'active')
-            ->orderBy('id')
-            ->first();
+        $community = $this->resolveCommunity();
 
         if (! $community) {
             $this->command?->warn('DemoContentSeeder: no active community found.');
@@ -40,23 +54,32 @@ class DemoContentSeeder extends Seeder
 
         $cid = $community->id;
         $region = DB::table('regions')->where('status', 'active')->orderBy('sort_order')->first();
-        $regionId = $region->id ?? null;
+        $regionId = $region->id ?? $community->region_id ?? null;
 
-        // Enrich the flagship community record.
-        DB::table('communities')->where('id', $cid)->update([
-            'name' => 'Florida Main Street',
-            'description' => 'A vibrant resort-style residential community in Miami-Dade with premium amenities, an active neighborhood feed, a resident marketplace, and year-round events.',
-            'address' => '1200 Palm Grove Boulevard, Miami, FL 33131',
-            'region_id' => $community->region_id ?: $regionId,
-            'timezone' => 'America/New_York',
-            'updated_at' => now(),
-        ]);
+        if (! $this->preserveCommunityIdentity) {
+            DB::table('communities')->where('id', $cid)->update([
+                'name' => 'Florida Main Street',
+                'description' => 'A vibrant resort-style residential community in Miami-Dade with premium amenities, an active neighborhood feed, a resident marketplace, and year-round events.',
+                'address' => '1200 Palm Grove Boulevard, Miami, FL 33131',
+                'region_id' => $community->region_id ?: $regionId,
+                'timezone' => 'America/New_York',
+                'updated_at' => now(),
+            ]);
+            $this->copyName = 'Florida Main Street';
+        } else {
+            $this->copyName = $community->name ?: 'Test Community';
+        }
 
         $residents = $this->seedResidents($cid, $regionId);
         $adminId = $this->resolveAdminAuthor($cid);
 
-        // Demo amenities for admin dashboard (idempotent).
-        $this->call(AmenitySeeder::class);
+        $amenitySeeder = new AmenitySeeder;
+        $amenitySeeder->targetCommunityId = (int) $cid;
+        if ($this->command) {
+            $amenitySeeder->setCommand($this->command);
+        }
+        $amenitySeeder->run();
+
         $this->seedNotices($cid, $adminId);
         $this->archiveLegacyUnscheduledNotices($cid);
         $this->seedEvents($cid, $adminId, $residents);
@@ -65,7 +88,9 @@ class DemoContentSeeder extends Seeder
         $this->seedListings($cid, $residents);
         $this->seedBusinessesAndDeals($cid, $residents, $adminId);
         $this->seedWellnessImages();
-        $this->call(NoticeAndDealTranslationSeeder::class);
+        if (! $this->preserveCommunityIdentity) {
+            $this->call(NoticeAndDealTranslationSeeder::class);
+        }
         $this->seedRules($cid, $adminId, $residents);
         $this->seedDocuments($cid, $adminId);
         $this->seedMessages($residents, $adminId);
@@ -73,12 +98,38 @@ class DemoContentSeeder extends Seeder
         $this->seedPoints($cid, $residents);
         $this->seedModeration($cid, $residents, $adminId);
 
-        // System-admin scope.
-        $this->seedContactSubmissions();
-        $this->seedAdminApplicants($regionId);
-        $this->seedActivityLogs($residents, $adminId);
+        if ($this->seedSystemScope) {
+            $this->seedContactSubmissions();
+            $this->seedAdminApplicants($regionId);
+            $this->seedActivityLogs($residents, $adminId);
+        }
 
         $this->command?->info('DemoContentSeeder: demo content ready for community #'.$cid.'.');
+    }
+
+    private function resolveCommunity(): ?object
+    {
+        if ($this->targetCommunityId) {
+            return DB::table('communities')->where('id', $this->targetCommunityId)->first();
+        }
+
+        return DB::table('communities')
+            ->where('status', 'active')
+            ->orderBy('id')
+            ->first();
+    }
+
+    private function mappedEmail(string $email): string
+    {
+        return $this->emailAliases[$email] ?? $email;
+    }
+
+    private function residentId(array $residents, string $email): ?int
+    {
+        $mapped = $this->mappedEmail($email);
+        $id = $residents[$mapped] ?? $residents[$email] ?? null;
+
+        return $id ? (int) $id : null;
     }
 
     /* ─────────────────────────── Residents ─────────────────────────── */
@@ -86,7 +137,7 @@ class DemoContentSeeder extends Seeder
     private function seedResidents(int $cid, ?int $regionId): array
     {
         // [name, email, unit, residence_type, bio, avatarN, membership, role]
-        $people = [
+        $people = $this->customResidents ?? [
             ['Sarah Mitchell', 'sarah@havena.app', 'Apt 4B', 'Two-bedroom', 'Book club host and weekend gardener. Always happy to lend a hand.', 5, 'approved', 'member'],
             ['David Chen', 'david@havena.app', 'Apt 6D', 'Studio', 'Software engineer, coffee enthusiast, and casual cyclist.', 12, 'approved', 'member'],
             ['Lisa Wang', 'lisa@havena.app', 'Apt 2A', 'One-bedroom', 'Yoga instructor and plant collector. Ask me about houseplants.', 20, 'approved', 'member'],
@@ -154,14 +205,25 @@ class DemoContentSeeder extends Seeder
             'test.community.admin@havena.app' => 'avatar-admin.jpg',
             'community.admin@havena.app' => 'avatar-admin.jpg',
         ] as $email => $avatarFile) {
-            $uid = DB::table('users')->where('email', $email)->value('id');
-            if ($uid) {
-                DB::table('profiles')->updateOrInsert(
-                    ['user_id' => $uid],
-                    ['avatar_url' => "{$this->img}/{$avatarFile}", 'updated_at' => now()]
-                );
-                $map[$email] = $uid;
+            if ($this->emailAliases !== [] && ! isset($this->emailAliases[$email])) {
+                continue;
             }
+            $lookup = $this->mappedEmail($email);
+            $uid = DB::table('users')->where('email', $lookup)->value('id');
+            if (! $uid) {
+                continue;
+            }
+            $existingAvatar = DB::table('profiles')->where('user_id', $uid)->value('avatar_url');
+            $payload = ['updated_at' => now()];
+            if (! $existingAvatar || str_starts_with((string) $existingAvatar, '/storage/seed/')) {
+                $payload['avatar_url'] = "{$this->img}/{$avatarFile}";
+            }
+            DB::table('profiles')->updateOrInsert(
+                ['user_id' => $uid],
+                $payload
+            );
+            $map[$lookup] = $uid;
+            $map[$email] = $uid;
         }
 
         return $map;
@@ -191,7 +253,7 @@ class DemoContentSeeder extends Seeder
     {
         // [title, category, body, image, daysAgo, pinned]
         $rows = [
-            ['Welcome to Florida Main Street', 'general', "We are thrilled to welcome you to our community. Use this app to stay up to date on notices, RSVP to events, book amenities, browse the resident marketplace, and connect with your neighbors. If you have questions, reach out to the management office anytime.", "{$this->img}/community-cover.jpg", 1, true],
+            ['Welcome to '.$this->copyName, 'general', "We are thrilled to welcome you to our community. Use this app to stay up to date on notices, RSVP to events, book amenities, browse the resident marketplace, and connect with your neighbors. If you have questions, reach out to the management office anytime.", "{$this->img}/community-cover.jpg", 1, true],
             ['Pool Deck Resurfacing Schedule', 'maintenance', "The pool deck will be resurfaced next week to keep our resort pool looking its best. The pool will remain open, but the north deck section will be closed Monday through Wednesday from 8:00 AM to 4:00 PM. Thank you for your patience.", "{$this->img}/notice-maintenance.jpg", 3, false],
             ['Q3 Community Budget Summary', 'finance', "The third quarter budget summary is now available in the Documents section. Highlights include reserve fund contributions, landscaping investments, and the new smart access system. A detailed breakdown will be presented at the upcoming town hall.", "{$this->img}/event-townhall.jpg", 5, false],
             ['Updated Gate Access Codes', 'security', "For everyone's safety, gate and amenity access codes will be rotated at the end of the month. Updated codes will be sent to registered residents by email and are available at the management office with a valid ID.", "{$this->img}/alert-weather.jpg", 7, false],
@@ -239,7 +301,7 @@ class DemoContentSeeder extends Seeder
     private function refreshOrphanNoticeDemoMedia(int $cid): void
     {
         $demoTitles = [
-            'Welcome to Florida Main Street',
+            'Welcome to '.$this->copyName,
             'Pool Deck Resurfacing Schedule',
             'Q3 Community Budget Summary',
             'Updated Gate Access Codes',
@@ -405,7 +467,7 @@ class DemoContentSeeder extends Seeder
 
     private function seedFeed(int $cid, array $residents): void
     {
-        $u = fn (string $email) => $residents[$email] ?? null;
+        $u = fn (string $email) => $this->residentId($residents, $email);
 
         $posts = [
             ['aisha@havena.app', 'help', "Has anyone seen Biscuit? Our golden retriever slipped out of the lobby this afternoon near the east tower. He is very friendly and wearing a blue collar. Please call me if you spot him. Thank you neighbors!", "{$this->img}/feed-dog.jpg", 14, 3, 1],
@@ -498,7 +560,7 @@ class DemoContentSeeder extends Seeder
 
     private function seedListings(int $cid, array $residents): void
     {
-        $u = fn (string $email) => $residents[$email] ?? null;
+        $u = fn (string $email) => $this->residentId($residents, $email);
 
         $rows = [
             ['sarah@havena.app', 'for_sale', 'Furniture', 'Like new', 'Gray 3-Seat Sofa', 220.00, "Comfortable light gray fabric sofa in excellent condition. Smoke free and pet free home. Pickup from Apt 4B.", ['listing-sofa'], 3],
@@ -525,7 +587,7 @@ class DemoContentSeeder extends Seeder
                     'condition' => $condition,
                     'price' => $price,
                     'description' => $desc,
-                    'location' => 'Florida Main Street',
+                    'location' => $this->copyName,
                     'images' => json_encode($imgs),
                     'status' => 'approved',
                     'is_verified' => true,
@@ -539,7 +601,7 @@ class DemoContentSeeder extends Seeder
 
     private function seedBusinessesAndDeals(int $cid, array $residents, int $adminId): void
     {
-        $u = fn (string $email) => $residents[$email] ?? $adminId;
+        $u = fn (string $email) => $this->residentId($residents, $email) ?? $adminId;
 
         $businesses = [
             ['Sunrise Coffee Co.', 'Cafe', "Neighborhood coffee bar serving specialty espresso, fresh pastries, and cold brew. Locally roasted beans and a cozy patio.", '1200 Palm Grove Blvd, Suite 4', '(305) 555-0142', 'Mon-Sun 6:30 AM - 7:00 PM', 'Free WiFi, Outdoor seating, Loyalty rewards', 'business-cafe', 'emily@havena.app'],
@@ -592,7 +654,7 @@ class DemoContentSeeder extends Seeder
                     'discounted_price' => $disc,
                     'promo_code' => $promo,
                     'category' => $cat,
-                    'location' => 'Florida Main Street',
+                    'location' => $this->copyName,
                     'image_url' => "{$this->img}/{$image}.jpg",
                     'is_featured' => $featured,
                     'status' => 'active',
@@ -679,7 +741,7 @@ class DemoContentSeeder extends Seeder
         }
 
         $docs = [
-            ['Resident Handbook 2026', 'Policies', 'The complete guide to living at Florida Main Street, including amenities, policies, and contacts.', 'resident-handbook-2026'],
+            ['Resident Handbook 2026', 'Policies', 'The complete guide to living at '.$this->copyName.', including amenities, policies, and contacts.', 'resident-handbook-2026'],
             ['HOA Bylaws', 'Governance', 'Official community bylaws and governing documents for residents and owners.', 'hoa-bylaws'],
             ['Amenity Reservation Form', 'Forms', 'Printable form to request a private reservation of the clubhouse or pool deck.', 'amenity-reservation-form'],
             ['Emergency Preparedness Guide', 'Safety', 'Storm season checklist and emergency procedures for residents.', 'emergency-preparedness-guide'],
@@ -732,29 +794,35 @@ class DemoContentSeeder extends Seeder
 
     private function seedMessages(array $residents, int $adminId): void
     {
-        $resident = $residents['test.resident@havena.app']
-            ?? DB::table('users')->where('phone', '+15555550100')->value('id')
-            ?? ($residents['sarah@havena.app'] ?? null);
+        $resident = $this->residentId($residents, 'test.resident@havena.app')
+            ?? $this->residentId($residents, 'sarah@havena.app');
+
+        if (! $resident && $this->emailAliases === []) {
+            $resident = DB::table('users')->where('phone', '+15555550100')->value('id');
+        }
 
         if (! $resident) {
             return;
         }
 
+        $sarah = $this->residentId($residents, 'sarah@havena.app');
+        $david = $this->residentId($residents, 'david@havena.app');
+
         $threads = [
-            [$residents['sarah@havena.app'] ?? null, 'direct', [
-                [$residents['sarah@havena.app'] ?? null, 'Hi! Welcome to the building. Let me know if you need anything getting settled in.', 3],
+            [$sarah, 'direct', [
+                [$sarah, 'Hi! Welcome to the building. Let me know if you need anything getting settled in.', 3],
                 [$resident, 'Thank you so much! Where is the best place to pick up packages?', 3],
-                [$residents['sarah@havena.app'] ?? null, 'The mailroom on the ground floor by the east elevators. There are lockers for larger packages.', 2],
+                [$sarah, 'The mailroom on the ground floor by the east elevators. There are lockers for larger packages.', 2],
                 [$resident, 'Perfect, appreciate it!', 2],
             ]],
             [$adminId, 'direct', [
-                [$adminId, 'Hello and welcome to Florida Main Street. Your amenity access has been activated. Enjoy the pool and gym!', 4],
+                [$adminId, 'Hello and welcome to '.$this->copyName.'. Your amenity access has been activated. Enjoy the pool and gym!', 4],
                 [$resident, 'Great, thank you. Is the clubhouse available to reserve for a small gathering?', 4],
                 [$adminId, 'Absolutely. You can request it from the Amenities section in the app. I will approve it once submitted.', 1],
             ]],
-            [$residents['david@havena.app'] ?? null, 'direct', [
+            [$david, 'direct', [
                 [$resident, 'Hi David, is the commuter bike still available?', 2],
-                [$residents['david@havena.app'] ?? null, 'Yes it is! Happy to show it to you this weekend if you like.', 1],
+                [$david, 'Yes it is! Happy to show it to you this weekend if you like.', 1],
             ]],
         ];
 
@@ -817,10 +885,16 @@ class DemoContentSeeder extends Seeder
     private function seedNotifications(array $residents, int $adminId): void
     {
         $targets = array_filter([
-            $residents['test.resident@havena.app'] ?? DB::table('users')->where('phone', '+15555550100')->value('id'),
-            $residents['test.community.admin@havena.app'] ?? DB::table('users')->where('phone', '+15555550200')->value('id'),
+            $this->residentId($residents, 'test.resident@havena.app'),
+            $this->residentId($residents, 'test.community.admin@havena.app'),
             $adminId,
         ]);
+
+        if ($this->emailAliases === []) {
+            $targets[] = DB::table('users')->where('phone', '+15555550100')->value('id');
+            $targets[] = DB::table('users')->where('phone', '+15555550200')->value('id');
+            $targets = array_unique(array_filter($targets));
+        }
 
         $notifications = [
             ['event', 'New event: Summer Community BBQ', 'RSVP now for the biggest cookout of the season this Saturday.', false, 1],
@@ -828,7 +902,7 @@ class DemoContentSeeder extends Seeder
             ['marketplace', 'Your listing was approved', 'Your item is now live in the community marketplace.', true, 3],
             ['booking', 'Booking confirmed', 'Your amenity reservation has been confirmed.', true, 4],
             ['alert', 'Weather alert issued', 'Tropical storm watch is in effect. Tap to read the guidance.', false, 1],
-            ['community', 'Welcome to Florida Main Street', 'Complete your profile to get the most out of your community.', true, 6],
+            ['community', 'Welcome to '.$this->copyName, 'Complete your profile to get the most out of your community.', true, 6],
         ];
 
         foreach ($targets as $uid) {
@@ -884,7 +958,7 @@ class DemoContentSeeder extends Seeder
 
     private function seedModeration(int $cid, array $residents, int $adminId): void
     {
-        $u = fn (string $email) => $residents[$email] ?? null;
+        $u = fn (string $email) => $this->residentId($residents, $email);
 
         $rows = [
             ['noise', 'Loud music after quiet hours', "Repeated loud music coming from a nearby unit well past 11 PM on weekends. Have tried knocking with no response.", 'open', 'medium', 'tom@havena.app', 'robert@havena.app', null],
