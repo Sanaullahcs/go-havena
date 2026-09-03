@@ -8,6 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { UserPlus, Users } from "lucide-react-native";
 import BackButton from "../../../components/ui/back-button";
+import { FormPhoneInput } from "../../../components/ui/phone-input";
 import { Image } from "expo-image";
 import { pickImage } from "../../../utils/pickImage";
 import { updateProfile, joinCommunity, fetchMe } from "../../../services/auth-api";
@@ -20,7 +21,7 @@ import {
 } from "../../../services/family-api";
 import { uploadUtilityBill } from "../../../services/profile-api";
 import { finishOnboarding, Routes, goToPendingFamily } from "../../../constants/onboarding-routes";
-import { isGuestUser, shouldSkipUtilityBill, isCommunityAdminRole } from "../../../services/community-access";
+import { isGuestUser, shouldSkipUtilityBill } from "../../../services/community-access";
 import { showApiFailure } from "../../../utils/auth-errors";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { confirmLeaveOnboarding } from "../../../services/sign-out";
@@ -29,7 +30,9 @@ import { isAuthenticated } from "../../../services/auth-session";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { hasFieldErrors, LIMITS, validateCompleteProfileForm } from "../../../utils/form-validation";
-import { getProfileFields, isPlaceholderDisplayName } from "../../../utils/profile-display";
+import { extractNationalDigits, toE164 } from "../../../utils/phone";
+import { DEFAULT_PHONE_COUNTRY } from "../../../constants/phone-countries";
+import { getProfileFields, isPlaceholderDisplayName, isPlaceholderResidenceType, isPlaceholderUnitNumber } from "../../../utils/profile-display";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import KeyboardSafeScreen, { useScrollFieldRefIntoView } from "../../../components/layout/keyboard-safe-screen";
 import { HomeTheme as T } from "../../../constants/home-theme";
@@ -81,6 +84,8 @@ export default function CompleteProfile() {
   const dialog = useAppDialog();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phoneDigits, setPhoneDigits] = useState("");
+  const [phoneCountry, setPhoneCountry] = useState(DEFAULT_PHONE_COUNTRY);
   const [bio, setBio] = useState("");
   const [unitNumber, setUnitNumber] = useState("");
   const [familyNumber, setFamilyNumber] = useState("");
@@ -96,8 +101,6 @@ export default function CompleteProfile() {
   const [existingUtilityBillUrl, setExistingUtilityBillUrl] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [isGuestProfile, setIsGuestProfile] = useState(false);
-  const [skipUtilityBill, setSkipUtilityBill] = useState(false);
-  const [isAdminProfile, setIsAdminProfile] = useState(false);
 
   const { submitting, run } = useSubmitLock();
   const [showSuccess, setShowSuccess] = useState(false);
@@ -115,11 +118,13 @@ export default function CompleteProfile() {
     familyMode: familyModeParam,
     invited,
   } = useLocalSearchParams();
+  const [skipUtilityBill, setSkipUtilityBill] = useState(() => invited === "1");
 
   const isEditMode = mode === "edit";
-
   const isCommunityRequest = communityRequest === "1";
-  const leaveOnboardingOnBack = !isEditMode && isCommunityRequest;
+
+  // Non-edit onboarding: never `router.back()` / splash — auth redirect would loop here again.
+  const leaveOnboardingOnBack = !isEditMode;
 
   const handleBack = useCallback(() => {
     if (leaveOnboardingOnBack) {
@@ -148,14 +153,16 @@ export default function CompleteProfile() {
   );
   const isResidentJoin = !isCommunityRequest && role !== "admin" && Boolean(communityId);
   const showFamilyNumberField = role !== "admin" && !isCommunityRequest;
-  const isCommunityAdminOnboarding = role === "admin" || isAdminProfile;
-  const showResidenceType = !isGuestProfile && !isCommunityAdminOnboarding;
+  // Homeowner/Tenant for everyone except guests (incl. system-created community admins).
+  const showResidenceType = !isGuestProfile;
+  // Utility bill only for self-signup verification — not invites / pre-approved admins.
   const showUtilityBill = showResidenceType && !skipUtilityBill && invited !== "1";
 
   const scrollRef = useRef(null);
   const contentRef = useRef(null);
   const nameFieldRef = useRef(null);
   const emailFieldRef = useRef(null);
+  const phoneFieldRef = useRef(null);
   const bioFieldRef = useRef(null);
   const unitFieldRef = useRef(null);
   const familyFieldRef = useRef(null);
@@ -389,14 +396,18 @@ export default function CompleteProfile() {
         const user = await fetchMe();
         if (cancelled) return;
         setIsGuestProfile(isGuestUser(user));
-        setIsAdminProfile(isCommunityAdminRole(user) || role === "admin");
         setSkipUtilityBill(shouldSkipUtilityBill(user, { role }));
         const fields = getProfileFields(user);
         setName(isPlaceholderDisplayName(fields.displayName) ? "" : fields.displayName);
         setEmail(fields.displayEmail ?? "");
+        const rawPhone = user.phone ?? "";
+        if (rawPhone) {
+          setPhoneDigits(extractNationalDigits(rawPhone));
+        }
         setBio(fields.bio ?? "");
-        setUnitNumber(fields.unitNumber ?? "");
-        setResidenceType(user.profile?.residence_type ?? user.residence_type ?? "");
+        setUnitNumber(isPlaceholderUnitNumber(fields.unitNumber) ? "" : (fields.unitNumber ?? ""));
+        const rawResidence = user.profile?.residence_type ?? user.residence_type ?? "";
+        setResidenceType(isPlaceholderResidenceType(rawResidence) ? "" : rawResidence);
         setExistingUtilityBillUrl(fields.utilityBillUrl);
       } catch (err) {
         if (!cancelled && isEditMode) {
@@ -423,15 +434,17 @@ export default function CompleteProfile() {
       validateCompleteProfileForm({
         name,
         email,
+        phoneDigits,
+        phoneCountry,
         bio,
         unitNumber,
         residenceType,
         utilityFile: selectedFile ?? (existingUtilityBillUrl ? { uri: existingUtilityBillUrl } : null),
-        requireUtilityFile: showUtilityBill && ((!isEditMode && familyModeParam !== "create") || !existingUtilityBillUrl),
+        requireUtilityFile: showUtilityBill && !existingUtilityBillUrl,
         requireResidenceType: showResidenceType,
         guestMode: isGuestProfile,
       }),
-    [name, email, bio, unitNumber, residenceType, selectedFile, existingUtilityBillUrl, isEditMode, isGuestProfile, familyModeParam, showUtilityBill, showResidenceType],
+    [name, email, phoneDigits, phoneCountry, bio, unitNumber, residenceType, selectedFile, existingUtilityBillUrl, isGuestProfile, showUtilityBill, showResidenceType],
   );
 
   const isValid = useMemo(() => {
@@ -499,6 +512,7 @@ export default function CompleteProfile() {
         const profileResult = await updateProfile({
           display_name: name.trim(),
           email: email.trim().toLowerCase(),
+          phone: toE164(phoneDigits, phoneCountry),
           bio: bio.trim(),
           unit_number: unitNumber.trim(),
           ...(showResidenceType
@@ -861,6 +875,27 @@ export default function CompleteProfile() {
                 />
               </View>
               {showError("email", liveErrors) ? <Text style={styles.errorText}>{showError("email", liveErrors)}</Text> : null}
+            </View>
+
+            <View ref={phoneFieldRef} collapsable={false} style={styles.fieldGroup}>
+              <Text style={styles.inputText}>
+                {t("onboarding.phoneNumber")} <Text style={styles.requiredMark}>*</Text>
+              </Text>
+              <FormPhoneInput
+                digits={phoneDigits}
+                country={phoneCountry}
+                onChangeDigits={(value) => {
+                  setPhoneDigits(value);
+                  clearError("phone");
+                }}
+                onCountryChange={(country) => {
+                  setPhoneCountry(country);
+                  clearError("phone");
+                }}
+                showError={Boolean(showError("phone", liveErrors))}
+                onFocus={() => handleFieldFocus(phoneFieldRef)}
+              />
+              {showError("phone", liveErrors) ? <Text style={styles.errorText}>{showError("phone", liveErrors)}</Text> : null}
             </View>
 
             <View ref={bioFieldRef} collapsable={false} style={styles.fieldGroup}>

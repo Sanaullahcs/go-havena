@@ -75,6 +75,11 @@ export function isGuestUser(user) {
   );
 }
 
+/** Invited resident must redeem invite code before dashboard / complete-profile resume. */
+export function needsInviteCode(user) {
+  return Boolean(user?.needs_invite_code);
+}
+
 export function isGuestPendingApproval(user) {
   if (!isGuestUser(user)) return false;
   return user?.guest_access?.status === "pending_approval";
@@ -283,13 +288,29 @@ export function joinedViaAdminInvite(user) {
 }
 
 /**
- * Utility bill is only for self-serve residents proving they live in the community.
- * Skip for guests, community admins, and residents invited by an admin.
+ * Utility bill is for self-serve signup verification (resident or community admin).
+ * Skip only for guests, invitees, and users already approved via admin creation.
  */
 export function shouldSkipUtilityBill(user, { role } = {}) {
   if (isGuestUser(user)) return true;
-  if (role === "admin" || isCommunityAdminRole(user)) return true;
-  return joinedViaAdminInvite(user);
+  if (joinedViaAdminInvite(user)) return true;
+
+  // System Admin already created/approved this community admin — no proof needed.
+  if (
+    isCommunityAdminRole(user) &&
+    (user?.community_admin_status ?? "pending") === "approved"
+  ) {
+    return true;
+  }
+
+  // Resident created/approved by an admin (no invite code) — already trusted.
+  // Community admin self-signup keeps membership pending until system approval, so they still upload.
+  const isAdminOnboarding = role === "admin" || isCommunityAdminRole(user);
+  if (!isAdminOnboarding) {
+    return (user?.memberships ?? []).some((m) => m?.status === "approved");
+  }
+
+  return false;
 }
 
 /** User applied as community admin but system admin has not approved yet. */

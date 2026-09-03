@@ -67,12 +67,33 @@ class MemberInviteTest extends TestCase
             ->postJson('/api/v1/admin/members/invite', [
             'name'        => 'Jane Resident',
             'email'       => 'jane.invite@example.com',
+            'phone'       => '+12025550123',
             'unit_number' => 'Unit 12B',
         ])->assertCreated();
 
         $inviteCode = $inviteResponse->json('data.invite_code');
         $invitedUserId = $inviteResponse->json('data.id');
         $this->assertNotEmpty($inviteCode);
+
+        $this->assertDatabaseMissing('community_memberships', [
+            'user_id' => $invitedUserId,
+            'community_id' => $community->id,
+        ]);
+
+        // Invited resident logging in with the invite email must redeem the code first.
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email' => 'jane.invite@example.com',
+            'intent' => 'login',
+        ])->assertStatus(202);
+
+        $invitedLogin = $this->postJson('/api/v1/auth/otp/verify', [
+            'email' => 'jane.invite@example.com',
+            'code' => '123456',
+            'intent' => 'login',
+        ])->assertOk();
+
+        $this->assertTrue($invitedLogin->json('user.needs_invite_code'));
+        $this->assertSame([], $invitedLogin->json('user.memberships') ?? []);
 
         $email = 'invite.claimant@example.com';
 

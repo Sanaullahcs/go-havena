@@ -28,7 +28,7 @@ export type ProvisionResidentForm = {
 export type ProvisionFieldErrors = FieldErrors;
 
 function validatePhone(phone: PhoneFieldState): string | null {
-  if (!phone.digits.trim()) return null;
+  if (!phone.digits.trim()) return "Phone number is required.";
   if (!phone.valid) {
     return getPhoneValidationError(phone.digits, phone.country) ?? "Enter a valid phone number.";
   }
@@ -68,7 +68,11 @@ export function validateCommunityAdminForm(
   }
 
   const address = form.community_address.trim();
-  if (address.length > 500) {
+  if (!address) {
+    errors.community_address = "Community address is required.";
+  } else if (address.length < 5) {
+    errors.community_address = "Address must be at least 5 characters.";
+  } else if (address.length > 500) {
     errors.community_address = "Address must be 500 characters or less.";
   }
 

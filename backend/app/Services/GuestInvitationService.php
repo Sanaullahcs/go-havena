@@ -183,6 +183,7 @@ class GuestInvitationService
         ]);
 
         if ($invitation->guest_user_id) {
+            GuestAccessService::removeGuestMembership($invitation);
             GuestAccessService::revokeTokensForUser($invitation->guest_user_id);
             NotificationService::send(
                 $invitation->guest_user_id,
@@ -212,6 +213,8 @@ class GuestInvitationService
         ]);
 
         if ($invitation->guest_user_id) {
+            GuestAccessService::removeGuestMembership($invitation);
+
             GuestAccessService::revokeTokensForUser($invitation->guest_user_id);
             NotificationService::send(
                 $invitation->guest_user_id,

@@ -13,6 +13,9 @@ import { approveMember, fetchAdminMembers, inviteMember, rejectMember } from "..
 import { hasFieldErrors, validateInviteMemberForm } from "../../../utils/form-validation";
 import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { useApiAction } from "../../../hooks/use-api-action";
+import { FormPhoneInput } from "../../../components/ui/phone-input";
+import { DEFAULT_PHONE_COUNTRY } from "../../../constants/phone-countries";
+import { toE164 } from "../../../utils/phone";
 
 const FILTERS = [
   { key: "pending", labelKey: "admin.pending" },
@@ -108,6 +111,8 @@ export default function AdminMembersScreen() {
   const [rejectReason, setRejectReason] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteForm, setInviteForm] = useState({ name: "", email: "", unit: "" });
+  const [phoneDigits, setPhoneDigits] = useState("");
+  const [phoneCountry, setPhoneCountry] = useState(DEFAULT_PHONE_COUNTRY);
   const { touch, clearError, showError, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
   const [inviting, setInviting] = useState(false);
   const [inviteResult, setInviteResult] = useState(null);
@@ -195,8 +200,10 @@ export default function AdminMembersScreen() {
         name: inviteForm.name,
         email: inviteForm.email,
         unit: inviteForm.unit,
+        phoneDigits,
+        phoneCountry,
       }),
-    [inviteForm],
+    [inviteForm, phoneDigits, phoneCountry],
   );
 
   const canInvite = useMemo(() => !hasFieldErrors(inviteLiveErrors), [inviteLiveErrors]);
@@ -209,6 +216,7 @@ export default function AdminMembersScreen() {
         action: () => inviteMember({
           name: inviteForm.name.trim(),
           email: inviteForm.email.trim(),
+          phone: toE164(phoneDigits, phoneCountry),
           unit_number: inviteForm.unit.trim() || undefined,
         }),
         successTitle: t("admin.inviteSent"),
@@ -218,6 +226,8 @@ export default function AdminMembersScreen() {
       });
       setInviteResult(res.data ?? res);
       setInviteForm({ name: "", email: "", unit: "" });
+      setPhoneDigits("");
+      setPhoneCountry(DEFAULT_PHONE_COUNTRY);
       resetTouched();
       load();
     } catch {
@@ -230,6 +240,8 @@ export default function AdminMembersScreen() {
   const closeInvite = () => {
     setInviteOpen(false);
     setInviteResult(null);
+    setPhoneDigits("");
+    setPhoneCountry(DEFAULT_PHONE_COUNTRY);
     resetTouched();
   };
 
@@ -372,6 +384,22 @@ export default function AdminMembersScreen() {
                     autoCapitalize="none"
                   />
                   {showError("email", inviteLiveErrors) ? <Text style={styles.errorText}>{showError("email", inviteLiveErrors)}</Text> : null}
+                  <Text style={styles.label}>{t("admin.phoneLabel")}</Text>
+                  <FormPhoneInput
+                    digits={phoneDigits}
+                    country={phoneCountry}
+                    onChangeDigits={(value) => {
+                      setPhoneDigits(value);
+                      touch("phone");
+                      clearError("phone");
+                    }}
+                    onCountryChange={(country) => {
+                      setPhoneCountry(country);
+                      clearError("phone");
+                    }}
+                    showError={Boolean(showError("phone", inviteLiveErrors))}
+                  />
+                  {showError("phone", inviteLiveErrors) ? <Text style={styles.errorText}>{showError("phone", inviteLiveErrors)}</Text> : null}
                   <Text style={styles.label}>{t("admin.unitOptional")}</Text>
                   <LocaleTextInput
                     value={inviteForm.unit}

@@ -15,18 +15,25 @@ import AuthInlineLoader from "../../../components/auth/auth-inline-loader";
 import OTPInput from "../../../components/ui/otp-input";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
-import { EMAIL_RE } from "../../../utils/form-validation";
+import {
+  validateUserEmail,
+  validateGuestInviteCodeForm,
+  hasFieldErrors,
+} from "../../../utils/form-validation";
 import { normalizeInviteCode } from "../../../utils/guest-invite";
 import { requestGuestOtp, verifyGuestOtp, verifyGuestInvite } from "../../../services/guests-api";
 import { setSession } from "../../../services/auth-session";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import { useOtpCountdown } from "../../../hooks/use-otp-countdown";
-import { useApiAction } from "../../../hooks/use-api-action";
+import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
+import { handleAuthApiError } from "../../../utils/auth-errors";
+import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { authLayoutStyles as layout } from "../../../constants/auth-layout";
 import { authStyles } from "../../../constants/auth-styles";
 import { DEV_OTP_HINT } from "../../../constants/api-config";
 import { Fonts } from "../../../constants/font";
 import { Colors, Shadows } from "../../../constants/tokens";
+import { ScreenBrand } from "../../../constants/screen-brand";
 import { sf, sw } from "../../../utils/responsive";
 import { guestAccessNoticeMessage } from "../../../utils/guest-access-schedule";
 
@@ -60,11 +67,13 @@ const getStepMeta = (t) => ({
 export default function GuestLoginScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const dialog = useAppDialog();
   const { notice } = useLocalSearchParams();
   const { submitting, run } = useSubmitLock();
-  const { showFailure, dialog } = useApiAction();
+  const { touch, clearError, showError, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
   const [step, setStep] = useState("email");
   const [email, setEmail] = useState("");
+  const [emailFocused, setEmailFocused] = useState(false);
   const [otp, setOtp] = useState("");
   const [showOtpError, setShowOtpError] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
@@ -80,11 +89,23 @@ export default function GuestLoginScreen() {
   const { canResend, countdownLabel, resetCountdown } = useOtpCountdown();
   const verifyLockRef = useRef(false);
 
+  const emailFormatError = validateUserEmail(email);
+  const emailValid = !emailFormatError;
+  const emailError =
+    emailFocused && email.trim().length > 0 ? emailFormatError : null;
+
+  const inviteLiveErrors = useMemo(
+    () => validateGuestInviteCodeForm(inviteCode),
+    [inviteCode],
+  );
+  const inviteValid = !hasFieldErrors(inviteLiveErrors);
+  const inviteFieldError = showError("inviteCode", inviteLiveErrors);
+
   const canSubmit = useMemo(() => {
-    if (step === "email") return EMAIL_RE.test(email.trim());
+    if (step === "email") return emailValid;
     if (step === "otp") return otpDigits.length === 6;
-    return inviteCode.trim().length > 0;
-  }, [step, email, otpDigits, inviteCode]);
+    return inviteValid;
+  }, [step, emailValid, otpDigits, inviteValid]);
 
   const busy = submitting || otpSending;
 
@@ -100,7 +121,7 @@ export default function GuestLoginScreen() {
           : t("guest.guestAccess");
 
     dialog.showError(title, message).catch(() => {});
-  }, [dialog, notice]);
+  }, [dialog, notice, t]);
 
   const goToResidentLogin = () => {
     prepareAuthScreenChrome();
@@ -129,12 +150,14 @@ export default function GuestLoginScreen() {
     }
 
     if (res.needs_invite_code) {
+      resetTouched();
       setStep("invite");
       return;
     }
 
+    resetTouched();
     setStep("invite");
-  }, [router]);
+  }, [router, resetTouched]);
 
   const handleBack = () => {
     if (step === "email") {
@@ -146,6 +169,8 @@ export default function GuestLoginScreen() {
       return;
     }
     if (step === "invite") {
+      resetTouched();
+      setInviteCode("");
       setStep("otp");
       return;
     }
@@ -156,7 +181,8 @@ export default function GuestLoginScreen() {
   };
 
   const sendOtp = () => {
-    if (!EMAIL_RE.test(email.trim())) return;
+    if (!emailValid || submitting) return;
+
     run(async () => {
       setOtpSending(true);
       try {
@@ -169,7 +195,7 @@ export default function GuestLoginScreen() {
       } finally {
         setOtpSending(false);
       }
-    }).catch((err) => showFailure(t("guest.couldNotSendCode"), err));
+    }).catch((err) => handleAuthApiError(err, dialog, router, { email: normalizedEmail }));
   };
 
   const verifyOtpStep = useCallback(
@@ -187,6 +213,7 @@ export default function GuestLoginScreen() {
           const res = await verifyGuestOtp(normalizedEmail, digits);
           if (res.needs_invite_code) {
             verifyLockRef.current = false;
+            resetTouched();
             setStep("invite");
             return;
           }
@@ -194,12 +221,12 @@ export default function GuestLoginScreen() {
         } catch (err) {
           verifyLockRef.current = false;
           setShowOtpError(true);
-          await showFailure(t("guest.verificationFailed"), err);
+          await handleAuthApiError(err, dialog, router, { email: normalizedEmail });
           setOtpRefocusToken((token) => token + 1);
         }
       });
     },
-    [otpDigits, submitting, otpSending, run, normalizedEmail, finishLogin, showFailure],
+    [otpDigits, submitting, otpSending, run, normalizedEmail, finishLogin, dialog, router, resetTouched],
   );
 
   const handleResend = () => {
@@ -218,7 +245,7 @@ export default function GuestLoginScreen() {
       } finally {
         setOtpSending(false);
       }
-    }).catch((err) => showFailure(t("guest.couldNotResendCode"), err));
+    }).catch((err) => handleAuthApiError(err, dialog, router, { email: normalizedEmail }));
   };
 
   const handleOtpChange = (value) => {
@@ -234,16 +261,26 @@ export default function GuestLoginScreen() {
   };
 
   const verifyInviteStep = () => {
+    if (!validateOnSubmit(inviteLiveErrors) || submitting) return;
+
     run(async () => {
-      const res = await verifyGuestInvite(normalizedEmail, otp, normalizeInviteCode(inviteCode));
+      const res = await verifyGuestInvite(
+        normalizedEmail,
+        otp,
+        normalizeInviteCode(inviteCode),
+      );
       await finishLogin(res);
-    }).catch((err) => showFailure(t("guest.inviteVerificationFailed"), err));
+    }).catch((err) => handleAuthApiError(err, dialog, router, { email: normalizedEmail }));
   };
 
   const handleSubmit = () => {
     if (step === "email") sendOtp();
     else if (step === "otp") verifyOtpStep();
     else verifyInviteStep();
+  };
+
+  const handleEmailChange = (value) => {
+    setEmail(value);
   };
 
   const otpSubtitle = otpSending ? (
@@ -290,7 +327,7 @@ export default function GuestLoginScreen() {
 
   return (
     <>
-      <ScreenStatusBar style="dark" opaque />
+      <ScreenStatusBar style="dark" opaque androidBackgroundColor={ScreenBrand.canvas} />
       <SafeAreaView style={layout.container} edges={["top", "left", "right"]}>
         <AuthFlowTopBar
           current={meta.current}
@@ -313,7 +350,9 @@ export default function GuestLoginScreen() {
                 enabled={canSubmit && !busy}
                 loading={submitting}
                 onPress={handleSubmit}
-                style={Shadows.button}
+                solidColor={ScreenBrand.cta}
+                loadingColor={ScreenBrand.ctaLoading}
+                style={[Shadows.button, ScreenBrand.buttonShadow]}
               />
               {footerNote}
             </View>
@@ -328,12 +367,20 @@ export default function GuestLoginScreen() {
 
             {step === "email" ? (
               <View style={layout.fieldBlock}>
-                <Text style={layout.fieldLabel}>{t("auth.emailAddress")}</Text>
+                <Text style={layout.fieldLabel}>
+                  {t("auth.emailAddress")} <Text style={styles.required}>*</Text>
+                </Text>
                 <AuthEmailField
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={handleEmailChange}
+                  onFocus={() => setEmailFocused(true)}
+                  onBlur={() => setEmailFocused(false)}
                   placeholder={t("auth.emailPlaceholder")}
+                  error={Boolean(emailError)}
                 />
+                {emailError ? (
+                  <Text style={authStyles.inputErrorText}>{emailError}</Text>
+                ) : null}
                 {__DEV__ ? (
                   <Text style={layout.devHint}>
                     Dev · <Text style={layout.devHintCode}>{DEV_OTP_HINT}</Text>
@@ -348,7 +395,9 @@ export default function GuestLoginScreen() {
                   <AuthInlineLoader text={t("auth.sendingTo", { phone: emailDisplay })} />
                 ) : (
                   <>
-                    <Text style={layout.fieldLabel}>{t("auth.verificationCode")}</Text>
+                    <Text style={layout.fieldLabel}>
+                      {t("auth.verificationCode")} <Text style={styles.required}>*</Text>
+                    </Text>
                     <OTPInput
                       key={otpInputKey}
                       length={6}
@@ -375,15 +424,26 @@ export default function GuestLoginScreen() {
 
             {step === "invite" ? (
               <View style={layout.fieldBlock}>
-                <Text style={layout.fieldLabel}>{t("guest.inviteCode")}</Text>
+                <Text style={layout.fieldLabel}>
+                  {t("guest.inviteCode")} <Text style={styles.required}>*</Text>
+                </Text>
                 <LocaleTextInput
-                  style={styles.input}
+                  style={[styles.input, inviteFieldError ? styles.inputError : null]}
                   value={inviteCode}
-                  onChangeText={setInviteCode}
+                  onChangeText={(value) => {
+                    setInviteCode(value.toUpperCase());
+                    clearError("inviteCode");
+                  }}
+                  onFocus={() => touch("inviteCode")}
+                  onBlur={() => touch("inviteCode")}
                   placeholder="GST-XXXX-1234"
                   autoCapitalize="characters"
+                  autoCorrect={false}
                   placeholderTextColor="#9CA3AF"
                 />
+                {inviteFieldError ? (
+                  <Text style={authStyles.inputErrorText}>{inviteFieldError}</Text>
+                ) : null}
               </View>
             ) : null}
           </View>
@@ -398,6 +458,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
     paddingTop: 16,
   },
+  required: {
+    color: "#DC2626",
+    fontFamily: Fonts.semiBold,
+  },
   input: {
     borderWidth: 1,
     borderColor: "#E5E7EB",
@@ -408,6 +472,9 @@ const styles = StyleSheet.create({
     fontSize: sf(16),
     backgroundColor: "#FFF",
     color: Colors.textPrimary,
+  },
+  inputError: {
+    borderColor: "#DC2626",
   },
   resendMuted: {
     opacity: 0.6,

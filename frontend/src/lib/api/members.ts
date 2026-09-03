@@ -75,6 +75,8 @@ export function roleLabel(role: string): string {
       return "Admin";
     case "moderator":
       return "Moderator";
+    case "guest":
+      return "Guest";
     default:
       return "Resident";
   }
@@ -196,6 +198,7 @@ export interface MemberInviteResult {
 export async function inviteMember(data: {
   name: string;
   email: string;
+  phone: string;
   role: string;
   unit_number?: string;
   community_id?: number;
@@ -204,6 +207,7 @@ export async function inviteMember(data: {
   const res = await api.post("/v1/admin/members/invite", {
     name: data.name,
     email: data.email,
+    phone: data.phone,
     role: roleToApi(data.role),
     unit_number: data.unit_number,
     ...(communityId ? { community_id: communityId } : {}),

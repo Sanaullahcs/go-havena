@@ -33,6 +33,7 @@ import Link from "next/link";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { PhoneDisplay } from "@/components/admin/phone-display";
+import { AdminPhoneInput } from "@/components/admin/phone-input";
 import { UtilityBillPreview } from "@/components/admin/utility-bill-preview";
 import { fetchAdminCommunities, type AdminCommunityOption } from "@/lib/api/communities";
 import { MemberInviteResultModal } from "@/components/admin/member-invite-result-modal";
@@ -42,6 +43,7 @@ import type { MemberInviteResult } from "@/lib/api/members";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
 import { validateSystemMemberInviteForm } from "@/lib/admin/invite-member-validation";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
+import { emptyPhoneField, type PhoneFieldState } from "@/lib/phone/format";
 
 const STATUS_META: Record<MembershipStatus, { tone: "green" | "amber" | "slate" | "red" | "blue"; label: string }> = {
   approved:   { tone: "green", label: "Active" },
@@ -55,6 +57,7 @@ const ROLE_STYLE: Record<string, string> = {
   admin:     "bg-blue-100 text-blue-700",
   moderator: "bg-violet-100 text-violet-700",
   member:    "bg-slate-100 text-slate-600",
+  guest:     "bg-amber-100 text-amber-700",
 };
 
 type Filter = "all" | MembershipStatus;
@@ -97,7 +100,9 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   const debouncedSearch = useDebouncedValue(searchInput, 450);
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", unit: "", role: "Resident", communityId: "" });
+  const [form, setForm] = useState({ name: "", email: "", unit: "", communityId: "" });
+  const [invitePhone, setInvitePhone] = useState<PhoneFieldState>(emptyPhoneField());
+  const [phoneResetKey, setPhoneResetKey] = useState(0);
   const { touch, clearError, showError, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
   const [communities, setCommunities] = useState<AdminCommunityOption[]>([]);
   const [communitiesLoading, setCommunitiesLoading] = useState(false);
@@ -125,7 +130,10 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   const hasLoadedOnce = useRef(false);
   const currentUser = getUser();
 
-  const inviteLiveErrors = useMemo(() => validateSystemMemberInviteForm(form), [form]);
+  const inviteLiveErrors = useMemo(
+    () => validateSystemMemberInviteForm(form, invitePhone),
+    [form, invitePhone],
+  );
   const canInvite = !hasFieldErrors(inviteLiveErrors);
 
   const load = useCallback(async (silent = false) => {
@@ -218,6 +226,8 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
     }
 
     resetTouched();
+    setInvitePhone(emptyPhoneField());
+    setPhoneResetKey((k) => k + 1);
     setModal(true);
     setCommunitiesLoading(true);
     try {
@@ -229,13 +239,12 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
         name: "",
         email: "",
         unit: "",
-        role: "Resident",
         communityId: match ? String(match.id) : res.data[0] ? String(res.data[0].id) : "",
       });
     } catch (err) {
       toastError(apiError(err));
       setCommunities([]);
-      setForm({ name: "", email: "", unit: "", role: "Resident", communityId: "" });
+      setForm({ name: "", email: "", unit: "", communityId: "" });
     } finally {
       setCommunitiesLoading(false);
     }
@@ -244,7 +253,9 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   const closeInviteModal = () => {
     setModal(false);
     resetTouched();
-    setForm({ name: "", email: "", unit: "", role: "Resident", communityId: "" });
+    setInvitePhone(emptyPhoneField());
+    setPhoneResetKey((k) => k + 1);
+    setForm({ name: "", email: "", unit: "", communityId: "" });
   };
 
   const openProfile = async (member: Member) => {
@@ -672,7 +683,9 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                 </div>
               </div>
               <div>
-                <label className="nl-label">Email Address</label>
+                <label className="nl-label">
+                  Email Address <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="email"
                   value={form.email}
@@ -689,12 +702,24 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                 ) : null}
               </div>
               <div>
-                <label className="nl-label">Role</label>
-                <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} className="nl-input nl-select mt-1.5">
-                  <option>Resident</option>
-                  <option>Moderator</option>
-                  <option>Admin</option>
-                </select>
+                <label className="nl-label">
+                  Phone number <span className="text-red-500">*</span>
+                </label>
+                <div className="mt-1.5">
+                  <AdminPhoneInput
+                    resetKey={phoneResetKey}
+                    required
+                    showError={Boolean(showError("phone", inviteLiveErrors))}
+                    onChange={(state) => {
+                      clearError("phone");
+                      setInvitePhone(state);
+                    }}
+                    onBlur={() => touch("phone")}
+                  />
+                </div>
+                {showError("phone", inviteLiveErrors) ? (
+                  <p className="mt-1 text-xs text-red-600">{showError("phone", inviteLiveErrors)}</p>
+                ) : null}
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
@@ -715,7 +740,8 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                     const res = await inviteMember({
                       name: memberName,
                       email: memberEmail,
-                      role: form.role,
+                      phone: invitePhone.e164,
+                      role: "Resident",
                       unit_number: form.unit || undefined,
                       community_id: Number(form.communityId),
                     });

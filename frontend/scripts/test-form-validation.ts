@@ -41,17 +41,28 @@ function assertNoErrors(errors: Record<string, string | undefined>, message: str
 
 console.log("\nInvite member validation");
 {
-  const empty = validateInviteMemberForm({ name: "", email: "", unit: "" });
+  const emptyPhone = emptyPhoneField();
+  const empty = validateInviteMemberForm({ name: "", email: "", unit: "" }, emptyPhone);
   assertHasError(empty, "name", "requires name");
   assertHasError(empty, "email", "requires email");
+  assertHasError(empty, "phone", "requires phone");
 
-  const badEmail = validateInviteMemberForm({ name: "Jane Doe", email: "not-an-email", unit: "" });
+  const badEmail = validateInviteMemberForm(
+    { name: "Jane Doe", email: "not-an-email", unit: "" },
+    emptyPhone,
+  );
   assertHasError(badEmail, "email", "rejects invalid email");
 
-  const longUnit = validateInviteMemberForm({ name: "Jane Doe", email: "jane@example.com", unit: "x".repeat(51) });
+  const longUnit = validateInviteMemberForm(
+    { name: "Jane Doe", email: "jane@example.com", unit: "x".repeat(51) },
+    { country: "US", digits: "4155552671", e164: "+14155552671", valid: true },
+  );
   assertHasError(longUnit, "unit", "rejects long unit");
 
-  const ok = validateInviteMemberForm({ name: "Jane Doe", email: "jane@example.com", unit: "12B" });
+  const ok = validateInviteMemberForm(
+    { name: "Jane Doe", email: "jane@example.com", unit: "12B" },
+    { country: "US", digits: "4155552671", e164: "+14155552671", valid: true },
+  );
   assertNoErrors(ok, "accepts valid invite");
 }
 
@@ -342,12 +353,14 @@ console.log("\nProvision user validation");
   assertHasError(invalidAdmin, "phone", "admin phone");
   assertHasError(invalidAdmin, "region_id", "admin region");
   assertHasError(invalidAdmin, "community_name", "admin community name");
+  assertHasError(invalidAdmin, "community_address", "admin community address");
 
   const invalidResident = validateResidentForm(
     { name: "A", email: "", phone: "", region_id: "", community_id: "" },
     emptyPhoneField(),
   );
   assertHasError(invalidResident, "name", "resident name min");
+  assertHasError(invalidResident, "phone", "resident phone");
   assertHasError(invalidResident, "community_id", "resident community");
 
   const okAdmin = validateCommunityAdminForm(

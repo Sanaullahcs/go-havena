@@ -52,6 +52,7 @@ class WellnessController extends Controller
     /** GET /v1/wellness/hub — mobile wellness hub */
     public function hub(Request $request): JsonResponse
     {
+        $this->assertGuestCanRead($request, 'wellness');
         WellnessCategoryCatalog::ensureInDatabase();
 
         $userId = $request->user()->id;

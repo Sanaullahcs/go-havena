@@ -478,4 +478,63 @@ class AdminMembersListTest extends TestCase
             'title'   => 'Membership request declined',
         ]);
     }
+
+    public function test_members_list_excludes_guest_users(): void
+    {
+        $this->seed(SystemAdminSeeder::class);
+        Sanctum::actingAs(User::query()->where('email', 'admin@havena.app')->firstOrFail());
+
+        $region = Region::query()->create([
+            'title'       => 'Cairo Metro',
+            'area'        => 'Cairo',
+            'state'       => 'EG',
+            'users_label' => '0 users',
+            'sort_order'  => 1,
+            'status'      => 'active',
+        ]);
+
+        $community = Community::query()->create([
+            'name'          => 'Oak Valley',
+            'region_id'     => $region->id,
+            'region'        => $region->title,
+            'status'        => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        $resident = User::factory()->create([
+            'role'   => 'resident',
+            'status' => 'active',
+            'name'   => 'Real Resident',
+        ]);
+
+        $guest = User::factory()->create([
+            'role'   => 'guest',
+            'status' => 'active',
+            'name'   => 'Aliza Guest',
+            'email'  => 'aliza@gmail.com',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $resident->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $guest->id,
+            'community_id' => $community->id,
+            'role'         => 'guest',
+            'status'       => 'approved',
+        ]);
+
+        $response = $this->getJson('/api/v1/admin/members?community_id='.$community->id);
+
+        $response->assertOk();
+        $ids = collect($response->json('data'))->pluck('id');
+
+        $this->assertTrue($ids->contains($resident->id));
+        $this->assertFalse($ids->contains($guest->id));
+        $this->assertSame(1, $response->json('meta.stats.approved'));
+    }
 }

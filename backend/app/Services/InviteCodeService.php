@@ -51,7 +51,7 @@ class InviteCodeService
         }
 
         $invited = User::query()->with('profile')->find($invitedUserId);
-        if (! $invited || $invited->trashed() || ! self::isInvitedPlaceholderUser($invited)) {
+        if (! $invited || $invited->trashed() || ! self::isInvitedPlaceholderUser($invited, $invite)) {
             return null;
         }
 
@@ -95,13 +95,44 @@ class InviteCodeService
         return $prefill;
     }
 
-    private static function isInvitedPlaceholderUser(User $user): bool
+    private static function isInvitedPlaceholderUser(User $user, ?InviteCode $forInvite = null): bool
     {
+        if (ContactIdentityService::isPlaceholderEmail($user->email)) {
+            return false;
+        }
+
+        // When redeeming a member invite, the linked placeholder is claimable even after
+        // used_count increments (claim runs in the same request as the redemption).
+        if ($forInvite && (int) $forInvite->invited_user_id === (int) $user->id) {
+            return true;
+        }
+
+        // Reserved invite seats stay placeholders until the code is redeemed — even if
+        // the invitee verified email/phone by logging in before entering the code.
+        if (InviteCode::query()->pendingForUser((int) $user->id)->exists()) {
+            return true;
+        }
+
         if ($user->phone_verified_at || filled($user->phone)) {
             return false;
         }
 
-        return ! ContactIdentityService::isPlaceholderEmail($user->email);
+        return true;
+    }
+
+    /** True when this account still must redeem its member invite code in the app. */
+    public static function userNeedsInviteCode(User $user): bool
+    {
+        return InviteCode::query()->pendingForUser((int) $user->id)->exists();
+    }
+
+    /** @return InviteCode|null */
+    public static function pendingInviteFor(User $user): ?InviteCode
+    {
+        return InviteCode::query()
+            ->pendingForUser((int) $user->id)
+            ->orderByDesc('id')
+            ->first();
     }
 
     /** Value encoded in QR — mobile scanner accepts code or URL with invite_code param. */

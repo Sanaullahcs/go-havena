@@ -231,6 +231,8 @@ export function defaultEndTimeFromStart(startDate) {
 export function validateCompleteProfileForm({
   name,
   email,
+  phoneDigits,
+  phoneCountry,
   bio,
   unitNumber,
   residenceType,
@@ -246,6 +248,14 @@ export function validateCompleteProfileForm({
 
   const emailErr = validateUserEmail(email);
   if (emailErr) errors.email = emailErr;
+
+  const digits = String(phoneDigits ?? "").trim();
+  if (!digits) {
+    errors.phone = i18n.t("validation.phoneRequired");
+  } else {
+    const phoneErr = getPhoneValidationError(digits, phoneCountry);
+    if (phoneErr) errors.phone = phoneErr;
+  }
 
   const bioText = String(bio ?? "").trim();
   if (bioText.length > LIMITS.profileBio) {
@@ -426,7 +436,44 @@ export function validateInviteCodeForm(inviteCode) {
   return errors;
 }
 
-export function validateInviteMemberForm({ name, email, unit }) {
+/** Guest host codes look like GST-XXXX-1234 (spaces/dashes optional while typing). */
+export function validateGuestInviteCodeForm(inviteCode) {
+  const errors = {};
+  const raw = String(inviteCode ?? "").trim();
+
+  if (!raw) {
+    errors.inviteCode = i18n.t("validation.inviteCodeRequired");
+    return errors;
+  }
+
+  if (raw.length > LIMITS.inviteCode) {
+    errors.inviteCode = i18n.t("validation.maxChars", {
+      field: i18n.t("validation.fields.inviteCode"),
+      max: LIMITS.inviteCode,
+    });
+    return errors;
+  }
+
+  const compact = raw.toUpperCase().replace(/[\s-]+/g, "");
+  const match = compact.match(/^GST([A-Z0-9]{4})(\d{4})$/);
+  if (match) return errors;
+
+  if (compact.startsWith("GST")) {
+    errors.inviteCode = i18n.t("validation.guestInviteCodeInvalid");
+    return errors;
+  }
+
+  if (compact.length < 6) {
+    errors.inviteCode = i18n.t("validation.minChars", {
+      field: i18n.t("validation.fields.inviteCode"),
+      min: 6,
+    });
+  }
+
+  return errors;
+}
+
+export function validateInviteMemberForm({ name, email, unit, phoneDigits, phoneCountry }) {
   const errors = {};
 
   const nameErr = requiredText(name, "validation.fields.fullName", { min: 2, max: 100 });
@@ -436,6 +483,14 @@ export function validateInviteMemberForm({ name, email, unit }) {
   if (!emailValue) errors.email = i18n.t("validation.emailRequired");
   else if (emailValue.length > 255) errors.email = i18n.t("validation.maxChars", { field: i18n.t("validation.fields.email"), max: 255 });
   else if (!EMAIL_RE.test(emailValue)) errors.email = i18n.t("validation.emailInvalid");
+
+  const digits = String(phoneDigits ?? "").trim();
+  if (!digits) {
+    errors.phone = i18n.t("validation.phoneRequired");
+  } else {
+    const phoneErr = getPhoneValidationError(digits, phoneCountry);
+    if (phoneErr) errors.phone = phoneErr;
+  }
 
   const unitStr = String(unit ?? "").trim();
   if (unitStr.length > LIMITS.inviteUnit) {

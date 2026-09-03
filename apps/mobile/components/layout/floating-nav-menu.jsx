@@ -197,7 +197,7 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
         openServicesHub(navigation, router, pathname);
         return;
       }
-      router.navigate(item.href);
+      navigateAppRoute(router, item.href);
     },
     [haptic, router, navigation, pathname],
   );

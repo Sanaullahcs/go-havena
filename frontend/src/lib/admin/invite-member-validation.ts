@@ -1,3 +1,4 @@
+import { getPhoneValidationError, type PhoneFieldState } from "@/lib/phone/format";
 import {
   type FieldErrors,
   validateEmailField,
@@ -10,7 +11,10 @@ export type InviteMemberForm = {
   unit: string;
 };
 
-export function validateInviteMemberForm(form: InviteMemberForm): FieldErrors {
+export function validateInviteMemberForm(
+  form: InviteMemberForm,
+  phone: PhoneFieldState,
+): FieldErrors {
   const errors: FieldErrors = {};
 
   const nameError = validateRequiredName(form.name, "Full name");
@@ -18,6 +22,12 @@ export function validateInviteMemberForm(form: InviteMemberForm): FieldErrors {
 
   const emailError = validateEmailField(form.email);
   if (emailError) errors.email = emailError;
+
+  if (!phone.digits.trim()) {
+    errors.phone = "Phone number is required.";
+  } else if (!phone.valid) {
+    errors.phone = getPhoneValidationError(phone.digits, phone.country) ?? "Enter a valid phone number.";
+  }
 
   const unit = form.unit.trim();
   if (unit.length > 50) {
@@ -31,8 +41,11 @@ export type SystemMemberInviteForm = InviteMemberForm & {
   communityId: string;
 };
 
-export function validateSystemMemberInviteForm(form: SystemMemberInviteForm): FieldErrors {
-  const errors = validateInviteMemberForm(form);
+export function validateSystemMemberInviteForm(
+  form: SystemMemberInviteForm,
+  phone: PhoneFieldState,
+): FieldErrors {
+  const errors = validateInviteMemberForm(form, phone);
 
   if (!form.communityId) {
     errors.communityId = "Select a community.";

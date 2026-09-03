@@ -76,11 +76,13 @@ const GUEST_ACTION_VISUAL: Record<string, { bg: string; color: string; label: st
   access_rejected: { bg: "#FEF2F2", color: "#DC2626", label: "Access rejected" },
   access_revoked: { bg: "#FEF2F2", color: "#DC2626", label: "Access revoked" },
   access_extended: { bg: "#F5F3FF", color: "#7C3AED", label: "Access extended" },
-  viewed_posts: { bg: "#F0FDF4", color: "#16A34A", label: "Viewed posts" },
+  viewed_posts: { bg: "#F0FDF4", color: "#16A34A", label: "Viewed feed" },
   viewed_notices: { bg: "#E8F0F7", color: "#1B4F8A", label: "Viewed notices" },
   viewed_events: { bg: "#F5F3FF", color: "#7C3AED", label: "Viewed events" },
   viewed_marketplace: { bg: "#E8F0F7", color: "#EA580C", label: "Viewed marketplace" },
   viewed_businesses: { bg: "#ECFEFF", color: "#0891B2", label: "Viewed businesses" },
+  viewed_wellness: { bg: "#FDF2F8", color: "#DB2777", label: "Viewed wellness" },
+  viewed_services: { bg: "#EEF2FF", color: "#4F46E5", label: "Viewed services" },
   blocked_action: { bg: "#FEF2F2", color: "#DC2626", label: "Blocked action" },
 };
 

@@ -8,6 +8,9 @@ use App\Models\User;
 
 class GuestActivityService
 {
+    /** Minutes before the same feature view can be logged again for one guest. */
+    public const VIEW_THROTTLE_MINUTES = 10;
+
     public static function log(
         GuestInvitation $invitation,
         string $action,
@@ -54,15 +57,47 @@ class GuestActivityService
 
     public static function logView(User $user, string $feature): void
     {
+        if (! GuestAccessService::isGuest($user)) {
+            return;
+        }
+
         $map = [
-            'feed'        => 'viewed_posts',
-            'notices'     => 'viewed_notices',
-            'events'      => 'viewed_events',
-            'marketplace' => 'viewed_marketplace',
-            'businesses'  => 'viewed_businesses',
+            'feed'        => ['action' => 'viewed_posts', 'description' => 'Viewed community feed'],
+            'notices'     => ['action' => 'viewed_notices', 'description' => 'Viewed notices'],
+            'events'      => ['action' => 'viewed_events', 'description' => 'Viewed events'],
+            'marketplace' => ['action' => 'viewed_marketplace', 'description' => 'Viewed marketplace'],
+            'businesses'  => ['action' => 'viewed_businesses', 'description' => 'Viewed businesses'],
+            'wellness'    => ['action' => 'viewed_wellness', 'description' => 'Viewed wellness'],
+            'services'    => ['action' => 'viewed_services', 'description' => 'Viewed community services'],
         ];
 
-        $action = $map[$feature] ?? "viewed_{$feature}";
-        self::logForUser($user, $action, "Viewed {$feature}");
+        $entry = $map[$feature] ?? [
+            'action'      => "viewed_{$feature}",
+            'description' => 'Viewed '.str_replace('_', ' ', $feature),
+        ];
+
+        $invitation = GuestInvitation::query()
+            ->where('guest_user_id', $user->id)
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $invitation) {
+            return;
+        }
+
+        $recentDuplicate = GuestActivityLog::query()
+            ->where('guest_invitation_id', $invitation->id)
+            ->where('action', $entry['action'])
+            ->where('created_at', '>=', now()->subMinutes(self::VIEW_THROTTLE_MINUTES))
+            ->exists();
+
+        if ($recentDuplicate) {
+            // Keep last_activity_at fresh without flooding the timeline.
+            $invitation->update(['last_activity_at' => now()]);
+
+            return;
+        }
+
+        self::log($invitation, $entry['action'], $entry['description'], ['feature' => $feature]);
     }
 }

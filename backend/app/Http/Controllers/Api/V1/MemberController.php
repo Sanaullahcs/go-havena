@@ -15,18 +15,29 @@ use App\Services\FamilyService;
 use App\Services\InviteCodeService;
 use App\Services\NotificationService;
 use App\Support\ActivityActionCatalog;
+use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class MemberController extends Controller
 {
-    /** Exclude platform system admins from member/resident lists. */
+    /** Exclude platform system admins and guests from member/resident lists. */
     private function excludePlatformAdminsScope($query, string $usersAlias = 'users'): void
     {
-        $query->whereNotIn("{$usersAlias}.role", ['system_admin', 'admin']);
+        $query->whereNotIn("{$usersAlias}.role", ['system_admin', 'admin', 'guest']);
+    }
+
+    /** Guests have temporary access via Guests admin — never list as community members. */
+    private function excludeGuestMembershipsScope($query, string $cmAlias = 'cm'): void
+    {
+        $query->where(function ($q) use ($cmAlias) {
+            $q->whereNull("{$cmAlias}.id")
+                ->orWhere("{$cmAlias}.role", '!=', 'guest');
+        });
     }
 
     /** Residents tab: only membership rows for residents, not community admins. */
@@ -73,18 +84,24 @@ class MemberController extends Controller
                 'profiles.utility_bill_url',
             )
             ->where('users.status', '!=', 'deleted')
-            ->where(function ($q) {
+            ->where(function ($q) use ($communityId) {
                 $q->whereNotNull('cm.id')
-                    ->orWhere(function ($q2) {
+                    ->orWhere(function ($q2) use ($communityId) {
                         $q2->where('users.role', 'resident')
                             ->whereNotExists(function ($sub) {
                                 $sub->from('community_memberships as cm_all')
                                     ->whereColumn('cm_all.user_id', 'users.id');
+                            })
+                            ->whereExists(function ($sub) use ($communityId) {
+                                $sub->from('invite_codes')
+                                    ->whereColumn('invite_codes.invited_user_id', 'users.id')
+                                    ->where('invite_codes.community_id', $communityId);
                             });
                     });
             });
 
         $this->excludePlatformAdminsScope($query);
+        $this->excludeGuestMembershipsScope($query);
 
         if ($request->filled('status') && $request->status !== 'all') {
             if ($request->status === 'pending') {
@@ -213,6 +230,7 @@ class MemberController extends Controller
             ->where('users.status', '!=', 'deleted');
 
         $this->excludePlatformAdminsScope($query);
+        $this->excludeGuestMembershipsScope($query);
         $this->applyResidentsOnlyScope($query, $residentsOnly);
         $this->applyMemberSearch($query, $request, includeCommunityName: true);
 
@@ -430,32 +448,43 @@ class MemberController extends Controller
         $request->validate([
             'name'         => 'required|string|max:100',
             'email'        => 'required|email',
+            'phone'        => 'required|string|max:30',
             'role'         => 'in:member,moderator,admin',
             'unit_number'  => 'nullable|string|max:50',
             'community_id' => 'integer',
         ]);
 
-        ContactIdentityService::assertAvailableForRegistration($request->email, null, null, 'email');
+        $phone = PhoneNormalizer::normalize($request->phone);
+        if (! $phone) {
+            throw ValidationException::withMessages([
+                'phone' => ['Enter a valid phone number in international format (e.g. +2017777777).'],
+            ]);
+        }
+
+        ContactIdentityService::assertAvailableForRegistration($request->email, $phone);
 
         $communityId = AdminRoleService::requireManagedCommunityId($request->user(), $request);
         $password    = \Illuminate\Support\Str::random(12);
         $role        = $request->role ?? 'member';
         $billing     = app(CommunityBillingService::class);
 
-        // Community admin seats are not billable; resident/moderator invites consume a seat.
+        // Community admin seats are not billable; resident/moderator invites reserve a seat
+        // until the invite code is redeemed on the app (OTP → invite code → complete profile).
         if ($role !== 'admin') {
             $billing->releaseExpiredReservations($communityId);
             $billing->assertCanAllocateSeat($communityId);
         }
 
         $userId = DB::table('users')->insertGetId([
-            'name'       => $request->name,
-            'email'      => $request->email,
-            'password'   => Hash::make($password),
-            'role'       => $role === 'admin' ? 'community_admin' : 'resident',
-            'status'     => 'active',
-            'created_at' => now(),
-            'updated_at' => now(),
+            'name'               => $request->name,
+            'email'              => $request->email,
+            'phone'              => $phone,
+            'phone_verified_at'  => null,
+            'password'           => Hash::make($password),
+            'role'               => $role === 'admin' ? 'community_admin' : 'resident',
+            'status'             => 'active',
+            'created_at'         => now(),
+            'updated_at'         => now(),
         ]);
 
         DB::table('profiles')->insert([
@@ -474,15 +503,9 @@ class MemberController extends Controller
             invitedUserId: $userId,
         );
 
-        DB::table('community_memberships')->insert([
-            'user_id'          => $userId,
-            'community_id'     => $communityId,
-            'role'             => $role,
-            'status'           => 'approved',
-            'invite_code_used' => $invite->code,
-            'created_at'       => now(),
-            'updated_at'       => now(),
-        ]);
+        if ($role !== 'admin') {
+            $billing->reserveSeatForInvite($communityId, $userId, $invite);
+        }
 
         $communityName = Community::query()->where('id', $communityId)->value('name') ?? 'your community';
         $qrPayload = InviteCodeService::qrPayload($invite->code);
@@ -772,7 +795,8 @@ class MemberController extends Controller
         $query = DB::table('community_memberships as cm')
             ->join('users', 'users.id', '=', 'cm.user_id')
             ->select('cm.status', DB::raw('count(*) as total'))
-            ->whereNotIn('users.role', ['system_admin', 'admin'])
+            ->whereNotIn('users.role', ['system_admin', 'admin', 'guest'])
+            ->where('cm.role', '!=', 'guest')
             ->where('users.status', '!=', 'deleted');
 
         if ($residentsOnly) {
@@ -812,7 +836,8 @@ class MemberController extends Controller
             ->join('users', 'users.id', '=', 'cm.user_id')
             ->select('cm.status', DB::raw('count(*) as total'))
             ->where('cm.community_id', $communityId)
-            ->whereNotIn('users.role', ['system_admin', 'admin'])
+            ->whereNotIn('users.role', ['system_admin', 'admin', 'guest'])
+            ->where('cm.role', '!=', 'guest')
             ->where('users.status', '!=', 'deleted');
 
         if ($residentsOnly) {
@@ -852,7 +877,8 @@ class MemberController extends Controller
         $query = DB::table('community_memberships as cm')
             ->join('users', 'users.id', '=', 'cm.user_id')
             ->where('cm.status', 'pending')
-            ->whereNotIn('users.role', ['system_admin', 'admin'])
+            ->whereNotIn('users.role', ['system_admin', 'admin', 'guest'])
+            ->where('cm.role', '!=', 'guest')
             ->where('users.status', '!=', 'deleted');
 
         if ($communityId) {

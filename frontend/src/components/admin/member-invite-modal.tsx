@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Mail, X } from "lucide-react";
+import { AdminPhoneInput } from "@/components/admin/phone-input";
 import { MemberInviteResultModal } from "@/components/admin/member-invite-result-modal";
 import { inviteMember, type MemberInviteResult } from "@/lib/api/members";
 import { apiError } from "@/lib/api/client";
@@ -11,9 +12,12 @@ import {
   type InviteMemberForm,
 } from "@/lib/admin/invite-member-validation";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
+import { emptyPhoneField, type PhoneFieldState } from "@/lib/phone/format";
 import { toastError, toastSuccess } from "@/lib/alert";
 
 const EMPTY_FORM: InviteMemberForm = { name: "", email: "", unit: "" };
+
+type InviteField = keyof InviteMemberForm | "phone";
 
 export function MemberInviteModal({
   open,
@@ -26,18 +30,22 @@ export function MemberInviteModal({
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [form, setForm] = useState<InviteMemberForm>(EMPTY_FORM);
-  const [errors, setErrors] = useState<Partial<Record<keyof InviteMemberForm, string>>>({});
-  const [touched, setTouched] = useState<Partial<Record<keyof InviteMemberForm, boolean>>>({});
+  const [phone, setPhone] = useState<PhoneFieldState>(emptyPhoneField());
+  const [phoneResetKey, setPhoneResetKey] = useState(0);
+  const [errors, setErrors] = useState<Partial<Record<InviteField, string>>>({});
+  const [touched, setTouched] = useState<Partial<Record<InviteField, boolean>>>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [inviteResult, setInviteResult] = useState<MemberInviteResult | null>(null);
 
-  const liveErrors = useMemo(() => validateInviteMemberForm(form), [form]);
+  const liveErrors = useMemo(() => validateInviteMemberForm(form, phone), [form, phone]);
   const canSubmit = !hasFieldErrors(liveErrors);
 
   useEffect(() => {
     if (!open) {
       setForm(EMPTY_FORM);
+      setPhone(emptyPhoneField());
+      setPhoneResetKey((k) => k + 1);
       setErrors({});
       setTouched({});
       setSubmitAttempted(false);
@@ -48,14 +56,14 @@ export function MemberInviteModal({
 
   if (!open) return null;
 
-  const showError = (field: keyof InviteMemberForm) =>
+  const showError = (field: InviteField) =>
     Boolean((submitAttempted || touched[field]) && errors[field]);
 
-  const touch = (field: keyof InviteMemberForm) => {
+  const touch = (field: InviteField) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
   };
 
-  const clearFieldError = (field: keyof InviteMemberForm) => {
+  const clearFieldError = (field: InviteField) => {
     setErrors((prev) => {
       if (!prev[field]) return prev;
       const next = { ...prev };
@@ -64,8 +72,8 @@ export function MemberInviteModal({
     });
   };
 
-  const focusFirstError = (nextErrors: Partial<Record<keyof InviteMemberForm, string>>) => {
-    const firstKey = Object.keys(nextErrors)[0] as keyof InviteMemberForm | undefined;
+  const focusFirstError = (nextErrors: Partial<Record<InviteField, string>>) => {
+    const firstKey = Object.keys(nextErrors)[0] as InviteField | undefined;
     if (!firstKey || !formRef.current) return;
     formRef.current.querySelector<HTMLElement>(`[data-field="${firstKey}"]`)?.focus();
   };
@@ -74,7 +82,7 @@ export function MemberInviteModal({
     e.preventDefault();
     setSubmitAttempted(true);
 
-    const nextErrors = validateInviteMemberForm(form);
+    const nextErrors = validateInviteMemberForm(form, phone);
     setErrors(nextErrors);
     if (hasFieldErrors(nextErrors)) {
       focusFirstError(nextErrors);
@@ -91,6 +99,7 @@ export function MemberInviteModal({
       const res = await inviteMember({
         name,
         email,
+        phone: phone.e164,
         role: "Resident",
         unit_number: form.unit.trim() || undefined,
       });
@@ -152,7 +161,7 @@ export function MemberInviteModal({
               maxLength={100}
               onBlur={() => {
                 touch("name");
-                const next = validateInviteMemberForm(form);
+                const next = validateInviteMemberForm(form, phone);
                 setErrors((prev) => ({ ...prev, name: next.name }));
               }}
               onChange={(e) => {
@@ -172,7 +181,7 @@ export function MemberInviteModal({
               maxLength={255}
               onBlur={() => {
                 touch("email");
-                const next = validateInviteMemberForm(form);
+                const next = validateInviteMemberForm(form, phone);
                 setErrors((prev) => ({ ...prev, email: next.email }));
               }}
               onChange={(e) => {
@@ -180,6 +189,23 @@ export function MemberInviteModal({
                 setForm((f) => ({ ...f, email: e.target.value }));
               }}
               placeholder="email@example.com"
+            />
+          </Field>
+
+          <Field label="Phone number" required error={showError("phone") ? errors.phone : undefined}>
+            <AdminPhoneInput
+              resetKey={phoneResetKey}
+              required
+              showError={showError("phone")}
+              onChange={(state) => {
+                clearFieldError("phone");
+                setPhone(state);
+              }}
+              onBlur={() => {
+                touch("phone");
+                const next = validateInviteMemberForm(form, phone);
+                setErrors((prev) => ({ ...prev, phone: next.phone }));
+              }}
             />
           </Field>
 
@@ -191,7 +217,7 @@ export function MemberInviteModal({
               maxLength={50}
               onBlur={() => {
                 touch("unit");
-                const next = validateInviteMemberForm(form);
+                const next = validateInviteMemberForm(form, phone);
                 setErrors((prev) => ({ ...prev, unit: next.unit }));
               }}
               onChange={(e) => {

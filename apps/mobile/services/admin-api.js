@@ -33,10 +33,10 @@ export async function deleteMember(userId) {
   return apiRequest(`/admin/members/${userId}`, { method: "DELETE" });
 }
 
-export async function inviteMember({ name, email, unit_number, role = "member" }) {
+export async function inviteMember({ name, email, phone, unit_number, role = "member" }) {
   return apiRequest("/admin/members/invite", {
     method: "POST",
-    body: { name, email, unit_number, role },
+    body: { name, email, phone, unit_number, role },
   });
 }
 

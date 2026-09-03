@@ -99,10 +99,6 @@ class FeedController extends Controller
         $pageItems = $this->hydrateEngagementCounts($posts->items());
         $items = collect($pageItems)->map(fn ($p) => $this->formatPost($p, $likedPostIds, $user->id, ['mask_sensitive' => true]));
 
-        if (\App\Services\GuestAccessService::isGuest($user)) {
-            \App\Services\GuestActivityService::logView($user, 'feed');
-        }
-
         return response()->json([
             'data' => $items,
             'meta' => [

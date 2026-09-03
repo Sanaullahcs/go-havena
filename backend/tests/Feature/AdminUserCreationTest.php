@@ -84,8 +84,10 @@ class AdminUserCreationTest extends TestCase
             'type' => 'community_admin',
             'name' => 'Ahmed Admin',
             'email' => 'ahmed.login@example.com',
+            'phone' => '+2017777778',
             'region_id' => $region->id,
             'community_name' => 'Nile Gardens',
+            'community_address' => '123 Nile St',
         ])->assertCreated();
 
         $admin = User::query()->where('email', 'ahmed.login@example.com')->firstOrFail();

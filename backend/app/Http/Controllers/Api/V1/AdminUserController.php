@@ -31,22 +31,19 @@ class AdminUserController extends Controller
                 'email',
                 'max:255',
             ],
-            'phone' => ['nullable', 'string', 'max:30'],
+            'phone' => ['required', 'string', 'max:30'],
             'region_id' => ['required', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
             'community_name' => ['required_if:type,community_admin', 'nullable', 'string', 'max:255'],
-            'community_address' => ['nullable', 'string', 'max:500'],
+            'community_address' => ['required_if:type,community_admin', 'nullable', 'string', 'min:5', 'max:500'],
             'community_description' => ['nullable', 'string', 'max:1000'],
             'community_id' => ['required_if:type,resident', 'nullable', 'integer', Rule::exists('communities', 'id')],
         ]);
 
-        $phone = null;
-        if (filled($validated['phone'] ?? null)) {
-            $phone = PhoneNormalizer::normalize($validated['phone']);
-            if (! $phone) {
-                throw ValidationException::withMessages([
-                    'phone' => ['Enter a valid phone number in international format (e.g. +2017777777).'],
-                ]);
-            }
+        $phone = PhoneNormalizer::normalize($validated['phone']);
+        if (! $phone) {
+            throw ValidationException::withMessages([
+                'phone' => ['Enter a valid phone number in international format (e.g. +2017777777).'],
+            ]);
         }
 
         $restorableUser = $this->findRestorableUser($phone, $validated['email']);
@@ -84,7 +81,7 @@ class AdminUserController extends Controller
             'name' => $validated['community_name'],
             'region_id' => $region->id,
             'region' => $region->title,
-            'address' => $validated['community_address'] ?? null,
+            'address' => $validated['community_address'],
             'description' => $validated['community_description'] ?? null,
             'status' => 'active',
             'review_status' => 'approved',
@@ -107,8 +104,8 @@ class AdminUserController extends Controller
             'user_id' => $user->id,
             'display_name' => $displayName,
             'region_id' => $region->id,
-            'unit_number' => 'Office',
-            'residence_type' => 'Management',
+            'unit_number' => null,
+            'residence_type' => null,
         ]);
 
         CommunityMembership::query()->create([

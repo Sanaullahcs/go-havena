@@ -205,6 +205,23 @@ export function isPlaceholderDisplayName(name) {
   return /^profile$/i.test(trimmed);
 }
 
+/** System-dashboard defaults for community admins — treat as unset on complete-profile. */
+const PLACEHOLDER_UNIT_NUMBERS = new Set(["office", "management office"]);
+const PLACEHOLDER_RESIDENCE_TYPES = new Set(["management", "office"]);
+
+export function isPlaceholderUnitNumber(unit) {
+  const trimmed = String(unit ?? "").trim();
+  if (!trimmed) return true;
+  return PLACEHOLDER_UNIT_NUMBERS.has(trimmed.toLowerCase());
+}
+
+export function isPlaceholderResidenceType(type) {
+  const trimmed = String(type ?? "").trim();
+  if (!trimmed) return true;
+  if (trimmed === "homeowner" || trimmed === "tenant") return false;
+  return PLACEHOLDER_RESIDENCE_TYPES.has(trimmed.toLowerCase());
+}
+
 /** Normalize API `/me` payload or cached session user for UI. */
 export function getProfileFields(user) {
   if (!user) {

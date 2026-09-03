@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\CommunityMembership;
 use App\Models\GuestInvitation;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -460,6 +461,8 @@ class GuestAccessService
         $invitation->update(['status' => 'expired']);
 
         if ($invitation->guest_user_id) {
+            self::removeGuestMembership($invitation);
+
             DB::table('personal_access_tokens')
                 ->where('tokenable_id', $invitation->guest_user_id)
                 ->where('tokenable_type', User::class)
@@ -471,6 +474,19 @@ class GuestAccessService
                 'Guest access expired automatically',
             );
         }
+    }
+
+    public static function removeGuestMembership(GuestInvitation $invitation): void
+    {
+        if (! $invitation->guest_user_id) {
+            return;
+        }
+
+        CommunityMembership::query()
+            ->where('user_id', $invitation->guest_user_id)
+            ->where('community_id', $invitation->community_id)
+            ->where('role', 'guest')
+            ->delete();
     }
 
     public static function revokeTokensForUser(int $userId): void

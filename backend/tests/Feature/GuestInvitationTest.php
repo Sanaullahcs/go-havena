@@ -396,6 +396,12 @@ class GuestInvitationTest extends TestCase
             'tokenable_type' => User::class,
         ]);
 
+        $this->assertDatabaseMissing('community_memberships', [
+            'user_id'      => $guest->id,
+            'community_id' => $community->id,
+            'role'         => 'guest',
+        ]);
+
         Sanctum::actingAs($guest);
         $this->getJson('/api/v1/feed')
             ->assertForbidden()
@@ -742,5 +748,77 @@ class GuestInvitationTest extends TestCase
         ])
             ->assertOk()
             ->assertJsonPath('invitation_status', 'pending_approval');
+    }
+
+    public function test_guest_feature_views_are_tracked_without_feed_spam(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $create = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Activity Guest',
+            'guest_email' => 'activity-guest@example.com',
+            'guest_phone' => '+15551230911',
+            'starts_at'   => now()->subHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+            'permissions' => [
+                'feed'        => true,
+                'notices'     => true,
+                'events'      => true,
+                'marketplace' => true,
+                'businesses'  => true,
+                'wellness'    => true,
+            ],
+        ])->json('data');
+
+        app(OtpService::class)->send('activity-guest@example.com');
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'activity-guest@example.com',
+            'code'        => '123456',
+            'invite_code' => $create['invite_code'],
+        ])->assertOk();
+
+        $invitation = GuestInvitation::query()->where('invite_code', $create['invite_code'])->firstOrFail();
+        $this->patchJson("/api/v1/admin/guests/{$invitation->id}/approve")->assertOk();
+
+        $guest = User::query()->where('email', 'activity-guest@example.com')->firstOrFail();
+        Sanctum::actingAs($guest);
+
+        $this->getJson('/api/v1/feed')->assertOk();
+        $this->getJson('/api/v1/feed')->assertOk();
+        $this->getJson('/api/v1/feed')->assertOk();
+
+        $this->assertSame(
+            1,
+            \App\Models\GuestActivityLog::query()
+                ->where('guest_invitation_id', $invitation->id)
+                ->where('action', 'viewed_posts')
+                ->count()
+        );
+
+        $this->getJson('/api/v1/notices')->assertOk();
+        $this->getJson('/api/v1/notices?category=event')->assertOk();
+        $this->getJson('/api/v1/listings')->assertOk();
+        $this->getJson('/api/v1/businesses')->assertOk();
+        $this->getJson('/api/v1/wellness/hub')->assertOk();
+        $this->getJson('/api/v1/amenities')->assertOk();
+
+        $actions = \App\Models\GuestActivityLog::query()
+            ->where('guest_invitation_id', $invitation->id)
+            ->where('action', 'like', 'viewed_%')
+            ->pluck('action')
+            ->sort()
+            ->values()
+            ->all();
+
+        $this->assertSame([
+            'viewed_businesses',
+            'viewed_events',
+            'viewed_marketplace',
+            'viewed_notices',
+            'viewed_posts',
+            'viewed_services',
+            'viewed_wellness',
+        ], $actions);
     }
 }

@@ -51,4 +51,19 @@ class InviteCode extends Model
 
         return true;
     }
+
+    /** Unused invite still assigned to this placeholder resident. */
+    public function scopePendingForUser($query, int $userId)
+    {
+        return $query
+            ->where('invited_user_id', $userId)
+            ->where(function ($q) {
+                $q->whereNull('max_uses')
+                    ->orWhereColumn('used_count', '<', 'max_uses');
+            })
+            ->where(function ($q) {
+                $q->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            });
+    }
 }

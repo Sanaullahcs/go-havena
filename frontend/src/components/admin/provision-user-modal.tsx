@@ -166,7 +166,7 @@ export function ProvisionUserModal({
           phone: adminPhone.e164,
           region_id: Number(adminForm.region_id),
           community_name: adminForm.community_name.trim(),
-          community_address: adminForm.community_address.trim() || undefined,
+          community_address: adminForm.community_address.trim(),
           community_description: adminForm.community_description.trim() || undefined,
         });
         toastSuccess(res.message);
@@ -316,9 +316,15 @@ export function ProvisionUserModal({
                 placeholder="user@example.com"
               />
             </Field>
-            <Field label="Phone number" className="sm:col-span-2">
+            <Field
+              label="Phone number"
+              required
+              className="sm:col-span-2"
+              error={showError("phone") ? errors.phone : undefined}
+            >
               <AdminPhoneInput
                 resetKey={`${type}-${open}`}
+                required
                 showError={showError("phone")}
                 onChange={(state) => {
                   clearFieldError("phone");
@@ -327,6 +333,14 @@ export function ProvisionUserModal({
                   } else {
                     setResidentPhone(state);
                   }
+                }}
+                onBlur={() => {
+                  touch("phone");
+                  const next =
+                    type === "community_admin"
+                      ? validateCommunityAdminForm(adminForm, adminPhone)
+                      : validateResidentForm(residentForm, residentPhone);
+                  setErrors((prev) => ({ ...prev, phone: next.phone }));
                 }}
               />
             </Field>
@@ -379,7 +393,8 @@ export function ProvisionUserModal({
                   />
                 </Field>
                 <Field
-                  label="Address (optional)"
+                  label="Address"
+                  required
                   className="sm:col-span-2"
                   error={showError("community_address") ? errors.community_address : undefined}
                 >

@@ -109,6 +109,48 @@ class CommunityController extends Controller
             ->first();
 
         if ($existing) {
+            $inviteModel = null;
+            if (! empty($validated['invite_code'])) {
+                $inviteModel = InviteCode::query()
+                    ->where('community_id', $community->id)
+                    ->whereRaw('UPPER(code) = ?', [strtoupper(trim($validated['invite_code']))])
+                    ->first();
+
+                if (! $inviteModel || ! $inviteModel->isValid()) {
+                    throw ValidationException::withMessages([
+                        'invite_code' => ['Invalid or expired invite code.'],
+                    ]);
+                }
+
+                // Invited placeholder redeeming their own code (or legacy approved invite rows).
+                $inviteModel->increment('used_count');
+                $existing->update([
+                    'status' => 'approved',
+                    'invite_code_used' => $inviteModel->code,
+                ]);
+                $existing->refresh();
+
+                $billing = app(CommunityBillingService::class);
+                if (filled($inviteModel->invited_user_id)) {
+                    $billing->consumeReservationsForUser($community->id, (int) $inviteModel->invited_user_id);
+                }
+
+                return response()->json([
+                    'data' => [
+                        'membership' => [
+                            'id' => $existing->id,
+                            'community_id' => $existing->community_id,
+                            'role' => $existing->role,
+                            'status' => $existing->status,
+                            'invite_code_used' => $existing->invite_code_used,
+                        ],
+                        'community' => $this->communityPayload($community),
+                        'invited_profile' => null,
+                        'user' => new UserResource($user->fresh(['profile', 'memberships.community'])),
+                    ],
+                ]);
+            }
+
             if ($existing->status === 'pending') {
                 $existing->update([
                     'status' => MembershipService::joinStatusFor($community, $user, false),
@@ -195,7 +237,7 @@ class CommunityController extends Controller
                 ],
                 'community' => $this->communityPayload($community),
                 'invited_profile' => $invitedProfile,
-                'user' => $invitedProfile ? new UserResource($user) : null,
+                'user' => new UserResource($user->fresh(['profile.region', 'memberships.community'])),
             ],
         ], 201);
     }

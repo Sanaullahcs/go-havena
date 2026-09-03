@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Services\ActivityLogService;
 use App\Services\AdminRoleService;
+use App\Services\GuestAccessService;
+use App\Services\GuestActivityService;
 use App\Services\NotificationService;
 use App\Support\AmenitySlots;
 use App\Support\MediaUrl;
@@ -27,6 +29,10 @@ class AmenityController extends Controller
     {
         $user = $request->user();
         $communityId = $this->resolveResidentCommunityId($request, $user);
+
+        if (GuestAccessService::isGuest($user)) {
+            GuestActivityService::logView($user, 'services');
+        }
 
         $amenities = DB::table('amenities')
             ->leftJoin('users', 'users.id', '=', 'amenities.created_by')

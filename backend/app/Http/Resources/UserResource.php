@@ -60,6 +60,7 @@ class UserResource extends JsonResource
             }),
             'guest_access' => \App\Services\GuestAccessService::guestAccessSummary($this->resource),
             'family' => \App\Services\FamilyService::onboardingBrief($this->resource),
+            'needs_invite_code' => \App\Services\InviteCodeService::userNeedsInviteCode($this->resource),
         ];
     }
 }

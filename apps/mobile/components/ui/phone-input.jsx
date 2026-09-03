@@ -196,6 +196,7 @@ export function FormPhoneInput({
   showError = false,
   placeholder,
   containerStyle,
+  rowStyle,
   onFocus,
 }) {
   const { t } = useTranslation();
@@ -214,7 +215,7 @@ export function FormPhoneInput({
 
   return (
     <View style={containerStyle}>
-      <View style={[formStyles.row, showFieldError && formStyles.rowError]}>
+      <View style={[formStyles.row, rowStyle, showFieldError && formStyles.rowError]}>
         <Pressable
           style={formStyles.countryBtn}
           onPress={() => setPickerOpen(true)}
@@ -228,7 +229,7 @@ export function FormPhoneInput({
         <LocaleTextInput
           style={formStyles.field}
           placeholder={resolvedPlaceholder}
-          placeholderTextColor="#98A2B3"
+          placeholderTextColor="#9CA3AF"
           value={display}
           onChangeText={handleChange}
           onFocus={onFocus}
@@ -370,15 +371,15 @@ const formStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "#E5E7EB",
     borderRadius: sw(12),
-    backgroundColor: "#FAFBFC",
-    paddingHorizontal: sw(12),
-    minHeight: sw(46),
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: sw(16),
+    height: sw(52),
+    minHeight: sw(52),
   },
   rowError: {
-    borderColor: "#FCA5A5",
-    backgroundColor: "#FEF2F2",
+    borderColor: "#DC2626",
   },
   countryBtn: {
     flexDirection: "row",
@@ -386,27 +387,33 @@ const formStyles = StyleSheet.create({
     gap: sw(4),
     paddingEnd: sw(10),
     flexShrink: 0,
+    height: "100%",
+    justifyContent: "center",
   },
   countryText: {
     fontFamily: Fonts.semibold,
-    fontSize: sf(13),
-    color: "#0F172A",
+    fontSize: sf(14),
+    color: "#1B4F8A",
   },
   divider: {
     width: 1,
     alignSelf: "stretch",
-    backgroundColor: "#E2E8F0",
-    marginVertical: sw(10),
+    backgroundColor: "#E5E7EB",
+    marginVertical: sw(12),
     marginEnd: sw(10),
   },
   field: {
     flex: 1,
     fontFamily: Fonts.regular,
-    fontSize: sf(13),
-    color: "#0F172A",
-    paddingVertical: sw(12),
+    fontSize: sf(14),
+    color: "#1B4F8A",
+    paddingVertical: 0,
+    height: "100%",
+    textAlignVertical: "center",
   },
   clearBtn: {
     paddingStart: sw(6),
+    height: "100%",
+    justifyContent: "center",
   },
 });

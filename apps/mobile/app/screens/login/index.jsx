@@ -11,7 +11,7 @@ import AuthHeroText from "../../../components/auth/auth-hero-text";
 import BiometricAuthButtons from "../../../components/ui/biometric-auth-buttons";
 import FingerprintDialog from "../../../components/biometric/fingerprint-dialog";
 import FaceIdDialog from "../../../components/biometric/faceid-dialog";
-import { EMAIL_RE } from "../../../utils/form-validation";
+import { validateUserEmail } from "../../../utils/form-validation";
 import { requestOtp } from "../../../services/auth-api";
 import {
   buildBlockedAccountDialogOptions,
@@ -39,7 +39,7 @@ export default function LoginScreen() {
   const { suspended } = useLocalSearchParams();
   const suspendedNoticeShown = useRef(false);
   const [email, setEmail] = useState("");
-  const [showEmailError, setShowEmailError] = useState(false);
+  const [emailFocused, setEmailFocused] = useState(false);
   const [showFingerprintDialog, setShowFingerprintDialog] = useState(false);
   const [showFaceIdDialog, setShowFaceIdDialog] = useState(false);
   const [biometricOpening, setBiometricOpening] = useState(false);
@@ -47,7 +47,9 @@ export default function LoginScreen() {
   const [isReturningUser, setIsReturningUser] = useState(false);
   const [welcomeReady, setWelcomeReady] = useState(false);
   const { submitting, run } = useSubmitLock();
-  const isValid = EMAIL_RE.test(email.trim());
+  const formatError = validateUserEmail(email);
+  const isValid = !formatError;
+  const emailError = emailFocused && email.trim().length > 0 ? formatError : null;
   const biometricCaps = useBiometricCapabilities();
 
   useEffect(() => {
@@ -119,10 +121,7 @@ export default function LoginScreen() {
   };
 
   const handleSendCode = () => {
-    if (!isValid || submitting) {
-      if (!isValid) setShowEmailError(true);
-      return;
-    }
+    if (!isValid || submitting) return;
 
     const normalizedEmail = email.trim().toLowerCase();
 
@@ -141,9 +140,6 @@ export default function LoginScreen() {
 
   const handleEmailChange = (value) => {
     setEmail(value);
-    if (showEmailError && EMAIL_RE.test(value.trim())) {
-      setShowEmailError(false);
-    }
   };
 
   // Android: fingerprint and/or face. iOS: Face ID (or Touch ID on older devices).
@@ -205,11 +201,13 @@ export default function LoginScreen() {
               <AuthEmailField
                 value={email}
                 onChangeText={handleEmailChange}
+                onFocus={() => setEmailFocused(true)}
+                onBlur={() => setEmailFocused(false)}
                 placeholder={t("auth.emailPlaceholder")}
-                error={showEmailError}
+                error={Boolean(emailError)}
               />
-              {showEmailError ? (
-                <Text style={styles.inputErrorText}>{t("auth.enterValidEmail")}</Text>
+              {emailError ? (
+                <Text style={styles.inputErrorText}>{emailError}</Text>
               ) : null}
             </View>
 

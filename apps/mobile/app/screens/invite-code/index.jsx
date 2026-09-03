@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Keyboard } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Keyboard, BackHandler } from "react-native";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -19,6 +19,8 @@ import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { hasFieldErrors, LIMITS, validateInviteCodeForm } from "../../../utils/form-validation";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
+import { confirmLeaveOnboarding } from "../../../services/sign-out";
+import { ScreenBrand } from "../../../constants/screen-brand";
 
 export default function InviteCodeScreen() {
   const { t } = useTranslation();
@@ -38,6 +40,18 @@ export default function InviteCodeScreen() {
 
   const liveErrors = useMemo(() => validateInviteCodeForm(inviteCode), [inviteCode]);
   const canVerify = useMemo(() => !hasFieldErrors(liveErrors), [liveErrors]);
+
+  const handleBack = useCallback(() => {
+    confirmLeaveOnboarding(dialog);
+  }, [dialog]);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      confirmLeaveOnboarding(dialog);
+      return true;
+    });
+    return () => sub.remove();
+  }, [dialog]);
 
   const clearScrollTimers = useCallback(() => {
     scrollTimersRef.current.forEach(clearTimeout);
@@ -154,7 +168,7 @@ export default function InviteCodeScreen() {
       <ScreenStatusBar style="dark" opaque />
       <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
         <View style={styles.topBar}>
-          <BackButton />
+          <BackButton onPress={handleBack} />
         </View>
 
         <View style={styles.body}>
@@ -180,13 +194,9 @@ export default function InviteCodeScreen() {
                 enabled={canVerify}
                 loading={submitting}
                 onPress={handleVerify}
-                variant="solid"
-                style={[
-                  styles.verifyButton,
-                  canVerify && !submitting
-                    ? styles.verifyButtonActive
-                    : styles.verifyButtonDisabled,
-                ]}
+                solidColor={ScreenBrand.cta}
+                loadingColor={ScreenBrand.ctaLoading}
+                style={[styles.verifyButton, ScreenBrand.buttonShadow]}
               />
             }
           >
@@ -362,7 +372,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "#1B4F8A",
+    backgroundColor: ScreenBrand.cta,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -432,15 +442,6 @@ const styles = StyleSheet.create({
   verifyButton: {
     height: 56,
     borderRadius: 14,
-    backgroundColor: "rgba(204, 204, 204, 1)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  verifyButtonActive: {
-    backgroundColor: "rgba(11, 102, 232, 1)",
-  },
-  verifyButtonDisabled: {
-    backgroundColor: "#D1D5DB",
   },
   infoCard: {
     marginTop: 16,

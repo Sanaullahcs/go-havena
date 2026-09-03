@@ -30,15 +30,12 @@ import { HavenaMark } from "@/components/shared/havena-mark";
 import { AuthLegalLinks } from "@/components/auth/auth-legal-links";
 import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
 import { consumeWebHandoffIfPresent } from "@/lib/auth/web-handoff";
+import { validateEmailField } from "@/lib/admin/form-validation-utils";
 import { Suspense } from "react";
 
 type OtpStep = "email" | "code";
 
 const COMMUNITY_DEMO_EMAIL = "test.community.admin@havena.app";
-
-function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-}
 
 function LoginPageInner() {
   const router = useRouter();
@@ -52,6 +49,7 @@ function LoginPageInner() {
     ? `/admin/billing?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
     : "/admin/billing";
   const [email, setEmail] = useState("");
+  const [emailFocused, setEmailFocused] = useState(false);
   const [otp, setOtp] = useState("");
   const [otpStep, setOtpStep] = useState<OtpStep>("email");
   const [otpIntent, setOtpIntent] = useState<CommunityAdminOtpIntent>("login");
@@ -61,6 +59,10 @@ function LoginPageInner() {
   const [error, setError] = useState<string | null>(null);
   const verifyLock = useRef(false);
 
+  const emailFieldError = validateEmailField(email);
+  const emailValid = !emailFieldError;
+  const inlineEmailError =
+    emailFocused && email.trim().length > 0 ? emailFieldError : null;
   const isBusy = loading || redirecting;
   const otpSendingLocked = isBusy || otpSending;
   const communityStep = otpStep === "email" ? 1 : 2;
@@ -107,7 +109,15 @@ function LoginPageInner() {
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isValidEmail(email) || otpSending) return;
+    if (otpSending) return;
+
+    const fieldError = validateEmailField(email);
+    if (fieldError) {
+      setEmailFocused(true);
+      setError(fieldError);
+      return;
+    }
+
     setError(null);
     setOtp("");
     setOtpSending(true);
@@ -148,7 +158,7 @@ function LoginPageInner() {
   };
 
   const resendOtp = async () => {
-    if (!isValidEmail(email)) return;
+    if (!emailValid) return;
     setError(null);
     setOtpSending(true);
     try {
@@ -257,6 +267,8 @@ function LoginPageInner() {
                   setEmail(value);
                   setError(null);
                 }}
+                onFocus={() => setEmailFocused(true)}
+                onBlur={() => setEmailFocused(false)}
                 onSubmit={handleSendOtp}
                 onDemoFill={() => {
                   setEmail(COMMUNITY_DEMO_EMAIL);
@@ -264,7 +276,8 @@ function LoginPageInner() {
                 }}
                 demoLabel={`Try demo · ${COMMUNITY_DEMO_EMAIL}`}
                 sending={otpSending}
-                disabled={otpSendingLocked || !isValidEmail(email)}
+                disabled={otpSendingLocked || !emailValid}
+                error={inlineEmailError}
               />
             ) : (
               <OtpVerifyStep

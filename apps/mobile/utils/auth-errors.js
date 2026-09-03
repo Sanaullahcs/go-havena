@@ -149,6 +149,57 @@ export async function handleAuthApiError(error, dialog, router, { phone, email }
     return;
   }
 
+  if (code === "NO_GUEST_INVITATION") {
+    await dialog.showDialog({
+      type: "warning",
+      title: i18n.t("guest.noInvitationTitle"),
+      message: message || i18n.t("guest.noInvitationMsg"),
+      actions: [{ key: "ok", label: i18n.t("blockedAccount.gotIt"), variant: "primary" }],
+    });
+    return;
+  }
+
+  if (code === "NOT_GUEST_ACCOUNT") {
+    await dialog.showDialog({
+      type: "warning",
+      title: i18n.t("guest.notGuestAccountTitle"),
+      message: message || i18n.t("guest.notGuestAccountMsg"),
+      actions: [{ key: "ok", label: i18n.t("blockedAccount.gotIt"), variant: "primary" }],
+    });
+    return;
+  }
+
+  if (code === "USE_RESIDENT_LOGIN") {
+    await dialog.showDialog({
+      type: "info",
+      title: i18n.t("guest.useResidentLoginTitle"),
+      message: message || i18n.t("guest.useResidentLoginMsg"),
+      actions: [
+        {
+          key: "cancel",
+          label: i18n.t("common.cancel"),
+          variant: "secondary",
+          onPress: () => {},
+        },
+        {
+          key: "login",
+          label: i18n.t("guest.signInNormally"),
+          variant: "primary",
+          onPress: () => router?.replace?.("/screens/login"),
+        },
+      ],
+    });
+    return;
+  }
+
+  if (code === "INVALID_INVITE") {
+    await dialog.showError(
+      i18n.t("guest.invalidInviteTitle"),
+      message || i18n.t("guest.invalidInviteMsg"),
+    );
+    return;
+  }
+
   if (code === "TIMEOUT" || code === "NETWORK_ERROR") {
     const devHint =
       __DEV__ && ((email && isDevTestEmail(email)) || (phone && isDevTestPhone(phone)))

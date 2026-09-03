@@ -260,16 +260,22 @@ console.log("\nComplete profile validation");
 {
   const empty = validateCompleteProfileForm({
     name: "",
+    email: "",
+    phoneDigits: "",
     unitNumber: "",
     residenceType: "",
     utilityFile: null,
   });
   assertHasError(empty, "name", "name required");
+  assertHasError(empty, "email", "email required");
+  assertHasError(empty, "phone", "phone required");
   assertHasError(empty, "utilityFile", "bill required");
 
   const ok = validateCompleteProfileForm({
     name: "Jane Doe",
     email: "jane@example.com",
+    phoneDigits: "5551234567",
+    phoneCountry: "US",
     unitNumber: "12B",
     residenceType: "tenant",
     utilityFile: { uri: "file://bill.pdf" },
@@ -332,12 +338,23 @@ console.log("\nInvite code validation");
 console.log("\nInvite member validation");
 {
   assertHasError(
-    validateInviteMemberForm({ name: "", email: "bad", unit: "" }),
+    validateInviteMemberForm({ name: "", email: "bad", unit: "", phoneDigits: "", phoneCountry: "US" }),
     "email",
     "bad email",
   );
+  assertHasError(
+    validateInviteMemberForm({ name: "Jane Doe", email: "jane@example.com", unit: "12B", phoneDigits: "", phoneCountry: "US" }),
+    "phone",
+    "phone required",
+  );
   assertNoErrors(
-    validateInviteMemberForm({ name: "Jane Doe", email: "jane@example.com", unit: "12B" }),
+    validateInviteMemberForm({
+      name: "Jane Doe",
+      email: "jane@example.com",
+      unit: "12B",
+      phoneDigits: "4155552671",
+      phoneCountry: "US",
+    }),
     "valid invite",
   );
 }

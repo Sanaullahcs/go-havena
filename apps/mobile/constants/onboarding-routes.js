@@ -11,6 +11,7 @@ import {
   isCommunityAdminRejected,
   awaitsCommunityAdminApproval,
   isGuestUser,
+  needsInviteCode,
 } from "../services/community-access";
 import { hasApprovedMembership, isProfileComplete } from "../services/auth-api";
 import { markFirstHomeVisit } from "./user-session";
@@ -89,7 +90,14 @@ export function getColdStartRoute(user) {
 
   const activeRole = user?.role || "resident";
 
-  if (canAccessDashboard(user)) {
+  if (needsInviteCode(user)) {
+    return {
+      pathname: Routes.INVITE_CODE,
+      params: { role: isCommunityAdminRole(user) ? "admin" : activeRole },
+    };
+  }
+
+  if (canAccessDashboard(user) && isProfileComplete(user)) {
     return { pathname: Routes.TABS_HOME, params: { role: activeRole } };
   }
 
@@ -129,7 +137,23 @@ export function getPostAuthRoute(user, { role, mode } = {}) {
     return { pathname: Routes.PENDING_COMMUNITY, params: { guest: "1" } };
   }
 
+  if (needsInviteCode(user)) {
+    return {
+      pathname: Routes.INVITE_CODE,
+      params: {
+        role: onboardingRole,
+        ...(user?.phone ? { phone: user.phone } : {}),
+      },
+    };
+  }
+
   if (canAccessDashboard(user)) {
+    if (!isProfileComplete(user)) {
+      return {
+        pathname: Routes.COMPLETE_PROFILE,
+        params: getCompleteProfileParams(user, onboardingRole),
+      };
+    }
     return { pathname: Routes.TABS_HOME, params: { role: onboardingRole } };
   }
 
