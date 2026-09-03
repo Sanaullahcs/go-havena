@@ -593,7 +593,7 @@
     "enterCodeSentTo": "Enter the 6-digit code sent to",
     "enterCode": "Enter Code",
     "verifyContinue": "Verify & Continue",
-    "codeExpireIn2Min": "This code will expire in 2 minutes",
+    "codeExpireIn5Min": "This code will expire in 5 minutes",
     "resendCodeIn": "Resend code in",
     "numberVerified": "Email verified!",
     "emailVerified": "Email verified!",
@@ -668,7 +668,7 @@
     "guestChip1": "Explore",
     "guestChip2": "View content",
     "guestChip3": "Limited access",
-    "verifiedPhonesTrust": "Verified phones build trust",
+    "verifiedEmailsTrust": "Verified emails build trust",
     "alreadyHaveAccount": "Already have an account?",
     "signIn": "Sign In",
     "admin": "Admin"

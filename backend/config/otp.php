@@ -20,6 +20,6 @@ return [
         'test.resident@havena.app,test.community.admin@havena.app',
     ),
 
-    'expire_minutes' => (int) env('OTP_EXPIRE_MINUTES', 2),
+    'expire_minutes' => (int) env('OTP_EXPIRE_MINUTES', 5),
 
 ];

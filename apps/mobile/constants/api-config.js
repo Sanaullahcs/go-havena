@@ -149,23 +149,66 @@ function resolveApiBaseUrl() {
 
 export const API_BASE_URL = resolveApiBaseUrl();
 
-/** Admin web portal base (no trailing slash). Used for mobile → browser billing handoff. */
-export function resolveAdminPortalBaseUrl() {
-  const envAdmin = process.env.EXPO_PUBLIC_ADMIN_URL?.trim()?.replace(/\/$/, "");
-  if (envAdmin) {
-    return envAdmin.replace(/\/admin(?:\/billing)?\/?$/, "");
+function stripAdminPath(url) {
+  return String(url || "").replace(/\/$/, "").replace(/\/admin(?:\/billing)?\/?$/, "");
+}
+
+function isLoopbackHost(host) {
+  return /^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/i.test(String(host || ""));
+}
+
+/** Phone-reachable Next.js origin in Expo Go (same LAN host as Metro, port 3000). */
+function resolveDevAdminPortalBaseUrl() {
+  const packagerHost = getPackagerHost();
+  if (packagerHost && !isPublicTunnelHost(packagerHost) && !isLoopbackHost(packagerHost)) {
+    return `http://${packagerHost}:3000`;
+  }
+
+  const envUrl = process.env.EXPO_PUBLIC_API_URL?.trim()?.replace(/\/$/, "");
+  if (envUrl && /^http:\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(envUrl)) {
+    try {
+      return `http://${new URL(envUrl).hostname}:3000`;
+    } catch {
+      // fall through
+    }
   }
 
   try {
     const api = new URL(API_BASE_URL);
+    if (!isLoopbackHost(api.hostname) && !/gohavena\.com$/i.test(api.hostname)) {
+      return `${api.protocol}//${api.hostname}:3000`;
+    }
+  } catch {
+    // fall through
+  }
+
+  return null;
+}
+
+/** Admin web portal base (no trailing slash). Used for mobile → browser billing handoff. */
+export function resolveAdminPortalBaseUrl() {
+  if (__DEV__) {
+    const lan = resolveDevAdminPortalBaseUrl();
+    if (lan) return lan;
+  }
+
+  const envAdmin = process.env.EXPO_PUBLIC_ADMIN_URL?.trim();
+  if (envAdmin && !(__DEV__ && /gohavena\.com/i.test(envAdmin))) {
+    return stripAdminPath(envAdmin);
+  }
+
+  try {
+    const api = new URL(API_BASE_URL);
+    if (isLoopbackHost(api.hostname)) return "http://127.0.0.1:3000";
     return `${api.protocol}//${api.hostname}:3000`;
   } catch {
-    return "http://192.168.0.134:3000";
+    return "https://gohavena.com";
   }
 }
 
 if (__DEV__) {
   console.log("[Havena] API base URL:", API_BASE_URL);
+  console.log("[Havena] Admin portal URL:", resolveAdminPortalBaseUrl());
 }
 
 export function isDevTestPhone(input) {

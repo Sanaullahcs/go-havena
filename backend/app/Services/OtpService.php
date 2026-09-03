@@ -11,7 +11,7 @@ class OtpService
 {
     public const DEV_CODE = '123456';
 
-    public const EXPIRE_MINUTES = 2;
+    public const EXPIRE_MINUTES = 5;
 
     public function send(string $email): void
     {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { OTP_EXPIRE_SECONDS } from "../constants/otp-config";
+import { OTP_RESEND_SECONDS } from "../constants/otp-config";
 
-export const OTP_RESEND_SECONDS = OTP_EXPIRE_SECONDS;
+export { OTP_RESEND_SECONDS };
 
 export function formatOtpCountdown(totalSeconds) {
   const minutes = Math.floor(totalSeconds / 60);

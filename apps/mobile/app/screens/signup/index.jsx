@@ -15,7 +15,7 @@ import { Fonts } from "../../../constants/font";
 import RoleIcon from "../../../components/ui/role-icon";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { setCurrentRole } from "../../../constants/role-session";
-import { EMAIL_RE } from "../../../utils/form-validation";
+import { validateUserEmail } from "../../../utils/form-validation";
 import { requestOtp } from "../../../services/auth-api";
 import { handleAuthApiError, showApiSuccess } from "../../../utils/auth-errors";
 import { encodeRouteEmail, paramString } from "../../../utils/route-params";
@@ -54,22 +54,18 @@ export default function SignupScreen() {
   }, [role]);
 
   const [email, setEmail] = useState("");
-  const [showEmailError, setShowEmailError] = useState(false);
+  const [emailFocused, setEmailFocused] = useState(false);
   const { submitting, run } = useSubmitLock();
-  const isValid = EMAIL_RE.test(email.trim());
+  const formatError = validateUserEmail(email);
+  const isValid = !formatError;
+  const emailError = emailFocused && email.trim().length > 0 ? formatError : null;
 
   const handleEmailChange = (value) => {
     setEmail(value);
-    if (showEmailError && EMAIL_RE.test(value.trim())) {
-      setShowEmailError(false);
-    }
   };
 
   const handleSendCode = () => {
-    if (!isValid || submitting) {
-      if (!isValid) setShowEmailError(true);
-      return;
-    }
+    if (!isValid || submitting) return;
 
     const normalizedEmail = email.trim().toLowerCase();
     run(async () => {
@@ -124,7 +120,7 @@ export default function SignupScreen() {
             <AuthSubmitButton
               label={t("auth.sendCode")}
               loadingLabel={t("auth.sending")}
-              enabled={isValid}
+              enabled={isValid && !submitting}
               loading={submitting}
               onPress={handleSendCode}
               variant="solid"
@@ -150,9 +146,14 @@ export default function SignupScreen() {
           <AuthEmailField
             value={email}
             onChangeText={handleEmailChange}
+            onFocus={() => setEmailFocused(true)}
+            onBlur={() => setEmailFocused(false)}
             placeholder={t("auth.emailPlaceholder")}
-            error={showEmailError}
+            error={Boolean(emailError)}
           />
+          {emailError ? (
+            <Text style={styles.inputErrorText}>{emailError}</Text>
+          ) : null}
         </View>
       </KeyboardSafeScreen>
     </SafeAreaView>
@@ -243,5 +244,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "400",
     color: ScreenBrand.textSecondary,
+  },
+  inputErrorText: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 16,
+    color: "#DC2626",
+    fontFamily: Fonts.regular,
   },
 });

@@ -1,8 +1,7 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Home, Upload, User } from "lucide-react";
 import {
   OnboardingField,
 } from "@/components/admin/onboarding/onboarding-ui";
@@ -15,14 +14,12 @@ import {
   isPlaceholderDisplayName,
   isPlaceholderEmail,
   validateCompleteProfileForm,
-  type UtilityFileInput,
 } from "@/lib/admin/complete-profile-validation";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
 import {
   fetchMe,
   meToSessionUser,
   updateMe,
-  uploadUtilityBill,
 } from "@/lib/api/profile";
 import { apiError } from "@/lib/api/client";
 import { confirmAdminSignOutAndRedirect } from "@/lib/auth/sign-out";
@@ -35,8 +32,6 @@ import {
   updateUser,
 } from "@/lib/auth/session";
 
-const ACCEPT_UTILITY = "image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf";
-
 function CompleteProfileInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -46,7 +41,6 @@ function CompleteProfileInner() {
     ? `?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
     : "";
 
-  const fileRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -56,17 +50,9 @@ function CompleteProfileInner() {
   const [bio, setBio] = useState("");
   const [unitNumber, setUnitNumber] = useState("");
   const [residenceType, setResidenceType] = useState("");
-  const [utilityFile, setUtilityFile] = useState<File | null>(null);
-  const [existingUtilityUrl, setExistingUtilityUrl] = useState<string | null>(null);
   const [communityName, setCommunityName] = useState<string | null>(null);
 
   const { touch, clearError, showError, validateOnSubmit } = useTouchedFieldErrors();
-
-  const utilityInput: UtilityFileInput = useMemo(() => {
-    if (utilityFile) return { kind: "file", file: utilityFile };
-    if (existingUtilityUrl) return { kind: "existing", url: existingUtilityUrl };
-    return null;
-  }, [utilityFile, existingUtilityUrl]);
 
   const liveErrors = useMemo(
     () =>
@@ -76,11 +62,12 @@ function CompleteProfileInner() {
         bio,
         unitNumber,
         residenceType,
-        utilityFile: utilityInput,
-        requireUtilityFile: !existingUtilityUrl,
+        utilityFile: null,
+        requireUtilityFile: false,
+        requireResidenceType: false,
         guestMode: false,
       }),
-    [name, email, bio, unitNumber, residenceType, utilityInput, existingUtilityUrl],
+    [name, email, bio, unitNumber, residenceType],
   );
 
   useEffect(() => {
@@ -110,7 +97,6 @@ function CompleteProfileInner() {
         setBio(me.profile?.bio?.trim() ?? "");
         setUnitNumber(me.profile?.unit_number?.trim() ?? "");
         setResidenceType(me.profile?.residence_type ?? "");
-        setExistingUtilityUrl(me.profile?.utility_bill_url ?? null);
 
         const membership = me.memberships?.find((m) => m.role === "admin") ?? me.memberships?.[0];
         setCommunityName(membership?.community?.name ?? null);
@@ -121,13 +107,6 @@ function CompleteProfileInner() {
       .finally(() => setLoading(false));
   }, [router, planHint, planQuery]);
 
-  const onPickUtility = (file: File | null) => {
-    if (!file) return;
-    setUtilityFile(file);
-    clearError("utilityFile");
-    setFormError(null);
-  };
-
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (busy || loading) return;
@@ -137,17 +116,13 @@ function CompleteProfileInner() {
 
     setBusy(true);
     try {
-      if (utilityFile) {
-        await uploadUtilityBill(utilityFile);
-      }
-
       const me = await updateMe({
         display_name: name.trim(),
         name: name.trim(),
         email: email.trim().toLowerCase(),
         bio: bio.trim(),
         unit_number: unitNumber.trim(),
-        residence_type: residenceType,
+        ...(residenceType ? { residence_type: residenceType } : {}),
       });
 
       const token = getToken();
@@ -174,10 +149,6 @@ function CompleteProfileInner() {
   const emailErr = showError("email", liveErrors);
   const bioErr = showError("bio", liveErrors);
   const unitErr = showError("unitNumber", liveErrors);
-  const residenceErr = showError("residenceType", liveErrors);
-  const utilityErr = showError("utilityFile", liveErrors);
-
-  const utilityLabel = utilityFile?.name ?? (existingUtilityUrl ? "Document on file" : null);
 
   return (
     <div className="w-full min-w-0">
@@ -328,83 +299,6 @@ function CompleteProfileInner() {
           />
         </OnboardingField>
 
-        <div className="space-y-2">
-          <p className="text-sm font-semibold text-slate-700">
-            I am a <span className="text-red-500">*</span>
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <ResidenceCard
-              active={residenceType === "homeowner"}
-              title="Homeowner"
-              subtitle="I own my unit"
-              icon={<Home className="h-5 w-5" aria-hidden />}
-              onSelect={() => {
-                setResidenceType("homeowner");
-                touch("residenceType");
-                clearError("residenceType");
-              }}
-            />
-            <ResidenceCard
-              active={residenceType === "tenant"}
-              title="Tenant"
-              subtitle="I rent my unit"
-              icon={<User className="h-5 w-5" aria-hidden />}
-              onSelect={() => {
-                setResidenceType("tenant");
-                touch("residenceType");
-                clearError("residenceType");
-              }}
-            />
-          </div>
-          {residenceErr ? (
-            <p className="text-[12px] font-medium text-red-600" role="alert">
-              {residenceErr}
-            </p>
-          ) : null}
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-sm font-semibold text-slate-700">
-            Upload lease or utility bill{" "}
-            {!existingUtilityUrl ? <span className="text-red-500">*</span> : null}
-          </p>
-          <p className="text-[12px] leading-snug text-slate-500">
-            JPG, PNG, or PDF up to 10 MB — used to verify your residence
-          </p>
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className={[
-              "flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-6 text-center transition",
-              utilityErr
-                ? "border-red-300 bg-red-50/40"
-                : utilityLabel
-                  ? "border-teal-300 bg-teal-50/40"
-                  : "border-slate-200 bg-slate-50/80 hover:border-teal-300 hover:bg-teal-50/30",
-            ].join(" ")}
-          >
-            <Upload className="h-5 w-5 text-teal-700" aria-hidden />
-            <span className="text-sm font-medium text-slate-700">
-              {utilityLabel ?? "Tap to choose a file"}
-            </span>
-            {existingUtilityUrl && !utilityFile ? (
-              <span className="text-[11px] text-slate-500">Replace the document on file</span>
-            ) : null}
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept={ACCEPT_UTILITY}
-            className="sr-only"
-            onChange={(e) => onPickUtility(e.target.files?.[0] ?? null)}
-          />
-          {utilityErr ? (
-            <p className="text-[12px] font-medium text-red-600" role="alert">
-              {utilityErr}
-            </p>
-          ) : null}
-        </div>
-
         <div className="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
           <button
             type="button"
@@ -429,37 +323,6 @@ function CompleteProfileInner() {
       </form>
       </div>
     </div>
-  );
-}
-
-function ResidenceCard({
-  active,
-  title,
-  subtitle,
-  icon,
-  onSelect,
-}: {
-  active: boolean;
-  title: string;
-  subtitle: string;
-  icon: ReactNode;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={[
-        "rounded-xl border p-3 text-left transition focus:outline-none focus:ring-2 focus:ring-teal-600/25",
-        active
-          ? "border-teal-500 bg-teal-50/60 ring-1 ring-teal-500/20"
-          : "border-slate-200 bg-white hover:border-slate-300",
-      ].join(" ")}
-    >
-      <span className={active ? "text-teal-800" : "text-slate-500"}>{icon}</span>
-      <p className="mt-2 text-sm font-semibold text-slate-900">{title}</p>
-      <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{subtitle}</p>
-    </button>
   );
 }
 

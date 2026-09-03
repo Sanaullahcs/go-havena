@@ -77,6 +77,7 @@ export function getCompleteProfileParams(user, role = "resident") {
       : {}),
     communityName: community?.name || community?.title || "Your Community",
     ...(community?.review_status === "pending" ? { communityRequest: "1" } : {}),
+    ...(membership?.invite_code_used ? { invited: "1" } : {}),
   };
 }
 
@@ -154,7 +155,7 @@ export function getPostAuthRoute(user, { role, mode } = {}) {
         },
       };
     }
-    if (nextStep === "complete_profile") {
+    if (nextStep === "complete_profile" || (!nextStep && !isProfileComplete(user) && getPrimaryMembership(user)?.community_id)) {
       return {
         pathname: Routes.COMPLETE_PROFILE,
         params: getCompleteProfileParams(user, "admin"),
@@ -171,6 +172,15 @@ export function getPostAuthRoute(user, { role, mode } = {}) {
     }
     if (nextStep === "ready") {
       return { pathname: Routes.TABS_HOME, params: { role: "admin" } };
+    }
+    if (getPrimaryMembership(user)?.community_id) {
+      if (!isProfileComplete(user)) {
+        return {
+          pathname: Routes.COMPLETE_PROFILE,
+          params: getCompleteProfileParams(user, "admin"),
+        };
+      }
+      return { pathname: Routes.COMPLETE_BILLING, params: { role: "admin" } };
     }
   }
 

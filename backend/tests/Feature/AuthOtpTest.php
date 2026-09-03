@@ -114,6 +114,22 @@ class AuthOtpTest extends TestCase
             ->assertJsonPath('code', 'ACCOUNT_EXISTS_USE_LOGIN');
     }
 
+    public function test_signup_rejects_existing_email_case_insensitively(): void
+    {
+        User::factory()->create([
+            'email' => 'CaseFold.Unique@example.test',
+            'email_verified_at' => now(),
+            'phone' => '+15555550999',
+        ]);
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email' => 'casefold.unique@example.test',
+            'intent' => 'signup',
+        ])->assertStatus(422)
+            ->assertJsonPath('code', 'ACCOUNT_EXISTS_USE_LOGIN')
+            ->assertJsonPath('errors.email.0', \App\Services\ContactIdentityService::DUPLICATE_EMAIL_MESSAGE);
+    }
+
     public function test_login_rejects_unknown_email_on_request(): void
     {
         $this->postJson('/api/v1/auth/otp/request', [

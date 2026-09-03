@@ -65,6 +65,50 @@ class AdminUserCreationTest extends TestCase
         ]);
     }
 
+    public function test_invited_community_admin_must_complete_profile_before_billing(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $this->actingAsSystemAdmin();
+
+        $region = Region::query()->create([
+            'title' => 'Cairo Metro',
+            'area' => 'Cairo',
+            'state' => 'EG',
+            'users_label' => '0 users',
+            'sort_order' => 1,
+            'status' => 'active',
+        ]);
+
+        $this->postJson('/api/v1/admin/users', [
+            'type' => 'community_admin',
+            'name' => 'Ahmed Admin',
+            'email' => 'ahmed.login@example.com',
+            'region_id' => $region->id,
+            'community_name' => 'Nile Gardens',
+        ])->assertCreated();
+
+        $admin = User::query()->where('email', 'ahmed.login@example.com')->firstOrFail();
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/v1/me')
+            ->assertOk()
+            ->assertJsonPath('data.access.next_step', 'complete_profile')
+            ->assertJsonPath('data.access.profile_complete', false)
+            ->assertJsonPath('data.access.can_use_mobile_app', false);
+
+        $this->putJson('/api/v1/me', [
+            'display_name' => 'Ahmed Admin',
+            'email' => 'ahmed.login@example.com',
+            'unit_number' => 'Office',
+        ])->assertOk();
+
+        $this->getJson('/api/v1/me')
+            ->assertOk()
+            ->assertJsonPath('data.access.profile_complete', true)
+            ->assertJsonPath('data.access.next_step', 'complete_billing_web');
+    }
+
     public function test_system_admin_can_create_resident_in_existing_community(): void
     {
         $this->actingAsSystemAdmin();

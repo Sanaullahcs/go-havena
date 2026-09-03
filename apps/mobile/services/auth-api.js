@@ -1,5 +1,5 @@
 import { apiRequest, ApiError } from "./api-client";
-import { canAccessDashboard } from "./community-access";
+import { canAccessDashboard, isCommunityAdminRole, isGuestUser } from "./community-access";
 import { setCommunityId, setSession, clearSession, getToken, getUser } from "./auth-session";
 import { unregisterPushDeviceOnSignOut } from "./push-notifications";
 import { parsePhoneNumberFromString } from "libphonenumber-js/min";
@@ -302,6 +302,7 @@ export async function joinCommunity(communityId, { inviteCode } = {}) {
         community_id: result.data.community.id,
         role: result.data.membership.role,
         status: result.data.membership.status,
+        invite_code_used: result.data.membership.invite_code_used ?? inviteCode ?? null,
         community: result.data.community,
       };
       if (idx >= 0) memberships[idx] = entry;
@@ -353,6 +354,7 @@ export async function joinByInviteCode(inviteCode) {
           community_id: result.data.community.id,
           role: result.data.membership.role,
           status: result.data.membership.status,
+          invite_code_used: result.data.membership.invite_code_used ?? inviteCode ?? null,
           community: result.data.community,
         };
         if (idx >= 0) memberships[idx] = entry;
@@ -477,10 +479,12 @@ export function hasApprovedMembership(user) {
 
 /** True when profile has the minimum fields needed for home access. */
 export function isProfileComplete(user) {
+  if (isCommunityAdminRole(user) && typeof user?.access?.profile_complete === "boolean") {
+    return user.access.profile_complete;
+  }
+
   const profile = user?.profile;
-  return Boolean(
-    profile?.display_name?.trim() &&
-      profile?.unit_number?.trim() &&
-      profile?.residence_type,
-  );
+  if (!profile?.display_name?.trim() || !profile?.unit_number?.trim()) return false;
+  if (isGuestUser(user) || isCommunityAdminRole(user)) return true;
+  return Boolean(profile?.residence_type);
 }

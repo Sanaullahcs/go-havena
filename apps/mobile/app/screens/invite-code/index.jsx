@@ -140,6 +140,7 @@ export default function InviteCodeScreen() {
             role: "resident",
             communityId: String(data.community.id),
             communityName: data.community.name,
+            invited: "1",
           },
         });
       } catch (err) {

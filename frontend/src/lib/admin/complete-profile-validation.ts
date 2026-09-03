@@ -72,6 +72,7 @@ export function validateCompleteProfileForm(input: {
   residenceType: string;
   utilityFile: UtilityFileInput;
   requireUtilityFile?: boolean;
+  requireResidenceType?: boolean;
   guestMode?: boolean;
 }): FieldErrors {
   const errors: FieldErrors = {};
@@ -83,6 +84,7 @@ export function validateCompleteProfileForm(input: {
     residenceType,
     utilityFile,
     requireUtilityFile = true,
+    requireResidenceType = true,
     guestMode = false,
   } = input;
 
@@ -113,10 +115,12 @@ export function validateCompleteProfileForm(input: {
   });
   if (unitErr) errors.unitNumber = unitErr;
 
-  if (!residenceType) {
-    errors.residenceType = "Residence type is required.";
-  } else if (!["homeowner", "tenant"].includes(residenceType)) {
-    errors.residenceType = "Select homeowner or tenant.";
+  if (requireResidenceType) {
+    if (!residenceType) {
+      errors.residenceType = "Residence type is required.";
+    } else if (!["homeowner", "tenant"].includes(residenceType)) {
+      errors.residenceType = "Select homeowner or tenant.";
+    }
   }
 
   if (requireUtilityFile) {

@@ -236,6 +236,7 @@ export function validateCompleteProfileForm({
   residenceType,
   utilityFile,
   requireUtilityFile = true,
+  requireResidenceType = true,
   guestMode = false,
 }) {
   const errors = {};
@@ -262,10 +263,12 @@ export function validateCompleteProfileForm({
   const unitErr = requiredText(unitNumber, "validation.fields.unitNumber", { max: LIMITS.profileUnit });
   if (unitErr) errors.unitNumber = unitErr;
 
-  if (!residenceType) {
-    errors.residenceType = i18n.t("validation.residenceTypeRequired");
-  } else if (!["homeowner", "tenant"].includes(residenceType)) {
-    errors.residenceType = i18n.t("validation.selectResidenceType");
+  if (requireResidenceType) {
+    if (!residenceType) {
+      errors.residenceType = i18n.t("validation.residenceTypeRequired");
+    } else if (!["homeowner", "tenant"].includes(residenceType)) {
+      errors.residenceType = i18n.t("validation.selectResidenceType");
+    }
   }
 
   if (requireUtilityFile) {

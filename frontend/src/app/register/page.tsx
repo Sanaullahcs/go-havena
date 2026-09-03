@@ -36,6 +36,7 @@ import {
   readPersistedReferralCode,
 } from "@/lib/auth/referral-storage";
 import { ApiError } from "@/lib/api/client";
+import { confirmAction } from "@/lib/alert";
 
 type OtpStep = "email" | "code";
 
@@ -58,6 +59,7 @@ function RegisterPageInner() {
     ? `/admin/billing?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
     : "/admin/billing";
   const [email, setEmail] = useState("");
+  const [emailFocused, setEmailFocused] = useState(false);
   const [otp, setOtp] = useState("");
   const [otpStep, setOtpStep] = useState<OtpStep>("email");
   const [otpSending, setOtpSending] = useState(false);
@@ -113,7 +115,17 @@ function RegisterPageInner() {
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isValidEmail(email) || otpSending) return;
+    if (otpSending) return;
+
+    const trimmed = email.trim();
+    if (!trimmed) {
+      setError("Email is required.");
+      return;
+    }
+    if (!isValidEmail(trimmed)) {
+      setError("Enter a valid email address.");
+      return;
+    }
 
     const resolvedReferral =
       normalizeReferralCode(referralRawFromUrl) ?? readPersistedReferralCode();
@@ -142,6 +154,19 @@ function RegisterPageInner() {
       await requestCommunityAdminOtp(email.trim(), "signup");
       setOtpStep("code");
     } catch (err) {
+      if (err instanceof ApiError && err.code === "ACCOUNT_EXISTS_USE_LOGIN") {
+        const result = await confirmAction({
+          title: "Already registered",
+          text: "This email belongs to an existing account. Please log in instead of signing up.",
+          confirmText: "Go to login",
+          icon: "warning",
+          color: "blue",
+        });
+        if (result.isConfirmed) {
+          router.push(`/login${planQuery}`);
+        }
+        return;
+      }
       await handleLoginError(err, setError);
     } finally {
       setOtpSending(false);
@@ -298,10 +323,17 @@ function RegisterPageInner() {
                   setEmail(value);
                   setError(null);
                 }}
+                onFocus={() => setEmailFocused(true)}
+                onBlur={() => setEmailFocused(false)}
                 onSubmit={handleSendOtp}
                 sending={otpSending}
                 disabled={otpSendingLocked || !isValidEmail(email)}
                 submitLabel="Create account"
+                error={
+                  emailFocused && email.trim() && !isValidEmail(email)
+                    ? "Enter a valid email address."
+                    : null
+                }
               />
             ) : (
               <OtpVerifyStep

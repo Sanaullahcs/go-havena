@@ -181,7 +181,7 @@ export default function VerifyRegistrationScreen() {
                 style={B.buttonShadow}
               />
               <Text style={styles.footerText}>
-                {t("auth.codeExpireIn2Min")}
+                {t("auth.codeExpireIn5Min")}
               </Text>
               {resendFooter}
             </View>

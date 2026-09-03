@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, BackHandler } from "react-native";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
@@ -20,9 +20,10 @@ import {
 } from "../../../services/family-api";
 import { uploadUtilityBill } from "../../../services/profile-api";
 import { finishOnboarding, Routes, goToPendingFamily } from "../../../constants/onboarding-routes";
-import { isGuestUser } from "../../../services/community-access";
+import { isGuestUser, shouldSkipUtilityBill, isCommunityAdminRole } from "../../../services/community-access";
 import { showApiFailure } from "../../../utils/auth-errors";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
+import { confirmLeaveOnboarding } from "../../../services/sign-out";
 import AuthSuccessOverlay from "../../../components/ui/auth-success-overlay";
 import { isAuthenticated } from "../../../services/auth-session";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
@@ -62,6 +63,19 @@ const fieldTextStyle = {
   includeFontPadding: false,
 };
 
+/** Multiline bio — pad from the top so typed text is not vertically centered. */
+const bioFieldTextStyle = {
+  fontFamily: Fonts.regular,
+  fontSize: 14,
+  color: T.navy,
+  width: "100%",
+  minHeight: 88,
+  margin: 0,
+  padding: 0,
+  textAlignVertical: "top",
+  includeFontPadding: false,
+};
+
 export default function CompleteProfile() {
   const { t } = useTranslation();
   const dialog = useAppDialog();
@@ -82,6 +96,8 @@ export default function CompleteProfile() {
   const [existingUtilityBillUrl, setExistingUtilityBillUrl] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [isGuestProfile, setIsGuestProfile] = useState(false);
+  const [skipUtilityBill, setSkipUtilityBill] = useState(false);
+  const [isAdminProfile, setIsAdminProfile] = useState(false);
 
   const { submitting, run } = useSubmitLock();
   const [showSuccess, setShowSuccess] = useState(false);
@@ -97,14 +113,44 @@ export default function CompleteProfile() {
     communityRequest,
     mode,
     familyMode: familyModeParam,
+    invited,
   } = useLocalSearchParams();
 
   const isEditMode = mode === "edit";
 
   const isCommunityRequest = communityRequest === "1";
+  const leaveOnboardingOnBack = !isEditMode && isCommunityRequest;
+
+  const handleBack = useCallback(() => {
+    if (leaveOnboardingOnBack) {
+      confirmLeaveOnboarding(dialog);
+      return;
+    }
+    if (router.canGoBack?.()) {
+      router.back();
+      return;
+    }
+    router.replace("/");
+  }, [leaveOnboardingOnBack, dialog, router]);
+
+  useEffect(() => {
+    if (!leaveOnboardingOnBack) return undefined;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      confirmLeaveOnboarding(dialog);
+      return true;
+    });
+    return () => sub.remove();
+  }, [leaveOnboardingOnBack, dialog]);
+
   const isAdminClaim = role === "admin" && Boolean(communityId) && !isCommunityRequest;
+  const continuesToBilling = ["complete_billing_web", "ready"].includes(
+    savedUser?.access?.next_step,
+  );
   const isResidentJoin = !isCommunityRequest && role !== "admin" && Boolean(communityId);
   const showFamilyNumberField = role !== "admin" && !isCommunityRequest;
+  const isCommunityAdminOnboarding = role === "admin" || isAdminProfile;
+  const showResidenceType = !isGuestProfile && !isCommunityAdminOnboarding;
+  const showUtilityBill = showResidenceType && !skipUtilityBill && invited !== "1";
 
   const scrollRef = useRef(null);
   const contentRef = useRef(null);
@@ -343,6 +389,8 @@ export default function CompleteProfile() {
         const user = await fetchMe();
         if (cancelled) return;
         setIsGuestProfile(isGuestUser(user));
+        setIsAdminProfile(isCommunityAdminRole(user) || role === "admin");
+        setSkipUtilityBill(shouldSkipUtilityBill(user, { role }));
         const fields = getProfileFields(user);
         setName(isPlaceholderDisplayName(fields.displayName) ? "" : fields.displayName);
         setEmail(fields.displayEmail ?? "");
@@ -362,7 +410,7 @@ export default function CompleteProfile() {
     return () => {
       cancelled = true;
     };
-  }, [isEditMode, router, dialog]);
+  }, [isEditMode, router, dialog, role]);
 
   useEffect(() => {
     if (name && isPlaceholderDisplayName(name)) {
@@ -379,10 +427,11 @@ export default function CompleteProfile() {
         unitNumber,
         residenceType,
         utilityFile: selectedFile ?? (existingUtilityBillUrl ? { uri: existingUtilityBillUrl } : null),
-        requireUtilityFile: !isGuestProfile && ((!isEditMode && familyModeParam !== "create") || !existingUtilityBillUrl),
+        requireUtilityFile: showUtilityBill && ((!isEditMode && familyModeParam !== "create") || !existingUtilityBillUrl),
+        requireResidenceType: showResidenceType,
         guestMode: isGuestProfile,
       }),
-    [name, email, bio, unitNumber, residenceType, selectedFile, existingUtilityBillUrl, isEditMode, isGuestProfile, familyModeParam],
+    [name, email, bio, unitNumber, residenceType, selectedFile, existingUtilityBillUrl, isEditMode, isGuestProfile, familyModeParam, showUtilityBill, showResidenceType],
   );
 
   const isValid = useMemo(() => {
@@ -439,7 +488,7 @@ export default function CompleteProfile() {
     run(async () => {
       try {
         const isLocalUpload =
-          !isGuestProfile &&
+          showUtilityBill &&
           selectedFile?.uri &&
           !/^https?:\/\//i.test(selectedFile.uri);
 
@@ -452,17 +501,15 @@ export default function CompleteProfile() {
           email: email.trim().toLowerCase(),
           bio: bio.trim(),
           unit_number: unitNumber.trim(),
-          ...(isGuestProfile
-            ? {}
-            : {
+          ...(showResidenceType
+            ? {
                 residence_type: residenceType,
+                ...(regionId ? { region_id: Number(regionId) } : {}),
+              }
+            : {
                 ...(regionId ? { region_id: Number(regionId) } : {}),
               }),
         });
-
-        if (!isEditMode && communityId && !isCommunityRequest) {
-          await joinCommunity(Number(communityId));
-        }
 
         let savedFamilyNumber = familyNumberLocked ? familyNumber.trim() : null;
         let joinPending = false;
@@ -538,16 +585,22 @@ export default function CompleteProfile() {
           // Fall back to profile response if /me refresh fails.
         }
 
-        setGeneratedFamilyNumber(savedFamilyNumber);
-        setFamilyJoinPending(joinPending);
-        if (isEditMode) {
-          setSavedUser(user);
-          setShowSuccess(true);
-          return;
+        const alreadyJoined = (user?.memberships ?? []).some(
+          (m) => String(m.community_id) === String(communityId),
+        );
+        if (!isEditMode && communityId && !isCommunityRequest && !alreadyJoined) {
+          await joinCommunity(Number(communityId));
+          try {
+            user = await fetchMe();
+          } catch {
+            // Session already updated by joinCommunity when possible.
+          }
         }
 
-        setShowSuccess(true);
+        setGeneratedFamilyNumber(savedFamilyNumber);
+        setFamilyJoinPending(joinPending);
         setSavedUser(user);
+        setShowSuccess(true);
       } catch (err) {
         await showApiFailure(dialog, t("onboarding.unableToCompleteProfile"), err);
       }
@@ -596,7 +649,9 @@ export default function CompleteProfile() {
         title={
           isEditMode
             ? t("onboarding.profileUpdated")
-            : isAdminClaim || isCommunityRequest
+            : continuesToBilling
+              ? t("onboarding.profileSaved")
+              : isAdminClaim || isCommunityRequest
               ? t("onboarding.applicationSubmitted")
               : isResidentJoin
                 ? t("onboarding.profileSubmitted")
@@ -605,6 +660,8 @@ export default function CompleteProfile() {
         subtitle={
           isEditMode
             ? t("onboarding.profileChangesSaved")
+            : continuesToBilling
+              ? t("onboarding.welcomeToCommunity")
             : isCommunityRequest
               ? role === "admin"
                 ? t("onboarding.adminApprovalRequired")
@@ -640,7 +697,7 @@ export default function CompleteProfile() {
       />
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]} importantForAutofill="no">
       <View style={styles.headerRow}>
-        <BackButton iconOnly compact />
+        <BackButton iconOnly compact onPress={handleBack} />
         <Text style={styles.headerTitle} numberOfLines={1}>
           {isEditMode ? t("onboarding.editProfile") : t("onboarding.completeProfile")}
         </Text>
@@ -808,21 +865,29 @@ export default function CompleteProfile() {
 
             <View ref={bioFieldRef} collapsable={false} style={styles.fieldGroup}>
               <Text style={styles.inputText}>{t("onboarding.bio")}</Text>
-              <LocaleTextInput
-                style={[styles.input, styles.textArea, showError("bio", liveErrors) && styles.inputError]}
-                placeholder={t("onboarding.bioPlaceholder")}
-                placeholderTextColor={PLACEHOLDER_COLOR}
-                value={bio}
-                onChangeText={(text) => {
-                  setBio(text);
-                  clearError("bio");
-                }}
-                onBlur={() => touch("bio")}
-                onFocus={() => handleFieldFocus(bioFieldRef)}
-                multiline
-                textAlignVertical="top"
-                maxLength={LIMITS.profileBio}
-              />
+              <View style={[styles.textAreaBox, showError("bio", liveErrors) && styles.inputError]}>
+                {bio.length === 0 ? (
+                  <Text pointerEvents="none" style={styles.bioPlaceholder}>
+                    {t("onboarding.bioPlaceholder")}
+                  </Text>
+                ) : null}
+                <LocaleTextInput
+                  style={bioFieldTextStyle}
+                  placeholder=""
+                  placeholderTextColor="transparent"
+                  value={bio}
+                  onChangeText={(text) => {
+                    setBio(text);
+                    clearError("bio");
+                  }}
+                  onBlur={() => touch("bio")}
+                  onFocus={() => handleFieldFocus(bioFieldRef)}
+                  multiline
+                  textAlignVertical="top"
+                  maxLength={LIMITS.profileBio}
+                  underlineColorAndroid="transparent"
+                />
+              </View>
               <Text style={styles.helperText}>{t("onboarding.characters", { count: bio.length, max: LIMITS.profileBio })}</Text>
               {showError("bio", liveErrors) ? <Text style={styles.errorText}>{showError("bio", liveErrors)}</Text> : null}
             </View>
@@ -1044,8 +1109,7 @@ export default function CompleteProfile() {
               </View>
             ) : null}
 
-          {!isGuestProfile ? (
-          <>
+          {showResidenceType ? (
           <View style={styles.fieldGroup}>
             <Text style={styles.inputText}>
               {t("onboarding.iAmA")} <Text style={styles.requiredMark}>*</Text>
@@ -1100,7 +1164,9 @@ export default function CompleteProfile() {
               <Text style={styles.errorText}>{showError("residenceType", liveErrors)}</Text>
             ) : null}
           </View>
+          ) : null}
 
+          {showUtilityBill ? (
           <View style={styles.fieldGroup}>
             <Text style={styles.inputText}>
               {t("onboarding.uploadLease")}{" "}
@@ -1185,7 +1251,6 @@ export default function CompleteProfile() {
               {t("onboarding.verificationDelay")}
             </Text>
           </View>
-          </>
           ) : null}
           </View>
           </>
@@ -1565,10 +1630,27 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(243, 244, 246, 1)",
     color: "#475569",
   },
-  textArea: {
-    height: 112,
-    paddingTop: 14,
-    paddingBottom: 14,
+  textAreaBox: {
+    minHeight: 112,
+    borderWidth: 1,
+    borderColor: T.border,
+    borderRadius: 12,
+    backgroundColor: T.white,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    position: "relative",
+    justifyContent: "flex-start",
+  },
+  bioPlaceholder: {
+    position: "absolute",
+    top: 12,
+    left: 16,
+    right: 16,
+    fontFamily: Fonts.regular,
+    fontSize: 14,
+    color: PLACEHOLDER_COLOR,
+    includeFontPadding: false,
   },
   residenceRow: {
     flexDirection: "row",
