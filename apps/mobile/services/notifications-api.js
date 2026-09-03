@@ -102,6 +102,11 @@ function resolveAdminPendingRoute(pathname, queryParams, notification) {
   return null;
 }
 
+function isInformationalOnlyNotification(notification) {
+  const haystack = `${notification?.title ?? ""} ${notification?.description ?? ""}`.toLowerCase();
+  return haystack.includes("community invitation");
+}
+
 function resolveNotificationRouteFallback(notification) {
   const title = String(notification?.title ?? "").toLowerCase();
   const body = String(notification?.description ?? "").toLowerCase();
@@ -154,10 +159,6 @@ function resolveNotificationRouteFallback(notification) {
 
   if (haystack.includes("liked your post") || haystack.includes("commented on your post")) {
     return { pathname: "/screens/community-feed" };
-  }
-
-  if (haystack.includes("community invitation") || haystack.includes("invite code")) {
-    return { pathname: "/screens/invite-code" };
   }
 
   if (haystack.includes("membership request declined") || haystack.includes("pending community")) {
@@ -238,6 +239,10 @@ export function sortNotifications(notifications) {
 
 /** Map backend action_url to an in-app route. Returns null when no safe destination exists. */
 export function resolveNotificationRoute(notification) {
+  if (isInformationalOnlyNotification(notification)) {
+    return null;
+  }
+
   const actionUrl = notification?.actionUrl;
   if (!actionUrl) {
     return resolveNotificationRouteFallback(notification);
@@ -319,6 +324,10 @@ export function resolveNotificationRoute(notification) {
 
   if (pathname.includes("guest-approvals")) {
     return { pathname: "/screens/guest-approvals" };
+  }
+
+  if (pathname.includes("invite-code")) {
+    return null;
   }
 
   if (pathname.startsWith("/screens/") || pathname.startsWith("/(tabs)/")) {

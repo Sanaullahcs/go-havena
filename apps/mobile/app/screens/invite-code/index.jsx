@@ -42,16 +42,20 @@ export default function InviteCodeScreen() {
   const canVerify = useMemo(() => !hasFieldErrors(liveErrors), [liveErrors]);
 
   const handleBack = useCallback(() => {
+    if (router.canGoBack?.()) {
+      router.back();
+      return;
+    }
     confirmLeaveOnboarding(dialog);
-  }, [dialog]);
+  }, [dialog, router]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-      confirmLeaveOnboarding(dialog);
+      handleBack();
       return true;
     });
     return () => sub.remove();
-  }, [dialog]);
+  }, [handleBack]);
 
   const clearScrollTimers = useCallback(() => {
     scrollTimersRef.current.forEach(clearTimeout);

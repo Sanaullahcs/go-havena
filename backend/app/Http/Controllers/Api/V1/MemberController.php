@@ -515,7 +515,6 @@ class MemberController extends Controller
             'info',
             'Community invitation',
             "You have been invited to {$communityName}. Open Havena and enter invite code {$invite->code} or scan your QR invite.",
-            '/screens/invite-code',
         );
 
         ActivityLogService::user('member_invited', "Invited new member: {$request->name} ({$request->email})", 'User', $userId);
