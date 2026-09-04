@@ -93,8 +93,8 @@ export default function AdminRowActionsMenu({
 
       <AppModal visible={open} animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.overlay} onPress={() => setOpen(false)}>
-          <View pointerEvents="box-none" style={styles.overlayContent}>
-            <View pointerEvents="auto" style={styles.card}>
+          <View style={[styles.overlayContent, { pointerEvents: "box-none" }]}>
+            <View style={[styles.card, { pointerEvents: "auto" }]}>
               <View style={styles.iconRing}>
                 <Ionicons name={headerIcon} size={sf(32)} color={Colors.brandPrimaryDeep} />
               </View>

@@ -902,7 +902,7 @@ export default function CompleteProfile() {
               <Text style={styles.inputText}>{t("onboarding.bio")}</Text>
               <View style={[styles.textAreaBox, showError("bio", liveErrors) && styles.inputError]}>
                 {bio.length === 0 ? (
-                  <Text pointerEvents="none" style={styles.bioPlaceholder}>
+                  <Text style={[styles.bioPlaceholder, { pointerEvents: "none" }]}>
                     {t("onboarding.bioPlaceholder")}
                   </Text>
                 ) : null}

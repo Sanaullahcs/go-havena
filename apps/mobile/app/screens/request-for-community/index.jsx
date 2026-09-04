@@ -268,7 +268,7 @@ export default function RequestForCommunityScreen() {
             {t('guests.addressLabel')} <Text style={styles.required}>*</Text>
           </Text>
           <View style={[styles.addressInputWrap, showError("address", liveErrors) && styles.inputError]}>
-            <View style={styles.addressIconSlot} pointerEvents="none">
+            <View style={[styles.addressIconSlot, { pointerEvents: "none" }]}>
               <MapPin size={16} color={T.gray} strokeWidth={1.75} />
             </View>
             <View style={styles.addressTextSlot}>

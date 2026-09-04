@@ -26,8 +26,8 @@ export default function AuthScreenShell({
         <View style={[styles.wash, style]}>
           {showOrbs ? (
             <>
-              <View style={styles.orbTop} pointerEvents="none" />
-              <View style={styles.orbBottom} pointerEvents="none" />
+              <View style={[styles.orbTop, { pointerEvents: "none" }]} />
+              <View style={[styles.orbBottom, { pointerEvents: "none" }]} />
             </>
           ) : null}
           <SafeAreaView style={[styles.safe, contentStyle]} edges={edges}>

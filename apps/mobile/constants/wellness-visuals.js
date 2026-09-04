@@ -29,7 +29,7 @@ export function SneakerIcon({ color, size = 18 }) {
 
 export function WellnessHeroWave({ width, blobColor, height = 32 }) {
   return (
-    <View pointerEvents="none" style={{ position: "absolute", left: 0, bottom: -1, height, zIndex: 1 }}>
+    <View style={{ position: "absolute", left: 0, bottom: -1, height, zIndex: 1, pointerEvents: "none" }}>
       <Svg width={width} height={height} viewBox="0 0 200 40" preserveAspectRatio="none">
         <Path
           fill={blobColor}

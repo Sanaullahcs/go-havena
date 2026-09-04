@@ -499,8 +499,11 @@ export default function CommunityListingsScreen({ embedded = false }) {
           )}
 
           <Animated.View
-            style={[styles.searchCollapseBody, searchCollapseStyle]}
-            pointerEvents={searchExpanded ? "auto" : "none"}
+            style={[
+              styles.searchCollapseBody,
+              searchCollapseStyle,
+              { pointerEvents: searchExpanded ? "auto" : "none" },
+            ]}
           >
             <View onLayout={onSearchBodyLayout}>
               <View style={styles.searchWrap}>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, RefreshControl, Platform } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, RefreshControl, Platform, ScrollView } from "react-native";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -7,7 +7,8 @@ import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
-import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
+import { useKeyboardBottomOffset } from "../../../components/layout/keyboard-safe-screen";
+import { useLanguage } from "../../../providers/language-provider";
 import FeedPostCard from "../../../components/feed/feed-post-card";
 import {
   FeedCommentBubble,
@@ -103,11 +104,14 @@ function buildCommentDisplayRows(comments, expandedThreads) {
 
 export default function FeedCommentsScreen() {
   const router = useRouter();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { isRTL } = useLanguage();
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
   const { postId = "1" } = useLocalSearchParams();
   const now = useNow(30000);
+  const { bottomOffset } = useKeyboardBottomOffset();
+  const keyboardOpen = bottomOffset > 0;
 
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState([]);
@@ -150,7 +154,7 @@ export default function FeedCommentsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [postId, showFailure]);
+  }, [postId, showFailure, t]);
 
   useEffect(() => {
     load();
@@ -372,6 +376,10 @@ export default function FeedCommentsScreen() {
   const focusComposer = () => inputRef.current?.focus();
 
   const commentCountLabel = loading ? "..." : formatCount(comments.length);
+  const commentPlaceholder = replyTo
+    ? t("feed.comments.replyPlaceholder", { name: replyTo.name })
+    : t("feed.comments.writeComment");
+  const showPlaceholder = draft.length === 0;
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
@@ -380,79 +388,19 @@ export default function FeedCommentsScreen() {
         subtitle={post ? t("feed.comments.subtitle", { count: commentCountLabel }) : undefined}
       />
 
-      <KeyboardSafeScreen
-        scrollRef={scrollRef}
-        contentContainerStyle={styles.scroll}
-        footerBorderless
-        dockFooter
-        footerStyle={styles.composerWrap}
-        scrollProps={{
-          refreshControl: (
+      <View style={[styles.flex, { paddingBottom: bottomOffset }]}>
+        <ScrollView
+          ref={scrollRef}
+          style={styles.flex}
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          automaticallyAdjustKeyboardInsets={false}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.brandPrimary} />
-          ),
-        }}
-        footer={
-          isSensitive ? (
-            <View style={styles.sensitiveComposer}>
-              <Feather name="alert-triangle" size={14} color="#B45309" />
-              <Text style={styles.sensitiveComposerText}>
-                {t("feed.comments.sensitiveDisabled")}
-              </Text>
-            </View>
-          ) : (
-            <>
-            {replyTo ? (
-              <View style={styles.replyBanner}>
-                <Feather name="corner-down-right" size={14} color={Colors.brandPrimaryDeep} />
-                <Text style={styles.replyBannerText} numberOfLines={1}>
-                  {t("feed.comments.replyingTo")} <Text style={styles.replyBannerName}>{replyTo.name}</Text>
-                </Text>
-                <TouchableOpacity onPress={clearReply} hitSlop={8}>
-                  <Feather name="x" size={16} color="#65676B" />
-                </TouchableOpacity>
-              </View>
-            ) : null}
-
-            <View style={styles.composer}>
-              <UserAvatar
-                source={profileFields.avatarUrl}
-                name={profileFields.displayName}
-                size={sw(32)}
-              />
-              <View style={[styles.inputWrap, showError("body", liveErrors) && styles.inputError]}>
-                <LocaleTextInput
-                  ref={inputRef}
-                  value={draft}
-                  onChangeText={(text) => {
-                    setDraft(text);
-                    clearError("body");
-                  }}
-                  placeholder={replyTo ? t("feed.comments.replyPlaceholder", { name: replyTo.name }) : t("feed.comments.writeComment")}
-                  placeholderTextColor="#9CA3AF"
-                  style={styles.input}
-                  multiline
-                  textAlignVertical="center"
-                  maxLength={LIMITS.feedComment}
-                />
-              </View>
-              <TouchableOpacity
-                style={[styles.sendBtn, !canComment && styles.sendBtnDisabled]}
-                onPress={submit}
-                disabled={!canComment}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel={t("feed.comments.send")}
-              >
-                <Feather name="send" size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-            {showError("body", liveErrors) ? (
-              <Text style={styles.errorText}>{showError("body", liveErrors)}</Text>
-            ) : null}
-            </>
-          )
-        }
-      >
+          }
+        >
           {loading && !post ? (
             <CommentScreenSkeleton />
           ) : (
@@ -558,7 +506,89 @@ export default function FeedCommentsScreen() {
           </View>
             </>
           )}
-      </KeyboardSafeScreen>
+        </ScrollView>
+
+        <View
+          style={[
+            styles.composerWrap,
+            {
+              paddingBottom: keyboardOpen ? sw(8) : sw(6),
+            },
+          ]}
+        >
+          {isSensitive ? (
+            <View style={styles.sensitiveComposer}>
+              <Feather name="alert-triangle" size={14} color="#B45309" />
+              <Text style={styles.sensitiveComposerText}>
+                {t("feed.comments.sensitiveDisabled")}
+              </Text>
+            </View>
+          ) : (
+            <>
+            {replyTo ? (
+              <View style={styles.replyBanner}>
+                <Feather name="corner-down-right" size={14} color={Colors.brandPrimaryDeep} />
+                <Text style={styles.replyBannerText} numberOfLines={1}>
+                  {t("feed.comments.replyingTo")} <Text style={styles.replyBannerName}>{replyTo.name}</Text>
+                </Text>
+                <TouchableOpacity onPress={clearReply} hitSlop={8}>
+                  <Feather name="x" size={16} color="#65676B" />
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            <View style={styles.composer}>
+              <UserAvatar
+                source={profileFields.avatarUrl}
+                name={profileFields.displayName}
+                size={sw(32)}
+              />
+              <View style={[styles.inputWrap, showError("body", liveErrors) && styles.inputError]}>
+                {showPlaceholder ? (
+                  <Text
+                    style={[
+                      styles.placeholderLabel,
+                      { textAlign: isRTL ? "right" : "left" },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {commentPlaceholder}
+                  </Text>
+                ) : null}
+                <LocaleTextInput
+                  ref={inputRef}
+                  value={draft}
+                  onChangeText={(text) => {
+                    setDraft(text);
+                    clearError("body");
+                  }}
+                  placeholder=""
+                  style={styles.input}
+                  multiline
+                  blurOnSubmit={false}
+                  textAlignVertical="center"
+                  maxLength={LIMITS.feedComment}
+                  underlineColorAndroid="transparent"
+                />
+              </View>
+              <TouchableOpacity
+                style={[styles.sendBtn, !canComment && styles.sendBtnDisabled]}
+                onPress={submit}
+                disabled={!canComment}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={t("feed.comments.send")}
+              >
+                <Feather name="send" size={16} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+            {showError("body", liveErrors) ? (
+              <Text style={styles.errorText}>{showError("body", liveErrors)}</Text>
+            ) : null}
+            </>
+          )}
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -711,24 +741,40 @@ const styles = StyleSheet.create({
   inputWrap: {
     flex: 1,
     minWidth: 0,
+    position: "relative",
     justifyContent: "center",
     backgroundColor: "#F0F2F5",
     borderRadius: sw(20),
     paddingHorizontal: sw(14),
     minHeight: sw(40),
     maxHeight: sw(100),
+    overflow: "hidden",
+  },
+  placeholderLabel: {
+    position: "absolute",
+    start: 0,
+    end: 0,
+    top: 0,
+    height: sw(40),
+    lineHeight: sw(40),
+    fontFamily: Fonts.regular,
+    fontSize: sf(15),
+    color: "#9CA3AF",
+    pointerEvents: "none",
   },
   input: {
     width: "100%",
+    minHeight: sw(40),
     maxHeight: sw(88),
     fontFamily: Fonts.regular,
     fontSize: sf(15),
     color: "#050505",
-    paddingTop: Platform.OS === "ios" ? sw(9) : sw(6),
-    paddingBottom: Platform.OS === "ios" ? sw(9) : sw(6),
+    paddingTop: sw(10),
+    paddingBottom: sw(10),
     paddingHorizontal: 0,
     margin: 0,
     includeFontPadding: false,
+    textAlignVertical: "center",
   },
   inputError: {
     borderWidth: StyleSheet.hairlineWidth,

@@ -1,4 +1,4 @@
-import { InteractionManager, Platform } from "react-native";
+import { Platform } from "react-native";
 import AppLocale from "../modules/app-locale";
 
 const LANG_TAGS = {
@@ -88,7 +88,6 @@ export function syncKeyboardForFocusedInput(lang) {
   requestAnimationFrame(applyHint);
   setTimeout(applyHint, 32);
   setTimeout(applyHint, 120);
-  InteractionManager.runAfterInteractions(applyHint);
 
   return immediate;
 }

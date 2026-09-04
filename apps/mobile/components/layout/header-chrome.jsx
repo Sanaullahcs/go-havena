@@ -20,7 +20,6 @@ export function HeaderShell({ children, style, padded = true, safeTop = true, de
     >
       {safeTop && topInset > 0 ? (
         <View
-          pointerEvents="none"
           style={[styles.statusBarFill, { height: topInset }]}
         />
       ) : null}
@@ -79,6 +78,7 @@ const styles = StyleSheet.create({
     start: 0,
     end: 0,
     backgroundColor: SYSTEM_CHROME_COLOR,
+    pointerEvents: "none",
   },
   shell: {
     backgroundColor: SYSTEM_CHROME_COLOR,

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { InteractionManager, Keyboard, Platform, View, StyleSheet, useWindowDimensions } from "react-native";
+import { Keyboard, Platform, View, StyleSheet, useWindowDimensions } from "react-native";
 import LocaleTextInput from "./locale-text-input";
 import { Colors, Shadows } from "../../constants/tokens";
 import { Fonts } from "../../constants/font";
@@ -71,10 +71,10 @@ export default function OTPInput({
       if (gen !== dismissGenRef.current) return;
       dismissKeyboard();
     });
-    InteractionManager.runAfterInteractions(() => {
+    setTimeout(() => {
       if (gen !== dismissGenRef.current) return;
       dismissKeyboard();
-    });
+    }, 48);
   };
 
   const unlockForCorrection = () => {

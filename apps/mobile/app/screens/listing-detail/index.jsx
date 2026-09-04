@@ -391,8 +391,7 @@ export default function ListingDetailScreen() {
         )}
 
         <View
-          style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(15, 23, 42, 0.45)' }]}
-          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(15, 23, 42, 0.45)', pointerEvents: "none" }]}
         />
 
         <View style={styles.heroStats}>
@@ -558,12 +557,11 @@ export default function ListingDetailScreen() {
       </Animated.ScrollView>
 
       {/* Floating header */}
-      <View style={[styles.floatingHeader, { paddingTop: insets.top + 6 }]} pointerEvents="box-none">
+      <View style={[styles.floatingHeader, { paddingTop: insets.top + 6, pointerEvents: "box-none" }]}>
         <Animated.View
-          style={[styles.headerScrim, { opacity: headerBgOpacity }]}
-          pointerEvents="none"
+          style={[styles.headerScrim, { opacity: headerBgOpacity, pointerEvents: "none" }]}
         />
-        <View style={styles.headerRow} pointerEvents="box-none">
+        <View style={[styles.headerRow, { pointerEvents: "box-none" }]}>
           <HeaderBtn onPress={() => router.back()}>
             <Ionicons name={chevronBack()} size={20} color="#FFFFFF" />
           </HeaderBtn>

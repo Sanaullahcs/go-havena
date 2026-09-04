@@ -468,7 +468,7 @@ export default function EventDetailScreen() {
             onImageError={() => setHeroImageFailed(true)}
           />
           {hasHeroImage && !heroImageFailed ? (
-            <View style={styles.heroHint} pointerEvents="none">
+            <View style={[styles.heroHint, { pointerEvents: "none" }]}>
               <Feather name="maximize-2" size={sf(14)} color="#FFFFFF" />
             </View>
           ) : null}

@@ -356,7 +356,7 @@ function SideMenuPanel({ visible, onClose }) {
         />
 
         {/* White band behind status bar so icons stay readable on the drawer */}
-        <View style={[styles.statusBarBand, { height: topInset }]} pointerEvents="none" />
+        <View style={[styles.statusBarBand, { height: topInset, pointerEvents: "none" }]} />
 
         <Animated.View
           style={[

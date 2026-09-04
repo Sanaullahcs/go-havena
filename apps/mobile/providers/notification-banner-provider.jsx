@@ -137,12 +137,12 @@ function ForegroundNotificationBanner({
 
   return (
     <Animated.View
-      pointerEvents="box-none"
       style={[
         styles.wrap,
         {
           paddingTop: topInset + 8,
           transform: [{ translateY: combinedY }, { translateX: dragX }],
+          pointerEvents: "box-none",
         },
       ]}
       {...panResponder.panHandlers}

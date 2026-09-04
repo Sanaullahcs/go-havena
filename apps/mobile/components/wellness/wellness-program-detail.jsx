@@ -91,7 +91,7 @@ function ProgramHero({
             <Icon size={sf(18)} color={visual.accent} strokeWidth={2} />
           )}
         </View>
-        <View style={styles.heroCopy} pointerEvents="none">
+        <View style={[styles.heroCopy, { pointerEvents: "none" }]}>
           {title ? (
             <Text
               style={styles.heroTitle}

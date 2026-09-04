@@ -106,9 +106,9 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
             borderRadius: circleD / 2,
             end: curveRight,
             top: (HERO_HEIGHT - circleD) / 2,
+            pointerEvents: "none",
           },
         ]}
-        pointerEvents="none"
       />
 
       {/* Layer 3 — teal arc border between navy curve and image */}
@@ -121,13 +121,13 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
             borderRadius: (circleD + sw(5)) / 2,
             end: curveRight - sw(2.5),
             top: (HERO_HEIGHT - circleD - sw(5)) / 2,
+            pointerEvents: "none",
           },
         ]}
-        pointerEvents="none"
       />
 
       {/* Layer 4 — text content (rendered last = always on top) */}
-      <View style={styles.heroCopy} pointerEvents="box-none">
+      <View style={[styles.heroCopy, { pointerEvents: "box-none" }]}>
         <Pressable
           onPress={onPress}
           style={({ pressed }) => [styles.heroCopyInner, pressed && { opacity: 0.85 }]}

@@ -284,8 +284,8 @@ export default function NewChatSheet({
 
   return (
     <Modal visible={mounted} transparent animationType="none" onRequestClose={requestClose} statusBarTranslucent>
-      <View style={styles.overlay} pointerEvents="box-none">
-        <Animated.View pointerEvents="box-none" style={[styles.backdrop, { opacity: backdropOpacity }]}>
+      <View style={[styles.overlay, { pointerEvents: "box-none" }]}>
+        <Animated.View style={[styles.backdrop, { opacity: backdropOpacity, pointerEvents: "box-none" }]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={startingId ? undefined : requestClose} />
         </Animated.View>
 
@@ -329,7 +329,7 @@ export default function NewChatSheet({
               autoFocus={false}
             />
             {searching ? (
-              <View style={styles.searchingOverlay} pointerEvents="none">
+              <View style={[styles.searchingOverlay, { pointerEvents: "none" }]}>
                 <ActivityIndicator size="small" color="#14B8A6" />
               </View>
             ) : null}

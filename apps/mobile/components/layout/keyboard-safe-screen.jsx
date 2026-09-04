@@ -16,7 +16,6 @@ const KEYBOARD_FIELD_FOOTER_GAP = 28;
 const LIFT_EPSILON = 2;
 /** One delayed re-measure for Android adjustResize (window shrinks after keyboardDidShow). */
 const RESIZE_RETRY_MS = 120;
-const ANDROID_RESIZE_THRESHOLD = 0.2;
 const IOS_KEYBOARD_AVOID = Platform.OS === "ios";
 
 function resolveKeyboardTop(event) {
@@ -145,10 +144,13 @@ export function useKeyboardBottomOffset() {
   const resolveOffset = useCallback((event) => {
     const { height = 0, screenY } = event?.endCoordinates ?? {};
     const windowHeight = Dimensions.get("window").height;
+    const screenHeight = Dimensions.get("screen").height;
 
+    // Prefer the keyboard's own height. Mixing screenY with window height
+    // under-lifts and hides docked composers behind the keyboard.
     let keyboardHeight = height;
-    if (Number.isFinite(screenY) && screenY > 0 && screenY < windowHeight) {
-      keyboardHeight = windowHeight - screenY;
+    if (!(keyboardHeight > 0) && Number.isFinite(screenY) && screenY > 0) {
+      keyboardHeight = Math.max(0, screenHeight - screenY);
     }
 
     if (keyboardHeight <= 0) {
@@ -156,15 +158,8 @@ export function useKeyboardBottomOffset() {
       return;
     }
 
-    if (Platform.OS === "ios") {
-      setBottomOffset(keyboardHeight);
-      return;
-    }
-
-    const resizeHandled =
-      baselineHeightRef.current - windowHeight >= keyboardHeight * ANDROID_RESIZE_THRESHOLD;
-
-    setBottomOffset(resizeHandled ? 0 : keyboardHeight);
+    const resizedBy = Math.max(0, baselineHeightRef.current - windowHeight);
+    setBottomOffset(Math.max(0, keyboardHeight - resizedBy));
   }, []);
 
   const clearRetry = useCallback(() => {
@@ -175,15 +170,10 @@ export function useKeyboardBottomOffset() {
   }, []);
 
   useEffect(() => {
-    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
     const onShow = (event) => {
       resolveOffset(event);
       clearRetry();
-      if (Platform.OS === "android") {
-        retryTimerRef.current = setTimeout(() => resolveOffset(event), RESIZE_RETRY_MS);
-      }
+      retryTimerRef.current = setTimeout(() => resolveOffset(event), RESIZE_RETRY_MS);
     };
 
     const onHide = () => {
@@ -198,13 +188,19 @@ export function useKeyboardBottomOffset() {
       }
     });
 
-    const showSub = Keyboard.addListener(showEvent, onShow);
-    const hideSub = Keyboard.addListener(hideEvent, onHide);
+    const showSubs = [
+      Keyboard.addListener("keyboardWillShow", onShow),
+      Keyboard.addListener("keyboardDidShow", onShow),
+    ];
+    const hideSubs = [
+      Keyboard.addListener("keyboardWillHide", onHide),
+      Keyboard.addListener("keyboardDidHide", onHide),
+    ];
 
     return () => {
       clearRetry();
-      showSub.remove();
-      hideSub.remove();
+      showSubs.forEach((sub) => sub.remove());
+      hideSubs.forEach((sub) => sub.remove());
       dimSub?.remove?.();
     };
   }, [clearRetry, resolveOffset]);
