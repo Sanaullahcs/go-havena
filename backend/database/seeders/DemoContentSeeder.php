@@ -40,6 +40,7 @@ class DemoContentSeeder extends Seeder
             $this->call([
                 RegionSeeder::class,
                 CommunitySeeder::class,
+                BostonDemoSeeder::class,
                 WellnessHubSeeder::class,
             ]);
         }
@@ -47,25 +48,28 @@ class DemoContentSeeder extends Seeder
         $community = $this->resolveCommunity();
 
         if (! $community) {
-            $this->command?->warn('DemoContentSeeder: no active community found.');
+            $this->command?->warn('DemoContentSeeder: no community found.');
 
             return;
         }
 
         $cid = $community->id;
         $region = DB::table('regions')->where('status', 'active')->orderBy('sort_order')->first();
-        $regionId = $region->id ?? $community->region_id ?? null;
+        $boston = DB::table('regions')->where('title', 'Massachusetts - Boston')->first();
+        $regionId = $community->region_id ?: ($boston->id ?? $region->id ?? null);
 
         if (! $this->preserveCommunityIdentity) {
             DB::table('communities')->where('id', $cid)->update([
-                'name' => 'Florida Main Street',
-                'description' => 'A vibrant resort-style residential community in Miami-Dade with premium amenities, an active neighborhood feed, a resident marketplace, and year-round events.',
-                'address' => '1200 Palm Grove Boulevard, Miami, FL 33131',
-                'region_id' => $community->region_id ?: $regionId,
+                'name' => BostonDemoSeeder::COMMUNITY_NAME,
+                'description' => 'Waterfront residences in Boston’s Seaport District. Residents share a fitness studio, courtyard garden, lounge, and 24-hour concierge along the Harborwalk.',
+                'address' => BostonDemoSeeder::COMMUNITY_ADDRESS,
+                'region' => $boston->title ?? 'Massachusetts - Boston',
+                'region_id' => $boston->id ?? $regionId,
                 'timezone' => 'America/New_York',
                 'updated_at' => now(),
             ]);
-            $this->copyName = 'Florida Main Street';
+            $this->copyName = BostonDemoSeeder::COMMUNITY_NAME;
+            $regionId = $boston->id ?? $regionId;
         } else {
             $this->copyName = $community->name ?: 'Test Community';
         }
@@ -87,6 +91,7 @@ class DemoContentSeeder extends Seeder
         $this->seedFeed($cid, $residents);
         $this->seedListings($cid, $residents);
         $this->seedBusinessesAndDeals($cid, $residents, $adminId);
+        $this->seedNearbyDiscovery($cid, $regionId, $residents, $adminId);
         $this->seedWellnessImages();
         if (! $this->preserveCommunityIdentity) {
             $this->call(NoticeAndDealTranslationSeeder::class);
@@ -113,10 +118,13 @@ class DemoContentSeeder extends Seeder
             return DB::table('communities')->where('id', $this->targetCommunityId)->first();
         }
 
-        return DB::table('communities')
+        return BostonDemoSeeder::showcaseCommunityQuery()
             ->where('status', 'active')
-            ->orderBy('id')
-            ->first();
+            ->first()
+            ?? DB::table('communities')
+                ->where('status', 'active')
+                ->orderBy('id')
+                ->first();
     }
 
     private function mappedEmail(string $email): string
@@ -201,6 +209,8 @@ class DemoContentSeeder extends Seeder
 
         // Give the standing test accounts avatars too, if present.
         foreach ([
+            'resident@gohavena.com' => 'avatar-alex.jpg',
+            'community@gohavena.com' => 'avatar-admin.jpg',
             'test.resident@havena.app' => 'avatar-alex.jpg',
             'test.community.admin@havena.app' => 'avatar-admin.jpg',
             'community.admin@havena.app' => 'avatar-admin.jpg',
@@ -231,6 +241,11 @@ class DemoContentSeeder extends Seeder
 
     private function resolveAdminAuthor(int $cid): int
     {
+        $showcaseAdmin = DB::table('users')->where('email', BostonDemoSeeder::ADMIN_EMAIL)->value('id');
+        if ($showcaseAdmin) {
+            return (int) $showcaseAdmin;
+        }
+
         $adminMembership = DB::table('community_memberships')
             ->where('community_id', $cid)
             ->where('role', 'admin')
@@ -253,13 +268,13 @@ class DemoContentSeeder extends Seeder
     {
         // [title, category, body, image, daysAgo, pinned]
         $rows = [
-            ['Welcome to '.$this->copyName, 'general', "We are thrilled to welcome you to our community. Use this app to stay up to date on notices, RSVP to events, book amenities, browse the resident marketplace, and connect with your neighbors. If you have questions, reach out to the management office anytime.", "{$this->img}/community-cover.jpg", 1, true],
+            ['Welcome to '.$this->copyName, 'general', "Welcome to Harbor Point. Use this app for notices, events, amenity booking, the resident marketplace, and messages with your neighbors. The management office is on the ground floor of 50 Liberty Drive — reach out anytime.", "{$this->img}/community-cover.jpg", 1, true],
             ['Pool Deck Resurfacing Schedule', 'maintenance', "The pool deck will be resurfaced next week to keep our resort pool looking its best. The pool will remain open, but the north deck section will be closed Monday through Wednesday from 8:00 AM to 4:00 PM. Thank you for your patience.", "{$this->img}/notice-maintenance.jpg", 3, false],
             ['Q3 Community Budget Summary', 'finance', "The third quarter budget summary is now available in the Documents section. Highlights include reserve fund contributions, landscaping investments, and the new smart access system. A detailed breakdown will be presented at the upcoming town hall.", "{$this->img}/event-townhall.jpg", 5, false],
             ['Updated Gate Access Codes', 'security', "For everyone's safety, gate and amenity access codes will be rotated at the end of the month. Updated codes will be sent to registered residents by email and are available at the management office with a valid ID.", "{$this->img}/alert-weather.jpg", 7, false],
             ['Elevator Modernization Update', 'maintenance', "Elevator B in the east tower will undergo modernization over the next two weeks. Elevator A remains fully operational. We appreciate your understanding as we improve reliability and reduce wait times.", "{$this->img}/amenity-gym.jpg", 9, false],
             ['Landscaping Refresh This Month', 'general', "Our grounds team is refreshing the entry gardens and courtyard plantings this month. Expect new seasonal flowers, upgraded irrigation, and improved lighting along the main walkways.", "{$this->img}/listing-plants.jpg", 4, false],
-            ['Saturday Farmers Market Shuttle', 'general', "A free shuttle will run from the lobby to the neighborhood farmers market every Saturday from 8:00 AM to 12:00 PM. Meet at the front porte cochère — no RSVP needed.", "{$this->img}/feed-market.jpg", 2, true],
+            ['Saturday Boston Public Market Shuttle', 'general', "A complimentary shuttle runs from the Liberty Drive lobby to Boston Public Market every Saturday from 8:00 AM to 12:00 PM. Meet at the front porte cochère — no RSVP needed.", "{$this->img}/feed-market.jpg", 2, true],
             ['New Resident Welcome Packets', 'general', "New neighbors can pick up welcome packets at the management office. Packets include amenity hours, Wi‑Fi info, recycling guidelines, and this month's community calendar.", "{$this->img}/business-cafe.jpg", 6, false],
             ['Clubhouse Hours Extended', 'general', "Good news — the clubhouse lounge will stay open until 10:00 PM on Fridays and Saturdays starting this weekend. Quiet hours still begin at 11:00 PM.", "{$this->img}/amenity-clubhouse.jpg", 8, false],
             ['Pet Registration Reminder', 'general', "Please register pets at the management office if you have not already. Include a recent photo and vaccination records. Registered pets help us reunite lost animals quickly.", "{$this->img}/feed-dog.jpg", 10, false],
@@ -307,7 +322,7 @@ class DemoContentSeeder extends Seeder
             'Updated Gate Access Codes',
             'Elevator Modernization Update',
             'Landscaping Refresh This Month',
-            'Saturday Farmers Market Shuttle',
+            'Saturday Boston Public Market Shuttle',
             'New Resident Welcome Packets',
             'Clubhouse Hours Extended',
             'Pet Registration Reminder',
@@ -319,7 +334,7 @@ class DemoContentSeeder extends Seeder
             'Fitness Bootcamp Saturday',
             'Neighborhood Coffee Meetup',
             'Kids Arts & Crafts Afternoon',
-            'Tropical Storm Watch: Secure Balconies',
+            'Winter Storm Watch: Secure Balconies',
         ];
 
         $orphans = DB::table('notices')
@@ -445,11 +460,11 @@ class DemoContentSeeder extends Seeder
     private function seedAlerts(int $cid, int $adminId): void
     {
         DB::table('notices')->updateOrInsert(
-            ['community_id' => $cid, 'title' => 'Tropical Storm Watch: Secure Balconies'],
+            ['community_id' => $cid, 'title' => 'Winter Storm Watch: Secure Balconies'],
             [
                 'author_id' => $adminId,
                 'category' => 'emergency',
-                'body' => "A tropical storm watch is in effect for Miami-Dade through Thursday. Please secure balcony furniture and loose items, charge your devices, and review the Emergency Preparedness Guide in the Documents section. The management team will share updates as conditions change. Stay safe.",
+                'body' => "A winter storm watch is in effect for Greater Boston through Thursday. Please bring in balcony furniture and loose items, charge your devices, and review the Emergency Preparedness Guide in Documents. The management team will share updates as conditions change. Stay warm and stay safe.",
                 'image_url' => "{$this->img}/alert-weather.jpg",
                 'status' => 'published',
                 'review_status' => 'approved',
@@ -470,12 +485,13 @@ class DemoContentSeeder extends Seeder
         $u = fn (string $email) => $this->residentId($residents, $email);
 
         $posts = [
+            ['resident@gohavena.com', 'general', "Beautiful morning on the Harborwalk. If anyone wants to join a casual Saturday loop from Liberty Drive to Fan Pier and back, comment below — all paces welcome.", "{$this->img}/feed-harborwalk.jpg", 16, 4, 1],
             ['aisha@havena.app', 'help', "Has anyone seen Biscuit? Our golden retriever slipped out of the lobby this afternoon near the east tower. He is very friendly and wearing a blue collar. Please call me if you spot him. Thank you neighbors!", "{$this->img}/feed-dog.jpg", 14, 3, 1],
-            ['emily@havena.app', 'general', "The Saturday farmers market two blocks over is amazing right now. Fresh strawberries, local honey, and the best sourdough. Highly recommend a morning stroll over there this weekend.", "{$this->img}/feed-market.jpg", 22, 5, 2],
-            ['priya@havena.app', 'general', "Starting a morning run group! We meet at the clubhouse at 6:30 AM on Tuesdays and Thursdays. All paces welcome, we stick together. Comment below if you want to join.", "{$this->img}/wellness-exercise.jpg", 18, 6, 3],
+            ['emily@havena.app', 'general', "Boston Public Market was packed this morning. Fresh strawberries, local honey, and the best sourdough. Highly recommend the Saturday shuttle from the lobby.", "{$this->img}/feed-market.jpg", 22, 5, 2],
+            ['priya@havena.app', 'general', "Starting a morning run group! We meet at the clubhouse at 6:30 AM on Tuesdays and Thursdays. All paces welcome, we stick together. Comment below if you want to join.", "{$this->img}/feed-run.jpg", 18, 6, 3],
             ['tom@havena.app', 'help', "Looking for a recommendation for a reliable plumber who has worked in the building before. Slow drain in the kitchen. Appreciate any leads.", "{$this->img}/notice-maintenance.jpg", 4, 4, 4],
             ['david@havena.app', 'general', "Big thank you to the maintenance team for fixing the gym AC so quickly. Back to full workouts in comfort. You all are the best.", "{$this->img}/amenity-gym.jpg", 27, 2, 5],
-            ['nina@havena.app', 'general', "Free moving boxes available! We just unpacked and have about fifteen sturdy boxes plus packing paper. First come first served, message me and I will leave them by the mailroom.", "{$this->img}/listing-desk.jpg", 9, 3, 6],
+            ['nina@havena.app', 'general', "Free moving boxes available! We just unpacked and have about fifteen sturdy boxes plus packing paper. First come first served, message me and I will leave them by the mailroom.", "{$this->img}/feed-boxes.jpg", 9, 3, 6],
         ];
 
         foreach ($posts as [$email, $category, $body, $image, $likes, $comments, $daysAgo]) {
@@ -500,7 +516,7 @@ class DemoContentSeeder extends Seeder
 
         // Comments + likes on the lost dog and farmers market posts.
         $dogPost = DB::table('posts')->where('community_id', $cid)->where('category', 'help')->where('body', 'like', 'Has anyone seen Biscuit%')->value('id');
-        $marketPost = DB::table('posts')->where('community_id', $cid)->where('body', 'like', 'The Saturday farmers market%')->value('id');
+        $marketPost = DB::table('posts')->where('community_id', $cid)->where('body', 'like', 'Boston Public Market was packed%')->value('id');
 
         $comments = [];
         if ($dogPost) {
@@ -604,10 +620,10 @@ class DemoContentSeeder extends Seeder
         $u = fn (string $email) => $this->residentId($residents, $email) ?? $adminId;
 
         $businesses = [
-            ['Sunrise Coffee Co.', 'Cafe', "Neighborhood coffee bar serving specialty espresso, fresh pastries, and cold brew. Locally roasted beans and a cozy patio.", '1200 Palm Grove Blvd, Suite 4', '(305) 555-0142', 'Mon-Sun 6:30 AM - 7:00 PM', 'Free WiFi, Outdoor seating, Loyalty rewards', 'business-cafe', 'emily@havena.app'],
-            ['Core Pilates Studio', 'Fitness', "Boutique pilates and reformer studio with certified instructors. Small classes for all levels, from beginner to advanced.", '1200 Palm Grove Blvd, Suite 8', '(305) 555-0187', 'Mon-Sat 6:00 AM - 8:00 PM', 'Reformer classes, Private sessions, First class free', 'business-fitness', 'lisa@havena.app'],
-            ['Luxe Hair & Spa', 'Beauty & Spa', "Full service salon and spa offering cuts, color, facials, and massage. Relax and refresh close to home.", '1200 Palm Grove Blvd, Suite 12', '(305) 555-0164', 'Tue-Sun 9:00 AM - 6:00 PM', 'Hair, Color, Facials, Massage', 'business-salon', 'nina@havena.app'],
-            ['Bella Cucina Trattoria', 'Restaurant', "Family owned Italian trattoria with wood-fired pizza, handmade pasta, and a warm atmosphere. Dine in or takeout.", '1200 Palm Grove Blvd, Suite 1', '(305) 555-0119', 'Mon-Sun 11:00 AM - 10:00 PM', 'Wood-fired pizza, Handmade pasta, Takeout, Delivery', 'business-restaurant', 'diego@havena.app'],
+            ['Harborwalk Coffee', 'Cafe', "Seaport coffee bar serving specialty espresso, fresh pastries, and cold brew. Locally roasted beans and a patio facing the Harborwalk.", '50 Liberty Drive, Suite 4', '(617) 555-0142', 'Mon-Sun 6:30 AM - 7:00 PM', 'Free WiFi, Outdoor seating, Loyalty rewards', 'business-cafe', 'emily@havena.app'],
+            ['Core Pilates Studio', 'Fitness', "Boutique pilates and reformer studio with certified instructors. Small classes for all levels, from beginner to advanced.", '50 Liberty Drive, Suite 8', '(617) 555-0187', 'Mon-Sat 6:00 AM - 8:00 PM', 'Reformer classes, Private sessions, First class free', 'business-fitness', 'lisa@havena.app'],
+            ['Luxe Hair & Spa', 'Beauty & Spa', "Full service salon and spa offering cuts, color, facials, and massage. Relax and refresh close to home.", '50 Liberty Drive, Suite 12', '(617) 555-0164', 'Tue-Sun 9:00 AM - 6:00 PM', 'Hair, Color, Facials, Massage', 'business-salon', 'nina@havena.app'],
+            ['Fort Point Trattoria', 'Restaurant', "Family owned Italian trattoria with wood-fired pizza, handmade pasta, and a warm atmosphere. Dine in or takeout.", '50 Liberty Drive, Suite 1', '(617) 555-0119', 'Mon-Sun 11:00 AM - 10:00 PM', 'Wood-fired pizza, Handmade pasta, Takeout, Delivery', 'business-restaurant', 'diego@havena.app'],
         ];
 
         $businessIds = [];
@@ -634,10 +650,10 @@ class DemoContentSeeder extends Seeder
         }
 
         $deals = [
-            ['20% Off Any Latte', 'Sunrise Coffee Co.', "Show this coupon at the counter to get 20% off any latte, hot or iced. Start your morning right.", 'coupon', '20% OFF', 5.50, 4.40, 'BREW20', 'Cafe', 'deal-coffee', false, 'emily@havena.app', 30],
+            ['20% Off Any Latte', 'Harborwalk Coffee', "Show this coupon at the counter to get 20% off any latte, hot or iced. Start your morning right.", 'coupon', '20% OFF', 5.50, 4.40, 'BREW20', 'Cafe', 'deal-coffee', false, 'emily@havena.app', 30],
             ['Free First Pilates Class', 'Core Pilates Studio', "New to the studio? Your first reformer class is on us. Book online or drop by to reserve your spot.", 'offer', 'FREE TRIAL', null, null, null, 'Fitness', 'business-fitness', true, 'lisa@havena.app', 45],
             ['$15 Off Any Spa Service', 'Luxe Hair & Spa', "Treat yourself to a facial or massage and take $15 off any spa service over $60. Neighbors only.", 'deal', '$15 OFF', 80.00, 65.00, 'RELAX15', 'Beauty & Spa', 'deal-spa', false, 'nina@havena.app', 20],
-            ['Family Pizza Night 2-for-1', 'Bella Cucina Trattoria', "Buy any large wood-fired pizza and get a second of equal or lesser value free, every Tuesday night.", 'deal', '2 FOR 1', 24.00, 12.00, 'PIZZATUES', 'Restaurant', 'deal-pizza', true, 'diego@havena.app', 14],
+            ['Family Pizza Night 2-for-1', 'Fort Point Trattoria', "Buy any large wood-fired pizza and get a second of equal or lesser value free, every Tuesday night.", 'deal', '2 FOR 1', 24.00, 12.00, 'PIZZATUES', 'Restaurant', 'deal-pizza', true, 'diego@havena.app', 14],
         ];
 
         foreach ($deals as [$title, $vendor, $desc, $type, $label, $orig, $disc, $promo, $cat, $image, $featured, $ownerEmail, $endDays]) {
@@ -662,6 +678,223 @@ class DemoContentSeeder extends Seeder
                     'ends_at' => now()->addDays($endDays),
                     'updated_at' => now()->subDays(10),
                     'created_at' => now()->subDays(10),
+                ]
+            );
+        }
+    }
+
+    /**
+     * Nearby Boston communities + shops so the home location picker
+     * (2 / 3 / 5 / 10 miles) has real businesses outside Harbor Point.
+     */
+    private function seedNearbyDiscovery(int $homeCid, ?int $regionId, array $residents, int $adminId): void
+    {
+        $owner = fn (string $email) => $residents[$email] ?? $adminId;
+        $boston = $regionId
+            ? DB::table('regions')->where('id', $regionId)->first()
+            : DB::table('regions')->where('title', 'Massachusetts - Boston')->first();
+
+        $places = [
+            [
+                'community' => 'Fan Pier Residences',
+                'address' => '1 Marina Park Drive, Boston, MA 02210',
+                'lat' => 42.35340,
+                'lng' => -71.04490,
+                'description' => 'Waterfront residences on Fan Pier, a short Harborwalk stroll from Harbor Point.',
+                'business' => 'Seaport Provisions',
+                'category' => 'Cafe',
+                'bizDesc' => 'All-day cafe and market facing the harbor. Espresso, sandwiches, and picnic supplies for the Harborwalk.',
+                'bizAddress' => '1 Marina Park Drive, Boston, MA 02210',
+                'phone' => '(617) 555-0201',
+                'hours' => 'Mon-Sun 7:00 AM - 8:00 PM',
+                'amenities' => 'Patio, Takeout, Harbor views',
+                'image' => 'business-cafe',
+                'owner' => 'emily@havena.app',
+                'dealTitle' => 'Harbor Latte $1 Off',
+                'dealDesc' => 'Show this coupon for $1 off any specialty latte. Walkable from Harbor Point.',
+                'dealType' => 'coupon',
+                'dealLabel' => '$1 OFF',
+                'dealImage' => 'deal-coffee',
+            ],
+            [
+                'community' => 'Back Bay Commons',
+                'address' => '200 Clarendon Street, Boston, MA 02116',
+                'lat' => 42.34920,
+                'lng' => -71.07580,
+                'description' => 'Back Bay residences near Copley Square, shops, and the Green Line.',
+                'business' => 'Clarendon Books & Coffee',
+                'category' => 'Cafe',
+                'bizDesc' => 'Independent bookstore cafe with a quiet loft and weekend author talks.',
+                'bizAddress' => '200 Clarendon Street, Boston, MA 02116',
+                'phone' => '(617) 555-0203',
+                'hours' => 'Mon-Sat 8:00 AM - 7:00 PM',
+                'amenities' => 'Wifi, Reading loft, Pastries',
+                'image' => 'deal-coffee',
+                'owner' => 'sarah@havena.app',
+                'dealTitle' => 'Free Pastry with Coffee',
+                'dealDesc' => 'Any drip or espresso drink includes a house pastry. About a two-mile ride from the Seaport.',
+                'dealType' => 'offer',
+                'dealLabel' => 'FREE PASTRY',
+                'dealImage' => 'deal-coffee',
+            ],
+            [
+                'community' => 'Fenway Court',
+                'address' => '1330 Boylston Street, Boston, MA 02215',
+                'lat' => 42.34480,
+                'lng' => -71.09950,
+                'description' => 'Fenway apartments beside the ballpark, museums, and the Emerald Necklace.',
+                'business' => 'Lansdowne Fitness',
+                'category' => 'Fitness',
+                'bizDesc' => 'Open-floor gym with classes facing Landsdowne Street. Day passes for Seaport neighbors.',
+                'bizAddress' => '1330 Boylston Street, Boston, MA 02215',
+                'phone' => '(617) 555-0204',
+                'hours' => 'Mon-Sun 5:30 AM - 10:00 PM',
+                'amenities' => 'Day pass, Classes, Lockers',
+                'image' => 'business-fitness',
+                'owner' => 'priya@havena.app',
+                'dealTitle' => 'Neighbor Day Pass',
+                'dealDesc' => 'Harbor Point residents get a complimentary day pass this month. About 3 miles west.',
+                'dealType' => 'offer',
+                'dealLabel' => 'FREE DAY',
+                'dealImage' => 'amenity-gym',
+            ],
+            [
+                'community' => 'Brookline Village Residences',
+                'address' => '1 Harvard Street, Brookline, MA 02445',
+                'lat' => 42.33260,
+                'lng' => -71.12100,
+                'description' => 'Village living on the C Line with cafes, a library, and Coolidge Corner nearby.',
+                'business' => 'Coolidge Corner Spa',
+                'category' => 'Beauty & Spa',
+                'bizDesc' => 'Calm spa for facials and massage. Easy Green Line trip from the Seaport.',
+                'bizAddress' => '1 Harvard Street, Brookline, MA 02445',
+                'phone' => '(617) 555-0205',
+                'hours' => 'Tue-Sun 10:00 AM - 7:00 PM',
+                'amenities' => 'Facials, Massage, Neighbors welcome',
+                'image' => 'deal-spa',
+                'owner' => 'nina@havena.app',
+                'dealTitle' => 'Seaport Neighbor Facial',
+                'dealDesc' => '$20 off any 60-minute facial for Harbor Point residents. About 5 miles out.',
+                'dealType' => 'deal',
+                'dealLabel' => '$20 OFF',
+                'dealImage' => 'deal-spa',
+            ],
+            [
+                'community' => 'Davis Square Lofts',
+                'address' => '90 College Avenue, Somerville, MA 02144',
+                'lat' => 42.39650,
+                'lng' => -71.12220,
+                'description' => 'Somerville lofts beside Davis Square restaurants, the Red Line, and weekend markets.',
+                'business' => 'Davis Square Pizzeria',
+                'category' => 'Restaurant',
+                'bizDesc' => 'Coal-fired pies and a patio on College Avenue. Worth the ride from the Seaport.',
+                'bizAddress' => '90 College Avenue, Somerville, MA 02144',
+                'phone' => '(617) 555-0206',
+                'hours' => 'Mon-Sun 11:30 AM - 10:00 PM',
+                'amenities' => 'Patio, Takeout, Late kitchen',
+                'image' => 'business-restaurant',
+                'owner' => 'diego@havena.app',
+                'dealTitle' => 'Two-Top Tuesday',
+                'dealDesc' => 'Any large pizza and a second of equal or lesser value half off on Tuesdays.',
+                'dealType' => 'deal',
+                'dealLabel' => '1/2 OFF',
+                'dealImage' => 'deal-pizza',
+            ],
+            [
+                'community' => 'Newton Highlands Court',
+                'address' => '18 Lincoln Street, Newton, MA 02461',
+                'lat' => 42.32150,
+                'lng' => -71.20550,
+                'description' => 'Quiet Newton village on the D Line, about a 10-mile trip from the Seaport.',
+                'business' => 'Highlands Market',
+                'category' => 'Grocery',
+                'bizDesc' => 'Neighborhood market with local produce, flowers, and a weekday lunch counter.',
+                'bizAddress' => '18 Lincoln Street, Newton, MA 02461',
+                'phone' => '(617) 555-0207',
+                'hours' => 'Mon-Sat 8:00 AM - 7:00 PM',
+                'amenities' => 'Produce, Flowers, Lunch counter',
+                'image' => 'feed-market',
+                'owner' => 'aisha@havena.app',
+                'dealTitle' => 'Bouquet with $25 Shop',
+                'dealDesc' => 'Complimentary seasonal bouquet with a $25 market purchase this week.',
+                'dealType' => 'offer',
+                'dealLabel' => 'FREE BOUQUET',
+                'dealImage' => 'listing-plants',
+            ],
+        ];
+
+        foreach ($places as $place) {
+            $payload = [
+                'region' => $boston->title ?? 'Massachusetts - Boston',
+                'region_id' => $boston->id ?? $regionId,
+                'address' => $place['address'],
+                'description' => $place['description'],
+                'timezone' => 'America/New_York',
+                'status' => 'active',
+                'review_status' => 'approved',
+                'latitude' => $place['lat'],
+                'longitude' => $place['lng'],
+                'updated_at' => now(),
+            ];
+            $existing = DB::table('communities')->where('name', $place['community'])->value('id');
+            if ($existing) {
+                DB::table('communities')->where('id', $existing)->update($payload);
+                $nearbyId = (int) $existing;
+            } else {
+                $payload['name'] = $place['community'];
+                $payload['created_at'] = now()->subMonths(4);
+                $nearbyId = (int) DB::table('communities')->insertGetId($payload);
+            }
+
+            if ($nearbyId === $homeCid) {
+                continue;
+            }
+
+            DB::table('businesses')->updateOrInsert(
+                ['community_id' => $nearbyId, 'name' => $place['business']],
+                [
+                    'owner_id' => $owner($place['owner']),
+                    'category' => $place['category'],
+                    'description' => $place['bizDesc'],
+                    'address' => $place['bizAddress'],
+                    'phone' => $place['phone'],
+                    'hours' => $place['hours'],
+                    'amenities' => $place['amenities'],
+                    'image_url' => "{$this->img}/{$place['image']}.jpg",
+                    'status' => 'approved',
+                    'approved_at' => now()->subDays(20),
+                    'approved_by' => $adminId,
+                    'updated_at' => now()->subDays(20),
+                    'created_at' => now()->subDays(40),
+                ]
+            );
+
+            $businessId = DB::table('businesses')
+                ->where('community_id', $nearbyId)
+                ->where('name', $place['business'])
+                ->value('id');
+
+            DB::table('deals')->updateOrInsert(
+                ['community_id' => $nearbyId, 'title' => $place['dealTitle']],
+                [
+                    'created_by' => $owner($place['owner']),
+                    'business_id' => $businessId,
+                    'vendor' => $place['business'],
+                    'description' => $place['dealDesc'],
+                    'type' => $place['dealType'],
+                    'discount_label' => $place['dealLabel'],
+                    'original_price' => null,
+                    'discounted_price' => null,
+                    'promo_code' => null,
+                    'category' => $place['category'],
+                    'location' => $place['community'],
+                    'image_url' => "{$this->img}/{$place['dealImage']}.jpg",
+                    'is_featured' => false,
+                    'status' => 'active',
+                    'starts_at' => now()->subDays(8),
+                    'ends_at' => now()->addDays(40),
+                    'updated_at' => now()->subDays(8),
+                    'created_at' => now()->subDays(8),
                 ]
             );
         }
@@ -816,7 +1049,7 @@ class DemoContentSeeder extends Seeder
                 [$resident, 'Perfect, appreciate it!', 2],
             ]],
             [$adminId, 'direct', [
-                [$adminId, 'Hello and welcome to '.$this->copyName.'. Your amenity access has been activated. Enjoy the pool and gym!', 4],
+                [$adminId, 'Hello and welcome to '.$this->copyName.'. Your amenity access has been activated. Enjoy the fitness studio, courtyard, and lounge.', 4],
                 [$resident, 'Great, thank you. Is the clubhouse available to reserve for a small gathering?', 4],
                 [$adminId, 'Absolutely. You can request it from the Amenities section in the app. I will approve it once submitted.', 1],
             ]],

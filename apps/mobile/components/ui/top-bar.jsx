@@ -18,6 +18,18 @@ import { useMessageUnread } from "../../hooks/use-message-unread";
 import NotificationCountBadge from "./notification-count-badge";
 import LanguageToggle from "./language-toggle";
 import InboxMenu from "./inbox-menu";
+import LocationPickerSheet from "./location-picker-sheet";
+import { useLocationScope } from "../../providers/location-scope-provider";
+import {
+  THIS_COMMUNITY_RADIUS,
+  compactRadiusLabel,
+  coveringRadius,
+} from "../../constants/location-radius";
+import {
+  MarketplaceRoutes,
+  providerProfileParams,
+} from "../../constants/marketplace-routes";
+import { getCurrentRole } from "../../constants/role-session";
 
 export default function TopBar({ onMenuPress }) {
   const router = useRouter();
@@ -25,10 +37,12 @@ export default function TopBar({ onMenuPress }) {
   const [user, setUser] = useState(null);
   const { unread } = useNotificationUnread();
   const { unread: messageUnread } = useMessageUnread();
+  const { radiusMiles, setRadiusMiles } = useLocationScope();
 
   const headerRef = useRef(null);
   const inboxBtnRef = useRef(null);
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [locationOpen, setLocationOpen] = useState(false);
 
   const totalUnread = (unread || 0) + (messageUnread || 0);
 
@@ -49,16 +63,14 @@ export default function TopBar({ onMenuPress }) {
   );
 
   const guestUser = isGuestUser(user);
-  const { communityName, regionTitle, unitNumber } = getProfileFields(user);
+  const { communityName } = getProfileFields(user);
   const roleLabel = getRoleLabel(user);
   const hasCommunity = Boolean(user?.memberships?.some((m) => m?.community?.name));
   const title = hasCommunity ? communityName : t("topBar.chooseYourCommunity");
-  const subtitle = hasCommunity
-    ? guestUser
-      ? regionTitle || t("topBar.temporaryAccess")
-      : [unitNumber ? t("topBar.unit", { number: unitNumber }) : null, regionTitle].filter(Boolean).join(" · ") ||
-        t("topBar.yourNeighborhood")
-    : t("topBar.completeSetup");
+  const rangeLabel =
+    radiusMiles > THIS_COMMUNITY_RADIUS
+      ? compactRadiusLabel(radiusMiles)
+      : t("topBar.nearbyBadge");
 
   return (
     <View ref={headerRef} collapsable={false}>
@@ -66,35 +78,35 @@ export default function TopBar({ onMenuPress }) {
         <View style={styles.row}>
           <View style={styles.left}>
             <BurgerButton onPress={onMenuPress} compact plain iconColor={T.navy} />
-            <View
+            <Pressable
               style={styles.location}
+              accessibilityRole="button"
               accessibilityLabel={t("topBar.communityLocation", { name: title })}
+              onPress={() => setLocationOpen(true)}
             >
               <View style={styles.pinWrap}>
-                <Feather name="map-pin" size={sf(13)} color={T.white} />
+                <Feather name="map-pin" size={sf(12)} color={T.white} />
               </View>
-              <View style={styles.locationCopy}>
-                <View style={styles.titleRow}>
-                  <Text style={styles.locationText} numberOfLines={1} ellipsizeMode="tail">
-                    {title}
-                  </Text>
-                  {guestUser ? (
-                    <View style={styles.rolePill}>
-                      <Text style={styles.rolePillText}>{roleLabel}</Text>
-                    </View>
-                  ) : null}
+              <Text style={styles.locationText} numberOfLines={1} ellipsizeMode="tail">
+                {title}
+              </Text>
+              {guestUser ? (
+                <View style={styles.rolePill}>
+                  <Text style={styles.rolePillText}>{roleLabel}</Text>
                 </View>
-                <Text style={styles.locationSub} numberOfLines={1} ellipsizeMode="tail">
-                  {subtitle}
-                </Text>
-              </View>
-              <Feather name="chevron-down" size={sf(14)} color={T.gray} />
-            </View>
+              ) : (
+                <View style={styles.rangeChip}>
+                  <Text style={styles.rangeChipText} numberOfLines={1}>
+                    {rangeLabel}
+                  </Text>
+                </View>
+              )}
+              <Feather name="chevron-down" size={sf(15)} color={T.navy} />
+            </Pressable>
           </View>
 
           <View style={styles.right}>
             <LanguageToggle />
-
             <Pressable
               ref={inboxBtnRef}
               style={({ pressed }) => [styles.inboxBtn, pressed && styles.inboxBtnPressed]}
@@ -108,6 +120,23 @@ export default function TopBar({ onMenuPress }) {
           </View>
         </View>
       </HeaderShell>
+
+      <LocationPickerSheet
+        visible={locationOpen}
+        onClose={() => setLocationOpen(false)}
+        communityName={hasCommunity ? communityName : title}
+        radiusMiles={radiusMiles}
+        onSelectRadius={setRadiusMiles}
+        onSelectBusiness={(business) => {
+          if (!business.isLocal && Number(business.distanceMiles) > radiusMiles) {
+            setRadiusMiles(coveringRadius(business.distanceMiles));
+          }
+          router.push({
+            pathname: MarketplaceRoutes.PROVIDER_PROFILE,
+            params: providerProfileParams(business, getCurrentRole()),
+          });
+        }}
+      />
 
       <InboxMenu
         visible={inboxOpen}
@@ -128,20 +157,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: sw(10),
-    minHeight: sw(42),
+    gap: sw(8),
+    minHeight: sw(40),
   },
   left: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: sw(8),
+    gap: sw(4),
     minWidth: 0,
   },
   pinWrap: {
-    width: sw(30),
-    height: sw(30),
-    borderRadius: sw(9),
+    width: sw(26),
+    height: sw(26),
+    borderRadius: sw(8),
     backgroundColor: T.navy,
     alignItems: "center",
     justifyContent: "center",
@@ -151,59 +180,48 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: sw(7),
-    minWidth: 0,
-    backgroundColor: T.white,
-    borderRadius: sw(11),
-    borderWidth: 1,
-    borderColor: T.border,
-    paddingHorizontal: sw(8),
-    paddingVertical: sw(6),
-  },
-  locationCopy: {
-    flex: 1,
-    minWidth: 0,
-    justifyContent: "center",
-  },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
     gap: sw(6),
     minWidth: 0,
+    height: sw(36),
+    paddingEnd: sw(2),
+  },
+  locationText: {
+    flexShrink: 1,
+    flexGrow: 1,
+    minWidth: 0,
+    fontFamily: Fonts.bold,
+    fontSize: sf(14),
+    lineHeight: sf(18),
+    color: T.navy,
+    fontWeight: "700",
+    includeFontPadding: false,
+  },
+  rangeChip: {
+    flexShrink: 0,
+    paddingHorizontal: sw(8),
+    paddingVertical: sw(3),
+    borderRadius: 999,
+    backgroundColor: T.mint,
+  },
+  rangeChipText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(10),
+    lineHeight: sf(14),
+    color: T.deepTeal,
   },
   rolePill: {
+    flexShrink: 0,
     paddingHorizontal: sw(6),
     paddingVertical: sw(2),
     borderRadius: 999,
     backgroundColor: T.mint,
-    flexShrink: 0,
   },
   rolePillText: {
     fontFamily: Fonts.bold,
     fontSize: sf(9),
-    lineHeight: sf(14),
+    lineHeight: sf(13),
     color: T.deepTeal,
     textTransform: "uppercase",
-    letterSpacing: 0,
-    includeFontPadding: true,
-  },
-  locationText: {
-    flexShrink: 1,
-    fontFamily: Fonts.bold,
-    fontSize: sf(13),
-    lineHeight: sf(20),
-    color: T.navy,
-    fontWeight: "700",
-    includeFontPadding: true,
-  },
-  locationSub: {
-    marginTop: 1,
-    fontFamily: Fonts.regular,
-    fontSize: sf(10),
-    lineHeight: sf(16),
-    color: T.gray,
-    fontWeight: "400",
-    includeFontPadding: true,
   },
   right: {
     flexDirection: "row",

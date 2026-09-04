@@ -6,14 +6,17 @@ import { guessImageMeta, uploadMultipartFile, persistUploadAsset } from "../util
 import { HOME_SECTION_CARD_LIMIT } from "../constants/home-sections";
 import i18n from "../i18n";
 import { getLocaleForLang } from "../hooks/use-app-locale";
+import { getActiveRadiusMiles } from "./location-scope";
 
 /** GET /v1/deals — browse active deals */
-export async function fetchDeals({ type, search, businessId, page = 1, perPage = 20, includeExpired = false } = {}) {
+export async function fetchDeals({ type, search, businessId, page = 1, perPage = 20, includeExpired = false, radiusMiles } = {}) {
   const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
   if (type && type !== "all") params.set("type", type);
   if (search?.trim()) params.set("search", search.trim());
   if (businessId) params.set("business_id", String(businessId));
   if (includeExpired) params.set("include_expired", "1");
+  const miles = radiusMiles === undefined ? getActiveRadiusMiles() : Number(radiusMiles);
+  if (!businessId && Number.isFinite(miles) && miles > 0) params.set("radius_miles", String(miles));
   const res = await apiRequest(`/deals?${params.toString()}`);
   return {
     deals: (res.data ?? []).map(normalizeDeal),
@@ -124,7 +127,11 @@ export function normalizeDeal(d) {
     originalPrice: d.original_price ?? null,
     discountedPrice: d.discounted_price ?? null,
     location: d.location ?? "",
-    distance: d.location ?? "",
+    distance: d.distance_miles != null && Number(d.distance_miles) > 0
+      ? `${Number(d.distance_miles)} mi`
+      : (d.location ?? ""),
+    distanceMiles: d.distance_miles == null ? null : Number(d.distance_miles),
+    isLocal: d.is_local !== false,
     validUntil: formatValidUntil(d.ends_at),
     endsAt: d.ends_at,
     createdAt: d.created_at ?? null,

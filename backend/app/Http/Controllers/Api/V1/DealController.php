@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Services\ActivityLogService;
 use App\Services\AdminRoleService;
 use App\Support\MediaUrl;
+use App\Support\NearbyDiscovery;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -28,8 +29,16 @@ class DealController extends Controller
             || AdminRoleService::canManageCommunity($user, $communityId);
 
         $query = DB::table('deals')
-            ->where('community_id', $communityId)
             ->whereNull('deleted_at');
+
+        $radiusMiles = $scope === 'browse'
+            ? NearbyDiscovery::normalizeRadius($request->get('radius_miles'))
+            : null;
+        $communityIds = $radiusMiles
+            ? NearbyDiscovery::communityIdsWithin($communityId, $radiusMiles)
+            : [$communityId];
+
+        $query->whereIn('community_id', $communityIds);
 
         if ($scope === 'manage') {
             if (! $isAdmin) {
@@ -84,9 +93,13 @@ class DealController extends Controller
             $businessId = (int) $request->business_id;
             $business = DB::table('businesses')
                 ->where('id', $businessId)
-                ->where('community_id', $communityId)
                 ->whereNull('deleted_at')
                 ->first();
+            $sameCommunity = $business && (int) $business->community_id === $communityId;
+            $visibleNearby = $business && $business->status === 'approved';
+            if (! $business || (! $sameCommunity && ! $visibleNearby)) {
+                $business = null;
+            }
 
             if ($business) {
                 $query->where(function ($q) use ($businessId, $business) {
@@ -133,7 +146,7 @@ class DealController extends Controller
 
         return response()->json([
             'data' => collect($deals->items())
-                ->map(fn ($d) => $this->format($d, $request, in_array((int) $d->id, $savedIds, true)))
+                ->map(fn ($d) => $this->format($d, $request, in_array((int) $d->id, $savedIds, true), $communityId))
                 ->values(),
             'meta' => $meta,
         ]);
@@ -570,13 +583,20 @@ class DealController extends Controller
         return $deal;
     }
 
-    private function format(object $deal, Request $request, bool $isLiked = false): array
+    private function format(object $deal, Request $request, bool $isLiked = false, ?int $originCommunityId = null): array
     {
         $expired = $deal->ends_at ? now()->greaterThan($deal->ends_at) : false;
+        $dealCommunityId = (int) $deal->community_id;
+        $distanceMiles = $originCommunityId
+            ? NearbyDiscovery::distanceFromOrigin($originCommunityId, $dealCommunityId)
+            : null;
+        $distanceLabel = $distanceMiles !== null && $distanceMiles > 0
+            ? rtrim(rtrim(number_format($distanceMiles, 1), '0'), '.').' mi'
+            : ($deal->location ?? null);
 
         return [
             'id'               => (int) $deal->id,
-            'community_id'     => (int) $deal->community_id,
+            'community_id'     => $dealCommunityId,
             'created_by'       => (int) $deal->created_by,
             'business_id'      => isset($deal->business_id) ? (int) $deal->business_id : null,
             'title'            => $deal->title,
@@ -594,7 +614,9 @@ class DealController extends Controller
             'discounted_price' => $deal->discounted_price !== null ? (float) $deal->discounted_price : null,
             'promo_code'       => $deal->promo_code,
             'category'         => $deal->category,
-            'location'         => $deal->location,
+            'location'         => $distanceLabel,
+            'distance_miles'   => $distanceMiles,
+            'is_local'         => $originCommunityId ? $dealCommunityId === $originCommunityId : true,
             'image_url'        => MediaUrl::toPublic($deal->image_url ?? null, $request),
             'is_featured'      => (bool) $deal->is_featured,
             'is_liked'         => $isLiked,

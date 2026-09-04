@@ -11,3 +11,6 @@ credentials.json
 # Local Expo / Metro logs — never commit
 expo-start.log
 .expo/dev/logs/
+
+# Native build output — Metro watching this causes EMFILE on Windows
+modules/**/android/build/

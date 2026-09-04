@@ -16,6 +16,7 @@ import "react-native-reanimated";
 import { AppDialogProvider } from "../providers/app-dialog-provider";
 import { ImageSourcePickerProvider } from "../providers/image-source-picker-provider";
 import LanguageProvider from "../providers/language-provider";
+import LocationScopeProvider from "../providers/location-scope-provider";
 import GuestSessionGuard from "../components/auth/guest-session-guard";
 import PushNotificationBootstrap from "../components/notifications/push-notification-bootstrap";
 import InAppNotificationMonitor from "../components/notifications/in-app-notification-monitor";
@@ -117,6 +118,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.root}>
     <LanguageProvider>
+    <LocationScopeProvider>
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
     <AppDialogProvider>
     <NotificationBannerProvider>
@@ -448,6 +450,7 @@ export default function RootLayout() {
     </NotificationBannerProvider>
     </AppDialogProvider>
     </SafeAreaProvider>
+    </LocationScopeProvider>
     </LanguageProvider>
     </GestureHandlerRootView>
   );

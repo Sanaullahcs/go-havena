@@ -46,6 +46,9 @@ $photos = [
     'deal-spa' => 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=1400&q=80',
     'feed-dog' => 'https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&w=1400&q=80',
     'feed-market' => 'https://images.unsplash.com/photo-1488459716781-31db52582fe9?auto=format&fit=crop&w=1400&q=80',
+    'feed-harborwalk' => 'https://images.unsplash.com/photo-1501066928260-a15192e1f4da?auto=format&fit=crop&w=1600&h=1000&q=80',
+    'feed-run' => 'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?auto=format&fit=crop&w=1600&h=1000&q=80',
+    'feed-boxes' => 'https://images.unsplash.com/photo-1600518464441-9154a4dea21b?auto=format&fit=crop&w=1600&h=1000&q=80',
     'avatar-01' => 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=400&q=80',
     'avatar-02' => 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
     'avatar-03' => 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=400&q=80',
@@ -116,7 +119,10 @@ foreach ($photos as $name => $url) {
 
     if ($looksReal && ! $force) {
         $skipped++;
-        @copy($outPath, $mobile.'/'.$name.'.jpg');
+        $mobilePath = $mobile.'/'.$name.'.jpg';
+        if (! is_file($mobilePath) || filesize($mobilePath) < 40000) {
+            @copy($outPath, $mobilePath);
+        }
         continue;
     }
 

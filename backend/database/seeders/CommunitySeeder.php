@@ -37,6 +37,15 @@ class CommunitySeeder extends Seeder
 
         $activeCommunities = [
             [
+                'name' => 'Harbor Point Residences',
+                'region_title' => 'Massachusetts - Boston',
+                'address' => '50 Liberty Drive, Boston, MA 02210',
+                'description' => 'Waterfront residences in Boston’s Seaport District with a fitness studio, courtyard garden, lounge, and 24-hour concierge.',
+                'invite_code' => 'HARBOR-2026',
+                'latitude' => 42.34955,
+                'longitude' => -71.04185,
+            ],
+            [
                 'name' => 'Oak Valley Residences',
                 'region_title' => 'Florida - Miami-Dade County',
                 'address' => '1200 Oak Valley Blvd, Miami, FL 33101',
@@ -142,6 +151,8 @@ class CommunitySeeder extends Seeder
                     'status' => 'active',
                     'review_status' => 'approved',
                     'reviewed_at' => now()->subDays(rand(5, 60)),
+                    'latitude' => $data['latitude'] ?? null,
+                    'longitude' => $data['longitude'] ?? null,
                 ],
             );
 

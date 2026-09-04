@@ -8,6 +8,7 @@ use App\Http\Controllers\Concerns\BlocksGuestWrites;
 use App\Services\ActivityLogService;
 use App\Services\AdminRoleService;
 use App\Support\MediaUrl;
+use App\Support\NearbyDiscovery;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -26,15 +27,24 @@ class BusinessController extends Controller
         $isAdmin     = $this->canManageCommunity($user, $communityId);
         $scope       = $request->get('scope', 'browse');
 
+        $radiusMiles = $scope === 'browse'
+            ? NearbyDiscovery::normalizeRadius($request->get('radius_miles'))
+            : null;
+        $communityIds = $radiusMiles
+            ? NearbyDiscovery::communityIdsWithin($communityId, $radiusMiles)
+            : [$communityId];
+
         $query = DB::table('businesses as b')
             ->join('users', 'users.id', '=', 'b.owner_id')
             ->leftJoin('profiles', 'profiles.user_id', '=', 'b.owner_id')
+            ->leftJoin('communities', 'communities.id', '=', 'b.community_id')
             ->select(
                 'b.*',
                 'users.name as owner_name',
                 'profiles.display_name as owner_display_name',
+                'communities.name as community_name',
             )
-            ->where('b.community_id', $communityId)
+            ->whereIn('b.community_id', $communityIds)
             ->whereNull('b.deleted_at');
 
         if ($scope === 'manage') {
@@ -88,7 +98,7 @@ class BusinessController extends Controller
         }
 
         return response()->json([
-            'data' => collect($rows->items())->map(fn ($b) => $this->format($b, $request))->values(),
+            'data' => collect($rows->items())->map(fn ($b) => $this->format($b, $request, $communityId))->values(),
             'meta' => $meta,
         ]);
     }
@@ -109,7 +119,9 @@ class BusinessController extends Controller
             return response()->json(['message' => 'Business not found'], 404);
         }
 
-        return response()->json(['data' => $this->format($business, $request)]);
+        $originId = (int) ($request->header('X-Community-Id') ?: $request->get('community_id') ?: 0) ?: null;
+
+        return response()->json(['data' => $this->format($business, $request, $originId)]);
     }
 
     /** POST /v1/businesses */
@@ -313,27 +325,34 @@ class BusinessController extends Controller
         ]);
     }
 
-    private function format(object $business, Request $request): array
+    private function format(object $business, Request $request, ?int $originCommunityId = null): array
     {
         $ownerName = $business->owner_display_name ?? $business->owner_name ?? null;
+        $bizCommunityId = (int) $business->community_id;
+        $distanceMiles = $originCommunityId
+            ? NearbyDiscovery::distanceFromOrigin($originCommunityId, $bizCommunityId)
+            : null;
 
         return [
-            'id'           => (int) $business->id,
-            'community_id' => (int) $business->community_id,
-            'owner_id'     => (int) $business->owner_id,
-            'owner_name'   => $ownerName,
-            'name'         => $business->name,
-            'category'     => $business->category,
-            'description'  => $business->description,
-            'address'      => $business->address,
-            'phone'        => $business->phone,
-            'hours'        => $business->hours,
-            'amenities'    => $business->amenities,
-            'image_url'    => MediaUrl::toPublic($business->image_url ?? null, $request),
-            'status'       => $business->status,
-            'approved_at'  => $business->approved_at,
-            'created_at'   => $business->created_at,
-            'updated_at'   => $business->updated_at,
+            'id'             => (int) $business->id,
+            'community_id'   => $bizCommunityId,
+            'community_name' => $business->community_name ?? null,
+            'owner_id'       => (int) $business->owner_id,
+            'owner_name'     => $ownerName,
+            'name'           => $business->name,
+            'category'       => $business->category,
+            'description'    => $business->description,
+            'address'        => $business->address,
+            'phone'          => $business->phone,
+            'hours'          => $business->hours,
+            'amenities'      => $business->amenities,
+            'image_url'      => MediaUrl::toPublic($business->image_url ?? null, $request),
+            'status'         => $business->status,
+            'approved_at'    => $business->approved_at,
+            'created_at'     => $business->created_at,
+            'updated_at'     => $business->updated_at,
+            'distance_miles' => $distanceMiles,
+            'is_local'       => $originCommunityId ? $bizCommunityId === $originCommunityId : true,
         ];
     }
 
@@ -342,10 +361,12 @@ class BusinessController extends Controller
         return DB::table('businesses as b')
             ->join('users', 'users.id', '=', 'b.owner_id')
             ->leftJoin('profiles', 'profiles.user_id', '=', 'b.owner_id')
+            ->leftJoin('communities', 'communities.id', '=', 'b.community_id')
             ->select(
                 'b.*',
                 'users.name as owner_name',
                 'profiles.display_name as owner_display_name',
+                'communities.name as community_name',
             )
             ->where('b.id', $id)
             ->whereNull('b.deleted_at')

@@ -352,4 +352,70 @@ class AuthOtpTest extends TestCase
         ])->assertStatus(422)
             ->assertJsonPath('code', 'INVALID_OTP');
     }
+
+    public function test_gohavena_demo_otp_works_only_for_showcase_emails(): void
+    {
+        $resident = 'resident@gohavena.com';
+        $admin = 'community@gohavena.com';
+
+        User::factory()->create([
+            'email' => $resident,
+            'email_verified_at' => now(),
+            'phone' => '+16175551901',
+            'role' => 'resident',
+        ]);
+        User::factory()->create([
+            'email' => $admin,
+            'email_verified_at' => now(),
+            'phone' => '+16175551902',
+            'role' => 'community_admin',
+            'community_admin_status' => 'approved',
+        ]);
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email' => $resident,
+            'intent' => 'login',
+        ])->assertStatus(202);
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'email' => $resident,
+            'code' => '221322',
+            'intent' => 'login',
+        ])->assertOk()
+            ->assertJsonPath('user.email', $resident);
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email' => $admin,
+            'intent' => 'login',
+        ])->assertStatus(202);
+
+        $this->travel(30)->minutes();
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'email' => $admin,
+            'code' => '221322',
+            'intent' => 'login',
+        ])->assertOk()
+            ->assertJsonPath('user.email', $admin);
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'email' => $resident,
+            'code' => '123456',
+            'intent' => 'login',
+        ])->assertStatus(422)
+            ->assertJsonPath('code', 'INVALID_OTP');
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email' => 'real.user@example.com',
+            'intent' => 'signup',
+        ])->assertStatus(202);
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'email' => 'real.user@example.com',
+            'code' => '221322',
+            'intent' => 'signup',
+            'role' => 'resident',
+        ])->assertStatus(422)
+            ->assertJsonPath('code', 'INVALID_OTP');
+    }
 }

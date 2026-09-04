@@ -558,4 +558,89 @@ class MarketplaceBusinessDealsTest extends TestCase
         ], ['X-Community-Id' => (string) $community->id])
             ->assertForbidden();
     }
+
+    public function test_browse_radius_includes_nearby_community_businesses(): void
+    {
+        ['community' => $home, 'admin' => $admin, 'residentA' => $resident] = $this->seedCommunityWithUsers();
+
+        $home->update(['latitude' => 42.34955, 'longitude' => -71.04185]);
+
+        DB::table('businesses')->insert([
+            [
+                'community_id' => $home->id,
+                'owner_id'     => $resident->id,
+                'name'         => 'The Daily Grind',
+                'category'     => 'Coffee Shop',
+                'status'       => 'approved',
+                'approved_at'  => now(),
+                'created_at'   => now(),
+                'updated_at'   => now(),
+            ],
+        ]);
+
+        $nearby = Community::query()->create([
+            'name'          => 'Fan Pier Residences',
+            'region_id'     => $home->region_id,
+            'region'        => $home->region,
+            'status'        => 'active',
+            'review_status' => 'approved',
+            'latitude'      => 42.35340,
+            'longitude'     => -71.04490,
+        ]);
+        $far = Community::query()->create([
+            'name'          => 'Newton Highlands Court',
+            'region_id'     => $home->region_id,
+            'region'        => $home->region,
+            'status'        => 'active',
+            'review_status' => 'approved',
+            'latitude'      => 42.32150,
+            'longitude'     => -71.20550,
+        ]);
+
+        DB::table('businesses')->insert([
+            [
+                'community_id' => $nearby->id,
+                'owner_id'     => $admin->id,
+                'name'         => 'Seaport Provisions',
+                'category'     => 'Cafe',
+                'status'       => 'approved',
+                'approved_at'  => now(),
+                'created_at'   => now(),
+                'updated_at'   => now(),
+            ],
+            [
+                'community_id' => $far->id,
+                'owner_id'     => $admin->id,
+                'name'         => 'Highlands Market',
+                'category'     => 'Grocery',
+                'status'       => 'approved',
+                'approved_at'  => now(),
+                'created_at'   => now(),
+                'updated_at'   => now(),
+            ],
+        ]);
+
+        Sanctum::actingAs($resident);
+        $headers = ['X-Community-Id' => (string) $home->id];
+
+        $localOnly = $this->getJson('/api/v1/businesses?scope=browse', $headers);
+        $localOnly->assertOk();
+        $localNames = collect($localOnly->json('data'))->pluck('name')->all();
+        $this->assertContains('The Daily Grind', $localNames);
+        $this->assertNotContains('Seaport Provisions', $localNames);
+        $this->assertNotContains('Highlands Market', $localNames);
+
+        $twoMiles = $this->getJson('/api/v1/businesses?scope=browse&radius_miles=2', $headers);
+        $twoMiles->assertOk();
+        $twoNames = collect($twoMiles->json('data'))->pluck('name')->all();
+        $this->assertContains('The Daily Grind', $twoNames);
+        $this->assertContains('Seaport Provisions', $twoNames);
+        $this->assertNotContains('Highlands Market', $twoNames);
+
+        $tenMiles = $this->getJson('/api/v1/businesses?scope=browse&radius_miles=10', $headers);
+        $tenMiles->assertOk();
+        $tenNames = collect($tenMiles->json('data'))->pluck('name')->all();
+        $this->assertContains('Seaport Provisions', $tenNames);
+        $this->assertContains('Highlands Market', $tenNames);
+    }
 }

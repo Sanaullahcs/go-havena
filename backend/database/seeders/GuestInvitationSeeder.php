@@ -12,10 +12,13 @@ class GuestInvitationSeeder extends Seeder
 {
     public function run(): void
     {
-        $community = DB::table('communities')
+        $community = BostonDemoSeeder::showcaseCommunityQuery()
             ->where('status', 'active')
-            ->orderBy('id')
-            ->first();
+            ->first()
+            ?? DB::table('communities')
+                ->where('status', 'active')
+                ->orderBy('id')
+                ->first();
 
         if (! $community) {
             $this->command?->warn('GuestInvitationSeeder: no active community found.');
@@ -25,7 +28,8 @@ class GuestInvitationSeeder extends Seeder
 
         $communityId = (int) $community->id;
 
-        $hostId = DB::table('users')->where('phone', '+15555550100')->value('id')
+        $hostId = DB::table('users')->where('email', BostonDemoSeeder::RESIDENT_EMAIL)->value('id')
+            ?? DB::table('users')->where('phone', '+15555550100')->value('id')
             ?? DB::table('community_memberships')
                 ->where('community_id', $communityId)
                 ->where('status', 'approved')
@@ -33,7 +37,8 @@ class GuestInvitationSeeder extends Seeder
                 ->orderBy('user_id')
                 ->value('user_id');
 
-        $adminId = DB::table('users')->where('phone', '+15555550200')->value('id')
+        $adminId = DB::table('users')->where('email', BostonDemoSeeder::ADMIN_EMAIL)->value('id')
+            ?? DB::table('users')->where('phone', '+15555550200')->value('id')
             ?? DB::table('community_memberships')
                 ->where('community_id', $communityId)
                 ->where('status', 'approved')
@@ -128,7 +133,7 @@ class GuestInvitationSeeder extends Seeder
                 'guest_user_id' => null,
                 'community_id' => $communityId,
                 'action' => 'invited',
-                'description' => "{$row['guest_name']} was invited to visit Florida Main Street.",
+                'description' => "{$row['guest_name']} was invited to visit Harbor Point Residences.",
                 'meta' => json_encode(['invite_code' => $row['invite_code']]),
                 'created_at' => $now,
             ]);

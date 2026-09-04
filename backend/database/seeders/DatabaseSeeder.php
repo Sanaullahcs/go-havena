@@ -12,6 +12,7 @@ class DatabaseSeeder extends Seeder
             MainSeeder::class,
             SystemAdminSeeder::class,
             DevPhoneSeeder::class,
+            BostonDemoSeeder::class,
             MobileTestAccountsSeeder::class,
             FeedEngagementSeeder::class,
             // Rich presentation demo (notices/events/feed/listings with /storage/seed images).

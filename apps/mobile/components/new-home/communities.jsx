@@ -44,7 +44,7 @@ function formatCount(value) {
 
 const CARD_GAP = sw(12);
 const PEEK = sw(40);
-const IMAGE_RATIO = 0.48;
+const IMAGE_RATIO = 0.62;
 const BOTTOM_AREA_H = sw(140);
 
 function FeedCard({

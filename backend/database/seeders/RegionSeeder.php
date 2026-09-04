@@ -28,7 +28,7 @@ class RegionSeeder extends Seeder
             ['title' => 'Arizona - Phoenix', 'area' => 'Phoenix Metro', 'state' => 'Arizona', 'users_label' => '6,510 users', 'sort_order' => 16],
             ['title' => 'Colorado - Denver', 'area' => 'Denver Metro', 'state' => 'Colorado', 'users_label' => '5,430 users', 'sort_order' => 17],
             ['title' => 'Nevada - Las Vegas', 'area' => 'Las Vegas Valley', 'state' => 'Nevada', 'users_label' => '4,980 users', 'sort_order' => 18],
-            ['title' => 'Massachusetts - Boston', 'area' => 'Greater Boston', 'state' => 'Massachusetts', 'users_label' => '6,220 users', 'sort_order' => 19],
+            ['title' => 'Massachusetts - Boston', 'area' => 'Greater Boston', 'state' => 'Massachusetts', 'users_label' => '2,840 residents', 'sort_order' => 0],
             ['title' => 'Pennsylvania - Philadelphia', 'area' => 'Philadelphia Metro', 'state' => 'Pennsylvania', 'users_label' => '5,760 users', 'sort_order' => 20],
             ['title' => 'North Carolina - Charlotte', 'area' => 'Charlotte Metro', 'state' => 'North Carolina', 'users_label' => '4,650 users', 'sort_order' => 21],
             ['title' => 'Virginia - Northern Virginia', 'area' => 'NoVA / DC Metro', 'state' => 'Virginia', 'users_label' => '7,110 users', 'sort_order' => 22],

@@ -16,6 +16,8 @@ class Community extends Model
         'region_id',
         'description',
         'address',
+        'latitude',
+        'longitude',
         'timezone',
         'settings',
         'estimated_residents',
@@ -32,6 +34,8 @@ class Community extends Model
             'settings'             => 'array',
             'estimated_residents'  => 'integer',
             'reviewed_at'          => 'datetime',
+            'latitude'             => 'float',
+            'longitude'            => 'float',
         ];
     }
 

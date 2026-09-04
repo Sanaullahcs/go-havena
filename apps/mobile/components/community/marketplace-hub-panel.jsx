@@ -41,6 +41,7 @@ import GuestFeatureErrorState from "../guest/guest-permission-denied-state";
 import { isFeatureAccessBlockedError } from "../../utils/guest-permission-errors";
 import { resolveLoadRestriction } from "../../utils/account-access-sync";
 import { localizedField } from "../../i18n";
+import { useLocationScope } from "../../providers/location-scope-provider";
 
 const DEAL_PLACEHOLDER = require("../../assets/images/food-new.png");
 const BIZ_PLACEHOLDER = require("../../assets/images/ok-resturant.png");
@@ -194,9 +195,14 @@ function FeaturedDealCard({ deal, variantIndex, isLast, onPress, t }) {
 function PopularBusinessCard({ business, onPress }) {
   const { t } = useTranslation();
   const categoryLabel = business.category || t("deals.business");
-  const metaLine = business.address
-    ? `${categoryLabel} • ${business.address}`
-    : categoryLabel;
+  const distanceLabel = business.distance
+    ? t("marketplace.distanceAway", { distance: business.distance })
+    : null;
+  const metaLine = distanceLabel
+    ? `${categoryLabel} • ${distanceLabel}`
+    : business.address
+      ? `${categoryLabel} • ${business.address}`
+      : categoryLabel;
 
   return (
     <TouchableOpacity
@@ -241,6 +247,7 @@ export default function MarketplaceHubPanel() {
       ? resolvedRoleParam
       : getCurrentRole(),
   );
+  const { revision } = useLocationScope();
   const [featuredDeals, setFeaturedDeals] = useState([]);
   const [popularBiz, setPopularBiz] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -261,11 +268,11 @@ export default function MarketplaceHubPanel() {
 
     try {
       const [dealsRes, bizRes] = await Promise.all([
-        fetchDeals({ perPage: 3 }),
-        fetchBusinesses({ perPage: 4 }),
+        fetchDeals({ perPage: 6 }),
+        fetchBusinesses({ perPage: 8 }),
       ]);
-      setFeaturedDeals(dealsRes.deals.slice(0, 3));
-      setPopularBiz(bizRes.businesses.slice(0, 4));
+      setFeaturedDeals(dealsRes.deals.slice(0, 6));
+      setPopularBiz(bizRes.businesses.slice(0, 8));
     } catch (err) {
       const restricted = await resolveLoadRestriction("marketplace", err);
       if (restricted) {
@@ -279,7 +286,7 @@ export default function MarketplaceHubPanel() {
     } finally {
       setLoadingData(false);
     }
-  }, []);
+  }, [revision]);
 
   useFocusEffect(
     useCallback(() => {

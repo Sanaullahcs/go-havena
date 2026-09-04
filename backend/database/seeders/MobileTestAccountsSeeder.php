@@ -35,12 +35,16 @@ class MobileTestAccountsSeeder extends Seeder
             ->first();
 
         $community = Community::query()
+            ->where('name', BostonDemoSeeder::COMMUNITY_NAME)
             ->where('status', 'active')
-            ->where(function ($q) {
-                $q->whereNull('review_status')->orWhere('review_status', 'approved');
-            })
-            ->orderBy('id')
-            ->first();
+            ->first()
+            ?? Community::query()
+                ->where('status', 'active')
+                ->where(function ($q) {
+                    $q->whereNull('review_status')->orWhere('review_status', 'approved');
+                })
+                ->orderBy('id')
+                ->first();
 
         if (! $community) {
             $this->command?->warn('MobileTestAccountsSeeder: no active community — run MainSeeder first.');

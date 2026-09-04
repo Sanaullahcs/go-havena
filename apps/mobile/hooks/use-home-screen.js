@@ -17,8 +17,10 @@ import {
   isAccountRestrictedError,
   resolveLoadRestriction,
 } from "../utils/account-access-sync";
+import { useLocationScope } from "../providers/location-scope-provider";
 
 export function useHomeScreen() {
+  const { revision } = useLocationScope();
   const [notices, setNotices] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [posts, setPosts] = useState([]);
@@ -114,7 +116,7 @@ export function useHomeScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [clearHomeData]);
+  }, [clearHomeData, revision]);
 
   useEffect(() => {
     load();

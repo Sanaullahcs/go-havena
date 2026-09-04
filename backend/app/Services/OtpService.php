@@ -27,9 +27,9 @@ class OtpService
             'expires_at' => now()->addMinutes($this->expireMinutes()),
         ]);
 
-        Log::info('Havena OTP', ['email' => $email, 'code' => $this->isFixedEmail($email) ? $code : '[hidden]']);
+        Log::info('Havena OTP', ['email' => $email, 'code' => $this->usesKnownTestCode($email) ? $code : '[hidden]']);
 
-        if ($this->shouldSendMail()) {
+        if ($this->shouldSendMail() && ! $this->usesKnownTestCode($email)) {
             Mail::to($email)->send(new AuthOtpMail($code));
         }
     }
@@ -51,6 +51,10 @@ class OtpService
         $email = $this->normalizedEmail($email);
         $code = trim($code);
 
+        if ($this->matchesDemoEmailCode($email, $code)) {
+            return true;
+        }
+
         // Store-review fallback: OTP_FIXED_CODE only for allowlisted emails.
         if ($this->matchesConfiguredMasterCode($email, $code)) {
             return true;
@@ -67,7 +71,7 @@ class OtpService
         }
 
         $implicit = $this->implicitDevCode();
-        if ($implicit !== null && hash_equals($implicit, $code)) {
+        if ($implicit !== null && $this->demoCodeForEmail($email) === null && hash_equals($implicit, $code)) {
             return true;
         }
 
@@ -101,6 +105,11 @@ class OtpService
 
     private function issueCode(string $email): string
     {
+        $demoCode = $this->demoCodeForEmail($email);
+        if ($demoCode !== null) {
+            return $demoCode;
+        }
+
         if ($this->isFixedEmail($email) && $this->configuredMasterCode() !== null) {
             return $this->configuredMasterCode();
         }
@@ -159,6 +168,40 @@ class OtpService
         $configured = $this->configuredMasterCode();
 
         return $configured !== null && hash_equals($configured, $code);
+    }
+
+    private function matchesDemoEmailCode(string $email, string $code): bool
+    {
+        $expected = $this->demoCodeForEmail($email);
+
+        return $expected !== null && hash_equals($expected, $code);
+    }
+
+    private function demoCodeForEmail(string $email): ?string
+    {
+        $email = $this->normalizedEmail($email);
+        $codes = config('otp.demo_email_codes', []);
+        if (! is_array($codes)) {
+            return null;
+        }
+
+        foreach ($codes as $allowed => $code) {
+            $allowed = strtolower(trim((string) $allowed));
+            $code = trim((string) $code);
+            if ($allowed === '' || $code === '' || preg_match('/^\d{4,8}$/', $code) !== 1) {
+                continue;
+            }
+            if (hash_equals($allowed, $email)) {
+                return $code;
+            }
+        }
+
+        return null;
+    }
+
+    private function usesKnownTestCode(string $email): bool
+    {
+        return $this->isFixedEmail($email) || $this->demoCodeForEmail($email) !== null;
     }
 
     private function isFixedEmail(string $email): bool

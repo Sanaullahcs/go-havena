@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Database\Seeders\BostonDemoSeeder;
 use Database\Seeders\CommunitySeeder;
 use Database\Seeders\DemoContentSeeder;
 use Database\Seeders\MobileTestAccountsSeeder;
@@ -39,18 +40,19 @@ class SeedDemoCommand extends Command
 
         $this->syncSeedImagesToMobile();
 
-        $this->info('Ensuring a community and mobile test accounts…');
+        $this->info('Ensuring the Boston demo community and mobile test accounts…');
         $this->call('db:seed', ['--class' => CommunitySeeder::class, '--force' => true]);
+        $this->call('db:seed', ['--class' => BostonDemoSeeder::class, '--force' => true]);
         $this->call('db:seed', ['--class' => MobileTestAccountsSeeder::class, '--force' => true]);
 
         $this->info('Seeding demo content…');
         $this->call('db:seed', ['--class' => DemoContentSeeder::class, '--force' => true]);
 
         $this->newLine();
-        $this->info('Demo data ready.');
-        $this->line('  Resident login:        (555) 555-0100  ·  OTP 123456');
-        $this->line('  Community admin login: (555) 555-0200  ·  OTP 123456');
-        $this->line('  Legacy resident:       (555) 555-5555  ·  OTP 123456');
+        $this->info('Demo data ready. Showcase logins (OTP 221322):');
+        $this->line('  Resident:        resident@gohavena.com');
+        $this->line('  Community admin: community@gohavena.com');
+        $this->line('  Community:       Harbor Point Residences, Boston Seaport');
 
         return self::SUCCESS;
     }

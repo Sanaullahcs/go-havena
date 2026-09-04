@@ -4,8 +4,10 @@ import { API_BASE_URL } from "../constants/api-config";
 import { resolveMediaUrl } from "../utils/profile-display";
 import { guessImageMeta, uploadMultipartFile } from "../utils/upload-form-data";
 import i18n from "../i18n";
+import { getActiveRadiusMiles } from "./location-scope";
+import { formatMilesLabel } from "../constants/location-radius";
 
-export async function fetchBusinesses({ scope = "browse", status, search, page = 1, perPage = 20 } = {}) {
+export async function fetchBusinesses({ scope = "browse", status, search, page = 1, perPage = 20, radiusMiles } = {}) {
   const params = new URLSearchParams({
     page: String(page),
     per_page: String(perPage),
@@ -13,6 +15,10 @@ export async function fetchBusinesses({ scope = "browse", status, search, page =
   });
   if (status && status !== "all") params.set("status", status);
   if (search?.trim()) params.set("search", search.trim());
+  if (scope === "browse") {
+    const miles = radiusMiles === undefined ? getActiveRadiusMiles() : Number(radiusMiles);
+    if (Number.isFinite(miles) && miles > 0) params.set("radius_miles", String(miles));
+  }
   const res = await apiRequest(`/businesses?${params}`);
   return {
     businesses: (res.data ?? []).map(normalizeBusiness),
@@ -94,6 +100,9 @@ export async function publishBusinessWithImage(coverImage, payload) {
 
 export function normalizeBusiness(b) {
   if (!b) return null;
+  const distanceMiles = b.distance_miles == null ? null : Number(b.distance_miles);
+  const distance =
+    Number.isFinite(distanceMiles) && distanceMiles > 0 ? formatMilesLabel(distanceMiles) : "";
   return {
     id: b.id,
     name: b.name,
@@ -107,6 +116,11 @@ export function normalizeBusiness(b) {
     statusLabel: businessStatusLabel(b.status),
     ownerId: b.owner_id,
     ownerName: b.owner_name ?? "",
+    communityId: b.community_id ?? null,
+    communityName: b.community_name ?? "",
+    distanceMiles,
+    distance,
+    isLocal: b.is_local !== false,
     // Keep raw path so CrispImage / mediaImageSource can use bundled seed art.
     imageUrl: b.image_url ?? null,
     createdAt: b.created_at,

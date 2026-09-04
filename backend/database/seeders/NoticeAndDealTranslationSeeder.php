@@ -22,11 +22,11 @@ class NoticeAndDealTranslationSeeder extends Seeder
         }
 
         $translations = [
-            'Welcome to Florida Main Street' => [
-                'title_es' => 'Bienvenido a Florida Main Street',
-                'title_ar' => 'مرحباً بكم في فلوريدا ماين ستريت',
-                'body_es'  => 'Estamos encantados de darle la bienvenida a nuestra comunidad. Use esta aplicación para mantenerse al día con avisos, confirmar asistencia a eventos, reservar instalaciones, explorar el mercado vecinal y conectarse con sus vecinos.',
-                'body_ar'  => 'يسعدنا الترحيب بكم في مجتمعنا. استخدم هذا التطبيق للبقاء على اطلاع بالإعلانات، وتأكيد الحضور للفعاليات، وحجز المرافق، وتصفح سوق الجيران، والتواصل مع جيرانك.',
+            'Welcome to Harbor Point Residences' => [
+                'title_es' => 'Bienvenido a Harbor Point Residences',
+                'title_ar' => 'مرحباً بكم في هاربور بوينت',
+                'body_es'  => 'Bienvenido a Harbor Point. Use esta aplicación para avisos, eventos, reservas de amenidades, el mercado vecinal y mensajes con sus vecinos. La oficina de administración está en la planta baja de 50 Liberty Drive.',
+                'body_ar'  => 'مرحباً بكم في هاربور بوينت. استخدم هذا التطبيق للإعلانات والفعاليات وحجز المرافق وسوق الجيران والرسائل. مكتب الإدارة في الطابق الأرضي من 50 Liberty Drive.',
             ],
             'Pool Deck Resurfacing Schedule' => [
                 'title_es' => 'Programa de renovación de la terraza de la piscina',
@@ -58,11 +58,11 @@ class NoticeAndDealTranslationSeeder extends Seeder
                 'body_es'  => 'Nuestro equipo está renovando los jardines de entrada y las plantaciones del patio este mes con flores de temporada e iluminación mejorada.',
                 'body_ar'  => 'يقوم فريقنا بتجديد حدائق المدخل ومزروعات الفناء هذا الشهر بزهور موسمية وإضاءة محسّنة.',
             ],
-            'Saturday Farmers Market Shuttle' => [
-                'title_es' => 'Transporte al mercado de agricultores del sábado',
-                'title_ar' => 'حافلة سوق المزارعين يوم السبت',
-                'body_es'  => 'Un transporte gratuito saldrá del vestíbulo al mercado de agricultores cada sábado de 8:00 AM a 12:00 PM. Sin necesidad de reserva.',
-                'body_ar'  => 'ستنطلق حافلة مجانية من الردهة إلى سوق المزارعين كل سبت من 8:00 صباحاً حتى 12:00 ظهراً. بدون حجز مسبق.',
+            'Saturday Boston Public Market Shuttle' => [
+                'title_es' => 'Transporte al Boston Public Market del sábado',
+                'title_ar' => 'حافلة سوق بوسطن العام يوم السبت',
+                'body_es'  => 'Un transporte de cortesía sale del vestíbulo de Liberty Drive al Boston Public Market cada sábado de 8:00 AM a 12:00 PM. Sin necesidad de reserva.',
+                'body_ar'  => 'تنطلق حافلة مجانية من ردهة Liberty Drive إلى سوق بوسطن العام كل سبت من 8:00 صباحاً حتى 12:00 ظهراً. بدون حجز مسبق.',
             ],
             'New Resident Welcome Packets' => [
                 'title_es' => 'Paquetes de bienvenida para nuevos residentes',

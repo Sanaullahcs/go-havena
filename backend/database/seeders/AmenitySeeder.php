@@ -19,10 +19,13 @@ class AmenitySeeder extends Seeder
     {
         $community = $this->targetCommunityId
             ? DB::table('communities')->where('id', $this->targetCommunityId)->first()
-            : DB::table('communities')
+            : (BostonDemoSeeder::showcaseCommunityQuery()
                 ->where('status', 'active')
-                ->orderBy('id')
-                ->first();
+                ->first()
+                ?? DB::table('communities')
+                    ->where('status', 'active')
+                    ->orderBy('id')
+                    ->first());
 
         if (! $community) {
             $this->command?->warn('AmenitySeeder: no active community found.');
