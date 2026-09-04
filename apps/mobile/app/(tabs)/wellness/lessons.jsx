@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -65,7 +65,7 @@ export default function Lessons() {
   const [siblings, setSiblings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [expandAll, setExpandAll] = useState(false);
+  const [expandedIds, setExpandedIds] = useState(() => new Set());
 
   const decodedType = decodeURIComponent(String(type ?? ""));
   const categoryKey = String(categoryKeyParam || course?.categoryKey || "weight");
@@ -115,6 +115,37 @@ export default function Lessons() {
   );
 
   const playlistDetails = course?.lessons ?? [];
+
+  useEffect(() => {
+    setExpandedIds(new Set());
+  }, [courseId]);
+
+  const allExpanded = useMemo(
+    () =>
+      playlistDetails.length > 0 &&
+      playlistDetails.every((item) => expandedIds.has(item.id)),
+    [playlistDetails, expandedIds],
+  );
+
+  const toggleExpandAll = useCallback(() => {
+    setExpandedIds((prev) => {
+      const fullyExpanded =
+        playlistDetails.length > 0 &&
+        playlistDetails.every((item) => prev.has(item.id));
+      if (fullyExpanded) return new Set();
+      return new Set(playlistDetails.map((item) => item.id));
+    });
+  }, [playlistDetails]);
+
+  const toggleLessonExpanded = useCallback((id) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
   const totalDuration = useMemo(
     () => playlistDetails.reduce((sum, l) => sum + (l.durationMin ?? 0), 0),
     [playlistDetails],
@@ -173,7 +204,7 @@ export default function Lessons() {
       />
 
       <View style={styles.body}>
-        {loading ? (
+        {loading && !course ? (
           <View style={styles.centered}>
             <ActivityIndicator size="large" color={meta.color} />
           </View>
@@ -203,17 +234,17 @@ export default function Lessons() {
                 <View style={styles.sectionHeader}>
                   <Text style={styles.sectionLabel}>{sectionLabel}</Text>
                   <Pressable
-                    onPress={() => setExpandAll((value) => !value)}
+                    onPress={toggleExpandAll}
                     style={styles.expandBtn}
                     hitSlop={8}
                   >
                     <Text style={styles.expandText}>
-                      {expandAll
+                      {allExpanded
                         ? t("wellness.collapseAll", { defaultValue: "Collapse all" })
                         : t("wellness.expandAll", { defaultValue: "Expand all" })}
                     </Text>
                     <Feather
-                      name={expandAll ? "chevron-up" : "chevron-down"}
+                      name={allExpanded ? "chevron-up" : "chevron-down"}
                       size={sf(14)}
                       color={WellnessTheme.caption}
                     />
@@ -229,8 +260,9 @@ export default function Lessons() {
                     timeLabel={item.timeLabel}
                     completed={item.completed}
                     isWatching={item.isWatching}
-                    expanded={expandAll}
+                    expanded={expandedIds.has(item.id)}
                     onPress={() => openLesson(item)}
+                    onToggleExpand={() => toggleLessonExpanded(item.id)}
                   />
                 ))}
               </View>

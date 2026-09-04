@@ -23,6 +23,7 @@ export default function WellnessLessonRow({
   isWatching = false,
   expanded = false,
   onPress,
+  onToggleExpand,
 }) {
   const { t } = useTranslation();
   const indent = completed ? NUM + GAP + TICK + TICK_GAP : NUM + GAP;
@@ -30,7 +31,7 @@ export default function WellnessLessonRow({
   return (
     <View style={styles.card}>
       <Pressable
-        onPress={onPress}
+        onPress={onToggleExpand || onPress}
         style={({ pressed }) => [pressed && styles.pressed]}
       >
         <View style={styles.topRow}>
@@ -51,41 +52,44 @@ export default function WellnessLessonRow({
           >
             {title}
           </Text>
-          <Feather name={chevronForward()} size={sf(16)} color="#CBD5E1" />
+          <Pressable onPress={onPress} hitSlop={10} style={styles.chevronBtn}>
+            <Feather name={chevronForward()} size={sf(16)} color="#CBD5E1" />
+          </Pressable>
         </View>
 
-        {description ? (
-          <Text
-            style={[styles.description, { marginStart: indent }]}
-            numberOfLines={expanded ? 8 : 2}
-          >
-            {description}
-          </Text>
+        {expanded ? (
+          <>
+            {description ? (
+              <Text style={[styles.description, { marginStart: indent }]}>
+                {description}
+              </Text>
+            ) : null}
+
+            <View style={[styles.metaRow, { marginStart: indent }]}>
+              {timeLabel ? (
+                <View style={styles.duration}>
+                  <Feather name="clock" size={sf(12)} color={WellnessTheme.caption} />
+                  <Text style={styles.meta} numberOfLines={1}>
+                    {timeLabel}
+                  </Text>
+                </View>
+              ) : null}
+              {completed ? (
+                <View style={styles.donePill}>
+                  <Text style={styles.donePillText} numberOfLines={1}>
+                    {t("wellness.lessonDone")}
+                  </Text>
+                </View>
+              ) : isWatching ? (
+                <View style={styles.nextPill}>
+                  <Text style={styles.nextPillText} numberOfLines={1}>
+                    {t("wellness.upNext")}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </>
         ) : null}
-
-        <View style={[styles.metaRow, { marginStart: indent }]}>
-          {timeLabel ? (
-            <View style={styles.duration}>
-              <Feather name="clock" size={sf(12)} color={WellnessTheme.caption} />
-              <Text style={styles.meta} numberOfLines={1}>
-                {timeLabel}
-              </Text>
-            </View>
-          ) : null}
-          {completed ? (
-            <View style={styles.donePill}>
-              <Text style={styles.donePillText} numberOfLines={1}>
-                {t("wellness.lessonDone")}
-              </Text>
-            </View>
-          ) : isWatching ? (
-            <View style={styles.nextPill}>
-              <Text style={styles.nextPillText} numberOfLines={1}>
-                {t("wellness.upNext")}
-              </Text>
-            </View>
-          ) : null}
-        </View>
       </Pressable>
     </View>
   );
@@ -137,6 +141,11 @@ const styles = StyleSheet.create({
   tick: {
     marginStart: GAP,
     flexShrink: 0,
+  },
+  chevronBtn: {
+    flexShrink: 0,
+    paddingStart: sw(4),
+    paddingVertical: sw(4),
   },
   title: {
     flex: 1,

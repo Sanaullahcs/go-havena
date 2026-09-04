@@ -15,20 +15,16 @@ import { sf, sw } from "../../utils/responsive";
 
 const WAVE_H = sw(34);
 const ICON = sw(40);
-const IMAGE = sw(128);
+const IMAGE = sw(112);
 
 function HeroStat({ icon, value, label, color }) {
   return (
     <View style={styles.stat}>
       <View style={styles.statTop}>
         <Feather name={icon} size={sf(13)} color={color} />
-        <Text style={[styles.statValue, { color }]} numberOfLines={1}>
-          {value}
-        </Text>
+        <Text style={[styles.statValue, { color }]}>{value}</Text>
       </View>
-      <Text style={styles.statLabel} numberOfLines={1}>
-        {label}
-      </Text>
+      <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
 }
@@ -52,21 +48,19 @@ export default function WellnessCourseSummary({
   return (
     <View style={styles.card}>
       <View style={[styles.heroMedia, { backgroundColor: visual.wash }]}>
-        <Image source={thumb} style={styles.heroImage} resizeMode="cover" />
         <WellnessHeroWave width={cardWidth} blobColor={visual.blob} height={WAVE_H} />
-        <View style={styles.heroIcon}>
-          <Target size={sf(18)} color={T.teal} strokeWidth={2.2} />
-        </View>
-        <View style={styles.heroCopy}>
-          {description ? (
-            <Text style={styles.heroDescription} numberOfLines={4}>
-              {description}
-            </Text>
-          ) : (
-            <Text style={styles.heroDescription} numberOfLines={4}>
-              {t("wellness.defaultLessonDescription")}
-            </Text>
-          )}
+        <View style={styles.heroBody}>
+          <View style={styles.heroTop}>
+            <View style={styles.heroCopy}>
+              <View style={styles.heroIcon}>
+                <Target size={sf(18)} color={T.teal} strokeWidth={2.2} />
+              </View>
+              <Text style={styles.heroDescription} numberOfLines={4}>
+                {description || t("wellness.defaultLessonDescription")}
+              </Text>
+            </View>
+            <Image source={thumb} style={styles.heroImage} resizeMode="cover" />
+          </View>
           <View style={styles.statRow}>
             <HeroStat
               icon="clock"
@@ -122,33 +116,37 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     minHeight: sw(168),
   },
+  heroBody: {
+    zIndex: 2,
+    paddingStart: sw(16),
+    paddingEnd: sw(16),
+    paddingTop: sw(14),
+    paddingBottom: sw(40),
+  },
+  heroTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: sw(12),
+  },
+  heroCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
   heroImage: {
-    position: "absolute",
-    end: sw(-4),
-    top: sw(16),
     width: IMAGE,
     height: IMAGE,
     borderRadius: IMAGE / 2,
-    zIndex: 1,
+    flexShrink: 0,
+    marginTop: sw(2),
   },
   heroIcon: {
-    position: "absolute",
-    start: sw(16),
-    top: sw(14),
     width: ICON,
     height: ICON,
     borderRadius: sw(12),
     backgroundColor: T.mint,
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 2,
-  },
-  heroCopy: {
-    paddingStart: sw(16),
-    paddingEnd: sw(118),
-    paddingTop: sw(64),
-    paddingBottom: sw(42),
-    zIndex: 2,
+    marginBottom: sw(10),
   },
   heroDescription: {
     fontFamily: Fonts.bold,
@@ -161,12 +159,13 @@ const styles = StyleSheet.create({
   statRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginTop: sw(4),
-    gap: sw(10),
+    justifyContent: "space-between",
+    marginTop: sw(14),
   },
   stat: {
     flex: 1,
     minWidth: 0,
+    paddingEnd: sw(6),
   },
   statTop: {
     flexDirection: "row",
@@ -174,7 +173,7 @@ const styles = StyleSheet.create({
     gap: sw(5),
   },
   statValue: {
-    flex: 1,
+    flexShrink: 1,
     fontFamily: Fonts.bold,
     fontSize: sf(13),
     lineHeight: sf(17),
