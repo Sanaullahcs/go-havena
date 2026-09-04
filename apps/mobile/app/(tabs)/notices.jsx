@@ -110,6 +110,7 @@ export default function Notifications() {
           category: apiCategory,
           search: debouncedQuery || undefined,
           perPage: isSavedTab ? 100 : 50,
+          includeExpired: true,
         });
 
         let items = data;
@@ -192,9 +193,9 @@ export default function Notifications() {
           <View style={styles.cardData}>
             <NoticeCoverThumbnail
               imageUrl={notice.imageUrl}
-              size={sw(78)}
-              borderRadius={sw(12)}
-              backgroundColor="#D1FAF5"
+              notice={notice}
+              size={sw(56)}
+              borderRadius={sw(10)}
             />
 
             <View style={styles.cardContent}>
@@ -296,18 +297,56 @@ export default function Notifications() {
       );
     }
 
+    const emptyCopy = (() => {
+      if (query.trim()) {
+        return {
+          title: t("notices.emptyTitleSearch", { defaultValue: "No matches found" }),
+          hint: t("notices.emptyHintSearch", { defaultValue: "Try a different search term" }),
+        };
+      }
+      switch (selectedTab) {
+        case "events":
+          return {
+            title: t("notices.emptyTitleEvents", { defaultValue: "No events yet" }),
+            hint: t("notices.emptyHintEvents", {
+              defaultValue: "Upcoming community events will show up here",
+            }),
+          };
+        case "alerts":
+          return {
+            title: t("notices.emptyTitleAlerts", { defaultValue: "No alerts yet" }),
+            hint: t("notices.emptyHintAlerts", {
+              defaultValue: "Urgent community alerts will show up here",
+            }),
+          };
+        case "notices":
+          return {
+            title: t("notices.emptyTitleNotices", { defaultValue: "No notices yet" }),
+            hint: t("notices.emptyHintNotices", {
+              defaultValue: "Community notices will show up here",
+            }),
+          };
+        case "saved":
+          return {
+            title: t("notices.emptyTitleSaved", { defaultValue: "No saved notices" }),
+            hint: t("notices.emptyHintSaved", {
+              defaultValue: "Notices you save will appear here",
+            }),
+          };
+        default:
+          return {
+            title: t("notices.emptyTitleAll", { defaultValue: "No notices yet" }),
+            hint: t("notices.emptyHintDefault", {
+              defaultValue: "Check back soon for community updates",
+            }),
+          };
+      }
+    })();
+
     return (
       <View style={styles.emptyWrap}>
-        <Text style={styles.emptyTitle}>
-          {selectedTab === "saved" ? t("notices.emptyTitleSaved") : t("notices.emptyTitleAll")}
-        </Text>
-        <Text style={styles.emptyHint}>
-          {selectedTab === "saved"
-            ? t("notices.emptyHintSaved")
-            : query.trim()
-              ? t("notices.emptyHintSearch")
-              : t("notices.emptyHintDefault")}
-        </Text>
+        <Text style={styles.emptyTitle}>{emptyCopy.title}</Text>
+        <Text style={styles.emptyHint}>{emptyCopy.hint}</Text>
       </View>
     );
   }, [loading, query, selectedTab, error, currentTab, t]);

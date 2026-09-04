@@ -117,13 +117,16 @@ assert(
 );
 
 assert(
-  "event with past end time today stays visible for the day",
-  !isNoticeExpiredForHome({
-    category: "event",
-    event_date: todayKey(),
-    event_time: "09:00",
-    event_time_end: pastTime24h(),
-  }),
+  "event with past end time today is expired",
+  isNoticeExpiredForHome(
+    {
+      category: "event",
+      event_date: todayKey(),
+      event_time: "09:00",
+      event_time_end: pastTime24h(),
+    },
+    new Date(`${todayKey()}T23:59:00`),
+  ),
 );
 
 assert(
@@ -185,8 +188,8 @@ const events = pickUpcomingEvents([
 ]);
 
 assert(
-  "happening soon keeps today's event and tomorrow, hides yesterday",
-  events.length === 2 && events.some((e) => e.id === 10) && events.some((e) => e.id === 11),
+  "happening soon keeps tomorrow only, hides yesterday and ended today",
+  events.length === 1 && events.some((e) => e.id === 11),
 );
 
 console.log("");

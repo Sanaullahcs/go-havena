@@ -205,7 +205,7 @@ export function normalizeNotice(raw) {
     category: raw.category ?? "general",
     categoryLabel: i18n.t(`categories.${raw.category ?? "general"}`, { defaultValue: theme.label }),
     location: raw.location ?? null,
-    imageUrl: resolveNoticeImageUrl(raw.image_url),
+    imageUrl: resolveMediaUrl(resolveNoticeImageUrl(raw.image_url)),
     eventDate: raw.event_date ?? null,
     eventTime: raw.event_time ?? null,
     eventTimeEnd: raw.event_time_end ?? null,
@@ -344,8 +344,6 @@ export function pickNeighborhoodCarousel(notices, limit = HOME_SECTION_CARD_LIMI
 /** Home "Happening Soon" — upcoming events sorted by date (past dates hidden). */
 export function isUpcomingEventForHome(notice) {
   if (!notice?.isEvent && !isEventNotice(notice)) return false;
-  const dayKey = notice?.eventDate ?? notice?.event_date;
-  if (!dayKey) return true;
   return !isNoticeExpiredForHome(notice);
 }
 
@@ -364,11 +362,18 @@ export function pickUpcomingEvents(notices, limit = HOME_SECTION_CARD_LIMIT) {
     .slice(0, limit);
 }
 
-export async function fetchNotices({ category, categoryGroup, search, perPage = 50 } = {}) {
+export async function fetchNotices({
+  category,
+  categoryGroup,
+  search,
+  perPage = 50,
+  includeExpired = false,
+} = {}) {
   const params = new URLSearchParams();
   if (categoryGroup) params.set("category_group", categoryGroup);
   if (category) params.set("category", category);
   if (search?.trim()) params.set("search", search.trim());
+  if (includeExpired) params.set("include_expired", "1");
   params.set("per_page", String(perPage));
   const qs = params.toString() ? `?${params}` : "";
 
@@ -377,7 +382,9 @@ export async function fetchNotices({ category, categoryGroup, search, perPage = 
     const items = (res.data ?? [])
       .map(normalizeNotice)
       .filter(Boolean)
-      .filter((n) => !isNoticeExpiredForHome(n));
+      // Home callers leave includeExpired false so past schedules stay off the banner.
+      // Community Updates passes includeExpired true to keep the full history.
+      .filter((n) => includeExpired || !isNoticeExpiredForHome(n));
     return {
       notices: sortNotices(items),
       meta: res.meta ?? {},

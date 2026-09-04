@@ -31,6 +31,7 @@ import {
   leaveEvent,
   resolveNoticeId,
 } from "../../../services/notices-api";
+import { isNoticeExpiredForHome } from "../../../utils/notice-home-expiry";
 import { startConversation } from "../../../services/messages-api";
 import { getUser, getToken } from "../../../services/auth-session";
 import { getApiErrorMessage, getApiErrorCode } from "../../../utils/auth-errors";
@@ -273,9 +274,19 @@ export default function EventDetailScreen() {
     (Boolean(event?.isFull) ||
       (hasCapacityLimit && (event?.rsvpCount ?? 0) >= event.eventCapacity));
   const waitlist = event?.waitlist ?? [];
+  const hasEventEnded = useMemo(
+    () => Boolean(event && isNoticeExpiredForHome(event)),
+    [event],
+  );
+
+  useEffect(() => {
+    if (hasEventEnded) {
+      setLeavePending(false);
+    }
+  }, [hasEventEnded]);
 
   const performJoin = async () => {
-    if (!event?.id || joining || isOrganizer) return;
+    if (!event?.id || joining || isOrganizer || hasEventEnded) return;
 
     const token = await getToken();
     if (!token) {
@@ -316,7 +327,7 @@ export default function EventDetailScreen() {
   };
 
   const handleRsvpPress = async () => {
-    if (!event?.id || joining || isOrganizer) return;
+    if (!event?.id || joining || isOrganizer || hasEventEnded) return;
 
     if (isJoined || isWaitlisted) {
       if (!leavePending) {
@@ -390,7 +401,7 @@ export default function EventDetailScreen() {
   }, [isAtCapacity, isJoined, isWaitlisted, t]);
 
   const footerHint = useMemo(() => {
-    if (isOrganizer || isJoined || leavePending) return null;
+    if (hasEventEnded || isOrganizer || isJoined || leavePending) return null;
     if (isWaitlisted) {
       return event?.waitlistPosition
         ? t('events.waitlistPositionLabel', { position: event.waitlistPosition })
@@ -406,7 +417,11 @@ export default function EventDetailScreen() {
       return t('events.neighborsGoing', { count: event.rsvpCount });
     }
     return null;
-  }, [event, hasCapacityLimit, isAtCapacity, isJoined, isOrganizer, isWaitlisted, leavePending, t]);
+  }, [event, hasCapacityLimit, hasEventEnded, isAtCapacity, isJoined, isOrganizer, isWaitlisted, leavePending, t]);
+
+  const canChangeRsvp = !hasEventEnded;
+  const showRsvpFooter =
+    requiresRsvp && (canChangeRsvp || isJoined || isWaitlisted || leavePending);
 
   if (loading) {
     return (
@@ -465,6 +480,8 @@ export default function EventDetailScreen() {
           <NoticeCoverMedia
             fill
             imageUrl={event.imageUrl}
+            notice={event}
+            kind="event"
             onImageError={() => setHeroImageFailed(true)}
           />
           {hasHeroImage && !heroImageFailed ? (
@@ -656,6 +673,7 @@ export default function EventDetailScreen() {
           </View>
         ) : null}
 
+        {(isOrganizer || showRsvpFooter) ? (
         <View style={styles.footer}>
           {isOrganizer ? (
             <TouchableOpacity
@@ -666,7 +684,7 @@ export default function EventDetailScreen() {
               <Feather name="share-2" size={sf(20)} color="#FFFFFF" />
               <Text style={styles.shareEventBtnText}>{t('events.shareEvent')}</Text>
             </TouchableOpacity>
-          ) : requiresRsvp && leavePending ? (
+          ) : showRsvpFooter && leavePending && canChangeRsvp ? (
             <View style={styles.leaveConfirmBox}>
               <Text style={styles.leaveConfirmText}>
                 {isWaitlisted ? t('events.leaveWaitlistConfirm') : t('events.leaveEventConfirm')}
@@ -699,7 +717,7 @@ export default function EventDetailScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          ) : requiresRsvp ? (
+          ) : showRsvpFooter ? (
             <>
               {isJoined ? (
                 <View style={styles.goingBadge}>
@@ -725,37 +743,40 @@ export default function EventDetailScreen() {
                   <Text style={styles.joinErrorText}>{joinError}</Text>
                 </View>
               ) : null}
-              <TouchableOpacity
-                activeOpacity={0.9}
-                style={[
-                  styles.joinBtn,
-                  (isJoined || isWaitlisted) && styles.joinBtnLeave,
-                  isAtCapacity && !isWaitlisted && styles.joinBtnWaitlist,
-                  joining && styles.joinBtnDisabled,
-                ]}
-                onPress={handleRsvpPress}
-                disabled={joining}
-              >
-                {joining ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={isJoined || isWaitlisted ? "#DC2626" : "#FFFFFF"}
-                  />
-                ) : (
-                  <Text
-                    style={[
-                      styles.joinBtnText,
-                      (isJoined || isWaitlisted) && styles.joinBtnTextLeave,
-                      isAtCapacity && !isWaitlisted && styles.joinBtnTextWaitlist,
-                    ]}
-                  >
-                    {joinButtonLabel}
-                  </Text>
-                )}
-              </TouchableOpacity>
+              {canChangeRsvp ? (
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={[
+                    styles.joinBtn,
+                    (isJoined || isWaitlisted) && styles.joinBtnLeave,
+                    isAtCapacity && !isWaitlisted && styles.joinBtnWaitlist,
+                    joining && styles.joinBtnDisabled,
+                  ]}
+                  onPress={handleRsvpPress}
+                  disabled={joining}
+                >
+                  {joining ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={isJoined || isWaitlisted ? "#DC2626" : "#FFFFFF"}
+                    />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.joinBtnText,
+                        (isJoined || isWaitlisted) && styles.joinBtnTextLeave,
+                        isAtCapacity && !isWaitlisted && styles.joinBtnTextWaitlist,
+                      ]}
+                    >
+                      {joinButtonLabel}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              ) : null}
             </>
           ) : null}
         </View>
+        ) : null}
       </ScrollView>
 
       <Modal

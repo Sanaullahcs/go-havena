@@ -52,7 +52,8 @@ function EventCard({ item, width, imageH, cardHeight, onPress }) {
           <NoticeCoverMedia
             fill
             imageUrl={item.imageUrl}
-            backgroundColor={T.mint}
+            notice={item.notice}
+            kind="event"
           />
           {item.date ? (
             <View style={styles.dateBadge}>

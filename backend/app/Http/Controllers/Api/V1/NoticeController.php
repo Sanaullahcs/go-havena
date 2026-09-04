@@ -77,7 +77,11 @@ class NoticeController extends Controller
         $query->where('notices.status', 'published')
             ->where('notices.review_status', 'approved');
 
-        NoticeExpiry::applyVisibleScheduleFilter($query, 'notices', $communityId);
+        // Default resident feed hides ended schedules (home). Community Updates can
+        // pass include_expired=1 to keep past notices/events/alerts in the archive list.
+        if (! $request->boolean('include_expired')) {
+            NoticeExpiry::applyVisibleScheduleFilter($query, 'notices', $communityId);
+        }
 
         if (! $this->isPlatformAdmin($user)) {
             NoticeAudienceService::applyResidentVisibilityFilter($query, (int) $user->id);
@@ -229,9 +233,7 @@ class NoticeController extends Controller
             return response()->json(['message' => 'Notice not found'], 404);
         }
 
-        if (! $this->isPlatformAdmin($user) && NoticeExpiry::isExpired($notice, null, (int) $notice->community_id)) {
-            return response()->json(['message' => 'Notice not found'], 404);
-        }
+        // Expired schedules remain readable from Community Updates (include_expired list).
 
         return response()->json(['data' => $this->formatNotice($notice, $user, true)]);
     }
