@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   ChevronRight,
   Download,
@@ -28,6 +28,7 @@ import {
 } from "@/lib/admin/document-categories";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
+import { adminTableBusy } from "@/lib/admin/table-loading";
 import {
   createDocument,
   createDocumentCategory,
@@ -63,9 +64,12 @@ function formatDate(value: string) {
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<CommunityDocument[]>([]);
   const [categories, setCategories] = useState<DocumentCategory[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const hasLoadedOnce = useRef(false);
+  const [isPending, startTransition] = useTransition();
 
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("all");
@@ -97,7 +101,9 @@ export default function DocumentsPage() {
   );
   const canSubmitForm = !hasFieldErrors(liveErrors);
 
-  const load = async () => {
+  const load = async (silent = false) => {
+    if (!hasLoadedOnce.current) setInitialLoading(true);
+    else if (!silent) setRefreshing(true);
     try {
       const res = await fetchAdminDocuments();
       setDocuments(res.data);
@@ -106,14 +112,16 @@ export default function DocumentsPage() {
     } catch (err) {
       setPageError(apiError(err));
     } finally {
-      setLoading(false);
+      hasLoadedOnce.current = true;
+      setInitialLoading(false);
+      setRefreshing(false);
     }
   };
 
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    setPage(1);
+    startTransition(() => setPage(1));
   }, [search, filterCat, filterStatus]);
 
   const categoryScoped = useMemo(
@@ -281,9 +289,9 @@ export default function DocumentsPage() {
     }
   };
 
-  if (loading) return <PageLoader skeleton />;
+  if (initialLoading) return <PageLoader skeleton />;
   if (pageError && !documents.length) {
-    return <PageError message={pageError} onRetry={() => { setPageError(null); setLoading(true); load(); }} />;
+    return <PageError message={pageError} onRetry={() => { setPageError(null); void load(); }} />;
   }
 
   return (
@@ -366,7 +374,7 @@ export default function DocumentsPage() {
           <div className="space-y-1">
             <button
               type="button"
-              onClick={() => setFilterCat("all")}
+              onClick={() => startTransition(() => setFilterCat("all"))}
               className={[
                 "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition",
                 filterCat === "all" ? "bg-blue-50 font-semibold text-blue-700 ring-1 ring-blue-100" : "text-slate-700 hover:bg-slate-50",
@@ -391,7 +399,7 @@ export default function DocumentsPage() {
                 >
                   <button
                     type="button"
-                    onClick={() => setFilterCat(cat.name)}
+                    onClick={() => startTransition(() => setFilterCat(cat.name))}
                     className={[
                       "flex min-w-0 flex-1 items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition",
                       filterCat === cat.name ? "font-semibold text-blue-700" : "text-slate-700",
@@ -424,11 +432,12 @@ export default function DocumentsPage() {
           totalCount={categoryScoped.length}
           visibleCount={filtered.length}
           search={search}
-          onSearch={setSearch}
+          onSearch={(value) => startTransition(() => setSearch(value))}
           searchPlaceholder="Search title, category…"
+          loading={adminTableBusy(refreshing, submitting, savingCategory, isPending)}
           filters={statusFilters}
           activeFilter={filterStatus}
-          onFilter={(key) => setFilterStatus(key as StatusFilter)}
+          onFilter={(key) => startTransition(() => setFilterStatus(key as StatusFilter))}
           isEmpty={filtered.length === 0}
           empty={search || filterCat !== "all" || filterStatus !== "all" ? "No documents match your filters." : "No documents yet. Click \"Add Document\" to upload your first file."}
         >
@@ -481,7 +490,7 @@ export default function DocumentsPage() {
             total={filtered.length}
             page={Math.min(page, lastPage)}
             lastPage={lastPage}
-            onPageChange={setPage}
+            onPageChange={(nextPage) => startTransition(() => setPage(nextPage))}
             pageSize={DOCUMENTS_PAGE_SIZE}
           />
         </DataTable>

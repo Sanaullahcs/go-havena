@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { AdminBadge, StatTile, DataTable, DtTable, DtHead, DtRow, DtCell, DtPagination } from "@/components/admin/ui";
 import { confirmAction, toastSuccess, toastError } from "@/lib/alert";
@@ -8,6 +8,8 @@ import { fetchReports, resolveReport, escalateReport, dismissReport, type Report
 import { apiError } from "@/lib/api/client";
 import { PageLoader, PageError } from "@/components/shared/page-states";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { adminTableBusy, isAdminSearchPending, shouldSkipStalePageFetch } from "@/lib/admin/table-loading";
 
 const STATS = [
   { label: "Open Reports",     value: "34",  hint: "12 marked urgent",     tone: "red"   as const, icon: <IcoFlag /> },
@@ -48,23 +50,30 @@ type PriorityFilter = "all" | "urgent" | "high" | "normal" | "low";
 export default function ModerationPage() {
   const [statusFilter, setStatus]     = useState<StatusFilter>("all");
   const [priorityFilter, setPriority] = useState<PriorityFilter>("all");
-  const [search, setSearch]           = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 450);
+  const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
 
   const [reports, setReports]   = useState<Report[]>([]);
   const [total, setTotal]       = useState(0);
   const [page, setPage]         = useState(1);
   const [lastPage, setLastPage] = useState(1);
-  const [loading, setLoading]   = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [error, setError]       = useState<string | null>(null);
+  const hasLoadedOnce = useRef(false);
+  const prevFilterKey = useRef(`${statusFilter}|${priorityFilter}|`);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!hasLoadedOnce.current) setInitialLoading(true);
+    else if (!silent) setRefreshing(true);
     setError(null);
     try {
       const params: Record<string, unknown> = { page, per_page: ADMIN_TABLE_PAGE_SIZE };
       if (statusFilter !== "all")   params.status   = statusFilter;
       if (priorityFilter !== "all") params.severity = priorityFilter;
-      if (search) params.search = search;
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
       const res = await fetchReports(params);
       setReports(res.data);
       setTotal(res.meta.total);
@@ -72,15 +81,17 @@ export default function ModerationPage() {
     } catch (err) {
       setError(apiError(err));
     } finally {
-      setLoading(false);
+      hasLoadedOnce.current = true;
+      setInitialLoading(false);
+      setRefreshing(false);
     }
-  }, [statusFilter, priorityFilter, search, page]);
-
-  useEffect(() => { load(); }, [load]);
+  }, [statusFilter, priorityFilter, debouncedSearch, page]);
 
   useEffect(() => {
-    setPage(1);
-  }, [statusFilter, priorityFilter, search]);
+    const filterKey = `${statusFilter}|${priorityFilter}|${debouncedSearch}`;
+    if (shouldSkipStalePageFetch(filterKey, page, setPage, prevFilterKey)) return;
+    void load();
+  }, [statusFilter, priorityFilter, debouncedSearch, page, load]);
 
   const countStatus = (s: StatusFilter) => s === "all" ? total : reports.filter((r) => r.status === s).length;
 
@@ -93,8 +104,8 @@ export default function ModerationPage() {
     count: p === "all" ? undefined : reports.filter((r) => r.severity === p).length,
   }));
 
-  if (loading) return <PageLoader skeleton />;
-  if (error)   return <PageError message={error} onRetry={load} />;
+  if (initialLoading) return <PageLoader skeleton />;
+  if (error)   return <PageError message={error} onRetry={() => load()} />;
 
   return (
     <div className="space-y-6">
@@ -118,9 +129,11 @@ export default function ModerationPage() {
         title="Report Queue"
         totalCount={total}
         visibleCount={reports.length}
-        search={search}
-        onSearch={setSearch}
+        search={searchInput}
+        onSearch={setSearchInput}
         searchPlaceholder="Search by reporter, type, description…"
+        searching={isSearchPending}
+        loading={adminTableBusy(refreshing, actionLoading)}
         filters={statusFilters}
         activeFilter={statusFilter}
         onFilter={setStatus}
@@ -176,8 +189,10 @@ export default function ModerationPage() {
                           onClick: async () => {
                             const res = await confirmAction({ title: "Resolve this report?", text: "The report will be marked as resolved and archived.", confirmText: "Resolve", color: "green" });
                             if (res.isConfirmed) {
-                              try { await resolveReport(r.id); toastSuccess("Report resolved successfully."); load(); }
+                              setActionLoading(true);
+                              try { await resolveReport(r.id); toastSuccess("Report resolved successfully."); await load(true); }
                               catch (err) { toastError(apiError(err)); }
+                              finally { setActionLoading(false); }
                             }
                           },
                         },
@@ -189,8 +204,10 @@ export default function ModerationPage() {
                           onClick: async () => {
                             const res = await confirmAction({ title: "Escalate report?", text: "This will flag it for senior review.", confirmText: "Escalate", icon: "warning", color: "amber" });
                             if (res.isConfirmed) {
-                              try { await escalateReport(r.id); toastSuccess("Report escalated to senior moderation."); load(); }
+                              setActionLoading(true);
+                              try { await escalateReport(r.id); toastSuccess("Report escalated to senior moderation."); await load(true); }
                               catch (err) { toastError(apiError(err)); }
+                              finally { setActionLoading(false); }
                             }
                           },
                         },
@@ -201,8 +218,10 @@ export default function ModerationPage() {
                           onClick: async () => {
                             const res = await confirmAction({ title: "Dismiss this report?", text: "The report will be closed without action.", confirmText: "Dismiss" });
                             if (res.isConfirmed) {
-                              try { await dismissReport(r.id); toastSuccess("Report dismissed."); load(); }
+                              setActionLoading(true);
+                              try { await dismissReport(r.id); toastSuccess("Report dismissed."); await load(true); }
                               catch (err) { toastError(apiError(err)); }
+                              finally { setActionLoading(false); }
                             }
                           },
                         },

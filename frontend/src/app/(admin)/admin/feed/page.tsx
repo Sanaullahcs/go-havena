@@ -23,6 +23,7 @@ import { getManagedCommunityId, isSystemAdminUser } from "@/lib/auth/session";
 import { PageLoader, PageError } from "@/components/shared/page-states";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
+import { adminTableBusy, isAdminSearchPending, shouldSkipStalePageFetch } from "@/lib/admin/table-loading";
 
 const EMPTY_STATS: AdminPostStats = {
   total: 0,
@@ -38,6 +39,7 @@ export default function AdminFeedPage() {
   const highlightPostId = searchParams.get("post");
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebouncedValue(searchInput, 400);
+  const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
   const [page, setPage] = useState(1);
   const [posts, setPosts] = useState<AdminPost[]>([]);
   const [stats, setStats] = useState<AdminPostStats>(EMPTY_STATS);
@@ -52,6 +54,7 @@ export default function AdminFeedPage() {
   const [reportsPost, setReportsPost] = useState<AdminPost | null>(null);
   const [postReports, setPostReports] = useState<AdminPostReport[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
+  const prevFilterKey = useRef(`|${debouncedSearch}`);
 
   const handleDelete = async (post: AdminPost) => {
     if (actionId !== null) return;
@@ -128,8 +131,11 @@ export default function AdminFeedPage() {
     }
   }, [debouncedSearch, page]);
 
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); }, [debouncedSearch]);
+  useEffect(() => {
+    const filterKey = `|${debouncedSearch}`;
+    if (shouldSkipStalePageFetch(filterKey, page, setPage, prevFilterKey)) return;
+    void load();
+  }, [debouncedSearch, page, load]);
 
   useEffect(() => {
     if (!highlightPostId || posts.length === 0) return;
@@ -172,7 +178,8 @@ export default function AdminFeedPage() {
         searchPlaceholder="Search by author, community, or content…"
         isEmpty={posts.length === 0}
         empty="No posts in the feed yet."
-        searching={refreshing}
+        searching={isSearchPending}
+        loading={adminTableBusy(refreshing, actionId !== null)}
       >
         <DtTable>
           <DtHead cols={[

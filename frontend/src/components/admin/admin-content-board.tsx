@@ -8,6 +8,7 @@ import NoticeFormModal from "@/components/admin/notice-form-modal";
 import NoticeViewModal from "@/components/admin/notice-view-modal";
 import { confirmAction, confirmDelete, toastSuccess, toastError } from "@/lib/alert";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { adminTableBusy, isAdminSearchPending } from "@/lib/admin/table-loading";
 import {
   fetchAdminNotices,
   fetchNotice,
@@ -198,6 +199,7 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
   );
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebouncedValue(searchInput, 450);
+  const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<Notice | null>(null);
   const [viewing, setViewing] = useState<Notice | null>(null);
@@ -424,7 +426,8 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
         visibleCount={notices.length}
         search={searchInput}
         onSearch={setSearchInput}
-        searching={refreshing}
+        searching={isSearchPending}
+        loading={adminTableBusy(refreshing, actionId !== null, submitting)}
         searchPlaceholder="Search title, community, author…"
         filters={boardFilters}
         activeFilter={boardFilter}

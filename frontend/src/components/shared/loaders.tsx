@@ -1,6 +1,6 @@
 "use client";
 
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { useId, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { HavenaMark } from "@/components/shared/havena-mark";
 
 const shimmer =
@@ -37,6 +37,113 @@ export function DotPulse({ className = "" }: { className?: string }) {
         />
       ))}
     </span>
+  );
+}
+
+/** Top indeterminate bar for table / dashboard refresh states. */
+export function TableProgressBar() {
+  return (
+    <div
+      className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[3px] overflow-hidden bg-slate-100/80"
+      role="progressbar"
+      aria-label="Loading"
+    >
+      <div className="nl-table-progress-bar h-full w-1/3 rounded-full bg-gradient-to-r from-transparent via-[#1B4F8A] to-[#38BDF8] shadow-[0_0_10px_rgba(43,127,212,0.45)]" />
+    </div>
+  );
+}
+
+const TABLE_SPINNER_SIZES = {
+  sm: { px: 28, stroke: 2.5, arc: 0.62 },
+  md: { px: 36, stroke: 3, arc: 0.68 },
+  lg: { px: 44, stroke: 3.5, arc: 0.72 },
+} as const;
+
+/** Borderless brand spinner for list and dashboard overlays. */
+export function TableLoadingSpinner({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
+  const gradId = useId().replace(/:/g, "");
+  const { px, stroke, arc } = TABLE_SPINNER_SIZES[size];
+  const center = px / 2;
+  const radius = (px - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const arcLength = circumference * arc;
+
+  return (
+    <div
+      className="relative flex items-center justify-center"
+      style={{ width: px, height: px }}
+      role="status"
+      aria-label="Loading"
+    >
+      <span
+        className="nl-table-spinner-glow absolute inset-0 rounded-full"
+        style={{ background: "radial-gradient(circle, rgba(27,79,138,0.14) 0%, transparent 68%)" }}
+        aria-hidden
+      />
+
+      <svg
+        width={px}
+        height={px}
+        viewBox={`0 0 ${px} ${px}`}
+        className="relative"
+        aria-hidden
+      >
+        <defs>
+          <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#163A66" />
+            <stop offset="45%" stopColor="#1B4F8A" />
+            <stop offset="100%" stopColor="#38BDF8" />
+          </linearGradient>
+        </defs>
+
+        <circle
+          cx={center}
+          cy={center}
+          r={radius}
+          fill="none"
+          stroke="#E8EEF4"
+          strokeWidth={stroke}
+        />
+
+        <g className="nl-table-spinner-orbit" style={{ transformOrigin: `${center}px ${center}px` }}>
+          <circle
+            cx={center}
+            cy={center}
+            r={radius}
+            fill="none"
+            stroke={`url(#${gradId})`}
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={`${arcLength} ${circumference - arcLength}`}
+            strokeDashoffset={circumference * 0.12}
+          />
+        </g>
+      </svg>
+    </div>
+  );
+}
+
+/** Full-area overlay: progress bar + centered spinner (no text, no border, no blur). */
+export function TableLoadingOverlay({
+  minHeight = "12rem",
+  spinner = true,
+}: {
+  minHeight?: string;
+  /** When false, only the top progress bar is shown (lighter UX for search debounce). */
+  spinner?: boolean;
+}) {
+  return (
+    <>
+      <TableProgressBar />
+      {spinner ? (
+        <div
+          className="absolute inset-0 z-10 flex items-center justify-center bg-white/35"
+          style={{ minHeight }}
+        >
+          <TableLoadingSpinner />
+        </div>
+      ) : null}
+    </>
   );
 }
 

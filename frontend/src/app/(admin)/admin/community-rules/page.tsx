@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition, useRef } from "react";
 import {
   AlertTriangle,
   BookOpen,
@@ -45,6 +45,7 @@ import {
 } from "@/lib/admin/community-rule-categories";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
+import { adminTableBusy } from "@/lib/admin/table-loading";
 
 /* ── constants ─────────────────────────────────────────────── */
 const RULES_PAGE_SIZE = 6;
@@ -98,9 +99,12 @@ function formatDate(value: string) {
 export default function CommunityRulesPage() {
   const [rules, setRules] = useState<CommunityRule[]>([]);
   const [categories, setCategories] = useState<RuleCategory[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const hasLoadedOnce = useRef(false);
+  const [isPending, startTransition] = useTransition();
 
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("all");
@@ -131,7 +135,9 @@ export default function CommunityRulesPage() {
   );
   const canSubmitForm = !hasFieldErrors(liveErrors);
 
-  const load = async () => {
+  const load = async (silent = false) => {
+    if (!hasLoadedOnce.current) setInitialLoading(true);
+    else if (!silent) setRefreshing(true);
     try {
       const res = await fetchAdminRules();
       setRules(res.data);
@@ -140,14 +146,16 @@ export default function CommunityRulesPage() {
     } catch (err) {
       setPageError(apiError(err));
     } finally {
-      setLoading(false);
+      hasLoadedOnce.current = true;
+      setInitialLoading(false);
+      setRefreshing(false);
     }
   };
 
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    setPage(1);
+    startTransition(() => setPage(1));
   }, [search, filterCat, filterSev, filterStatus]);
 
   /** Rules limited by selected category only (before search/status/severity). */
@@ -328,9 +336,9 @@ export default function CommunityRulesPage() {
     }
   };
 
-  if (loading) return <PageLoader skeleton />;
+  if (initialLoading) return <PageLoader skeleton />;
   if (pageError && !rules.length) {
-    return <PageError message={pageError} onRetry={() => { setPageError(null); setLoading(true); load(); }} />;
+    return <PageError message={pageError} onRetry={() => { setPageError(null); void load(); }} />;
   }
 
   return (
@@ -447,7 +455,7 @@ export default function CommunityRulesPage() {
           <div className="space-y-1">
             <button
               type="button"
-              onClick={() => setFilterCat("all")}
+              onClick={() => startTransition(() => setFilterCat("all"))}
               className={[
                 "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition",
                 filterCat === "all"
@@ -479,7 +487,7 @@ export default function CommunityRulesPage() {
                 >
                   <button
                     type="button"
-                    onClick={() => setFilterCat(cat.name)}
+                    onClick={() => startTransition(() => setFilterCat(cat.name))}
                     className={[
                       "flex min-w-0 flex-1 items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition",
                       filterCat === cat.name
@@ -522,14 +530,15 @@ export default function CommunityRulesPage() {
           totalCount={categoryScoped.length}
           visibleCount={filtered.length}
           search={search}
-          onSearch={setSearch}
+          onSearch={(value) => startTransition(() => setSearch(value))}
           searchPlaceholder="Search title, category, description…"
+          loading={adminTableBusy(refreshing, submitting, savingCategory, isPending)}
           filters={statusFilters}
           activeFilter={filterStatus}
-          onFilter={(key) => setFilterStatus(key as StatusFilter)}
+          onFilter={(key) => startTransition(() => setFilterStatus(key as StatusFilter))}
           secondaryFilters={severityFilters}
           activeSecondary={filterSev}
-          onSecondary={setFilterSev}
+          onSecondary={(key) => startTransition(() => setFilterSev(key))}
           isEmpty={filtered.length === 0}
           empty={
             search || filterCat !== "all" || filterSev !== "all" || filterStatus !== "all"
@@ -626,7 +635,7 @@ export default function CommunityRulesPage() {
             total={filtered.length}
             page={Math.min(page, lastPage)}
             lastPage={lastPage}
-            onPageChange={setPage}
+            onPageChange={(nextPage) => startTransition(() => setPage(nextPage))}
             pageSize={RULES_PAGE_SIZE}
           />
         </DataTable>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Building2, CalendarPlus, Clock3, MapPin, Plus, Users } from "lucide-react";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
@@ -32,6 +32,7 @@ import {
 } from "@/lib/api/amenities";
 import { PageError, PageLoader } from "@/components/shared/page-states";
 import { getAdminCache, setAdminCache } from "@/lib/admin/navigation-cache";
+import { adminTableBusy } from "@/lib/admin/table-loading";
 
 type StatusFilter = "all" | "mine" | "my_bookings" | "pending" | "bookable" | "open" | "closed";
 
@@ -69,6 +70,7 @@ export default function AdminAmenitiesPage() {
   const [booking, setBooking] = useState<Amenity | null>(null);
   const [trackingBooking, setTrackingBooking] = useState<Amenity | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -310,10 +312,10 @@ export default function AdminAmenitiesPage() {
         totalCount={amenities.length}
         visibleCount={filtered.length}
         search={search}
-        onSearch={setSearch}
-        searching={refreshing}
+        onSearch={(value) => startTransition(() => setSearch(value))}
+        loading={adminTableBusy(refreshing, submitting, isPending)}
         activeFilter={statusFilter}
-        onFilter={(key) => setStatusFilter(key as StatusFilter)}
+        onFilter={(key) => startTransition(() => setStatusFilter(key as StatusFilter))}
         filters={filters}
         empty={
           amenities.length === 0

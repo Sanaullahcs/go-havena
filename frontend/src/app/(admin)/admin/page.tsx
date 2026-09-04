@@ -325,6 +325,7 @@ export default function AdminOverviewPage() {
         </PendingAlertBanner>
       ) : null}
 
+      <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
         {[...primaryKpi, ...secondaryKpi].map((item) => (
           <StatTile key={item.label} {...item} />

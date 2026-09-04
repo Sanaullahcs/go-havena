@@ -31,6 +31,7 @@ import { getManagedCommunityId, getUser, isSystemAdminUser } from "@/lib/auth/se
 import { PageLoader, PageError } from "@/components/shared/page-states";
 import Link from "next/link";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { adminTableBusy, isAdminSearchPending } from "@/lib/admin/table-loading";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { PhoneDisplay } from "@/components/admin/phone-display";
 import { AdminPhoneInput } from "@/components/admin/phone-input";
@@ -98,6 +99,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   );
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebouncedValue(searchInput, 450);
+  const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", unit: "", communityId: "" });
@@ -474,7 +476,8 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
         onFilter={(key) => setFilter(key as Filter)}
         isEmpty={members.length === 0}
         empty="No members match your search or filters."
-        searching={refreshing}
+        searching={isSearchPending}
+        loading={adminTableBusy(refreshing, profileActionLoading)}
       >
         <DtTable>
           <DtHead cols={[
@@ -543,12 +546,15 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                                   onClick: async () => {
                                     const r = await confirmDelete({ title: `Suspend ${m.name}?`, text: "They will lose access until reinstated.", confirmText: "Suspend" });
                                     if (r.isConfirmed) {
+                                      setProfileActionLoading(true);
                                       try {
                                         await suspendMember(m.id, memberCommunityId(m));
                                         toastSuccess(`${m.name} has been suspended.`);
-                                        load(true);
+                                        await load(true);
                                       } catch (err) {
                                         toastError(apiError(err));
+                                      } finally {
+                                        setProfileActionLoading(false);
                                       }
                                     }
                                   },
@@ -561,12 +567,15 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                                   onClick: async () => {
                                     const r = await confirmAction({ title: `Reinstate ${m.name}?`, text: "They will regain community access.", confirmText: "Reinstate", color: "green" });
                                     if (r.isConfirmed) {
+                                      setProfileActionLoading(true);
                                       try {
                                         await approveMember(m.id, memberCommunityId(m));
                                         toastSuccess(`${m.name} has been reinstated.`);
-                                        load(true);
+                                        await load(true);
                                       } catch (err) {
                                         toastError(apiError(err));
+                                      } finally {
+                                        setProfileActionLoading(false);
                                       }
                                     }
                                   },
@@ -579,12 +588,15 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                                   onClick: async () => {
                                     const r = await confirmDelete({ title: `Delete ${m.name}?`, confirmText: "Delete" });
                                     if (r.isConfirmed) {
+                                      setProfileActionLoading(true);
                                       try {
                                         await deleteMember(m.id);
                                         toastSuccess(`${m.name} deleted.`);
-                                        load(true);
+                                        await load(true);
                                       } catch (err) {
                                         toastError(apiError(err));
+                                      } finally {
+                                        setProfileActionLoading(false);
                                       }
                                     }
                                   },

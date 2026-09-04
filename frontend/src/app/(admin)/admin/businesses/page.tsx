@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { AdminBadge, StatTile, DataTable, DtTable, DtHead, DtRow, DtCell, DtPagination } from "@/components/admin/ui";
@@ -23,6 +23,8 @@ import { getUser } from "@/lib/auth/session";
 import { PageLoader, PageError } from "@/components/shared/page-states";
 import BusinessFormModal from "@/components/admin/business-form-modal";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { adminTableBusy, isAdminSearchPending, shouldSkipStalePageFetch } from "@/lib/admin/table-loading";
 
 const EMPTY_STATS: BusinessStats = { total: 0, approved: 0, pending: 0, rejected: 0, inactive: 0 };
 
@@ -41,7 +43,9 @@ export default function BusinessesPage() {
   const [sFilter, setSFilter] = useState<SFilter>(
     ["all", "approved", "pending", "rejected", "inactive"].includes(initialStatus) ? initialStatus : "all",
   );
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 450);
+  const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<Business | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -51,18 +55,22 @@ export default function BusinessesPage() {
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [stats, setStats] = useState<BusinessStats>(EMPTY_STATS);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasLoadedOnce = useRef(false);
+  const prevFilterKey = useRef(`${sFilter}|`);
   const currentUser = getUser();
   const myBusiness = businesses.find((b) => b.owner_id === currentUser?.id) ?? null;
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!hasLoadedOnce.current) setInitialLoading(true);
+    else if (!silent) setRefreshing(true);
     setError(null);
     try {
       const params: Record<string, unknown> = { page, per_page: ADMIN_TABLE_PAGE_SIZE };
       if (sFilter !== "all") params.status = sFilter;
-      if (search) params.search = search;
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
       const res = await fetchBusinesses(params);
       setBusinesses(res.data ?? []);
       setTotal(res.meta.total);
@@ -71,12 +79,17 @@ export default function BusinessesPage() {
     } catch (err) {
       setError(apiError(err));
     } finally {
-      setLoading(false);
+      hasLoadedOnce.current = true;
+      setInitialLoading(false);
+      setRefreshing(false);
     }
-  }, [sFilter, search, page]);
+  }, [sFilter, debouncedSearch, page]);
 
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); }, [sFilter, search]);
+  useEffect(() => {
+    const filterKey = `${sFilter}|${debouncedSearch}`;
+    if (shouldSkipStalePageFetch(filterKey, page, setPage, prevFilterKey)) return;
+    void load();
+  }, [sFilter, debouncedSearch, page, load]);
 
   const statCards = [
     { label: "Total Businesses", value: String(stats.total),    hint: "All time",       tone: "cyan"  as const, icon: <IcoStore /> },
@@ -138,7 +151,7 @@ export default function BusinessesPage() {
       }
       setModal(false);
       setEditing(null);
-      await load();
+      await load(true);
     } catch (err) {
       toastError(apiError(err));
     } finally {
@@ -157,6 +170,7 @@ export default function BusinessesPage() {
       color: "green",
     });
     if (!result.isConfirmed) return;
+    setSubmitting(true);
     try {
       const res = isReapproval ? await reapproveBusiness(b.id) : await approveBusiness(b.id);
       const restored = res.meta?.deals_reactivated ?? 0;
@@ -165,9 +179,11 @@ export default function BusinessesPage() {
           ? `${b.name} approved. ${restored} deal${restored === 1 ? "" : "s"} restored.`
           : `${b.name} approved`,
       );
-      await load();
+      await load(true);
     } catch (err) {
       toastError(apiError(err));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -179,6 +195,7 @@ export default function BusinessesPage() {
       color: "red",
     });
     if (!result.isConfirmed) return;
+    setSubmitting(true);
     try {
       const res = await rejectBusiness(b.id);
       const disabled = res.meta?.deals_disabled ?? 0;
@@ -187,9 +204,11 @@ export default function BusinessesPage() {
           ? `${b.name} rejected. ${disabled} deal${disabled === 1 ? "" : "s"} disabled.`
           : `${b.name} rejected`,
       );
-      await load();
+      await load(true);
     } catch (err) {
       toastError(apiError(err));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -199,16 +218,19 @@ export default function BusinessesPage() {
       text: "This cannot be undone.",
     });
     if (!result.isConfirmed) return;
+    setSubmitting(true);
     try {
       await deleteBusiness(b.id);
       toastSuccess("Business deleted");
-      await load();
+      await load(true);
     } catch (err) {
       toastError(apiError(err));
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  if (loading) return <PageLoader skeleton />;
+  if (initialLoading) return <PageLoader skeleton />;
   if (error)   return <PageError message={error} onRetry={load} />;
 
   return (
@@ -233,8 +255,10 @@ export default function BusinessesPage() {
         title="All Businesses"
         totalCount={total}
         visibleCount={businesses.length}
-        search={search}
-        onSearch={setSearch}
+        search={searchInput}
+        onSearch={setSearchInput}
+        searching={isSearchPending}
+        loading={adminTableBusy(refreshing, submitting)}
         searchPlaceholder="Search name, category…"
         filters={statusFilters}
         activeFilter={sFilter}

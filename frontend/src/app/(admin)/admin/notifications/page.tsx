@@ -25,9 +25,11 @@ import {
 } from "@/lib/api/notifications";
 import { apiError } from "@/lib/api/client";
 import { PageError } from "@/components/shared/page-states";
+import { TableLoadingOverlay } from "@/components/shared/loaders";
 import { toastError, toastInfo, toastSuccess } from "@/lib/alert";
 import { confirmMarkAllNotificationsRead } from "@/lib/admin/dashboard-confirmations";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
+import { adminTableBusy } from "@/lib/admin/table-loading";
 import { NL } from "@/lib/design-tokens";
 import type { AppNotification } from "@/components/shared/notification-bell";
 import { resolveAdminNotificationHref } from "@/lib/notifications/resolve-admin-notification-href";
@@ -207,6 +209,7 @@ export default function AdminNotificationsPage() {
   const messageCount = meta?.message ?? notes.filter((n) => n.type === "message").length;
   const lastPage = meta?.last_page ?? 1;
   const filteredTotal = meta?.total ?? notes.length;
+  const listBusy = adminTableBusy(pageLoading, marking);
 
   const markOne = async (id: number) => {
     setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
@@ -347,13 +350,21 @@ export default function AdminNotificationsPage() {
         </div>
 
         {notes.length === 0 ? (
+          listBusy ? (
+            <div className="relative min-h-[12rem]">
+              <TableLoadingOverlay />
+            </div>
+          ) : (
           <DashboardEmptyState
             title="No notifications here"
             description="Try another filter, or check back when new activity arrives."
             icon={<Bell className="h-5 w-5" strokeWidth={2} />}
           />
+          )
         ) : (
-          <div className={pageLoading ? "pointer-events-none opacity-60" : undefined}>
+          <div className="relative" aria-busy={listBusy || undefined}>
+            {listBusy ? <TableLoadingOverlay /> : null}
+            <div className={listBusy ? "pointer-events-none select-none opacity-45 transition-opacity duration-200" : "transition-opacity duration-200"}>
             <div className="space-y-2">
               {notes.map((n) => {
                 const metaType = typeMeta(n.type);
@@ -429,6 +440,7 @@ export default function AdminNotificationsPage() {
                 pageSize={ADMIN_TABLE_PAGE_SIZE}
               />
             ) : null}
+            </div>
           </div>
         )}
       </DashboardPanel>

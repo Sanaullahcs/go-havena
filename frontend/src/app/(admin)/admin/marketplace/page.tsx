@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { AdminBadge, StatTile, DataTable, DtTable, DtHead, DtRow, DtCell, DtPagination } from "@/components/admin/ui";
@@ -14,6 +14,8 @@ import { PageLoader, PageError } from "@/components/shared/page-states";
 import MarketplaceFormModal from "@/components/admin/marketplace-form-modal";
 import ListingViewModal from "@/components/admin/listing-view-modal";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { adminTableBusy, isAdminSearchPending, shouldSkipStalePageFetch } from "@/lib/admin/table-loading";
 
 const EMPTY_STATS: ListingStats = { total: 0, pending: 0, active: 0, rejected: 0, sold: 0 };
 
@@ -52,7 +54,9 @@ export default function MarketplacePage() {
   const [sFilter, setSFilter] = useState<SFilter>(
     ["all", "active", "pending", "rejected", "sold"].includes(initialStatus) ? initialStatus : "all",
   );
-  const [search, setSearch]   = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 450);
+  const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
   const [modal, setModal]     = useState(false);
   const [creating, setCreating] = useState(false);
   const [viewing, setViewing] = useState<Listing | null>(null);
@@ -62,16 +66,19 @@ export default function MarketplacePage() {
   const [page, setPage]         = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [stats, setStats]       = useState<ListingStats>(EMPTY_STATS);
-  const [loading, setLoading]   = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [actionId, setActionId] = useState<number | null>(null);
+  const hasLoadedOnce = useRef(false);
+  const prevFilterKey = useRef(`${sFilter}|`);
 
   const runModeration = async (listingId: number, fn: () => Promise<void>) => {
     if (actionId !== null) return;
     setActionId(listingId);
     try {
       await fn();
-      await load();
+      await load(true);
     } catch (err) {
       toastError(apiError(err));
     } finally {
@@ -110,13 +117,14 @@ export default function MarketplacePage() {
     });
   };
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!hasLoadedOnce.current) setInitialLoading(true);
+    else if (!silent) setRefreshing(true);
     setError(null);
     try {
       const params: Record<string, unknown> = { admin: true, page, per_page: ADMIN_TABLE_PAGE_SIZE };
       if (sFilter !== "all") params.status = sFilter === "active" ? "approved" : sFilter;
-      if (search) params.search = search;
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
       const res = await fetchListings(params);
       setListings(res.data);
       setTotal(res.meta.total);
@@ -125,14 +133,17 @@ export default function MarketplacePage() {
     } catch (err) {
       setError(apiError(err));
     } finally {
-      setLoading(false);
+      hasLoadedOnce.current = true;
+      setInitialLoading(false);
+      setRefreshing(false);
     }
-  }, [sFilter, search, page]);
+  }, [sFilter, debouncedSearch, page]);
 
-  useEffect(() => { load(); }, [load]);
-
-  // Reset to first page whenever the filter or search changes.
-  useEffect(() => { setPage(1); }, [sFilter, search]);
+  useEffect(() => {
+    const filterKey = `${sFilter}|${debouncedSearch}`;
+    if (shouldSkipStalePageFetch(filterKey, page, setPage, prevFilterKey)) return;
+    void load();
+  }, [sFilter, debouncedSearch, page, load]);
 
   const statCards = [
     { label: "Total Listings",  value: String(stats.total),    hint: "All time",       tone: "cyan"  as const, icon: <IcoMarket /> },
@@ -164,7 +175,7 @@ export default function MarketplacePage() {
       const res = await createListing(values);
       setModal(false);
       toastSuccess(res?.data?.status === "approved" ? "Listing published and now live!" : "Listing added and pending review.");
-      await load();
+      await load(true);
     } catch (err) {
       toastError(apiError(err));
     } finally {
@@ -172,8 +183,8 @@ export default function MarketplacePage() {
     }
   };
 
-  if (loading) return <PageLoader skeleton />;
-  if (error)   return <PageError message={error} onRetry={load} />;
+  if (initialLoading) return <PageLoader skeleton />;
+  if (error)   return <PageError message={error} onRetry={() => load()} />;
 
   return (
     <div className="space-y-6">
@@ -197,8 +208,10 @@ export default function MarketplacePage() {
         title="All Listings"
         totalCount={total}
         visibleCount={visible.length}
-        search={search}
-        onSearch={setSearch}
+        search={searchInput}
+        onSearch={setSearchInput}
+        searching={isSearchPending}
+        loading={adminTableBusy(refreshing, actionId !== null, creating)}
         searchPlaceholder="Search by title or seller…"
         filters={statusFilters}
         activeFilter={sFilter}

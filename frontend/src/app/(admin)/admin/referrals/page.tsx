@@ -40,6 +40,7 @@ import {
   type ReferralRewardType,
 } from "@/lib/api/referrals";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { adminTableBusy, isAdminSearchPending } from "@/lib/admin/table-loading";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { formatPhoneDisplay } from "@/lib/phone/format";
 
@@ -220,8 +221,10 @@ export default function ReferralsAdminPage() {
   const [overview, setOverview] = useState<Record<string, number>>({});
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebouncedValue(searchInput, 400);
+  const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
@@ -315,22 +318,28 @@ export default function ReferralsAdminPage() {
       color: decision === "approve" ? "green" : "red",
     });
     if (!result.isConfirmed) return;
+    setActionBusy(true);
     try {
       await reviewReferralAttribution(row.id, decision);
       toastSuccess(decision === "approve" ? "Referral approved." : "Referral rejected.");
       await load({ silent: true });
     } catch (err) {
       toastError(apiError(err));
+    } finally {
+      setActionBusy(false);
     }
   };
 
   const retryReward = async (rewardId: number) => {
+    setActionBusy(true);
     try {
       const result = await retryReferralReward(rewardId);
       toastSuccess(result.status === "credited" ? "Credit applied." : "Retry attempted.");
       await load({ silent: true });
     } catch (err) {
       toastError(apiError(err));
+    } finally {
+      setActionBusy(false);
     }
   };
 
@@ -519,19 +528,6 @@ export default function ReferralsAdminPage() {
       </section>
 
       <div className="relative">
-        {refreshing ? (
-          <div
-            className="pointer-events-none absolute inset-0 z-20 flex items-start justify-center rounded-xl bg-white/55 pt-24 backdrop-blur-[1px]"
-            aria-live="polite"
-            aria-busy="true"
-          >
-            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-[12px] font-medium text-slate-600 shadow-sm">
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
-              Updating results…
-            </span>
-          </div>
-        ) : null}
-
         <DataTable
           title="Attributions"
           totalCount={total}
@@ -541,7 +537,8 @@ export default function ReferralsAdminPage() {
             setSearchInput(value);
             setPage(1);
           }}
-          searching={refreshing}
+          searching={isSearchPending}
+          loading={adminTableBusy(refreshing, actionBusy)}
           searchPlaceholder="Search code, user, community…"
           isEmpty={rows.length === 0}
           empty="No referral attributions found."

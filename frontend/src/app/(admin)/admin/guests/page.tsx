@@ -35,6 +35,7 @@ import {
 import { inputClass } from "@/lib/admin/form-validation-utils";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { adminTableBusy, isAdminSearchPending, shouldSkipStalePageFetch } from "@/lib/admin/table-loading";
 import { canAccessCommunityDashboard, getUser, type WebUser } from "@/lib/auth/session";
 
 const emptyForm: GuestForm = {
@@ -212,6 +213,7 @@ export default function GuestsPage() {
   const [pageError, setPageError] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebouncedValue(searchInput, 450);
+  const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
   const [filterStatus, setFilterStatus] = useState<GuestFilter>("all");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<GuestForm>(emptyForm);
@@ -228,6 +230,7 @@ export default function GuestsPage() {
   const [inviteFormKey, setInviteFormKey] = useState(0);
 
   const hasLoadedOnce = useRef(false);
+  const prevFilterKey = useRef(`${filterStatus}|`);
 
   useEffect(() => {
     setCurrentUser(getUser());
@@ -269,11 +272,11 @@ export default function GuestsPage() {
     }
   }, [filterStatus, debouncedSearch, page]);
 
-  useEffect(() => { load(); }, [load]);
-
   useEffect(() => {
-    setPage(1);
-  }, [filterStatus, debouncedSearch]);
+    const filterKey = `${filterStatus}|${debouncedSearch}`;
+    if (shouldSkipStalePageFetch(filterKey, page, setPage, prevFilterKey)) return;
+    void load();
+  }, [filterStatus, debouncedSearch, page, load]);
 
   const statusFilters = useMemo(() => [
     { key: "all", label: "All", count: stats.total },
@@ -458,10 +461,12 @@ export default function GuestsPage() {
         filters={statusFilters}
         activeFilter={filterStatus}
         onFilter={(key) => setFilterStatus(key as GuestFilter)}
+        searching={isSearchPending}
+        loading={adminTableBusy(refreshing, actionId !== null, submitting)}
         isEmpty={guests.length === 0}
         empty={searchInput || filterStatus !== "all" ? "No guests match your filters." : "No guest invitations yet. Click \"Invite Guest User\" to get started."}
       >
-        <div className={`divide-y divide-slate-100 ${refreshing ? "opacity-60" : ""}`}>
+        <div className="divide-y divide-slate-100">
           {guests.map((guest) => {
             const invitedBy = invitedByLabel(guest);
             const pending = isPendingApproval(guest);

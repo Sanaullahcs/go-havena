@@ -419,6 +419,7 @@ export default function CommunityAdminDashboard() {
         composeActions={<ComposeRail actions={quickActions} />}
       />
 
+      <div className="space-y-6">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((item) => (
           <StatTile key={item.label} {...item} />
@@ -485,6 +486,7 @@ export default function CommunityAdminDashboard() {
         onApprove={(action) => handleAction(action, "approve")}
         onReject={(action) => handleAction(action, "reject")}
       />
+      </div>
 
       <MemberInviteModal
         open={inviteOpen}

@@ -22,7 +22,9 @@ import { ThemedSelect } from "@/components/ui/themed-select";
 import { confirmDelete, toastError, toastSuccess } from "@/lib/alert";
 import { apiError } from "@/lib/api/client";
 import { PageError, PageLoader } from "@/components/shared/page-states";
+import { TableLoadingOverlay, TableProgressBar } from "@/components/shared/loaders";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { isAdminSearchPending } from "@/lib/admin/table-loading";
 import {
   createWellnessCategory,
   createWellnessCourse,
@@ -92,8 +94,11 @@ export default function AdminWellnessPage() {
   const [pageError, setPageError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [coursesLoading, setCoursesLoading] = useState(false);
+  const [lessonsLoading, setLessonsLoading] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebouncedValue(searchInput, 400);
+  const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [courseModalOpen, setCourseModalOpen] = useState(false);
   const [lessonModalOpen, setLessonModalOpen] = useState(false);
@@ -166,6 +171,7 @@ export default function AdminWellnessPage() {
     }
     let cancelled = false;
     (async () => {
+      setCoursesLoading(true);
       try {
         const params: { category_id: number; search?: string } = {
           category_id: selectedCategoryId,
@@ -180,6 +186,8 @@ export default function AdminWellnessPage() {
         setSelectedCourseId(data[0]?.id ?? null);
       } catch (err) {
         toastError(apiError(err));
+      } finally {
+        if (!cancelled) setCoursesLoading(false);
       }
     })();
     return () => {
@@ -194,11 +202,14 @@ export default function AdminWellnessPage() {
     }
     let cancelled = false;
     (async () => {
+      setLessonsLoading(true);
       try {
         const data = await fetchWellnessLessons(selectedCourseId);
         if (!cancelled) setLessons(data);
       } catch (err) {
-        toastError(apiError(err));
+        if (!cancelled) toastError(apiError(err));
+      } finally {
+        if (!cancelled) setLessonsLoading(false);
       }
     })();
     return () => {
@@ -797,7 +808,9 @@ export default function AdminWellnessPage() {
               </div>
             </div>
 
-            <div className="max-h-[min(420px,50vh)] space-y-2 overflow-y-auto pr-1">
+            <div className="relative max-h-[min(420px,50vh)] min-h-[8rem] overflow-y-auto pr-1">
+              {coursesLoading ? <TableLoadingOverlay minHeight="8rem" /> : isSearchPending ? <TableProgressBar /> : null}
+              <div className={coursesLoading ? "pointer-events-none select-none space-y-2 opacity-55" : "space-y-2"}>
               {courses.map((course) => (
                 <div key={course.id}>
                   {editingCourse?.id !== course.id ? (
@@ -913,6 +926,7 @@ export default function AdminWellnessPage() {
                       : "No courses yet — click Add Course to create one."}
                 </p>
               ) : null}
+              </div>
             </div>
           </div>
 
@@ -937,7 +951,9 @@ export default function AdminWellnessPage() {
 
             {selectedCourse ? (
               <>
-                <div className="max-h-[min(420px,50vh)] space-y-2 overflow-y-auto pr-1">
+                <div className="relative max-h-[min(420px,50vh)] min-h-[8rem] overflow-y-auto pr-1">
+                  {lessonsLoading ? <TableLoadingOverlay minHeight="8rem" /> : null}
+                  <div className={lessonsLoading ? "pointer-events-none select-none space-y-2 opacity-45" : "space-y-2"}>
                   {lessons.map((lesson, index) => (
                     <div key={lesson.id}>
                       {editingLesson?.id !== lesson.id ? (
@@ -1155,6 +1171,7 @@ export default function AdminWellnessPage() {
                   {lessons.length === 0 ? (
                     <p className="text-sm text-slate-500">No lessons yet — click Add Lesson to create one.</p>
                   ) : null}
+                  </div>
                 </div>
               </>
             ) : (

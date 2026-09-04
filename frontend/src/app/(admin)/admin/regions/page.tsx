@@ -24,6 +24,7 @@ import {
 import { apiError } from "@/lib/api/client";
 import { PageError, PageLoader } from "@/components/shared/page-states";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { adminTableBusy, isAdminSearchPending } from "@/lib/admin/table-loading";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
 import { validateRegionForm } from "@/lib/admin/region-form-validation";
@@ -93,7 +94,7 @@ export default function RegionsPage() {
     setPage(1);
   }, [debouncedSearch, statusFilter]);
 
-  const isSearchPending = searchInput.trim() !== debouncedSearch.trim();
+  const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
 
   const stats = useMemo(() => {
     const active = regions.filter((r) => r.status === "active").length;
@@ -169,12 +170,15 @@ export default function RegionsPage() {
     });
     if (!result.isConfirmed) return;
 
+    setSubmitting(true);
     try {
       await deleteRegion(region.id);
       toastSuccess("Region deleted.");
       await load(true);
     } catch (err) {
       toastError(apiError(err));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -221,26 +225,14 @@ export default function RegionsPage() {
       </div>
 
       <div className="relative">
-        {refreshing ? (
-          <div
-            className="pointer-events-none absolute inset-0 z-20 flex items-start justify-center rounded-xl bg-white/55 pt-24 backdrop-blur-[1px]"
-            aria-live="polite"
-            aria-busy="true"
-          >
-            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-[12px] font-medium text-slate-600 shadow-sm">
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
-              Updating results…
-            </span>
-          </div>
-        ) : null}
-
         <DataTable
           title="All Regions"
           totalCount={total}
           visibleCount={regions.length}
           search={searchInput}
           onSearch={setSearchInput}
-          searching={isSearchPending || refreshing}
+          searching={isSearchPending}
+          loading={adminTableBusy(refreshing, submitting)}
           searchPlaceholder="Search title, area, state…"
           filters={statusFilters}
           activeFilter={statusFilter}

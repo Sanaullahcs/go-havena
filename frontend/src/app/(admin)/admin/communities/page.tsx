@@ -33,6 +33,7 @@ import { PhoneDisplay } from "@/components/admin/phone-display";
 import { UtilityBillPreview } from "@/components/admin/utility-bill-preview";
 import { PageError, PageLoader } from "@/components/shared/page-states";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { adminTableBusy, isAdminSearchPending, shouldSkipStalePageFetch } from "@/lib/admin/table-loading";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { Check, X } from "lucide-react";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
@@ -80,6 +81,7 @@ export default function CommunitiesPage() {
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebouncedValue(searchInput, 450);
+  const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +98,7 @@ export default function CommunitiesPage() {
   const [statusSubmitting, setStatusSubmitting] = useState(false);
   const [assignTarget, setAssignTarget] = useState<AssignAdminTarget | null>(null);
   const hasLoadedOnce = useRef(false);
+  const prevFilterKey = useRef(`${tab}|`);
 
   const isAdminSuspended = (item: AdminCommunity) => item.admin_user?.status === "suspended";
 
@@ -152,12 +155,10 @@ export default function CommunitiesPage() {
   }, [tab, page, debouncedSearch]);
 
   useEffect(() => {
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch, tab]);
+    const filterKey = `${tab}|${debouncedSearch}`;
+    if (shouldSkipStalePageFetch(filterKey, page, setPage, prevFilterKey)) return;
+    void load();
+  }, [tab, debouncedSearch, page, load]);
 
   const statTiles = useMemo(
     () => [
@@ -381,22 +382,14 @@ export default function CommunitiesPage() {
       </div>
 
       <div className="relative">
-        {refreshing ? (
-          <div className="pointer-events-none absolute inset-0 z-20 flex items-start justify-center rounded-xl bg-white/55 pt-24 backdrop-blur-[1px]">
-            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-[12px] font-medium text-slate-600 shadow-sm">
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
-              Updating…
-            </span>
-          </div>
-        ) : null}
-
         <DataTable
           title={tab === "communities" ? "All communities" : "Pending requests"}
           totalCount={total}
           visibleCount={rows.length}
           search={searchInput}
           onSearch={setSearchInput}
-          searching={refreshing}
+          searching={isSearchPending}
+          loading={adminTableBusy(refreshing, statusSubmitting, reviewSubmitting)}
           searchPlaceholder={tab === "communities" ? "Search by name, region, or address…" : "Search by name or address…"}
           isEmpty={rows.length === 0}
           empty={tab === "communities" ? "No communities yet. Add one to get started." : "No pending community requests."}

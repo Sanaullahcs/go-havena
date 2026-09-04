@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
 import {
@@ -24,6 +24,7 @@ import { DataTable, DtCell, DtHead, DtPagination, DtRow, DtTable, StatTile } fro
 import { ProvisionUserModal } from "@/components/admin/provision-user-modal";
 import { PageLoader } from "@/components/shared/page-states";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { adminTableBusy, isAdminSearchPending, shouldSkipStalePageFetch } from "@/lib/admin/table-loading";
 import { confirmAction, toastError, toastSuccess } from "@/lib/alert";
 import { apiError } from "@/lib/api/client";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
@@ -75,21 +76,24 @@ export default function CommunityAdminsPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const hasLoadedOnce = useRef(false);
   const [status, setStatus] = useState<StatusTab>(() =>
     STATUS_FILTERS.some((f) => f.key === initialStatus) ? (initialStatus as StatusTab) : "approved",
   );
+  const prevFilterKey = useRef(`${status}|`);
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebouncedValue(searchInput, 400);
+  const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [assignTarget, setAssignTarget] = useState<AssignAdminTarget | null>(null);
   const [viewing, setViewing] = useState<CommunityAdminApplicant | null>(null);
 
   const load = useCallback(
-    async (silent = false) => {
-      if (!silent) setLoading(true);
+    async (_silent = false) => {
+      if (!hasLoadedOnce.current) setInitialLoading(true);
       else setRefreshing(true);
       try {
         const res = await fetchCommunityAdmins({
@@ -106,20 +110,19 @@ export default function CommunityAdminsPage() {
         toastError("Could not load community admins");
         setItems([]);
       } finally {
-        setLoading(false);
+        setInitialLoading(false);
         setRefreshing(false);
+        hasLoadedOnce.current = true;
       }
     },
     [status, debouncedSearch, page],
   );
 
   useEffect(() => {
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [status, debouncedSearch]);
+    const filterKey = `${status}|${debouncedSearch}`;
+    if (shouldSkipStalePageFetch(filterKey, page, setPage, prevFilterKey)) return;
+    void load();
+  }, [status, debouncedSearch, page, load]);
 
   const activeTab = STATUS_FILTERS.find((f) => f.key === status);
 
@@ -279,7 +282,7 @@ export default function CommunityAdminsPage() {
     return `No ${label} community admins yet.`;
   }, [activeTab, status, debouncedSearch]);
 
-  if (loading) return <PageLoader text="Loading community admins…" skeleton />;
+  if (initialLoading) return <PageLoader text="Loading community admins…" skeleton />;
 
   const rowKey = (item: CommunityAdminApplicant) => item.reassign_row_id ?? String(item.id);
 
@@ -305,15 +308,6 @@ export default function CommunityAdminsPage() {
       </div>
 
       <div className="relative">
-        {refreshing ? (
-          <div className="pointer-events-none absolute inset-0 z-20 flex items-start justify-center rounded-xl bg-white/55 pt-24 backdrop-blur-[1px]">
-            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-[12px] font-medium text-slate-600 shadow-sm">
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
-              Updating…
-            </span>
-          </div>
-        ) : null}
-
         {activeTab ? (
           <p className="mb-3 text-[13px] text-slate-500">{activeTab.description}</p>
         ) : null}
@@ -325,7 +319,8 @@ export default function CommunityAdminsPage() {
           search={searchInput}
           onSearch={setSearchInput}
           searchPlaceholder="Search by name, email, phone, or community…"
-          searching={refreshing}
+          searching={isSearchPending}
+          loading={adminTableBusy(refreshing, busyId !== null)}
           filters={filters}
           activeFilter={status}
           onFilter={(key) => setStatus(key as StatusTab)}

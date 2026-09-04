@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-r
 import { NL } from "@/lib/design-tokens";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { ADMIN_BADGE_CLASS, ADMIN_TONE, type AdminTone } from "@/lib/admin/admin-tones";
+import { TableLoadingOverlay, TableLoadingSpinner, TableProgressBar } from "@/components/shared/loaders";
 
 /* ─── Tone helpers ─── */
 
@@ -184,6 +185,7 @@ export function DataTable<K extends string>({
   onSearch,
   searchPlaceholder = "Search…",
   searching = false,
+  loading,
   filters,
   activeFilter,
   onFilter,
@@ -202,6 +204,8 @@ export function DataTable<K extends string>({
   onSearch: (v: string) => void;
   searchPlaceholder?: string;
   searching?: boolean;
+  /** Preferred name — same as `searching`. Shows progress overlay on the table body. */
+  loading?: boolean;
   filters?: DtFilter<K>[];
   activeFilter?: K;
   onFilter?: (k: K) => void;
@@ -213,6 +217,12 @@ export function DataTable<K extends string>({
   empty?: string;
   isEmpty?: boolean;
 }) {
+  // Searching (debounce) = light top bar only. Fetching = bar + spinner overlay.
+  const isFetching = Boolean(loading);
+  const isSearchingOnly = Boolean(searching) && !isFetching;
+  const showProgress = isFetching || isSearchingOnly;
+  const showOverlay = isFetching;
+
   return (
     <section className="nl-panel overflow-hidden">
       {/* ── Top toolbar ── */}
@@ -240,7 +250,7 @@ export function DataTable<K extends string>({
               className="h-8 w-52 rounded-lg border border-slate-200 bg-slate-50 py-1.5 pr-8 text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition"
               style={{ paddingLeft: "1.875rem" }}
             />
-            {searching ? (
+            {tableLoading ? (
               <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">
                 <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
               </span>
@@ -316,8 +326,21 @@ export function DataTable<K extends string>({
       )}
 
       {/* ── Table area ── */}
-      <div className="overflow-x-auto">
+      <div className="relative overflow-x-auto" aria-busy={showProgress || undefined}>
+        {showProgress ? (
+          isEmpty && showOverlay ? (
+            <div className="relative flex min-h-[16rem] flex-col items-center justify-center py-16">
+              <TableProgressBar />
+              <TableLoadingSpinner />
+            </div>
+          ) : showOverlay ? (
+            <TableLoadingOverlay />
+          ) : (
+            <TableProgressBar />
+          )
+        ) : null}
         {isEmpty ? (
+          showOverlay ? null : (
           <div className="py-16 text-center">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="text-slate-400" aria-hidden>
@@ -327,8 +350,11 @@ export function DataTable<K extends string>({
             </div>
             <p className="text-sm font-medium text-slate-500">{empty}</p>
           </div>
+          )
         ) : (
-          children
+          <div className={showOverlay ? "pointer-events-none select-none opacity-55 transition-opacity duration-150" : "transition-opacity duration-150"}>
+            {children}
+          </div>
         )}
       </div>
     </section>

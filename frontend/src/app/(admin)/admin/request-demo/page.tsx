@@ -14,6 +14,7 @@ import {
 } from "@/components/admin/ui";
 import { PageError, PageLoader } from "@/components/shared/page-states";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { adminTableBusy, isAdminSearchPending } from "@/lib/admin/table-loading";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { toastError, toastSuccess } from "@/lib/alert";
 import { Archive, Check } from "lucide-react";
@@ -108,7 +109,7 @@ export default function RequestDemoPage() {
     setPage(1);
   }, [debouncedSearch, statusFilter]);
 
-  const isSearchPending = searchInput.trim() !== debouncedSearch.trim();
+  const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
 
   const statusFilters = useMemo(
     () => [
@@ -202,26 +203,14 @@ export default function RequestDemoPage() {
       </div>
 
       <div className="relative">
-        {refreshing ? (
-          <div
-            className="pointer-events-none absolute inset-0 z-20 flex items-start justify-center rounded-xl bg-white/55 pt-24 backdrop-blur-[1px]"
-            aria-live="polite"
-            aria-busy="true"
-          >
-            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-[12px] font-medium text-slate-600 shadow-sm">
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
-              Updating results…
-            </span>
-          </div>
-        ) : null}
-
         <DataTable
           title="Demo Requests"
           totalCount={total}
           visibleCount={items.length}
           search={searchInput}
           onSearch={setSearchInput}
-          searching={isSearchPending || refreshing}
+          searching={isSearchPending}
+          loading={adminTableBusy(refreshing, busyId !== null)}
           searchPlaceholder="Search name, email, community, note…"
           filters={statusFilters}
           activeFilter={statusFilter}

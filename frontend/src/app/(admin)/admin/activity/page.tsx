@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminPanel, DtPagination, StatTile } from "@/components/admin/ui";
 import { ActivityLogRow, SEV_CONFIG } from "@/components/admin/activity/activity-log-row";
 import { DashboardEmptyState, DashboardHero } from "@/components/admin/dashboard/dashboard-shared";
 import { PageLoader } from "@/components/shared/page-states";
+import { TableLoadingOverlay, TableProgressBar } from "@/components/shared/loaders";
 import {
   fetchActivityLogStats,
   fetchActivityLogs,
@@ -17,6 +18,7 @@ import {
 import { NL } from "@/lib/design-tokens";
 import { toastInfo, toastSuccess } from "@/lib/alert";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
+import { isAdminSearchPending, shouldSkipStalePageFetch } from "@/lib/admin/table-loading";
 
 type SeverityFilter = ActivitySeverity | "all";
 
@@ -30,50 +32,55 @@ export default function ActivityLogsPage() {
   const [stats, setStats] = useState<ActivityLogStats | null>(null);
   const [total, setTotal] = useState(0);
   const [lastPage, setLastPage] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const hasLoadedOnce = useRef(false);
+  const prevFilterKey = useRef("user|all|");
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
     return () => clearTimeout(timer);
   }, [search]);
 
-  const load = useCallback(
-    async (silent = false) => {
-      if (!silent) setLoading(true);
-      else setRefreshing(true);
+  const isSearchPending = isAdminSearchPending(search, debouncedSearch);
+  const listBusy = refreshing;
 
-      try {
-        const [logsRes, statsRes] = await Promise.all([
-          fetchActivityLogs({
-            type: tab,
-            severity,
-            search: debouncedSearch,
-            page,
-            perPage: ADMIN_TABLE_PAGE_SIZE,
-          }),
-          fetchActivityLogStats().catch(() => null),
-        ]);
+  const load = useCallback(async () => {
+    if (!hasLoadedOnce.current) setInitialLoading(true);
+    else setRefreshing(true);
 
-        setLogs(logsRes.data);
-        setTotal(logsRes.total);
-        setLastPage(logsRes.last_page);
-        if (statsRes) setStats(statsRes);
-      } catch {
-        setLogs([]);
-        setTotal(0);
-        setLastPage(1);
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [tab, severity, debouncedSearch, page],
-  );
+    try {
+      const [logsRes, statsRes] = await Promise.all([
+        fetchActivityLogs({
+          type: tab,
+          severity,
+          search: debouncedSearch,
+          page,
+          perPage: ADMIN_TABLE_PAGE_SIZE,
+        }),
+        fetchActivityLogStats().catch(() => null),
+      ]);
+
+      setLogs(logsRes.data);
+      setTotal(logsRes.total);
+      setLastPage(logsRes.last_page);
+      if (statsRes) setStats(statsRes);
+    } catch {
+      setLogs([]);
+      setTotal(0);
+      setLastPage(1);
+    } finally {
+      setInitialLoading(false);
+      setRefreshing(false);
+      hasLoadedOnce.current = true;
+    }
+  }, [tab, severity, debouncedSearch, page]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    const filterKey = `${tab}|${severity}|${debouncedSearch}`;
+    if (shouldSkipStalePageFetch(filterKey, page, setPage, prevFilterKey)) return;
+    void load();
+  }, [tab, severity, debouncedSearch, page, load]);
 
   const statCards = useMemo(
     () => [
@@ -113,7 +120,7 @@ export default function ActivityLogsPage() {
 
   const severityOptions: SeverityFilter[] = ["all", "info", "warning", "error", "critical"];
 
-  if (loading && !refreshing) return <PageLoader skeleton />;
+  if (initialLoading) return <PageLoader skeleton />;
 
   return (
     <div className="space-y-6">
@@ -123,7 +130,7 @@ export default function ActivityLogsPage() {
         description="Full audit trail of user actions and system events across the platform."
         variant="system"
         refreshing={refreshing}
-        onRefresh={() => load(true)}
+        onRefresh={() => load()}
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -240,27 +247,34 @@ export default function ActivityLogsPage() {
           </div>
         </div>
 
-        {logs.length === 0 ? (
-          <DashboardEmptyState
-            title="No activity logs found"
-            description="Try changing filters or search terms to see more events."
-          />
-        ) : (
-          <div className="space-y-3">
-            {logs.map((log) => (
-              <ActivityLogRow key={log.id} log={log} />
-            ))}
-          </div>
-        )}
+        <div className="relative min-h-[12rem]" aria-busy={listBusy || isSearchPending || undefined}>
+          {listBusy ? <TableLoadingOverlay /> : isSearchPending ? <TableProgressBar /> : null}
+          <div className={listBusy ? "pointer-events-none select-none opacity-55 transition-opacity duration-150" : "transition-opacity duration-150"}>
+            {logs.length === 0 ? (
+              listBusy ? <div className="min-h-[12rem]" /> : (
+                <DashboardEmptyState
+                  title="No activity logs found"
+                  description="Try changing filters or search terms to see more events."
+                />
+              )
+            ) : (
+              <div className="space-y-3">
+                {logs.map((log) => (
+                  <ActivityLogRow key={log.id} log={log} />
+                ))}
+              </div>
+            )}
 
-        <DtPagination
-          showing={logs.length}
-          total={total}
-          page={page}
-          lastPage={lastPage}
-          onPageChange={setPage}
-          pageSize={ADMIN_TABLE_PAGE_SIZE}
-        />
+            <DtPagination
+              showing={logs.length}
+              total={total}
+              page={page}
+              lastPage={lastPage}
+              onPageChange={setPage}
+              pageSize={ADMIN_TABLE_PAGE_SIZE}
+            />
+          </div>
+        </div>
       </AdminPanel>
     </div>
   );
