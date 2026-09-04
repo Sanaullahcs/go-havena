@@ -25,6 +25,7 @@ import { useTranslation } from "react-i18next";
 import CrispImage from "../ui/crisp-image";
 import { NoticeCoverMedia } from "../notices/notice-cover-thumbnail";
 import { mediaImageSource } from "../../utils/profile-display";
+import { rnShadow } from "../../utils/shadow";
 import { sw, sf } from "../../utils/responsive";
 import HomeSectionEmpty from "./home-section-empty";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
@@ -451,10 +452,7 @@ const styles = StyleSheet.create({
     backgroundColor: T.navy,
     ...(Platform.OS === "ios"
       ? {
-          shadowColor: T.navy,
-          shadowOffset: { width: 0, height: 6 },
-          shadowOpacity: 0.2,
-          shadowRadius: 16,
+          ...rnShadow({ color: T.navy, offset: { width: 0, height: 6 }, opacity: 0.2, radius: 16 }),
           borderCurve: "continuous",
         }
       : { elevation: 6 }),

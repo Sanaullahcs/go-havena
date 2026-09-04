@@ -1,6 +1,8 @@
 import { StyleSheet } from "react-native";
 import { Fonts } from "./font";
 import { Colors, Layout, Shadows } from "./tokens";
+import { rnShadow } from "../utils/shadow";
+
 
 export const authStyles = StyleSheet.create({
   gradient: {
@@ -78,10 +80,7 @@ export const authStyles = StyleSheet.create({
     fontSize: 16,
     fontFamily: Fonts.regular,
     color: Colors.textPrimary,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    ...rnShadow({ color: "#000", offset: { width: 0, height: 1 }, opacity: 0.1, radius: 4 }),
     elevation: 2,
   },
   loginPhoneRow: {
@@ -95,10 +94,7 @@ export const authStyles = StyleSheet.create({
     height: 60,
     paddingStart: 16,
     paddingEnd: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    ...rnShadow({ color: "#000", offset: { width: 0, height: 1 }, opacity: 0.1, radius: 4 }),
     elevation: 2,
   },
   loginPhonePrefix: {

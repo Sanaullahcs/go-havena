@@ -20,6 +20,8 @@ import { isCommunityAdminRole } from "../../../services/community-access";
 import { getProfileFields } from "../../../utils/profile-display";
 import { useProfilePhoto } from "../../../hooks/use-profile-photo";
 import { sw, sf, hp } from "../../../utils/responsive";
+import { rnShadow } from "../../../utils/shadow";
+
 
 export default function Profile() {
   const router = useRouter();
@@ -282,10 +284,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(18),
     paddingBottom: sw(6),
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
+    ...rnShadow({ color: "#000", offset: { width: 0, height: 1 }, opacity: 0.03, radius: 4 }),
     elevation: 1,
   },
   avatarTap: {
@@ -297,10 +296,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#E2E9F3",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 3,
+    ...rnShadow({ color: "#000", offset: { width: 0, height: 1 }, opacity: 0.03, radius: 3 }),
     elevation: 1,
   },
   name: {

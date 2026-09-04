@@ -13,6 +13,8 @@ import { useTranslation } from "react-i18next";
 import ProfilePhotoAvatar from "../profile/profile-photo-avatar";
 import { Fonts } from "../../constants/font";
 import { sf, sw } from "../../utils/responsive";
+import { rnShadow } from "../../utils/shadow";
+
 
 const STATUS_META = {
   head: { label: "Head", bg: "#D1FAF5", color: "#1B4F8A", border: "rgba(20, 184, 166, 0.28)" },
@@ -367,10 +369,7 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
     paddingVertical: sw(8),
     paddingHorizontal: sw(6),
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
+    ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 8 }, opacity: 0.12, radius: 16 }),
     elevation: 10,
   },
   dropdownRow: {

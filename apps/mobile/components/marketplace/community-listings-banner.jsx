@@ -6,6 +6,7 @@ import ThemedIconBox from "../ui/themed-icon-box";
 import { Fonts } from "../../constants/font";
 import { MarketplaceTheme } from "../../constants/marketplace-theme";
 import { sf, sw } from "../../utils/responsive";
+import { rnShadow } from "../../utils/shadow";
 import { chevronForward } from "../../utils/rtl";
 
 export default function CommunityListingsBanner({ onPress }) {
@@ -56,10 +57,7 @@ const styles = StyleSheet.create({
     borderColor: MarketplaceTheme.border,
     ...(Platform.OS === "ios"
       ? {
-          shadowColor: MarketplaceTheme.navy,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.04,
-          shadowRadius: 6,
+          ...rnShadow({ color: MarketplaceTheme.navy, offset: { width: 0, height: 2 }, opacity: 0.04, radius: 6 }),
         }
       : { elevation: 1 }),
   },

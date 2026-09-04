@@ -36,6 +36,8 @@ import { useTranslation } from "react-i18next";
 import { useApiAction } from "../../../../hooks/use-api-action";
 import { useAppDialog } from "../../../../providers/app-dialog-provider";
 import { sw, sf, hp } from "../../../../utils/responsive";
+import { rnShadow } from "../../../../utils/shadow";
+
 
 const PER_PAGE = 10;
 
@@ -446,10 +448,7 @@ const styles = StyleSheet.create({
     marginBottom: sw(14),
     ...Platform.select({
       ios: {
-        shadowColor: Colors.brandPrimaryDeep,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.07,
-        shadowRadius: 10,
+        ...rnShadow({ color: Colors.brandPrimaryDeep, offset: { width: 0, height: 4 }, opacity: 0.07, radius: 10 }),
       },
       android: { elevation: 2 },
     }),
@@ -507,10 +506,7 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
     ...Platform.select({
       ios: {
-        shadowColor: "#0F172A",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
+        ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 4 }, opacity: 0.05, radius: 10 }),
       },
       android: { elevation: 2 },
     }),

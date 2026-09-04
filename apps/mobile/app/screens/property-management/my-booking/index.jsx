@@ -14,6 +14,8 @@ import { fetchMyBookings, cancelBooking } from "../../../../services/amenity-api
 import { useApiAction } from "../../../../hooks/use-api-action";
 import { useAppDialog } from "../../../../providers/app-dialog-provider";
 import { sw, sf } from "../../../../utils/responsive";
+import { rnShadow } from "../../../../utils/shadow";
+
 
 const STATUS_META = {
   pending: { label: "propertyMgmt.statusPending", color: "#B45309", bg: "#FEF3C7", icon: "clock" },
@@ -279,10 +281,7 @@ const styles = StyleSheet.create({
     gap: sw(12),
     ...Platform.select({
       ios: {
-        shadowColor: "#0F172A",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
+        ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 2 }, opacity: 0.05, radius: 8 }),
       },
       android: { elevation: 1 },
     }),
@@ -291,7 +290,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
     borderColor: "#E5E7EB",
     ...Platform.select({
-      ios: { shadowOpacity: 0 },
+      ios: { boxShadow: "none" },
       android: { elevation: 0 },
     }),
   },

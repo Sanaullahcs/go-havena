@@ -11,6 +11,8 @@ import { useLanguage } from "../../providers/language-provider";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { sw, sf } from "../../utils/responsive";
+import { rnShadow } from "../../utils/shadow";
+
 
 const LANGS = [
   { code: "en", label: "EN" },
@@ -79,10 +81,7 @@ const styles = StyleSheet.create({
     position: "relative",
     ...(Platform.OS === "ios"
       ? {
-          shadowColor: "#1B4F8A",
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.05,
-          shadowRadius: 2,
+          ...rnShadow({ color: "#1B4F8A", offset: { width: 0, height: 1 }, opacity: 0.05, radius: 2 }),
         }
       : { elevation: 1 }),
   },
@@ -96,10 +95,7 @@ const styles = StyleSheet.create({
     backgroundColor: T.navy,
     ...(Platform.OS === "ios"
       ? {
-          shadowColor: T.navy,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.22,
-          shadowRadius: 4,
+          ...rnShadow({ color: T.navy, offset: { width: 0, height: 2 }, opacity: 0.22, radius: 4 }),
         }
       : { elevation: 3 }),
   },

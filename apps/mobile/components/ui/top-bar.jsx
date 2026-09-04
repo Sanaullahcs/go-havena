@@ -25,11 +25,6 @@ import {
   compactRadiusLabel,
   coveringRadius,
 } from "../../constants/location-radius";
-import {
-  MarketplaceRoutes,
-  providerProfileParams,
-} from "../../constants/marketplace-routes";
-import { getCurrentRole } from "../../constants/role-session";
 
 export default function TopBar({ onMenuPress }) {
   const router = useRouter();
@@ -131,10 +126,6 @@ export default function TopBar({ onMenuPress }) {
           if (!business.isLocal && Number(business.distanceMiles) > radiusMiles) {
             setRadiusMiles(coveringRadius(business.distanceMiles));
           }
-          router.push({
-            pathname: MarketplaceRoutes.PROVIDER_PROFILE,
-            params: providerProfileParams(business, getCurrentRole()),
-          });
         }}
       />
 

@@ -22,6 +22,8 @@ import { Fonts } from "../constants/font";
 import { subscribeNotificationBanner } from "../services/notification-events";
 import { resolveNotificationVisual } from "../utils/notification-visual";
 import i18n from "../i18n";
+import { rnShadow } from "../utils/shadow";
+
 
 const NotificationBannerContext = createContext(null);
 const AUTO_DISMISS_MS = 4500;
@@ -302,10 +304,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
+    ...rnShadow({ color: "#000", offset: { width: 0, height: 6 }, opacity: 0.1, radius: 12 }),
     elevation: 12,
   },
   iconWrap: {

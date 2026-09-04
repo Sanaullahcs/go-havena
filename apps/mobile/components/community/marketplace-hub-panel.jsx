@@ -42,6 +42,8 @@ import { isFeatureAccessBlockedError } from "../../utils/guest-permission-errors
 import { resolveLoadRestriction } from "../../utils/account-access-sync";
 import { localizedField } from "../../i18n";
 import { useLocationScope } from "../../providers/location-scope-provider";
+import { rnShadow } from "../../utils/shadow";
+
 
 const DEAL_PLACEHOLDER = require("../../assets/images/food-new.png");
 const BIZ_PLACEHOLDER = require("../../assets/images/ok-resturant.png");
@@ -551,10 +553,7 @@ const styles = StyleSheet.create({
     borderColor: MarketplaceTheme.border,
     ...Platform.select({
       ios: {
-        shadowColor: MarketplaceTheme.navy,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 6,
+        ...rnShadow({ color: MarketplaceTheme.navy, offset: { width: 0, height: 2 }, opacity: 0.04, radius: 6 }),
       },
       android: { elevation: 1 },
     }),
@@ -583,10 +582,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     ...Platform.select({
       ios: {
-        shadowColor: MarketplaceTheme.navy,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 6,
+        ...rnShadow({ color: MarketplaceTheme.navy, offset: { width: 0, height: 2 }, opacity: 0.04, radius: 6 }),
       },
       android: { elevation: 1 },
     }),
@@ -631,10 +627,7 @@ const styles = StyleSheet.create({
     position: "relative",
     ...Platform.select({
       ios: {
-        shadowColor: MarketplaceTheme.navy,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 6,
+        ...rnShadow({ color: MarketplaceTheme.navy, offset: { width: 0, height: 2 }, opacity: 0.04, radius: 6 }),
       },
       android: { elevation: 1 },
     }),
@@ -725,10 +718,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     ...Platform.select({
       ios: {
-        shadowColor: MarketplaceTheme.navy,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 6,
+        ...rnShadow({ color: MarketplaceTheme.navy, offset: { width: 0, height: 2 }, opacity: 0.04, radius: 6 }),
       },
       android: { elevation: 1 },
     }),

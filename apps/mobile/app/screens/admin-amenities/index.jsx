@@ -45,6 +45,8 @@ import {
 import { useApiAction } from "../../../hooks/use-api-action";
 import useOverlayChrome from "../../../hooks/use-overlay-chrome";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
+import { rnShadow } from "../../../utils/shadow";
+
 
 const STATUS_OPTIONS = [
   { key: "bookable", labelKey: "admin.timedSlots", shortKey: "admin.slotsShort", hintKey: "admin.timedSlotsHint" },
@@ -1727,10 +1729,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     ...Platform.select({
       ios: {
-        shadowColor: "#0F172A",
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 16,
+        ...rnShadow({ color: "#0F172A", offset: { width: 0, height: -4 }, opacity: 0.1, radius: 16 }),
       },
       android: { elevation: 12 },
     }),

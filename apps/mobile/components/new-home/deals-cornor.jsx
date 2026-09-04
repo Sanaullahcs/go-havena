@@ -13,6 +13,7 @@ import HomeSectionHeader from "./section-header";
 import { timeAgo } from "../../services/feed-api";
 import HomeSectionEmpty from "./home-section-empty";
 import { sw, sf } from "../../utils/responsive";
+import { rnShadow } from "../../utils/shadow";
 import { arrowForward } from "../../utils/rtl";
 import { getCurrentRole } from "../../constants/role-session";
 import { MarketplaceRoutes, dealDetailsParams } from "../../constants/marketplace-routes";
@@ -191,10 +192,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === "ios"
       ? {
           backgroundColor: T.navy,
-          shadowColor: T.navy,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.12,
-          shadowRadius: 12,
+          ...rnShadow({ color: T.navy, offset: { width: 0, height: 4 }, opacity: 0.12, radius: 12 }),
           borderCurve: "continuous",
         }
       : { elevation: 3 }),

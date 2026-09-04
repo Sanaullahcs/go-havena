@@ -360,6 +360,8 @@ export default function KeyboardSafeScreen({
   footerKeyboardLift = true,
   /** Extra bottom padding while keyboard is open so lower fields can scroll above the CTA */
   keyboardFieldGap,
+  /** Pin footer to the home indicator with no extra gap below the field. */
+  dockFooter = false,
 }) {
   const insets = useSafeAreaInsets();
   const hasFooter = Boolean(footer);
@@ -370,6 +372,11 @@ export default function KeyboardSafeScreen({
   const fieldFooterGap = keyboardVisible && hasFooter ? resolvedFieldGap : 0;
   const enableFooterLift = hasFooter && footerKeyboardLift && !IOS_KEYBOARD_AVOID;
   const { footerMeasureRef, lift } = useKeyboardFooterLift(enableFooterLift);
+  const footerBottomPad = keyboardVisible
+    ? 6
+    : dockFooter
+      ? 6
+      : Math.max(insets.bottom, 12);
 
   const body = (
     <View style={styles.flex}>
@@ -397,12 +404,11 @@ export default function KeyboardSafeScreen({
           collapsable={false}
           style={[
             styles.footerMeasure,
-            footerBorderless && styles.footerMeasureBorderless,
+            footerBorderless && !dockFooter && styles.footerMeasureBorderless,
+            dockFooter && styles.footerMeasureDocked,
             // Keyboard covers the home indicator — don't stack large bottom inset on top of it
             {
-              paddingBottom: keyboardVisible
-                ? 10
-                : Math.max(insets.bottom, 12),
+              paddingBottom: footerBottomPad,
             },
           ]}
         >
@@ -410,6 +416,7 @@ export default function KeyboardSafeScreen({
             style={[
               styles.footer,
               footerBorderless && styles.footerBorderless,
+              dockFooter && styles.footerDocked,
               lift > 0 && { transform: [{ translateY: -lift }] },
               footerStyle,
             ]}
@@ -459,5 +466,14 @@ const styles = StyleSheet.create({
     // Keep a real gap above Send Code / primary CTA (was 0 → button sat on the field)
     paddingTop: 16,
     backgroundColor: "transparent",
+  },
+  footerMeasureDocked: {
+    backgroundColor: "#FFFFFF",
+  },
+  footerDocked: {
+    paddingTop: 0,
+    paddingHorizontal: 0,
+    borderTopWidth: 0,
+    backgroundColor: "#FFFFFF",
   },
 });

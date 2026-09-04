@@ -15,6 +15,8 @@ import ProfilePhotoAvatar from "../profile/profile-photo-avatar";
 import { Fonts } from "../../constants/font";
 import { sf, sw } from "../../utils/responsive";
 import { chevronForward } from "../../utils/rtl";
+import { rnShadow } from "../../utils/shadow";
+
 
 const STATUS_META = {
   head: { label: "Family Head", bg: "#D1FAF5", color: "#1B4F8A", border: "rgba(20, 184, 166, 0.28)" },
@@ -460,10 +462,7 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
     paddingTop: sw(16),
     paddingBottom: sw(18),
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
+    ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 4 }, opacity: 0.04, radius: 12 }),
     elevation: 2,
   },
   treeCardHeader: {

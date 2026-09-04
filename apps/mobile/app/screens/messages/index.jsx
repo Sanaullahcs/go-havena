@@ -34,6 +34,8 @@ import GuestFeatureErrorState from "../../../components/guest/guest-permission-d
 import { isFeatureAccessBlockedError } from "../../../utils/guest-permission-errors";
 import { resolveLoadRestriction } from "../../../utils/account-access-sync";
 import { chevronForward } from "../../../utils/rtl";
+import { rnShadow } from "../../../utils/shadow";
+
 
 const FILTERS = [
   { id: "all", icon: "chatbubbles-outline" },
@@ -54,10 +56,7 @@ const BRAND_BLUE = Colors.brandPrimaryDeep;
 
 const cardShadow = Platform.select({
   ios: {
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
+    ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 3 }, opacity: 0.05, radius: 10 }),
   },
   android: { elevation: 2 },
 });
@@ -963,10 +962,7 @@ const styles = StyleSheet.create({
     borderColor: "#1B4F8A",
     ...Platform.select({
       ios: {
-        shadowColor: "#0F172A",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.18,
-        shadowRadius: 8,
+        ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 4 }, opacity: 0.18, radius: 8 }),
       },
       android: { elevation: 5 },
     }),

@@ -1,4 +1,6 @@
 import { sw } from "../utils/responsive";
+import { rnShadow } from "../utils/shadow";
+
 
 /**
  * Havena design tokens — Harbor Trust
@@ -66,17 +68,11 @@ export const Layout = {
 
 export const Shadows = {
   card: {
-    shadowColor: NAVY,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
+    ...rnShadow({ color: NAVY, offset: { width: 0, height: 2 }, opacity: 0.06, radius: 10 }),
     elevation: 3,
   },
   button: {
-    shadowColor: PRIMARY,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+    ...rnShadow({ color: PRIMARY, offset: { width: 0, height: 4 }, opacity: 0.2, radius: 10 }),
     elevation: 4,
   },
 };

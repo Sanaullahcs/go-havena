@@ -1,3 +1,4 @@
+import { rnShadow } from "../utils/shadow";
 /**
  * Harbor Trust — scoped screen brand for login, signup, and home.
  */
@@ -25,10 +26,7 @@ export const ScreenBrand = {
   navActive: "#1B4F8A",
 
   buttonShadow: {
-    shadowColor: "#1B4F8A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+    ...rnShadow({ color: "#1B4F8A", offset: { width: 0, height: 4 }, opacity: 0.2, radius: 10 }),
     elevation: 4,
   },
 };

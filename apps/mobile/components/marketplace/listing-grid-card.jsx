@@ -7,6 +7,7 @@ import { Fonts } from "../../constants/font";
 import { MarketplaceType } from "../../constants/marketplace-type";
 import { getListingTypeTheme } from "../../constants/marketplace-theme";
 import { mediaImageSource } from "../../utils/profile-display";
+import { rnShadow } from "../../utils/shadow";
 import { getLocaleForLang } from "../../hooks/use-app-locale";
 import CrispImage from "../ui/crisp-image";
 import ThemedIconBox from "../ui/themed-icon-box";
@@ -255,10 +256,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     ...Platform.select({
       ios: {
-        shadowColor: "#64748B",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.07,
-        shadowRadius: 6,
+        ...rnShadow({ color: "#64748B", offset: { width: 0, height: 2 }, opacity: 0.07, radius: 6 }),
       },
       android: { elevation: 2 },
     }),
@@ -390,10 +388,7 @@ const styles = StyleSheet.create({
     borderColor: "#EEF2F6",
     ...Platform.select({
       ios: {
-        shadowColor: "#0F172A",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.08,
-        shadowRadius: 3,
+        ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 1 }, opacity: 0.08, radius: 3 }),
       },
       android: { elevation: 2 },
     }),

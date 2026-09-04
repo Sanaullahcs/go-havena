@@ -15,6 +15,8 @@ import { useApiAction } from "../../../hooks/use-api-action";
 import { Image } from "expo-image";
 import { resolveMediaUrl } from "../../../utils/profile-display";
 import { formatDisplayDate, formatDisplayTime } from "../../../utils/form-datetime";
+import { rnShadow } from "../../../utils/shadow";
+
 
 const FILTERS = [
   { key: "all", labelKey: "admin.all" },
@@ -517,10 +519,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: AdminTheme.border,
     borderStartWidth: sw(4),
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 2 }, opacity: 0.05, radius: 8 }),
     elevation: 2,
   },
   cardTop: {
@@ -742,10 +741,7 @@ const styles = StyleSheet.create({
     backgroundColor: AdminTheme.accent,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: AdminTheme.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.28,
-    shadowRadius: 10,
+    ...rnShadow({ color: AdminTheme.accent, offset: { width: 0, height: 4 }, opacity: 0.28, radius: 10 }),
     elevation: 6,
   },
 });

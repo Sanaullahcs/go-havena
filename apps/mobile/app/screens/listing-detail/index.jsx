@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { chevronBack, chevronForward } from "../../../utils/rtl";
+import { rnShadow } from "../../../utils/shadow";
 import { Fonts } from "../../../constants/font";
 import UserAvatar from "../../../components/ui/user-avatar";
 import CrispImage from "../../../components/ui/crisp-image";
@@ -765,10 +766,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     ...Platform.select({
       ios: {
-        shadowColor: "#0F172A",
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
+        ...rnShadow({ color: "#0F172A", offset: { width: 0, height: -4 }, opacity: 0.08, radius: 12 }),
       },
       android: { elevation: 8 },
     }),
@@ -1092,10 +1090,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     ...Platform.select({
       ios: {
-        shadowColor: "#0F172A",
-        shadowOffset: { width: 0, height: -3 },
-        shadowOpacity: 0.08,
-        shadowRadius: 10,
+        ...rnShadow({ color: "#0F172A", offset: { width: 0, height: -3 }, opacity: 0.08, radius: 10 }),
       },
       android: { elevation: 10 },
     }),

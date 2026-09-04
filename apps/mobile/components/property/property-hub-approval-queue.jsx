@@ -9,6 +9,8 @@ import {
 import ApprovalQueueIcon from "./approval-queue-icon";
 import { sf, sw } from "../../utils/responsive";
 import { chevronForward } from "../../utils/rtl";
+import { rnShadow } from "../../utils/shadow";
+
 
 const MAX_ITEMS = 3;
 
@@ -93,10 +95,7 @@ export default function PropertyHubApprovalQueue({ items = [], onAction, limit =
 
 const cardShadow = Platform.select({
   ios: {
-    shadowColor: PropertyHubTheme.text,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.02,
-    shadowRadius: 3,
+    ...rnShadow({ color: PropertyHubTheme.text, offset: { width: 0, height: 1 }, opacity: 0.02, radius: 3 }),
   },
   android: { elevation: 0 },
 });

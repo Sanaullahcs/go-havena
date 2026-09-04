@@ -9,6 +9,8 @@ import { pageStyles } from "../../../constants/page-styles";
 import { fetchAchievements } from "../../../services/achievements-api";
 import { getFallbackAchievements } from "../../../constants/achievements-fallback";
 import { sw, sf } from "../../../utils/responsive";
+import { rnShadow } from "../../../utils/shadow";
+
 
 function AchievementBadgeIcon({ icon, iconColor, iconBg, locked = false }) {
   return (
@@ -131,13 +133,7 @@ export default function Achievements() {
                 flex: 1,
                 overflow: "hidden",
                 backgroundColor: "#FFFFFF",
-                shadowColor: "#000",
-                shadowOffset: {
-                  width: 0,
-                  height: 1,
-                },
-                shadowOpacity: 0.1,
-                shadowRadius: 3,
+                ...rnShadow({ color: "#000", offset: { width: 0, height: 1 }, opacity: 0.1, radius: 3 }),
                 elevation: 2,
                 marginBottom: 16,
               }}
@@ -208,13 +204,7 @@ export default function Achievements() {
                 flex: 1,
                 overflow: "hidden",
                 backgroundColor: "#FFFFFF",
-                shadowColor: "#000",
-                shadowOffset: {
-                  width: 0,
-                  height: 1,
-                },
-                shadowOpacity: 0.1,
-                shadowRadius: 3,
+                ...rnShadow({ color: "#000", offset: { width: 0, height: 1 }, opacity: 0.1, radius: 3 }),
                 elevation: 2,
                 marginBottom: 16,
               }}

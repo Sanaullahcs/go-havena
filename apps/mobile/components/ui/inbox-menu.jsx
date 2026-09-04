@@ -14,6 +14,8 @@ import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { sw, sf, SCREEN_WIDTH } from "../../utils/responsive";
 import { chevronForward } from "../../utils/rtl";
+import { rnShadow } from "../../utils/shadow";
+
 
 const PANEL_WIDTH = sw(284);
 const PANEL_GAP = sw(18);
@@ -186,10 +188,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     ...(Platform.OS === "ios"
       ? {
-          shadowColor: "#1B4F8A",
-          shadowOffset: { width: 0, height: 10 },
-          shadowOpacity: 0.16,
-          shadowRadius: 28,
+          ...rnShadow({ color: "#1B4F8A", offset: { width: 0, height: 10 }, opacity: 0.16, radius: 28 }),
         }
       : { elevation: 14 }),
   },

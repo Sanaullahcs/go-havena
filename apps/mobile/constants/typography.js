@@ -1,5 +1,7 @@
 import { Platform, PixelRatio } from "react-native";
 import { Colors } from "./tokens";
+import { rnShadow } from "../utils/shadow";
+
 
 /** Figma base frame width */
 export const FIGMA_WIDTH = 390;
@@ -69,24 +71,15 @@ export function scale(size, screenWidth) {
 
 export const NativeShadow = {
   card: {
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: px(4) },
-    shadowOpacity: 0.08,
-    shadowRadius: px(12),
+    ...rnShadow({ color: "#0F172A", offset: { width: 0, height: px(4) }, opacity: 0.08, radius: px(12) }),
     elevation: 4,
   },
   soft: {
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: px(2) },
-    shadowOpacity: 0.06,
-    shadowRadius: px(8),
+    ...rnShadow({ color: "#0F172A", offset: { width: 0, height: px(2) }, opacity: 0.06, radius: px(8) }),
     elevation: 2,
   },
   fab: {
-    shadowColor: Colors.brandPrimaryDeep,
-    shadowOffset: { width: 0, height: px(6) },
-    shadowOpacity: 0.28,
-    shadowRadius: px(14),
+    ...rnShadow({ color: Colors.brandPrimaryDeep, offset: { width: 0, height: px(6) }, opacity: 0.28, radius: px(14) }),
     elevation: 8,
   },
   ...(Platform.OS === "android"
@@ -94,9 +87,9 @@ export const NativeShadow = {
     : {}),
 };
 
-/** Crisp expo-image defaults */
+/** Crisp expo-image defaults — no fade, so cached photos do not flicker on re-render. */
 export const imageProps = {
   cachePolicy: "memory-disk",
-  transition: 150,
+  transition: 0,
   allowDownscaling: true,
 };

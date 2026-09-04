@@ -53,6 +53,8 @@ import {
   getCompleteProfileParams,
 } from "../../../constants/onboarding-routes";
 import { getUser, getToken, setSession } from "../../../services/auth-session";
+import { rnShadow } from "../../../utils/shadow";
+
 
 async function persistSessionUser(user) {
   const token = await getToken();
@@ -1232,10 +1234,7 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: "#FFFFFF",
     gap: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
+    ...rnShadow({ color: "#000", offset: { width: 0, height: 2 }, opacity: 0.04, radius: 8 }),
     elevation: 2,
   },
   communityCardApproved: {

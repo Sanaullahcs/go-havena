@@ -12,6 +12,7 @@ use App\Support\NearbyDiscovery;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 class BusinessController extends Controller
@@ -38,12 +39,7 @@ class BusinessController extends Controller
             ->join('users', 'users.id', '=', 'b.owner_id')
             ->leftJoin('profiles', 'profiles.user_id', '=', 'b.owner_id')
             ->leftJoin('communities', 'communities.id', '=', 'b.community_id')
-            ->select(
-                'b.*',
-                'users.name as owner_name',
-                'profiles.display_name as owner_display_name',
-                'communities.name as community_name',
-            )
+            ->select($this->businessSelect())
             ->whereIn('b.community_id', $communityIds)
             ->whereNull('b.deleted_at');
 
@@ -353,7 +349,30 @@ class BusinessController extends Controller
             'updated_at'     => $business->updated_at,
             'distance_miles' => $distanceMiles,
             'is_local'       => $originCommunityId ? $bizCommunityId === $originCommunityId : true,
+            'latitude'       => isset($business->community_latitude) && $business->community_latitude !== null
+                ? (float) $business->community_latitude
+                : null,
+            'longitude'      => isset($business->community_longitude) && $business->community_longitude !== null
+                ? (float) $business->community_longitude
+                : null,
         ];
+    }
+
+    private function businessSelect(): array
+    {
+        $select = [
+            'b.*',
+            'users.name as owner_name',
+            'profiles.display_name as owner_display_name',
+            'communities.name as community_name',
+        ];
+
+        if (Schema::hasColumn('communities', 'latitude')) {
+            $select[] = 'communities.latitude as community_latitude';
+            $select[] = 'communities.longitude as community_longitude';
+        }
+
+        return $select;
     }
 
     private function findBusiness(int $id): ?object
@@ -362,12 +381,7 @@ class BusinessController extends Controller
             ->join('users', 'users.id', '=', 'b.owner_id')
             ->leftJoin('profiles', 'profiles.user_id', '=', 'b.owner_id')
             ->leftJoin('communities', 'communities.id', '=', 'b.community_id')
-            ->select(
-                'b.*',
-                'users.name as owner_name',
-                'profiles.display_name as owner_display_name',
-                'communities.name as community_name',
-            )
+            ->select($this->businessSelect())
             ->where('b.id', $id)
             ->whereNull('b.deleted_at')
             ->first();

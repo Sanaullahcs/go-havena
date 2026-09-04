@@ -4,6 +4,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
+import { rnShadow, rnTextShadow } from "../../utils/shadow";
 
 /* ── YouTube helpers ──────────────────────────────────────────── */
 const YT_REGEX =
@@ -147,10 +148,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FF0000",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
+    ...rnShadow({ color: "#000", offset: { width: 0, height: 2 }, opacity: 0.4, radius: 8, elevation: 6 }),
   },
   ytPlayIcon: {
     color: "#FFFFFF",
@@ -162,8 +160,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#FFFFFF",
     textAlign: "center",
-    textShadowColor: "rgba(0,0,0,0.7)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    ...rnTextShadow({ color: "rgba(0,0,0,0.7)", offset: { width: 0, height: 1 }, radius: 4 }),
   },
 });

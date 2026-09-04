@@ -7,6 +7,8 @@ import { WellnessTheme } from "../../constants/wellness-theme";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { sf, sw } from "../../utils/responsive";
 import { chevronForward } from "../../utils/rtl";
+import { rnShadow } from "../../utils/shadow";
+
 
 const NUM = sw(36);
 const TICK = sf(16);
@@ -106,10 +108,7 @@ const styles = StyleSheet.create({
     marginBottom: sw(10),
     ...Platform.select({
       ios: {
-        shadowColor: "#0F172A",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
+        ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 2 }, opacity: 0.05, radius: 8 }),
       },
       android: { elevation: 1 },
     }),

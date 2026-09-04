@@ -19,6 +19,8 @@ import { formatDisplayTime, formatAccessDay, formatDisplayDateTime } from "../..
 import { GUEST_PERMISSION_OPTIONS, normalizeGuestPermissions } from "../../../constants/guest-permissions";
 import { useTranslation } from "react-i18next";
 import { arrowForward } from "../../../utils/rtl";
+import { rnShadow } from "../../../utils/shadow";
+
 
 function formatDurationLabel(start, end, t) {
   if (!start || !end) return null;
@@ -465,10 +467,7 @@ const styles = StyleSheet.create({
     padding: sw(16),
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
+    ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 2 }, opacity: 0.04, radius: 8 }),
     elevation: 2,
   },
   cardHeader: {

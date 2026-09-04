@@ -19,7 +19,6 @@ import {
   LOCATION_RADIUS_MILES,
   THIS_COMMUNITY_RADIUS,
   categoryIcon,
-  compactRadiusLabel,
   formatMilesLabel,
   radiusChipIcon,
   walkingMinutes,
@@ -28,6 +27,8 @@ import { fetchBusinesses } from "../../services/businesses-api";
 import SearchInput from "./search-input";
 import CrispImage from "./crisp-image";
 import { sf, sw } from "../../utils/responsive";
+import { useAppDialog } from "../../providers/app-dialog-provider";
+import { callPlace, openPlaceDirections, telUrl } from "../../utils/open-place-actions";
 
 const PREVIEW_MILES = 10;
 const ALL_CATEGORY = "all";
@@ -71,20 +72,24 @@ function CategoryChip({ label, active, onPress }) {
   );
 }
 
-function BusinessRow({ business, t, onPress }) {
+function BusinessRow({ business, t, onPress, selected }) {
   const miles = Number(business.distanceMiles);
   const outside = !business.isLocal && Number.isFinite(miles) && miles > 0;
   const walk = walkingMinutes(miles);
   const distance = outside
     ? t("topBar.milesAway", { distance: formatMilesLabel(miles).replace(" mi", "") })
-    : t("topBar.inBuilding");
+    : null;
   const walkLabel = outside && walk ? t("topBar.minWalk", { count: walk }) : null;
-  const meta = [business.category, outside ? business.communityName : t("topBar.inCommunity")]
+  const meta = [business.category, outside ? business.communityName : null]
     .filter(Boolean)
     .join(" · ");
 
   return (
-    <TouchableOpacity style={styles.resultRow} onPress={() => onPress(business)} activeOpacity={0.88}>
+    <TouchableOpacity
+      style={[styles.resultRow, selected && styles.resultRowSelected]}
+      onPress={() => onPress(business)}
+      activeOpacity={0.88}
+    >
       <View style={styles.thumbWrap}>
         {business.imageUrl ? (
           <CrispImage source={business.imageUrl} style={styles.thumb} />
@@ -109,30 +114,78 @@ function BusinessRow({ business, t, onPress }) {
             </View>
           )}
         </View>
-        <Text style={styles.resultMeta} numberOfLines={1}>
-          {meta}
-        </Text>
-        <Text style={styles.resultWalk} numberOfLines={1}>
-          {walkLabel ? `${distance} · ${walkLabel}` : distance}
-        </Text>
+        {meta ? (
+          <Text style={styles.resultMeta} numberOfLines={1}>
+            {meta}
+          </Text>
+        ) : null}
+        {distance ? (
+          <Text style={styles.resultWalk} numberOfLines={1}>
+            {walkLabel ? `${distance} · ${walkLabel}` : distance}
+          </Text>
+        ) : null}
       </View>
       <Feather name="chevron-right" size={sf(16)} color={T.border} />
     </TouchableOpacity>
   );
 }
 
-function SectionHead({ title, count, actionLabel, onAction }) {
+function PlaceActions({ business, t, showError }) {
+  const canCall = Boolean(telUrl(business.phone));
+  const address = business.address || business.communityName || "";
+
+  const onCall = async () => {
+    try {
+      await callPlace(business.phone);
+    } catch (err) {
+      await showError(
+        t("topBar.unableToCall"),
+        err?.code === "no-phone" ? t("topBar.noPhoneListed") : t("deals.callingNotSupported"),
+      );
+    }
+  };
+
+  const onDirections = async () => {
+    try {
+      await openPlaceDirections(business);
+    } catch {
+      await showError(t("topBar.unableToOpenMaps"), t("topBar.noMapLocation"));
+    }
+  };
+
   return (
-    <View style={styles.sectionHead}>
-      <View style={styles.sectionHeadCopy}>
-        <Text style={styles.sectionTitle}>{title}</Text>
-        {count != null ? <Text style={styles.sectionCount}>{count}</Text> : null}
-      </View>
-      {actionLabel && onAction ? (
-        <TouchableOpacity onPress={onAction} hitSlop={8}>
-          <Text style={styles.sectionAction}>{actionLabel}</Text>
-        </TouchableOpacity>
+    <View style={styles.actions}>
+      <Text style={styles.actionsName} numberOfLines={1}>
+        {business.name}
+      </Text>
+      {address ? (
+        <Text style={styles.actionsAddress} numberOfLines={2}>
+          {address}
+        </Text>
       ) : null}
+      <View style={styles.actionRow}>
+        <TouchableOpacity
+          style={[styles.actionBtn, !canCall && styles.actionBtnDisabled]}
+          onPress={onCall}
+          activeOpacity={0.85}
+          disabled={!canCall}
+        >
+          <Feather name="phone" size={sf(15)} color={canCall ? T.white : T.gray} />
+          <Text style={[styles.actionBtnText, !canCall && styles.actionBtnTextDisabled]}>
+            {t("topBar.call")}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionBtn, styles.actionBtnSecondary]}
+          onPress={onDirections}
+          activeOpacity={0.85}
+        >
+          <Feather name="navigation" size={sf(15)} color={T.navy} />
+          <Text style={[styles.actionBtnText, styles.actionBtnTextSecondary]}>
+            {t("topBar.directions")}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -154,12 +207,15 @@ export default function LocationPickerSheet({
   const [category, setCategory] = useState(ALL_CATEGORY);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const { showError } = useAppDialog();
 
   useEffect(() => {
     if (visible) {
       setDraftRadius(radiusMiles ?? THIS_COMMUNITY_RADIUS);
       setQuery("");
       setCategory(ALL_CATEGORY);
+      setSelected(null);
     }
   }, [visible, radiusMiles]);
 
@@ -253,9 +309,6 @@ export default function LocationPickerSheet({
                 {communityName}
               </Text>
               <Text style={styles.title}>{t("topBar.discoverTitle")}</Text>
-              <Text style={styles.subtitle} numberOfLines={2}>
-                {t("topBar.discoverSubtitle")}
-              </Text>
             </View>
             <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={10}>
               <Feather name="x" size={sf(18)} color={T.gray} />
@@ -324,57 +377,24 @@ export default function LocationPickerSheet({
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              {localRows.length > 0 ? (
-                <>
-                  <SectionHead
-                    title={t("topBar.inBuilding")}
-                    count={t("topBar.shopsCount", { count: localRows.length })}
-                  />
-                  {localRows.map((business) => (
-                    <BusinessRow
-                      key={`local-${business.id}`}
-                      business={business}
-                      t={t}
-                      onPress={(item) => {
-                        onSelectBusiness?.(item);
-                        onClose?.();
-                      }}
-                    />
-                  ))}
-                </>
-              ) : null}
-
-              {outsideRows.length > 0 ? (
-                <>
-                  <SectionHead
-                    title={
-                      draftRadius > THIS_COMMUNITY_RADIUS
-                        ? t("topBar.aroundNearby", { range: compactRadiusLabel(draftRadius) })
-                        : t("topBar.justOutside")
-                    }
-                    count={t("topBar.shopsCount", { count: outsideRows.length })}
-                    actionLabel={
-                      draftRadius <= THIS_COMMUNITY_RADIUS ? t("topBar.includeNearby") : null
-                    }
-                    onAction={
-                      draftRadius <= THIS_COMMUNITY_RADIUS ? () => applyRadius(2) : undefined
-                    }
-                  />
-                  {outsideRows.map((business) => (
-                    <BusinessRow
-                      key={`out-${business.id}`}
-                      business={business}
-                      t={t}
-                      onPress={(item) => {
-                        onSelectBusiness?.(item);
-                        onClose?.();
-                      }}
-                    />
-                  ))}
-                </>
-              ) : null}
+              {[...localRows, ...outsideRows].map((business) => (
+                <BusinessRow
+                  key={`${business.isLocal ? "local" : "out"}-${business.id}`}
+                  business={business}
+                  t={t}
+                  selected={selected?.id === business.id}
+                  onPress={(item) => {
+                    setSelected(item);
+                    onSelectBusiness?.(item);
+                  }}
+                />
+              ))}
             </ScrollView>
           )}
+
+          {selected ? (
+            <PlaceActions business={selected} t={t} showError={showError} />
+          ) : null}
         </View>
       </View>
     </Modal>
@@ -429,13 +449,6 @@ const styles = StyleSheet.create({
     fontSize: sf(20),
     lineHeight: sf(26),
     color: T.navy,
-  },
-  subtitle: {
-    marginTop: sw(2),
-    fontFamily: Fonts.regular,
-    fontSize: sf(13),
-    lineHeight: sf(18),
-    color: T.gray,
   },
   closeBtn: {
     width: sw(32),
@@ -555,38 +568,6 @@ const styles = StyleSheet.create({
   catChipTextActive: {
     color: T.white,
   },
-  sectionHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: sw(16),
-    marginBottom: sw(4),
-  },
-  sectionHeadCopy: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: sw(8),
-    flex: 1,
-    minWidth: 0,
-  },
-  sectionTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(14),
-    lineHeight: sf(20),
-    color: T.navy,
-  },
-  sectionCount: {
-    fontFamily: Fonts.medium,
-    fontSize: sf(12),
-    lineHeight: sf(16),
-    color: T.gray,
-  },
-  sectionAction: {
-    fontFamily: Fonts.semiBold,
-    fontSize: sf(12),
-    lineHeight: sf(16),
-    color: T.deepTeal,
-  },
   loader: {
     flex: 1,
     paddingVertical: sw(28),
@@ -603,7 +584,7 @@ const styles = StyleSheet.create({
   results: {
     flex: 1,
     minHeight: 0,
-    marginTop: sw(4),
+    marginTop: sw(10),
   },
   resultRow: {
     flexDirection: "row",
@@ -612,6 +593,13 @@ const styles = StyleSheet.create({
     paddingVertical: sw(10),
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: T.border,
+  },
+  resultRowSelected: {
+    backgroundColor: "#F0FDFA",
+    marginHorizontal: -sw(8),
+    paddingHorizontal: sw(8),
+    borderRadius: sw(12),
+    borderBottomColor: "transparent",
   },
   thumbWrap: {
     width: sw(44),
@@ -672,7 +660,6 @@ const styles = StyleSheet.create({
     fontSize: sf(9),
     lineHeight: sf(12),
     color: T.deepTeal,
-    textTransform: "uppercase",
   },
   resultMeta: {
     fontFamily: Fonts.regular,
@@ -685,5 +672,61 @@ const styles = StyleSheet.create({
     fontSize: sf(11),
     lineHeight: sf(15),
     color: T.deepTeal,
+  },
+  actions: {
+    flexGrow: 0,
+    flexShrink: 0,
+    marginTop: sw(8),
+    paddingTop: sw(12),
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: T.border,
+  },
+  actionsName: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(15),
+    lineHeight: sf(20),
+    color: T.navy,
+  },
+  actionsAddress: {
+    marginTop: sw(2),
+    fontFamily: Fonts.regular,
+    fontSize: sf(12),
+    lineHeight: sf(16),
+    color: T.gray,
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: sw(8),
+    marginTop: sw(10),
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: sw(8),
+    height: sw(44),
+    borderRadius: sw(12),
+    backgroundColor: T.teal,
+  },
+  actionBtnSecondary: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: T.border,
+  },
+  actionBtnDisabled: {
+    backgroundColor: "#F1F5F9",
+  },
+  actionBtnText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(14),
+    lineHeight: sf(18),
+    color: T.white,
+  },
+  actionBtnTextSecondary: {
+    color: T.navy,
+  },
+  actionBtnTextDisabled: {
+    color: T.gray,
   },
 });

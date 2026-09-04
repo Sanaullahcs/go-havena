@@ -6,6 +6,8 @@ import { PropertyHubTheme, getPropertyServiceMeta } from "../../constants/proper
 import PropertyServiceIcon from "./property-service-icon";
 import { sf, sw } from "../../utils/responsive";
 import { chevronForward } from "../../utils/rtl";
+import { rnShadow } from "../../utils/shadow";
+
 
 function LinkCard({ item, onPress }) {
   const meta = getPropertyServiceMeta(item.key);
@@ -75,10 +77,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     ...Platform.select({
       ios: {
-        shadowColor: PropertyHubTheme.text,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.02,
-        shadowRadius: 3,
+        ...rnShadow({ color: PropertyHubTheme.text, offset: { width: 0, height: 1 }, opacity: 0.02, radius: 3 }),
       },
       android: { elevation: 0 },
     }),

@@ -209,6 +209,24 @@ export function pickHomeFeedPosts(posts, limit = HOME_SECTION_CARD_LIMIT) {
     .slice(0, limit);
 }
 
+/** Keep the previous array when a silent refresh returned the same visible posts. */
+export function areFeedPostsUnchanged(prev, next) {
+  if (prev === next) return true;
+  if (!Array.isArray(prev) || !Array.isArray(next) || prev.length !== next.length) return false;
+  return prev.every((post, index) => {
+    const other = next[index];
+    return (
+      post.id === other.id
+      && post.image_url === other.image_url
+      && post.content === other.content
+      && post.likes_count === other.likes_count
+      && post.comments_count === other.comments_count
+      && post.liked_by_me === other.liked_by_me
+      && post.status === other.status
+    );
+  });
+}
+
 export function normalizeComment(raw) {
   if (!raw) return null;
 

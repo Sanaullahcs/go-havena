@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, RefreshControl, Platform } from "react-native";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -34,6 +34,8 @@ import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { sw, sf } from "../../../utils/responsive";
 import { useApiAction } from "../../../hooks/use-api-action";
 import { useNow } from "../../../hooks/use-now";
+import { rnShadow } from "../../../utils/shadow";
+
 
 const PREVIEW_REPLY_COUNT = 1;
 
@@ -382,6 +384,7 @@ export default function FeedCommentsScreen() {
         scrollRef={scrollRef}
         contentContainerStyle={styles.scroll}
         footerBorderless
+        dockFooter
         footerStyle={styles.composerWrap}
         scrollProps={{
           refreshControl: (
@@ -426,21 +429,22 @@ export default function FeedCommentsScreen() {
                   }}
                   placeholder={replyTo ? t("feed.comments.replyPlaceholder", { name: replyTo.name }) : t("feed.comments.writeComment")}
                   placeholderTextColor="#9CA3AF"
-                  style={[styles.input]}
+                  style={styles.input}
                   multiline
+                  textAlignVertical="center"
                   maxLength={LIMITS.feedComment}
                 />
-                <TouchableOpacity
-                  style={[styles.sendBtn, !canComment && styles.sendBtnDisabled]}
-                  onPress={submit}
-                  disabled={!canComment}
-                  activeOpacity={0.85}
-                  accessibilityRole="button"
-                  accessibilityLabel={t("feed.comments.send")}
-                >
-                  <Feather name="send" size={15} color="#FFFFFF" />
-                </TouchableOpacity>
               </View>
+              <TouchableOpacity
+                style={[styles.sendBtn, !canComment && styles.sendBtnDisabled]}
+                onPress={submit}
+                disabled={!canComment}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={t("feed.comments.send")}
+              >
+                <Feather name="send" size={16} color="#FFFFFF" />
+              </TouchableOpacity>
             </View>
             {showError("body", liveErrors) ? (
               <Text style={styles.errorText}>{showError("body", liveErrors)}</Text>
@@ -472,8 +476,6 @@ export default function FeedCommentsScreen() {
                   })
                 }
               />
-              <View style={{ paddingHorizontal: sw(4), marginBottom: sw(4) }}>
-</View>
             </>
           ) : null}
 
@@ -501,22 +503,6 @@ export default function FeedCommentsScreen() {
                     ? t("feed.comments.emptySensitive")
                     : t("feed.comments.emptyStart")}
                 </Text>
-                {!isSensitive ? (
-                  <TouchableOpacity
-                    style={styles.emptyBtn}
-                    onPress={focusComposer}
-                    activeOpacity={0.85}
-                  >
-                    <Text
-                      style={styles.emptyBtnText}
-                      numberOfLines={2}
-                      adjustsFontSizeToFit
-                      minimumFontScale={0.8}
-                    >
-                      {t("feed.comments.writeComment")}
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
               </View>
             ) : (
               displayRows.map((row) => {
@@ -594,10 +580,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E4E6EB",
     overflow: "visible",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
+    ...rnShadow({ color: "#000", offset: { width: 0, height: 2 }, opacity: 0.05, radius: 6 }),
     elevation: 2,
   },
   commentsHeader: {
@@ -671,43 +654,14 @@ const styles = StyleSheet.create({
     color: "#65676B",
     textAlign: "center",
     lineHeight: sf(19),
-    marginBottom: sw(16),
-  },
-  emptyBtn: {
-    alignSelf: "stretch",
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#D1FAF5",
-    paddingHorizontal: sw(16),
-    paddingVertical: sw(12),
-    borderRadius: sw(10),
-    borderWidth: 1,
-    borderColor: "rgba(20, 184, 166, 0.28)",
-    minHeight: sw(44),
-  },
-  emptyBtnText: {
-    width: "100%",
-    fontFamily: Fonts.semiBold,
-    fontSize: sf(13),
-    lineHeight: sf(18),
-    color: Colors.brandPrimaryDeep,
-    fontWeight: "600",
-    textAlign: "center",
-    flexShrink: 1,
   },
   composerWrap: {
     backgroundColor: "#FFFFFF",
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "#E4E6EB",
     paddingHorizontal: 0,
     paddingTop: 0,
-    paddingBottom: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 8,
+    paddingBottom: 0,
   },
   sensitiveComposer: {
     flexDirection: "row",
@@ -752,36 +706,32 @@ const styles = StyleSheet.create({
     gap: sw(8),
     paddingHorizontal: sw(12),
     paddingTop: sw(8),
-    paddingBottom: sw(8),
+    paddingBottom: sw(4),
   },
   inputWrap: {
     flex: 1,
     minWidth: 0,
-    flexDirection: "row",
-    alignItems: "flex-end",
+    justifyContent: "center",
     backgroundColor: "#F0F2F5",
     borderRadius: sw(20),
-    paddingStart: sw(12),
-    paddingEnd: sw(4),
-    paddingVertical: sw(4),
+    paddingHorizontal: sw(14),
     minHeight: sw(40),
-    maxHeight: sw(96),
-    borderWidth: 1,
-    borderColor: "#E4E6EB",
+    maxHeight: sw(100),
   },
   input: {
-    flex: 1,
-    minWidth: 0,
+    width: "100%",
+    maxHeight: sw(88),
     fontFamily: Fonts.regular,
-    fontSize: sf(13),
-    lineHeight: sf(18),
+    fontSize: sf(15),
     color: "#050505",
-    maxHeight: sw(72),
-    paddingVertical: sw(8),
-    paddingEnd: sw(8),
+    paddingTop: Platform.OS === "ios" ? sw(9) : sw(6),
+    paddingBottom: Platform.OS === "ios" ? sw(9) : sw(6),
+    paddingHorizontal: 0,
+    margin: 0,
     includeFontPadding: false,
   },
   inputError: {
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#DC2626",
   },
   errorText: {
@@ -793,14 +743,13 @@ const styles = StyleSheet.create({
     color: "#DC2626",
   },
   sendBtn: {
-    width: sw(32),
-    height: sw(32),
-    borderRadius: sw(16),
+    width: sw(40),
+    height: sw(40),
+    borderRadius: sw(20),
     backgroundColor: "#1B4F8A",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-    marginBottom: sw(0),
   },
   sendBtnDisabled: {
     backgroundColor: "#94A3B8",

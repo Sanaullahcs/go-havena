@@ -2,6 +2,8 @@ import React, { useEffect, useRef } from "react";
 import { View, Animated, StyleSheet, useWindowDimensions, Platform } from "react-native";
 import { Home } from "../../constants/home-styles";
 import { sw, sf, hp } from "../../utils/responsive";
+import { rnShadow } from "../../utils/shadow";
+
 
 const SHIMMER_TONES = {
   default: { color: "#E2E8F0", min: 0.38, max: 0.82 },
@@ -16,10 +18,7 @@ const SHIMMER_TONES = {
 
 const MP_CARD_SHADOW = Platform.select({
   ios: {
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
+    ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 2 }, opacity: 0.04, radius: 8 }),
   },
   android: { elevation: 2 },
 });
@@ -1153,10 +1152,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 2 }, opacity: 0.05, radius: 8 }),
     elevation: 2,
   },
   helpCardBody: {

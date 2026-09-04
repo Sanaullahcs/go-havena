@@ -22,6 +22,8 @@ import {
 } from "../../../constants/marketplace-routes";
 import { MarketplaceTheme } from "../../../constants/marketplace-theme";
 import { useTranslation } from "react-i18next";
+import { rnShadow } from "../../../utils/shadow";
+
 
 const M = MarketplaceTheme;
 const H_PADDING = 20;
@@ -634,7 +636,7 @@ const styles = StyleSheet.create({
   headerShell: {
     backgroundColor: "transparent",
     borderBottomWidth: 0,
-    shadowOpacity: 0,
+    boxShadow: "none",
     elevation: 0,
   },
   headerRow: {
@@ -867,10 +869,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
     ...Platform.select({
       ios: {
-        shadowColor: "#0F172A",
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.12,
-        shadowRadius: 8,
+        ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 3 }, opacity: 0.12, radius: 8 }),
       },
       android: { elevation: 4 },
     }),

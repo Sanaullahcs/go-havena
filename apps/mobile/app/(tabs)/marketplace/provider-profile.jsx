@@ -19,6 +19,8 @@ import { MarketplaceRoutes, withMarketplaceRole } from "../../../constants/marke
 import { fetchBusiness } from "../../../services/businesses-api";
 import { fetchBusinessDeals } from "../../../services/deals-api";
 import { ionChevronForward } from "../../../utils/rtl";
+import { rnShadow } from "../../../utils/shadow";
+
 
 const BIZ_PLACEHOLDER = require("../../../assets/images/ok-resturant.png");
 
@@ -267,10 +269,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
     position: "relative",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
+    ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 8 }, opacity: 0.08, radius: 16 }),
     elevation: 4,
   },
   heroImage: {
@@ -327,10 +326,7 @@ const styles = StyleSheet.create({
     padding: 18,
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
+    ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 8 }, opacity: 0.08, radius: 16 }),
     elevation: 4,
   },
   name: {
@@ -466,10 +462,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: "hidden",
     backgroundColor: "#1B4F8A",
-    shadowColor: "#1B4F8A",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
+    ...rnShadow({ color: "#1B4F8A", offset: { width: 0, height: 6 }, opacity: 0.25, radius: 12 }),
     elevation: 5,
   },
   dealsBtnInner: {

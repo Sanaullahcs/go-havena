@@ -36,6 +36,7 @@ import {
   fetchBookingInbox,
   fetchAdminAmenities,
 } from "../../services/amenity-api";
+import { rnShadow } from "../../utils/shadow";
 import {
   buildPropertyHubActivity,
   buildResidentHubActivity,
@@ -349,10 +350,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(16),
     ...Platform.select({
       ios: {
-        shadowColor: "#101828",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.015,
-        shadowRadius: 2,
+        ...rnShadow({ color: "#101828", offset: { width: 0, height: 1 }, opacity: 0.015, radius: 2 }),
       },
       android: { elevation: 0 },
     }),
@@ -376,10 +374,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: sw(20),
     ...Platform.select({
       ios: {
-        shadowColor: PropertyHubTheme.deepTeal,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.02,
-        shadowRadius: 3,
+        ...rnShadow({ color: PropertyHubTheme.deepTeal, offset: { width: 0, height: 1 }, opacity: 0.02, radius: 3 }),
       },
       android: { elevation: 0 },
     }),

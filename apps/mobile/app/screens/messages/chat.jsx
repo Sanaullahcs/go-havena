@@ -22,6 +22,8 @@ import { formatListingPrice } from "../../../components/marketplace/listing-grid
 import { formatCommentTime, parseApiDate } from "../../../services/feed-api";
 import { sw, sf } from "../../../utils/responsive";
 import { chevronForward } from "../../../utils/rtl";
+import { rnShadow } from "../../../utils/shadow";
+
 
 const NEIGHBOR_QUICK_REPLIES = [
   "messages.chat.quickHiNeighbor",
@@ -42,10 +44,7 @@ const CHAT_BG = "#F0F5FF";
 
 const cardShadow = Platform.select({
   ios: {
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 2 }, opacity: 0.06, radius: 8 }),
   },
   android: { elevation: 2 },
 });
@@ -978,10 +977,7 @@ const styles = StyleSheet.create({
     paddingTop: sw(8),
     ...Platform.select({
       ios: {
-        shadowColor: "#0F172A",
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.06,
-        shadowRadius: 12,
+        ...rnShadow({ color: "#0F172A", offset: { width: 0, height: -4 }, opacity: 0.06, radius: 12 }),
       },
       android: { elevation: 8 },
     }),
@@ -1001,10 +997,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     ...Platform.select({
       ios: {
-        shadowColor: "#0F172A",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 6,
+        ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 2 }, opacity: 0.04, radius: 6 }),
       },
       android: { elevation: 2 },
     }),
@@ -1023,10 +1016,7 @@ const styles = StyleSheet.create({
     borderRadius: sw(22),
     ...Platform.select({
       ios: {
-        shadowColor: Colors.brandPrimaryDeep,
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.28,
-        shadowRadius: 6,
+        ...rnShadow({ color: Colors.brandPrimaryDeep, offset: { width: 0, height: 3 }, opacity: 0.28, radius: 6 }),
       },
       android: { elevation: 4 },
     }),

@@ -23,6 +23,7 @@ import {
   applyLikeToPost,
   FEED_TOPICS,
   TOPIC_LABEL_KEY,
+  areFeedPostsUnchanged,
 } from "../../services/feed-api";
 import { useTranslation } from "react-i18next";
 import { getUser } from "../../services/auth-session";
@@ -35,6 +36,8 @@ import { sw, sf, hp } from "../../utils/responsive";
 import GuestFeatureErrorState from "../guest/guest-permission-denied-state";
 import { isFeatureAccessBlockedError } from "../../utils/guest-permission-errors";
 import { resolveLoadRestriction } from "../../utils/account-access-sync";
+import { rnShadow } from "../../utils/shadow";
+
 
 /** Embedded community feed — used inside the Community tab and full feed screen. */
 export default function CommunityFeedPanel() {
@@ -64,7 +67,8 @@ export default function CommunityFeedPanel() {
       }
 
       const result = await fetchFeed({ perPage: 20 });
-      setPosts(result.posts ?? []);
+      const nextPosts = result.posts ?? [];
+      setPosts((prev) => (areFeedPostsUnchanged(prev, nextPosts) ? prev : nextPosts));
       setEmptyReason(result.emptyReason ?? null);
     } catch (err) {
       const restricted = await resolveLoadRestriction("feed", err);
@@ -326,10 +330,7 @@ const styles = StyleSheet.create({
     borderColor: T.border,
     ...(Platform.OS === "ios"
       ? {
-          shadowColor: T.navy,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.06,
-          shadowRadius: 8,
+          ...rnShadow({ color: T.navy, offset: { width: 0, height: 2 }, opacity: 0.06, radius: 8 }),
         }
       : { elevation: 2 }),
   },

@@ -24,6 +24,8 @@ import WellnessHeroCircle, {
 } from "./wellness-hero-circle";
 import { sf, sw } from "../../utils/responsive";
 import { chevronForward } from "../../utils/rtl";
+import { rnShadow } from "../../utils/shadow";
+
 
 const HERO_MEDIA = sw(132);
 const HERO_IMAGE = WELLNESS_HERO_CIRCLE;
@@ -401,10 +403,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     zIndex: 2,
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
+    ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 1 }, opacity: 0.08, radius: 3 }),
     elevation: 2,
   },
   heroCopy: {

@@ -23,6 +23,8 @@ import { navigateAppRoute } from "../../utils/app-navigation";
 import { useKeyboardVisible } from "./keyboard-safe-screen";
 import { shouldHideTabBar } from "../../constants/tab-bar-visibility";
 import { openServicesHub } from "../../constants/property-management-routes";
+import { rnShadow } from "../../utils/shadow";
+
 
 const BRAND = Colors.brandPrimary;
 const ACTIVE = BRAND;
@@ -273,10 +275,7 @@ const styles = StyleSheet.create({
     borderTopColor: T.border,
     ...(Platform.OS === "ios"
       ? {
-          shadowColor: T.navy,
-          shadowOffset: { width: 0, height: -3 },
-          shadowOpacity: 0.08,
-          shadowRadius: 10,
+          ...rnShadow({ color: T.navy, offset: { width: 0, height: -3 }, opacity: 0.08, radius: 10 }),
         }
       : { elevation: 8 }),
   },
@@ -320,10 +319,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     ...Platform.select({
       ios: {
-        shadowColor: BRAND,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.32,
-        shadowRadius: 16,
+        ...rnShadow({ color: BRAND, offset: { width: 0, height: 8 }, opacity: 0.32, radius: 16 }),
       },
       android: { elevation: 10 },
     }),

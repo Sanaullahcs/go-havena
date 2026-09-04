@@ -8,6 +8,8 @@ import { Colors, Layout } from "../../constants/tokens";
 import { useRouter } from "expo-router";
 import { formatRank } from "../../services/points-api";
 import { sw, sf } from "../../utils/responsive";
+import { rnShadow } from "../../utils/shadow";
+
 
 export default function ProfileStats({ stats }) {
   const router = useRouter();
@@ -107,10 +109,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.borderSubtle,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
+    ...rnShadow({ color: "#000", offset: { width: 0, height: 1 }, opacity: 0.03, radius: 4 }),
     elevation: 1,
   },
   row: {

@@ -15,6 +15,7 @@ import {
   openServicesHub,
 } from "../../constants/property-management-routes";
 import { getAmenityVisual, getAmenityStatus } from "../../utils/amenity-display";
+import { rnShadow } from "../../utils/shadow";
 import { sw, sf } from "../../utils/responsive";
 import { chevronForward } from "../../utils/rtl";
 import { localizedField } from "../../i18n";
@@ -155,10 +156,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === "ios"
       ? {
           backgroundColor: T.white,
-          shadowColor: T.navy,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.06,
-          shadowRadius: 8,
+          ...rnShadow({ color: T.navy, offset: { width: 0, height: 2 }, opacity: 0.06, radius: 8 }),
           borderCurve: "continuous",
         }
       : { elevation: 2 }),

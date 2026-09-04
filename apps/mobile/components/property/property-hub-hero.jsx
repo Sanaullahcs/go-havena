@@ -6,6 +6,8 @@ import { Fonts } from "../../constants/font";
 import { PropertyHubTheme, getPropertyHubHeroCopy } from "../../constants/property-management-theme";
 import { sf, sw } from "../../utils/responsive";
 import { chevronForward } from "../../utils/rtl";
+import { rnShadow } from "../../utils/shadow";
+
 
 export default function PropertyHubHero({
   isAdmin = false,
@@ -65,10 +67,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     ...Platform.select({
       ios: {
-        shadowColor: "#0369A1",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.02,
-        shadowRadius: 3,
+        ...rnShadow({ color: "#0369A1", offset: { width: 0, height: 1 }, opacity: 0.02, radius: 3 }),
       },
       android: { elevation: 0 },
     }),

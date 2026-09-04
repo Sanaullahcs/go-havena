@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { PropertyHubTheme } from "../../constants/property-management-theme";
 import { sf, sw } from "../../utils/responsive";
+import { rnShadow } from "../../utils/shadow";
 import { chevronForward } from "../../utils/rtl";
 
 function BookingTile({ icon, title, hint, count, showCount = true, onPress }) {
@@ -101,10 +102,7 @@ const styles = StyleSheet.create({
     minHeight: sw(100),
     ...(Platform.OS === "ios"
       ? {
-          shadowColor: PropertyHubTheme.text,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.04,
-          shadowRadius: 6,
+          ...rnShadow({ color: PropertyHubTheme.text, offset: { width: 0, height: 2 }, opacity: 0.04, radius: 6 }),
         }
       : { elevation: 1 }),
   },

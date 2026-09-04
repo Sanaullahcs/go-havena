@@ -20,6 +20,7 @@ import { HomeTheme as T } from "../../constants/home-theme";
 import { getFeedTagTheme } from "../../constants/feed-theme";
 import { formatCount, isSensitivePost, timeAgo, TOPIC_LABEL_KEY } from "../../services/feed-api";
 import { sw, sf } from "../../utils/responsive";
+import { rnShadow } from "../../utils/shadow";
 
 export default function FeedPostCard({
   post,
@@ -207,10 +208,7 @@ const styles = StyleSheet.create({
     borderColor: T.border,
     ...(Platform.OS === "ios"
       ? {
-          shadowColor: T.navy,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.06,
-          shadowRadius: 8,
+          ...rnShadow({ color: T.navy, offset: { width: 0, height: 2 }, opacity: 0.06, radius: 8 }),
         }
       : { elevation: 2 }),
   },

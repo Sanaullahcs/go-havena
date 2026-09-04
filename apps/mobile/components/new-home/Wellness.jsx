@@ -12,6 +12,7 @@ import { wellnessDetailRouteParams } from "../../constants/wellness-categories";
 import { twoUpCardWidth, snapInterval } from "../../constants/carousel";
 import { sw, sf } from "../../utils/responsive";
 import { arrowForward } from "../../utils/rtl";
+import { rnShadow } from "../../utils/shadow";
 import {
   getWellnessVisual,
   SneakerIcon,
@@ -171,10 +172,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === "ios"
       ? {
           backgroundColor: T.white,
-          shadowColor: T.navy,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.08,
-          shadowRadius: 10,
+          ...rnShadow({ color: T.navy, offset: { width: 0, height: 4 }, opacity: 0.08, radius: 10 }),
           borderCurve: "continuous",
         }
       : { elevation: 2, backgroundColor: T.white }),
@@ -205,10 +203,7 @@ const styles = StyleSheet.create({
     backgroundColor: T.white,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: T.navy,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
+    ...rnShadow({ color: T.navy, offset: { width: 0, height: 1 }, opacity: 0.08, radius: 3 }),
     elevation: 2,
     zIndex: 2,
   },

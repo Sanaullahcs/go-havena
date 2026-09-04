@@ -43,6 +43,8 @@ import { fetchWellnessHub } from "../../services/wellness-api";
 import { fetchMyFamily } from "../../services/family-api";
 import { SidebarWellnessHubSkeleton } from "./skeleton-loader";
 import { dismissImageSourcePicker } from "../../providers/image-source-picker-provider";
+import { rnShadow } from "../../utils/shadow";
+
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MENU_WIDTH = Math.min(SCREEN_WIDTH * 0.86, 340);
@@ -572,10 +574,7 @@ const styles = StyleSheet.create({
     borderEndColor: "#E2E8F0",
     ...Platform.select({
       ios: {
-        shadowColor: "#0F172A",
-        shadowOffset: { width: 4, height: 0 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
+        ...rnShadow({ color: "#0F172A", offset: { width: 4, height: 0 }, opacity: 0.1, radius: 12 }),
       },
       android: { elevation: 10 },
     }),

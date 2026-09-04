@@ -20,6 +20,8 @@ import {
   getNextUserBookingDate,
 } from "../../../../../utils/amenity-display";
 import { localizedField } from "../../../../../i18n";
+import { rnShadow } from "../../../../../utils/shadow";
+
 
 export default function AllFacilities() {
   const { t, i18n } = useTranslation();
@@ -263,10 +265,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.borderSubtle,
     paddingVertical: sw(22),
     paddingHorizontal: sw(18),
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
+    ...rnShadow({ color: "#000", offset: { width: 0, height: 1 }, opacity: 0.03, radius: 4 }),
     elevation: 1,
   },
   heroIcon: {
@@ -316,10 +315,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.borderSubtle,
     paddingHorizontal: sw(16),
     paddingVertical: sw(4),
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
+    ...rnShadow({ color: "#000", offset: { width: 0, height: 1 }, opacity: 0.03, radius: 4 }),
     elevation: 1,
   },
   infoRow: {

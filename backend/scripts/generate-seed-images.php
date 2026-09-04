@@ -27,6 +27,10 @@ $whitelist = [
     'event-bbq', 'event-townhall', 'notice-maintenance', 'alert-weather',
     'wellness-weight', 'wellness-exercise', 'wellness-stress', 'wellness-learning', 'wellness-social',
     'business-cafe', 'business-fitness', 'business-salon', 'business-restaurant',
+    'business-bakery', 'business-grocery', 'business-pharmacy', 'business-pets',
+    'business-bar', 'business-yoga', 'business-florist', 'business-bookstore',
+    'business-icecream', 'business-wine', 'business-laundry', 'business-bike',
+    'business-sushi', 'business-brunch',
     'deal-pizza', 'deal-coffee', 'deal-spa',
     'feed-dog', 'feed-market',
 ];

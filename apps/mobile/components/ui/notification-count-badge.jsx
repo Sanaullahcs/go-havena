@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { formatUnreadBadgeCount } from "../../hooks/use-notification-unread";
 import { Fonts } from "../../constants/font";
 import { sf, sw } from "../../utils/responsive";
+import { rnShadow } from "../../utils/shadow";
+
 
 const BADGE_RED = "#FF3B30";
 
@@ -105,10 +107,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
     ...Platform.select({
       ios: {
-        shadowColor: "#000000",
-        shadowOpacity: 0.2,
-        shadowRadius: 1.5,
-        shadowOffset: { width: 0, height: 1 },
+        ...rnShadow({ color: "#000000", offset: { width: 0, height: 1 }, opacity: 0.2, radius: 1.5 }),
       },
       android: {
         elevation: 3,

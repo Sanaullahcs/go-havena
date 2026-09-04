@@ -34,6 +34,8 @@ import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { sw, sf } from "../../../utils/responsive";
 import { chevronForward } from "../../../utils/rtl";
 import { localizedField } from "../../../i18n";
+import { rnShadow } from "../../../utils/shadow";
+
 
 const IMAGE_MAP = {
   "food-bowl": require("../../../assets/images/food-bowl.png"),
@@ -685,10 +687,7 @@ const styles = StyleSheet.create({
     borderColor: "#F3F4F6",
     ...Platform.select({
       ios: {
-        shadowColor: "#0F172A",
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.06,
-        shadowRadius: 10,
+        ...rnShadow({ color: "#0F172A", offset: { width: 0, height: -4 }, opacity: 0.06, radius: 10 }),
       },
       android: { elevation: 8 },
     }),

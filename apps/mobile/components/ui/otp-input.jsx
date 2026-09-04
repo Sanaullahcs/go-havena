@@ -3,6 +3,7 @@ import { InteractionManager, Keyboard, Platform, View, StyleSheet, useWindowDime
 import LocaleTextInput from "./locale-text-input";
 import { Colors, Shadows } from "../../constants/tokens";
 import { Fonts } from "../../constants/font";
+import { rnShadow } from "../../utils/shadow";
 import PhoneKeyboardAccessory, {
   PHONE_KEYBOARD_ACCESSORY_ID,
 } from "./phone-keyboard-accessory";
@@ -323,8 +324,7 @@ const styles = StyleSheet.create({
   inputActive: {
     borderColor: Colors.brandPrimary,
     ...Shadows.card,
-    shadowColor: Colors.brandPrimaryDeep,
-    shadowOpacity: 0.12,
+    ...rnShadow({ color: Colors.brandPrimaryDeep, offset: { width: 0, height: 2 }, opacity: 0.12, radius: 10 }),
   },
   inputFilled: {
     borderColor: Colors.brandPrimaryDeep,

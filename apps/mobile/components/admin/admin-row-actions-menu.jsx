@@ -13,6 +13,8 @@ import AppModal from "../layout/app-modal";
 import { Fonts } from "../../constants/font";
 import { Colors, Layout } from "../../constants/tokens";
 import { sf, sw } from "../../utils/responsive";
+import { rnShadow } from "../../utils/shadow";
+
 
 /**
  * @typedef {Object} AdminRowAction
@@ -182,10 +184,7 @@ const styles = StyleSheet.create({
     paddingTop: sw(24),
     paddingBottom: sw(20),
     alignItems: "center",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
+    ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 12 }, opacity: 0.12, radius: 24 }),
     elevation: 8,
   },
   iconRing: {

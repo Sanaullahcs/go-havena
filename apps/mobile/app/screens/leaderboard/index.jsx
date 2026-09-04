@@ -20,6 +20,8 @@ import {
 } from "../../../services/points-api";
 import { getProfileFields } from "../../../utils/profile-display";
 import { useFocusEffect } from "expo-router";
+import { rnShadow } from "../../../utils/shadow";
+
 
 /** Medal palette for the top three positions. */
 const MEDALS = {
@@ -315,10 +317,7 @@ const CARD = {
   borderRadius: sw(16),
   borderWidth: 1,
   borderColor: Colors.borderSubtle,
-  shadowColor: "#000",
-  shadowOffset: { width: 0, height: 1 },
-  shadowOpacity: 0.03,
-  shadowRadius: 4,
+  ...rnShadow({ color: "#000", offset: { width: 0, height: 1 }, opacity: 0.03, radius: 4 }),
   elevation: 1,
 };
 

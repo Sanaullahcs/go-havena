@@ -23,6 +23,8 @@ import { PropertyManagementRoutes } from "../../../../constants/property-managem
 import { fetchCommunityRules } from "../../../../services/community-rules-api";
 import { getCurrentRole } from "../../../../constants/role-session";
 import { chevronForward, arrowForward } from "../../../../utils/rtl";
+import { rnShadow } from "../../../../utils/shadow";
+
 
 const SEV = {
   important: { accent: "#DC2626", bg: "#FEF2F2", label: "propertyMgmt.importantLabel", icon: "alert-circle" },
@@ -341,7 +343,7 @@ export default function CommunityRules() {
 
 const G = sw(18);
 const shadow = Platform.select({
-  ios: { shadowColor: T.navy, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6 },
+  ios: { ...rnShadow({ color: T.navy, offset: { width: 0, height: 2 }, opacity: 0.04, radius: 6 })},
   android: { elevation: 1 },
 });
 

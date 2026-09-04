@@ -11,6 +11,8 @@ import { Image } from "expo-image";
 import { MarketplaceRoutes } from "../../../constants/marketplace-routes";
 import { MARKETPLACE_FEATURES } from "../../../constants/marketplace-features";
 import SafeTop from "../../../components/layout/safe-top";
+import { rnShadow } from "../../../utils/shadow";
+
 
 export default function ConfirmRedeem() {
   const router = useRouter();
@@ -166,10 +168,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000000",
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
+    ...rnShadow({ color: "#000000", offset: { width: 0, height: 3 }, opacity: 0.12, radius: 8 }),
     elevation: 3,
   },
   primaryButtonText: {

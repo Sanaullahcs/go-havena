@@ -28,6 +28,8 @@ import {
   withMarketplaceRole,
 } from "../../../constants/marketplace-routes";
 import { localizedField } from "../../../i18n";
+import { rnShadow } from "../../../utils/shadow";
+
 
 const DEAL_PLACEHOLDER = require("../../../assets/images/food-bowl.png");
 
@@ -289,10 +291,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     ...Platform.select({
       ios: {
-        shadowColor: "#0F172A",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
+        ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 2 }, opacity: 0.05, radius: 10 }),
       },
       android: { elevation: 2 },
     }),

@@ -3,6 +3,8 @@ import { View, Text, Modal, StyleSheet, Animated } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
+import { rnShadow } from "../../utils/shadow";
+
 
 /**
  * Premium success moment after OTP / biometric auth — brief, then onComplete.
@@ -73,10 +75,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
+    ...rnShadow({ color: "#000", offset: { width: 0, height: 8 }, opacity: 0.15, radius: 16 }),
     elevation: 8,
   },
   title: {

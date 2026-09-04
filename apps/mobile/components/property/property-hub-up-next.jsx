@@ -7,6 +7,8 @@ import { PropertyHubTheme } from "../../constants/property-management-theme";
 import PropertyServiceIcon from "./property-service-icon";
 import { sf, sw } from "../../utils/responsive";
 import { chevronForward, arrowForward } from "../../utils/rtl";
+import { rnShadow } from "../../utils/shadow";
+
 
 const TONE = {
   success: {
@@ -234,10 +236,7 @@ export default function PropertyHubUpNext({
 
 const cardShadow = Platform.select({
   ios: {
-    shadowColor: PropertyHubTheme.text,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
+    ...rnShadow({ color: PropertyHubTheme.text, offset: { width: 0, height: 2 }, opacity: 0.04, radius: 6 }),
   },
   android: { elevation: 1 },
 });

@@ -2,6 +2,8 @@ import { StyleSheet } from "react-native";
 import { Colors } from "./tokens";
 import { Fonts } from "./font";
 import { sf, sw } from "../utils/responsive";
+import { rnShadow } from "../utils/shadow";
+
 
 /** Bottom space so scroll content clears the floating nav FAB on tab screens. */
 export const ADMIN_FAB_CLEARANCE = sw(88);
@@ -76,10 +78,7 @@ export const adminSharedStyles = StyleSheet.create({
     borderRadius: sw(16),
     padding: sw(14),
     marginBottom: sw(10),
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
+    ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 2 }, opacity: 0.04, radius: 8 }),
     elevation: 2,
   },
   filterChip: {

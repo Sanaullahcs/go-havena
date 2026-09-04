@@ -7,6 +7,8 @@ import { Colors } from "../../constants/tokens";
 import { PropertyHubTheme } from "../../constants/property-management-theme";
 import { sf, sw } from "../../utils/responsive";
 import { arrowForward } from "../../utils/rtl";
+import { rnShadow } from "../../utils/shadow";
+
 
 const ACCENTS = {
   blue: {
@@ -130,10 +132,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     ...Platform.select({
       ios: {
-        shadowColor: "#101828",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 3,
+        ...rnShadow({ color: "#101828", offset: { width: 0, height: 1 }, opacity: 0.03, radius: 3 }),
       },
       android: { elevation: 1 },
     }),

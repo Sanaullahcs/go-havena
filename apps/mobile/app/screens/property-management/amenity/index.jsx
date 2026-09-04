@@ -31,6 +31,8 @@ import {
 } from "../../../../utils/amenity-display";
 import { chevronForward } from "../../../../utils/rtl";
 import { localizedField } from "../../../../i18n";
+import { rnShadow } from "../../../../utils/shadow";
+
 
 function AmenityCard({ amenity, onPress, alreadyBooked = false }) {
   const { t, i18n } = useTranslation();
@@ -344,10 +346,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.borderSubtle,
     padding: sw(14),
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
+    ...rnShadow({ color: "#000", offset: { width: 0, height: 1 }, opacity: 0.03, radius: 4 }),
     elevation: 1,
   },
   cardReserved: {

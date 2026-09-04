@@ -34,6 +34,8 @@ import { openNeighborProfile } from "../../services/profile-api";
 import { useNow } from "../../hooks/use-now";
 import { sw, sf } from "../../utils/responsive";
 import { navigateAppRoute } from "../../utils/app-navigation";
+import { rnShadow } from "../../utils/shadow";
+
 
 const COMMUNITY_FEED_ROUTE = "/screens/community-feed";
 
@@ -47,7 +49,7 @@ const PEEK = sw(40);
 const IMAGE_RATIO = 0.62;
 const BOTTOM_AREA_H = sw(140);
 
-function FeedCard({
+function FeedCardInner({
   post,
   width,
   height,
@@ -100,6 +102,7 @@ function FeedCard({
           <View style={[styles.imageWrap, { height: imageH }]}>
             <CrispImage
               source={post.image_url}
+              recyclingKey={String(post.id)}
               style={StyleSheet.absoluteFill}
               contentFit="cover"
               contentPosition="center"
@@ -202,6 +205,8 @@ function FeedCard({
     </Pressable>
   );
 }
+
+const FeedCard = React.memo(FeedCardInner);
 
 export default function Communities({ posts = [], onPostsChange }) {
   const router = useRouter();
@@ -342,10 +347,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === "ios"
       ? {
           backgroundColor: T.white,
-          shadowColor: T.navy,
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.08,
-          shadowRadius: 10,
+          ...rnShadow({ color: T.navy, offset: { width: 0, height: 3 }, opacity: 0.08, radius: 10 }),
           borderCurve: "continuous",
         }
       : { elevation: 3 }),

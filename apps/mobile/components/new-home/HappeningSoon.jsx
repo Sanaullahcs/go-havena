@@ -12,6 +12,7 @@ import HomeSectionEmpty from "./home-section-empty";
 import { formatEventTimeRange, formatLongDate, getNoticeDetailRoute } from "../../services/notices-api";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
 import { navigateAppRoute } from "../../utils/app-navigation";
+import { rnShadow } from "../../utils/shadow";
 import { sw, sf } from "../../utils/responsive";
 import { localizedField } from "../../i18n";
 
@@ -175,10 +176,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === "ios"
       ? {
           backgroundColor: T.white,
-          shadowColor: T.navy,
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.08,
-          shadowRadius: 10,
+          ...rnShadow({ color: T.navy, offset: { width: 0, height: 3 }, opacity: 0.08, radius: 10 }),
           borderCurve: "continuous",
         }
       : { elevation: 2 }),

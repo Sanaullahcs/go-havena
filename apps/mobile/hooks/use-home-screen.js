@@ -5,7 +5,7 @@ import {
   pickNeighborhoodCarousel,
   pickUpcomingEvents,
 } from "../services/notices-api";
-import { fetchFeed, pickHomeFeedPosts } from "../services/feed-api";
+import { fetchFeed, pickHomeFeedPosts, areFeedPostsUnchanged } from "../services/feed-api";
 import { fetchDeals, pickActiveDealsForHome } from "../services/deals-api";
 import { fetchWellnessHub } from "../services/wellness-api";
 import {
@@ -89,7 +89,8 @@ export function useHomeScreen() {
       setUpcomingEvents(pickUpcomingEvents(allNotices));
 
       if (feedResult.status === "fulfilled") {
-        setPosts(pickHomeFeedPosts(feedResult.value.posts ?? []));
+        const nextPosts = pickHomeFeedPosts(feedResult.value.posts ?? []);
+        setPosts((prev) => (areFeedPostsUnchanged(prev, nextPosts) ? prev : nextPosts));
       }
 
       if (!silent && !refresh) {

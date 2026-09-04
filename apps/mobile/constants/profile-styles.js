@@ -1,6 +1,8 @@
 import { StyleSheet } from "react-native";
 import { Fonts } from "./font";
 import { Layout } from "./tokens";
+import { rnShadow } from "../utils/shadow";
+
 
 export const ProfileLayout = {
   gutter: Layout.screenPadding,
@@ -10,10 +12,7 @@ export const ProfileLayout = {
 
 /** Soft premium card elevation (iOS shadow + Android elevation). */
 export const cardShadow = {
-  shadowColor: "#0F172A",
-  shadowOffset: { width: 0, height: 6 },
-  shadowOpacity: 0.08,
-  shadowRadius: 16,
+  ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 6 }, opacity: 0.08, radius: 16 }),
   elevation: 4,
 };
 

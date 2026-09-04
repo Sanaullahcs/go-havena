@@ -3,6 +3,7 @@ import { View, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getTopInset, SYSTEM_CHROME_COLOR } from "./system-chrome";
 import { sw } from "../../utils/responsive";
+import { rnShadow } from "../../utils/shadow";
 
 /** Shared shell — white bar, soft shadow, comfortable vertical padding. */
 export function HeaderShell({ children, style, padded = true, safeTop = true, dense = false }) {
@@ -83,10 +84,7 @@ const styles = StyleSheet.create({
     backgroundColor: SYSTEM_CHROME_COLOR,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "rgba(0, 0, 0, 0.06)",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
+    ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 2 }, opacity: 0.04, radius: 6 }),
     elevation: 2,
     zIndex: 10,
   },

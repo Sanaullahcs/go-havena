@@ -2,6 +2,7 @@ import React from "react";
 import { Pressable, View, StyleSheet, Platform } from "react-native";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { sw } from "../../utils/responsive";
+import { rnShadow } from "../../utils/shadow";
 
 const RADIUS = sw(12);
 
@@ -13,12 +14,18 @@ export default function HomeSectionCard({
   shadowRadius = 4,
   ...pressableProps
 }) {
-  const iosShadow =
-    Platform.OS === "ios" ? { shadowOpacity, shadowRadius } : null;
-
   return (
     <Pressable
-      style={[styles.shell, iosShadow, style]}
+      style={[
+        styles.shell,
+        rnShadow({
+          color: T.navy,
+          offset: { width: 0, height: 1 },
+          opacity: shadowOpacity,
+          radius: shadowRadius,
+        }),
+        style,
+      ]}
       {...pressableProps}
     >
       <View style={[styles.surface, contentStyle]}>{children}</View>
@@ -29,13 +36,7 @@ export default function HomeSectionCard({
 const styles = StyleSheet.create({
   shell: {
     borderRadius: RADIUS,
-    ...(Platform.OS === "android"
-      ? { backgroundColor: "transparent", elevation: 0 }
-      : {
-          backgroundColor: T.white,
-          shadowColor: T.navy,
-          shadowOffset: { width: 0, height: 1 },
-        }),
+    backgroundColor: Platform.OS === "android" ? "transparent" : T.white,
   },
   surface: {
     borderRadius: RADIUS,

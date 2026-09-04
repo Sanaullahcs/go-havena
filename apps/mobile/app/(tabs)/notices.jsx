@@ -34,6 +34,8 @@ import GuestFeatureErrorState from "../../components/guest/guest-permission-deni
 import { resolveLoadRestriction } from "../../utils/account-access-sync";
 import { useTranslation } from "react-i18next";
 import { localizedField } from "../../i18n";
+import { rnShadow } from "../../utils/shadow";
+
 
 const TABS = [
   { id: "all", labelKey: "notices.tabAll" },
@@ -497,10 +499,7 @@ const styles = StyleSheet.create({
     overflow: "visible",
     marginTop: sw(2),
     marginEnd: sw(2),
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    ...rnShadow({ color: "#000", offset: { width: 0, height: 4 }, opacity: 0.1, radius: 8 }),
     elevation: 6,
   },
   tabsContainer: {

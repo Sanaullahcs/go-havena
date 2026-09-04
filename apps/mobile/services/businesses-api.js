@@ -121,6 +121,8 @@ export function normalizeBusiness(b) {
     distanceMiles,
     distance,
     isLocal: b.is_local !== false,
+    latitude: b.latitude == null ? null : Number(b.latitude),
+    longitude: b.longitude == null ? null : Number(b.longitude),
     // Keep raw path so CrispImage / mediaImageSource can use bundled seed art.
     imageUrl: b.image_url ?? null,
     createdAt: b.created_at,

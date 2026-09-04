@@ -27,6 +27,8 @@ import { isFeatureAccessBlockedError } from "../../../utils/guest-permission-err
 import { resolveLoadRestriction } from "../../../utils/account-access-sync";
 import { useLanguage } from "../../../providers/language-provider";
 import { syncKeyboardForFocusedInput } from "../../../utils/native-app-locale";
+import { rnShadow } from "../../../utils/shadow";
+
 
 const TYPE_ICONS = {
   Recommendations: "star",
@@ -544,10 +546,7 @@ const CARD = {
   borderWidth: 1,
   borderColor: Colors.borderSubtle,
   padding: sw(16),
-  shadowColor: "#000",
-  shadowOffset: { width: 0, height: 1 },
-  shadowOpacity: 0.03,
-  shadowRadius: 4,
+  ...rnShadow({ color: "#000", offset: { width: 0, height: 1 }, opacity: 0.03, radius: 4 }),
   elevation: 1,
 };
 

@@ -27,6 +27,8 @@ import {
 } from "../../../../services/community-rules-api";
 import { getCurrentRole } from "../../../../constants/role-session";
 import { useSubmitLock } from "../../../../hooks/use-submit-lock";
+import { rnShadow } from "../../../../utils/shadow";
+
 
 const SEV = {
   important: { accent: "#DC2626", bg: "#FEF2F2", label: "propertyMgmt.importantLabel", icon: "alert-circle" },
@@ -228,7 +230,7 @@ export default function RuleDetail() {
 
 const G = sw(18);
 const shadow = Platform.select({
-  ios: { shadowColor: T.navy, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12 },
+  ios: { ...rnShadow({ color: T.navy, offset: { width: 0, height: 4 }, opacity: 0.08, radius: 12 })},
   android: { elevation: 3 },
 });
 
