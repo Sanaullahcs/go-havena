@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, X } from "lucide-react";
-import { FormField } from "@/components/admin/wellness-form-fields";
+import { CategoryImageField, FormField } from "@/components/admin/wellness-form-fields";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { ThemedSelect } from "@/components/ui/themed-select";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
@@ -15,6 +15,8 @@ type CourseFormState = {
   title: string;
   description: string;
   status: WellnessCourse["status"];
+  imageFile: File | null;
+  imagePreview: string | null;
 };
 
 const EMPTY_FORM: CourseFormState = {
@@ -22,6 +24,8 @@ const EMPTY_FORM: CourseFormState = {
   title: "",
   description: "",
   status: "published",
+  imageFile: null,
+  imagePreview: null,
 };
 
 const STATUS_OPTIONS = [
@@ -80,6 +84,8 @@ export function WellnessCourseFormModal({
       title: form.title.trim(),
       description: form.description.trim(),
       status: form.status,
+      imageFile: form.imageFile,
+      imagePreview: form.imagePreview,
     });
   };
 
@@ -145,6 +151,25 @@ export function WellnessCourseFormModal({
               onBlur={() => validation.touch("title")}
             />
           </FormField>
+
+          <div className={fieldsEnabled ? "" : "pointer-events-none opacity-50"}>
+            <CategoryImageField
+              inputId="create-course-image"
+              previewUrl={form.imagePreview}
+              onPick={(file) => {
+                if (form.imagePreview?.startsWith("blob:")) URL.revokeObjectURL(form.imagePreview);
+                setForm((f) => ({
+                  ...f,
+                  imageFile: file,
+                  imagePreview: URL.createObjectURL(file),
+                }));
+              }}
+              onRemove={() => {
+                if (form.imagePreview?.startsWith("blob:")) URL.revokeObjectURL(form.imagePreview);
+                setForm((f) => ({ ...f, imageFile: null, imagePreview: null }));
+              }}
+            />
+          </div>
 
           <FormField
             label="Course description"

@@ -13,6 +13,8 @@ export default function WellnessScreenHeader({
   subtitle,
   categoryKey,
   onBack,
+  right,
+  subtitleColor,
 }) {
   const insets = useSafeAreaInsets();
   const topInset = getTopInset(insets);
@@ -33,7 +35,7 @@ export default function WellnessScreenHeader({
             <Text
               style={[
                 styles.subtitle,
-                { color: meta?.color ?? WellnessTheme.brand },
+                { color: subtitleColor ?? meta?.color ?? WellnessTheme.brand },
               ]}
               numberOfLines={1}
             >
@@ -41,6 +43,7 @@ export default function WellnessScreenHeader({
             </Text>
           ) : null}
         </View>
+        {right ? <View style={styles.right}>{right}</View> : null}
       </View>
     </View>
   );
@@ -80,5 +83,9 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginTop: sw(2),
     includeFontPadding: false,
+  },
+  right: {
+    flexShrink: 0,
+    marginStart: sw(8),
   },
 });

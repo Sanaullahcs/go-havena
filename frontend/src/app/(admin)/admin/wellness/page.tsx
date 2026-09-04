@@ -17,7 +17,7 @@ import { AdminBadge, StatTile } from "@/components/admin/ui";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { WellnessCourseFormModal } from "@/components/admin/wellness-course-form-modal";
 import { WellnessLessonFormModal } from "@/components/admin/wellness-lesson-form-modal";
-import { cleanTakeaways, KeyTakeawaysEditor } from "@/components/admin/wellness-form-fields";
+import { CategoryImageField, cleanTakeaways, KeyTakeawaysEditor } from "@/components/admin/wellness-form-fields";
 import { ThemedSelect } from "@/components/ui/themed-select";
 import { confirmDelete, toastError, toastSuccess } from "@/lib/alert";
 import { apiError } from "@/lib/api/client";
@@ -38,6 +38,8 @@ import {
   updateWellnessCategory,
   updateWellnessCourse,
   updateWellnessLesson,
+  uploadWellnessCategoryImage,
+  uploadWellnessCourseImage,
   type WellnessCategory,
   type WellnessCourse,
   type WellnessLesson,
@@ -55,6 +57,8 @@ const emptyCategory = {
   subtitle: "",
   color: "#1B4F8A",
   status: "active" as WellnessCategory["status"],
+  imageFile: null as File | null,
+  imagePreview: null as string | null,
 };
 
 type CourseEdit = {
@@ -62,6 +66,10 @@ type CourseEdit = {
   title: string;
   description: string;
   status: WellnessCourse["status"];
+  imageFile: File | null;
+  imageUrl: string | null;
+  imagePreview: string | null;
+  removeImage: boolean;
 };
 
 type LessonEdit = {
@@ -83,6 +91,10 @@ type CategoryEdit = {
   subtitle: string;
   color: string;
   status: WellnessCategory["status"];
+  imageFile: File | null;
+  imageUrl: string | null;
+  imagePreview: string | null;
+  removeImage: boolean;
 };
 
 export default function AdminWellnessPage() {
@@ -267,13 +279,21 @@ export default function AdminWellnessPage() {
     if (!categoryValidation.validateOnSubmit(categoryLiveErrors)) return;
     setSubmitting(true);
     try {
+      let imageUrl: string | undefined;
+      if (categoryForm.imageFile) {
+        imageUrl = await uploadWellnessCategoryImage(categoryForm.imageFile);
+      }
       const created = await createWellnessCategory({
         title: categoryForm.title.trim(),
         subtitle: categoryForm.subtitle.trim() || undefined,
         color: categoryForm.color.trim() || "#1B4F8A",
         status: categoryForm.status,
+        image_url: imageUrl,
       });
       toastSuccess("Category created");
+      if (categoryForm.imagePreview?.startsWith("blob:")) {
+        URL.revokeObjectURL(categoryForm.imagePreview);
+      }
       setCategoryForm(emptyCategory);
       setShowCategoryForm(false);
       categoryValidation.resetTouched();
@@ -299,13 +319,23 @@ export default function AdminWellnessPage() {
     }
     setSubmitting(true);
     try {
+      let imageUrl = editingCategory.imageUrl;
+      if (editingCategory.imageFile) {
+        imageUrl = await uploadWellnessCategoryImage(editingCategory.imageFile);
+      } else if (editingCategory.removeImage) {
+        imageUrl = null;
+      }
       await updateWellnessCategory(editingCategory.id, {
         title: editingCategory.title.trim(),
         subtitle: editingCategory.subtitle.trim() || undefined,
         color: editingCategory.color.trim() || "#1B4F8A",
         status: editingCategory.status,
+        image_url: imageUrl,
       });
       toastSuccess("Category updated");
+      if (editingCategory.imagePreview?.startsWith("blob:")) {
+        URL.revokeObjectURL(editingCategory.imagePreview);
+      }
       setEditingCategory(null);
       await refreshCategories();
     } catch (err) {
@@ -346,16 +376,24 @@ export default function AdminWellnessPage() {
     title: string;
     description: string;
     status: WellnessCourse["status"];
+    imageFile?: File | null;
+    imagePreview?: string | null;
   }) => {
     if (!form.category_id) return;
     setSubmitting(true);
     try {
+      let imageUrl: string | undefined;
+      if (form.imageFile) {
+        imageUrl = await uploadWellnessCourseImage(form.imageFile);
+      }
       const created = await createWellnessCourse({
         category_id: form.category_id,
         title: form.title,
         description: form.description,
         status: form.status,
+        image_url: imageUrl,
       });
+      if (form.imagePreview?.startsWith("blob:")) URL.revokeObjectURL(form.imagePreview);
       toastSuccess("Course created");
       setCourseModalOpen(false);
       skipCatId.current = form.category_id;
@@ -379,11 +417,21 @@ export default function AdminWellnessPage() {
     }
     setSubmitting(true);
     try {
+      let imageUrl = editingCourse.imageUrl;
+      if (editingCourse.imageFile) {
+        imageUrl = await uploadWellnessCourseImage(editingCourse.imageFile);
+      } else if (editingCourse.removeImage) {
+        imageUrl = null;
+      }
       await updateWellnessCourse(editingCourse.id, {
         title: editingCourse.title.trim(),
         description: editingCourse.description.trim(),
         status: editingCourse.status,
+        image_url: imageUrl,
       });
+      if (editingCourse.imagePreview?.startsWith("blob:")) {
+        URL.revokeObjectURL(editingCourse.imagePreview);
+      }
       toastSuccess("Course updated");
       setEditingCourse(null);
       await refreshCourses();
@@ -610,7 +658,13 @@ export default function AdminWellnessPage() {
               type="button"
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
               onClick={() => {
-                setShowCategoryForm((v) => !v);
+                setShowCategoryForm((v) => {
+                  if (v && categoryForm.imagePreview?.startsWith("blob:")) {
+                    URL.revokeObjectURL(categoryForm.imagePreview);
+                    setCategoryForm(emptyCategory);
+                  }
+                  return !v;
+                });
                 setEditingCategory(null);
               }}
               title="Add category"
@@ -637,25 +691,43 @@ export default function AdminWellnessPage() {
                 value={categoryForm.subtitle}
                 onChange={(e) => setCategoryForm((f) => ({ ...f, subtitle: e.target.value }))}
               />
-              <div className="grid grid-cols-[1fr_auto] gap-2">
-                <input
-                  className={inputClass(categoryValidation.showError("color", categoryLiveErrors), "nl-input")}
-                  placeholder="#1B4F8A"
-                  value={categoryForm.color}
-                  onChange={(e) => {
-                    categoryValidation.clearError("color");
-                    setCategoryForm((f) => ({ ...f, color: e.target.value }));
-                  }}
-                />
-                <button
-                  type="button"
-                  className="nl-btn-primary disabled:opacity-60"
-                  disabled={submitting || !canCreateCategory}
-                  onClick={handleCreateCategory}
-                >
-                  Add
-                </button>
-              </div>
+              <input
+                className={inputClass(categoryValidation.showError("color", categoryLiveErrors), "nl-input")}
+                placeholder="#1B4F8A"
+                value={categoryForm.color}
+                onChange={(e) => {
+                  categoryValidation.clearError("color");
+                  setCategoryForm((f) => ({ ...f, color: e.target.value }));
+                }}
+              />
+              <CategoryImageField
+                inputId="create-category-image"
+                previewUrl={categoryForm.imagePreview}
+                onPick={(file) => {
+                  if (categoryForm.imagePreview?.startsWith("blob:")) {
+                    URL.revokeObjectURL(categoryForm.imagePreview);
+                  }
+                  setCategoryForm((f) => ({
+                    ...f,
+                    imageFile: file,
+                    imagePreview: URL.createObjectURL(file),
+                  }));
+                }}
+                onRemove={() => {
+                  if (categoryForm.imagePreview?.startsWith("blob:")) {
+                    URL.revokeObjectURL(categoryForm.imagePreview);
+                  }
+                  setCategoryForm((f) => ({ ...f, imageFile: null, imagePreview: null }));
+                }}
+              />
+              <button
+                type="button"
+                className="nl-btn-primary w-full disabled:opacity-60"
+                disabled={submitting || !canCreateCategory}
+                onClick={handleCreateCategory}
+              >
+                Add
+              </button>
               {categoryValidation.showError("title", categoryLiveErrors) ? (
                 <p className="text-xs text-red-600">{categoryValidation.showError("title", categoryLiveErrors)}</p>
               ) : null}
@@ -695,8 +767,45 @@ export default function AdminWellnessPage() {
                       <option value="active">Active</option>
                       <option value="inactive">Inactive</option>
                     </select>
+                    <CategoryImageField
+                      inputId={`edit-category-image-${editingCategory.id}`}
+                      previewUrl={editingCategory.imagePreview}
+                      onPick={(file) =>
+                        setEditingCategory((f) => {
+                          if (!f) return f;
+                          if (f.imagePreview?.startsWith("blob:")) URL.revokeObjectURL(f.imagePreview);
+                          return {
+                            ...f,
+                            imageFile: file,
+                            imagePreview: URL.createObjectURL(file),
+                            removeImage: false,
+                          };
+                        })
+                      }
+                      onRemove={() =>
+                        setEditingCategory((f) => {
+                          if (!f) return f;
+                          if (f.imagePreview?.startsWith("blob:")) URL.revokeObjectURL(f.imagePreview);
+                          return {
+                            ...f,
+                            imageFile: null,
+                            imagePreview: null,
+                            removeImage: true,
+                          };
+                        })
+                      }
+                    />
                     <div className="flex justify-end gap-2">
-                      <button type="button" className="nl-btn-ghost text-xs" onClick={() => setEditingCategory(null)}>
+                      <button
+                        type="button"
+                        className="nl-btn-ghost text-xs"
+                        onClick={() => {
+                          if (editingCategory.imagePreview?.startsWith("blob:")) {
+                            URL.revokeObjectURL(editingCategory.imagePreview);
+                          }
+                          setEditingCategory(null);
+                        }}
+                      >
                         Cancel
                       </button>
                       <button
@@ -730,10 +839,19 @@ export default function AdminWellnessPage() {
                       ].join(" ")}
                     >
                       <span className="flex min-w-0 items-center gap-2">
-                        <span
-                          className="h-2.5 w-2.5 shrink-0 rounded-full"
-                          style={{ backgroundColor: cat.color }}
-                        />
+                        {cat.image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={cat.image_url}
+                            alt=""
+                            className="h-6 w-6 shrink-0 rounded-full object-cover"
+                          />
+                        ) : (
+                          <span
+                            className="h-2.5 w-2.5 shrink-0 rounded-full"
+                            style={{ backgroundColor: cat.color }}
+                          />
+                        )}
                         <ChevronRight
                           className={`h-3 w-3 shrink-0 transition-transform ${
                             selectedCategoryId === cat.id ? "rotate-90" : ""
@@ -755,6 +873,10 @@ export default function AdminWellnessPage() {
                               subtitle: cat.subtitle ?? "",
                               color: cat.color,
                               status: cat.status,
+                              imageFile: null,
+                              imageUrl: cat.image_url,
+                              imagePreview: cat.image_url,
+                              removeImage: false,
                             }),
                         },
                         {
@@ -848,6 +970,10 @@ export default function AdminWellnessPage() {
                                     title: course.title,
                                     description: course.description ?? "",
                                     status: course.status,
+                                    imageFile: null,
+                                    imageUrl: course.image_url ?? null,
+                                    imagePreview: course.image_url ?? null,
+                                    removeImage: false,
                                   }),
                               },
                               {
@@ -879,6 +1005,34 @@ export default function AdminWellnessPage() {
                           setEditingCourse((f) => (f ? { ...f, title: e.target.value } : f))
                         }
                       />
+                      <CategoryImageField
+                        inputId={`edit-course-image-${editingCourse.id}`}
+                        previewUrl={editingCourse.imagePreview}
+                        onPick={(file) =>
+                          setEditingCourse((f) => {
+                            if (!f) return f;
+                            if (f.imagePreview?.startsWith("blob:")) URL.revokeObjectURL(f.imagePreview);
+                            return {
+                              ...f,
+                              imageFile: file,
+                              imagePreview: URL.createObjectURL(file),
+                              removeImage: false,
+                            };
+                          })
+                        }
+                        onRemove={() =>
+                          setEditingCourse((f) => {
+                            if (!f) return f;
+                            if (f.imagePreview?.startsWith("blob:")) URL.revokeObjectURL(f.imagePreview);
+                            return {
+                              ...f,
+                              imageFile: null,
+                              imagePreview: null,
+                              removeImage: true,
+                            };
+                          })
+                        }
+                      />
                       <textarea
                         className="nl-input min-h-[72px]"
                         placeholder="Course description *"
@@ -901,7 +1055,16 @@ export default function AdminWellnessPage() {
                         placeholder="Status"
                       />
                       <div className="flex justify-end gap-2">
-                        <button type="button" className="nl-btn-ghost text-xs" onClick={() => setEditingCourse(null)}>
+                        <button
+                          type="button"
+                          className="nl-btn-ghost text-xs"
+                          onClick={() => {
+                            if (editingCourse.imagePreview?.startsWith("blob:")) {
+                              URL.revokeObjectURL(editingCourse.imagePreview);
+                            }
+                            setEditingCourse(null);
+                          }}
+                        >
                           <X className="mr-1 inline h-3.5 w-3.5" /> Cancel
                         </button>
                         <button

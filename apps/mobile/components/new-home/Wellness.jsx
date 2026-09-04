@@ -1,4 +1,4 @@
-import { Text, View, Image, StyleSheet, Pressable, useWindowDimensions, FlatList, Platform } from "react-native";
+import { Text, View, StyleSheet, Pressable, useWindowDimensions, FlatList, Platform } from "react-native";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
@@ -17,6 +17,7 @@ import {
   SneakerIcon,
   WellnessHeroWave,
 } from "../../constants/wellness-visuals";
+import WellnessCoverImage from "../wellness/wellness-cover-image";
 
 const CARD_GAP = sw(10);
 const PEEK = sw(16);
@@ -27,7 +28,7 @@ const ICON_BADGE = sw(32);
 
 function WellnessCard({ item, width, onPress }) {
   const { t } = useTranslation();
-  const visual = getWellnessVisual(item.iconKey ?? item.key);
+  const visual = getWellnessVisual(item.iconKey ?? item.key, item.imageUrl);
   const Icon = visual.Icon;
   const progress = Math.min(100, Math.max(0, item.progressPercent ?? 0));
   const iconIsSneaker = Icon === SneakerIcon;
@@ -43,8 +44,9 @@ function WellnessCard({ item, width, onPress }) {
     >
       <View style={styles.cardInner}>
         <View style={[styles.hero, { width }]} collapsable={false}>
-          <Image
+          <WellnessCoverImage
             source={visual.image}
+            fallback={visual.fallbackImage}
             style={[styles.heroImage, { width, height: HERO_HEIGHT }]}
             resizeMode="cover"
           />

@@ -2,7 +2,6 @@ import React, { useMemo } from "react";
 import {
   View,
   Text,
-  Image,
   StyleSheet,
   Pressable,
   useWindowDimensions,
@@ -14,14 +13,23 @@ import { Fonts } from "../../constants/font";
 import { WellnessTheme } from "../../constants/wellness-theme";
 import {
   getWellnessVisual,
-  getCourseThumbnail,
+  getCourseThumbnailPair,
   SneakerIcon,
   WellnessHeroWave,
 } from "../../constants/wellness-visuals";
+import WellnessCoverImage from "./wellness-cover-image";
+import WellnessHeroCircle, {
+  WELLNESS_HERO_CIRCLE,
+  WELLNESS_HERO_CIRCLE_END,
+} from "./wellness-hero-circle";
 import { sf, sw } from "../../utils/responsive";
 import { chevronForward } from "../../utils/rtl";
 
 const HERO_MEDIA = sw(132);
+const HERO_IMAGE = WELLNESS_HERO_CIRCLE;
+const HERO_IMAGE_END = WELLNESS_HERO_CIRCLE_END;
+const HERO_IMAGE_TOP = (HERO_MEDIA - HERO_IMAGE) / 2;
+const HERO_TITLE_END = sw(16) + HERO_IMAGE + sw(16);
 const WAVE_H = sw(34);
 const ICON = sw(40);
 const THUMB = sw(80);
@@ -51,6 +59,7 @@ function programProgress(courses) {
 
 function ProgramHero({
   categoryKey,
+  categoryImageUrl,
   title,
   description,
   courseCount,
@@ -58,19 +67,19 @@ function ProgramHero({
 }) {
   const { t } = useTranslation();
   const { width: screenWidth } = useWindowDimensions();
-  const visual = getWellnessVisual(categoryKey);
+  const visual = getWellnessVisual(categoryKey, categoryImageUrl);
   const Icon = visual.Icon;
   const cardWidth = screenWidth - sw(36);
-  const imageSize = sw(128);
   const pct = Math.min(100, Math.max(0, progress));
 
   return (
     <View style={styles.heroCard}>
       <View style={[styles.heroMedia, { backgroundColor: visual.wash }]}>
-        <Image
+        <WellnessHeroCircle
           source={visual.image}
-          style={[styles.heroImage, { width: imageSize, height: imageSize }]}
-          resizeMode="cover"
+          fallback={visual.fallbackImage}
+          size={HERO_IMAGE}
+          style={styles.heroImageCircle}
         />
         <WellnessHeroWave width={cardWidth} blobColor={visual.blob} height={WAVE_H} />
         <View style={styles.heroIcon}>
@@ -144,6 +153,8 @@ function ProgramStats({ stats }) {
 function ProgramCourseCard({
   index,
   categoryKey,
+  categoryImageUrl,
+  imageUrl,
   title,
   description,
   lessonCount,
@@ -153,8 +164,8 @@ function ProgramCourseCard({
   onPress,
 }) {
   const { t } = useTranslation();
-  const visual = getWellnessVisual(categoryKey);
-  const thumb = getCourseThumbnail(title, categoryKey);
+  const visual = getWellnessVisual(categoryKey, categoryImageUrl);
+  const thumb = getCourseThumbnailPair(title, categoryKey, imageUrl);
   const progress = Math.min(100, Math.max(0, progressPercent));
   const done = progress >= 100;
   const started = progress > 0 && !done;
@@ -181,7 +192,12 @@ function ProgramCourseCard({
       >
         <View style={styles.courseRow}>
           <View style={styles.thumbWrap}>
-            <Image source={thumb} style={styles.thumb} resizeMode="cover" />
+            <WellnessCoverImage
+              source={thumb.image}
+              fallback={thumb.fallbackImage}
+              style={styles.thumb}
+              resizeMode="cover"
+            />
             <View style={[styles.numBadge, { borderColor: visual.accent }]}>
               <Text style={[styles.numBadgeText, { color: visual.accent }]}>{index + 1}</Text>
             </View>
@@ -286,6 +302,7 @@ function ProgramFooter({ progress, onExploreMore }) {
  */
 export default function WellnessProgramDetail({
   categoryKey,
+  categoryImageUrl,
   heroTitle,
   heroDescription,
   courses = [],
@@ -310,6 +327,7 @@ export default function WellnessProgramDetail({
     <View>
       <ProgramHero
         categoryKey={categoryKey}
+        categoryImageUrl={categoryImageUrl}
         title={heroTitle}
         description={heroDescription}
         courseCount={courses.length}
@@ -326,6 +344,8 @@ export default function WellnessProgramDetail({
               key={item.id}
               index={index}
               categoryKey={categoryKey}
+              categoryImageUrl={categoryImageUrl}
+              imageUrl={item.imageUrl}
               title={item.title}
               description={item.description}
               lessonCount={item.lessonCount}
@@ -364,11 +384,11 @@ const styles = StyleSheet.create({
     height: HERO_MEDIA,
     overflow: "hidden",
   },
-  heroImage: {
+  heroImageCircle: {
     position: "absolute",
-    end: sw(-8),
-    top: sw(8),
-    borderRadius: sw(80),
+    end: HERO_IMAGE_END,
+    top: HERO_IMAGE_TOP,
+    zIndex: 2,
   },
   heroIcon: {
     position: "absolute",
@@ -390,7 +410,7 @@ const styles = StyleSheet.create({
   heroCopy: {
     position: "absolute",
     start: sw(16),
-    end: sw(128),
+    end: HERO_TITLE_END,
     top: sw(62),
     zIndex: 3,
   },

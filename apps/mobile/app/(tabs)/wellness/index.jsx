@@ -116,6 +116,7 @@ export default function Wellness() {
               <WellnessCategoryCard
                 key={item.key}
                 categoryKey={item.iconKey ?? item.key}
+                imageUrl={item.imageUrl}
                 title={getWellnessCategoryMeta(item.key).titleKey ? t(getWellnessCategoryMeta(item.key).titleKey) : item.title}
                 subtitle={item.subtitle}
                 progressPercent={item.progressPercent}

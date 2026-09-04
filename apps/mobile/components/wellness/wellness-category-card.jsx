@@ -11,6 +11,7 @@ import { chevronForward } from "../../utils/rtl";
 /** Hub pillar card — white surface, soft accent icon only. */
 export default function WellnessCategoryCard({
   categoryKey,
+  imageUrl,
   title,
   subtitle,
   progressPercent = 0,
@@ -32,7 +33,7 @@ export default function WellnessCategoryCard({
         <View style={[styles.accent, { backgroundColor: meta.color }]} />
         <View style={styles.inner}>
           <View style={styles.cardTop}>
-            <WellnessCategoryIcon categoryKey={categoryKey} size={sw(40)} />
+            <WellnessCategoryIcon categoryKey={categoryKey} imageUrl={imageUrl} size={sw(40)} />
             <View style={styles.cardText}>
               <Text style={styles.cardTitle} numberOfLines={1}>
                 {title}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, X, type ReactNode } from "lucide-react";
+import { ImagePlus, Plus, X, type ReactNode } from "lucide-react";
 
 export function cleanTakeaways(items: string[]): string[] {
   return items.map((line) => line.trim()).filter(Boolean);
@@ -98,6 +98,66 @@ export function KeyTakeawaysEditor({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+export function CategoryImageField({
+  inputId,
+  previewUrl,
+  onPick,
+  onRemove,
+}: {
+  inputId: string;
+  previewUrl: string | null;
+  onPick: (file: File) => void;
+  onRemove?: () => void;
+}) {
+  return (
+    <div>
+      <p className="mb-1.5 text-xs font-medium text-slate-500">Image</p>
+      <div className="flex items-center gap-2">
+        {previewUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={previewUrl}
+            alt="Image preview"
+            className="h-12 w-12 shrink-0 rounded-lg border border-slate-200 object-cover"
+          />
+        ) : (
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-slate-400">
+            <ImagePlus className="h-4 w-4" />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <label
+            htmlFor={inputId}
+            className="inline-flex cursor-pointer items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          >
+            {previewUrl ? "Replace image" : "Select image"}
+          </label>
+          {previewUrl && onRemove ? (
+            <button
+              type="button"
+              className="ml-2 text-xs text-slate-500 hover:text-rose-600"
+              onClick={onRemove}
+            >
+              Remove
+            </button>
+          ) : null}
+        </div>
+        <input
+          id={inputId}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) onPick(file);
+            e.target.value = "";
+          }}
+        />
+      </div>
     </div>
   );
 }

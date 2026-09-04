@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -66,6 +66,9 @@ export default function Lessons() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const courseRef = useRef(null);
+  const loadIdRef = useRef(0);
+  courseRef.current = course;
 
   const decodedType = decodeURIComponent(String(type ?? ""));
   const categoryKey = String(categoryKeyParam || course?.categoryKey || "weight");
@@ -73,10 +76,13 @@ export default function Lessons() {
 
   const load = useCallback(async () => {
     if (!courseId) return;
-    setLoading(true);
+    const loadId = ++loadIdRef.current;
+    const hasCourse = Boolean(courseRef.current);
+    if (!hasCourse) setLoading(true);
     setError(null);
     try {
       const blocked = await resolveLoadRestriction("wellness");
+      if (loadId !== loadIdRef.current) return;
       if (blocked) {
         setCourse(null);
         setError(blocked);
@@ -84,27 +90,32 @@ export default function Lessons() {
       }
 
       const data = await fetchCourse(Number(courseId));
+      if (loadId !== loadIdRef.current) return;
       setCourse(data);
 
       const key = data?.categoryKey || categoryKeyParam;
       if (key) {
         try {
           const pack = await fetchCategoryCourses(String(key));
+          if (loadId !== loadIdRef.current) return;
           setSiblings(pack.courses ?? []);
         } catch {
-          setSiblings([]);
+          if (loadId === loadIdRef.current) setSiblings([]);
         }
       }
     } catch (err) {
+      if (loadId !== loadIdRef.current) return;
       const restricted = await resolveLoadRestriction("wellness", err);
+      if (loadId !== loadIdRef.current) return;
       if (restricted) {
         setCourse(null);
         setError(restricted);
         return;
       }
+      if (courseRef.current) return;
       await showFailure(t("wellness.couldNotLoadLessons"), err);
     } finally {
-      setLoading(false);
+      if (loadId === loadIdRef.current) setLoading(false);
     }
   }, [courseId, categoryKeyParam, showFailure, t]);
 
@@ -118,6 +129,9 @@ export default function Lessons() {
 
   useEffect(() => {
     setExpandedIds(new Set());
+    setCourse(null);
+    setSiblings([]);
+    setError(null);
   }, [courseId]);
 
   const allExpanded = useMemo(
@@ -222,6 +236,8 @@ export default function Lessons() {
           >
             <WellnessCourseSummary
               categoryKey={categoryKey}
+              categoryImageUrl={course?.categoryImageUrl}
+              courseImageUrl={course?.imageUrl}
               courseTitle={course?.title ?? title}
               description={course?.description}
               durationMin={totalDuration}

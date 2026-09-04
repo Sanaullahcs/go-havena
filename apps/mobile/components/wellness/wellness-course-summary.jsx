@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, Image, StyleSheet, useWindowDimensions } from "react-native";
+import { View, Text, StyleSheet, useWindowDimensions } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Target } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
@@ -8,14 +8,41 @@ import { WellnessTheme } from "../../constants/wellness-theme";
 import { HomeTheme as T } from "../../constants/home-theme";
 import {
   getWellnessVisual,
-  getCourseThumbnail,
+  getCourseThumbnailPair,
   WellnessHeroWave,
 } from "../../constants/wellness-visuals";
+import WellnessHeroCircle, {
+  WELLNESS_HERO_CIRCLE,
+  WELLNESS_HERO_CIRCLE_END,
+} from "./wellness-hero-circle";
 import { sf, sw } from "../../utils/responsive";
 
 const WAVE_H = sw(34);
 const ICON = sw(40);
-const IMAGE = sw(112);
+const IMAGE = WELLNESS_HERO_CIRCLE;
+const TITLE_SIZE = sf(14);
+const TITLE_LINE = sf(20);
+
+/** Wrap on word boundaries so earlier lines share one right edge; last line may be shorter. */
+function wrapBalancedTitle(text, maxWidth, fontSize) {
+  const source = String(text || "").trim();
+  if (!source) return source;
+  const words = source.split(/\s+/);
+  const maxChars = Math.max(16, Math.floor(maxWidth / (fontSize * 0.5)));
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    if (line && next.length > maxChars) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  return lines.join("\n");
+}
 
 function HeroStat({ icon, value, label, color }) {
   return (
@@ -32,17 +59,23 @@ function HeroStat({ icon, value, label, color }) {
 /** Course hero — image, description, stats, and progress. Shared by every course. */
 export default function WellnessCourseSummary({
   categoryKey,
+  categoryImageUrl,
+  courseImageUrl,
   courseTitle,
   description,
   durationMin = 0,
   lessonCount = 0,
   progress = 0,
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { width: screenWidth } = useWindowDimensions();
-  const visual = getWellnessVisual(categoryKey);
-  const thumb = getCourseThumbnail(courseTitle, categoryKey);
+  const visual = getWellnessVisual(categoryKey, categoryImageUrl);
+  const thumb = getCourseThumbnailPair(courseTitle, categoryKey, courseImageUrl);
   const cardWidth = screenWidth - sw(36);
+  const copyWidth = Math.max(sw(140), cardWidth - sw(32) - IMAGE - sw(12));
+  const rawTitle = description || t("wellness.defaultLessonDescription");
+  const titleText =
+    i18n.dir() === "rtl" ? rawTitle : wrapBalancedTitle(rawTitle, copyWidth, TITLE_SIZE);
   const pct = Math.min(100, Math.max(0, progress));
 
   return (
@@ -55,11 +88,19 @@ export default function WellnessCourseSummary({
               <View style={styles.heroIcon}>
                 <Target size={sf(18)} color={T.teal} strokeWidth={2.2} />
               </View>
-              <Text style={styles.heroDescription} numberOfLines={4}>
-                {description || t("wellness.defaultLessonDescription")}
+              <Text
+                style={[styles.heroDescription, { width: copyWidth }]}
+                numberOfLines={5}
+              >
+                {titleText}
               </Text>
             </View>
-            <Image source={thumb} style={styles.heroImage} resizeMode="cover" />
+            <WellnessHeroCircle
+              source={thumb.image}
+              fallback={thumb.fallbackImage}
+              size={IMAGE}
+              style={{ marginEnd: WELLNESS_HERO_CIRCLE_END - sw(16) }}
+            />
           </View>
           <View style={styles.statRow}>
             <HeroStat
@@ -132,13 +173,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  heroImage: {
-    width: IMAGE,
-    height: IMAGE,
-    borderRadius: IMAGE / 2,
-    flexShrink: 0,
-    marginTop: sw(2),
-  },
   heroIcon: {
     width: ICON,
     height: ICON,
@@ -150,10 +184,11 @@ const styles = StyleSheet.create({
   },
   heroDescription: {
     fontFamily: Fonts.bold,
-    fontSize: sf(16),
-    lineHeight: sf(22),
+    fontSize: TITLE_SIZE,
+    lineHeight: TITLE_LINE,
     fontWeight: "700",
     color: WellnessTheme.text,
+    textAlign: "left",
     includeFontPadding: false,
   },
   statRow: {

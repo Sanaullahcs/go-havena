@@ -4,6 +4,7 @@ import { View } from "react-native";
 import { Apple, BookOpen, Heart, Moon, Users, Wind } from "lucide-react-native";
 import { Media } from "./media";
 import { HomeTheme as T } from "./home-theme";
+import { mediaImageSource } from "../utils/profile-display";
 
 const PURPLE = "#4338CA";
 
@@ -86,12 +87,45 @@ function titleThumb(title) {
   return null;
 }
 
-/** Square course thumbnail — topic image first, then category visual. */
-export function getCourseThumbnail(title, categoryKey) {
-  return titleThumb(title) ?? getWellnessVisual(categoryKey).image;
+function usableImageUrl(imageUrl) {
+  if (imageUrl && typeof imageUrl === "object" && imageUrl.uri) {
+    return usableImageUrl(imageUrl.uri);
+  }
+  const uri = String(imageUrl ?? "").trim();
+  if (!uri || uri === "null" || uri === "undefined") return "";
+  return uri;
+}
+
+/** Loadable RN image source for an uploaded wellness URL, or null. */
+export function resolveWellnessImageSource(imageUrl) {
+  const uri = usableImageUrl(imageUrl);
+  return uri ? mediaImageSource(uri) : null;
+}
+
+function bundledCourseThumb(title, categoryKey) {
+  return titleThumb(title) ?? (VISUALS[String(categoryKey ?? "").toLowerCase()] ?? DEFAULT_VISUAL).image;
+}
+
+/** Square course thumbnail — uploaded course image, then topic image, then category visual. */
+export function getCourseThumbnail(title, categoryKey, imageUrl) {
+  return resolveWellnessImageSource(imageUrl) ?? bundledCourseThumb(title, categoryKey);
+}
+
+export function getCourseThumbnailPair(title, categoryKey, imageUrl) {
+  const fallbackImage = bundledCourseThumb(title, categoryKey);
+  return {
+    image: resolveWellnessImageSource(imageUrl) ?? fallbackImage,
+    fallbackImage,
+  };
 }
 
 /** Hero image, accent, and icon for any wellness pillar (including unknown keys). */
-export function getWellnessVisual(categoryKey) {
-  return VISUALS[String(categoryKey ?? "").toLowerCase()] ?? DEFAULT_VISUAL;
+export function getWellnessVisual(categoryKey, imageUrl) {
+  const base = VISUALS[String(categoryKey ?? "").toLowerCase()] ?? DEFAULT_VISUAL;
+  const uploaded = resolveWellnessImageSource(imageUrl);
+  return {
+    ...base,
+    image: uploaded ?? base.image,
+    fallbackImage: base.image,
+  };
 }

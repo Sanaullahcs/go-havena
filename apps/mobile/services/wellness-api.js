@@ -1,6 +1,14 @@
 import { apiRequest } from "./api-client";
 import { resolveMediaUrl } from "../utils/profile-display";
 
+function mapImageUrl(...candidates) {
+  for (const value of candidates) {
+    const resolved = resolveMediaUrl(value);
+    if (resolved) return resolved;
+  }
+  return null;
+}
+
 export async function fetchWellnessHub() {
   const res = await apiRequest("/wellness/hub");
   return normalizeHub(res.data);
@@ -24,12 +32,28 @@ export async function fetchLesson(lessonId) {
   return normalizeLessonDetail(res.data);
 }
 
+const locallyCompletedLessonIds = new Set();
+
+function rememberCompletedLesson(lessonId) {
+  const id = Number(lessonId);
+  if (Number.isFinite(id) && id > 0) locallyCompletedLessonIds.add(id);
+}
+
+function isLessonCompleted(raw) {
+  const id = Number(raw?.id);
+  if (Number.isFinite(id) && locallyCompletedLessonIds.has(id)) return true;
+  const value = raw?.completed ?? raw?.is_completed ?? raw?.isCompleted;
+  return value === true || value === 1 || value === "1" || value === "true";
+}
+
 export async function completeWellnessLesson(lessonId) {
   await apiRequest(`/wellness/lessons/${lessonId}/complete`, { method: "POST" });
+  rememberCompletedLesson(lessonId);
 }
 
 export async function uncompleteWellnessLesson(lessonId) {
   await apiRequest(`/wellness/lessons/${lessonId}/complete`, { method: "DELETE" });
+  locallyCompletedLessonIds.delete(Number(lessonId));
 }
 
 /** @deprecated legacy flat wellness list */
@@ -57,6 +81,7 @@ function normalizeCategorySummary(c) {
     subtitle: c.subtitle ?? "",
     iconKey: c.icon_key ?? c.key,
     color: c.color ?? "#1B4F8A",
+    imageUrl: mapImageUrl(c.image_url, c.imageUrl),
     courseCount: c.course_count ?? 0,
     coursesLabel: c.courses_label ?? "",
     progressPercent: c.progress_percent ?? 0,
@@ -73,6 +98,7 @@ function normalizeCategory(c) {
     subtitle: c.subtitle ?? "",
     iconKey: c.icon_key ?? c.key,
     color: c.color ?? "#1B4F8A",
+    imageUrl: mapImageUrl(c.image_url, c.imageUrl),
   };
 }
 
@@ -81,7 +107,7 @@ function normalizeCourseSummary(c) {
     id: c.id,
     title: c.title,
     description: c.description ?? "",
-    imageUrl: resolveMediaUrl(c.image_url),
+    imageUrl: mapImageUrl(c.image_url, c.imageUrl),
     lessonCount: c.lesson_count ?? 0,
     durationMin: c.duration_min ?? 0,
     lessonsLabel: c.lessons_label ?? "",
@@ -93,15 +119,16 @@ function normalizeCourseSummary(c) {
 function normalizeCourseDetail(c) {
   if (!c) return null;
   const lessons = (c.lessons ?? []).map((l, index, arr) => {
-    const watchingIndex = arr.findIndex((item) => !item.completed);
+    const watchingIndex = arr.findIndex((item) => !isLessonCompleted(item));
+    const completed = isLessonCompleted(l);
     return {
-      id: l.id,
+      id: Number(l.id),
       title: l.title,
       description: l.description ?? "",
       durationMin: l.duration_min ?? 0,
       timeLabel: l.time_label ?? `${l.duration_min ?? 0} min`,
-      completed: Boolean(l.completed),
-      isWatching: !l.completed && index === watchingIndex,
+      completed,
+      isWatching: !completed && index === watchingIndex,
     };
   });
 
@@ -110,9 +137,10 @@ function normalizeCourseDetail(c) {
     categoryKey: c.category_key,
     categoryTitle: c.category_title,
     categoryColor: c.category_color ?? "#1B4F8A",
+    categoryImageUrl: mapImageUrl(c.category_image_url, c.categoryImageUrl),
     title: c.title,
     description: c.description ?? "",
-    imageUrl: resolveMediaUrl(c.image_url),
+    imageUrl: mapImageUrl(c.image_url, c.imageUrl),
     lessons,
     completedCount: c.completed_count ?? 0,
     totalCount: c.total_count ?? lessons.length,
@@ -142,6 +170,6 @@ function normalizeLessonDetail(l) {
     linkUrl,
     fileUrl,
     keyTakeaways: takeaways,
-    completed: Boolean(l.completed),
+    completed: isLessonCompleted(l),
   };
 }

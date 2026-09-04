@@ -7,6 +7,7 @@ export interface WellnessCategory {
   subtitle: string | null;
   icon_key: string | null;
   color: string;
+  image_url: string | null;
   sort_order: number;
   status: "active" | "inactive";
   is_static?: boolean;
@@ -112,6 +113,7 @@ export async function createWellnessCategory(payload: {
   subtitle?: string;
   icon_key?: string;
   color?: string;
+  image_url?: string | null;
   sort_order?: number;
   status?: "active" | "inactive";
 }) {
@@ -121,7 +123,7 @@ export async function createWellnessCategory(payload: {
 
 export async function updateWellnessCategory(
   id: number,
-  payload: Partial<Pick<WellnessCategory, "title" | "subtitle" | "icon_key" | "color" | "sort_order" | "status">>,
+  payload: Partial<Pick<WellnessCategory, "title" | "subtitle" | "icon_key" | "color" | "image_url" | "sort_order" | "status">>,
 ) {
   const res = await api.patch(`/v1/admin/wellness/categories/${id}`, payload);
   return res.data.data as WellnessCategory;
@@ -131,16 +133,34 @@ export async function deleteWellnessCategory(id: number) {
   return api.delete(`/v1/admin/wellness/categories/${id}`);
 }
 
+export async function uploadWellnessCategoryImage(file: File) {
+  const form = new FormData();
+  form.append("image", file);
+  const res = await api.post("/v1/admin/wellness/categories/upload-image", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data.data.image_url as string;
+}
+
 export async function fetchWellnessCourses(params?: { category_id?: number; search?: string }) {
   const res = await api.get("/v1/admin/wellness/courses", { params });
   return res.data.data as WellnessCourse[];
+}
+
+export async function uploadWellnessCourseImage(file: File) {
+  const form = new FormData();
+  form.append("image", file);
+  const res = await api.post("/v1/admin/wellness/courses/upload-image", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data.data.image_url as string;
 }
 
 export async function createWellnessCourse(payload: {
   category_id: number;
   title: string;
   description: string;
-  image_url?: string;
+  image_url?: string | null;
   sort_order?: number;
   status?: "published" | "draft";
 }) {

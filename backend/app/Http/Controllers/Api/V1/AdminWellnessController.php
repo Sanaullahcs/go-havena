@@ -38,6 +38,7 @@ class AdminWellnessController extends Controller
             'color'      => ['nullable', 'string', 'max:20'],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:255'],
             'status'     => ['nullable', Rule::in(['active', 'inactive'])],
+            'image_url'  => ['nullable', 'string', 'max:512'],
             'key'        => ['nullable', 'string', 'max:40', 'regex:/^[a-z0-9_]+$/', 'unique:wellness_categories,key'],
         ]);
 
@@ -49,6 +50,7 @@ class AdminWellnessController extends Controller
             'subtitle'   => isset($validated['subtitle']) ? trim((string) $validated['subtitle']) : null,
             'icon_key'   => $validated['icon_key'] ?? $key,
             'color'      => $validated['color'] ?? '#0052DF',
+            'image_url'  => MediaUrl::normalize($validated['image_url'] ?? null),
             'sort_order' => $validated['sort_order'] ?? ((int) DB::table('wellness_categories')->max('sort_order') + 1),
             'status'     => $validated['status'] ?? 'active',
             'created_at' => now(),
@@ -75,6 +77,7 @@ class AdminWellnessController extends Controller
             'color'      => ['nullable', 'string', 'max:20'],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:255'],
             'status'     => ['nullable', Rule::in(['active', 'inactive'])],
+            'image_url'  => ['nullable', 'string', 'max:512'],
         ]);
 
         if ($validated !== []) {
@@ -85,6 +88,13 @@ class AdminWellnessController extends Controller
                 $validated['subtitle'] = $validated['subtitle'] !== null
                     ? trim((string) $validated['subtitle'])
                     : null;
+            }
+            if (array_key_exists('image_url', $validated)) {
+                $nextImage = MediaUrl::normalize($validated['image_url']);
+                if (($category->image_url ?? null) && $category->image_url !== $nextImage) {
+                    $this->deleteStoredFile($category->image_url);
+                }
+                $validated['image_url'] = $nextImage;
             }
             $validated['updated_at'] = now();
             DB::table('wellness_categories')->where('id', $id)->update($validated);
@@ -114,9 +124,24 @@ class AdminWellnessController extends Controller
             ], 422);
         }
 
+        $this->deleteStoredFile($category->image_url ?? null);
         DB::table('wellness_categories')->where('id', $id)->delete();
 
         return response()->json(['message' => 'Category deleted']);
+    }
+
+    /** POST /v1/admin/wellness/categories/upload-image */
+    public function uploadCategoryImage(Request $request): JsonResponse
+    {
+        $request->validate(['image' => 'required|image|max:5120']);
+
+        $path = $request->file('image')->store('wellness/categories', 'public');
+        $relative = '/storage/'.ltrim(str_replace('\\', '/', $path), '/');
+
+        return response()->json([
+            'data'    => ['image_url' => MediaUrl::toPublic($relative, $request)],
+            'message' => 'Image uploaded',
+        ]);
     }
 
     /** GET /v1/admin/wellness/courses */
@@ -161,6 +186,10 @@ class AdminWellnessController extends Controller
     /** POST /v1/admin/wellness/courses */
     public function storeCourse(Request $request): JsonResponse
     {
+        if ($request->has('image_url') && trim((string) $request->input('image_url')) === '') {
+            $request->merge(['image_url' => null]);
+        }
+
         $validated = $request->validate([
             'category_id' => ['required', 'integer', 'exists:wellness_categories,id'],
             'title'       => ['required', 'string', 'max:200'],
@@ -174,7 +203,7 @@ class AdminWellnessController extends Controller
             'category_id' => $validated['category_id'],
             'title'       => trim($validated['title']),
             'description' => trim($validated['description']),
-            'image_url'   => $validated['image_url'] ?? null,
+            'image_url'   => MediaUrl::normalize($validated['image_url'] ?? null),
             'sort_order'  => $validated['sort_order'] ?? 0,
             'status'      => $validated['status'] ?? 'published',
             'created_at'  => now(),
@@ -190,6 +219,12 @@ class AdminWellnessController extends Controller
         if (! DB::table('wellness_courses')->whereNull('deleted_at')->where('id', $id)->exists()) {
             return response()->json(['message' => 'Course not found.'], 404);
         }
+
+        if ($request->has('image_url') && trim((string) $request->input('image_url')) === '') {
+            $request->merge(['image_url' => null]);
+        }
+
+        $existing = DB::table('wellness_courses')->whereNull('deleted_at')->where('id', $id)->first();
 
         $validated = $request->validate([
             'category_id' => ['sometimes', 'integer', 'exists:wellness_categories,id'],
@@ -207,6 +242,13 @@ class AdminWellnessController extends Controller
             if (array_key_exists('description', $validated)) {
                 $validated['description'] = trim($validated['description']);
             }
+            if (array_key_exists('image_url', $validated)) {
+                $nextImage = MediaUrl::normalize($validated['image_url']);
+                if (($existing->image_url ?? null) && $existing->image_url !== $nextImage) {
+                    $this->deleteStoredFile($existing->image_url);
+                }
+                $validated['image_url'] = $nextImage;
+            }
             $validated['updated_at'] = now();
             DB::table('wellness_courses')->where('id', $id)->update($validated);
         }
@@ -221,9 +263,25 @@ class AdminWellnessController extends Controller
             return response()->json(['message' => 'Course not found.'], 404);
         }
 
+        $course = DB::table('wellness_courses')->whereNull('deleted_at')->where('id', $id)->first();
+        $this->deleteStoredFile($course->image_url ?? null);
         DB::table('wellness_courses')->where('id', $id)->update(['deleted_at' => now(), 'updated_at' => now()]);
 
         return response()->json(['message' => 'Course deleted']);
+    }
+
+    /** POST /v1/admin/wellness/courses/upload-image */
+    public function uploadCourseImage(Request $request): JsonResponse
+    {
+        $request->validate(['image' => 'required|image|max:5120']);
+
+        $path = $request->file('image')->store('wellness/courses/images', 'public');
+        $relative = '/storage/'.ltrim(str_replace('\\', '/', $path), '/');
+
+        return response()->json([
+            'data'    => ['image_url' => MediaUrl::toPublic($relative, $request)],
+            'message' => 'Image uploaded',
+        ]);
     }
 
     /** GET /v1/admin/wellness/courses/{id}/lessons */
@@ -511,6 +569,7 @@ class AdminWellnessController extends Controller
             'subtitle'     => $category->subtitle,
             'icon_key'     => $category->icon_key,
             'color'        => $category->color,
+            'image_url'    => MediaUrl::toPublic($category->image_url ?? null, request()),
             'sort_order'   => (int) $category->sort_order,
             'status'       => $category->status,
             'is_static'    => WellnessCategoryCatalog::isStaticKey($category->key),
@@ -533,7 +592,7 @@ class AdminWellnessController extends Controller
             'category_title' => $course->category_title ?? null,
             'title'          => $course->title,
             'description'    => $course->description,
-            'image_url'      => $course->image_url,
+            'image_url'      => MediaUrl::toPublic($course->image_url ?? null, request()),
             'sort_order'     => (int) $course->sort_order,
             'status'         => $course->status,
             'lesson_count'   => $lessonCount,

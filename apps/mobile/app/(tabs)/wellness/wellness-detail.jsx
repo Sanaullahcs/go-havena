@@ -134,6 +134,7 @@ export default function WellnessDetail() {
           >
             <WellnessProgramDetail
               categoryKey={categoryKey}
+              categoryImageUrl={category?.imageUrl}
               heroTitle={heroTitle}
               heroDescription={heroDescription}
               courses={courses}

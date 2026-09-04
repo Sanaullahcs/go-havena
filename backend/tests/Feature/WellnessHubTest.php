@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\User;
 use Database\Seeders\WellnessHubSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -35,6 +37,41 @@ class WellnessHubTest extends TestCase
             ],
         ]);
         $this->assertGreaterThanOrEqual(5, count($response->json('data.categories')));
+        $response->assertJsonPath('data.categories.0.image_url', null);
+    }
+
+    public function test_system_admin_can_upload_and_save_category_image(): void
+    {
+        Storage::fake('public');
+        $admin = User::factory()->create(['role' => 'system_admin', 'status' => 'active']);
+        Sanctum::actingAs($admin);
+
+        $categoryId = $this->getJson('/api/v1/admin/wellness/categories')
+            ->json('data.0.id');
+
+        $upload = $this->postJson('/api/v1/admin/wellness/categories/upload-image', [
+            'image' => UploadedFile::fake()->image('weight.jpg', 400, 400),
+        ])->assertOk();
+
+        $imageUrl = $upload->json('data.image_url');
+        $this->assertNotEmpty($imageUrl);
+        $this->assertStringContainsString('/storage/wellness/categories/', $imageUrl);
+
+        $this->patchJson("/api/v1/admin/wellness/categories/{$categoryId}", [
+            'image_url' => $imageUrl,
+        ])->assertOk()
+            ->assertJsonPath('data.image_url', $imageUrl);
+
+        $resident = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        Sanctum::actingAs($resident);
+
+        $hub = $this->getJson('/api/v1/wellness/hub')->assertOk();
+        $hubCategory = collect($hub->json('data.categories'))->firstWhere('id', $categoryId);
+        $this->assertNotEmpty($hubCategory['image_url'] ?? null);
+
+        $this->getJson('/api/v1/wellness/categories/'.$hubCategory['key'].'/courses')
+            ->assertOk()
+            ->assertJsonPath('data.category.image_url', $hubCategory['image_url']);
     }
 
     public function test_resident_can_browse_category_courses_and_complete_lesson(): void
@@ -98,6 +135,40 @@ class WellnessHubTest extends TestCase
         $show->assertOk();
         $show->assertJsonPath('data.title', 'Admin Created Course');
         $this->assertCount(1, $show->json('data.lessons'));
+    }
+
+    public function test_manually_added_lesson_shows_completed_flag_after_complete(): void
+    {
+        $admin = User::factory()->create(['role' => 'system_admin', 'status' => 'active']);
+        Sanctum::actingAs($admin);
+
+        $courseId = $this->getJson('/api/v1/wellness/categories/weight/courses')
+            ->json('data.courses.0.id');
+
+        $created = $this->postJson("/api/v1/admin/wellness/courses/{$courseId}/lessons", [
+            'title'        => 'Manually Added Lesson',
+            'description'  => 'Added later from admin',
+            'duration_min' => 8,
+            'video_url'    => 'https://example.com/added.mp4',
+            'status'       => 'published',
+        ])->assertCreated();
+
+        $newLessonId = $created->json('data.id');
+        $this->assertNotNull($newLessonId);
+
+        $resident = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        Sanctum::actingAs($resident);
+
+        $before = $this->getJson("/api/v1/wellness/courses/{$courseId}")->assertOk();
+        $addedBefore = collect($before->json('data.lessons'))->firstWhere('id', $newLessonId);
+        $this->assertNotNull($addedBefore);
+        $this->assertFalse($addedBefore['completed']);
+
+        $this->postJson("/api/v1/wellness/lessons/{$newLessonId}/complete")->assertOk();
+
+        $after = $this->getJson("/api/v1/wellness/courses/{$courseId}")->assertOk();
+        $addedAfter = collect($after->json('data.lessons'))->firstWhere('id', $newLessonId);
+        $this->assertTrue($addedAfter['completed']);
     }
 
     public function test_lesson_requires_file_or_link_and_course_description_is_required(): void

@@ -17,13 +17,19 @@ function isNetworkFailure(err) {
   if (err instanceof ApiError) return false;
   const name = String(err.name ?? "").toLowerCase();
   const msg = String(err.message ?? "").toLowerCase();
+  const cause = String(err.cause?.message ?? err.cause ?? "").toLowerCase();
+  const text = `${name} ${msg} ${cause}`;
   return (
     name === "aborterror" ||
-    msg.includes("network request failed") ||
-    msg.includes("failed to fetch") ||
-    msg.includes("fetch request has been cancelled") ||
-    msg.includes("cancelled") ||
-    msg.includes("timeout")
+    text.includes("network request failed") ||
+    text.includes("failed to fetch") ||
+    text.includes("fetch failed") ||
+    text.includes("could not connect") ||
+    text.includes("connection refused") ||
+    text.includes("internet connection appears to be offline") ||
+    text.includes("fetch request has been cancelled") ||
+    text.includes("cancelled") ||
+    text.includes("timeout")
   );
 }
 

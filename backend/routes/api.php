@@ -397,10 +397,12 @@ Route::prefix('v1')->group(function () {
 
                 Route::get('/wellness/categories',                    [AdminWellnessController::class, 'categories']);
                 Route::post('/wellness/categories',                    [AdminWellnessController::class, 'storeCategory']);
+                Route::post('/wellness/categories/upload-image',       [AdminWellnessController::class, 'uploadCategoryImage']);
                 Route::patch('/wellness/categories/{id}',              [AdminWellnessController::class, 'updateCategory']);
                 Route::delete('/wellness/categories/{id}',             [AdminWellnessController::class, 'destroyCategory']);
                 Route::get('/wellness/courses',                        [AdminWellnessController::class, 'courses']);
                 Route::post('/wellness/courses',                       [AdminWellnessController::class, 'storeCourse']);
+                Route::post('/wellness/courses/upload-image',          [AdminWellnessController::class, 'uploadCourseImage']);
                 Route::patch('/wellness/courses/{id}',                  [AdminWellnessController::class, 'updateCourse']);
                 Route::delete('/wellness/courses/{id}',                [AdminWellnessController::class, 'destroyCourse']);
                 Route::get('/wellness/courses/{id}/lessons',           [AdminWellnessController::class, 'lessons']);

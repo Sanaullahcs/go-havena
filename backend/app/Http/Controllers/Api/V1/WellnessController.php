@@ -99,7 +99,7 @@ class WellnessController extends Controller
     /** GET /v1/wellness/courses/{id} */
     public function showCourse(Request $request, int $id): JsonResponse
     {
-        $userId = $request->user()->id;
+        $userId = (int) $request->user()->id;
         $course = DB::table('wellness_courses as c')
             ->join('wellness_categories as cat', 'cat.id', '=', 'c.category_id')
             ->where('c.id', $id)
@@ -111,6 +111,7 @@ class WellnessController extends Controller
                 'cat.key as category_key',
                 'cat.title as category_title',
                 'cat.color as category_color',
+                'cat.image_url as category_image_url',
             ])
             ->first();
 
@@ -118,14 +119,22 @@ class WellnessController extends Controller
             return response()->json(['message' => 'Course not found.'], 404);
         }
 
-        $lessons = DB::table('wellness_lessons')
+        $lessonRows = DB::table('wellness_lessons')
             ->where('course_id', $course->id)
             ->where('status', 'published')
             ->whereNull('deleted_at')
             ->orderBy('sort_order')
-            ->orderBy('title')
-            ->get()
-            ->map(fn ($lesson) => $this->transformLessonSummary($lesson, $userId));
+            ->orderBy('id')
+            ->get();
+
+        $completedSet = $this->completedLessonIdSet(
+            $userId,
+            $lessonRows->pluck('id')->all()
+        );
+
+        $lessons = $lessonRows->map(
+            fn ($lesson) => $this->transformLessonSummary($lesson, $completedSet)
+        );
 
         $completed = $lessons->where('completed', true)->count();
         $total     = $lessons->count();
@@ -136,6 +145,7 @@ class WellnessController extends Controller
                 'category_key'     => $course->category_key,
                 'category_title'   => $course->category_title,
                 'category_color'   => $course->category_color,
+                'category_image_url' => MediaUrl::toPublic($course->category_image_url ?? null, $request),
                 'title'            => $course->title,
                 'description'      => $course->description,
                 'image_url'        => MediaUrl::toPublic($course->image_url, $request),
@@ -177,7 +187,7 @@ class WellnessController extends Controller
 
         $completed = DB::table('wellness_lesson_progress')
             ->where('user_id', $userId)
-            ->where('lesson_id', $lesson->id)
+            ->where('lesson_id', (int) $lesson->id)
             ->exists();
 
         $linkUrl = $lesson->link_url ?: $lesson->video_url;
@@ -185,7 +195,7 @@ class WellnessController extends Controller
 
         return response()->json([
             'data' => [
-                'id'                 => $lesson->id,
+                'id'                 => (int) $lesson->id,
                 'course_id'          => $lesson->course_id,
                 'course_title'       => $lesson->course_title,
                 'course_description' => $lesson->course_description,
@@ -207,21 +217,26 @@ class WellnessController extends Controller
     /** POST /v1/wellness/lessons/{id}/complete */
     public function completeLesson(int $id): JsonResponse
     {
-        $lesson = DB::table('wellness_lessons')->where('id', $id)->where('status', 'published')->first();
+        $lesson = DB::table('wellness_lessons')
+            ->where('id', $id)
+            ->where('status', 'published')
+            ->whereNull('deleted_at')
+            ->first();
         if (! $lesson) {
             return response()->json(['message' => 'Lesson not found.'], 404);
         }
 
-        $userId = auth()->id();
+        $userId = (int) auth()->id();
+        $lessonId = (int) $lesson->id;
         $exists = DB::table('wellness_lesson_progress')
             ->where('user_id', $userId)
-            ->where('lesson_id', $id)
+            ->where('lesson_id', $lessonId)
             ->exists();
 
         if (! $exists) {
             DB::table('wellness_lesson_progress')->insert([
                 'user_id'      => $userId,
-                'lesson_id'    => $id,
+                'lesson_id'    => $lessonId,
                 'completed_at' => now(),
             ]);
         }
@@ -318,7 +333,6 @@ class WellnessController extends Controller
                     'description'  => $lesson->description
                         ?: ('From '.$lesson->course_title),
                     'duration_min' => (int) $lesson->duration_min,
-                    // Lessons have no image_url column; reuse the parent course image.
                     'image_url'    => MediaUrl::toPublic($lesson->course_image_url, request()),
                     'completed'    => in_array((int) $lesson->id, array_map('intval', $completedLessonIds), true),
                 ];
@@ -401,8 +415,9 @@ class WellnessController extends Controller
             'key'      => $category->key,
             'title'    => $category->title,
             'subtitle' => $category->subtitle,
-            'icon_key' => $category->icon_key,
-            'color'    => $category->color,
+            'icon_key'   => $category->icon_key,
+            'color'      => $category->color,
+            'image_url'  => MediaUrl::toPublic($category->image_url ?? null, request()),
         ];
     }
 
@@ -479,20 +494,35 @@ class WellnessController extends Controller
         ];
     }
 
-    private function transformLessonSummary(object $lesson, int $userId): array
+    /** @param list<int|string> $lessonIds */
+    private function completedLessonIdSet(int $userId, array $lessonIds): array
     {
-        $completed = DB::table('wellness_lesson_progress')
+        $ids = array_values(array_unique(array_map('intval', $lessonIds)));
+        if ($ids === []) {
+            return [];
+        }
+
+        $completedIds = DB::table('wellness_lesson_progress')
             ->where('user_id', $userId)
-            ->where('lesson_id', $lesson->id)
-            ->exists();
+            ->whereIn('lesson_id', $ids)
+            ->pluck('lesson_id')
+            ->all();
+
+        return array_fill_keys(array_map('intval', $completedIds), true);
+    }
+
+    /** @param array<int, true> $completedSet */
+    private function transformLessonSummary(object $lesson, array $completedSet): array
+    {
+        $id = (int) $lesson->id;
 
         return [
-            'id'           => $lesson->id,
+            'id'           => $id,
             'title'        => $lesson->title,
             'description'  => $lesson->description,
             'duration_min' => (int) $lesson->duration_min,
             'time_label'   => $lesson->duration_min.' min',
-            'completed'    => $completed,
+            'completed'    => isset($completedSet[$id]),
             'is_watching'  => false,
         ];
     }

@@ -22,6 +22,15 @@ function friendlyValidationMessage(message) {
     return "The file could not be uploaded. Please take or choose the photo again, then retry.";
   }
 
+  if (
+    /fetch failed/i.test(text) ||
+    /could not connect/i.test(text) ||
+    /network request failed/i.test(text) ||
+    /failed to fetch/i.test(text)
+  ) {
+    return "Could not reach the server. Check your connection and try again.";
+  }
+
   return text;
 }
 
