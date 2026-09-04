@@ -76,18 +76,22 @@ export function extractStoragePath(url) {
 }
 
 /** expo-image source: bundled seed art when available, otherwise a loadable URI. */
-export function resolveAppImageSource(path) {
+export function resolveAppImageSource(path, { allowBundledSeed = true } = {}) {
   if (path == null || path === "") return null;
   if (typeof path === "number") return path;
 
-  const seed = resolveSeedMediaSource(path);
-  if (seed != null) return seed;
+  if (allowBundledSeed) {
+    const seed = resolveSeedMediaSource(path);
+    if (seed != null) return seed;
+  }
 
   const resolved = resolveMediaUrl(path);
   if (!resolved) return null;
 
-  const seedFromResolved = resolveSeedMediaSource(resolved);
-  if (seedFromResolved != null) return seedFromResolved;
+  if (allowBundledSeed) {
+    const seedFromResolved = resolveSeedMediaSource(resolved);
+    if (seedFromResolved != null) return seedFromResolved;
+  }
 
   if (typeof resolved === "number") return resolved;
 

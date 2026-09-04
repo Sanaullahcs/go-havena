@@ -11,6 +11,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import BackButton from "../../../components/ui/back-button";
 import UserAvatar from "../../../components/ui/user-avatar";
 import CrispImage from "../../../components/ui/crisp-image";
 import { NoticeCoverMedia } from "../../../components/notices/notice-cover-thumbnail";
@@ -21,7 +22,6 @@ import { sw, sf, hp } from "../../../utils/responsive";
 import { useTranslation } from 'react-i18next';
 import i18n, { localizedField } from "../../../i18n";
 import { getLocaleForLang } from "../../../hooks/use-app-locale";
-import { arrowBack } from "../../../utils/rtl";
 
 const HERO_HEIGHT = hp(28);
 
@@ -192,15 +192,9 @@ export default function NoticeDetailScreen() {
             <View style={[StyleSheet.absoluteFill, { backgroundColor: heroBg }]} />
           )}
 
-          <SafeAreaView edges={["top"]} style={styles.heroSafe}>
-            <View style={styles.heroTopBar}>
-              <Pressable
-                style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
-                onPress={() => router.back()}
-                accessibilityLabel={t('notices.goBack')}
-              >
-                <Feather name={arrowBack()} size={sf(20)} color="#FFFFFF" />
-              </Pressable>
+          <SafeAreaView edges={["top"]} style={styles.heroSafe} pointerEvents="box-none">
+            <View style={styles.heroTopBar} pointerEvents="box-none">
+              <View style={styles.heroBackSpacer} />
               {!loading && notice ? (
                 <Pressable
                   style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
@@ -354,6 +348,26 @@ export default function NoticeDetailScreen() {
       </ScrollView>
 
       <View style={[styles.bottomSafe, { paddingBottom: Math.max(insets.bottom, sw(12)) }]} />
+
+      <View
+        pointerEvents="box-none"
+        style={[
+          styles.backOverlay,
+          { paddingTop: Math.max(insets.top, sw(8)) + sw(8) },
+        ]}
+      >
+        <BackButton
+          iconOnly
+          compact
+          onPress={() => {
+            if (router.canGoBack?.()) {
+              router.back();
+              return;
+            }
+            router.replace("/(tabs)/notices");
+          }}
+        />
+      </View>
     </View>
   );
 }
@@ -376,11 +390,23 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: Layout.screenPadding,
   },
+  backOverlay: {
+    position: "absolute",
+    top: 0,
+    start: 0,
+    zIndex: 30,
+    elevation: 30,
+    paddingStart: Layout.screenPadding,
+  },
   heroTopBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingTop: hp(0.4),
+  },
+  heroBackSpacer: {
+    width: sw(34),
+    height: sw(34),
   },
   iconBtn: {
     width: sw(40),

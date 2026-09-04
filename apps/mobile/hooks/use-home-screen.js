@@ -7,7 +7,7 @@ import {
 } from "../services/notices-api";
 import { fetchFeed, pickHomeFeedPosts, areFeedPostsUnchanged } from "../services/feed-api";
 import { fetchDeals, pickActiveDealsForHome } from "../services/deals-api";
-import { fetchWellnessHub } from "../services/wellness-api";
+import { fetchWellnessHub, subscribeWellnessHub } from "../services/wellness-api";
 import {
   fetchAmenities,
   pickLatestApprovedAmenities,
@@ -122,6 +122,12 @@ export function useHomeScreen() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    return subscribeWellnessHub((hub) => {
+      setWellnessCategories(hub?.categories ?? []);
+    });
+  }, []);
 
   useFocusEffect(
     useCallback(() => {

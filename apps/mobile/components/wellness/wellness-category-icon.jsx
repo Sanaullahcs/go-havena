@@ -38,7 +38,7 @@ export default function WellnessCategoryIcon({
     >
       {showPhoto ? (
         <WellnessCoverImage
-          source={visual.image}
+          source={imageUrl || visual.image}
           fallback={visual.fallbackImage}
           style={{ width: size, height: size, borderRadius: radius }}
           resizeMode="cover"

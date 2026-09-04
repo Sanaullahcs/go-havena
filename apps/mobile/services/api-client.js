@@ -144,13 +144,24 @@ function apiErrorMessage(body, response) {
   return i18n.t("apiErrors.requestFailed");
 }
 
-export async function apiRequest(path, { method = "GET", body, auth = true, community = true, timeoutMs = 25000 } = {}) {
+function withCacheBust(path) {
+  const sep = path.includes("?") ? "&" : "?";
+  return `${path}${sep}_=${Date.now()}`;
+}
+
+export async function apiRequest(path, { method = "GET", body, auth = true, community = true, timeoutMs = 25000, cache } = {}) {
   const headers = {
     Accept: "application/json",
   };
 
   if (body !== undefined) {
     headers["Content-Type"] = "application/json";
+  }
+
+  const bypassHttpCache = cache === "no-store" || cache === "no-cache";
+  if (bypassHttpCache) {
+    headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+    headers["Pragma"] = "no-cache";
   }
 
   if (auth) {
@@ -172,10 +183,12 @@ export async function apiRequest(path, { method = "GET", body, auth = true, comm
 
   const requestPromise = (async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}${path}`, {
+      const requestPath = bypassHttpCache && method === "GET" ? withCacheBust(path) : path;
+      const response = await fetch(`${API_BASE_URL}${requestPath}`, {
         method,
         headers,
         body: body !== undefined ? JSON.stringify(body) : undefined,
+        ...(bypassHttpCache ? { cache: "no-store" } : {}),
       });
       return parseResponse(response);
     } catch (err) {

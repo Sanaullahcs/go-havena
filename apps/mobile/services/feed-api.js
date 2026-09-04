@@ -161,6 +161,25 @@ function getSensitivePostMessage() {
   return i18n.t("feed.sensitiveContent.defaultMessage");
 }
 
+function pushUniqueImageUrl(urls, value) {
+  const raw = typeof value === "string" ? value : value?.url ?? value?.image_url ?? value?.uri ?? "";
+  const uri = resolveMediaUrl(raw) ?? String(raw ?? "").trim();
+  if (!uri || uri === "null" || uri === "undefined" || urls.includes(uri)) return;
+  urls.push(uri);
+}
+
+/** All viewable image URLs on a feed post (single image_url plus any gallery arrays). */
+export function getPostImageUrls(post) {
+  if (!post || isSensitivePost(post)) return [];
+  const urls = [];
+  pushUniqueImageUrl(urls, post.image_url);
+  const extras = post.images ?? post.image_urls ?? post.media;
+  if (Array.isArray(extras)) {
+    extras.forEach((item) => pushUniqueImageUrl(urls, item));
+  }
+  return urls;
+}
+
 export function normalizePost(raw) {
   if (!raw) return null;
 
@@ -168,13 +187,16 @@ export function normalizePost(raw) {
   const avatarUrl = resolveMediaUrl(raw.author_avatar ?? raw.user?.avatar);
   const sensitive = isSensitivePost(raw);
   const text = sensitive ? "" : (raw.body ?? raw.content ?? "");
+  const imageUrl = sensitive ? null : (resolveMediaUrl(raw.image_url) ?? raw.image_url);
+  const images = sensitive ? [] : getPostImageUrls({ ...raw, image_url: imageUrl });
 
   return {
     ...raw,
     id: raw.id,
     content: text,
     body: text,
-    image_url: sensitive ? null : (resolveMediaUrl(raw.image_url) ?? raw.image_url),
+    image_url: imageUrl || images[0] || null,
+    images,
     tag: raw.tag ?? null,
     likes_count: raw.likes_count ?? raw.likes ?? 0,
     comments_count: raw.comments_count ?? raw.comments ?? 0,

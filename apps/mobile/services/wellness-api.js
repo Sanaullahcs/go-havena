@@ -1,21 +1,66 @@
 import { apiRequest } from "./api-client";
 import { resolveMediaUrl } from "../utils/profile-display";
 
+function rawImageCandidate(value) {
+  if (value && typeof value === "object") {
+    return rawImageCandidate(value.url ?? value.image_url ?? value.uri ?? "");
+  }
+  const uri = String(value ?? "").trim();
+  if (!uri || uri === "null" || uri === "undefined") return "";
+  return uri;
+}
+
 function mapImageUrl(...candidates) {
   for (const value of candidates) {
-    const resolved = resolveMediaUrl(value);
+    const raw = rawImageCandidate(value);
+    if (!raw) continue;
+    const resolved = resolveMediaUrl(raw);
     if (resolved) return resolved;
   }
   return null;
 }
 
+const WELLNESS_NO_CACHE = { cache: "no-store" };
+
+let latestHub = null;
+const hubListeners = new Set();
+
+export function getCachedWellnessHub() {
+  return latestHub;
+}
+
+export function clearWellnessHubCache() {
+  latestHub = null;
+}
+
+export function subscribeWellnessHub(listener) {
+  hubListeners.add(listener);
+  return () => hubListeners.delete(listener);
+}
+
+function publishWellnessHub(hub) {
+  latestHub = hub;
+  hubListeners.forEach((listener) => {
+    try {
+      listener(hub);
+    } catch (err) {
+      console.warn("[wellness] hub listener failed", err);
+    }
+  });
+}
+
 export async function fetchWellnessHub() {
-  const res = await apiRequest("/wellness/hub");
-  return normalizeHub(res.data);
+  const res = await apiRequest("/wellness/hub", WELLNESS_NO_CACHE);
+  const hub = normalizeHub(res.data);
+  publishWellnessHub(hub);
+  return hub;
 }
 
 export async function fetchCategoryCourses(categoryKey) {
-  const res = await apiRequest(`/wellness/categories/${encodeURIComponent(categoryKey)}/courses`);
+  const res = await apiRequest(
+    `/wellness/categories/${encodeURIComponent(categoryKey)}/courses`,
+    WELLNESS_NO_CACHE,
+  );
   return {
     category: normalizeCategory(res.data?.category),
     courses: (res.data?.courses ?? []).map(normalizeCourseSummary),

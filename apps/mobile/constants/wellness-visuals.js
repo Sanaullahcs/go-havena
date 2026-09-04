@@ -4,7 +4,7 @@ import { View } from "react-native";
 import { Apple, BookOpen, Heart, Moon, Users, Wind } from "lucide-react-native";
 import { Media } from "./media";
 import { HomeTheme as T } from "./home-theme";
-import { mediaImageSource } from "../utils/profile-display";
+import { resolveAppImageSource } from "../utils/profile-display";
 
 const PURPLE = "#4338CA";
 
@@ -96,10 +96,10 @@ function usableImageUrl(imageUrl) {
   return uri;
 }
 
-/** Loadable RN image source for an uploaded wellness URL, or null. */
+/** Loadable remote source for an uploaded wellness URL. Never swaps in bundled seed art. */
 export function resolveWellnessImageSource(imageUrl) {
   const uri = usableImageUrl(imageUrl);
-  return uri ? mediaImageSource(uri) : null;
+  return uri ? resolveAppImageSource(uri, { allowBundledSeed: false }) : null;
 }
 
 function bundledCourseThumb(title, categoryKey) {

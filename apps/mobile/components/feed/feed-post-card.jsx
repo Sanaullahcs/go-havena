@@ -18,7 +18,7 @@ import { FeedCardFooter, LIKE_HEART_RED } from "./feed-engagement";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { getFeedTagTheme } from "../../constants/feed-theme";
-import { formatCount, isSensitivePost, timeAgo, TOPIC_LABEL_KEY } from "../../services/feed-api";
+import { formatCount, getPostImageUrls, isSensitivePost, timeAgo, TOPIC_LABEL_KEY } from "../../services/feed-api";
 import { sw, sf } from "../../utils/responsive";
 import { rnShadow } from "../../utils/shadow";
 
@@ -119,7 +119,11 @@ export default function FeedPostCard({
               collapsedLines={isEngagement ? 8 : 6}
             />
             {post.image_url ? (
-              <FeedPostImage uri={post.image_url} style={styles.postImageWrap} />
+              <FeedPostImage
+                uri={post.image_url}
+                uris={getPostImageUrls(post)}
+                style={styles.postImageWrap}
+              />
             ) : null}
           </>
         )}

@@ -96,7 +96,7 @@ export default function WellnessCourseSummary({
               </Text>
             </View>
             <WellnessHeroCircle
-              source={thumb.image}
+              source={courseImageUrl || categoryImageUrl || thumb.image}
               fallback={thumb.fallbackImage}
               size={IMAGE}
               style={{ marginEnd: WELLNESS_HERO_CIRCLE_END - sw(16) }}

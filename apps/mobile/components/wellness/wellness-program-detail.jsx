@@ -78,7 +78,7 @@ function ProgramHero({
     <View style={styles.heroCard}>
       <View style={[styles.heroMedia, { backgroundColor: visual.wash }]}>
         <WellnessHeroCircle
-          source={visual.image}
+          source={categoryImageUrl || visual.image}
           fallback={visual.fallbackImage}
           size={HERO_IMAGE}
           style={styles.heroImageCircle}
@@ -195,7 +195,7 @@ function ProgramCourseCard({
         <View style={styles.courseRow}>
           <View style={styles.thumbWrap}>
             <WellnessCoverImage
-              source={thumb.image}
+              source={imageUrl || categoryImageUrl || thumb.image}
               fallback={thumb.fallbackImage}
               style={styles.thumb}
               resizeMode="cover"

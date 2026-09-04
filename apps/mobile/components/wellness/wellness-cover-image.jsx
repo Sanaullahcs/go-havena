@@ -1,24 +1,35 @@
 import React, { useEffect, useState } from "react";
-import { Image, StyleSheet, View } from "react-native";
-import { mediaImageSource } from "../../utils/profile-display";
+import { StyleSheet, View } from "react-native";
+import { Image } from "expo-image";
+import { resolveAppImageSource } from "../../utils/profile-display";
+import { imageProps } from "../../constants/typography";
 
-function normalizeSource(value) {
+function normalizeSource(value, { allowBundledSeed = true } = {}) {
   if (value == null || value === false) return null;
   if (typeof value === "number") return value;
   if (typeof value === "string") {
     const uri = value.trim();
-    return uri ? mediaImageSource(uri) : null;
+    if (!uri || uri === "null" || uri === "undefined") return null;
+    return resolveAppImageSource(uri, { allowBundledSeed });
   }
   if (typeof value === "object") {
     if (typeof value.uri === "string" && value.uri.trim()) {
-      return mediaImageSource(value);
+      return resolveAppImageSource(value.uri, { allowBundledSeed });
     }
-    if (typeof value === "number") return value;
   }
   return null;
 }
 
-/** Remote wellness photo with a bundled fallback if the URL is missing or fails. */
+function sourceKey(source) {
+  if (source == null) return "";
+  if (typeof source === "number") return String(source);
+  return source.uri ?? "";
+}
+
+/**
+ * Uploaded wellness photo first. Bundled fallback only when the URL is
+ * missing or the remote image fails to load.
+ */
 export default function WellnessCoverImage({
   source,
   fallback,
@@ -26,28 +37,30 @@ export default function WellnessCoverImage({
   resizeMode = "cover",
 }) {
   const [failed, setFailed] = useState(false);
-  const primary = normalizeSource(source);
+  const primary = normalizeSource(source, { allowBundledSeed: false });
   const backup = normalizeSource(fallback);
-  const sourceKey = typeof primary === "number" ? primary : primary?.uri ?? "";
+  const key = sourceKey(primary);
 
   useEffect(() => {
     setFailed(false);
-  }, [sourceKey]);
+  }, [key]);
 
-  const remote = !failed ? primary : null;
-  const base = backup ?? (!remote ? primary : null);
-  if (!remote && !base) return null;
+  const showPrimary = Boolean(primary) && !failed;
+  const showFallback = Boolean(backup) && !showPrimary;
+
+  if (!showPrimary && !showFallback) return null;
 
   return (
     <View style={[styles.frame, style]} pointerEvents="none">
-      {base ? (
-        <Image source={base} style={styles.fill} resizeMode={resizeMode} />
+      {showFallback ? (
+        <Image source={backup} style={styles.fill} contentFit={resizeMode} />
       ) : null}
-      {remote && remote !== base ? (
+      {showPrimary ? (
         <Image
-          source={remote}
+          {...(typeof primary === "number" ? {} : imageProps)}
+          source={primary}
           style={styles.fill}
-          resizeMode={resizeMode}
+          contentFit={resizeMode}
           onError={() => setFailed(true)}
         />
       ) : null}

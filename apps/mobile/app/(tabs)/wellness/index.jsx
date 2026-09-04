@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   ScrollView,
 } from "react-native";
 import { Fonts } from "../../../constants/font";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import WellnessScreenHeader from "../../../components/wellness/wellness-screen-header";
 import WellnessStatBar from "../../../components/wellness/wellness-stat-bar";
@@ -15,54 +15,18 @@ import WellnessCategoryCard from "../../../components/wellness/wellness-category
 import {
   wellnessDetailRouteParams,
 } from "../../../constants/wellness-categories";
-import { fetchWellnessHub } from "../../../services/wellness-api";
 import { getWellnessCategoryMeta } from "../../../constants/wellness-theme";
 import GuestFeatureErrorState from "../../../components/guest/guest-permission-denied-state";
 import { isFeatureAccessBlockedError } from "../../../utils/guest-permission-errors";
-import { resolveLoadRestriction } from "../../../utils/account-access-sync";
 import { WellnessTheme } from "../../../constants/wellness-theme";
 import { sf, sw } from "../../../utils/responsive";
 import { useTranslation } from 'react-i18next';
+import { useWellnessHub } from "../../../hooks/use-wellness-hub";
 
 export default function Wellness() {
   const router = useRouter();
-  const { t, i18n } = useTranslation();
-  const [hub, setHub] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const blocked = await resolveLoadRestriction("wellness");
-      if (blocked) {
-        setHub(null);
-        setError(blocked);
-        return;
-      }
-
-      const data = await fetchWellnessHub();
-      setHub(data);
-    } catch (err) {
-      const restricted = await resolveLoadRestriction("wellness", err);
-      if (restricted) {
-        setHub(null);
-        setError(restricted);
-        return;
-      }
-      setError(err);
-      setHub(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load]),
-  );
+  const { t } = useTranslation();
+  const { hub, loading, error, load } = useWellnessHub();
 
   const stats = [
     {
@@ -96,16 +60,16 @@ export default function Wellness() {
       {!accessBlocked ? <WellnessStatBar stats={stats} /> : null}
 
       <View style={styles.body}>
-        {loading ? (
+        {loading && !hub ? (
           <View style={styles.centered}>
             <ActivityIndicator size="large" color="#1B4F8A" />
           </View>
-        ) : error ? (
+        ) : error && !hub ? (
           <GuestFeatureErrorState
             error={error}
             fallbackFeature="wellness"
             defaultTitle={t('wellness.couldNotLoadWellness')}
-            onRetry={load}
+            onRetry={() => load()}
           />
         ) : (
           <ScrollView

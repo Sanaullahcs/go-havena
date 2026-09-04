@@ -46,7 +46,7 @@ function WellnessCard({ item, width, onPress }) {
       <View style={styles.cardInner}>
         <View style={[styles.hero, { width }]} collapsable={false}>
           <WellnessCoverImage
-            source={visual.image}
+            source={item.imageUrl || visual.image}
             fallback={visual.fallbackImage}
             style={[styles.heroImage, { width, height: HERO_HEIGHT }]}
             resizeMode="cover"
