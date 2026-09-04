@@ -77,6 +77,7 @@ export default function GuestLoginScreen() {
   const [otp, setOtp] = useState("");
   const [showOtpError, setShowOtpError] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
+  const [resending, setResending] = useState(false);
   const [resendNotice, setResendNotice] = useState(false);
   const [otpInputKey, setOtpInputKey] = useState(0);
   const [otpRefocusToken, setOtpRefocusToken] = useState(0);
@@ -229,23 +230,23 @@ export default function GuestLoginScreen() {
     [otpDigits, submitting, otpSending, run, normalizedEmail, finishLogin, dialog, router, resetTouched],
   );
 
-  const handleResend = () => {
-    if (submitting || otpSending || !canResend) return;
+  const handleResend = async () => {
+    if (submitting || otpSending || resending || !canResend) return;
 
-    run(async () => {
-      setOtpSending(true);
-      try {
-        await requestGuestOtp(normalizedEmail);
-        resetCountdown();
-        setOtp("");
-        setShowOtpError(false);
-        setOtpInputKey((key) => key + 1);
-        setResendNotice(true);
-        setTimeout(() => setResendNotice(false), 2500);
-      } finally {
-        setOtpSending(false);
-      }
-    }).catch((err) => handleAuthApiError(err, dialog, router, { email: normalizedEmail }));
+    setResending(true);
+    try {
+      await requestGuestOtp(normalizedEmail);
+      resetCountdown();
+      setOtp("");
+      setShowOtpError(false);
+      setOtpInputKey((key) => key + 1);
+      setResendNotice(true);
+      setTimeout(() => setResendNotice(false), 2500);
+    } catch (err) {
+      await handleAuthApiError(err, dialog, router, { email: normalizedEmail });
+    } finally {
+      setResending(false);
+    }
   };
 
   const handleOtpChange = (value) => {
@@ -295,9 +296,9 @@ export default function GuestLoginScreen() {
   const resendFooter = resendNotice ? (
     <Text style={[layout.footerNote, layout.resendSuccess]}>{t("auth.newCodeSent")}</Text>
   ) : canResend ? (
-    <TouchableOpacity onPress={handleResend} disabled={busy}>
-      <Text style={[layout.footerNote, layout.resendHighlight, busy && styles.resendMuted]}>
-        {otpSending ? t("auth.sending") : t("auth.resendCode")}
+    <TouchableOpacity onPress={handleResend} disabled={busy || resending}>
+      <Text style={[layout.footerNote, layout.resendHighlight, (busy || resending) && styles.resendMuted]}>
+        {resending ? t("auth.resending") : t("auth.resendCode")}
       </Text>
     </TouchableOpacity>
   ) : (

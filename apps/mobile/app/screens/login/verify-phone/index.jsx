@@ -44,6 +44,7 @@ export default function VerifyPhoneScreen() {
   const [otp, setOtp] = useState("");
   const [showOtpError, setShowOtpError] = useState(false);
   const [otpSending, setOtpSending] = useState(shouldSendOnMount);
+  const [resending, setResending] = useState(false);
   const [resendNotice, setResendNotice] = useState(false);
   const [otpRefocusToken, setOtpRefocusToken] = useState(0);
   const { submitting, run } = useSubmitLock();
@@ -118,22 +119,20 @@ export default function VerifyPhoneScreen() {
     submitVerification(otpDigits);
   };
 
-  const handleResend = () => {
-    if (submitting || otpSending || !canResend) return;
+  const handleResend = async () => {
+    if (submitting || otpSending || resending || !canResend) return;
 
-    run(async () => {
-      setOtpSending(true);
-      try {
-        await requestOtp(email, { intent: "login" });
-        resetCountdown();
-        setResendNotice(true);
-        setTimeout(() => setResendNotice(false), 2500);
-      } catch (err) {
-        await handleAuthApiError(err, dialog, router, { email });
-      } finally {
-        setOtpSending(false);
-      }
-    });
+    setResending(true);
+    try {
+      await requestOtp(email, { intent: "login" });
+      resetCountdown();
+      setResendNotice(true);
+      setTimeout(() => setResendNotice(false), 2500);
+    } catch (err) {
+      await handleAuthApiError(err, dialog, router, { email });
+    } finally {
+      setResending(false);
+    }
   };
 
   const handleOtpChange = (value) => {
@@ -160,9 +159,9 @@ export default function VerifyPhoneScreen() {
   const resendFooter = resendNotice ? (
     <Text style={[layout.footerNote, layout.resendSuccess]}>{t("auth.newCodeSent")}</Text>
   ) : canResend ? (
-    <TouchableOpacity onPress={handleResend} disabled={busy}>
-      <Text style={[layout.footerNote, layout.resendHighlight, busy && styles.resendMuted]}>
-        {otpSending ? t("auth.sending") : t("auth.resendCode")}
+    <TouchableOpacity onPress={handleResend} disabled={busy || resending}>
+      <Text style={[layout.footerNote, layout.resendHighlight, (busy || resending) && styles.resendMuted]}>
+        {resending ? t("auth.resending") : t("auth.resendCode")}
       </Text>
     </TouchableOpacity>
   ) : (
@@ -206,6 +205,9 @@ export default function VerifyPhoneScreen() {
                 loadingColor={B.ctaLoading}
                 style={B.buttonShadow}
               />
+              <Text style={layout.otpExpireNote}>
+                {t("auth.codeExpireIn5Min")}
+              </Text>
               {resendFooter}
             </View>
           }

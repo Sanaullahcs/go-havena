@@ -28,8 +28,10 @@ export default function AuthEmailField({
         keyboardType="email-address"
         autoCapitalize="none"
         autoCorrect={false}
-        autoComplete="email"
-        textContentType="emailAddress"
+        spellCheck={false}
+        autoComplete="off"
+        textContentType="none"
+        importantForAutofill="no"
         forceLtr
         textAlign="left"
         underlineColorAndroid="transparent"

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,11 +7,9 @@ import {
   ActivityIndicator,
   Pressable,
   Platform,
-  Linking,
   useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import * as WebBrowser from "expo-web-browser";
 import { Fonts } from "../../../constants/font";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -26,15 +24,8 @@ import { WellnessTheme } from "../../../constants/wellness-theme";
 import { HomeTheme as T } from "../../../constants/home-theme";
 import { useApiAction } from "../../../hooks/use-api-action";
 import { sf, sw } from "../../../utils/responsive";
-import { arrowBack, arrowForward, chevronForward } from "../../../utils/rtl";
+import { arrowBack, arrowForward } from "../../../utils/rtl";
 import { useTranslation } from "react-i18next";
-
-const TABS = [
-  { key: "overview", icon: "play-circle", labelKey: "wellness.overview" },
-  { key: "notes", icon: "edit-3", labelKey: "wellness.notes" },
-  { key: "resources", icon: "folder", labelKey: "wellness.resources" },
-  { key: "discussion", icon: "message-circle", labelKey: "wellness.discussion" },
-];
 
 const cardShadow = Platform.select({
   ios: {
@@ -46,27 +37,6 @@ const cardShadow = Platform.select({
   android: { elevation: 2 },
 });
 
-async function openExternalUrl(url) {
-  if (!url) return;
-  try {
-    await WebBrowser.openBrowserAsync(url);
-  } catch {
-    await Linking.openURL(url);
-  }
-}
-
-function uniqueUrls(...candidates) {
-  const seen = new Set();
-  const out = [];
-  for (const value of candidates) {
-    const url = String(value ?? "").trim();
-    if (!url || seen.has(url)) continue;
-    seen.add(url);
-    out.push(url);
-  }
-  return out;
-}
-
 export default function LessonVedio() {
   const router = useRouter();
   const { width: windowWidth } = useWindowDimensions();
@@ -74,12 +44,8 @@ export default function LessonVedio() {
   const navBtnWidth = Math.floor((windowWidth - sw(18) * 2 - sw(12)) / 2);
   const { title, subTitle, lessonId, categoryKey: categoryKeyParam } = useLocalSearchParams();
   const { showFailure } = useApiAction();
-  const scrollRef = useRef(null);
-  const bodyOffsetRef = useRef(0);
-  const learnOffsetRef = useRef(0);
   const [lesson, setLesson] = useState(null);
   const [playlist, setPlaylist] = useState([]);
-  const [tab, setTab] = useState("overview");
   const [loading, setLoading] = useState(Boolean(lessonId));
   const [marking, setMarking] = useState(false);
   const lessonRef = useRef(null);
@@ -113,7 +79,6 @@ export default function LessonVedio() {
   );
 
   useEffect(() => {
-    setTab("overview");
     setPlaylist([]);
     setLesson(null);
   }, [lessonId]);
@@ -170,28 +135,6 @@ export default function LessonVedio() {
   const coveredTopics =
     structuredTakeaways.length > 0 ? structuredTakeaways : [takeawayFallbackText];
 
-  const resourceItems = useMemo(() => {
-    const items = [];
-    if (lesson?.fileUrl) {
-      items.push({
-        key: "file",
-        url: lesson.fileUrl,
-        label: t("wellness.openFile"),
-        icon: "file-text",
-      });
-    }
-    if (lesson?.linkUrl && lesson.linkUrl !== lesson.fileUrl) {
-      items.push({
-        key: "link",
-        url: lesson.linkUrl,
-        label: t("wellness.openLink"),
-        icon: "external-link",
-      });
-    }
-    return items;
-  }, [lesson?.fileUrl, lesson?.linkUrl, t]);
-
-  const resourceCount = uniqueUrls(lesson?.fileUrl, lesson?.linkUrl).length;
   const currentLessonId = Number(lesson?.id);
   const currentIndex = playlist.findIndex((item) => Number(item.id) === currentLessonId);
   const previousLesson =
@@ -212,7 +155,6 @@ export default function LessonVedio() {
           total: playlist.length,
         })
       : courseTitle;
-  const quickTip = structuredTakeaways[0] || t("wellness.quickTipsHint");
 
   const openSibling = (item) => {
     if (!item?.id) return;
@@ -224,13 +166,6 @@ export default function LessonVedio() {
         subTitle: courseTitle,
         categoryKey,
       },
-    });
-  };
-
-  const scrollToLearn = () => {
-    setTab("overview");
-    requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({ y: Math.max(0, learnOffsetRef.current - sw(8)), animated: true });
     });
   };
 
@@ -261,7 +196,6 @@ export default function LessonVedio() {
         </View>
       ) : (
         <ScrollView
-          ref={scrollRef}
           style={styles.scroll}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
@@ -272,52 +206,7 @@ export default function LessonVedio() {
             </View>
           </View>
 
-          <View style={styles.tabBar}>
-            <ScrollView
-              horizontal
-              nestedScrollEnabled
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.tabRow}
-              accessibilityRole="tablist"
-            >
-              {TABS.map((item) => {
-                const active = tab === item.key;
-                return (
-                  <Pressable
-                    key={item.key}
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected: active }}
-                    onPress={() => setTab(item.key)}
-                    style={({ pressed }) => [
-                      styles.tabItem,
-                      active && styles.tabItemActive,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <Feather
-                      name={item.icon}
-                      size={sf(15)}
-                      color={active ? T.navy : T.gray}
-                    />
-                    <Text
-                      style={[styles.tabLabel, active && styles.tabLabelActive]}
-                      numberOfLines={1}
-                    >
-                      {t(item.labelKey)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-
-          {tab === "overview" ? (
-            <View
-              style={styles.body}
-              onLayout={(e) => {
-                bodyOffsetRef.current = e.nativeEvent.layout.y;
-              }}
-            >
+          <View style={styles.body}>
               <View style={styles.infoCard}>
                 <View style={styles.badgeRow}>
                   {lesson?.durationMin ? (
@@ -354,12 +243,7 @@ export default function LessonVedio() {
                 <Text style={styles.description}>{description}</Text>
               </View>
 
-              <View
-                style={styles.topicsCard}
-                onLayout={(e) => {
-                  learnOffsetRef.current = bodyOffsetRef.current + e.nativeEvent.layout.y;
-                }}
-              >
+              <View style={styles.topicsCard}>
                 <View style={styles.topicsHeader}>
                   <View style={styles.topicsIcon}>
                     <Feather name="target" size={sf(14)} color={T.navy} />
@@ -382,46 +266,6 @@ export default function LessonVedio() {
                 ))}
               </View>
 
-              <View style={styles.actionRow}>
-                <View style={styles.miniCard}>
-                  <View style={styles.miniIcon}>
-                    <Feather name="file-text" size={sf(14)} color={T.navy} />
-                  </View>
-                  <Text style={styles.miniTitle}>{t("wellness.lessonResources")}</Text>
-                  <Text style={styles.miniHint} numberOfLines={2}>
-                    {t("wellness.lessonResourcesHint")}
-                  </Text>
-                  <Pressable
-                    onPress={() => setTab("resources")}
-                    style={({ pressed }) => [styles.miniLink, pressed && styles.pressed]}
-                  >
-                    <Text style={styles.miniLinkText}>
-                      {t("wellness.viewResources", { count: resourceCount })}
-                    </Text>
-                    <Feather name={chevronForward()} size={sf(13)} color={T.navy} />
-                  </Pressable>
-                </View>
-
-                <View style={styles.miniCard}>
-                  <View style={[styles.miniIcon, styles.miniIconTeal]}>
-                    <Feather name="zap" size={sf(14)} color={T.deepTeal} />
-                  </View>
-                  <Text style={styles.miniTitle}>{t("wellness.quickTips")}</Text>
-                  <Text style={styles.miniHint} numberOfLines={2}>
-                    {quickTip}
-                  </Text>
-                  <Pressable
-                    onPress={scrollToLearn}
-                    style={({ pressed }) => [styles.miniLink, pressed && styles.pressed]}
-                  >
-                    <Text style={[styles.miniLinkText, { color: T.deepTeal }]}>
-                      {t("wellness.viewSummary")}
-                    </Text>
-                    <Feather name={chevronForward()} size={sf(13)} color={T.deepTeal} />
-                  </Pressable>
-                </View>
-              </View>
-
               {!lesson?.completed ? (
                 <Pressable
                   onPress={handleComplete}
@@ -437,46 +281,12 @@ export default function LessonVedio() {
                 </Pressable>
               ) : null}
 
-            </View>
-          ) : null}
-
-          {tab === "notes" ? (
-            <EmptyTab icon="edit-3" message={t("wellness.notesEmpty")} />
-          ) : null}
-
-          {tab === "resources" ? (
-            <View style={styles.body}>
-              {resourceItems.length ? (
-                resourceItems.map((item) => (
-                  <Pressable
-                    key={item.key}
-                    onPress={() => openExternalUrl(item.url)}
-                    style={({ pressed }) => [styles.resourceRow, pressed && styles.pressed]}
-                  >
-                    <View style={styles.miniIcon}>
-                      <Feather name={item.icon} size={sf(14)} color={T.navy} />
-                    </View>
-                    <Text style={styles.resourceLabel}>{item.label}</Text>
-                    <Feather name={chevronForward()} size={sf(15)} color={T.navy} />
-                  </Pressable>
-                ))
-              ) : (
-                <EmptyTab icon="folder" message={t("wellness.resourcesEmpty")} nested />
-              )}
-            </View>
-          ) : null}
-
-          {tab === "discussion" ? (
-            <EmptyTab icon="message-circle" message={t("wellness.discussionEmpty")} />
-          ) : null}
-
-          <View style={styles.navPad}>
-            <LessonNavRow
-              btnWidth={navBtnWidth}
-              previousLesson={previousLesson}
-              nextLesson={nextLesson}
-              onOpen={openSibling}
-            />
+              <LessonNavRow
+                btnWidth={navBtnWidth}
+                previousLesson={previousLesson}
+                nextLesson={nextLesson}
+                onOpen={openSibling}
+              />
           </View>
         </ScrollView>
       )}
@@ -613,17 +423,6 @@ function LessonNavButton({ width, direction, label, title, disabled, onPress }) 
   );
 }
 
-function EmptyTab({ icon, message, nested }) {
-  return (
-    <View style={[styles.emptyCard, nested && styles.emptyCardNested]}>
-      <View style={styles.emptyIcon}>
-        <Feather name={icon} size={sf(16)} color={T.navy} />
-      </View>
-      <Text style={styles.emptyText}>{message}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: WellnessTheme.screenBg },
   centered: {
@@ -663,48 +462,9 @@ const styles = StyleSheet.create({
     ...cardShadow,
   },
   video: { width: "100%", height: "100%" },
-  tabBar: {
-    marginTop: sw(16),
-    borderBottomWidth: 1,
-    borderBottomColor: WellnessTheme.border,
-  },
-  tabRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: sw(18),
-    paddingTop: sw(6),
-    paddingBottom: sw(10),
-    gap: sw(8),
-  },
-  tabItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: sw(6),
-    minHeight: sw(40),
-    paddingHorizontal: sw(14),
-    paddingVertical: sw(8),
-    borderRadius: sw(999),
-  },
-  tabItemActive: {
-    backgroundColor: T.mint,
-  },
-  tabLabel: {
-    fontFamily: Fonts.medium,
-    fontSize: sf(13),
-    lineHeight: sf(17),
-    fontWeight: "500",
-    color: T.gray,
-    includeFontPadding: false,
-  },
-  tabLabelActive: {
-    fontFamily: Fonts.semiBold,
-    fontWeight: "600",
-    color: T.navy,
-  },
   body: {
     paddingHorizontal: sw(18),
-    paddingTop: sw(16),
+    paddingTop: sw(14),
     gap: sw(14),
   },
   infoCard: {
@@ -838,67 +598,6 @@ const styles = StyleSheet.create({
     color: WellnessTheme.text,
     includeFontPadding: false,
   },
-  actionRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    gap: sw(10),
-  },
-  miniCard: {
-    flex: 1,
-    minWidth: 0,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: WellnessTheme.border,
-    borderRadius: sw(16),
-    paddingHorizontal: sw(12),
-    paddingTop: sw(12),
-    paddingBottom: sw(12),
-    ...cardShadow,
-  },
-  miniIcon: {
-    width: sw(28),
-    height: sw(28),
-    borderRadius: sw(8),
-    backgroundColor: WellnessTheme.brandBorder,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: sw(8),
-  },
-  miniIconTeal: {
-    backgroundColor: T.mint,
-  },
-  miniTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(12),
-    lineHeight: sf(16),
-    fontWeight: "700",
-    color: T.navy,
-    includeFontPadding: false,
-  },
-  miniHint: {
-    fontFamily: Fonts.regular,
-    fontSize: sf(11),
-    lineHeight: sf(15),
-    color: WellnessTheme.textMuted,
-    marginTop: sw(4),
-    minHeight: sf(30),
-    includeFontPadding: false,
-  },
-  miniLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: sw(4),
-    marginTop: sw(10),
-  },
-  miniLinkText: {
-    flexShrink: 1,
-    fontFamily: Fonts.semiBold,
-    fontSize: sf(11),
-    lineHeight: sf(14),
-    fontWeight: "600",
-    color: T.navy,
-    includeFontPadding: false,
-  },
   completeWrap: {
     marginTop: sw(2),
   },
@@ -920,68 +619,9 @@ const styles = StyleSheet.create({
     marginStart: sw(8),
     includeFontPadding: false,
   },
-  navPad: {
-    paddingHorizontal: sw(18),
-    paddingTop: sw(18),
-  },
   navRow: {
     flexDirection: "row",
     alignItems: "stretch",
     justifyContent: "space-between",
-  },
-  resourceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: sw(10),
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: WellnessTheme.border,
-    borderRadius: sw(16),
-    paddingHorizontal: sw(14),
-    paddingVertical: sw(14),
-    ...cardShadow,
-  },
-  resourceLabel: {
-    flex: 1,
-    minWidth: 0,
-    fontFamily: Fonts.semiBold,
-    fontSize: sf(13),
-    lineHeight: sf(18),
-    fontWeight: "600",
-    color: T.navy,
-    includeFontPadding: false,
-  },
-  emptyCard: {
-    marginHorizontal: sw(18),
-    marginTop: sw(14),
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: WellnessTheme.border,
-    borderRadius: sw(18),
-    paddingHorizontal: sw(18),
-    paddingVertical: sw(28),
-    alignItems: "center",
-    ...cardShadow,
-  },
-  emptyCardNested: {
-    marginHorizontal: 0,
-    marginTop: 0,
-  },
-  emptyIcon: {
-    width: sw(36),
-    height: sw(36),
-    borderRadius: sw(18),
-    backgroundColor: T.mint,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: sw(10),
-  },
-  emptyText: {
-    fontFamily: Fonts.medium,
-    fontSize: sf(13),
-    lineHeight: sf(18),
-    color: WellnessTheme.textMuted,
-    textAlign: "center",
-    includeFontPadding: false,
   },
 });

@@ -15,6 +15,7 @@ import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen"
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import { Fonts } from "../../../constants/font";
 import { authStyles } from "../../../constants/auth-styles";
+import { authLayoutStyles as layout } from "../../../constants/auth-layout";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { setCurrentRole } from "../../../constants/role-session";
@@ -46,6 +47,7 @@ export default function VerifyRegistrationScreen() {
   const [showOtpError, setShowOtpError] = useState(false);
   const [otpRefocusToken, setOtpRefocusToken] = useState(0);
   const { submitting, run } = useSubmitLock();
+  const [resending, setResending] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [verifiedUser, setVerifiedUser] = useState(null);
   const { canResend, countdownLabel, resetCountdown } = useOtpCountdown();
@@ -82,18 +84,19 @@ export default function VerifyRegistrationScreen() {
     });
   };
 
-  const handleResend = () => {
-    if (submitting || !canResend) return;
+  const handleResend = async () => {
+    if (submitting || resending || !canResend) return;
 
-    run(async () => {
-      try {
-        await requestOtp(email, { intent: "signup" });
-        resetCountdown();
-        await showApiSuccess(dialog, t("auth.codeSent"), t("auth.newVerificationCodeSent"));
-      } catch (err) {
-        await handleAuthApiError(err, dialog, router, { email });
-      }
-    });
+    setResending(true);
+    try {
+      await requestOtp(email, { intent: "signup" });
+      resetCountdown();
+      await showApiSuccess(dialog, t("auth.codeSent"), t("auth.newVerificationCodeSent"));
+    } catch (err) {
+      await handleAuthApiError(err, dialog, router, { email });
+    } finally {
+      setResending(false);
+    }
   };
 
   const handleOtpChange = (value) => {
@@ -104,15 +107,15 @@ export default function VerifyRegistrationScreen() {
   };
 
   const resendFooter = canResend ? (
-    <TouchableOpacity onPress={handleResend} disabled={submitting}>
+    <TouchableOpacity onPress={handleResend} disabled={submitting || resending}>
       <Text
         style={[
           styles.resendText,
           styles.resendHighlight,
-          submitting && styles.resendMuted,
+          (submitting || resending) && styles.resendMuted,
         ]}
       >
-        {submitting ? t("auth.sending") : t("auth.resendCode")}
+        {resending ? t("auth.resending") : t("auth.resendCode")}
       </Text>
     </TouchableOpacity>
   ) : (
@@ -180,7 +183,7 @@ export default function VerifyRegistrationScreen() {
                 loadingColor={B.ctaLoading}
                 style={B.buttonShadow}
               />
-              <Text style={styles.footerText}>
+              <Text style={layout.otpExpireNote}>
                 {t("auth.codeExpireIn5Min")}
               </Text>
               {resendFooter}
@@ -258,12 +261,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: B.text,
     lineHeight: 20,
-  },
-  footerText: {
-    textAlign: "center",
-    fontSize: 12,
-    fontWeight: "400",
-    color: B.textSecondary,
   },
   resendText: {
     textAlign: "center",

@@ -112,6 +112,12 @@ export const authLayoutStyles = StyleSheet.create({
     color: Colors.footerMuted,
     fontFamily: Fonts.regular,
   },
+  otpExpireNote: {
+    textAlign: "center",
+    fontSize: 12,
+    fontWeight: "400",
+    color: B.textSecondary,
+  },
   footerLink: {
     fontWeight: "600",
     color: Colors.link,

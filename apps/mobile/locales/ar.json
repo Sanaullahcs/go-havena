@@ -576,6 +576,7 @@
     "newCodeSent": "تم إرسال رمز جديد",
     "sendingCode": "جارٍ إرسال الرمز…",
     "resendCode": "إعادة إرسال الرمز",
+    "resending": "جارٍ إعادة الإرسال…",
     "resendAvailableIn": "إعادة الإرسال متاحة خلال",
     "welcomeBackSuccess": "!مرحباً بعودتك",
     "openingAdminDashboard": "جارٍ فتح لوحة الإدارة…",
