@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Havena — Expo Go on Android (SDK 56)
+# Havena — Expo Go on Android (SDK 57)
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -10,14 +10,13 @@ IP="$(
 )"
 
 echo ""
-echo "=== Havena mobile (Expo SDK 56) ==="
+echo "=== Havena mobile (Expo SDK 57) ==="
 echo ""
-echo "IMPORTANT — Android Expo Go must match SDK 56."
+echo "IMPORTANT — Android Expo Go must match SDK 57."
 echo "The Play Store app is often too old and will fail to load this project."
 echo ""
-echo "On your Android phone, install Expo Go 56.0.0:"
-echo "  https://expo.dev/go?sdkVersion=56&platform=android"
-echo "  (or APK: https://github.com/expo/expo-go-releases/releases/tag/Expo-Go-56.0.0)"
+echo "On your Android phone, install Expo Go 57:"
+echo "  https://expo.dev/go?sdkVersion=57&platform=android"
 echo ""
 echo "Then connect phone + Mac to the same Wi-Fi and scan the QR below."
 echo ""
