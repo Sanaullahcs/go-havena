@@ -250,7 +250,7 @@ export function DataTable<K extends string>({
               className="h-8 w-52 rounded-lg border border-slate-200 bg-slate-50 py-1.5 pr-8 text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition"
               style={{ paddingLeft: "1.875rem" }}
             />
-            {tableLoading ? (
+            {showProgress ? (
               <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">
                 <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
               </span>

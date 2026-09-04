@@ -326,11 +326,21 @@ class AdminCommunityAdminController extends Controller
             return null;
         }
 
+        // Prefer suspended / rejected / inactive former admins — not pending applicants.
         return User::query()
             ->with(['profile', 'memberships.community'])
             ->whereIn('id', $adminUserIds)
             ->where('role', 'community_admin')
-            ->orderByRaw("CASE WHEN status = 'suspended' THEN 0 ELSE 1 END")
+            ->where(function ($q) {
+                $q->where('status', 'suspended')
+                    ->orWhere('community_admin_status', 'rejected')
+                    ->orWhere(function ($approvedInactive) {
+                        $approvedInactive
+                            ->where('community_admin_status', 'approved')
+                            ->where('status', '!=', 'active');
+                    });
+            })
+            ->orderByRaw("CASE WHEN status = 'suspended' THEN 0 WHEN community_admin_status = 'rejected' THEN 1 ELSE 2 END")
             ->orderByDesc('updated_at')
             ->first();
     }

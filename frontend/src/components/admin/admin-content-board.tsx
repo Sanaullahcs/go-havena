@@ -138,7 +138,11 @@ const BOARD_CONFIG: Record<ContentBoardKind, {
 function formatEventSchedule(notice: Notice): string {
   if (!notice.event_date && !notice.event_time && !notice.event_time_end) return "—";
   const datePart = notice.event_date
-    ? new Date(notice.event_date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+    ? new Date(`${String(notice.event_date).slice(0, 10)}T12:00:00`).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
     : "";
   const formatTime = (time: string) =>
     time.slice(0, 5).replace(/^(\d{2}):(\d{2})$/, (_, h, m) => {

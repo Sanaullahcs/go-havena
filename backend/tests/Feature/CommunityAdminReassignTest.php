@@ -207,4 +207,49 @@ class CommunityAdminReassignTest extends TestCase
         $this->assertSame($admin->id, $suspended[0]['id']);
         $this->assertFalse($suspended[0]['needs_reassign']);
     }
+
+    public function test_pending_community_admin_does_not_appear_in_reassign_after_community_approval(): void
+    {
+        $region = $this->seedRegion();
+
+        $applicant = User::factory()->create([
+            'name'                   => 'Haider',
+            'role'                   => 'community_admin',
+            'community_admin_status' => 'pending',
+            'status'                 => 'active',
+            'phone'                  => '+201555000444',
+            'email'                  => 'haider.pending@example.com',
+        ]);
+
+        $community = Community::query()->create([
+            'name'                 => 'California Hub',
+            'region_id'            => $region->id,
+            'region'               => $region->title,
+            'status'               => 'active',
+            'review_status'        => 'approved',
+            'requested_by_user_id' => $applicant->id,
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $applicant->id,
+            'community_id' => $community->id,
+            'role'         => 'admin',
+            'status'       => 'approved',
+        ]);
+
+        Sanctum::actingAs($this->systemAdmin());
+
+        $this->getJson('/api/v1/admin/community-admins?status=reassign')
+            ->assertOk()
+            ->assertJsonPath('meta.stats.needs_reassign', 0)
+            ->assertJsonCount(0, 'data');
+
+        $pending = $this->getJson('/api/v1/admin/community-admins?status=pending')
+            ->assertOk()
+            ->assertJsonPath('meta.stats.pending', 1)
+            ->json('data');
+
+        $this->assertSame($applicant->id, $pending[0]['id']);
+        $this->assertSame('pending', $pending[0]['community_admin_status']);
+    }
 }

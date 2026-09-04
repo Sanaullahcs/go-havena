@@ -117,7 +117,7 @@ class CommunityBillingService
 
     public function markTrialConsumed(CommunitySubscription $subscription, string $reason): CommunitySubscription
     {
-        if ($subscription->hasConsumedTrial()) {
+        if ((bool) data_get($subscription->meta, 'trial_consumed', false)) {
             return $subscription;
         }
 
@@ -1148,143 +1148,233 @@ class CommunityBillingService
      */
     public function startTrialIfEligible(Community $community): ?CommunitySubscription
     {
-        $subscription = $this->getSubscription($community->id);
-        if (! $subscription?->hasCardOnFile()) {
-            return $subscription;
-        }
+        return DB::transaction(function () use ($community) {
+            $subscription = CommunitySubscription::query()
+                ->where('community_id', $community->id)
+                ->lockForUpdate()
+                ->first();
 
-        if ($subscription->grantsPaidAccess()) {
-            return $subscription;
-        }
-
-        if (! $this->isCommunityApprovedForTrial($community)) {
-            return $subscription;
-        }
-
-        $plan = $this->plan($subscription->plan_slug) ?? [];
-        $trialDays = $this->eligibleTrialDays($subscription, $plan);
-        $interval = $subscription->billing_interval === 'year' ? 'year' : 'month';
-        $priceId = $interval === 'year'
-            ? ($plan['stripe_price_yearly'] ?? $subscription->stripe_price_id)
-            : ($plan['stripe_price_monthly'] ?? $subscription->stripe_price_id);
-
-        if (! $this->stripeConfigured()) {
-            $meta = is_array($subscription->meta) ? $subscription->meta : [];
-            if ($trialDays > 0) {
-                $meta['trial_started_on_approval'] = now()->toIso8601String();
+            if (! $subscription?->hasCardOnFile()) {
+                return $subscription;
             }
 
-            $subscription->update([
-                'status' => $trialDays > 0
-                    ? CommunitySubscription::STATUS_TRIALING
-                    : CommunitySubscription::STATUS_ACTIVE,
-                'current_period_start' => now(),
-                'current_period_end' => $trialDays > 0
-                    ? now()->addDays($trialDays)
-                    : ($interval === 'year' ? now()->addYear() : now()->addMonth()),
-                'canceled_at' => null,
-                'meta' => $meta,
-            ]);
-
-            if ($trialDays > 0) {
-                $this->markTrialConsumed($subscription->fresh(), 'trial_started');
+            if ($subscription->grantsPaidAccess()) {
+                return $subscription;
             }
 
-            $fresh = $subscription->fresh();
-            app(SubscriptionCouponService::class)->markApplied($fresh);
-
-            return $fresh;
-        }
-
-        $customerId = (string) $subscription->stripe_customer_id;
-        $paymentMethodId = (string) data_get($subscription->meta, 'payment_method_id', '');
-        if ($paymentMethodId === '' && $customerId !== '') {
-            try {
-                $customer = $this->stripe()->customers->retrieve($customerId);
-                $paymentMethodId = (string) data_get($customer, 'invoice_settings.default_payment_method', '');
-            } catch (ApiErrorException) {
-                $paymentMethodId = '';
+            if (! $this->isCommunityApprovedForTrial($community)) {
+                return $subscription;
             }
-        }
 
-        if ($customerId === '' || $paymentMethodId === '' || ! filled($priceId)) {
-            Log::warning('Cannot activate billing after approval — missing Stripe customer, card, or price', [
-                'community_id' => $community->id,
-                'has_customer' => $customerId !== '',
-                'has_payment_method' => $paymentMethodId !== '',
-                'has_price' => filled($priceId),
-                'trial_consumed' => $subscription->hasConsumedTrial(),
-            ]);
+            // Another approval request may have already created a live Stripe sub.
+            if ($this->stripeConfigured() && filled($subscription->stripe_customer_id)) {
+                $existingRemote = $this->findLiveStripeSubscriptionForCustomer((string) $subscription->stripe_customer_id);
+                if ($existingRemote) {
+                    return $this->finalizeActivatedSubscription(
+                        $this->syncFromStripeSubscription($existingRemote, $community->id, (string) $subscription->stripe_customer_id),
+                        (string) data_get($subscription->meta, 'payment_method_id', ''),
+                        $this->eligibleTrialDays($subscription, $this->plan($subscription->plan_slug) ?? []) > 0
+                            || (string) data_get($existingRemote, 'status') === 'trialing',
+                    );
+                }
+            }
 
-            return $subscription;
-        }
+            $plan = $this->plan($subscription->plan_slug) ?? [];
+            $trialDays = $this->eligibleTrialDays($subscription, $plan);
+            $interval = $subscription->billing_interval === 'year' ? 'year' : 'month';
+            $priceId = $interval === 'year'
+                ? ($plan['stripe_price_yearly'] ?? $subscription->stripe_price_id)
+                : ($plan['stripe_price_monthly'] ?? $subscription->stripe_price_id);
 
-        $planLabel = (string) ($plan['name'] ?? ucfirst((string) $subscription->plan_slug));
-        $intervalLabel = $interval === 'year' ? 'yearly' : 'monthly';
-        $createParams = [
-            'customer' => $customerId,
-            'items' => [['price' => $priceId, 'quantity' => 1]],
-            'default_payment_method' => $paymentMethodId,
-            'off_session' => true,
-            'payment_settings' => [
-                'save_default_payment_method' => 'on_subscription',
-                'payment_method_types' => ['card'],
-            ],
-            'collection_method' => 'charge_automatically',
-            'description' => sprintf(
-                'Havena %s · %s · %d resident seats',
-                $planLabel,
-                $intervalLabel,
-                (int) ($plan['seat_limit'] ?? $subscription->seat_limit),
-            ),
-            'metadata' => [
-                'community_id' => (string) $community->id,
-                'plan_slug' => (string) $subscription->plan_slug,
-                'billing_interval' => $interval,
-            ],
-        ];
+            if (! $this->stripeConfigured()) {
+                $meta = is_array($subscription->meta) ? $subscription->meta : [];
+                if ($trialDays > 0) {
+                    $meta['trial_started_on_approval'] = now()->toIso8601String();
+                }
 
-        if ($trialDays > 0) {
-            $createParams['trial_period_days'] = $trialDays;
-            $createParams['trial_settings'] = [
-                'end_behavior' => [
-                    'missing_payment_method' => 'cancel',
+                $subscription->update([
+                    'status' => $trialDays > 0
+                        ? CommunitySubscription::STATUS_TRIALING
+                        : CommunitySubscription::STATUS_ACTIVE,
+                    'current_period_start' => now(),
+                    'current_period_end' => $trialDays > 0
+                        ? now()->addDays($trialDays)
+                        : ($interval === 'year' ? now()->addYear() : now()->addMonth()),
+                    'canceled_at' => null,
+                    'meta' => $meta,
+                ]);
+
+                if ($trialDays > 0) {
+                    $this->markTrialConsumed($subscription->fresh(), 'trial_started');
+                }
+
+                $fresh = $subscription->fresh();
+                app(SubscriptionCouponService::class)->markApplied($fresh);
+
+                return $fresh;
+            }
+
+            $customerId = (string) $subscription->stripe_customer_id;
+            $paymentMethodId = (string) data_get($subscription->meta, 'payment_method_id', '');
+            if ($paymentMethodId === '' && $customerId !== '') {
+                try {
+                    $customer = $this->stripe()->customers->retrieve($customerId);
+                    $paymentMethodId = (string) data_get($customer, 'invoice_settings.default_payment_method', '');
+                } catch (ApiErrorException) {
+                    $paymentMethodId = '';
+                }
+            }
+
+            if ($customerId === '' || $paymentMethodId === '' || ! filled($priceId)) {
+                Log::warning('Cannot activate billing after approval — missing Stripe customer, card, or price', [
+                    'community_id' => $community->id,
+                    'has_customer' => $customerId !== '',
+                    'has_payment_method' => $paymentMethodId !== '',
+                    'has_price' => filled($priceId),
+                    'trial_consumed' => $subscription->hasConsumedTrial(),
+                ]);
+
+                return $subscription;
+            }
+
+            $planLabel = (string) ($plan['name'] ?? ucfirst((string) $subscription->plan_slug));
+            $intervalLabel = $interval === 'year' ? 'yearly' : 'monthly';
+            $createParams = [
+                'customer' => $customerId,
+                'items' => [['price' => $priceId, 'quantity' => 1]],
+                'default_payment_method' => $paymentMethodId,
+                'off_session' => true,
+                'payment_settings' => [
+                    'save_default_payment_method' => 'on_subscription',
+                    'payment_method_types' => ['card'],
+                ],
+                'collection_method' => 'charge_automatically',
+                'description' => sprintf(
+                    'Havena %s · %s · %d resident seats',
+                    $planLabel,
+                    $intervalLabel,
+                    (int) ($plan['seat_limit'] ?? $subscription->seat_limit),
+                ),
+                'metadata' => [
+                    'community_id' => (string) $community->id,
+                    'plan_slug' => (string) $subscription->plan_slug,
+                    'billing_interval' => $interval,
                 ],
             ];
+
+            if ($trialDays > 0) {
+                $createParams['trial_period_days'] = $trialDays;
+                $createParams['trial_settings'] = [
+                    'end_behavior' => [
+                        'missing_payment_method' => 'cancel',
+                    ],
+                ];
+            }
+
+            $createParams = app(SubscriptionCouponService::class)
+                ->appendDiscountToSubscriptionCreate($createParams, $subscription);
+
+            try {
+                $stripeSub = $this->stripe()->subscriptions->create($createParams);
+            } catch (ApiErrorException $e) {
+                // Parallel approval may have created the subscription first.
+                $existingRemote = $this->findLiveStripeSubscriptionForCustomer($customerId);
+                if ($existingRemote) {
+                    Log::warning('Stripe subscription create raced; reusing existing live subscription', [
+                        'community_id' => $community->id,
+                        'stripe_subscription_id' => data_get($existingRemote, 'id'),
+                        'error' => $e->getMessage(),
+                    ]);
+
+                    return $this->finalizeActivatedSubscription(
+                        $this->syncFromStripeSubscription($existingRemote, $community->id, $customerId),
+                        $paymentMethodId,
+                        $trialDays > 0 || (string) data_get($existingRemote, 'status') === 'trialing',
+                    );
+                }
+
+                Log::error('Failed to activate Stripe subscription after approval', [
+                    'community_id' => $community->id,
+                    'trial_days' => $trialDays,
+                    'error' => $e->getMessage(),
+                ]);
+
+                return $subscription;
+            }
+
+            $synced = $this->syncFromStripeSubscription($stripeSub, $community->id, $customerId);
+
+            return $this->finalizeActivatedSubscription(
+                $synced,
+                $paymentMethodId,
+                $trialDays > 0 && $synced->status === CommunitySubscription::STATUS_TRIALING,
+            );
+        });
+    }
+
+    /**
+     * Prefer an existing trialing/active Stripe subscription so concurrent approvals
+     * do not create a second paid subscription.
+     */
+    protected function findLiveStripeSubscriptionForCustomer(string $customerId): ?object
+    {
+        if ($customerId === '' || ! $this->stripeConfigured()) {
+            return null;
         }
 
-        $createParams = app(SubscriptionCouponService::class)
-            ->appendDiscountToSubscriptionCreate($createParams, $subscription);
-
         try {
-            $stripeSub = $this->stripe()->subscriptions->create($createParams);
+            $subs = $this->stripe()->subscriptions->all([
+                'customer' => $customerId,
+                'status' => 'all',
+                'limit' => 10,
+            ]);
         } catch (ApiErrorException $e) {
-            Log::error('Failed to activate Stripe subscription after approval', [
-                'community_id' => $community->id,
-                'trial_days' => $trialDays,
+            Log::warning('Could not list Stripe subscriptions before activation', [
+                'customer' => $customerId,
                 'error' => $e->getMessage(),
             ]);
 
-            return $subscription;
+            return null;
         }
 
-        $synced = $this->syncFromStripeSubscription($stripeSub, $community->id, $customerId);
+        $preferred = null;
+        foreach ($subs->data as $remote) {
+            $status = (string) data_get($remote, 'status', '');
+            if ($status === 'trialing') {
+                return $remote;
+            }
+            if ($status === 'active' && $preferred === null) {
+                $preferred = $remote;
+            }
+        }
+
+        return $preferred;
+    }
+
+    protected function finalizeActivatedSubscription(
+        CommunitySubscription $synced,
+        string $paymentMethodId,
+        bool $trialStarted,
+    ): CommunitySubscription {
         $meta = is_array($synced->meta) ? $synced->meta : [];
         $meta['card_on_file'] = true;
-        $meta['payment_method_id'] = $paymentMethodId;
+        if ($paymentMethodId !== '') {
+            $meta['payment_method_id'] = $paymentMethodId;
+        }
         unset($meta['ignore_subscription_deleted']);
-        if ($trialDays > 0) {
-            $meta['trial_started_on_approval'] = now()->toIso8601String();
+        if ($trialStarted && $synced->status === CommunitySubscription::STATUS_TRIALING) {
+            $meta['trial_started_on_approval'] = data_get($meta, 'trial_started_on_approval') ?: now()->toIso8601String();
         }
         $synced->update(['meta' => $meta]);
 
-        if ($trialDays > 0) {
+        if ($trialStarted && $synced->fresh()->status === CommunitySubscription::STATUS_TRIALING) {
             $this->markTrialConsumed($synced->fresh(), 'trial_started');
         }
 
-        app(SubscriptionCouponService::class)->markApplied($synced->fresh());
+        $fresh = $synced->fresh();
+        app(SubscriptionCouponService::class)->markApplied($fresh);
 
-        return $synced->fresh();
+        return $fresh;
     }
 
     protected function isCommunityApprovedForTrial(Community $community): bool
@@ -2641,11 +2731,19 @@ class CommunityBillingService
         }
 
         if ($existing?->hasConsumedTrial() && $mapped === CommunitySubscription::STATUS_TRIALING) {
-            Log::warning('Stripe returned trialing for a community that already consumed its trial; treating as active', [
-                'community_id' => $communityId,
-                'stripe_subscription_id' => data_get($stripeSub, 'id'),
-            ]);
-            $mapped = CommunitySubscription::STATUS_ACTIVE;
+            $trialEndTs = data_get($stripeSub, 'trial_end');
+            $trialStillRunning = is_numeric($trialEndTs)
+                && \Illuminate\Support\Carbon::createFromTimestamp((int) $trialEndTs)->isFuture();
+
+            // Keep a live Stripe trial as trialing. Only collapse to active when Stripe
+            // reports trialing without a future trial_end (stale / duplicate trial attempt).
+            if (! $trialStillRunning) {
+                Log::warning('Stripe returned trialing for a community that already consumed its trial; treating as active', [
+                    'community_id' => $communityId,
+                    'stripe_subscription_id' => data_get($stripeSub, 'id'),
+                ]);
+                $mapped = CommunitySubscription::STATUS_ACTIVE;
+            }
         }
 
         return CommunitySubscription::query()->updateOrCreate(

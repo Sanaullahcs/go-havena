@@ -381,9 +381,39 @@ class CommunityLifecycleService
                     ->orWhere('review_status', 'approved');
             })
             ->get()
-            ->filter(fn (Community $community) => ! $this->hasCommunityAdminAssigned($community))
+            ->filter(function (Community $community) {
+                // Already has a live approved admin.
+                if ($this->hasCommunityAdminAssigned($community)) {
+                    return false;
+                }
+
+                // Pending applicant is waiting on Community Admins → Pending, not Reassign.
+                if ($this->hasPendingCommunityAdminApplicant($community)) {
+                    return false;
+                }
+
+                return true;
+            })
             ->pluck('id')
             ->all();
+    }
+
+    /**
+     * True when a community_admin application is still pending for this community.
+     * Those belong on the Pending tab — not "Admin removed" / Reassign.
+     */
+    public function hasPendingCommunityAdminApplicant(Community $community): bool
+    {
+        return CommunityMembership::query()
+            ->where('community_id', $community->id)
+            ->where('role', 'admin')
+            ->whereIn('status', ['approved', 'pending'])
+            ->whereHas('user', function ($user) {
+                $user->where('role', 'community_admin')
+                    ->where('community_admin_status', 'pending')
+                    ->where('status', 'active');
+            })
+            ->exists();
     }
 
     public function resolveReassignReason(Community $community, ?User $previousAdmin): string
@@ -396,7 +426,19 @@ class CommunityLifecycleService
             return 'previous_admin_suspended';
         }
 
-        if ($previousAdmin) {
+        // Only treat as "removed" when they were previously an approved admin.
+        if (
+            $previousAdmin
+            && ($previousAdmin->community_admin_status ?? '') === 'approved'
+            && ($previousAdmin->status ?? '') !== 'active'
+        ) {
+            return 'previous_admin_removed';
+        }
+
+        if (
+            $previousAdmin
+            && ($previousAdmin->community_admin_status ?? '') === 'rejected'
+        ) {
             return 'previous_admin_removed';
         }
 
