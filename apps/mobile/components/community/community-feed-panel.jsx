@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
     marginBottom: sw(20),
   },
   emptyBtn: {
-    backgroundColor: T.teal,
+    backgroundColor: T.navy,
     paddingHorizontal: sw(28),
     paddingVertical: sw(12),
     borderRadius: 999,
@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
   emptyBtnText: {
     fontFamily: Fonts.bold,
     fontSize: sf(14),
-    color: T.navy,
+    color: T.white,
     fontWeight: "700",
   },
 });

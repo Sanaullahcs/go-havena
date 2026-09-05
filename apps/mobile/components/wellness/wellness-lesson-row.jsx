@@ -25,7 +25,6 @@ export default function WellnessLessonRow({
   isWatching = false,
   expanded = false,
   onPress,
-  onToggleExpand,
 }) {
   const { t } = useTranslation();
   const indent = completed ? NUM + GAP + TICK + TICK_GAP : NUM + GAP;
@@ -33,7 +32,7 @@ export default function WellnessLessonRow({
   return (
     <View style={styles.card}>
       <Pressable
-        onPress={onToggleExpand || onPress}
+        onPress={onPress}
         style={({ pressed }) => [pressed && styles.pressed]}
       >
         <View style={styles.topRow}>

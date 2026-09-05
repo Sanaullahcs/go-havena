@@ -220,8 +220,14 @@ class NoticeBoardTest extends TestCase
         $this->assertContains($active->json('data.id'), $ids);
         $this->assertNotContains($expired->json('data.id'), $ids);
 
+        $withExpired = $this->getJson('/api/v1/notices?include_expired=1')->assertOk();
+        $withExpiredIds = collect($withExpired->json('data'))->pluck('id')->all();
+        $this->assertContains($active->json('data.id'), $withExpiredIds);
+        $this->assertContains($expired->json('data.id'), $withExpiredIds);
+
         $this->getJson('/api/v1/notices/'.$expired->json('data.id'))
-            ->assertNotFound();
+            ->assertOk()
+            ->assertJsonPath('data.id', $expired->json('data.id'));
     }
 
     public function test_resident_can_submit_event_pending_until_admin_approves(): void

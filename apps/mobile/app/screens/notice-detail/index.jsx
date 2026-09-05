@@ -6,7 +6,6 @@ import {
   ScrollView,
   ActivityIndicator,
   Pressable,
-  Share,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -22,6 +21,7 @@ import { sw, sf, hp } from "../../../utils/responsive";
 import { useTranslation } from 'react-i18next';
 import i18n, { localizedField } from "../../../i18n";
 import { getLocaleForLang } from "../../../hooks/use-app-locale";
+import { chevronBack } from "../../../utils/rtl";
 
 const HERO_HEIGHT = hp(28);
 
@@ -153,20 +153,6 @@ export default function NoticeDetailScreen() {
     return "#1B4F8A";
   }, [notice]);
 
-  const onShare = useCallback(async () => {
-    if (!notice) return;
-    try {
-      const shareTitle = localizedField(notice, "title") || notice.title;
-      const shareBody = localizedField(notice, "body") || notice.body;
-      await Share.share({
-        title: shareTitle,
-        message: `${shareTitle}\n\n${shareBody}${notice.location ? `\n\n${t('notices.location')}: ${notice.location}` : ""}`,
-      });
-    } catch {
-      // user dismissed
-    }
-  }, [notice]);
-
   return (
     <View style={styles.screen}>
       <ScrollView
@@ -176,36 +162,35 @@ export default function NoticeDetailScreen() {
       >
         {/* Hero */}
         <View style={[styles.hero, { height: HERO_HEIGHT }]}>
-          {notice ? (
-            <>
+          <View style={styles.heroMedia}>
+            {notice ? (
               <NoticeCoverMedia
                 fill
                 imageUrl={notice.imageUrl}
+                notice={notice}
                 backgroundColor={heroBg}
                 onImageError={() => setHeroImageFailed(true)}
               />
-              {notice.imageUrl && !heroImageFailed ? (
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(15,23,42,0.55)" }]} />
-              ) : null}
-            </>
-          ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: heroBg }]} />
-          )}
+            ) : (
+              <View style={[StyleSheet.absoluteFillObject, { backgroundColor: heroBg }]} />
+            )}
+          </View>
+          {notice?.imageUrl && !heroImageFailed ? (
+            <View
+              pointerEvents="none"
+              style={[StyleSheet.absoluteFillObject, styles.heroScrim]}
+            />
+          ) : null}
 
           <SafeAreaView edges={["top"]} style={styles.heroSafe} pointerEvents="box-none">
-            <View style={styles.heroTopBar} pointerEvents="box-none">
-              <View style={styles.heroBackSpacer} />
-              {!loading && notice ? (
-                <Pressable
-                  style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
-                  onPress={onShare}
-                  accessibilityLabel={t('notices.shareNotice')}
-                >
-                  <Feather name="share-2" size={sf(18)} color="#FFFFFF" />
-                </Pressable>
-              ) : (
-                <View style={styles.iconBtnPlaceholder} />
-              )}
+            <View style={styles.heroTopBar}>
+              <Pressable
+                style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
+                onPress={() => router.back()}
+                accessibilityLabel={t('notices.goBack')}
+              >
+                <Feather name={chevronBack()} size={sf(20)} color="#FFFFFF" />
+              </Pressable>
             </View>
 
             {!loading && notice ? (
@@ -384,11 +369,21 @@ const styles = StyleSheet.create({
     width: "100%",
     backgroundColor: Colors.brandPrimaryDeep,
     overflow: "hidden",
+    position: "relative",
+  },
+  heroMedia: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+  heroScrim: {
+    backgroundColor: "rgba(15,23,42,0.55)",
+    zIndex: 1,
   },
   heroSafe: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     justifyContent: "space-between",
     paddingHorizontal: Layout.screenPadding,
+    zIndex: 2,
   },
   backOverlay: {
     position: "absolute",
@@ -401,12 +396,8 @@ const styles = StyleSheet.create({
   heroTopBar: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
     paddingTop: hp(0.4),
-  },
-  heroBackSpacer: {
-    width: sw(34),
-    height: sw(34),
   },
   iconBtn: {
     width: sw(40),
@@ -420,10 +411,6 @@ const styles = StyleSheet.create({
   },
   iconBtnPressed: {
     backgroundColor: "rgba(255,255,255,0.28)",
-  },
-  iconBtnPlaceholder: {
-    width: sw(40),
-    height: sw(40),
   },
   heroBottom: {
     flexDirection: "row",

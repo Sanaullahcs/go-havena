@@ -53,14 +53,8 @@ class NoticeExpiry
         $query->whereNotNull("{$table}.event_date")
             ->where(function ($q) use ($table, $today, $time) {
                 $q->where("{$table}.event_date", '>', $today)
-                    // Events remain listed for the whole calendar day.
-                    ->orWhere(function ($q2) use ($table, $today) {
-                        $q2->where("{$table}.category", 'event')
-                            ->where("{$table}.event_date", $today);
-                    })
                     ->orWhere(function ($q2) use ($table, $today, $time) {
-                        $q2->where("{$table}.category", '!=', 'event')
-                            ->where("{$table}.event_date", $today)
+                        $q2->where("{$table}.event_date", $today)
                             ->where(function ($q3) use ($table, $time) {
                                 $q3->whereNull("{$table}.event_time_end")
                                     ->orWhere("{$table}.event_time_end", '')
@@ -80,10 +74,8 @@ class NoticeExpiry
 CASE WHEN {$table}.is_pinned = 1 AND (
     ({$table}.event_date IS NULL AND {$table}.category = 'emergency')
     OR {$table}.event_date > '{$todayQ}'
-    OR ({$table}.category = 'event' AND {$table}.event_date = '{$todayQ}')
     OR (
-        {$table}.category != 'event'
-        AND {$table}.event_date = '{$todayQ}'
+        {$table}.event_date = '{$todayQ}'
         AND (
             {$table}.event_time_end IS NULL
             OR {$table}.event_time_end = ''
@@ -119,11 +111,6 @@ SQL;
         }
 
         if ($eventDay > $today) {
-            return false;
-        }
-
-        // Events stay visible for the full calendar day on resident lists / home.
-        if ($category === 'event') {
             return false;
         }
 

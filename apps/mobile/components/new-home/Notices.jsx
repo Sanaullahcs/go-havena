@@ -92,6 +92,8 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
         <NoticeCoverMedia
           fill
           imageUrl={item.imageUrl}
+          notice={item.notice}
+          backgroundColor={T.navy}
           onImageError={() => setImageFailed(true)}
         />
       </View>
@@ -463,6 +465,8 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: "48%",
+    overflow: "hidden",
+    zIndex: 0,
   },
   curveShape: {
     position: "absolute",
