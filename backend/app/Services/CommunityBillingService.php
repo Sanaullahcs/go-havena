@@ -2144,8 +2144,9 @@ class CommunityBillingService
     public function ensureStripeCustomer(Community $community, User $admin, ?StripeClient $stripe = null): string
     {
         $stripe ??= $this->stripe();
-        $existing = $this->getSubscription($community->id)?->stripe_customer_id;
-        if ($existing) {
+        $subscription = $this->getSubscription($community->id);
+        $existing = $subscription?->stripe_customer_id;
+        if (filled($existing)) {
             try {
                 $update = [
                     'metadata' => [
@@ -2156,12 +2157,20 @@ class CommunityBillingService
                 if (filled($admin->email) && ! str_contains((string) $admin->email, '@invited')) {
                     $update['email'] = $admin->email;
                 }
-                $stripe->customers->update($existing, $update);
-            } catch (ApiErrorException) {
-                // Keep the community customer even if the email update fails.
-            }
+                $stripe->customers->update((string) $existing, $update);
 
-            return $existing;
+                return (string) $existing;
+            } catch (ApiErrorException $e) {
+                if ($e->getStripeCode() !== 'resource_missing') {
+                    // Keep the community customer even if the email update fails.
+                    return (string) $existing;
+                }
+
+                Log::info('Stored Stripe customer is missing in this Stripe mode; creating a new one', [
+                    'community_id' => $community->id,
+                    'stripe_customer_id' => $existing,
+                ]);
+            }
         }
 
         $params = [
@@ -2179,6 +2188,12 @@ class CommunityBillingService
         }
 
         $customer = $stripe->customers->create($params);
+
+        if ($subscription) {
+            $subscription->forceFill([
+                'stripe_customer_id' => $customer->id,
+            ])->save();
+        }
 
         return $customer->id;
     }
