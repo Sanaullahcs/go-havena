@@ -8,9 +8,42 @@ use Illuminate\Support\Facades\DB;
 
 class WellnessHubSeeder extends Seeder
 {
-    private const SAMPLE_VIDEO = 'https://www.w3schools.com/html/mov_bbb.mp4';
+    private const SEED_IMG = '/storage/seed';
 
-    private const SAMPLE_VIDEO_ALT = 'https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4';
+    /** One unique public YouTube lesson per title — never cartoon clips, never reused. */
+    private const YOUTUBE = [
+        'Understanding Macronutrients' => 'https://www.youtube.com/watch?v=xyQY8a-ng6g',
+        'Building Balanced Plates' => 'https://www.youtube.com/watch?v=j7CcaUZrUoE',
+        'Smart Snacking Strategies' => 'https://www.youtube.com/watch?v=lEXBxijQREo',
+        'Planning Your Prep Day' => 'https://www.youtube.com/watch?v=cKeuCuBQjcU',
+        'Batch Cooking Essentials' => 'https://www.youtube.com/watch?v=4R_gUhgg70Q',
+        'Warm-Up Basics' => 'https://www.youtube.com/watch?v=v7AYKMP6rOE',
+        'Core Strength Foundations' => 'https://www.youtube.com/watch?v=O5YX5xg8Seg',
+        'Cool Down & Stretch' => 'https://www.youtube.com/watch?v=g_tea8ZNk5A',
+        'Full-Body Circuit' => 'https://www.youtube.com/watch?v=ml6cT4AZdqI',
+        'Recovery Day Mobility' => 'https://www.youtube.com/watch?v=qX9FSZJu448',
+        'Box Breathing' => 'https://www.youtube.com/watch?v=ArFVftAhcrw',
+        'Extended Exhale Relaxation' => 'https://www.youtube.com/watch?v=inpok4MKVLM',
+        'Grounding Breath Break' => 'https://www.youtube.com/watch?v=RcGyVTAoXEU',
+        'Body Scan Relaxation' => 'https://www.youtube.com/watch?v=ihwcw_ofuME',
+        'Gratitude Practice' => 'https://www.youtube.com/watch?v=fLJsdqxnZb0',
+        'Growth Mindset Introduction' => 'https://www.youtube.com/watch?v=_X0mgOOSpLU',
+        'Daily Reflection Habit' => 'https://www.youtube.com/watch?v=XJpGqTYtN2Y',
+        'Habit Stacking' => 'https://www.youtube.com/watch?v=mN5w13ztN54',
+        'Writing SMART Goals' => 'https://www.youtube.com/watch?v=XRiUT4EpIOg',
+        'Introduction to Community Wellness' => 'https://www.youtube.com/watch?v=qp0HIF3SfI4',
+        'Active Listening Skills' => 'https://www.youtube.com/watch?v=cSohjlYQI2A',
+        'Planning a Group Activity' => 'https://www.youtube.com/watch?v=hO8MwBZl-Vc',
+        'Supporting Neighbors' => 'https://www.youtube.com/watch?v=4q1dgn_C0AU',
+        'Building Trust Over Time' => 'https://www.youtube.com/watch?v=iCvmsMzlF7o',
+        'Healthy Boundaries' => 'https://www.youtube.com/watch?v=Ks-_Mh1QhMc',
+        'Using "I" Statements' => 'https://www.youtube.com/watch?v=eIho2S0ZahI',
+        'Navigating Disagreements' => 'https://www.youtube.com/watch?v=R1vskiVDhq8',
+        'Digital Community Etiquette' => 'https://www.youtube.com/watch?v=t7Xr3AsBEK4',
+        'Giving and Receiving Feedback' => 'https://www.youtube.com/watch?v=wtl5UrrgU8c',
+        'Conflict De-escalation' => 'https://www.youtube.com/watch?v=55hH4s5lVGg',
+        'Celebrating Community Wins' => 'https://www.youtube.com/watch?v=fW8amMCVAJQ',
+    ];
 
     public function run(): void
     {
@@ -44,7 +77,7 @@ class WellnessHubSeeder extends Seeder
                 ]);
 
                 foreach ($course['lessons'] as $lessonIndex => $lesson) {
-                    $linkUrl = $lesson['link_url'] ?? self::SAMPLE_VIDEO;
+                    $linkUrl = $lesson['link_url'] ?? $this->youtubeFor($lesson['title']);
 
                     DB::table('wellness_lessons')->insert([
                         'course_id'     => $courseId,
@@ -77,6 +110,7 @@ class WellnessHubSeeder extends Seeder
                 [
                     'title'       => 'Balanced Nutrition Basics',
                     'description' => 'Learn the fundamentals of healthy eating, portion control, and meal planning for sustainable wellness.',
+                    'image_url'   => self::SEED_IMG.'/course-nutrition.jpg',
                     'status'      => 'published',
                     'lessons'     => [
                         $this->lesson(
@@ -99,7 +133,6 @@ class WellnessHubSeeder extends Seeder
                                 'Reserve one quarter for lean protein.',
                                 'Use the remaining quarter for whole grains or starchy vegetables.',
                             ],
-                            self::SAMPLE_VIDEO_ALT,
                         ),
                         $this->lesson(
                             'Smart Snacking Strategies',
@@ -116,6 +149,7 @@ class WellnessHubSeeder extends Seeder
                 [
                     'title'       => 'Meal Prep Mastery',
                     'description' => 'Save time and eat better with simple weekly meal prep routines designed for busy residents.',
+                    'image_url'   => self::SEED_IMG.'/course-meal-prep.jpg',
                     'status'      => 'published',
                     'lessons'     => [
                         $this->lesson(
@@ -145,6 +179,7 @@ class WellnessHubSeeder extends Seeder
                 [
                     'title'       => 'Exercise Fundamentals',
                     'description' => 'Build strength, mobility, and cardiovascular fitness with beginner-friendly guided sessions.',
+                    'image_url'   => self::SEED_IMG.'/course-exercise.jpg',
                     'status'      => 'published',
                     'lessons'     => [
                         $this->lesson(
@@ -166,7 +201,6 @@ class WellnessHubSeeder extends Seeder
                                 'Quality of movement beats quantity.',
                                 'Breathe steadily — do not hold your breath.',
                             ],
-                            self::SAMPLE_VIDEO_ALT,
                         ),
                         $this->lesson(
                             'Cool Down & Stretch',
@@ -183,6 +217,7 @@ class WellnessHubSeeder extends Seeder
                 [
                     'title'       => 'Home Workout Essentials',
                     'description' => 'Stay active anywhere with bodyweight routines that need no equipment.',
+                    'image_url'   => self::SEED_IMG.'/course-home-workout.jpg',
                     'status'      => 'published',
                     'lessons'     => [
                         $this->lesson(
@@ -212,6 +247,7 @@ class WellnessHubSeeder extends Seeder
                 [
                     'title'       => 'Breathing for Calm',
                     'description' => 'Simple breathing techniques you can use anywhere to reduce stress and reset your nervous system.',
+                    'image_url'   => self::SEED_IMG.'/course-breathing.jpg',
                     'status'      => 'published',
                     'lessons'     => [
                         $this->lesson(
@@ -234,7 +270,6 @@ class WellnessHubSeeder extends Seeder
                                 'Place a hand on your belly to feel it rise and fall.',
                                 'Use this before sleep or difficult conversations.',
                             ],
-                            self::SAMPLE_VIDEO_ALT,
                         ),
                         $this->lesson(
                             'Grounding Breath Break',
@@ -251,6 +286,7 @@ class WellnessHubSeeder extends Seeder
                 [
                     'title'       => 'Mindful Moments',
                     'description' => 'Short mindfulness practices designed for busy schedules and noisy environments.',
+                    'image_url'   => self::SEED_IMG.'/course-mindful.jpg',
                     'status'      => 'published',
                     'lessons'     => [
                         $this->lesson(
@@ -280,6 +316,7 @@ class WellnessHubSeeder extends Seeder
                 [
                     'title'       => 'Learning Wellness Basics',
                     'description' => 'Build a growth mindset and daily habits that support lifelong learning and personal development.',
+                    'image_url'   => self::SEED_IMG.'/course-learning.jpg',
                     'status'      => 'published',
                     'lessons'     => [
                         $this->lesson(
@@ -311,13 +348,13 @@ class WellnessHubSeeder extends Seeder
                                 'Start with habits that take under two minutes.',
                                 'Stack only one new habit at a time.',
                             ],
-                            self::SAMPLE_VIDEO_ALT,
                         ),
                     ],
                 ],
                 [
                     'title'       => 'Goal Setting for Growth',
                     'description' => 'Create meaningful, achievable goals using a simple framework you can revisit monthly.',
+                    'image_url'   => self::SEED_IMG.'/course-goals.jpg',
                     'status'      => 'draft',
                     'lessons'     => [
                         $this->lesson(
@@ -338,6 +375,7 @@ class WellnessHubSeeder extends Seeder
                 [
                     'title'       => 'Connecting with Neighbors',
                     'description' => 'Build meaningful connections in your community through small, consistent acts of friendliness.',
+                    'image_url'   => self::SEED_IMG.'/course-neighbors.jpg',
                     'status'      => 'published',
                     'lessons'     => [
                         $this->lesson(
@@ -369,7 +407,6 @@ class WellnessHubSeeder extends Seeder
                                 'Invite three people personally rather than a mass post.',
                                 'Follow up with a thank-you message afterward.',
                             ],
-                            self::SAMPLE_VIDEO_ALT,
                         ),
                         $this->lesson(
                             'Supporting Neighbors',
@@ -406,6 +443,7 @@ class WellnessHubSeeder extends Seeder
                 [
                     'title'       => 'Healthy Communication',
                     'description' => 'Communicate with empathy and clarity during everyday interactions and difficult conversations.',
+                    'image_url'   => self::SEED_IMG.'/course-communication.jpg',
                     'status'      => 'published',
                     'lessons'     => [
                         $this->lesson(
@@ -457,7 +495,6 @@ class WellnessHubSeeder extends Seeder
                                 'Acknowledge the other person\'s feelings.',
                                 'Suggest a short break if needed.',
                             ],
-                            self::SAMPLE_VIDEO_ALT,
                         ),
                         $this->lesson(
                             'Celebrating Community Wins',
@@ -491,9 +528,14 @@ class WellnessHubSeeder extends Seeder
             'title'         => $title,
             'description'   => $description,
             'duration_min'  => $durationMin,
-            'link_url'      => $linkUrl ?? self::SAMPLE_VIDEO,
+            'link_url'      => $linkUrl ?? $this->youtubeFor($title),
             'key_takeaways' => $takeaways,
             'status'        => $status,
         ];
+    }
+
+    private function youtubeFor(string $title): string
+    {
+        return self::YOUTUBE[$title] ?? 'https://www.youtube.com/watch?v=inpok4MKVLM';
     }
 }
