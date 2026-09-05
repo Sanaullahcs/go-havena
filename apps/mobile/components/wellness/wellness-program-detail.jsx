@@ -27,11 +27,8 @@ import { chevronForward } from "../../utils/rtl";
 import { rnShadow } from "../../utils/shadow";
 
 
-const HERO_MEDIA = sw(132);
 const HERO_IMAGE = WELLNESS_HERO_CIRCLE;
 const HERO_IMAGE_END = WELLNESS_HERO_CIRCLE_END;
-const HERO_IMAGE_TOP = (HERO_MEDIA - HERO_IMAGE) / 2;
-const HERO_TITLE_END = sw(16) + HERO_IMAGE + sw(16);
 const WAVE_H = sw(34);
 const ICON = sw(40);
 const THUMB = sw(80);
@@ -73,44 +70,39 @@ function ProgramHero({
   const Icon = visual.Icon;
   const cardWidth = screenWidth - sw(36);
   const pct = Math.min(100, Math.max(0, progress));
+  const bandText = String(description || title || "").trim();
 
   return (
     <View style={styles.heroCard}>
       <View style={[styles.heroMedia, { backgroundColor: visual.wash }]}>
-        <WellnessHeroCircle
-          source={categoryImageUrl || visual.image}
-          fallback={visual.fallbackImage}
-          size={HERO_IMAGE}
-          style={styles.heroImageCircle}
-        />
         <WellnessHeroWave width={cardWidth} blobColor={visual.blob} height={WAVE_H} />
-        <View style={styles.heroIcon}>
-          {Icon === SneakerIcon ? (
-            <SneakerIcon color={visual.accent} size={sf(18)} />
-          ) : (
-            <Icon size={sf(18)} color={visual.accent} strokeWidth={2} />
-          )}
-        </View>
-        <View style={[styles.heroCopy, { pointerEvents: "none" }]}>
-          {title ? (
-            <Text
-              style={styles.heroTitle}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.72}
-            >
-              {title}
-            </Text>
-          ) : null}
+        <View style={styles.heroBody}>
+          <View style={styles.heroTop}>
+            <View style={styles.heroCopy}>
+              <View style={styles.heroIcon}>
+                {Icon === SneakerIcon ? (
+                  <SneakerIcon color={visual.accent} size={sf(18)} />
+                ) : (
+                  <Icon size={sf(18)} color={visual.accent} strokeWidth={2} />
+                )}
+              </View>
+              {bandText ? (
+                <Text style={styles.heroDescription}>
+                  {bandText}
+                </Text>
+              ) : null}
+            </View>
+            <WellnessHeroCircle
+              source={categoryImageUrl || visual.image}
+              fallback={visual.fallbackImage}
+              size={HERO_IMAGE}
+              style={styles.heroImageCircle}
+            />
+          </View>
         </View>
       </View>
 
       <View style={styles.heroFooter}>
-        {description ? (
-          <Text style={styles.heroDescription} numberOfLines={2}>
-            {description}
-          </Text>
-        ) : null}
         <Text style={[styles.heroMeta, { color: visual.accent }]}>
           {t("wellness.courseCount", { count: courseCount })}
           <Text style={styles.heroMetaMuted}>
@@ -383,50 +375,47 @@ const styles = StyleSheet.create({
     borderColor: WellnessTheme.border,
   },
   heroMedia: {
-    height: HERO_MEDIA,
     overflow: "hidden",
+    minHeight: sw(148),
+  },
+  heroBody: {
+    zIndex: 2,
+    paddingStart: sw(16),
+    paddingEnd: sw(16),
+    paddingTop: sw(14),
+    paddingBottom: sw(40),
+  },
+  heroTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: sw(14),
+  },
+  heroCopy: {
+    flex: 1,
+    minWidth: 0,
   },
   heroImageCircle: {
-    position: "absolute",
-    end: HERO_IMAGE_END,
-    top: HERO_IMAGE_TOP,
-    zIndex: 2,
+    flexShrink: 0,
+    marginEnd: HERO_IMAGE_END - sw(16),
   },
   heroIcon: {
-    position: "absolute",
-    start: sw(16),
-    top: sw(14),
     width: ICON,
     height: ICON,
     borderRadius: sw(12),
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 2,
+    marginBottom: sw(10),
     ...rnShadow({ color: "#0F172A", offset: { width: 0, height: 1 }, opacity: 0.08, radius: 3 }),
     elevation: 2,
   },
-  heroCopy: {
-    position: "absolute",
-    start: sw(16),
-    end: HERO_TITLE_END,
-    top: sw(62),
-    zIndex: 3,
-  },
-  heroTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(17),
-    lineHeight: sf(22),
-    fontWeight: "700",
-    color: WellnessTheme.text,
-    includeFontPadding: false,
-  },
   heroDescription: {
     fontFamily: Fonts.regular,
-    fontSize: sf(13),
-    lineHeight: sf(19),
-    color: WellnessTheme.textMuted,
-    marginBottom: sw(12),
+    fontSize: sf(16),
+    lineHeight: sf(23),
+    fontWeight: "400",
+    color: WellnessTheme.text,
+    textAlign: "left",
     includeFontPadding: false,
   },
   heroFooter: {
@@ -437,8 +426,8 @@ const styles = StyleSheet.create({
   },
   heroMeta: {
     fontFamily: Fonts.semiBold,
-    fontSize: sf(12),
-    lineHeight: sf(16),
+    fontSize: sf(14),
+    lineHeight: sf(19),
     fontWeight: "600",
     includeFontPadding: false,
   },
