@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /**
@@ -271,7 +272,7 @@ class DemoContentSeeder extends Seeder
             ['Welcome to '.$this->copyName, 'general', "Welcome to Harbor Point. Use this app for notices, events, amenity booking, the resident marketplace, and messages with your neighbors. The management office is on the ground floor of 50 Liberty Drive — reach out anytime.", "{$this->img}/community-cover.jpg", 1, true],
             ['Pool Deck Resurfacing Schedule', 'maintenance', "The pool deck will be resurfaced next week to keep our resort pool looking its best. The pool will remain open, but the north deck section will be closed Monday through Wednesday from 8:00 AM to 4:00 PM. Thank you for your patience.", "{$this->img}/notice-maintenance.jpg", 3, false],
             ['Q3 Community Budget Summary', 'finance', "The third quarter budget summary is now available in the Documents section. Highlights include reserve fund contributions, landscaping investments, and the new smart access system. A detailed breakdown will be presented at the upcoming town hall.", "{$this->img}/event-townhall.jpg", 5, false],
-            ['Updated Gate Access Codes', 'security', "For everyone's safety, gate and amenity access codes will be rotated at the end of the month. Updated codes will be sent to registered residents by email and are available at the management office with a valid ID.", "{$this->img}/alert-weather.jpg", 7, false],
+            ['Updated Gate Access Codes', 'security', "For everyone's safety, gate and amenity access codes will be rotated at the end of the month. Updated codes will be sent to registered residents by email and are available at the management office with a valid ID.", "{$this->img}/notice-security.jpg", 7, false],
             ['Elevator Modernization Update', 'maintenance', "Elevator B in the east tower will undergo modernization over the next two weeks. Elevator A remains fully operational. We appreciate your understanding as we improve reliability and reduce wait times.", "{$this->img}/amenity-gym.jpg", 9, false],
             ['Landscaping Refresh This Month', 'general', "Our grounds team is refreshing the entry gardens and courtyard plantings this month. Expect new seasonal flowers, upgraded irrigation, and improved lighting along the main walkways.", "{$this->img}/listing-plants.jpg", 4, false],
             ['Saturday Boston Public Market Shuttle', 'general', "A complimentary shuttle runs from the Liberty Drive lobby to Boston Public Market every Saturday from 8:00 AM to 12:00 PM. Meet at the front porte cochère — no RSVP needed.", "{$this->img}/feed-market.jpg", 2, true],
@@ -381,10 +382,10 @@ class DemoContentSeeder extends Seeder
             ['Summer Community BBQ', "Join your neighbors for our biggest cookout of the season. We will have grilled favorites, games for the kids, live music, and plenty of shade. Bring a side dish to share if you like.", "{$this->img}/event-bbq.jpg", '+6 days', '17:00', '20:00', 120, 'Courtyard Lawn', true],
             ['Quarterly Residents Town Hall', "Meet the management team, review community updates, and share your ideas. We will cover the Q3 budget, upcoming projects, and answer your questions.", "{$this->img}/event-townhall.jpg", '+12 days', '18:30', '20:00', 80, 'Clubhouse Lounge', true],
             ['Poolside Movie Night', "Grab a towel and settle in for a family friendly movie under the stars by the pool. Popcorn and refreshments provided.", "{$this->img}/amenity-pool.jpg", '+9 days', '20:00', '22:00', 60, 'Resort Pool Deck', false],
-            ['Holiday Cookie Exchange', "Bring a batch of your favorite cookies and swap with neighbors. A cozy way to meet new faces and share recipes.", "{$this->img}/amenity-clubhouse.jpg", '+20 days', '15:00', '17:00', 40, 'Clubhouse Lounge', false],
-            ['Sunrise Yoga by the Pool', "Start the weekend with a gentle yoga flow led by resident instructor Lisa. Mats provided for the first 20 arrivals. All levels welcome.", "{$this->img}/wellness-exercise.jpg", '+4 days', '07:30', '08:30', 25, 'Resort Pool Deck', false],
-            ['Fitness Bootcamp Saturday', "A high-energy outdoor bootcamp with stations for cardio, strength, and mobility. Bring water and athletic shoes.", "{$this->img}/amenity-gym.jpg", '+11 days', '09:00', '10:00', 30, 'Courtyard Lawn', false],
-            ['Neighborhood Coffee Meetup', "Casual coffee and conversation for new and longtime residents. Stop by anytime during the open house window.", "{$this->img}/deal-coffee.jpg", '+3 days', '10:00', '11:30', 50, 'Lobby Café Corner', false],
+            ['Holiday Cookie Exchange', "Bring a batch of your favorite cookies and swap with neighbors. A cozy way to meet new faces and share recipes.", "{$this->img}/event-cookies.jpg", '+20 days', '15:00', '17:00', 40, 'Clubhouse Lounge', false],
+            ['Sunrise Yoga by the Pool', "Start the weekend with a gentle yoga flow led by resident instructor Lisa. Mats provided for the first 20 arrivals. All levels welcome.", "{$this->img}/event-yoga.jpg", '+4 days', '07:30', '08:30', 25, 'Resort Pool Deck', false],
+            ['Fitness Bootcamp Saturday', "A high-energy outdoor bootcamp with stations for cardio, strength, and mobility. Bring water and athletic shoes.", "{$this->img}/event-bootcamp.jpg", '+11 days', '09:00', '10:00', 30, 'Courtyard Lawn', false],
+            ['Neighborhood Coffee Meetup', "Casual coffee and conversation for new and longtime residents. Stop by anytime during the open house window.", "{$this->img}/event-coffee.jpg", '+3 days', '10:00', '11:30', 50, 'Lobby Café Corner', false],
             ['Kids Arts & Crafts Afternoon', "Creative stations for kids ages 5–12 with painting, stickers, and take-home crafts. Parents must stay on site.", "{$this->img}/listing-plants.jpg", '+14 days', '14:00', '16:00', 35, 'Clubhouse Activity Room', false],
         ];
 
@@ -485,82 +486,183 @@ class DemoContentSeeder extends Seeder
         $u = fn (string $email) => $this->residentId($residents, $email);
 
         $posts = [
-            ['resident@gohavena.com', 'general', "Beautiful morning on the Harborwalk. If anyone wants to join a casual Saturday loop from Liberty Drive to Fan Pier and back, comment below — all paces welcome.", "{$this->img}/feed-harborwalk.jpg", 16, 4, 1],
-            ['aisha@havena.app', 'help', "Has anyone seen Biscuit? Our golden retriever slipped out of the lobby this afternoon near the east tower. He is very friendly and wearing a blue collar. Please call me if you spot him. Thank you neighbors!", "{$this->img}/feed-dog.jpg", 14, 3, 1],
-            ['emily@havena.app', 'general', "Boston Public Market was packed this morning. Fresh strawberries, local honey, and the best sourdough. Highly recommend the Saturday shuttle from the lobby.", "{$this->img}/feed-market.jpg", 22, 5, 2],
-            ['priya@havena.app', 'general', "Starting a morning run group! We meet at the clubhouse at 6:30 AM on Tuesdays and Thursdays. All paces welcome, we stick together. Comment below if you want to join.", "{$this->img}/feed-run.jpg", 18, 6, 3],
-            ['tom@havena.app', 'help', "Looking for a recommendation for a reliable plumber who has worked in the building before. Slow drain in the kitchen. Appreciate any leads.", "{$this->img}/notice-maintenance.jpg", 4, 4, 4],
-            ['david@havena.app', 'general', "Big thank you to the maintenance team for fixing the gym AC so quickly. Back to full workouts in comfort. You all are the best.", "{$this->img}/amenity-gym.jpg", 27, 2, 5],
-            ['nina@havena.app', 'general', "Free moving boxes available! We just unpacked and have about fifteen sturdy boxes plus packing paper. First come first served, message me and I will leave them by the mailroom.", "{$this->img}/feed-boxes.jpg", 9, 3, 6],
+            ['resident@gohavena.com', 'general', "Beautiful morning on the Harborwalk. If anyone wants to join a casual Saturday loop from Liberty Drive to Fan Pier and back, comment below — all paces welcome.", "{$this->img}/feed-harborwalk.jpg", 1],
+            ['aisha@havena.app', 'help', "Has anyone seen Biscuit? Our golden retriever slipped out of the lobby this afternoon near the east tower. He is very friendly and wearing a blue collar. Please call me if you spot him. Thank you neighbors!", "{$this->img}/feed-dog.jpg", 1],
+            ['emily@havena.app', 'general', "Boston Public Market was packed this morning. Fresh strawberries, local honey, and the best sourdough. Highly recommend the Saturday shuttle from the lobby.", "{$this->img}/feed-market.jpg", 2],
+            ['priya@havena.app', 'general', "Starting a morning run group! We meet at the clubhouse at 6:30 AM on Tuesdays and Thursdays. All paces welcome, we stick together. Comment below if you want to join.", "{$this->img}/feed-run.jpg", 3],
+            ['tom@havena.app', 'help', "Looking for a recommendation for a reliable plumber who has worked in the building before. Slow drain in the kitchen. Appreciate any leads.", "{$this->img}/feed-plumber.jpg", 4],
+            ['david@havena.app', 'general', "Big thank you to the maintenance team for fixing the gym AC so quickly. Back to full workouts in comfort. You all are the best.", "{$this->img}/feed-gym.jpg", 5],
+            ['nina@havena.app', 'general', "Free moving boxes available! We just unpacked and have about fifteen sturdy boxes plus packing paper. First come first served, message me and I will leave them by the mailroom.", "{$this->img}/feed-boxes.jpg", 6],
+            ['carlos@havena.app', 'general', "Golden hour from the ninth-floor walkway after dinner. Even on a weeknight this waterfront view still stops me. If you have not walked the Harborwalk at dusk yet, go tonight.", "{$this->img}/feed-skyline.jpg", 0],
+            ['sarah@havena.app', 'event', "Harbor Point Book Club meets Thursday at 7:00 PM in the clubhouse lounge. This month we are discussing The Lincoln Highway. Extra chairs and tea provided — come even if you have not finished.", "{$this->img}/feed-books.jpg", 1],
+            ['michael@havena.app', 'event', "Family movie night on the courtyard lawn Saturday at 6:30 PM. We are bringing a projector, blankets, and popcorn. Kids welcome. If it rains we will move into the clubhouse.", "{$this->img}/feed-kids.jpg", 2],
+            ['grace@havena.app', 'update', "The new courtyard plantings look wonderful. Thank you to the grounds team — the entry walk feels like a different building this week.", "{$this->img}/feed-garden.jpg", 1],
+            ['aisha@havena.app', 'general', "Baked too many loaves this morning. Three extra banana breads are on the lobby console — please take one if you are heading out. Nut-free.", "{$this->img}/feed-bread.jpg", 0],
+            ['emily@havena.app', 'help', "Found a set of Honda keys with a blue Harbor Point fob by the P2 elevator this morning. I turned them in at the front desk.", "{$this->img}/feed-keys.jpg", 0],
+            ['community@gohavena.com', 'announcement', "New recycling totes are now on every residential floor next to the trash rooms. Please rinse bottles, flatten cardboard, and keep food waste in the compost pail. Questions? Message the management office.", "{$this->img}/feed-recycle.jpg", 3],
+            ['tom@havena.app', 'update', "I reorganized the overflow package shelf in the mailroom this afternoon. If you are waiting on a box, check the labeled bins by carrier before asking the desk.", "{$this->img}/feed-packages.jpg", 2],
+            ['nina@havena.app', 'general', "Trivia night in the lounge was a blast — 4C took second by one point. Next round is Friday at 8:00 PM. Teams of four, first round is Boston history.", "{$this->img}/feed-trivia.jpg", 4],
+            ['lisa@havena.app', 'general', "Tried the grilled prawns at Legal Harborside last night — excellent for a weeknight. Reservations help after 7. Happy to share the dish we ordered if anyone wants a rec.", "{$this->img}/feed-dinner.jpg", 1],
+            ['michael@havena.app', 'help', "Looking for a trusted weekend babysitter in the building for two kids, ages 6 and 9. Saturday 5–9 PM, courtyard movie night. Happy to swap favors.", "{$this->img}/feed-family.jpg", 3],
         ];
 
-        foreach ($posts as [$email, $category, $body, $image, $likes, $comments, $daysAgo]) {
+        foreach ($posts as [$email, $category, $body, $image, $daysAgo]) {
             $uid = $u($email);
             if (! $uid) {
                 continue;
             }
+            $at = now()->subDays($daysAgo)->subMinutes(($daysAgo + 1) * 17);
             DB::table('posts')->updateOrInsert(
                 ['community_id' => $cid, 'user_id' => $uid, 'body' => $body],
                 [
                     'category' => $category,
                     'image_url' => $image,
                     'status' => 'approved',
-                    'approved_at' => now()->subDays($daysAgo),
-                    'likes_count' => $likes,
-                    'comments_count' => $comments,
-                    'updated_at' => now()->subDays($daysAgo),
-                    'created_at' => now()->subDays($daysAgo),
+                    'approved_at' => $at,
+                    'likes_count' => 0,
+                    'comments_count' => 0,
+                    'updated_at' => $at,
+                    'created_at' => $at,
                 ]
             );
         }
 
-        // Comments + likes on the lost dog and farmers market posts.
-        $dogPost = DB::table('posts')->where('community_id', $cid)->where('category', 'help')->where('body', 'like', 'Has anyone seen Biscuit%')->value('id');
-        $marketPost = DB::table('posts')->where('community_id', $cid)->where('body', 'like', 'Boston Public Market was packed%')->value('id');
+        $findPost = fn (string $like) => DB::table('posts')
+            ->where('community_id', $cid)
+            ->where('body', 'like', $like)
+            ->value('id');
 
-        $comments = [];
-        if ($dogPost) {
-            $comments[] = [$dogPost, 'sarah@havena.app', 'I think I saw him near the pool gate about an hour ago. Keeping an eye out!'];
-            $comments[] = [$dogPost, 'michael@havena.app', 'Sharing with my floor group chat. We will help look.'];
-            $comments[] = [$dogPost, 'grace@havena.app', 'So glad he was found safe. What a sweetheart.'];
-            $comments[] = [$dogPost, 'emily@havena.app', 'Just walked the east path — no sign yet. Sending a photo to the lobby desk.'];
-            $comments[] = [$dogPost, 'priya@havena.app', 'I will keep an eye out on my morning run. Hope he is home soon.'];
-            $comments[] = [$dogPost, 'tom@havena.app', 'Checking the courtyard cameras with the front office now.'];
-            $comments[] = [$dogPost, 'david@havena.app', 'Saw a golden near the mailroom earlier. Was it Biscuit?'];
-            $comments[] = [$dogPost, 'nina@havena.app', 'Putting treats by the lobby door in case he comes back.'];
-            $comments[] = [$dogPost, 'lisa@havena.app', 'Posted in the building WhatsApp. Lots of neighbors looking.'];
-            $comments[] = [$dogPost, 'carlos@havena.app', 'I can print flyers if you still need them tonight.'];
-            $comments[] = [$dogPost, 'diego@havena.app', 'Keeping the garage door watch — will text if I spot him.'];
-        }
-        if ($marketPost) {
-            $comments[] = [$marketPost, 'lisa@havena.app', 'The honey vendor is my favorite. See you there Saturday!'];
-            $comments[] = [$marketPost, 'carlos@havena.app', 'Great photos. Adding this to my weekend plans.'];
-        }
+        $commentGroups = [
+            'Beautiful morning on the Harborwalk%' => [
+                ['priya@havena.app', 'I am in for Saturday. Meeting at the Liberty Drive lobby at 8:30?'],
+                ['david@havena.app', 'Perfect pace for me. I will bring water and a spare tube.'],
+                ['carlos@havena.app', 'Gorgeous light this morning. I may join with a camera, not a run.'],
+            ],
+            'Has anyone seen Biscuit%' => [
+                ['sarah@havena.app', 'I think I saw him near the pool gate about an hour ago. Keeping an eye out!'],
+                ['michael@havena.app', 'Sharing with my floor group chat. We will help look.'],
+                ['grace@havena.app', 'So glad neighbors are looking. What a sweetheart.'],
+                ['emily@havena.app', 'Just walked the east path — no sign yet. Sending a photo to the lobby desk.'],
+                ['priya@havena.app', 'I will keep an eye out on my morning run. Hope he is home soon.'],
+                ['tom@havena.app', 'Checking the courtyard cameras with the front office now.'],
+                ['david@havena.app', 'Saw a golden near the mailroom earlier. Was it Biscuit?'],
+                ['nina@havena.app', 'Putting treats by the lobby door in case he comes back.'],
+                ['lisa@havena.app', 'Posted in the building WhatsApp. Lots of neighbors looking.'],
+                ['carlos@havena.app', 'I can print flyers if you still need them tonight.'],
+            ],
+            'Boston Public Market was packed%' => [
+                ['lisa@havena.app', 'The honey vendor is my favorite. See you there Saturday!'],
+                ['carlos@havena.app', 'Great photos. Adding this to my weekend plans.'],
+                ['sarah@havena.app', 'Their sourdough sells out by 10. Worth the early shuttle.'],
+            ],
+            'Starting a morning run group%' => [
+                ['resident@gohavena.com', 'Count me in for Thursday. I am a slow-and-steady runner.'],
+                ['grace@havena.app', 'I can do Tuesdays after night shift some weeks. Thank you for organizing.'],
+                ['david@havena.app', 'Clubhouse at 6:30 works. I will post if I am running late.'],
+            ],
+            'Looking for a recommendation for a reliable plumber%' => [
+                ['tom@havena.app', 'North End Plumbing has been in 6A twice. Clean, on time, fair price.'],
+                ['michael@havena.app', 'Same company fixed our tub last year. Ask for Luis.'],
+                ['sarah@havena.app', 'Management also keeps a preferred vendor list at the desk.'],
+            ],
+            'Big thank you to the maintenance team%' => [
+                ['priya@havena.app', 'Agreed — they were in the gym before 8 AM. Impressive.'],
+                ['nina@havena.app', 'Shout-out to the whole ops team this week.'],
+            ],
+            'Free moving boxes available%' => [
+                ['emily@havena.app', 'Grabbing four this afternoon if they are still there. Thank you!'],
+                ['james@havena.app', 'New neighbor here — I could use a few this weekend.'],
+            ],
+            'Caught the Seaport skyline%' => [
+                ['emily@havena.app', 'This is stunning, Carlos. Ninth floor never disappoints.'],
+                ['lisa@havena.app', 'Dusk walks are my favorite. Thank you for sharing this.'],
+                ['nina@havena.app', 'Saving this as my reminder to get outside tonight.'],
+            ],
+            'Harbor Point Book Club meets Thursday%' => [
+                ['emily@havena.app', 'I am two chapters behind and still coming. Save me a chair.'],
+                ['grace@havena.app', 'I can bring herbal tea. See you Thursday.'],
+                ['nina@havena.app', 'Lincoln Highway was a great pick. Count me in.'],
+            ],
+            'Family movie night on the courtyard lawn%' => [
+                ['aisha@havena.app', 'We will be there with a blanket. What is the film?'],
+                ['sarah@havena.app', 'I can help with snacks if you need an extra pair of hands.'],
+                ['priya@havena.app', 'Wonderful idea. The kids will love this.'],
+            ],
+            'The new courtyard plantings look wonderful%' => [
+                ['sarah@havena.app', 'The hydrangeas by the entry are gorgeous. Thank you for noticing.'],
+                ['lisa@havena.app', 'Already took a photo for the plant club thread.'],
+            ],
+            'Baked too many loaves this morning%' => [
+                ['david@havena.app', 'Grabbed a loaf on my way to work. You are a hero.'],
+                ['grace@havena.app', 'Thank you for labeling nut-free. That helps a lot.'],
+            ],
+            'Found a set of Honda keys%' => [
+                ['tom@havena.app', 'Front desk confirmed they have them. Owner should check in.'],
+                ['michael@havena.app', 'Good looking out, Emily.'],
+            ],
+            'New recycling totes are now on every residential floor%' => [
+                ['tom@havena.app', 'Thank you. The old bins on 6 were overflowing every Monday.'],
+                ['sarah@havena.app', 'Is compost pickup still Wednesday mornings?'],
+                ['nina@havena.app', 'Noted. I will rinse bottles and flatten the moving boxes before they go down.'],
+            ],
+            'I reorganized the overflow package shelf%' => [
+                ['david@havena.app', 'Found my Amazon box in two minutes. Thank you, Tom.'],
+                ['emily@havena.app', 'This was much needed. The shelf was chaos yesterday.'],
+            ],
+            'Trivia night in the lounge was a blast%' => [
+                ['carlos@havena.app', '4C got lucky on that last Boston question. Rematch Friday.'],
+                ['lisa@havena.app', 'I will recruit a fourth. Do not start without us.'],
+                ['resident@gohavena.com', 'First time was so fun. Putting it on the calendar.'],
+            ],
+            'Tried the grilled prawns at Legal Harborside%' => [
+                ['grace@havena.app', 'We go there after late shifts. The harbor view is worth it.'],
+                ['sarah@havena.app', 'Saving this. Thank you for the honest rec.'],
+            ],
+            'Looking for a trusted weekend babysitter%' => [
+                ['priya@havena.app', 'Maya in 3B sits for us. I can intro you over message.'],
+                ['aisha@havena.app', 'I am free Saturday after 6 if you still need a backup.'],
+            ],
+        ];
 
-        foreach ($comments as [$postId, $email, $body]) {
-            $uid = $u($email);
-            if (! $uid) {
-                continue;
-            }
-            DB::table('post_comments')->updateOrInsert(
-                ['post_id' => $postId, 'user_id' => $uid, 'body' => $body],
-                ['updated_at' => now(), 'created_at' => now()->subDays(rand(1, 10))]
-            );
-        }
-
-        // Likes (composite PK, created_at default).
-        $likeUsers = array_values($residents);
-        foreach ([$dogPost, $marketPost] as $postId) {
+        foreach ($commentGroups as $like => $rows) {
+            $postId = $findPost($like);
             if (! $postId) {
                 continue;
             }
-            foreach (array_slice($likeUsers, 0, 10) as $uid) {
+            $hours = 2;
+            foreach ($rows as [$email, $body]) {
+                $uid = $u($email);
+                if (! $uid) {
+                    continue;
+                }
+                DB::table('post_comments')->updateOrInsert(
+                    ['post_id' => $postId, 'user_id' => $uid, 'body' => $body],
+                    [
+                        'updated_at' => now()->subHours($hours),
+                        'created_at' => now()->subHours($hours),
+                    ]
+                );
+                $hours += 3;
+            }
+        }
+
+        $likeEmails = [
+            'resident@gohavena.com', 'sarah@havena.app', 'david@havena.app', 'lisa@havena.app',
+            'emily@havena.app', 'michael@havena.app', 'priya@havena.app', 'carlos@havena.app',
+            'aisha@havena.app', 'tom@havena.app', 'nina@havena.app', 'grace@havena.app',
+        ];
+        $seededPostIds = DB::table('posts')->where('community_id', $cid)->whereNull('deleted_at')->pluck('id');
+        foreach ($seededPostIds as $index => $postId) {
+            $take = 5 + ($index % 7);
+            foreach (array_slice($likeEmails, 0, $take) as $email) {
+                $uid = $u($email);
+                if (! $uid) {
+                    continue;
+                }
                 DB::table('post_likes')->updateOrInsert(['user_id' => $uid, 'post_id' => $postId], []);
             }
         }
 
-        // Keep denormalized counters aligned with real rows (not the placeholder seed numbers).
-        $seededPostIds = DB::table('posts')->where('community_id', $cid)->pluck('id');
         foreach ($seededPostIds as $postId) {
             DB::table('posts')->where('id', $postId)->update([
                 'likes_count' => DB::table('post_likes')->where('post_id', $postId)->count(),
@@ -1562,10 +1664,17 @@ class DemoContentSeeder extends Seeder
             if (! $categoryId) {
                 continue;
             }
+            $path = "{$this->img}/{$image}.jpg";
+            if (Schema::hasColumn('wellness_categories', 'image_url')) {
+                DB::table('wellness_categories')
+                    ->where('id', $categoryId)
+                    ->whereNull('image_url')
+                    ->update(['image_url' => $path, 'updated_at' => now()]);
+            }
             DB::table('wellness_courses')
                 ->where('category_id', $categoryId)
                 ->whereNull('image_url')
-                ->update(['image_url' => "{$this->img}/{$image}.jpg", 'updated_at' => now()]);
+                ->update(['image_url' => $path, 'updated_at' => now()]);
         }
     }
 
