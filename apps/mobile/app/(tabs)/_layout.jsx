@@ -3,7 +3,7 @@ import { Tabs, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { View, StyleSheet, ActivityIndicator } from "react-native";
+import { View, StyleSheet, ActivityIndicator, Platform } from "react-native";
 
 import FloatingNavMenu from "../../components/layout/floating-nav-menu";
 
@@ -186,33 +186,60 @@ export default function TabLayout() {
     );
   }
 
+  const navMenu = (
+    <FloatingNavMenu
+      onCreatePress={() => setShowCreateModal(true)}
+      isCommunityAdmin={communityAdminUser}
+    />
+  );
+
+  const tabScreens = (
+    <>
+      <Tabs.Screen name="home" options={{ title: t("nav.home") }} />
+      <Tabs.Screen name="community" options={{ title: t("nav.community") }} />
+      <Tabs.Screen name="marketplace" options={{ href: null, title: t("nav.marketplace") }} />
+      <Tabs.Screen name="services" options={{ title: t("nav.services") }} />
+      <Tabs.Screen name="profile" options={{ title: t("nav.profile") }} />
+      <Tabs.Screen name="create-post" options={{ href: null }} />
+      <Tabs.Screen name="wellness" options={{ href: null }} />
+      <Tabs.Screen name="notices" options={{ href: null, title: t("nav.updates") }} />
+    </>
+  );
+
   return (
     <>
       <ScreenStatusBar style="dark" />
-      <Tabs
-        tabBar={(props) => {
-          if (props.style?.display === "none") return null;
-          return (
-            <FloatingNavMenu
-              onCreatePress={() => setShowCreateModal(true)}
-              isCommunityAdmin={communityAdminUser}
-            />
-          );
-        }}
-        screenOptions={{
-          headerShown: false,
-          tabBarHideOnKeyboard: true,
-        }}
-      >
-        <Tabs.Screen name="home" options={{ title: t("nav.home") }} />
-        <Tabs.Screen name="community" options={{ title: t("nav.community") }} />
-        <Tabs.Screen name="marketplace" options={{ href: null, title: t("nav.marketplace") }} />
-        <Tabs.Screen name="services" options={{ title: t("nav.services") }} />
-        <Tabs.Screen name="profile" options={{ title: t("nav.profile") }} />
-        <Tabs.Screen name="create-post" options={{ href: null }} />
-        <Tabs.Screen name="wellness" options={{ href: null }} />
-        <Tabs.Screen name="notices" options={{ href: null, title: t("nav.updates") }} />
-      </Tabs>
+      {Platform.OS === "ios" ? (
+        <View style={styles.iosShell}>
+          <View style={styles.iosScene}>
+            <Tabs
+              tabBar={() => null}
+              screenOptions={{
+                headerShown: false,
+                tabBarHideOnKeyboard: true,
+              }}
+            >
+              {tabScreens}
+            </Tabs>
+          </View>
+          <View style={styles.iosTabDock} collapsable={false}>
+            {navMenu}
+          </View>
+        </View>
+      ) : (
+        <Tabs
+          tabBar={(props) => {
+            if (props.style?.display === "none") return null;
+            return navMenu;
+          }}
+          screenOptions={{
+            headerShown: false,
+            tabBarHideOnKeyboard: true,
+          }}
+        >
+          {tabScreens}
+        </Tabs>
+      )}
       <CreateNewModal
         visible={showCreateModal}
         onClose={() => setShowCreateModal(false)}
@@ -228,5 +255,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#fff",
+  },
+  iosShell: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
+  iosScene: {
+    flex: 1,
+  },
+  iosTabDock: {
+    width: "100%",
+    alignSelf: "stretch",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 0,
+    marginHorizontal: 0,
+    paddingHorizontal: 0,
+    overflow: "visible",
   },
 });

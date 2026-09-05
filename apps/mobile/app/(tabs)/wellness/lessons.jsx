@@ -68,6 +68,7 @@ export default function Lessons() {
   const [expandedIds, setExpandedIds] = useState(() => new Set());
   const courseRef = useRef(null);
   const loadIdRef = useRef(0);
+  const seededCourseIdRef = useRef(null);
   courseRef.current = course;
 
   const decodedType = decodeURIComponent(String(type ?? ""));
@@ -92,6 +93,15 @@ export default function Lessons() {
       const data = await fetchCourse(Number(courseId));
       if (loadId !== loadIdRef.current) return;
       setCourse(data);
+      const lessonIds = (data?.lessons ?? []).map((item) => item.id);
+      setExpandedIds((prev) => {
+        if (seededCourseIdRef.current !== String(courseId)) {
+          seededCourseIdRef.current = String(courseId);
+          return new Set(lessonIds);
+        }
+        if (prev.size === 0) return prev;
+        return new Set(lessonIds);
+      });
 
       const key = data?.categoryKey || categoryKeyParam;
       if (key) {
@@ -128,6 +138,7 @@ export default function Lessons() {
   const playlistDetails = course?.lessons ?? [];
 
   useEffect(() => {
+    seededCourseIdRef.current = null;
     setExpandedIds(new Set());
     setCourse(null);
     setSiblings([]);
@@ -150,15 +161,6 @@ export default function Lessons() {
       return new Set(playlistDetails.map((item) => item.id));
     });
   }, [playlistDetails]);
-
-  const toggleLessonExpanded = useCallback((id) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
 
   const totalDuration = useMemo(
     () => playlistDetails.reduce((sum, l) => sum + (l.durationMin ?? 0), 0),
@@ -278,7 +280,6 @@ export default function Lessons() {
                     isWatching={item.isWatching}
                     expanded={expandedIds.has(item.id)}
                     onPress={() => openLesson(item)}
-                    onToggleExpand={() => toggleLessonExpanded(item.id)}
                   />
                 ))}
               </View>

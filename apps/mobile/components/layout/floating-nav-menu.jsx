@@ -9,7 +9,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useSegments, usePathname, useNavigation } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
@@ -215,6 +214,17 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
     return null;
   }
 
+  const renderCreateButton = () => (
+    <View style={[styles.fabShell, Platform.OS === "ios" && styles.fabShellIos]}>
+      {Platform.OS === "ios" ? null : <View style={styles.fabHalo} />}
+      <View style={[styles.fabRing, Platform.OS === "ios" && styles.fabRingIos]}>
+        <View style={styles.fab}>
+          <Ionicons name="add" size={sf(28)} color={T.white} />
+        </View>
+      </View>
+    </View>
+  );
+
   const renderTab = (item) => {
     const focused = activeTab === item.name;
     const label = t(item.labelKey);
@@ -240,25 +250,19 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
         {leftTabs.map(renderTab)}
 
         <Pressable
-          style={styles.fabTab}
+          style={[styles.fabTab, Platform.OS === "ios" && styles.fabTabIos]}
           onPress={onCenterPress}
+          hitSlop={Platform.OS === "ios" ? { top: sw(28), left: sw(8), right: sw(8) } : undefined}
           accessibilityRole="button"
           accessibilityLabel={t("nav.create")}
         >
-          <View style={styles.fabShell}>
-            <View style={styles.fabHalo} />
-            <View style={styles.fabRing}>
-              <LinearGradient
-                colors={[BRAND, "#163A66"]}
-                start={{ x: 0.15, y: 0 }}
-                end={{ x: 0.9, y: 1 }}
-                style={styles.fab}
-              >
-                <View style={styles.fabSheen} />
-                <Ionicons name="add" size={sf(28)} color={T.white} />
-              </LinearGradient>
+          {Platform.OS === "ios" ? (
+            <View style={styles.fabSlotIos} pointerEvents="none" collapsable={false}>
+              {renderCreateButton()}
             </View>
-          </View>
+          ) : (
+            renderCreateButton()
+          )}
           <Text style={styles.fabLabel}>{t("nav.create")}</Text>
         </Pressable>
 
@@ -275,7 +279,12 @@ const styles = StyleSheet.create({
     borderTopColor: T.border,
     ...(Platform.OS === "ios"
       ? {
-          ...rnShadow({ color: T.navy, offset: { width: 0, height: -3 }, opacity: 0.08, radius: 10 }),
+          width: "100%",
+          alignSelf: "stretch",
+          marginHorizontal: 0,
+          paddingHorizontal: 0,
+          borderRadius: 0,
+          overflow: "visible",
         }
       : { elevation: 8 }),
   },
@@ -314,15 +323,35 @@ const styles = StyleSheet.create({
     marginTop: -sw(10),
     paddingBottom: sw(2),
   },
+  fabTabIos: {
+    marginTop: 0,
+    backgroundColor: "transparent",
+    overflow: "visible",
+  },
+  fabSlotIos: {
+    height: ICON_SIZE,
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    backgroundColor: "transparent",
+    overflow: "visible",
+  },
   fabShell: {
     alignItems: "center",
     justifyContent: "center",
     ...Platform.select({
       ios: {
-        ...rnShadow({ color: BRAND, offset: { width: 0, height: 8 }, opacity: 0.32, radius: 16 }),
+        backgroundColor: "transparent",
       },
-      android: { elevation: 10 },
+      android: { elevation: 6 },
     }),
+  },
+  fabShellIos: {
+    position: "absolute",
+    bottom: 0,
+    transform: [{ translateY: sw(2) }],
+    backgroundColor: "transparent",
+    overflow: "visible",
   },
   fabHalo: {
     position: "absolute",
@@ -334,9 +363,14 @@ const styles = StyleSheet.create({
   fabRing: {
     padding: sw(3),
     borderRadius: sw(18),
-    backgroundColor: "#E8F0F7",
+    backgroundColor: "#E6F1F3",
     borderWidth: 2,
-    borderColor: T.white,
+    borderColor: "#B4CED6",
+  },
+  fabRingIos: {
+    backgroundColor: "transparent",
+    borderColor: "#B4CED6",
+    ...rnShadow({ color: "#163A66", offset: { width: 0, height: 5 }, opacity: 0.18, radius: 12 }),
   },
   fab: {
     width: sw(48),
@@ -345,14 +379,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-  },
-  fabSheen: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: "42%",
-    backgroundColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "#163A66",
   },
   fabLabel: {
     marginTop: sw(4),

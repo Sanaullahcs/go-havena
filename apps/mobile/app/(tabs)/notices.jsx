@@ -309,35 +309,35 @@ export default function Notifications() {
           return {
             title: t("notices.emptyTitleEvents", { defaultValue: "No events yet" }),
             hint: t("notices.emptyHintEvents", {
-              defaultValue: "Upcoming community events will show up here",
+              defaultValue: "Upcoming community events will appear here.",
             }),
           };
         case "alerts":
           return {
-            title: t("notices.emptyTitleAlerts", { defaultValue: "No alerts yet" }),
+            title: t("notices.emptyTitleAlerts", { defaultValue: "No alerts right now" }),
             hint: t("notices.emptyHintAlerts", {
-              defaultValue: "Urgent community alerts will show up here",
+              defaultValue: "Urgent community alerts will appear here.",
             }),
           };
         case "notices":
           return {
             title: t("notices.emptyTitleNotices", { defaultValue: "No notices yet" }),
             hint: t("notices.emptyHintNotices", {
-              defaultValue: "Community notices will show up here",
+              defaultValue: "Community notices will appear here.",
             }),
           };
         case "saved":
           return {
-            title: t("notices.emptyTitleSaved", { defaultValue: "No saved notices" }),
+            title: t("notices.emptyTitleSaved", { defaultValue: "Nothing saved yet" }),
             hint: t("notices.emptyHintSaved", {
-              defaultValue: "Notices you save will appear here",
+              defaultValue: "Notices you save will appear here.",
             }),
           };
         default:
           return {
-            title: t("notices.emptyTitleAll", { defaultValue: "No notices yet" }),
+            title: t("notices.emptyTitleAll", { defaultValue: "No updates yet" }),
             hint: t("notices.emptyHintDefault", {
-              defaultValue: "Check back soon for community updates",
+              defaultValue: "New notices, events, and alerts from your community will appear here.",
             }),
           };
       }
