@@ -9,6 +9,7 @@ use App\Support\WellnessCategoryCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class WellnessController extends Controller
 {
@@ -106,13 +107,15 @@ class WellnessController extends Controller
             ->where('c.status', 'published')
             ->whereNull('c.deleted_at')
             ->where('cat.status', 'active')
-            ->select([
+            ->select(array_values(array_filter([
                 'c.*',
                 'cat.key as category_key',
                 'cat.title as category_title',
                 'cat.color as category_color',
-                'cat.image_url as category_image_url',
-            ])
+                Schema::hasColumn('wellness_categories', 'image_url')
+                    ? 'cat.image_url as category_image_url'
+                    : null,
+            ])))
             ->first();
 
         if (! $course) {

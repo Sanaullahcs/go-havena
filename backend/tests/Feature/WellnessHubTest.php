@@ -89,6 +89,9 @@ class WellnessHubTest extends TestCase
         $course->assertOk();
         $lessonId = $course->json('data.lessons.0.id');
         $this->assertNotNull($lessonId);
+        $lessonUrl = (string) ($course->json('data.lessons.0.link_url')
+            ?: $course->json('data.lessons.0.video_url'));
+        $this->assertStringContainsString('youtube.com', $lessonUrl);
 
         $complete = $this->postJson("/api/v1/wellness/lessons/{$lessonId}/complete");
         $complete->assertOk();

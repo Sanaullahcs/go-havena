@@ -175,26 +175,49 @@ export default function TabLayout() {
     };
   }, [router]);
 
-  if (!accessChecked) {
+  const renderTabBar = (props) => {
+    if (!accessChecked) {
+      return (
+        <View style={styles.guardOverlay} pointerEvents="auto">
+          <ScreenStatusBar style="dark" />
+          <ActivityIndicator size="large" color="#14B8A6" />
+        </View>
+      );
+    }
+
+    const hideNav = props?.style?.display === "none";
+
     return (
       <>
         <ScreenStatusBar style="dark" />
-        <View style={styles.guard}>
-          <ActivityIndicator size="large" color="#14B8A6" />
-        </View>
+        {!hideNav ? (
+          <View
+            style={Platform.OS === "ios" ? styles.iosTabDock : undefined}
+            collapsable={false}
+          >
+            <FloatingNavMenu
+              onCreatePress={() => setShowCreateModal(true)}
+              isCommunityAdmin={communityAdminUser}
+            />
+          </View>
+        ) : null}
+        <CreateNewModal
+          visible={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onOpen={() => setShowCreateModal(true)}
+        />
       </>
     );
-  }
+  };
 
-  const navMenu = (
-    <FloatingNavMenu
-      onCreatePress={() => setShowCreateModal(true)}
-      isCommunityAdmin={communityAdminUser}
-    />
-  );
-
-  const tabScreens = (
-    <>
+  return (
+    <Tabs
+      tabBar={renderTabBar}
+      screenOptions={{
+        headerShown: false,
+        tabBarHideOnKeyboard: true,
+      }}
+    >
       <Tabs.Screen name="home" options={{ title: t("nav.home") }} />
       <Tabs.Screen name="community" options={{ title: t("nav.community") }} />
       <Tabs.Screen name="marketplace" options={{ href: null, title: t("nav.marketplace") }} />
@@ -203,65 +226,17 @@ export default function TabLayout() {
       <Tabs.Screen name="create-post" options={{ href: null }} />
       <Tabs.Screen name="wellness" options={{ href: null }} />
       <Tabs.Screen name="notices" options={{ href: null, title: t("nav.updates") }} />
-    </>
-  );
-
-  return (
-    <>
-      <ScreenStatusBar style="dark" />
-      {Platform.OS === "ios" ? (
-        <View style={styles.iosShell}>
-          <View style={styles.iosScene}>
-            <Tabs
-              tabBar={() => null}
-              screenOptions={{
-                headerShown: false,
-                tabBarHideOnKeyboard: true,
-              }}
-            >
-              {tabScreens}
-            </Tabs>
-          </View>
-          <View style={styles.iosTabDock} collapsable={false}>
-            {navMenu}
-          </View>
-        </View>
-      ) : (
-        <Tabs
-          tabBar={(props) => {
-            if (props.style?.display === "none") return null;
-            return navMenu;
-          }}
-          screenOptions={{
-            headerShown: false,
-            tabBarHideOnKeyboard: true,
-          }}
-        >
-          {tabScreens}
-        </Tabs>
-      )}
-      <CreateNewModal
-        visible={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onOpen={() => setShowCreateModal(true)}
-      />
-    </>
+    </Tabs>
   );
 }
 
 const styles = StyleSheet.create({
-  guard: {
-    flex: 1,
+  guardOverlay: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#fff",
-  },
-  iosShell: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  iosScene: {
-    flex: 1,
+    zIndex: 20,
   },
   iosTabDock: {
     width: "100%",
