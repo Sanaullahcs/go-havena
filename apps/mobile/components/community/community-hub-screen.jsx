@@ -38,7 +38,7 @@ export default function CommunityHubScreen() {
         layout="stacked"
         title={t("marketplace.title")}
         subtitle={t("marketplace.subtitle")}
-        showBack={false}
+        showBack
         iconOnly
         right={headerRight()}
       />
