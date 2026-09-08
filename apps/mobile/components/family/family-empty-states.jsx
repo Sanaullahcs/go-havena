@@ -151,6 +151,7 @@ export function FamilyRejectedState({
   request,
   onSignOut,
   onCreateFamily,
+  creating = false,
   rejectionReason,
 }) {
   const { t } = useTranslation();
@@ -187,9 +188,15 @@ export function FamilyRejectedState({
       actions={
         <View style={styles.pendingActions}>
           {onCreateFamily ? (
-            <Pressable style={styles.primaryBtn} onPress={onCreateFamily}>
-              <Feather name="plus-circle" size={sf(16)} color="#FFFFFF" />
-              <Text style={styles.primaryText}>{t("family.createMyFamily")}</Text>
+            <Pressable style={styles.primaryBtn} onPress={onCreateFamily} disabled={creating}>
+              {creating ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Feather name="plus-circle" size={sf(16)} color="#FFFFFF" />
+              )}
+              <Text style={styles.primaryText}>
+                {creating ? t("family.creatingFamily") : t("family.createMyFamily")}
+              </Text>
             </Pressable>
           ) : null}
           {onSignOut ? (

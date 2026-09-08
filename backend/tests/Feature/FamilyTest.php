@@ -101,6 +101,51 @@ class FamilyTest extends TestCase
         ]);
     }
 
+    public function test_community_admin_can_create_family_with_chosen_number(): void
+    {
+        [$community] = $this->seedCommunity();
+
+        $admin = User::factory()->create([
+            'role'                   => 'community_admin',
+            'community_admin_status' => 'approved',
+            'phone'                  => '+1201'.random_int(1000000, 9999999),
+            'phone_verified_at'      => now(),
+        ]);
+        CommunityMembership::query()->create([
+            'user_id'      => $admin->id,
+            'community_id' => $community->id,
+            'role'         => 'admin',
+            'status'       => 'approved',
+        ]);
+        \App\Models\Profile::query()->updateOrCreate(
+            ['user_id' => $admin->id],
+            [
+                'display_name'   => 'Admin Head',
+                'unit_number'    => 'HQ-1',
+                'residence_type' => 'homeowner',
+            ],
+        );
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/v1/families/ensure', [
+            'family_number' => 'FAM-ADMIN1',
+        ])->assertOk()->assertJsonPath('data', null);
+
+        $response = $this->postJson('/api/v1/families', [
+            'family_number' => 'FAM-ADMIN1',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.family_number', 'FAM-ADMIN1')
+            ->assertJsonPath('data.is_head', true);
+
+        $this->assertDatabaseHas('family_members', [
+            'user_id' => $admin->id,
+            'role'    => 'head',
+            'status'  => 'active',
+        ]);
+    }
+
     public function test_resident_can_request_join_by_family_number(): void
     {
         [$community] = $this->seedCommunity();

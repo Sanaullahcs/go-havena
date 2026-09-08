@@ -2365,6 +2365,7 @@
     "createFamilyHint": "Choose a unique family number or generate one. Share it with your household members so they can join.",
     "refreshCode": "Refresh code",
     "createFamilyAction": "Create Family",
+    "creatingFamily": "Creating family…",
     "joinExistingFamily": "Join Existing Family",
     "joinFamilyHint": "Enter the family number shared by your family head to send a join request.",
     "sendRequest": "Send Request",

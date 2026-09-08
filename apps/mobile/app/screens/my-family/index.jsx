@@ -22,6 +22,7 @@ import {
   blockFamilyMember,
   checkFamilyNumberAvailability,
   createFamily,
+  ensureMyFamily,
   fetchMyFamily,
   fetchSuggestedFamilyNumber,
   leaveFamily,
@@ -32,6 +33,7 @@ import {
   unsuspendFamilyMember,
 } from "../../../services/family-api";
 import { useApiAction } from "../../../hooks/use-api-action";
+import { getApiErrorMessage } from "../../../utils/auth-errors";
 import { formatDisplayDateTime } from "../../../utils/form-datetime";
 import { confirmSignOut } from "../../../services/sign-out";
 import { getCompleteProfileParams, Routes } from "../../../constants/onboarding-routes";
@@ -59,6 +61,8 @@ export default function MyFamilyScreen() {
   const [createNumberChecking, setCreateNumberChecking] = useState(false);
   const [createNumberLoading, setCreateNumberLoading] = useState(false);
   const [creatingFamily, setCreatingFamily] = useState(false);
+  const [createSubmitError, setCreateSubmitError] = useState(null);
+  const creatingFamilyRef = useRef(false);
   const createCheckSeq = useRef(0);
 
   const load = useCallback(async () => {
@@ -130,7 +134,7 @@ export default function MyFamilyScreen() {
   }, [createOpen, t]);
 
   useEffect(() => {
-    if (!createOpen) return undefined;
+    if (!createOpen || creatingFamily) return undefined;
 
     const trimmed = createNumber.trim();
     if (!trimmed) {
@@ -166,7 +170,7 @@ export default function MyFamilyScreen() {
     }, 450);
 
     return () => clearTimeout(timer);
-  }, [createNumber, createOpen, t]);
+  }, [createNumber, createOpen, creatingFamily, t]);
 
   const regenerateCreateNumber = async () => {
     setCreateNumberLoading(true);
@@ -183,31 +187,61 @@ export default function MyFamilyScreen() {
     }
   };
 
+  const resetCreateModal = () => {
+    creatingFamilyRef.current = false;
+    setCreatingFamily(false);
+    setCreateOpen(false);
+    setCreateNumber("");
+    setCreateNumberError(null);
+    setCreateSubmitError(null);
+    setCreateNumberChecking(false);
+    setCreateNumberLoading(false);
+    createCheckSeq.current += 1;
+  };
+
   const confirmCreate = async () => {
     const number = createNumber.trim();
     if (!number) {
-      await dialog.showError(t("family.familyNumberRequired"), t("family.enterOrGenerateNumber"));
+      setCreateSubmitError(t("family.enterOrGenerateNumber"));
       return;
     }
     if (createNumberError || createNumberChecking || createNumberLoading) {
       return;
     }
+    if (creatingFamilyRef.current) return;
 
+    creatingFamilyRef.current = true;
+    createCheckSeq.current += 1;
+    setCreateNumberChecking(false);
     setCreatingFamily(true);
+    setCreateSubmitError(null);
+
     try {
-      await createFamily(null, number);
+      const family = await createFamily(null, number);
+      if (!family?.family_number) {
+        throw new Error(t("family.couldNotCreateFamily"));
+      }
+
+      if (!creatingFamilyRef.current) {
+        load();
+        return;
+      }
+
+      creatingFamilyRef.current = false;
+      setCreatingFamily(false);
       setCreateOpen(false);
       setCreateNumber("");
       setCreateNumberError(null);
-      await showSuccess(
-        t("family.familyCreated"),
-        t("family.shareNumberHint"),
-      );
+      setCreateSubmitError(null);
       load();
+      setTimeout(() => {
+        showSuccess(t("family.familyCreated"), t("family.shareNumberHint"));
+      }, 350);
     } catch (err) {
-      await showFailure(t("family.couldNotCreateFamily"), err);
-    } finally {
+      if (!creatingFamilyRef.current) return;
+      creatingFamilyRef.current = false;
       setCreatingFamily(false);
+      setCreateSubmitError(getApiErrorMessage(err) || t("family.couldNotCreateFamily"));
     }
   };
 
@@ -415,15 +449,34 @@ export default function MyFamilyScreen() {
             request={payload?.rejected_request}
             onSignOut={() => confirmSignOut(dialog)}
             onCreateFamily={async () => {
-              const user = await getUser();
-              router.replace({
-                pathname: Routes.COMPLETE_PROFILE,
-                params: {
-                  ...(user ? getCompleteProfileParams(user, user?.role || "resident") : {}),
-                  familyMode: "create",
-                },
-              });
+              if (creatingFamily) return;
+              setCreatingFamily(true);
+              try {
+                const suggested = await fetchSuggestedFamilyNumber();
+                const family = await ensureMyFamily(suggested.family_number || undefined);
+                if (!family?.family_number) {
+                  const user = await getUser();
+                  router.replace({
+                    pathname: Routes.COMPLETE_PROFILE,
+                    params: {
+                      ...(user ? getCompleteProfileParams(user, user?.role || "resident") : {}),
+                      familyMode: "create",
+                    },
+                  });
+                  return;
+                }
+                await showSuccess(
+                  t("family.familyCreated"),
+                  t("family.shareNumberHint"),
+                );
+                await load();
+              } catch (err) {
+                await showFailure(t("family.couldNotCreateFamily"), err);
+              } finally {
+                setCreatingFamily(false);
+              }
             }}
+            creating={creatingFamily}
             t={t}
           />
         </ScrollView>
@@ -445,15 +498,14 @@ export default function MyFamilyScreen() {
         <CreateFamilyModal
           visible={createOpen}
           value={createNumber}
-          onChange={setCreateNumber}
-          onClose={() => {
-            setCreateOpen(false);
-            setCreateNumber("");
-            setCreateNumberError(null);
+          onChange={(text) => {
+            setCreateNumber(text);
+            setCreateSubmitError(null);
           }}
+          onClose={resetCreateModal}
           onSubmit={confirmCreate}
           onRegenerate={regenerateCreateNumber}
-          error={createNumberError}
+          error={createSubmitError || createNumberError}
           loading={createNumberLoading}
           checking={createNumberChecking}
           submitting={creatingFamily}
@@ -661,23 +713,30 @@ function CreateFamilyModal({
               </TouchableOpacity>
             </View>
             <View style={styles.modalInputWrap}>
-              <LocaleTextInput
-                value={value}
-                onChangeText={(text) => onChange(text.toUpperCase())}
-                placeholder="FAM-XXXXXX"
-                placeholderTextColor="#94A3B8"
-                autoCapitalize="characters"
-                style={styles.modalInput}
-                maxLength={30}
-                editable={!submitting}
-              />
+              <View style={styles.modalInputBox}>
+                <LocaleTextInput
+                  forceLtr
+                  value={value}
+                  onChangeText={(text) => onChange(text.toUpperCase())}
+                  placeholder="FAM-XXXXXX"
+                  placeholderTextColor="#94A3B8"
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  underlineColorAndroid="transparent"
+                  style={styles.modalInput}
+                  maxLength={30}
+                  editable={!submitting}
+                />
+              </View>
               {loading || checking ? (
-                <ActivityIndicator size="small" color="#1B4F8A" style={styles.modalInputSpinner} />
+                <View style={styles.modalInputSpinner} pointerEvents="none">
+                  <ActivityIndicator size="small" color="#1B4F8A" />
+                </View>
               ) : null}
             </View>
             {error ? <Text style={styles.modalError}>{error}</Text> : null}
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancel} onPress={onClose} disabled={submitting}>
+              <TouchableOpacity style={styles.modalCancel} onPress={onClose}>
                 <Text style={styles.modalCancelText}>{t("family.cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -707,15 +766,20 @@ function JoinModal({ visible, value, onChange, onClose, onSubmit, t }) {
           <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>{t("family.joinExistingFamily")}</Text>
             <Text style={styles.modalHint}>{t("family.joinFamilyHint")}</Text>
-            <LocaleTextInput
-              value={value}
-              onChangeText={onChange}
-              placeholder="FAM-XXXXXX"
-              placeholderTextColor="#94A3B8"
-              autoCapitalize="characters"
-              style={styles.modalInput}
-              maxLength={30}
-            />
+            <View style={styles.modalInputBox}>
+              <LocaleTextInput
+                forceLtr
+                value={value}
+                onChangeText={onChange}
+                placeholder="FAM-XXXXXX"
+                placeholderTextColor="#94A3B8"
+                autoCapitalize="characters"
+                autoCorrect={false}
+                underlineColorAndroid="transparent"
+                style={styles.modalInput}
+                maxLength={30}
+              />
+            </View>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalCancel} onPress={onClose}>
                 <Text style={styles.modalCancelText}>{t("family.cancel")}</Text>
@@ -935,17 +999,36 @@ const styles = StyleSheet.create({
     color: "#64748B",
     marginBottom: sw(12),
   },
-  modalInput: {
+  modalInputWrap: {
+    position: "relative",
+  },
+  modalInputBox: {
+    height: sw(48),
     borderWidth: 1,
     borderColor: "#E2E8F0",
     borderRadius: sw(12),
     paddingHorizontal: sw(14),
-    paddingVertical: sw(12),
+    paddingTop: 0,
+    paddingBottom: 0,
+    overflow: "hidden",
+    backgroundColor: "#FAFBFC",
+    justifyContent: "center",
+  },
+  modalInput: {
+    width: "100%",
+    height: "100%",
+    margin: 0,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
     fontFamily: Fonts.bold,
     fontSize: sf(16),
     letterSpacing: 1,
     color: "#0F172A",
-    backgroundColor: "#FAFBFC",
+    includeFontPadding: false,
+    textAlignVertical: "center",
+    backgroundColor: "transparent",
   },
   modalActions: {
     flexDirection: "row",
@@ -996,13 +1079,12 @@ const styles = StyleSheet.create({
     fontSize: sf(12),
     color: "#1B4F8A",
   },
-  modalInputWrap: {
-    position: "relative",
-  },
   modalInputSpinner: {
     position: "absolute",
-    end: sw(14),
-    top: sw(14),
+    end: sw(12),
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
   },
   modalError: {
     marginTop: sw(8),

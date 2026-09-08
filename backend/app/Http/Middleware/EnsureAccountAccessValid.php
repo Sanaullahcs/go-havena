@@ -79,6 +79,8 @@ class EnsureAccountAccessValid
                 || str_ends_with($path, 'v1/families/suggest-number')
                 || str_ends_with($path, 'v1/families/check-number')
                 || str_ends_with($path, 'v1/families/ensure')
+                || $path === 'api/v1/families'
+                || str_ends_with($path, 'v1/families')
                 || str_ends_with($path, 'v1/families/join')
             )
         ) {

@@ -2365,6 +2365,7 @@
     "createFamilyHint": "اختر رقم عائلة فريداً أو أنشئ واحداً. شاركه مع أفراد أسرتك للانضمام.",
     "refreshCode": "تحديث الرمز",
     "createFamilyAction": "إنشاء العائلة",
+    "creatingFamily": "جاري إنشاء العائلة…",
     "joinExistingFamily": "الانضمام لعائلة موجودة",
     "joinFamilyHint": "أدخل رقم العائلة الذي شاركه رب الأسرة لإرسال طلب انضمام.",
     "sendRequest": "إرسال طلب",

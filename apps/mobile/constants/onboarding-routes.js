@@ -33,6 +33,7 @@ export const Routes = {
   PENDING_COMMUNITY_ADMIN: "/screens/pending-community-admin",
   COMPLETE_BILLING: "/screens/complete-billing",
   PENDING_FAMILY: "/screens/pending-family",
+  MY_FAMILY: "/screens/my-family",
   TABS_HOME: "/(tabs)/home",
 };
 

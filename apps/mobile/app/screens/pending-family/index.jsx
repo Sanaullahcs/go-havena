@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -18,9 +18,14 @@ import { Fonts } from "../../../constants/font";
 import { Colors, SolidFills } from "../../../constants/tokens";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
 import { fetchMe } from "../../../services/auth-api";
-import { fetchMyFamily } from "../../../services/family-api";
+import {
+  ensureMyFamily,
+  fetchMyFamily,
+  fetchSuggestedFamilyNumber,
+} from "../../../services/family-api";
 import { confirmSignOut } from "../../../services/sign-out";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
+import { showApiFailure } from "../../../utils/auth-errors";
 import {
   canAccessDashboard,
   hasPendingMembershipApproval,
@@ -133,6 +138,8 @@ export default function PendingFamilyScreen() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [creatingFamily, setCreatingFamily] = useState(false);
+  const creatingFamilyRef = useRef(false);
   const [reviewState, setReviewState] = useState("pending");
   const [request, setRequest] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
@@ -178,6 +185,7 @@ export default function PendingFamilyScreen() {
 
   const refresh = useCallback(
     async (silent = false) => {
+      if (creatingFamilyRef.current) return;
       if (!silent) setLoading(true);
       else setRefreshing(true);
       try {
@@ -254,16 +262,51 @@ export default function PendingFamilyScreen() {
 
   const handleSignOut = () => confirmSignOut(dialog);
 
-  const handleCreateFamily = useCallback(() => {
-    const user = currentUser;
-    router.replace({
-      pathname: Routes.COMPLETE_PROFILE,
-      params: {
-        ...(user ? getCompleteProfileParams(user, user?.role || "resident") : {}),
-        familyMode: "create",
-      },
-    });
-  }, [currentUser, router]);
+  const handleCreateFamily = useCallback(async () => {
+    if (creatingFamilyRef.current) return;
+    creatingFamilyRef.current = true;
+    setCreatingFamily(true);
+    try {
+      const suggested = await fetchSuggestedFamilyNumber();
+      const number = suggested.family_number ?? "";
+      const family = await ensureMyFamily(number || undefined);
+      if (!family?.family_number) {
+        const user = currentUser ?? (await getUser());
+        router.replace({
+          pathname: Routes.COMPLETE_PROFILE,
+          params: {
+            ...(user ? getCompleteProfileParams(user, user?.role || "resident") : {}),
+            familyMode: "create",
+          },
+        });
+        return;
+      }
+
+      let user = currentUser;
+      try {
+        user = await fetchMe();
+        await persistSessionUser(user);
+      } catch {
+        user = user ?? (await getUser());
+      }
+
+      const familyPayload = await fetchMyFamily();
+      const withFamily = {
+        ...(user ?? {}),
+        family: {
+          state: familyPayload?.state ?? "member",
+          request: null,
+        },
+      };
+      await persistSessionUser(withFamily);
+      await routeFromFamilyState(familyPayload, withFamily);
+    } catch (err) {
+      await showApiFailure(dialog, t("family.couldNotCreateFamily"), err);
+    } finally {
+      creatingFamilyRef.current = false;
+      setCreatingFamily(false);
+    }
+  }, [currentUser, dialog, routeFromFamilyState, router, t]);
 
   const timelineSteps = useMemo(() => buildTimeline(reviewState, t), [reviewState, t]);
 
@@ -470,7 +513,9 @@ export default function PendingFamilyScreen() {
         {reviewState === "rejected" ? (
           <AuthSubmitButton
             label={t("family.createMyFamilyBtn")}
-            enabled
+            loadingLabel={t("family.creatingFamily")}
+            enabled={!creatingFamily}
+            loading={creatingFamily}
             variant="solid"
             style={styles.footerButton}
             onPress={handleCreateFamily}

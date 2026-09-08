@@ -17,22 +17,60 @@ export async function checkFamilyNumberAvailability(familyNumber) {
 }
 
 export async function ensureMyFamily(familyNumber) {
-  const res = await apiRequest("/families/ensure", {
-    method: "POST",
-    body: familyNumber ? { family_number: familyNumber } : {},
-  });
-  return res.data ?? null;
+  const body = familyNumber ? { family_number: familyNumber } : {};
+  if (__DEV__) {
+    console.log("[family] POST /families/ensure", body);
+  }
+  try {
+    const res = await apiRequest("/families/ensure", {
+      method: "POST",
+      body,
+    });
+    if (__DEV__) {
+      console.log("[family] ensure response", res);
+    }
+    return res?.data ?? res ?? null;
+  } catch (error) {
+    if (__DEV__) {
+      console.warn("[family] ensure failed", {
+        status: error?.status,
+        code: error?.code,
+        message: error?.message,
+        errors: error?.errors,
+      });
+    }
+    throw error;
+  }
 }
 
 export async function createFamily(name, familyNumber) {
-  const res = await apiRequest("/families", {
-    method: "POST",
-    body: {
-      ...(name ? { name } : {}),
-      ...(familyNumber ? { family_number: familyNumber } : {}),
-    },
-  });
-  return res.data;
+  const body = {
+    ...(name ? { name } : {}),
+    ...(familyNumber ? { family_number: familyNumber } : {}),
+  };
+  if (__DEV__) {
+    console.log("[family] POST /families", body);
+  }
+  try {
+    const res = await apiRequest("/families", {
+      method: "POST",
+      body,
+    });
+    if (__DEV__) {
+      console.log("[family] create response", res);
+    }
+    return res?.data ?? res;
+  } catch (error) {
+    if (__DEV__) {
+      console.warn("[family] create failed", {
+        status: error?.status,
+        code: error?.code,
+        message: error?.message,
+        errors: error?.errors,
+      });
+    }
+    throw error;
+  }
 }
 
 export async function requestJoinFamily(familyNumber, message) {

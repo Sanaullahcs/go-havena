@@ -103,26 +103,11 @@ class FamilyController extends Controller
             ? FamilyService::validateFamilyNumberFormat($data['family_number'])
             : null;
 
-        if ($familyNumber && ! FamilyService::isFamilyNumberAvailable($familyNumber)) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'family_number' => ['This family number is already taken. Choose another.'],
-            ]);
-        }
-
-        $existing = FamilyService::activeMembership($request->user(), $communityId);
-        if ($existing) {
-            $family = $existing->family;
-        } else {
-            $family = FamilyService::ensureDefaultFamilyForUser($request->user(), $familyNumber);
-            if (! $family) {
-                abort(422, 'Complete your profile before creating a family.');
-            }
-            $membership = FamilyService::activeMembership($request->user(), $communityId);
-            return response()->json([
-                'data'    => FamilyService::formatFamily($family, $membership),
-                'message' => 'Family created successfully.',
-            ], 201);
-        }
+        $family = FamilyService::createOwnedFamily(
+            $request->user(),
+            $familyNumber,
+            $data['name'] ?? null,
+        );
 
         $membership = FamilyService::activeMembership($request->user(), $communityId);
 

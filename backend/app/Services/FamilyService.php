@@ -253,6 +253,77 @@ class FamilyService
     }
 
     /**
+     * Explicit "Create My Family" — creates a household and makes the user the family head.
+     * Used by POST /families. Community admins may create a family in their community.
+     */
+    public static function createOwnedFamily(User $user, ?string $requestedFamilyNumber = null, ?string $name = null): Family
+    {
+        $user->loadMissing(['profile', 'memberships']);
+
+        if (($user->role ?? '') === 'guest') {
+            abort(403, 'Guests cannot create families.');
+        }
+
+        $communityId = self::resolveCommunityIdForProvision($user)
+            ?? self::resolveCommunityId($user);
+
+        if (! $communityId) {
+            throw ValidationException::withMessages([
+                'family' => ['Join a community before creating a family.'],
+            ]);
+        }
+
+        $existing = self::activeMembership($user, $communityId);
+        if ($existing) {
+            return $existing->family;
+        }
+
+        $hasSuspendedFamily = FamilyMember::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'suspended')
+            ->whereHas('family', fn ($q) => $q
+                ->where('community_id', $communityId)
+                ->where('status', 'active'))
+            ->exists();
+
+        if ($hasSuspendedFamily) {
+            abort(422, 'Your family access is suspended. Contact your community admin.');
+        }
+
+        $pendingJoin = FamilyJoinRequest::query()
+            ->where('requester_user_id', $user->id)
+            ->whereIn('status', [
+                FamilyJoinRequest::STATUS_PENDING,
+                FamilyJoinRequest::STATUS_AWAITING_ADMIN,
+            ])
+            ->whereHas('family', fn ($q) => $q->where('community_id', $communityId))
+            ->exists();
+
+        if ($pendingJoin) {
+            abort(422, 'You already have a pending family join request. Cancel it before creating your own family.');
+        }
+
+        if (\App\Models\FamilyBlock::query()
+            ->where('user_id', $user->id)
+            ->whereHas('family', fn ($q) => $q->where('community_id', $communityId))
+            ->exists()) {
+            abort(422, 'You cannot create a family while blocked from a family in this community.');
+        }
+
+        $familyNumber = null;
+        if ($requestedFamilyNumber !== null && trim($requestedFamilyNumber) !== '') {
+            $familyNumber = self::validateFamilyNumberFormat($requestedFamilyNumber);
+            if (! self::isFamilyNumberAvailable($familyNumber)) {
+                throw ValidationException::withMessages([
+                    'family_number' => ['This Family Number already exists.'],
+                ]);
+            }
+        }
+
+        return self::provisionFamily($communityId, $user, $name, $familyNumber);
+    }
+
+    /**
      * Create a default family with an auto-generated number when a resident completes onboarding.
      * Idempotent — skips if the user already belongs to a family or has a pending join request.
      */
