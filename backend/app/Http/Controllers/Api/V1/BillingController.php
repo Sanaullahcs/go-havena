@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Community;
 use App\Services\AdminRoleService;
 use App\Services\CommunityBillingService;
+use App\Services\RegionBillingPolicy;
 use App\Services\SubscriptionCouponService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -62,6 +63,14 @@ class BillingController extends Controller
             throw new BillingException(
                 'This community request was rejected. Contact support before purchasing a plan.',
                 'COMMUNITY_REJECTED',
+                422,
+            );
+        }
+
+        if (app(RegionBillingPolicy::class)->isBillingExempt($community->id)) {
+            throw new BillingException(
+                'Billing is not required for communities in this region.',
+                'BILLING_EXEMPT',
                 422,
             );
         }

@@ -907,12 +907,11 @@ export default function AdminWellnessPage() {
                 ) : null}
               </h3>
               <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-                <div className="relative min-w-[12rem] flex-1 sm:max-w-xs">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <div className="nl-search-field min-w-[12rem] flex-1 sm:max-w-xs">
+                  <Search className="nl-search-icon" />
                   <input
                     type="text"
                     className="nl-input w-full"
-                    style={{ paddingLeft: "2.25rem" }}
                     placeholder="Search courses…"
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}

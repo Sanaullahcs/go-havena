@@ -21,6 +21,8 @@ import {
   updateRegion,
   type Region,
 } from "@/lib/api/regions";
+import { RegionFilterBar, RegionGeographyFields } from "@/components/admin/region-geography-fields";
+import { fetchCountries, fetchStates, createState, type Country, type State } from "@/lib/api/geography";
 import { apiError } from "@/lib/api/client";
 import { PageError, PageLoader } from "@/components/shared/page-states";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -31,11 +33,13 @@ import { validateRegionForm } from "@/lib/admin/region-form-validation";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
 
 type StatusFilter = "all" | "active" | "inactive";
+type GeographyFilter = "all" | number;
 
 const emptyForm = {
+  country_id: "" as number | "",
+  state_id: "" as number | "",
   title: "",
   area: "",
-  state: "",
   users_label: "0 users",
   sort_order: 0,
   status: "active" as Region["status"],
@@ -52,6 +56,13 @@ export default function RegionsPage() {
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebouncedValue(searchInput, 450);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [countryFilter, setCountryFilter] = useState<GeographyFilter>("all");
+  const [stateFilter, setStateFilter] = useState<GeographyFilter>("all");
+  const [countries, setCountries] = useState<Country[]>([]);
+  const [states, setStates] = useState<State[]>([]);
+  const [formStates, setFormStates] = useState<State[]>([]);
+  const [newStateName, setNewStateName] = useState("");
+  const [creatingState, setCreatingState] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Region | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -73,6 +84,8 @@ export default function RegionsPage() {
       const params: Record<string, unknown> = { page, per_page: ADMIN_TABLE_PAGE_SIZE };
       if (debouncedSearch.trim()) params.q = debouncedSearch.trim();
       if (statusFilter !== "all") params.status = statusFilter;
+      if (countryFilter !== "all") params.country_id = countryFilter;
+      if (stateFilter !== "all") params.state_id = stateFilter;
       const res = await fetchRegions(params);
       setRegions(res.data);
       setTotal(res.meta.total);
@@ -84,7 +97,36 @@ export default function RegionsPage() {
       setInitialLoading(false);
       setRefreshing(false);
     }
-  }, [debouncedSearch, statusFilter, page]);
+  }, [debouncedSearch, statusFilter, countryFilter, stateFilter, page]);
+
+  useEffect(() => {
+    fetchCountries()
+      .then((res) => setCountries(res.data))
+      .catch(() => setCountries([]));
+  }, []);
+
+  useEffect(() => {
+    if (countryFilter === "all") {
+      setStates([]);
+      setStateFilter("all");
+      return;
+    }
+
+    fetchStates({ country_id: countryFilter, status: "active" })
+      .then((res) => setStates(res.data))
+      .catch(() => setStates([]));
+  }, [countryFilter]);
+
+  useEffect(() => {
+    if (!form.country_id) {
+      setFormStates([]);
+      return;
+    }
+
+    fetchStates({ country_id: Number(form.country_id), status: "active" })
+      .then((res) => setFormStates(res.data))
+      .catch(() => setFormStates([]));
+  }, [form.country_id]);
 
   useEffect(() => {
     load();
@@ -92,7 +134,7 @@ export default function RegionsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, statusFilter]);
+  }, [debouncedSearch, statusFilter, countryFilter, stateFilter]);
 
   const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
 
@@ -114,6 +156,7 @@ export default function RegionsPage() {
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm);
+    setNewStateName("");
     resetTouched();
     setModalOpen(true);
   };
@@ -121,15 +164,39 @@ export default function RegionsPage() {
   const openEdit = (region: Region) => {
     setEditing(region);
     setForm({
+      country_id: region.country_id ?? "",
+      state_id: region.state_id ?? "",
       title: region.title,
       area: region.area,
-      state: region.state ?? "",
       users_label: region.users_label,
       sort_order: region.sort_order,
       status: region.status,
     });
+    setNewStateName("");
     resetTouched();
     setModalOpen(true);
+  };
+
+  const handleCreateState = async () => {
+    const name = newStateName.trim();
+    if (!form.country_id || name.length < 2) return;
+
+    setCreatingState(true);
+    try {
+      const res = await createState({
+        country_id: Number(form.country_id),
+        name,
+      });
+      setFormStates((prev) => [...prev, res.data].sort((a, b) => a.name.localeCompare(b.name)));
+      setForm((prev) => ({ ...prev, state_id: res.data.id }));
+      setNewStateName("");
+      clearError("state_id");
+      toastSuccess("State / province added.");
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setCreatingState(false);
+    }
   };
 
   const handleSave = async () => {
@@ -140,7 +207,7 @@ export default function RegionsPage() {
       const payload = {
         title: form.title.trim(),
         area: form.area.trim(),
-        state: form.state.trim() || undefined,
+        state_id: Number(form.state_id),
         users_label: form.users_label.trim() || "0 users",
         sort_order: Number(form.sort_order) || 0,
         status: form.status,
@@ -154,7 +221,15 @@ export default function RegionsPage() {
         toastSuccess("Region created.");
       }
       setModalOpen(false);
-      await load(true);
+      const filtersActive =
+        countryFilter !== "all" || stateFilter !== "all" || searchInput.trim() !== "";
+      setSearchInput("");
+      setCountryFilter("all");
+      setStateFilter("all");
+      setPage(1);
+      if (!filtersActive) {
+        await load(true);
+      }
     } catch (err) {
       toastError(apiError(err));
     } finally {
@@ -192,7 +267,7 @@ export default function RegionsPage() {
           <p className="nl-eyebrow">System Admin</p>
           <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Regions</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Add and manage regions shown during mobile signup and community requests.
+            Manage regions by country and state. Pakistan regions do not require subscription or card.
           </p>
         </div>
         <button type="button" onClick={openCreate} className="nl-btn-primary">
@@ -233,20 +308,35 @@ export default function RegionsPage() {
           onSearch={setSearchInput}
           searching={isSearchPending}
           loading={adminTableBusy(refreshing, submitting)}
-          searchPlaceholder="Search title, area, state…"
+          searchPlaceholder="Search title, area, country…"
           filters={statusFilters}
           activeFilter={statusFilter}
           onFilter={setStatusFilter}
           isEmpty={regions.length === 0}
-          empty="No regions match your filters."
+          empty={
+            countryFilter !== "all" || stateFilter !== "all" || searchInput.trim()
+              ? "No regions match these country/state filters. Clear the filters to see all regions."
+              : "No regions yet. Click Add Region to create one."
+          }
+          toolbar={
+            <RegionFilterBar
+              countries={countries}
+              states={states}
+              countryFilter={countryFilter}
+              stateFilter={stateFilter}
+              onCountryFilterChange={setCountryFilter}
+              onStateFilterChange={setStateFilter}
+            />
+          }
         >
           <DtTable>
             <DtHead
               cols={[
                 { label: "Title" },
-                { label: "Area" },
+                { label: "Country" },
                 { label: "State" },
-                { label: "Users label" },
+                { label: "Area" },
+                { label: "Billing" },
                 { label: "Status" },
                 { label: "Order" },
                 { label: "", right: true },
@@ -257,13 +347,17 @@ export default function RegionsPage() {
                 <DtRow key={region.id} muted={region.status === "inactive"}>
                   <DtCell first>
                     <p className="font-semibold text-slate-900">{region.title}</p>
+                    <p className="text-xs text-slate-500">{region.users_label}</p>
+                  </DtCell>
+                  <DtCell nowrap>{region.country_name || "—"}</DtCell>
+                  <DtCell nowrap muted>
+                    {region.state_name || region.state || "—"}
                   </DtCell>
                   <DtCell>{region.area}</DtCell>
-                  <DtCell nowrap muted>
-                    {region.state || "—"}
-                  </DtCell>
-                  <DtCell nowrap muted>
-                    {region.users_label}
+                  <DtCell nowrap>
+                    <AdminBadge tone={region.billing_exempt ? "green" : "blue"}>
+                      {region.billing_exempt ? "Exempt" : "Required"}
+                    </AdminBadge>
                   </DtCell>
                   <DtCell nowrap>
                     <AdminBadge tone={region.status === "active" ? "green" : "slate"}>
@@ -296,9 +390,9 @@ export default function RegionsPage() {
       </div>
 
       {modalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="border-b border-slate-100 px-6 py-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/45 p-4 backdrop-blur-sm">
+          <div className="my-auto flex max-h-[min(92vh,880px)] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="shrink-0 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-5">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">
                 {editing ? "Edit region" : "New region"}
               </p>
@@ -306,75 +400,104 @@ export default function RegionsPage() {
                 {editing ? "Update Region" : "Add Region"}
               </h3>
               <p className="mt-1 text-sm text-slate-500">
-                Regions appear in the mobile app onboarding flow.
+                Pick the country and state, then enter the region details shown in the mobile app.
               </p>
             </div>
 
-            <div className="space-y-4 px-6 py-5">
-              <Field label="Title" required error={showError("title", liveErrors)}>
-                <input
-                  className={inputClass(showError("title", liveErrors), "nl-input w-full")}
-                  placeholder="Florida - Miami-Dade County"
-                  value={form.title}
-                  onChange={(e) => {
-                    clearError("title");
-                    setForm({ ...form, title: e.target.value });
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <div className="space-y-5">
+              <section className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Location
+                </p>
+                <RegionGeographyFields
+                  countries={countries}
+                  states={formStates}
+                  countryId={form.country_id}
+                  stateId={form.state_id}
+                  countryError={showError("country_id", liveErrors)}
+                  stateError={showError("state_id", liveErrors)}
+                  onCountryChange={(countryId) => {
+                    clearError("country_id");
+                    clearError("state_id");
+                    setForm((prev) => ({ ...prev, country_id: countryId, state_id: "" }));
+                    setNewStateName("");
                   }}
-                  onBlur={() => touch("title")}
-                />
-              </Field>
-              <Field label="Area" required error={showError("area", liveErrors)}>
-                <input
-                  className={inputClass(showError("area", liveErrors), "nl-input w-full")}
-                  placeholder="Miami-Dade County"
-                  value={form.area}
-                  onChange={(e) => {
-                    clearError("area");
-                    setForm({ ...form, area: e.target.value });
+                  onStateChange={(stateId) => {
+                    clearError("state_id");
+                    setForm((prev) => ({ ...prev, state_id: stateId }));
                   }}
-                  onBlur={() => touch("area")}
+                  onCountryBlur={() => touch("country_id")}
+                  onStateBlur={() => touch("state_id")}
+                  newStateName={newStateName}
+                  onNewStateNameChange={setNewStateName}
+                  onCreateState={handleCreateState}
+                  creatingState={creatingState}
                 />
-              </Field>
-              <Field label="State">
-                <input
-                  className="nl-input w-full"
-                  placeholder="Florida"
-                  value={form.state}
-                  onChange={(e) => setForm({ ...form, state: e.target.value })}
-                />
-              </Field>
-              <Field label="Users label">
-                <input
-                  className="nl-input w-full"
-                  placeholder="12,450 users"
-                  value={form.users_label}
-                  onChange={(e) => setForm({ ...form, users_label: e.target.value })}
-                />
-              </Field>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Sort order">
+              </section>
+
+              <section className="space-y-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Region details
+                </p>
+                <Field label="Title" required error={showError("title", liveErrors)}>
                   <input
-                    className="nl-input w-full"
-                    type="number"
-                    min={0}
-                    value={form.sort_order}
-                    onChange={(e) => setForm({ ...form, sort_order: Number(e.target.value) })}
+                    className={inputClass(showError("title", liveErrors), "nl-input w-full")}
+                    placeholder="Florida - Miami-Dade County"
+                    value={form.title}
+                    onChange={(e) => {
+                      clearError("title");
+                      setForm({ ...form, title: e.target.value });
+                    }}
+                    onBlur={() => touch("title")}
                   />
                 </Field>
-                <Field label="Status">
-                  <select
-                    className="nl-input nl-select w-full"
-                    value={form.status}
-                    onChange={(e) => setForm({ ...form, status: e.target.value as Region["status"] })}
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
+                <Field label="Area" required error={showError("area", liveErrors)}>
+                  <input
+                    className={inputClass(showError("area", liveErrors), "nl-input w-full")}
+                    placeholder="Lahore Division"
+                    value={form.area}
+                    onChange={(e) => {
+                      clearError("area");
+                      setForm({ ...form, area: e.target.value });
+                    }}
+                    onBlur={() => touch("area")}
+                  />
                 </Field>
-              </div>
+                <Field label="Users label">
+                  <input
+                    className="nl-input w-full"
+                    placeholder="12,450 users"
+                    value={form.users_label}
+                    onChange={(e) => setForm({ ...form, users_label: e.target.value })}
+                  />
+                </Field>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Sort order">
+                    <input
+                      className="nl-input w-full"
+                      type="number"
+                      min={0}
+                      value={form.sort_order}
+                      onChange={(e) => setForm({ ...form, sort_order: Number(e.target.value) })}
+                    />
+                  </Field>
+                  <Field label="Status">
+                    <select
+                      className="nl-input nl-select w-full"
+                      value={form.status}
+                      onChange={(e) => setForm({ ...form, status: e.target.value as Region["status"] })}
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </Field>
+                </div>
+              </section>
+            </div>
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4">
+            <div className="flex shrink-0 justify-end gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4">
               <button
                 type="button"
                 className="nl-btn-secondary"

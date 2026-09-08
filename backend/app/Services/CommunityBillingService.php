@@ -224,8 +224,28 @@ class CommunityBillingService
 
     public function seatSummary(int $communityId): array
     {
+        $billingExempt = app(RegionBillingPolicy::class)->isBillingExempt($communityId);
         $subscription = $this->getSubscription($communityId);
         $used = $this->seatsUsed($communityId);
+
+        if ($billingExempt) {
+            return [
+                'seats_used' => $used,
+                'seat_limit' => null,
+                'seats_available' => null,
+                'has_subscription' => false,
+                'subscription_status' => null,
+                'allows_allocation' => true,
+                'in_grace' => false,
+                'grace_ends_at' => null,
+                'plan_slug' => null,
+                'billing_interval' => null,
+                'current_period_end' => null,
+                'cancel_at_period_end' => false,
+                'billing_exempt' => true,
+            ];
+        }
+
         $limit = $subscription ? $this->seatLimitFor($subscription) : 0;
 
         return [
@@ -241,11 +261,16 @@ class CommunityBillingService
             'billing_interval' => $subscription?->billing_interval,
             'current_period_end' => $subscription?->current_period_end?->toIso8601String(),
             'cancel_at_period_end' => (bool) ($subscription?->cancel_at_period_end),
+            'billing_exempt' => false,
         ];
     }
 
     public function assertCanAllocateSeat(int $communityId, int $seatsNeeded = 1): void
     {
+        if (app(RegionBillingPolicy::class)->isBillingExempt($communityId)) {
+            return;
+        }
+
         if (! $this->enforce()) {
             return;
         }
@@ -363,6 +388,7 @@ class CommunityBillingService
             $community->id,
             $subscription,
         );
+        $billingExempt = app(RegionBillingPolicy::class)->isBillingExempt($community->id);
 
         return [
             'community' => [
@@ -415,12 +441,13 @@ class CommunityBillingService
                 'driver' => $this->driver(),
                 'stripe_configured' => $this->stripeConfigured(),
                 'publishable_key' => config('billing.stripe.publishable'),
+                'exempt' => $billingExempt,
             ],
             'setup' => [
                 'community_details_complete' => filled($community->name) && filled($community->address ?? $community->description),
                 'community_approved' => $community->review_status === null || $community->review_status === 'approved',
-                'subscription_active' => $summary['allows_allocation'],
-                'card_on_file' => $subscription?->hasCardOnFile() ?? false,
+                'subscription_active' => $billingExempt || $summary['allows_allocation'],
+                'card_on_file' => $billingExempt || ($subscription?->hasCardOnFile() ?? false),
                 'trial_pending_approval' => $subscription?->isPendingTrial() ?? false,
                 'admin_transition' => $subscription?->isAdminTransition() ?? false,
                 'has_leftover_service' => $subscription?->hasLeftoverService() ?? false,

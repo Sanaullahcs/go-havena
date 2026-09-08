@@ -5,6 +5,12 @@ export interface Region {
   title: string;
   area: string;
   state: string | null;
+  state_id: number | null;
+  state_name?: string | null;
+  country_id?: number | null;
+  country_code?: string | null;
+  country_name?: string | null;
+  billing_exempt?: boolean;
   users_label: string;
   sort_order: number;
   status: "active" | "inactive";

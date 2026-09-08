@@ -1,25 +1,32 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  OnboardingField,
-} from "@/components/admin/onboarding/onboarding-ui";
+import { FileText, Home, Upload, User } from "lucide-react";
+import { OnboardingField } from "@/components/admin/onboarding/onboarding-ui";
+import { AdminPhoneInput } from "@/components/admin/phone-input";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
+import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
 import {
-  communityAdminOnboardingPath,
-} from "@/lib/admin/community-admin-onboarding";
+  completeProfileOnboardingRole,
+  getCompleteProfileFieldVisibility,
+  isPlaceholderResidenceType,
+  isPlaceholderUnitNumber,
+} from "@/lib/admin/complete-profile-fields";
 import {
   COMPLETE_PROFILE_LIMITS,
   isPlaceholderDisplayName,
   isPlaceholderEmail,
   validateCompleteProfileForm,
+  type UtilityFileInput,
 } from "@/lib/admin/complete-profile-validation";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
 import {
   fetchMe,
   meToSessionUser,
   updateMe,
+  uploadUtilityBill,
+  type MeProfile,
 } from "@/lib/api/profile";
 import { apiError } from "@/lib/api/client";
 import { confirmAdminSignOutAndRedirect } from "@/lib/auth/sign-out";
@@ -31,12 +38,23 @@ import {
   setSession,
   updateUser,
 } from "@/lib/auth/session";
+import { emptyPhoneField, phoneFieldFromE164, type PhoneFieldState } from "@/lib/phone/format";
+
+function isPdfFile(file: File | string | null): boolean {
+  if (!file) return false;
+  if (typeof file === "string") {
+    return file.toLowerCase().split("?")[0].endsWith(".pdf");
+  }
+  return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+}
 
 function CompleteProfileInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const planHint = searchParams.get("plan");
   const intervalHint = searchParams.get("interval") === "year" ? "year" : "month";
+  const invited = searchParams.get("invited") === "1";
+  const communityRequest = searchParams.get("communityRequest") === "1";
   const planQuery = planHint
     ? `?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
     : "";
@@ -44,30 +62,78 @@ function CompleteProfileInner() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [profileUser, setProfileUser] = useState<MeProfile | null>(null);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState<PhoneFieldState>(emptyPhoneField);
   const [bio, setBio] = useState("");
   const [unitNumber, setUnitNumber] = useState("");
   const [residenceType, setResidenceType] = useState("");
+  const [utilityFile, setUtilityFile] = useState<File | null>(null);
+  const [existingUtilityBillUrl, setExistingUtilityBillUrl] = useState<string | null>(null);
   const [communityName, setCommunityName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { touch, clearError, showError, validateOnSubmit } = useTouchedFieldErrors();
+
+  const fields = useMemo(
+    () =>
+      getCompleteProfileFieldVisibility({
+        user: profileUser,
+        role: completeProfileOnboardingRole(profileUser),
+        invited,
+        communityRequest,
+      }),
+    [profileUser, invited, communityRequest],
+  );
+
+  const utilityInput: UtilityFileInput = utilityFile
+    ? { kind: "file", file: utilityFile }
+    : existingUtilityBillUrl
+      ? { kind: "existing", url: existingUtilityBillUrl }
+      : null;
+
+  const utilityPreviewUrl = useMemo(() => {
+    if (!utilityFile || isPdfFile(utilityFile)) return null;
+    return URL.createObjectURL(utilityFile);
+  }, [utilityFile]);
+
+  useEffect(() => {
+    return () => {
+      if (utilityPreviewUrl) URL.revokeObjectURL(utilityPreviewUrl);
+    };
+  }, [utilityPreviewUrl]);
 
   const liveErrors = useMemo(
     () =>
       validateCompleteProfileForm({
         name,
         email,
+        phoneDigits: phone.digits,
+        phoneCountry: phone.country,
         bio,
         unitNumber,
         residenceType,
-        utilityFile: null,
-        requireUtilityFile: false,
-        requireResidenceType: false,
-        guestMode: false,
+        utilityFile: utilityInput,
+        requireUtilityFile: fields.showUtilityBill && !existingUtilityBillUrl,
+        requireResidenceType: fields.showResidenceType,
+        guestMode: fields.isGuestProfile,
       }),
-    [name, email, bio, unitNumber, residenceType],
+    [
+      name,
+      email,
+      phone.digits,
+      phone.country,
+      bio,
+      unitNumber,
+      residenceType,
+      utilityFile,
+      existingUtilityBillUrl,
+      fields.showUtilityBill,
+      fields.showResidenceType,
+      fields.isGuestProfile,
+    ],
   );
 
   useEffect(() => {
@@ -94,9 +160,15 @@ function CompleteProfileInner() {
         const displayName = me.profile?.display_name ?? me.name ?? "";
         setName(isPlaceholderDisplayName(displayName) ? "" : displayName.trim());
         setEmail(isPlaceholderEmail(me.email) ? "" : (me.email ?? "").trim());
+        setPhone(me.phone ? phoneFieldFromE164(me.phone) : emptyPhoneField());
         setBio(me.profile?.bio?.trim() ?? "");
-        setUnitNumber(me.profile?.unit_number?.trim() ?? "");
-        setResidenceType(me.profile?.residence_type ?? "");
+        setUnitNumber(
+          isPlaceholderUnitNumber(me.profile?.unit_number) ? "" : (me.profile?.unit_number?.trim() ?? ""),
+        );
+        const rawResidence = me.profile?.residence_type ?? "";
+        setResidenceType(isPlaceholderResidenceType(rawResidence) ? "" : rawResidence);
+        setExistingUtilityBillUrl(me.profile?.utility_bill_url ?? null);
+        setProfileUser(me);
 
         const membership = me.memberships?.find((m) => m.role === "admin") ?? me.memberships?.[0];
         setCommunityName(membership?.community?.name ?? null);
@@ -116,13 +188,18 @@ function CompleteProfileInner() {
 
     setBusy(true);
     try {
+      if (fields.showUtilityBill && utilityFile) {
+        await uploadUtilityBill(utilityFile);
+      }
+
       const me = await updateMe({
         display_name: name.trim(),
         name: name.trim(),
         email: email.trim().toLowerCase(),
+        phone: phone.e164,
         bio: bio.trim(),
         unit_number: unitNumber.trim(),
-        ...(residenceType ? { residence_type: residenceType } : {}),
+        ...(fields.showResidenceType && residenceType ? { residence_type: residenceType } : {}),
       });
 
       const token = getToken();
@@ -147,8 +224,11 @@ function CompleteProfileInner() {
 
   const nameErr = showError("name", liveErrors);
   const emailErr = showError("email", liveErrors);
+  const phoneErr = showError("phone", liveErrors);
   const bioErr = showError("bio", liveErrors);
   const unitErr = showError("unitNumber", liveErrors);
+  const residenceErr = showError("residenceType", liveErrors);
+  const utilityErr = showError("utilityFile", liveErrors);
 
   return (
     <div className="w-full min-w-0">
@@ -245,6 +325,26 @@ function CompleteProfileInner() {
         </div>
 
         <OnboardingField
+          id="profile-phone"
+          label="Phone number"
+          required
+          hint="Your primary contact number for the community"
+        >
+          <AdminPhoneInput
+            id="profile-phone"
+            value={phone.e164}
+            required
+            showError={Boolean(phoneErr)}
+            onChange={(state) => {
+              setPhone(state);
+              clearError("phone");
+              setFormError(null);
+            }}
+            onBlur={() => touch("phone")}
+          />
+        </OnboardingField>
+
+        <OnboardingField
           id="profile-bio"
           label="Bio"
           error={bioErr}
@@ -275,7 +375,7 @@ function CompleteProfileInner() {
         <OnboardingField
           id="profile-unit"
           label="Unit number"
-          required
+          required={fields.unitRequired}
           error={unitErr}
           hint="Your unit or office identifier within the community"
         >
@@ -298,6 +398,156 @@ function CompleteProfileInner() {
             aria-invalid={Boolean(unitErr)}
           />
         </OnboardingField>
+
+        {fields.showResidenceType ? (
+          <div>
+            <p className="mb-1.5 text-sm font-semibold leading-tight text-slate-700">
+              I am a <span className="text-red-500">*</span>
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setResidenceType("homeowner");
+                  touch("residenceType");
+                  clearError("residenceType");
+                  setFormError(null);
+                }}
+                className={[
+                  "rounded-xl border p-4 text-left transition",
+                  residenceType === "homeowner"
+                    ? "border-teal-500 bg-teal-50"
+                    : "border-slate-200 bg-white hover:border-slate-300",
+                ].join(" ")}
+              >
+                <Home
+                  className={[
+                    "mb-2 h-6 w-6",
+                    residenceType === "homeowner" ? "text-slate-800" : "text-slate-400",
+                  ].join(" ")}
+                />
+                <p className="text-sm font-bold text-slate-800">Homeowner</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">I own this unit</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setResidenceType("tenant");
+                  touch("residenceType");
+                  clearError("residenceType");
+                  setFormError(null);
+                }}
+                className={[
+                  "rounded-xl border p-4 text-left transition",
+                  residenceType === "tenant"
+                    ? "border-teal-500 bg-teal-50"
+                    : "border-slate-200 bg-white hover:border-slate-300",
+                ].join(" ")}
+              >
+                <User
+                  className={[
+                    "mb-2 h-6 w-6",
+                    residenceType === "tenant" ? "text-slate-800" : "text-slate-400",
+                  ].join(" ")}
+                />
+                <p className="text-sm font-bold text-slate-800">Tenant</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">I rent this unit</p>
+              </button>
+            </div>
+            {residenceErr ? (
+              <p className="mt-1 text-[12px] font-medium text-red-600" role="alert">
+                {residenceErr}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {fields.showUtilityBill ? (
+          <OnboardingField
+            id="profile-utility"
+            label="Upload lease or utility bill"
+            required={!existingUtilityBillUrl}
+            error={utilityErr}
+            hint="Used to verify you live in this community. JPG, PNG, or PDF — 10 MB max."
+          >
+            <input
+              ref={fileInputRef}
+              id="profile-utility"
+              type="file"
+              accept=".jpg,.jpeg,.png,.pdf,.heic,.heif,image/jpeg,image/png,application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0] ?? null;
+                setUtilityFile(file);
+                touch("utilityFile");
+                clearError("utilityFile");
+                setFormError(null);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className={[
+                "flex min-h-[140px] w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-6 text-center transition",
+                utilityErr
+                  ? "border-red-300 bg-red-50/40"
+                  : utilityFile || existingUtilityBillUrl
+                    ? "border-teal-400 bg-teal-50/50"
+                    : "border-slate-300 bg-slate-50 hover:border-teal-400 hover:bg-teal-50/40",
+              ].join(" ")}
+            >
+              {utilityFile ? (
+                isPdfFile(utilityFile) ? (
+                  <>
+                    <FileText className="h-10 w-10 text-slate-700" />
+                    <p className="text-sm font-medium text-slate-700">{utilityFile.name}</p>
+                  </>
+                ) : (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {utilityPreviewUrl ? (
+                      <img
+                        src={utilityPreviewUrl}
+                        alt="Selected utility bill"
+                        className="max-h-44 w-full rounded-lg object-contain"
+                      />
+                    ) : null}
+                    <p className="text-xs text-slate-500">{utilityFile.name}</p>
+                  </>
+                )
+              ) : existingUtilityBillUrl ? (
+                isPdfFile(existingUtilityBillUrl) ? (
+                  <>
+                    <FileText className="h-10 w-10 text-slate-700" />
+                    <p className="text-sm font-medium text-slate-700">Uploaded document</p>
+                    <p className="text-xs text-teal-700">Tap to replace</p>
+                  </>
+                ) : (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={existingUtilityBillUrl}
+                      alt="Uploaded utility bill"
+                      className="max-h-44 w-full rounded-lg object-contain"
+                    />
+                    <p className="text-xs text-teal-700">Tap to replace</p>
+                  </>
+                )
+              ) : (
+                <>
+                  <Upload className="h-8 w-8 text-slate-400" />
+                  <p className="text-sm font-medium text-slate-600">Upload file</p>
+                  <p className="text-[11px] text-slate-500">
+                    JPG, PNG, or PDF — max 10 MB
+                  </p>
+                </>
+              )}
+            </button>
+            <p className="text-[11px] text-slate-500">
+              Verification may take a short time after you submit.
+            </p>
+          </OnboardingField>
+        ) : null}
 
         <div className="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
           <button

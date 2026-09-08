@@ -13,6 +13,7 @@ export type MeProfileMembership = {
   community_id: number;
   role: string;
   status: string;
+  invite_code_used?: string | null;
   community?: {
     id: number;
     name: string;

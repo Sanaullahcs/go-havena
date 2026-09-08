@@ -1,8 +1,15 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Building2, ChevronLeft, ChevronRight, Lock, MapPin, Plus, Search, X } from "lucide-react";
+import { Building2, ChevronLeft, ChevronRight, ListFilter, Lock, MapPin, Plus, Search, X } from "lucide-react";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import {
+  fetchPublicCountries,
+  fetchPublicCountryStates,
+  type Country,
+  type State,
+} from "@/lib/api/geography";
 import { OnboardingField } from "@/components/admin/onboarding/onboarding-ui";
 import {
   canAccessCommunityDashboard,
@@ -43,6 +50,8 @@ function SetupInner() {
   const [regionsLoaded, setRegionsLoaded] = useState(false);
   const [regionQuery, setRegionQuery] = useState("");
   const [debouncedRegionQuery, setDebouncedRegionQuery] = useState("");
+  const [countryFilter, setCountryFilter] = useState<Country | null>(null);
+  const [stateFilter, setStateFilter] = useState<State | null>(null);
   const [selectedRegion, setSelectedRegion] = useState<PublicRegion | null>(null);
 
   const [communities, setCommunities] = useState<PublicCommunity[]>([]);
@@ -101,7 +110,11 @@ function SetupInner() {
   useEffect(() => {
     let cancelled = false;
     setRegionsLoaded(false);
-    void fetchPublicRegions(debouncedRegionQuery ? { q: debouncedRegionQuery } : undefined)
+    void fetchPublicRegions({
+      ...(debouncedRegionQuery ? { q: debouncedRegionQuery } : {}),
+      ...(countryFilter?.id ? { country_id: countryFilter.id } : {}),
+      ...(stateFilter?.id ? { state_id: stateFilter.id } : {}),
+    })
       .then((rows) => {
         if (cancelled) return;
         setRegions(rows.filter((r) => !r.status || r.status === "active"));
@@ -115,7 +128,7 @@ function SetupInner() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedRegionQuery]);
+  }, [debouncedRegionQuery, countryFilter?.id, stateFilter?.id]);
 
   useEffect(() => {
     if (!selectedRegion) return;
@@ -217,7 +230,7 @@ function SetupInner() {
           </h1>
           <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-600 sm:text-[15px]">
             {view === "regions"
-              ? "Search or filter by state, then pick your region. Next you’ll see communities already listed there — or add a new one."
+              ? "Search or filter by country and state, then pick your region. Next you’ll see communities already listed there — or add a new one."
               : view === "communities"
                 ? `Communities in ${regionLabel}. Choose one without an admin, or request to add a new community.`
                 : `Tell us the community name and address for ${regionLabel}. We’ll submit it for review.`}
@@ -255,6 +268,12 @@ function SetupInner() {
               loading={!regionsLoaded}
               regions={regions}
               searching={regionQuery.trim() !== debouncedRegionQuery}
+              country={countryFilter}
+              state={stateFilter}
+              onApplyFilter={({ country, state }) => {
+                setCountryFilter(country);
+                setStateFilter(state);
+              }}
               onSelect={selectRegion}
             />
           ) : null}
@@ -410,17 +429,15 @@ function SearchField({
   );
 }
 
-function regionStateKey(region: PublicRegion): string {
-  const state = String(region.state || "").trim();
-  return state || "Other";
-}
-
 function RegionList({
   query,
   onQueryChange,
   loading,
   regions,
   searching,
+  country,
+  state,
+  onApplyFilter,
   onSelect,
 }: {
   query: string;
@@ -428,132 +445,184 @@ function RegionList({
   loading: boolean;
   regions: PublicRegion[];
   searching: boolean;
+  country: Country | null;
+  state: State | null;
+  onApplyFilter: (next: { country: Country | null; state: State | null }) => void;
   onSelect: (region: PublicRegion) => void;
 }) {
-  const [stateFilter, setStateFilter] = useState<string>("all");
-  const listRef = useRef<HTMLDivElement>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [draftCountryId, setDraftCountryId] = useState("");
+  const [draftStateId, setDraftStateId] = useState("");
+  const [countries, setCountries] = useState<Country[]>([]);
+  const [states, setStates] = useState<State[]>([]);
+  const [loadingCountries, setLoadingCountries] = useState(false);
+  const [loadingStates, setLoadingStates] = useState(false);
 
-  const stateOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const region of regions) {
-      const key = regionStateKey(region);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    return Array.from(counts.entries())
-      .sort(([a], [b]) => {
-        if (a === "Other") return 1;
-        if (b === "Other") return -1;
-        return a.localeCompare(b);
-      })
-      .map(([state, count]) => ({ state, count }));
-  }, [regions]);
+  const activeFilterCount = (country ? 1 : 0) + (state ? 1 : 0);
 
   useEffect(() => {
-    if (stateFilter === "all") return;
-    if (!stateOptions.some((option) => option.state === stateFilter)) {
-      setStateFilter("all");
-    }
-  }, [stateFilter, stateOptions]);
+    if (!filterOpen) return;
+    setDraftCountryId(country ? String(country.id) : "");
+    setDraftStateId(state ? String(state.id) : "");
+  }, [filterOpen, country, state]);
 
-  const grouped = useMemo(() => {
-    const filtered =
-      stateFilter === "all"
-        ? regions
-        : regions.filter((region) => regionStateKey(region) === stateFilter);
-
-    const byState = new Map<string, PublicRegion[]>();
-    for (const region of filtered) {
-      const key = regionStateKey(region);
-      const bucket = byState.get(key);
-      if (bucket) bucket.push(region);
-      else byState.set(key, [region]);
-    }
-
-    return Array.from(byState.entries())
-      .sort(([a], [b]) => {
-        if (a === "Other") return 1;
-        if (b === "Other") return -1;
-        return a.localeCompare(b);
+  useEffect(() => {
+    if (!filterOpen) return;
+    let cancelled = false;
+    setLoadingCountries(true);
+    void fetchPublicCountries()
+      .then((res) => {
+        if (!cancelled) setCountries(res.data ?? []);
       })
-      .map(([state, items]) => ({
-        state,
-        items: [...items].sort((a, b) => a.title.localeCompare(b.title)),
-      }));
-  }, [regions, stateFilter]);
+      .catch(() => {
+        if (!cancelled) setCountries([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingCountries(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [filterOpen]);
 
-  const visibleCount = grouped.reduce((sum, group) => sum + group.items.length, 0);
-  const showStateChips = stateOptions.length > 1;
+  useEffect(() => {
+    if (!filterOpen || !draftCountryId) {
+      setStates([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingStates(true);
+    void fetchPublicCountryStates(Number(draftCountryId))
+      .then((res) => {
+        if (!cancelled) setStates(res.data ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setStates([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingStates(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [filterOpen, draftCountryId]);
 
-  const jumpToState = (state: string) => {
-    setStateFilter(state);
-    listRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  const countryOptions = useMemo(
+    () => countries.map((item) => ({ value: String(item.id), label: item.name })),
+    [countries],
+  );
+  const stateOptions = useMemo(
+    () => states.map((item) => ({ value: String(item.id), label: item.name })),
+    [states],
+  );
+
+  const applyDraft = (nextCountryId: string, nextStateId: string) => {
+    const nextCountry =
+      countries.find((item) => String(item.id) === nextCountryId)
+      ?? (country && String(country.id) === nextCountryId ? country : null);
+    const nextState =
+      states.find((item) => String(item.id) === nextStateId)
+      ?? (state && String(state.id) === nextStateId ? state : null);
+    onApplyFilter({ country: nextCountry, state: nextState });
+    setFilterOpen(false);
   };
 
   return (
     <div className="flex min-h-0 flex-col">
       <div className="shrink-0 space-y-3">
-        <SearchField
-          value={query}
-          onChange={onQueryChange}
-          placeholder="Search by city, area, or state…"
-          searching={searching}
-        />
+        <div className="flex items-center gap-2.5">
+          <div className="min-w-0 flex-1">
+            <SearchField
+              value={query}
+              onChange={onQueryChange}
+              placeholder="Search regions…"
+              searching={searching}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setFilterOpen((open) => !open)}
+            aria-expanded={filterOpen}
+            aria-label="Filter regions"
+            className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border transition ${
+              activeFilterCount > 0 || filterOpen
+                ? "border-teal-400 bg-teal-50 text-teal-700"
+                : "border-slate-200 bg-white text-[#1B4F8A] hover:border-[#1B4F8A]/35"
+            }`}
+          >
+            <ListFilter className="h-5 w-5" aria-hidden />
+            {activeFilterCount > 0 ? (
+              <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-teal-500 px-1 text-[9px] font-bold text-white">
+                {activeFilterCount}
+              </span>
+            ) : null}
+          </button>
+        </div>
 
-        {!loading && regions.length > 0 ? (
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[12px] font-medium text-slate-500">
-              {visibleCount} {visibleCount === 1 ? "region" : "regions"}
-              {stateFilter !== "all" ? ` in ${stateFilter}` : ""}
-              {query.trim() ? " matched" : ""}
+        {filterOpen ? (
+          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
+            <p className="text-[12px] leading-relaxed text-slate-500">
+              Search by country and state. Leave empty to see all regions.
             </p>
-            {stateFilter !== "all" ? (
+            <SearchableSelect
+              value={draftCountryId}
+              onChange={(value) => {
+                setDraftCountryId(value);
+                setDraftStateId("");
+              }}
+              options={countryOptions}
+              placeholder={loadingCountries ? "Loading countries…" : "Select country"}
+              searchPlaceholder="Search countries…"
+              emptyMessage="No countries match your search."
+              searchable
+              disabled={loadingCountries}
+            />
+            <SearchableSelect
+              value={draftStateId}
+              onChange={setDraftStateId}
+              options={stateOptions}
+              placeholder={
+                !draftCountryId
+                  ? "Select a country first"
+                  : loadingStates
+                    ? "Loading states…"
+                    : "Select state"
+              }
+              searchPlaceholder="Search states…"
+              emptyMessage="No states match your search."
+              searchable
+              disabled={!draftCountryId || loadingStates}
+            />
+            <div className="flex items-center gap-2.5">
               <button
                 type="button"
-                onClick={() => jumpToState("all")}
-                className="text-[12px] font-semibold text-[#1B4F8A] hover:underline"
+                onClick={() => {
+                  setDraftCountryId("");
+                  setDraftStateId("");
+                  onApplyFilter({ country: null, state: null });
+                  setFilterOpen(false);
+                }}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3.5 text-[13px] font-semibold text-slate-700"
               >
-                Show all states
+                Clear
               </button>
-            ) : null}
+              <button
+                type="button"
+                onClick={() => applyDraft(draftCountryId, draftStateId)}
+                className="inline-flex h-10 flex-1 items-center justify-center rounded-xl bg-[#1B4F8A] px-4 text-[13px] font-semibold text-white"
+              >
+                Apply
+              </button>
+            </div>
           </div>
         ) : null}
 
-        {showStateChips && !loading ? (
-          <div
-            className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]"
-            role="tablist"
-            aria-label="Filter by state"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={stateFilter === "all"}
-              onClick={() => jumpToState("all")}
-              className={`shrink-0 rounded-full border px-3 py-1.5 text-[12px] font-semibold transition ${
-                stateFilter === "all"
-                  ? "border-[#1B4F8A] bg-[#1B4F8A] text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-[#1B4F8A]/35 hover:text-[#1B4F8A]"
-              }`}
-            >
-              All ({regions.length})
-            </button>
-            {stateOptions.map(({ state, count }) => (
-              <button
-                key={state}
-                type="button"
-                role="tab"
-                aria-selected={stateFilter === state}
-                onClick={() => jumpToState(state)}
-                className={`shrink-0 rounded-full border px-3 py-1.5 text-[12px] font-semibold transition ${
-                  stateFilter === state
-                    ? "border-[#1B4F8A] bg-[#1B4F8A] text-white"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-[#1B4F8A]/35 hover:text-[#1B4F8A]"
-                }`}
-              >
-                {state} ({count})
-              </button>
-            ))}
-          </div>
+        {!loading && regions.length > 0 ? (
+          <p className="text-[12px] font-medium text-slate-500">
+            {regions.length} {regions.length === 1 ? "region" : "regions"}
+            {country ? ` in ${state?.name ?? country.name}` : ""}
+            {query.trim() ? " matched" : ""}
+          </p>
         ) : null}
       </div>
 
@@ -561,62 +630,43 @@ function RegionList({
         <p className="mt-8 text-center text-sm text-slate-500">Loading regions…</p>
       ) : regions.length === 0 ? (
         <p className="mt-8 text-center text-sm text-slate-500">
-          {query ? "No regions match that search." : "No regions available yet."}
+          {query || country
+            ? "No regions match that search. Try a different country or state, or clear the filter."
+            : "No regions available yet."}
         </p>
       ) : (
         <div
-          ref={listRef}
-          className="mt-3 max-h-[min(28rem,55vh)] overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-slate-50/40 [scrollbar-width:thin]"
+          className="mt-3 max-h-[min(28rem,55vh)] overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-white [scrollbar-width:thin]"
           role="listbox"
           aria-label="Regions"
         >
-          {grouped.map((group) => (
-            <section key={group.state} aria-labelledby={`region-state-${group.state}`}>
-              {stateFilter === "all" && showStateChips ? (
-                <div
-                  id={`region-state-${group.state}`}
-                  className="sticky top-0 z-[1] border-b border-slate-200/80 bg-[#F8FAFC]/95 px-3 py-2 backdrop-blur-sm"
+          <ul className="divide-y divide-slate-100">
+            {regions.map((region) => (
+              <li key={region.id}>
+                <button
+                  type="button"
+                  role="option"
+                  onClick={() => onSelect(region)}
+                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-[#F4F8FC] focus:bg-[#F4F8FC] focus:outline-none"
                 >
-                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#1B4F8A]">
-                    {group.state}
-                    <span className="ml-2 font-semibold normal-case tracking-normal text-slate-400">
-                      {group.items.length}
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#E8F0F7] text-[#1B4F8A]">
+                    <MapPin className="h-3.5 w-3.5" aria-hidden />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-slate-900">
+                      {region.title}
                     </span>
-                  </p>
-                </div>
-              ) : null}
-              <ul className="divide-y divide-slate-100 bg-white">
-                {group.items.map((region) => {
-                  const subtitle = [region.area, region.state].filter(Boolean).join(" · ");
-                  return (
-                    <li key={region.id}>
-                      <button
-                        type="button"
-                        role="option"
-                        onClick={() => onSelect(region)}
-                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-[#F4F8FC] focus:bg-[#F4F8FC] focus:outline-none"
-                      >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#E8F0F7] text-[#1B4F8A]">
-                          <MapPin className="h-3.5 w-3.5" aria-hidden />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-semibold text-slate-900">
-                            {region.title}
-                          </span>
-                          {subtitle ? (
-                            <span className="mt-0.5 block truncate text-[12px] text-slate-500">
-                              {subtitle}
-                            </span>
-                          ) : null}
-                        </span>
-                        <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" aria-hidden />
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ))}
+                    {region.area ? (
+                      <span className="mt-0.5 block truncate text-[12px] text-slate-500">
+                        {region.area}
+                      </span>
+                    ) : null}
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

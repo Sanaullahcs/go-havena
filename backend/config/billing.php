@@ -13,6 +13,12 @@ return [
     |
     */
 
+    /** Countries where subscription/card is not required (ISO 3166-1 alpha-2). */
+    'exempt_country_codes' => array_filter(array_map(
+        'trim',
+        explode(',', (string) env('BILLING_EXEMPT_COUNTRY_CODES', 'PK')),
+    )),
+
     'enabled' => (bool) env('BILLING_ENABLED', true),
 
     /** When false, seat/subscription checks are skipped (emergency bypass). */

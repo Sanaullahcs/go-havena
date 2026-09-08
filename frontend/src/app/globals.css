@@ -541,6 +541,25 @@ body {
   transition: border-color 150ms, box-shadow 150ms;
 }
 .nl-input::placeholder { color: #94a3b8; }
+.nl-search-field {
+  position: relative;
+}
+.nl-search-field .nl-search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  z-index: 1;
+  height: 0.875rem;
+  width: 0.875rem;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  pointer-events: none;
+}
+.nl-search-field .nl-input,
+.nl-search-field input[type="text"],
+.nl-search-field input[type="search"] {
+  padding-left: 2.25rem;
+}
 .nl-input:focus {
   border-color: var(--brand-primary);
   box-shadow: 0 0 0 3px rgba(27, 79, 138, 0.12);

@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from "react";
-import { Modal, View, Text, FlatList, Pressable, StyleSheet, ActivityIndicator } from "react-native";
+import { Modal, View, Text, SectionList, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import LocaleTextInput from "./locale-text-input";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
+import { groupRegionsByGeography } from "../../services/regions-api";
 
 export default function RegionPicker({
   visible,
@@ -20,13 +21,32 @@ export default function RegionPicker({
     const q = query.trim().toLowerCase();
     if (!q) return regions;
     return regions.filter((region) => {
-      const haystack = [region.title, region.area, region.state]
+      const haystack = [
+        region.title,
+        region.area,
+        region.state,
+        region.stateName,
+        region.countryName,
+        region.countryCode,
+      ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
       return haystack.includes(q);
     });
   }, [query, regions]);
+
+  const sections = useMemo(() => {
+    return groupRegionsByGeography(filtered).flatMap((country) =>
+      country.states.map((state) => ({
+        key: `${country.countryCode || country.countryName}-${state.stateName}`,
+        title: state.stateName,
+        subtitle: country.countryName,
+        billingExempt: country.billingExempt,
+        data: state.regions,
+      })),
+    );
+  }, [filtered]);
 
   const handleClose = () => {
     setQuery("");
@@ -77,20 +97,30 @@ export default function RegionPicker({
               <Text style={styles.loadingText}>{t("region.loadingRegions")}</Text>
             </View>
           ) : (
-            <FlatList
-              data={filtered}
+            <SectionList
+              sections={sections}
               keyExtractor={(item) => String(item.id)}
               keyboardShouldPersistTaps="handled"
               style={styles.list}
+              stickySectionHeadersEnabled
               ListEmptyComponent={
                 <View style={styles.emptyWrap}>
                   <Ionicons name="map-outline" size={28} color="#C6CBD3" />
                   <Text style={styles.emptyText}>{t("region.noRegionsMatch")}</Text>
                 </View>
               }
+              renderSectionHeader={({ section }) => (
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionCountry}>{section.subtitle}</Text>
+                  <Text style={styles.sectionState}>{section.title}</Text>
+                  {section.billingExempt ? (
+                    <Text style={styles.sectionBadge}>{t("region.noBillingRequired", "No subscription required")}</Text>
+                  ) : null}
+                </View>
+              )}
               renderItem={({ item }) => {
                 const selected = item.id === selectedId;
-                const location = [item.area, item.state].filter(Boolean).join(" · ");
+                const location = [item.area, item.stateName || item.state].filter(Boolean).join(" · ");
                 return (
                   <Pressable
                     style={[styles.row, selected && styles.rowSelected]}
@@ -180,6 +210,30 @@ const styles = StyleSheet.create({
   },
   list: {
     marginTop: 4,
+  },
+  sectionHeader: {
+    paddingTop: 12,
+    paddingBottom: 6,
+    backgroundColor: "#FFFFFF",
+  },
+  sectionCountry: {
+    fontFamily: Fonts.semiBold,
+    fontSize: 12,
+    color: "#14B8A6",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  sectionState: {
+    marginTop: 2,
+    fontFamily: Fonts.bold,
+    fontSize: 14,
+    color: "#101828",
+  },
+  sectionBadge: {
+    marginTop: 4,
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: "#667085",
   },
   row: {
     flexDirection: "row",

@@ -145,18 +145,17 @@ export function SearchableSelect({
               >
                 {searchable ? (
                   <div className="border-b border-slate-100 p-2">
-                    <div className="relative">
-                      <Search
-                        className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400"
-                        aria-hidden
-                      />
+                    <div className="nl-search-field">
+                      <Search className="nl-search-icon" aria-hidden />
                       <input
                         ref={searchRef}
                         type="text"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder={searchPlaceholder}
-                        className="nl-input w-full py-2 pl-8 pr-3 text-sm"
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="nl-input w-full py-2 pr-3 text-sm"
                       />
                     </div>
                   </div>

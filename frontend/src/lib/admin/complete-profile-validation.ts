@@ -4,6 +4,7 @@
  */
 
 import { EMAIL_RE, type FieldErrors } from "@/lib/admin/form-validation-utils";
+import { getPhoneValidationError } from "@/lib/phone/format";
 
 export const COMPLETE_PROFILE_LIMITS = {
   profileName: 50,
@@ -67,6 +68,8 @@ export function validateUserEmail(email: string): string | null {
 export function validateCompleteProfileForm(input: {
   name: string;
   email: string;
+  phoneDigits?: string;
+  phoneCountry?: string;
   bio: string;
   unitNumber: string;
   residenceType: string;
@@ -79,6 +82,8 @@ export function validateCompleteProfileForm(input: {
   const {
     name,
     email,
+    phoneDigits,
+    phoneCountry,
     bio,
     unitNumber,
     residenceType,
@@ -96,6 +101,14 @@ export function validateCompleteProfileForm(input: {
 
   const emailErr = validateUserEmail(email);
   if (emailErr) errors.email = emailErr;
+
+  const digits = String(phoneDigits ?? "").trim();
+  if (!digits) {
+    errors.phone = "Phone number is required.";
+  } else {
+    const phoneErr = getPhoneValidationError(digits, phoneCountry);
+    if (phoneErr) errors.phone = phoneErr;
+  }
 
   const bioText = String(bio ?? "").trim();
   if (bioText.length > COMPLETE_PROFILE_LIMITS.profileBio) {

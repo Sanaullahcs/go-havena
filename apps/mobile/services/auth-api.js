@@ -457,9 +457,11 @@ export async function searchCommunities({ q, region, regionId, unassignedOnly } 
   return result.data;
 }
 
-export async function fetchRegions({ q } = {}) {
+export async function fetchRegions({ q, countryId, stateId } = {}) {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
+  if (countryId) params.set("country_id", String(countryId));
+  if (stateId) params.set("state_id", String(stateId));
   const qs = params.toString();
   const result = await apiRequest(`/regions${qs ? `?${qs}` : ""}`, {
     auth: false,

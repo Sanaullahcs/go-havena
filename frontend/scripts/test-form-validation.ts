@@ -17,6 +17,8 @@ import {
   validateWellnessLessonEdit,
 } from "../src/lib/admin/wellness-form-validation";
 import { hasFieldErrors } from "../src/lib/admin/form-validation-utils";
+import { getCompleteProfileFieldVisibility } from "../src/lib/admin/complete-profile-fields";
+import { validateCompleteProfileForm } from "../src/lib/admin/complete-profile-validation";
 
 let passed = 0;
 let failed = 0;
@@ -470,6 +472,142 @@ console.log("\nWellness form validation");
     keepExistingFile: true,
   });
   assertNoErrors(okLessonEdit, "accepts lesson edit keeping existing file");
+}
+
+console.log("\nComplete profile field visibility (mobile parity)");
+{
+  const systemCreatedAdmin = getCompleteProfileFieldVisibility({
+    user: {
+      role: "community_admin",
+      community_admin_status: "approved",
+      memberships: [{ role: "admin", status: "approved" }],
+    },
+    role: "admin",
+  });
+  assert(systemCreatedAdmin.showResidenceType, "system-created CA shows residence type");
+  assert(!systemCreatedAdmin.showUtilityBill, "system-created CA hides utility bill");
+  assert(!systemCreatedAdmin.showFamilyNumberField, "system-created CA hides family number");
+  assert(systemCreatedAdmin.unitRequired, "system-created CA requires unit");
+  assert(systemCreatedAdmin.skipUtilityBill, "system-created CA skips utility bill");
+
+  const selfServeAdmin = getCompleteProfileFieldVisibility({
+    user: {
+      role: "community_admin",
+      community_admin_status: "pending",
+      memberships: [{ role: "admin", status: "pending" }],
+    },
+    role: "admin",
+  });
+  assert(selfServeAdmin.showResidenceType, "self-serve CA shows residence type");
+  assert(selfServeAdmin.showUtilityBill, "self-serve CA shows utility bill");
+  assert(!selfServeAdmin.showFamilyNumberField, "self-serve CA hides family number");
+  assert(!selfServeAdmin.skipUtilityBill, "self-serve CA does not skip utility bill");
+
+  const invitedAdmin = getCompleteProfileFieldVisibility({
+    user: {
+      role: "community_admin",
+      community_admin_status: "pending",
+      memberships: [{ role: "admin", status: "pending", invite_code_used: "INVITE-1" }],
+    },
+    role: "admin",
+  });
+  assert(!invitedAdmin.showUtilityBill, "invited CA hides utility bill");
+  assert(invitedAdmin.showResidenceType, "invited CA still shows residence type");
+  assert(!invitedAdmin.showFamilyNumberField, "invited CA hides family number");
+
+  const invitedQuery = getCompleteProfileFieldVisibility({
+    user: {
+      role: "community_admin",
+      community_admin_status: "pending",
+    },
+    role: "admin",
+    invited: true,
+  });
+  assert(!invitedQuery.showUtilityBill, "invited=1 query hides utility bill");
+
+  const residentJoin = getCompleteProfileFieldVisibility({
+    user: { role: "resident", memberships: [{ role: "resident", status: "pending" }] },
+    role: "resident",
+  });
+  assert(residentJoin.showFamilyNumberField, "resident join shows family number");
+  assert(residentJoin.showResidenceType, "resident join shows residence type");
+  assert(residentJoin.showUtilityBill, "resident join shows utility bill");
+
+  const approvedResident = getCompleteProfileFieldVisibility({
+    user: { role: "resident", memberships: [{ role: "resident", status: "approved" }] },
+    role: "resident",
+  });
+  assert(!approvedResident.showUtilityBill, "admin-created resident hides utility bill");
+  assert(approvedResident.showFamilyNumberField, "admin-created resident still shows family");
+
+  const guest = getCompleteProfileFieldVisibility({
+    user: { role: "guest", memberships: [{ role: "guest", status: "approved" }] },
+    role: "guest",
+  });
+  assert(!guest.showFamilyNumberField, "guest hides family number");
+  assert(!guest.showResidenceType, "guest hides residence type");
+  assert(!guest.showUtilityBill, "guest hides utility bill");
+  assert(!guest.unitRequired, "guest unit is optional");
+}
+
+console.log("\nComplete profile form validation");
+{
+  const missingPhone = validateCompleteProfileForm({
+    name: "Jane Doe",
+    email: "jane@example.com",
+    phoneDigits: "",
+    phoneCountry: "US",
+    bio: "",
+    unitNumber: "101",
+    residenceType: "homeowner",
+    utilityFile: null,
+    requireUtilityFile: false,
+    requireResidenceType: true,
+  });
+  assertHasError(missingPhone, "phone", "requires phone");
+
+  const systemCreatedOk = validateCompleteProfileForm({
+    name: "Jane Doe",
+    email: "jane@example.com",
+    phoneDigits: "4155552671",
+    phoneCountry: "US",
+    bio: "",
+    unitNumber: "Admin Office",
+    residenceType: "homeowner",
+    utilityFile: null,
+    requireUtilityFile: false,
+    requireResidenceType: true,
+  });
+  assertNoErrors(systemCreatedOk, "accepts system-created CA without utility bill");
+
+  const selfServeNeedsBill = validateCompleteProfileForm({
+    name: "Jane Doe",
+    email: "jane@example.com",
+    phoneDigits: "4155552671",
+    phoneCountry: "US",
+    bio: "",
+    unitNumber: "101",
+    residenceType: "homeowner",
+    utilityFile: null,
+    requireUtilityFile: true,
+    requireResidenceType: true,
+  });
+  assertHasError(selfServeNeedsBill, "utilityFile", "self-serve CA requires utility bill");
+
+  const guestOk = validateCompleteProfileForm({
+    name: "Guest User",
+    email: "guest@example.com",
+    phoneDigits: "4155552671",
+    phoneCountry: "US",
+    bio: "",
+    unitNumber: "",
+    residenceType: "",
+    utilityFile: null,
+    requireUtilityFile: false,
+    requireResidenceType: false,
+    guestMode: true,
+  });
+  assertNoErrors(guestOk, "guest can skip unit, residence, and utility bill");
 }
 
 console.log(`\nResults: ${passed} passed, ${failed} failed\n`);

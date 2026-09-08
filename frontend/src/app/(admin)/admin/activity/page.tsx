@@ -193,8 +193,8 @@ export default function ActivityLogsPage() {
         </div>
 
         <div className="mb-5 flex flex-wrap items-center gap-2 rounded-2xl border p-3" style={{ borderColor: NL.borderCard, background: NL.surfaceMuted }}>
-          <div className="relative min-w-[200px] flex-1">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+          <div className="nl-search-field min-w-[200px] flex-1">
+            <span className="nl-search-icon">
               <IcoSearch />
             </span>
             <input
@@ -205,7 +205,7 @@ export default function ActivityLogsPage() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              className="nl-input h-10 rounded-xl pl-9 text-[13px]"
+              className="nl-input h-10 rounded-xl text-[13px]"
             />
           </div>
 

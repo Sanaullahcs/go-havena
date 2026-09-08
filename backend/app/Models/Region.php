@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -13,6 +14,7 @@ class Region extends Model
         'title',
         'area',
         'state',
+        'state_id',
         'users_label',
         'sort_order',
         'status',
@@ -23,6 +25,11 @@ class Region extends Model
         return [
             'sort_order' => 'integer',
         ];
+    }
+
+    public function stateRecord(): BelongsTo
+    {
+        return $this->belongsTo(State::class, 'state_id');
     }
 
     public function profiles(): HasMany

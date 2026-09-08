@@ -231,7 +231,11 @@ export type PublicCommunity = {
   has_admin: boolean;
 };
 
-export async function fetchPublicRegions(params?: { q?: string }) {
+export async function fetchPublicRegions(params?: {
+  q?: string;
+  country_id?: number;
+  state_id?: number;
+}) {
   const res = await api.get("/v1/regions", { params });
   const payload = res.data;
   const rows = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];

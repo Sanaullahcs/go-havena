@@ -13,6 +13,7 @@ import { ionChevronForward, arrowForward } from "../../../utils/rtl";
 import { fetchRegionsOnly } from "../../../services/regions-api";
 import { getApiErrorMessage } from "../../../utils/auth-errors";
 import BackButton from "../../../components/ui/back-button";
+import RegionFilterSheet from "../../../components/ui/region-filter-sheet";
 import { confirmLeaveOnboarding } from "../../../services/sign-out";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
@@ -33,12 +34,16 @@ export default function RegionScreen() {
 
   const [searchText, setSearchText] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [countryFilter, setCountryFilter] = useState(null);
+  const [stateFilter, setStateFilter] = useState(null);
   const [regions, setRegions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [selectingId, setSelectingId] = useState(null);
   const hasLoadedOnce = useRef(false);
+  const activeFilterCount = (countryFilter ? 1 : 0) + (stateFilter ? 1 : 0);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchText.trim()), SEARCH_DEBOUNCE_MS);
@@ -55,9 +60,11 @@ export default function RegionScreen() {
       setError(null);
 
       try {
-        const list = await fetchRegionsOnly(
-          debouncedSearch ? { q: debouncedSearch } : {},
-        );
+        const list = await fetchRegionsOnly({
+          ...(debouncedSearch ? { q: debouncedSearch } : {}),
+          ...(countryFilter?.id ? { countryId: countryFilter.id } : {}),
+          ...(stateFilter?.id ? { stateId: stateFilter.id } : {}),
+        });
         setRegions(list);
       } catch (err) {
         setError(getApiErrorMessage(err));
@@ -68,8 +75,14 @@ export default function RegionScreen() {
         setRefreshing(false);
       }
     },
-    [debouncedSearch],
+    [debouncedSearch, countryFilter?.id, stateFilter?.id],
   );
+
+  const handleApplyFilter = ({ country, state }) => {
+    setCountryFilter(country);
+    setStateFilter(state);
+    setFilterOpen(false);
+  };
 
   useEffect(() => {
     loadRegions();
@@ -116,28 +129,48 @@ export default function RegionScreen() {
             : t("region.residentRegionHint")}
         </Text>
 
-        <View style={styles.searchWrap}>
-          <Ionicons name="search-outline" size={18} color={T.gray} />
-          <LocaleTextInput
-            value={searchText}
-            onChangeText={setSearchText}
-            placeholder={t("region.searchRegions")}
-            placeholderTextColor={T.gray}
-            style={styles.searchInput}
-            returnKeyType="search"
-            autoCorrect={false}
-          />
-          {isSearchPending || refreshing ? (
-            <ActivityIndicator size="small" color={T.teal} />
-          ) : searchText.length > 0 ? (
-            <TouchableOpacity
-              onPress={() => setSearchText("")}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              accessibilityLabel={t("region.clearSearch")}
-            >
-              <Ionicons name="close-circle" size={18} color={T.gray} />
-            </TouchableOpacity>
-          ) : null}
+        <View style={styles.searchRow}>
+          <View style={styles.searchWrap}>
+            <Ionicons name="search-outline" size={18} color={T.gray} />
+            <LocaleTextInput
+              value={searchText}
+              onChangeText={setSearchText}
+              placeholder={t("region.searchRegions")}
+              placeholderTextColor={T.gray}
+              style={styles.searchInput}
+              returnKeyType="search"
+              autoCorrect={false}
+            />
+            {isSearchPending || refreshing ? (
+              <ActivityIndicator size="small" color={T.teal} />
+            ) : searchText.length > 0 ? (
+              <TouchableOpacity
+                onPress={() => setSearchText("")}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel={t("region.clearSearch")}
+              >
+                <Ionicons name="close-circle" size={18} color={T.gray} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          <TouchableOpacity
+            style={[styles.filterBtn, activeFilterCount > 0 && styles.filterBtnActive]}
+            onPress={() => setFilterOpen(true)}
+            activeOpacity={0.85}
+            accessibilityLabel={t("region.openFilter")}
+          >
+            <Ionicons
+              name="options-outline"
+              size={20}
+              color={activeFilterCount > 0 ? T.teal : T.navy}
+            />
+            {activeFilterCount > 0 ? (
+              <View style={styles.filterBadge}>
+                <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -179,9 +212,11 @@ export default function RegionScreen() {
               <Text style={styles.stateText}>
                 {debouncedSearch
                   ? t("region.tryDifferentSearch")
-                  : activeRole === "admin"
-                    ? t("region.noRegionsAdmin")
-                    : t("region.noRegionsResident")}
+                  : activeFilterCount > 0
+                    ? t("region.tryDifferentFilter")
+                    : activeRole === "admin"
+                      ? t("region.noRegionsAdmin")
+                      : t("region.noRegionsResident")}
               </Text>
             </View>
           ) : (
@@ -202,9 +237,9 @@ export default function RegionScreen() {
 
                   <View style={styles.cardTextWrap}>
                     <Text style={styles.cardTitle}>{region.title}</Text>
-                    <Text style={styles.cardArea}>
-                      {[region.area, region.state].filter(Boolean).join(" · ")}
-                    </Text>
+                    {region.area ? (
+                      <Text style={styles.cardArea}>{region.area}</Text>
+                    ) : null}
                     {region.users ? (
                       <Text style={styles.cardUsers}>{region.users}</Text>
                     ) : null}
@@ -223,6 +258,14 @@ export default function RegionScreen() {
           )}
         </ScrollView>
       )}
+
+      <RegionFilterSheet
+        visible={filterOpen}
+        country={countryFilter}
+        state={stateFilter}
+        onApply={handleApplyFilter}
+        onClose={() => setFilterOpen(false)}
+      />
 
       <View style={[styles.bottomSection, { paddingBottom: insets.bottom }]}>
         {activeRole === "admin" ? (
@@ -290,8 +333,14 @@ const styles = StyleSheet.create({
     color: T.gray,
     maxWidth: 320,
   },
-  searchWrap: {
+  searchRow: {
     marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  searchWrap: {
+    flex: 1,
     borderRadius: 16,
     backgroundColor: T.white,
     borderWidth: 1,
@@ -301,6 +350,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     gap: 12,
     height: 52,
+  },
+  filterBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: T.white,
+    borderWidth: 1,
+    borderColor: T.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterBtnActive: {
+    borderColor: T.teal,
+    backgroundColor: T.mint,
+  },
+  filterBadge: {
+    position: "absolute",
+    top: 8,
+    end: 8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    backgroundColor: T.teal,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterBadgeText: {
+    fontFamily: Fonts.bold,
+    fontSize: 9,
+    lineHeight: 12,
+    color: T.white,
+    fontWeight: "700",
   },
   searchInput: {
     flex: 1,

@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\AmenityController;
 use App\Http\Controllers\Api\V1\WellnessController;
 use App\Http\Controllers\Api\V1\AdminWellnessController;
+use App\Http\Controllers\Api\V1\GeographyController;
 use App\Http\Controllers\Api\V1\RegionController;
 use App\Http\Controllers\Api\V1\AdminCommunityController;
 use App\Http\Controllers\Api\V1\AdminCommunityAdminController;
@@ -71,6 +72,8 @@ Route::prefix('v1')->group(function () {
 
     /* ── Public ── */
     Route::get('/communities/search', [CommunityController::class, 'search']);
+    Route::get('/countries', [GeographyController::class, 'countries']);
+    Route::get('/countries/{countryId}/states', [GeographyController::class, 'states'])->whereNumber('countryId');
     Route::get('/regions', [RegionController::class, 'index']);
     Route::post('/contact', [ContactController::class, 'store']);
 
@@ -389,6 +392,9 @@ Route::prefix('v1')->group(function () {
                 Route::post('/regions', [RegionController::class, 'store']);
                 Route::put('/regions/{id}', [RegionController::class, 'update']);
                 Route::delete('/regions/{id}', [RegionController::class, 'destroy']);
+                Route::get('/countries', [GeographyController::class, 'adminCountries']);
+                Route::get('/states', [GeographyController::class, 'adminStates']);
+                Route::post('/states', [GeographyController::class, 'storeState']);
 
                 Route::get('/reports',                       [ReportController::class, 'index']);
                 Route::patch('/reports/{id}/resolve',        [ReportController::class, 'resolve']);

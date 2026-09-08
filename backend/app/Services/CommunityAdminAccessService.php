@@ -16,8 +16,10 @@ use App\Models\User;
  */
 class CommunityAdminAccessService
 {
-    public function __construct(private readonly CommunityBillingService $billing)
-    {
+    public function __construct(
+        private readonly CommunityBillingService $billing,
+        private readonly RegionBillingPolicy $regionBilling,
+    ) {
     }
 
     public function managedCommunityId(User $user): ?int
@@ -43,6 +45,10 @@ class CommunityAdminAccessService
     {
         if (! $communityId) {
             return false;
+        }
+
+        if ($this->regionBilling->isBillingExempt($communityId)) {
+            return true;
         }
 
         if (! $this->billing->enforce()) {
@@ -162,6 +168,7 @@ class CommunityAdminAccessService
      *   trial_ends_at: ?string,
      *   next_step: string,
      *   billing_url: string,
+     *   billing_exempt: bool,
      *   blocking_reasons: string[]
      * }
      */
@@ -195,6 +202,7 @@ class CommunityAdminAccessService
             }
         }
 
+        $billingExempt = $this->regionBilling->isBillingExempt($communityId);
         $billingComplete = $this->isBillingComplete($communityId);
         $profileComplete = $this->isProfileComplete($user);
         $hasCommunity = $communityId !== null;
@@ -246,6 +254,7 @@ class CommunityAdminAccessService
         return [
             'platform_approved' => $platformApproved,
             'billing_complete' => $billingComplete,
+            'billing_exempt' => $billingExempt,
             'can_use_dashboard' => $canUse,
             'can_use_mobile_app' => $canUse,
             'has_linked_community' => $hasCommunity,
