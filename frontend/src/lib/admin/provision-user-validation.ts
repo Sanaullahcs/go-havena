@@ -7,11 +7,15 @@ import {
   validateOptionalName,
 } from "@/lib/admin/form-validation-utils";
 
+export type CommunityAssignmentMode = "" | "existing" | "new";
+
 export type ProvisionAdminForm = {
   name: string;
   email: string;
   phone: string;
   region_id: number | "";
+  community_mode: CommunityAssignmentMode;
+  community_id: number | "";
   community_name: string;
   community_address: string;
   community_description: string;
@@ -58,27 +62,35 @@ export function validateCommunityAdminForm(
   const regionError = validateRegion(form.region_id);
   if (regionError) errors.region_id = regionError;
 
-  const communityName = form.community_name.trim();
-  if (!communityName) {
-    errors.community_name = "Community name is required.";
-  } else if (communityName.length < 2) {
-    errors.community_name = "Community name must be at least 2 characters.";
-  } else if (communityName.length > 255) {
-    errors.community_name = "Community name must be 255 characters or less.";
-  }
+  if (form.community_mode === "existing") {
+    if (!form.community_id) {
+      errors.community_id = "Select an available community.";
+    }
+  } else if (form.community_mode === "new") {
+    const communityName = form.community_name.trim();
+    if (!communityName) {
+      errors.community_name = "Community name is required.";
+    } else if (communityName.length < 2) {
+      errors.community_name = "Community name must be at least 2 characters.";
+    } else if (communityName.length > 255) {
+      errors.community_name = "Community name must be 255 characters or less.";
+    }
 
-  const address = form.community_address.trim();
-  if (!address) {
-    errors.community_address = "Community address is required.";
-  } else if (address.length < 5) {
-    errors.community_address = "Address must be at least 5 characters.";
-  } else if (address.length > 500) {
-    errors.community_address = "Address must be 500 characters or less.";
-  }
+    const address = form.community_address.trim();
+    if (!address) {
+      errors.community_address = "Community address is required.";
+    } else if (address.length < 5) {
+      errors.community_address = "Address must be at least 5 characters.";
+    } else if (address.length > 500) {
+      errors.community_address = "Address must be 500 characters or less.";
+    }
 
-  const description = form.community_description.trim();
-  if (description.length > 1000) {
-    errors.community_description = "Description must be 1000 characters or less.";
+    const description = form.community_description.trim();
+    if (description.length > 1000) {
+      errors.community_description = "Description must be 1000 characters or less.";
+    }
+  } else {
+    errors.community_id = "Select a community or add a new one.";
   }
 
   return errors;

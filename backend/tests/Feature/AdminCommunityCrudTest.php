@@ -170,6 +170,7 @@ class AdminCommunityCrudTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.0.id', $community->id)
-            ->assertJsonPath('data.0.residents_count', 1);
+            ->assertJsonPath('data.0.residents_count', 1)
+            ->assertJsonPath('data.0.has_admin', false);
     }
 }

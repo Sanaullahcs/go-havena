@@ -17,6 +17,10 @@ type AnchoredPopoverOptions = {
   align?: "left" | "right";
   gap?: number;
   zIndex?: number;
+  constrainToViewport?: boolean;
+  constrainToBoundary?: boolean;
+  preferBelow?: boolean;
+  maxHeight?: number;
 };
 
 export type AnchoredPopoverResult = {
@@ -72,13 +76,29 @@ export function useAnchoredPopover(
         0;
       const menuHeight = measuredHeight > 0 ? measuredHeight : 160;
 
-      const spaceBelow = window.innerHeight - rect.bottom - viewportPadding;
-      const spaceAbove = rect.top - viewportPadding;
-      const openBelow = spaceBelow >= menuHeight || spaceBelow >= spaceAbove;
+      const boundary = options?.constrainToBoundary
+        ? anchor.closest("[data-popover-boundary]")?.getBoundingClientRect()
+        : null;
+      const bottomLimit = (boundary?.bottom ?? window.innerHeight) - viewportPadding;
+      const topLimit = (boundary?.top ?? 0) + viewportPadding;
+      const spaceBelow = bottomLimit - rect.bottom;
+      const spaceAbove = rect.top - topLimit;
+      const preferredMax = options?.maxHeight ?? 256;
+      const minMenu = Math.min(140, preferredMax);
+      const openBelow = options?.preferBelow
+        ? spaceBelow >= Math.min(120, preferredMax) || spaceBelow >= spaceAbove
+        : spaceBelow >= Math.min(menuHeight, preferredMax) || spaceBelow >= spaceAbove;
+
+      const available = Math.max(minMenu, (openBelow ? spaceBelow : spaceAbove) - gap);
+      const maxHeight = options?.constrainToViewport
+        ? Math.min(preferredMax, available)
+        : options?.maxHeight;
+
+      const usedHeight = maxHeight ? Math.min(menuHeight || preferredMax, maxHeight) : menuHeight;
 
       const top = openBelow
         ? rect.bottom + gap
-        : Math.max(viewportPadding, rect.top - menuHeight - gap);
+        : Math.max(viewportPadding, rect.top - usedHeight - gap);
 
       const placement: PopoverPlacement = openBelow
         ? alignEnd
@@ -106,6 +126,7 @@ export function useAnchoredPopover(
           left,
           width,
           zIndex,
+          maxHeight,
           opacity: 1,
           pointerEvents: "auto",
           visibility: "visible",
@@ -143,6 +164,10 @@ export function useAnchoredPopover(
     options?.align,
     options?.gap,
     options?.zIndex,
+    options?.constrainToViewport,
+    options?.constrainToBoundary,
+    options?.preferBelow,
+    options?.maxHeight,
   ]);
 
   return result;

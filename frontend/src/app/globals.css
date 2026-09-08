@@ -1144,6 +1144,8 @@ body {
   z-index: 1;
   display: flex;
   width: 100%;
+  min-width: 0;
+  overflow: hidden;
   align-items: center;
   gap: 0.625rem;
   min-height: 2.75rem;
@@ -1186,6 +1188,9 @@ body {
 .nl-picker-text {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.8125rem;
   font-weight: 500;
   line-height: 1.25;

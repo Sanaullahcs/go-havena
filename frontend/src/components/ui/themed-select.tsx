@@ -31,7 +31,12 @@ export function ThemedSelect({
   const popoverRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const { style: popoverStyle } = useAnchoredPopover(open, triggerRef, { popoverRef });
+  const { style: popoverStyle } = useAnchoredPopover(open, triggerRef, {
+    popoverRef,
+    align: "left",
+    constrainToViewport: true,
+    maxHeight: 256,
+  });
   const selected = options.find((opt) => opt.value === value);
 
   useEffect(() => {
@@ -58,13 +63,14 @@ export function ThemedSelect({
   }, [open]);
 
   return (
-    <div className="nl-notice-field" ref={wrapRef}>
+    <div className="nl-notice-field min-w-0 w-full" ref={wrapRef}>
       {label ? <label className="nl-notice-label">{label}</label> : null}
-      <div className="nl-picker-wrap">
+      <div className="nl-picker-wrap min-w-0 w-full">
         <button
           ref={triggerRef}
           type="button"
           data-field={fieldKey}
+          title={selected?.label}
           aria-expanded={open}
           aria-haspopup="listbox"
           onClick={() => setOpen((v) => !v)}
@@ -98,7 +104,7 @@ export function ThemedSelect({
                       }}
                       className={["nl-select-option", active ? "nl-select-option-selected" : ""].join(" ")}
                     >
-                      <span>{opt.label}</span>
+                      <span className="min-w-0 whitespace-normal break-words text-left">{opt.label}</span>
                       {active ? <Check size={14} strokeWidth={2.5} aria-hidden /> : null}
                     </button>
                   );

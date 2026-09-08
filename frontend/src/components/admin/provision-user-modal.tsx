@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { UserPlus, Users, X } from "lucide-react";
 import { AdminPhoneInput } from "@/components/admin/phone-input";
+import { CommunityAssignmentPicker } from "@/components/admin/community-assignment-picker";
 import { ThemedSelect } from "@/components/ui/themed-select";
-import { fetchAdminCommunitiesList, type AdminCommunityOption } from "@/lib/api/communities";
+import { fetchAdminCommunitiesList, type AdminCommunity } from "@/lib/api/communities";
 import { apiError } from "@/lib/api/client";
 import { fetchRegions, type Region } from "@/lib/api/regions";
 import { emptyPhoneField, type PhoneFieldState } from "@/lib/phone/format";
@@ -27,6 +28,8 @@ const emptyAdminForm = {
   email: "",
   phone: "",
   region_id: "" as number | "",
+  community_mode: "" as "" | "existing" | "new",
+  community_id: "" as number | "",
   community_name: "",
   community_address: "",
   community_description: "",
@@ -55,7 +58,7 @@ export function ProvisionUserModal({
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [regions, setRegions] = useState<Region[]>([]);
-  const [communities, setCommunities] = useState<AdminCommunityOption[]>([]);
+  const [communities, setCommunities] = useState<AdminCommunity[]>([]);
   const [loadingRegions, setLoadingRegions] = useState(true);
   const [loadingCommunities, setLoadingCommunities] = useState(false);
   const [adminForm, setAdminForm] = useState(emptyAdminForm);
@@ -81,10 +84,13 @@ export function ProvisionUserModal({
     try {
       const res = await fetchAdminCommunitiesList({
         region_id: regionId,
+        status: "active",
         per_page: 100,
         page: 1,
       });
-      setCommunities(res.data);
+      setCommunities(
+        [...res.data].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
+      );
     } catch {
       setCommunities([]);
     } finally {
@@ -93,15 +99,17 @@ export function ProvisionUserModal({
   }, []);
 
   useEffect(() => {
-    if (!open || type !== "resident") return;
-    const regionId = residentForm.region_id;
+    if (!open) return;
+    const regionId = type === "resident" ? residentForm.region_id : adminForm.region_id;
     if (!regionId) {
       setCommunities([]);
-      setResidentForm((prev) => ({ ...prev, community_id: "" }));
+      if (type === "resident") {
+        setResidentForm((prev) => ({ ...prev, community_id: "" }));
+      }
       return;
     }
     loadCommunities(Number(regionId));
-  }, [open, type, residentForm.region_id, loadCommunities]);
+  }, [open, type, residentForm.region_id, adminForm.region_id, loadCommunities]);
 
   useEffect(() => {
     if (!open) {
@@ -159,16 +167,27 @@ export function ProvisionUserModal({
     setSubmitting(true);
     try {
       if (type === "community_admin") {
-        const res = await provisionAdminUser({
-          type: "community_admin",
-          name: adminForm.name.trim() || undefined,
-          email: adminForm.email.trim(),
-          phone: adminPhone.e164,
-          region_id: Number(adminForm.region_id),
-          community_name: adminForm.community_name.trim(),
-          community_address: adminForm.community_address.trim(),
-          community_description: adminForm.community_description.trim() || undefined,
-        });
+        const res = await provisionAdminUser(
+          adminForm.community_mode === "existing"
+            ? {
+                type: "community_admin",
+                name: adminForm.name.trim() || undefined,
+                email: adminForm.email.trim(),
+                phone: adminPhone.e164,
+                region_id: Number(adminForm.region_id),
+                community_id: Number(adminForm.community_id),
+              }
+            : {
+                type: "community_admin",
+                name: adminForm.name.trim() || undefined,
+                email: adminForm.email.trim(),
+                phone: adminPhone.e164,
+                region_id: Number(adminForm.region_id),
+                community_name: adminForm.community_name.trim(),
+                community_address: adminForm.community_address.trim(),
+                community_description: adminForm.community_description.trim() || undefined,
+              },
+        );
         toastSuccess(res.message);
         onCreated?.(res.data);
         onClose();
@@ -221,7 +240,7 @@ export function ProvisionUserModal({
   const title = type === "community_admin" ? "Create Community Admin" : "Create Resident";
   const subtitle =
     type === "community_admin"
-      ? "Provision a new community admin with their own community."
+      ? "Assign this admin to an available community, or create a new one in the selected region."
       : "Add a resident to an existing community with phone and email.";
 
   const nameValue = type === "community_admin" ? adminForm.name : residentForm.name;
@@ -238,7 +257,10 @@ export function ProvisionUserModal({
         onClick={onClose}
         aria-label="Close dialog"
       />
-      <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-modal-in">
+      <div
+        data-popover-boundary
+        className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-modal-in"
+      >
         <div className="flex shrink-0 items-start gap-4 border-b border-slate-100 px-6 py-5">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-sm shadow-blue-500/25">
             <HeaderIcon className="h-5 w-5" strokeWidth={2} aria-hidden />
@@ -344,30 +366,97 @@ export function ProvisionUserModal({
                 }}
               />
             </Field>
-            <Field label="Region" required error={showError("region_id") ? errors.region_id : undefined}>
-              <ThemedSelect
-                fieldKey="region_id"
-                value={regionValue ? String(regionValue) : ""}
-                placeholder={loadingRegions ? "Loading regions…" : "Select region"}
-                error={showError("region_id") ? errors.region_id : undefined}
-                options={regionOptions}
-                onChange={(value) => {
-                  clearFieldError("region_id");
-                  const next = value ? Number(value) : "";
-                  if (type === "community_admin") {
-                    setAdminForm((f) => ({ ...f, region_id: next }));
-                  } else {
+            {type === "community_admin" ? (
+              <div className="col-span-full grid grid-cols-2 items-start gap-4 [&>label]:min-w-0 [&>label]:w-full [&>label]:overflow-hidden [&>label>span:first-child]:flex [&>label>span:first-child]:h-5 [&>label>span:first-child]:items-center [&_.nl-notice-field]:min-w-0 [&_.nl-notice-field]:w-full [&_.nl-picker-wrap]:min-w-0 [&_.nl-picker-wrap]:w-full [&_.nl-picker-trigger]:box-border [&_.nl-picker-trigger]:h-[47px] [&_.nl-picker-trigger]:min-h-[47px]">
+                <Field label="Region" required error={showError("region_id") ? errors.region_id : undefined}>
+                  <ThemedSelect
+                    fieldKey="region_id"
+                    value={regionValue ? String(regionValue) : ""}
+                    placeholder={loadingRegions ? "Loading regions…" : "Select region"}
+                    error={showError("region_id") ? errors.region_id : undefined}
+                    options={regionOptions}
+                    onChange={(value) => {
+                      clearFieldError("region_id");
+                      const next = value ? Number(value) : "";
+                      setAdminForm((f) => ({
+                        ...f,
+                        region_id: next,
+                        community_mode: "",
+                        community_id: "",
+                        community_name: "",
+                        community_address: "",
+                        community_description: "",
+                      }));
+                      clearFieldError("community_id");
+                      clearFieldError("community_name");
+                      clearFieldError("community_address");
+                      clearFieldError("community_description");
+                    }}
+                  />
+                </Field>
+                <Field
+                  label="Community"
+                  required
+                  hint={!adminForm.region_id ? "Select a region first" : undefined}
+                  error={showError("community_id") ? errors.community_id : undefined}
+                >
+                  <CommunityAssignmentPicker
+                    regionSelected={Boolean(adminForm.region_id)}
+                    loading={loadingCommunities}
+                    communities={communities}
+                    selectedCommunityId={adminForm.community_id}
+                    addingNew={adminForm.community_mode === "new"}
+                    error={showError("community_id") ? errors.community_id : undefined}
+                    autoOpenToken={adminForm.region_id}
+                    onSelectExisting={(community) => {
+                      clearFieldError("community_id");
+                      clearFieldError("community_name");
+                      clearFieldError("community_address");
+                      setAdminForm((f) => ({
+                        ...f,
+                        community_mode: "existing",
+                        community_id: community.id,
+                        community_name: "",
+                        community_address: "",
+                        community_description: "",
+                      }));
+                    }}
+                    onAddNew={() => {
+                      clearFieldError("community_id");
+                      setAdminForm((f) => ({
+                        ...f,
+                        community_mode: "new",
+                        community_id: "",
+                      }));
+                    }}
+                  />
+                </Field>
+              </div>
+            ) : (
+              <Field label="Region" required error={showError("region_id") ? errors.region_id : undefined}>
+                <ThemedSelect
+                  fieldKey="region_id"
+                  value={regionValue ? String(regionValue) : ""}
+                  placeholder={loadingRegions ? "Loading regions…" : "Select region"}
+                  error={showError("region_id") ? errors.region_id : undefined}
+                  options={regionOptions}
+                  onChange={(value) => {
+                    clearFieldError("region_id");
+                    const next = value ? Number(value) : "";
                     setResidentForm((f) => ({ ...f, region_id: next, community_id: "" }));
                     clearFieldError("community_id");
-                  }
-                }}
-              />
-            </Field>
+                  }}
+                />
+              </Field>
+            )}
           </div>
 
-          {type === "community_admin" ? (
+          {type === "community_admin" && adminForm.community_mode === "new" ? (
             <div className="mt-4 space-y-4 border-t border-slate-100 pt-4">
               <p className="text-sm font-medium text-slate-800">New community for this admin</p>
+              <p className="text-[12px] text-slate-500">
+                This community will be created in the selected region and assigned to this admin.
+              </p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field
                   label="Community name"
@@ -441,7 +530,7 @@ export function ProvisionUserModal({
                 </Field>
               </div>
             </div>
-          ) : (
+          ) : type === "resident" ? (
             <div className="mt-4 space-y-4 border-t border-slate-100 pt-4">
               <Field
                 label="Community"
@@ -473,7 +562,7 @@ export function ProvisionUserModal({
                 />
               </Field>
             </div>
-          )}
+          ) : null}
 
         </form>
 

@@ -44,6 +44,7 @@ export interface AdminCommunityOption {
   region: string | null;
   region_id: number | null;
   region_title: string | null;
+  has_admin?: boolean;
 }
 
 export interface AdminCommunity extends AdminCommunityOption {
@@ -64,6 +65,13 @@ export interface AdminCommunity extends AdminCommunityOption {
   residents_count?: number;
   created_at: string | null;
   reviewed_at: string | null;
+}
+
+export function communityHasAssignedAdmin(
+  community: Pick<AdminCommunity, "has_admin" | "admin_user">,
+): boolean {
+  if (typeof community.has_admin === "boolean") return community.has_admin;
+  return Boolean(community.admin_user);
 }
 
 export interface AdminCommunityStats {

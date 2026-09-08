@@ -679,6 +679,8 @@ class AdminCommunityController extends Controller
                 'email' => $requester->email,
                 'phone' => $requester->phone,
             ] : null,
+            'has_admin'      => $lifecycle->hasCommunityAdminAssigned($community)
+                || $lifecycle->hasPendingCommunityAdminApplicant($community),
             'admin_user'     => $admin ? [
                 'id'                => $admin->id,
                 'name'              => $admin->name,

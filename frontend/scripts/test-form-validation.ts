@@ -343,6 +343,8 @@ console.log("\nProvision user validation");
       email: "bad",
       phone: "",
       region_id: "",
+      community_mode: "new",
+      community_id: "",
       community_name: "",
       community_address: "",
       community_description: "",
@@ -354,6 +356,38 @@ console.log("\nProvision user validation");
   assertHasError(invalidAdmin, "region_id", "admin region");
   assertHasError(invalidAdmin, "community_name", "admin community name");
   assertHasError(invalidAdmin, "community_address", "admin community address");
+
+  const missingCommunity = validateCommunityAdminForm(
+    {
+      name: "Jane Admin",
+      email: "jane@example.com",
+      phone: "",
+      region_id: 1,
+      community_mode: "",
+      community_id: "",
+      community_name: "",
+      community_address: "",
+      community_description: "",
+    },
+    { country: "US", digits: "4155552671", e164: "+14155552671", valid: true },
+  );
+  assertHasError(missingCommunity, "community_id", "admin must pick community or add new");
+
+  const okExistingCommunity = validateCommunityAdminForm(
+    {
+      name: "Jane Admin",
+      email: "jane@example.com",
+      phone: "",
+      region_id: 1,
+      community_mode: "existing",
+      community_id: 12,
+      community_name: "",
+      community_address: "",
+      community_description: "",
+    },
+    { country: "US", digits: "4155552671", e164: "+14155552671", valid: true },
+  );
+  assertNoErrors(okExistingCommunity, "accepts existing unassigned community");
 
   const invalidResident = validateResidentForm(
     { name: "A", email: "", phone: "", region_id: "", community_id: "" },
@@ -369,6 +403,8 @@ console.log("\nProvision user validation");
       email: "jane@example.com",
       phone: "",
       region_id: 1,
+      community_mode: "new",
+      community_id: "",
       community_name: "Sunset Heights",
       community_address: "123 Main St",
       community_description: "A friendly community.",

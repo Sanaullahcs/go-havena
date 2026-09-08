@@ -9,6 +9,7 @@ use App\Models\Profile;
 use App\Models\Region;
 use App\Models\User;
 use App\Services\ActivityLogService;
+use App\Services\CommunityLifecycleService;
 use App\Services\ContactIdentityService;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
@@ -33,10 +34,27 @@ class AdminUserController extends Controller
             ],
             'phone' => ['required', 'string', 'max:30'],
             'region_id' => ['required', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
-            'community_name' => ['required_if:type,community_admin', 'nullable', 'string', 'max:255'],
-            'community_address' => ['required_if:type,community_admin', 'nullable', 'string', 'min:5', 'max:500'],
+            'community_name' => [
+                Rule::requiredIf(fn () => $request->input('type') === 'community_admin' && ! $request->filled('community_id')),
+                'nullable',
+                'string',
+                'max:255',
+            ],
+            'community_address' => [
+                Rule::requiredIf(fn () => $request->input('type') === 'community_admin' && ! $request->filled('community_id')),
+                'nullable',
+                'string',
+                'min:5',
+                'max:500',
+            ],
             'community_description' => ['nullable', 'string', 'max:1000'],
-            'community_id' => ['required_if:type,resident', 'nullable', 'integer', Rule::exists('communities', 'id')],
+            'community_id' => [
+                Rule::requiredIf(fn () => $request->input('type') === 'resident'
+                    || ($request->input('type') === 'community_admin' && ! $request->filled('community_name'))),
+                'nullable',
+                'integer',
+                Rule::exists('communities', 'id'),
+            ],
         ]);
 
         $phone = PhoneNormalizer::normalize($validated['phone']);
@@ -77,16 +95,8 @@ class AdminUserController extends Controller
 
     private function createCommunityAdmin(array $validated, ?string $phone, Region $region, string $displayName): array
     {
-        $community = Community::query()->create([
-            'name' => $validated['community_name'],
-            'region_id' => $region->id,
-            'region' => $region->title,
-            'address' => $validated['community_address'],
-            'description' => $validated['community_description'] ?? null,
-            'status' => 'active',
-            'review_status' => 'approved',
-            'reviewed_at' => now(),
-        ]);
+        $community = $this->resolveCommunityForAdmin($validated, $region);
+        $createdCommunity = empty($validated['community_id']);
 
         $user = User::query()->create([
             'uuid' => (string) Str::ulid(),
@@ -117,9 +127,51 @@ class AdminUserController extends Controller
 
         return [
             'user' => $user,
-            'message' => 'Community admin and community created successfully.',
+            'message' => $createdCommunity
+                ? 'Community admin and community created successfully.'
+                : 'Community admin created and assigned successfully.',
             'payload' => $this->transformUser($user->fresh(['profile', 'memberships.community']), $community),
         ];
+    }
+
+    private function resolveCommunityForAdmin(array $validated, Region $region): Community
+    {
+        if (! empty($validated['community_id'])) {
+            $community = Community::query()
+                ->where('id', $validated['community_id'])
+                ->where('status', 'active')
+                ->where(function ($w) {
+                    $w->whereNull('review_status')
+                        ->orWhere('review_status', 'approved');
+                })
+                ->firstOrFail();
+
+            if ((int) $community->region_id !== (int) $region->id) {
+                throw ValidationException::withMessages([
+                    'community_id' => ['Selected community does not belong to the chosen region.'],
+                ]);
+            }
+
+            $lifecycle = app(CommunityLifecycleService::class);
+            if ($lifecycle->hasCommunityAdminAssigned($community) || $lifecycle->hasPendingCommunityAdminApplicant($community)) {
+                throw ValidationException::withMessages([
+                    'community_id' => ['This community already has a community admin assigned.'],
+                ]);
+            }
+
+            return $community;
+        }
+
+        return Community::query()->create([
+            'name' => $validated['community_name'],
+            'region_id' => $region->id,
+            'region' => $region->title,
+            'address' => $validated['community_address'],
+            'description' => $validated['community_description'] ?? null,
+            'status' => 'active',
+            'review_status' => 'approved',
+            'reviewed_at' => now(),
+        ]);
     }
 
     private function createResident(array $validated, ?string $phone, Region $region, string $displayName, ?User $restorableUser = null): array
