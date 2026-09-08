@@ -47,8 +47,9 @@ const QUICK_ACTIONS = [
   { id: "chat", titleKey: "home.qa.chat", icon: "mail", route: "/screens/messages" },
 ];
 
-const QA_TILE_W = sw(72);
-const QA_GAP = sw(20);
+const QA_TILE_W = sw(56);
+const QA_GAP = sw(4);
+const QA_SIDE_PAD = sw(8);
 
 const HERO_HEIGHT = sw(175);
 /** Auto-advance interval for the home notices carousel. */
@@ -177,6 +178,7 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
 function QuickActionsRow() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { width: screenWidth } = useWindowDimensions();
 
   const openAction = useCallback(
     (route) => {
@@ -184,6 +186,11 @@ function QuickActionsRow() {
     },
     [router],
   );
+
+  const rowWidth =
+    QUICK_ACTIONS.length * QA_TILE_W +
+    Math.max(0, QUICK_ACTIONS.length - 1) * QA_GAP;
+  const centerRow = rowWidth <= screenWidth - QA_SIDE_PAD * 2;
 
   return (
     <View style={styles.qaWrap}>
@@ -201,29 +208,36 @@ function QuickActionsRow() {
         snapToAlignment="start"
         disableIntervalMomentum
         ItemSeparatorComponent={() => <View style={{ width: QA_GAP }} />}
-        contentContainerStyle={styles.qaListContent}
+        contentContainerStyle={[
+          styles.qaListContent,
+          centerRow && styles.qaListContentCentered,
+        ]}
         getItemLayout={(_, index) => ({
           length: QA_TILE_W + QA_GAP,
           offset: (QA_TILE_W + QA_GAP) * index,
           index,
         })}
         renderItem={({ item }) => (
-          <Pressable
-            onPress={() => openAction(item.route)}
-            style={({ pressed }) => [
-              styles.qaTile,
-              pressed && styles.qaTilePressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel={t(item.titleKey)}
-          >
-            <View style={styles.qaIcon}>
-              <Feather name={item.icon} size={sf(18)} color={T.navy} />
-            </View>
-            <Text style={styles.qaLabel} numberOfLines={2}>
-              {t(item.titleKey)}
-            </Text>
-          </Pressable>
+          <View style={styles.qaItem}>
+            <Pressable
+              onPress={() => openAction(item.route)}
+              style={({ pressed }) => [
+                styles.qaTile,
+                pressed && styles.qaTilePressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={t(item.titleKey)}
+            >
+              <View style={styles.qaIconSlot}>
+                <View style={styles.qaIcon}>
+                  <Feather name={item.icon} size={sf(18)} color={T.navy} />
+                </View>
+              </View>
+              <Text style={styles.qaLabel} numberOfLines={2} ellipsizeMode="clip">
+                {t(item.titleKey)}
+              </Text>
+            </Pressable>
+          </View>
         )}
       />
     </View>
@@ -583,22 +597,36 @@ const styles = StyleSheet.create({
 
   qaWrap: {
     marginTop: sw(12),
-    paddingBottom: sw(2),
+    paddingBottom: 0,
   },
   qaHeader: {
     paddingHorizontal: Home.gutter,
     marginBottom: sw(10),
   },
   qaListContent: {
-    paddingHorizontal: Home.gutter,
-    paddingEnd: Home.gutter + sw(8),
+    paddingHorizontal: QA_SIDE_PAD,
+  },
+  qaListContentCentered: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  qaItem: {
+    width: QA_TILE_W,
+    maxWidth: QA_TILE_W,
   },
   qaTile: {
     width: QA_TILE_W,
+    maxWidth: QA_TILE_W,
     alignItems: "center",
+    overflow: "hidden",
   },
   qaTilePressed: {
     opacity: 0.7,
+  },
+  qaIconSlot: {
+    width: QA_TILE_W,
+    alignItems: "center",
+    marginBottom: sw(6),
   },
   qaIcon: {
     width: sw(44),
@@ -607,16 +635,16 @@ const styles = StyleSheet.create({
     backgroundColor: T.mint,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: sw(6),
   },
   qaLabel: {
+    width: QA_TILE_W,
+    maxWidth: QA_TILE_W,
     fontFamily: Fonts.medium,
     fontSize: sf(10.5),
-    lineHeight: sf(13),
+    lineHeight: sf(14),
     color: T.navy,
     fontWeight: "500",
     textAlign: "center",
-    flexShrink: 1,
   },
   previewRoot: {
     flex: 1,

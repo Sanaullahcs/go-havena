@@ -133,7 +133,7 @@ export default function HappeningSoon({ items = [] }) {
 
   if (!events.length) {
     return (
-      <View style={homeStyles.section}>
+      <View style={[homeStyles.section, styles.sectionTightTop]}>
         <HomeSectionHeader
           label={t("home.happeningSoon")}
           onPress={() => navigateAppRoute(router, PropertyManagementRoutes.NOTICES)}
@@ -144,7 +144,7 @@ export default function HappeningSoon({ items = [] }) {
   }
 
   return (
-    <View style={homeStyles.section}>
+    <View style={[homeStyles.section, styles.sectionTightTop]}>
       <HomeSectionHeader
         label={t("home.happeningSoon")}
         onPress={() => navigateAppRoute(router, PropertyManagementRoutes.NOTICES)}
@@ -170,6 +170,9 @@ export default function HappeningSoon({ items = [] }) {
 }
 
 const styles = StyleSheet.create({
+  sectionTightTop: {
+    paddingTop: 0,
+  },
   carousel: { flexGrow: 0, alignSelf: "stretch" },
   listContent: { paddingEnd: PEEK, alignItems: "flex-start" },
   card: {

@@ -9,11 +9,14 @@ import {
 
 export type PopoverPlacement = "bottom-end" | "bottom-start" | "top-end" | "top-start";
 
+const POPOVER_Z_INDEX = 400;
+
 type AnchoredPopoverOptions = {
   popoverRef?: RefObject<HTMLElement | null>;
   width?: number;
   align?: "left" | "right";
   gap?: number;
+  zIndex?: number;
 };
 
 export type AnchoredPopoverResult = {
@@ -29,7 +32,7 @@ const HIDDEN_STYLE: CSSProperties = {
   opacity: 0,
   pointerEvents: "none",
   visibility: "hidden",
-  zIndex: 100,
+  zIndex: POPOVER_Z_INDEX,
 };
 
 export function useAnchoredPopover(
@@ -56,6 +59,7 @@ export function useAnchoredPopover(
       const rect = anchor.getBoundingClientRect();
       const width = options?.width ?? Math.max(rect.width, 160);
       const gap = options?.gap ?? 6;
+      const zIndex = options?.zIndex ?? POPOVER_Z_INDEX;
       const viewportPadding = 12;
       const alignEnd = options?.align !== "left";
 
@@ -101,7 +105,7 @@ export function useAnchoredPopover(
           top,
           left,
           width,
-          zIndex: 100,
+          zIndex,
           opacity: 1,
           pointerEvents: "auto",
           visibility: "visible",
@@ -138,6 +142,7 @@ export function useAnchoredPopover(
     options?.width,
     options?.align,
     options?.gap,
+    options?.zIndex,
   ]);
 
   return result;

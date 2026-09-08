@@ -30,6 +30,10 @@ import { getUser } from "../../../services/auth-session";
 import { isValidPhone } from "../../../utils/phone";
 import { validateBusinessForm, LIMITS, hasFieldErrors } from "../../../utils/form-validation";
 
+const INPUT_HEIGHT = 40;
+const INPUT_FONT = MarketplaceType.caption;
+const INPUT_LINE = MarketplaceType.captionLine;
+
 export default function AddBusinessScreen() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -257,25 +261,29 @@ export default function AddBusinessScreen() {
         <Text style={[styles.label, styles.sectionTop]}>
           {t("marketplace.businessName")} <Text style={styles.required}>*</Text>
         </Text>
-        <LocaleTextInput
-          value={business}
-          onChangeText={(v) => { setBusiness(v); touch("business"); clearError("business"); }}
-          placeholder={t("marketplace.placeholderBusinessName")}
-          placeholderTextColor="rgba(153, 161, 175, 1)"
-          style={[styles.input, showError("business", liveErrors) && styles.inputError]}
-        />
+        <View style={[styles.inputBox, showError("business", liveErrors) && styles.inputError]}>
+          <LocaleTextInput
+            value={business}
+            onChangeText={(v) => { setBusiness(v); touch("business"); clearError("business"); }}
+            placeholder={t("marketplace.placeholderBusinessName")}
+            placeholderTextColor="rgba(153, 161, 175, 1)"
+            style={styles.inputText}
+          />
+        </View>
         {showError("business", liveErrors) ? <Text style={styles.errorText}>{showError("business", liveErrors)}</Text> : null}
 
         <Text style={[styles.label, styles.sectionTop]}>
           {t("marketplace.category")} <Text style={styles.required}>*</Text>
         </Text>
-        <LocaleTextInput
-          value={category}
-          onChangeText={(v) => { setCategory(v); touch("category"); clearError("category"); }}
-          placeholder={t("marketplace.placeholderCategory")}
-          placeholderTextColor="rgba(153, 161, 175, 1)"
-          style={[styles.input, showError("category", liveErrors) && styles.inputError]}
-        />
+        <View style={[styles.inputBox, showError("category", liveErrors) && styles.inputError]}>
+          <LocaleTextInput
+            value={category}
+            onChangeText={(v) => { setCategory(v); touch("category"); clearError("category"); }}
+            placeholder={t("marketplace.placeholderCategory")}
+            placeholderTextColor="rgba(153, 161, 175, 1)"
+            style={styles.inputText}
+          />
+        </View>
         {showError("category", liveErrors) ? <Text style={styles.errorText}>{showError("category", liveErrors)}</Text> : null}
 
         <View
@@ -293,13 +301,15 @@ export default function AddBusinessScreen() {
             {t("marketplace.address")} <Text style={styles.required}>*</Text>
           </Text>
         </View>
-        <LocaleTextInput
-          value={address}
-          onChangeText={(v) => { setAddress(v); touch("address"); clearError("address"); }}
-          placeholder={t("marketplace.placeholderAddress")}
-          placeholderTextColor="rgba(153, 161, 175, 1)"
-          style={[styles.input, showError("address", liveErrors) && styles.inputError]}
-        />
+        <View style={[styles.inputBox, showError("address", liveErrors) && styles.inputError]}>
+          <LocaleTextInput
+            value={address}
+            onChangeText={(v) => { setAddress(v); touch("address"); clearError("address"); }}
+            placeholder={t("marketplace.placeholderAddress")}
+            placeholderTextColor="rgba(153, 161, 175, 1)"
+            style={styles.inputText}
+          />
+        </View>
         {showError("address", liveErrors) ? <Text style={styles.errorText}>{showError("address", liveErrors)}</Text> : null}
 
         <Text style={[styles.label, styles.sectionTop]}>
@@ -362,14 +372,16 @@ export default function AddBusinessScreen() {
         <Text style={[styles.label, styles.sectionTop]}>
           {t("marketplace.amenitiesCsv")}
         </Text>
-        <LocaleTextInput
-          value={amenities}
-          onChangeText={setAmenities}
-          placeholder={t("marketplace.placeholderAmenities")}
-          placeholderTextColor="rgba(153, 161, 175, 1)"
-          style={styles.input}
-          onFocus={() => scrollFieldIntoView()}
-        />
+        <View style={styles.inputBox}>
+          <LocaleTextInput
+            value={amenities}
+            onChangeText={setAmenities}
+            placeholder={t("marketplace.placeholderAmenities")}
+            placeholderTextColor="rgba(153, 161, 175, 1)"
+            style={styles.inputText}
+            onFocus={() => scrollFieldIntoView()}
+          />
+        </View>
       </KeyboardSafeScreen>
     </SafeAreaView>
   );
@@ -458,18 +470,28 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     color: "#94A3B8",
   },
-  input: {
+  inputBox: {
     marginTop: 8,
-    height: 40,
+    height: INPUT_HEIGHT,
     borderRadius: 10,
     backgroundColor: "rgba(249, 250, 251, 1)",
     borderWidth: 1,
     borderColor: "#EEF2F6",
     paddingHorizontal: 16,
+    justifyContent: "center",
+  },
+  inputText: {
+    width: "100%",
+    margin: 0,
+    paddingVertical: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
     fontFamily: Fonts.regular,
-    fontSize: MarketplaceType.caption,
-    lineHeight: MarketplaceType.captionLine,
+    fontSize: INPUT_FONT,
+    lineHeight: INPUT_LINE,
     color: "#111827",
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   labelRow: {
     flexDirection: "row",
@@ -489,6 +511,8 @@ const styles = StyleSheet.create({
     fontSize: MarketplaceType.caption,
     lineHeight: MarketplaceType.captionLine,
     color: "#111827",
+    includeFontPadding: false,
+    textAlignVertical: "top",
   },
   counterText: {
     marginTop: 8,

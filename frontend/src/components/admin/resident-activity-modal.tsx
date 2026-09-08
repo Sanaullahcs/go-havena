@@ -397,7 +397,10 @@ export function ResidentActivityModal({ member, onClose }: Props) {
   useEffect(() => {
     if (!member) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        if (document.querySelector(".nl-themed-popover")) return;
+        onClose();
+      }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);

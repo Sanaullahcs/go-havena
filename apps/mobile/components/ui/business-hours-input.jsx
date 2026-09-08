@@ -205,7 +205,7 @@ function TimeChip({ label, value, onPress, filled, hasError }) {
         size={14}
         color={filled ? "#1B4F8A" : hasError ? "#F04438" : "#9CA3AF"}
       />
-      <View>
+      <View style={styles.chipCopy}>
         <Text style={[styles.chipLabel, filled && styles.chipLabelFilled]}>{label}</Text>
         <Text style={[styles.chipValue, filled && styles.chipValueFilled, hasError && !filled && styles.chipValueError]}>
           {value}
@@ -244,11 +244,17 @@ const styles = StyleSheet.create({
     borderColor: "#FECACA",
     backgroundColor: "#FFF5F5",
   },
+  chipCopy: {
+    flex: 1,
+    justifyContent: "center",
+  },
   chipLabel: {
     fontFamily: Fonts.regular,
     fontSize: 10,
+    lineHeight: 12,
     color: "#9CA3AF",
     letterSpacing: 0.3,
+    includeFontPadding: false,
   },
   chipLabelFilled: {
     color: "#14B8A6",
@@ -256,8 +262,9 @@ const styles = StyleSheet.create({
   chipValue: {
     fontFamily: Fonts.bold,
     fontSize: 13,
+    lineHeight: 16,
     color: "#6B7280",
-    marginTop: 1,
+    includeFontPadding: false,
   },
   chipValueFilled: {
     color: "#111827",

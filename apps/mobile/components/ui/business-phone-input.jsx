@@ -164,11 +164,17 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    margin: 0,
     paddingHorizontal: 12,
-    height: "100%",
+    paddingVertical: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
     fontFamily: Fonts.regular,
     fontSize: 13,
+    lineHeight: 18,
     color: "#111827",
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   validIcon: {
     width: 22,
