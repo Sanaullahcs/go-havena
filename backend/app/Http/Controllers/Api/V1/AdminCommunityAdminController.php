@@ -129,8 +129,14 @@ class AdminCommunityAdminController extends Controller
 
         app(ReferralService::class)->ensureReferralCode($user->fresh());
 
+        $fresh = $user->fresh(['profile', 'memberships.community']);
+        app(\App\Services\LifecycleMailService::class)->communityAdminApproved(
+            $fresh,
+            $fresh->memberships->first()?->community,
+        );
+
         return response()->json([
-            'data'    => $this->transform($user->fresh(['profile', 'memberships.community'])),
+            'data'    => $this->transform($fresh),
             'message' => $wasRejected ? 'Community admin re-approved' : 'Community admin approved',
         ]);
     }
@@ -182,6 +188,12 @@ class AdminCommunityAdminController extends Controller
         app(ReferralService::class)->disqualifyByRefereeUser(
             (int) $user->id,
             'Referee community admin was not approved.',
+        );
+
+        app(\App\Services\LifecycleMailService::class)->communityAdminRejected(
+            $user->fresh(['profile']),
+            $reason ? trim((string) $reason) : null,
+            $wasApproved,
         );
 
         return response()->json([

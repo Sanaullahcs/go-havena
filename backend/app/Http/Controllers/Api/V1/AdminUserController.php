@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\ActivityLogService;
 use App\Services\CommunityLifecycleService;
 use App\Services\ContactIdentityService;
+use App\Services\LifecycleMailService;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -87,6 +88,16 @@ class AdminUserController extends Controller
             $result['user']->id,
         );
 
+        $provisioned = $result['user']->fresh(['profile', 'memberships.community']);
+        $community = $result['community'] ?? $provisioned?->memberships->first()?->community;
+        if ($provisioned && $community) {
+            if ($validated['type'] === 'community_admin') {
+                app(LifecycleMailService::class)->communityAdminProvisioned($provisioned, $community);
+            } else {
+                app(LifecycleMailService::class)->residentProvisioned($provisioned, $community);
+            }
+        }
+
         return response()->json([
             'data' => $result['payload'],
             'message' => $result['message'],
@@ -127,6 +138,7 @@ class AdminUserController extends Controller
 
         return [
             'user' => $user,
+            'community' => $community,
             'message' => $createdCommunity
                 ? 'Community admin and community created successfully.'
                 : 'Community admin created and assigned successfully.',
@@ -222,6 +234,7 @@ class AdminUserController extends Controller
 
         return [
             'user' => $user,
+            'community' => $community,
             'message' => 'Resident created and added to the community successfully.',
             'payload' => $this->transformUser($user->fresh(['profile', 'memberships.community']), $community),
         ];
@@ -275,6 +288,7 @@ class AdminUserController extends Controller
 
         return [
             'user' => $user,
+            'community' => $community,
             'message' => 'Resident restored and added to the community successfully.',
             'payload' => $this->transformUser($user->fresh(['profile', 'memberships.community']), $community),
         ];

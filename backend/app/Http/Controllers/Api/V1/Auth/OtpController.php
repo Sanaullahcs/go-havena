@@ -14,6 +14,7 @@ use App\Services\LoginStreakService;
 use App\Services\ContactIdentityService;
 use App\Services\OtpService;
 use App\Services\PointsRewardService;
+use App\Services\LifecycleMailService;
 use App\Services\ReferralService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -161,6 +162,9 @@ class OtpController extends Controller
                     source: ($validated['portal'] ?? null) === 'community_admin_dashboard' ? 'web_link' : 'mobile_signup',
                     referralToken: $validated['referral_code'] ?? null,
                 );
+                app(LifecycleMailService::class)->communityAdminSignedUp($user);
+            } else {
+                app(LifecycleMailService::class)->residentSignedUp($user);
             }
         }
 

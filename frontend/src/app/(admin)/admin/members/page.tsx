@@ -114,6 +114,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   const [profileActionLoading, setProfileActionLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [inviteResult, setInviteResult] = useState<MemberInviteResult | null>(null);
+  const [inviting, setInviting] = useState(false);
   const [provisionOpen, setProvisionOpen] = useState(false);
   const [scopeCommunityId, setScopeCommunityId] = useState<number | "all" | undefined>(() => {
     if (isSystemResidents || isSystemAdminUser()) return "all";
@@ -255,6 +256,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   };
 
   const closeInviteModal = () => {
+    if (inviting) return;
     setModal(false);
     resetTouched();
     setInvitePhone(emptyPhoneField());
@@ -631,7 +633,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                 <h3 className="text-[15px] font-bold text-slate-900">Invite New Member</h3>
                 <p className="mt-0.5 text-[12.5px] text-slate-500">Create a resident account in your community.</p>
               </div>
-              <button type="button" onClick={closeInviteModal} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"><X className="h-4 w-4" strokeWidth={2} /></button>
+              <button type="button" onClick={closeInviteModal} disabled={inviting} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:pointer-events-none disabled:opacity-40"><X className="h-4 w-4" strokeWidth={2} /></button>
             </div>
             <div className="space-y-4 px-6 py-5">
               <div>
@@ -737,9 +739,9 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
-              <button type="button" onClick={closeInviteModal} className="nl-btn-secondary">Cancel</button>
+              <button type="button" onClick={closeInviteModal} className="nl-btn-secondary" disabled={inviting}>Cancel</button>
               <button type="button" onClick={async () => {
-                if (!validateOnSubmit(inviteLiveErrors)) return;
+                if (inviting || !validateOnSubmit(inviteLiveErrors)) return;
                 const selectedCommunity = communities.find((c) => String(c.id) === form.communityId);
                 const r = await confirmAction({
                   title: "Send invitation?",
@@ -748,6 +750,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                   color: "blue",
                 });
                 if (r.isConfirmed) {
+                  setInviting(true);
                   try {
                     const memberName = form.name;
                     const memberEmail = form.email;
@@ -759,6 +762,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                       unit_number: form.unit || undefined,
                       community_id: Number(form.communityId),
                     });
+                    setInviting(false);
                     closeInviteModal();
                     setInviteResult({
                       ...res.data,
@@ -769,9 +773,10 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                     load(true);
                   } catch (err) {
                     toastError(apiError(err));
+                    setInviting(false);
                   }
                 }
-              }} className="nl-btn-primary disabled:opacity-60" disabled={communitiesLoading || !canInvite}><IcoPlus /> Send Invitation</button>
+              }} className="nl-btn-primary disabled:opacity-60" disabled={communitiesLoading || !canInvite || inviting}>{inviting ? "Sending…" : <><IcoPlus /> Send Invitation</>}</button>
             </div>
           </div>
         </div>

@@ -93,6 +93,8 @@ class GuestInvitationService
             ['invitation_type' => $invitationType],
         );
 
+        app(LifecycleMailService::class)->guestInvited($invitation);
+
         return $invitation;
     }
 
@@ -192,6 +194,8 @@ class GuestInvitationService
                 'Your guest access request was rejected.',
             );
         }
+
+        app(LifecycleMailService::class)->guestRejected($invitation->fresh(), $reason);
 
         GuestActivityService::log($invitation, 'access_rejected', 'Guest access rejected by resident', [
             'reason' => $reason,
@@ -363,7 +367,10 @@ class GuestInvitationService
 
         GuestActivityService::log($invitation, 'access_activated', 'Guest access activated');
 
-        return $invitation->fresh();
+        $activated = $invitation->fresh();
+        app(LifecycleMailService::class)->guestApproved($activated);
+
+        return $activated;
     }
 
     public static function formatInvitation(GuestInvitation $invitation, bool $includeQr = false): array

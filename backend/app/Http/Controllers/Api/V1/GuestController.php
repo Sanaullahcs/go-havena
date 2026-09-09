@@ -90,10 +90,6 @@ class GuestController extends Controller
             $data,
         );
 
-        if ($invitation->guest_email) {
-            // Email not implemented — notification placeholder for guest email would go here
-        }
-
         return response()->json([
             'data'    => GuestInvitationService::formatInvitation($invitation, true),
             'message' => 'Guest invitation created successfully.',

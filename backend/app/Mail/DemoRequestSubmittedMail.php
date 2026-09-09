@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\ContactSubmission;
+use App\Support\EmailBrand;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Address;
@@ -20,6 +21,7 @@ class DemoRequestSubmittedMail extends Mailable
     public function __construct(public ContactSubmission $submission)
     {
         $this->demo = $this->parseDemoRequest($submission->message);
+        EmailBrand::attachInlineImages($this);
     }
 
     public function envelope(): Envelope

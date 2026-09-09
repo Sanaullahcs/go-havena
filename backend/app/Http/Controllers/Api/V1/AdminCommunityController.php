@@ -14,6 +14,7 @@ use App\Services\CommunityLifecycleService;
 use App\Services\ContactIdentityService;
 use App\Services\MembershipService;
 use App\Services\NotificationService;
+use App\Services\LifecycleMailService;
 use App\Services\ReferralService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -268,6 +269,10 @@ class AdminCommunityController extends Controller
 
         app(\App\Services\CommunityAdminAccessService::class)->activateTrialIfApproved($community);
 
+        if ($community->requested_by_user_id && $community->requester) {
+            app(LifecycleMailService::class)->communityApproved($community, $community->requester);
+        }
+
         return response()->json([
             'data'    => $this->transform($community, detailed: true),
             'message' => 'Community approved and activated.',
@@ -324,6 +329,14 @@ class AdminCommunityController extends Controller
         );
 
         $community->refresh()->load(['regionRecord', 'requester.profile']);
+
+        if ($community->requester) {
+            app(LifecycleMailService::class)->communityRejected(
+                $community,
+                $community->requester,
+                $request->input('reason'),
+            );
+        }
 
         return response()->json([
             'data'    => $this->transform($community, detailed: true),
@@ -469,6 +482,7 @@ class AdminCommunityController extends Controller
         ]);
 
         $hasNewUser = $request->filled('email');
+        $createdNewAdmin = false;
         if (empty($validated['user_id']) && ! $hasNewUser) {
             return response()->json([
                 'message' => 'Provide user_id or a new admin email.',
@@ -526,6 +540,7 @@ class AdminCommunityController extends Controller
                     'display_name' => $displayName,
                 ]);
                 $keepSystemRole = false;
+                $createdNewAdmin = true;
             }
         } else {
             $newAdmin = User::query()->findOrFail((int) $validated['user_id']);
@@ -570,6 +585,11 @@ class AdminCommunityController extends Controller
         );
 
         app(ReferralService::class)->ensureReferralCode($assigned->fresh());
+        app(LifecycleMailService::class)->communityAdminProvisioned(
+            $assigned->fresh(['profile']),
+            $community,
+            $createdNewAdmin,
+        );
 
         return response()->json([
             'data'    => [

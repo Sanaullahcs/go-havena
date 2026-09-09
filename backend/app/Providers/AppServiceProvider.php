@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Support\EmailBrand;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -22,5 +24,13 @@ class AppServiceProvider extends ServiceProvider
     {
         // WAMP ships MariaDB; utf8mb4 needs a shorter default index length.
         Schema::defaultStringLength(191);
+
+        View::composer('emails.*', function ($view) {
+            foreach (EmailBrand::viewData() as $key => $value) {
+                if (! array_key_exists($key, $view->getData())) {
+                    $view->with($key, $value);
+                }
+            }
+        });
     }
 }

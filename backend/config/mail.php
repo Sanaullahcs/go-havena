@@ -107,4 +107,21 @@ return [
     */
     'contact_to' => env('MAIL_CONTACT_TO', env('MAIL_FROM_ADDRESS', 'hello@gohavena.com')),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Brand links used in transactional emails
+    |--------------------------------------------------------------------------
+    */
+    'brand' => [
+        'name' => env('MAIL_FROM_NAME', 'Havena'),
+        'support' => env('MAIL_FROM_ADDRESS', 'hello@gohavena.com'),
+        'tagline' => env('HAVENA_TAGLINE', 'One trusted place for the whole neighborhood.'),
+        'logo_url' => env('HAVENA_LOGO_URL'),
+        'website_url' => rtrim((string) env('HAVENA_WEBSITE_URL', env('FRONTEND_URL', env('FRONTEND_ADMIN_URL', 'http://localhost:3000'))), '/'),
+        'admin_url' => rtrim((string) env('FRONTEND_ADMIN_URL', env('FRONTEND_URL', 'http://localhost:3000')), '/'),
+        'app_url' => rtrim((string) env('FRONTEND_USER_URL', env('FRONTEND_URL', 'http://localhost:3000')), '/'),
+        'app_store_url' => env('HAVENA_APP_STORE_URL', 'https://apps.apple.com/app/id6800697897'),
+        'play_store_url' => env('HAVENA_PLAY_STORE_URL', 'https://play.google.com/store/apps/details?id=com.zsquare.havena'),
+    ],
+
 ];

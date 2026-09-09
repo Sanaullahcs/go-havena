@@ -13,6 +13,7 @@ use App\Services\CommunityLifecycleService;
 use App\Services\ContactIdentityService;
 use App\Services\FamilyService;
 use App\Services\InviteCodeService;
+use App\Services\LifecycleMailService;
 use App\Services\NotificationService;
 use App\Support\ActivityActionCatalog;
 use App\Support\PhoneNormalizer;
@@ -502,6 +503,17 @@ class MemberController extends Controller
 
         ActivityLogService::user('member_invited', "Invited new member: {$request->name} ({$request->email})", 'User', $userId);
 
+        $community = Community::query()->find($communityId);
+        $invitee = User::query()->find($userId);
+        if ($community && $invitee) {
+            app(LifecycleMailService::class)->residentInvited(
+                $invitee,
+                $community,
+                $invite,
+                $request->user(),
+            );
+        }
+
         return response()->json([
             'data'    => [
                 'id'             => $userId,
@@ -581,6 +593,14 @@ class MemberController extends Controller
 
         ActivityLogService::user('member_approved', "Approved membership for {$user->name}", 'User', $id);
         NotificationService::send($id, 'success', 'Membership Approved', 'Your membership has been approved. Welcome to the community!');
+
+        if (($membership->status ?? '') !== 'approved') {
+            $community = Community::query()->find($communityId);
+            $member = User::query()->find($id);
+            if ($community && $member) {
+                app(LifecycleMailService::class)->residentApproved($member, $community);
+            }
+        }
 
         return response()->json(['message' => 'Member approved']);
     }
@@ -665,6 +685,10 @@ class MemberController extends Controller
                 $request->user(),
                 $reason,
             );
+            $community = Community::query()->find($communityId);
+            if ($community) {
+                app(LifecycleMailService::class)->residentRejected($userModel, $community, $reason);
+            }
         }
 
         return response()->json(['message' => 'Member rejected']);

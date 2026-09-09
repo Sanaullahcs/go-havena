@@ -20,3 +20,7 @@ What they want to see
 Review in admin: {{ $adminUrl }}
 
 Reply to this email to message the requester directly.
+
+— {{ $brandName ?? 'Havena' }}
+{{ $tagline ?? 'One trusted place for the whole neighborhood.' }}
+{{ $supportEmail ?? 'hello@gohavena.com' }}
