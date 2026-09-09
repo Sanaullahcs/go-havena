@@ -13,6 +13,7 @@ use App\Services\NotificationService;
 use App\Services\PushNotificationService;
 use App\Services\UserBlockService;
 use App\Support\MediaUrl;
+use App\Support\ReportTypes;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -392,11 +393,7 @@ class FeedController extends Controller
     {
         $this->assertNotGuestWrite($request, 'report_post');
 
-        $request->validate([
-            'type'        => 'nullable|in:noise,harassment,damage,spam,safety,other',
-            'reason'      => 'required_without:description|string|min:8|max:500',
-            'description' => 'required_without:reason|string|min:8|max:500',
-        ]);
+        $request->validate(ReportTypes::requestRules());
 
         $post = $this->findApprovedPostForMember($id, $request);
         if (! $post) {
@@ -425,8 +422,7 @@ class FeedController extends Controller
             return response()->json(['message' => 'You have already reported this post'], 422);
         }
 
-        $reason = trim((string) ($request->input('reason') ?? $request->input('description')));
-        $type = $request->input('type', 'other');
+        [$type, $reason] = ReportTypes::resolvePayload($request);
 
         DB::table('post_reports')->insert([
             'post_id'     => $id,
@@ -694,11 +690,7 @@ class FeedController extends Controller
     {
         $this->assertNotGuestWrite($request, 'report_comment');
 
-        $request->validate([
-            'type'        => 'nullable|in:noise,harassment,damage,spam,safety,other',
-            'reason'      => 'nullable|string|max:500',
-            'description' => 'nullable|string|max:500',
-        ]);
+        $request->validate(ReportTypes::requestRules());
 
         $post = $this->findApprovedPostForMember($postId, $request);
         if (! $post) {
@@ -732,9 +724,7 @@ class FeedController extends Controller
             return response()->json(['message' => 'You have already reported this comment'], 422);
         }
 
-        $type = $request->input('type', 'other');
-        $details = trim((string) ($request->input('reason') ?? $request->input('description') ?? ''));
-        $reason = $details !== '' ? $details : (string) $type;
+        [$type, $reason] = ReportTypes::resolvePayload($request);
 
         $payload = [
             'post_id'     => $postId,
@@ -1034,7 +1024,7 @@ class FeedController extends Controller
     {
         $request->validate([
             'reason' => 'required|string|min:8|max:500',
-            'type'   => 'nullable|in:noise,harassment,damage,spam,safety,other',
+            'type'   => ReportTypes::requestRules()['type'],
         ]);
 
         $post = $this->findPostForAdmin($id);

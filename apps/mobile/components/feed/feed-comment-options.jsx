@@ -94,11 +94,10 @@ export default function FeedCommentOptions({ comment, postId }) {
         visible={reportOpen}
         post={comment}
         submitting={reporting}
-        detailsRequired={false}
+        reasonKind="comment"
         resetKey={comment?.id}
         title={t("feed.report.commentTitle")}
         subtitle={t("feed.report.commentSubtitle", { name: authorName })}
-        placeholder={t("feed.report.commentPlaceholder")}
         onClose={() => setReportOpen(false)}
         onSubmit={handleReportSubmit}
       />

@@ -6,11 +6,12 @@ import type { AdminPost } from "@/lib/api/posts";
 import { NL } from "@/lib/design-tokens";
 
 const REPORT_TYPES = [
-  { value: "spam", label: "Spam or misleading" },
   { value: "harassment", label: "Harassment or bullying" },
-  { value: "safety", label: "Safety concern" },
-  { value: "damage", label: "Property damage" },
-  { value: "noise", label: "Noise or disturbance" },
+  { value: "hate", label: "Hate or abusive content" },
+  { value: "spam", label: "Spam or misleading content" },
+  { value: "inappropriate", label: "Inappropriate or offensive content" },
+  { value: "illegal", label: "Illegal or unsafe activity" },
+  { value: "privacy", label: "Privacy concern" },
   { value: "other", label: "Other" },
 ] as const;
 
@@ -30,12 +31,12 @@ export function FeedPostReportModal({
   onClose: () => void;
   onSubmit: (payload: FeedPostReportPayload) => void | Promise<void>;
 }) {
-  const [type, setType] = useState<string>("spam");
+  const [type, setType] = useState<string>("harassment");
   const [description, setDescription] = useState("");
 
   useEffect(() => {
     if (!post) return;
-    setType("spam");
+    setType("harassment");
     setDescription("");
   }, [post?.id]);
 

@@ -15,7 +15,7 @@ import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { Colors } from "../../constants/tokens";
-import { REPORT_TYPES } from "../../services/reports-api";
+import { getReportReasons, REPORT_REASON_KINDS } from "../../services/reports-api";
 import { useKeyboardBottomOffset } from "../layout/keyboard-safe-screen";
 import { sw, sf } from "../../utils/responsive";
 
@@ -57,47 +57,52 @@ export default function FeedPostReportSheet({
   title,
   subtitle,
   placeholder,
-  detailsRequired = true,
+  reasonKind = REPORT_REASON_KINDS.post,
   resetKey,
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { bottomOffset } = useKeyboardBottomOffset();
-  const [type, setType] = useState("spam");
+  const [type, setType] = useState("");
   const [description, setDescription] = useState("");
-  const [editingNotes, setEditingNotes] = useState(false);
   const [pending, setPending] = useState(false);
   const isBusy = submitting || pending;
+  const reasons = useMemo(() => getReportReasons(reasonKind), [reasonKind, t]);
+  const detailsRequired = type === "other";
 
   const authorName = post?.user?.display_name ?? post?.user?.name ?? t("feed.report.thisNeighbor");
-  const detailsPlaceholder = placeholder ?? t("feed.report.placeholder");
+  const detailsPlaceholder = placeholder ?? t("feed.report.tellUsMoreRequired");
+
+  const selectReason = (value) => {
+    setType(value);
+    if (value !== "other") {
+      setDescription("");
+    }
+  };
 
   useEffect(() => {
     if (!visible) {
-      setEditingNotes(false);
       setPending(false);
       return;
     }
-    setType("spam");
+    setType("");
     setDescription("");
-    setEditingNotes(false);
     setPending(false);
-  }, [visible, post?.id, resetKey]);
+  }, [visible, post?.id, resetKey, reasonKind]);
 
   const handleClose = useCallback(() => {
     if (isBusy) return;
-    setEditingNotes(false);
     onClose?.();
   }, [isBusy, onClose]);
 
-  const canSubmit = useMemo(
-    () => (detailsRequired ? description.trim().length >= 8 : Boolean(type)),
-    [description, detailsRequired, type],
-  );
+  const canSubmit = useMemo(() => {
+    if (!type) return false;
+    if (detailsRequired) return description.trim().length >= 8;
+    return true;
+  }, [description, detailsRequired, type]);
 
   const handleSubmit = async () => {
     if (!canSubmit || isBusy) return;
-    setEditingNotes(false);
     setPending(true);
     try {
       await onSubmit?.({
@@ -126,10 +131,6 @@ export default function FeedPostReportSheet({
           style={styles.backdrop}
           onPress={() => {
             if (isBusy) return;
-            if (editingNotes) {
-              setEditingNotes(false);
-              return;
-            }
             handleClose();
           }}
         />
@@ -164,57 +165,50 @@ export default function FeedPostReportSheet({
           >
             <Text style={styles.label}>{t("feed.report.reason")}</Text>
             <View style={styles.typeGrid}>
-              {REPORT_TYPES.map((option) => {
+              {reasons.map((option, index) => {
                 const active = type === option.value;
+                const fullWidth = index === reasons.length - 1 && reasons.length % 2 === 1;
                 return (
-                  <TouchableOpacity
+                  <View
                     key={option.value}
-                    style={[styles.typeChip, active && styles.typeChipActive]}
-                    onPress={() => setType(option.value)}
-                    disabled={isBusy}
+                    style={[styles.typeChipWrap, fullWidth && styles.typeChipWrapFull]}
                   >
-                    <Text style={[styles.typeChipText, active && styles.typeChipTextActive]}>
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.typeChip, active && styles.typeChipActive]}
+                      onPress={() => selectReason(option.value)}
+                      disabled={isBusy}
+                    >
+                      <Text
+                        style={[styles.typeChipText, active && styles.typeChipTextActive]}
+                        numberOfLines={2}
+                      >
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 );
               })}
             </View>
 
-            <Text style={styles.label}>{t("feed.report.details")}</Text>
-            {editingNotes ? (
-              <LocaleTextInput
-                value={description}
-                onChangeText={setDescription}
-                placeholder={detailsPlaceholder}
-                placeholderTextColor="#9CA3AF"
-                style={styles.input}
-                multiline
-                maxLength={1000}
-                editable={!isBusy}
-                autoFocus
-                blurOnSubmit
-              />
-            ) : (
-              <Pressable
-                style={styles.input}
-                onPress={() => {
-                  if (!isBusy) setEditingNotes(true);
-                }}
-                disabled={isBusy}
-              >
-                <Text
-                  style={description.trim() ? styles.inputValue : styles.inputPlaceholder}
-                >
-                  {description.trim() || detailsPlaceholder}
+            {detailsRequired ? (
+              <>
+                <LocaleTextInput
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholder={detailsPlaceholder}
+                  placeholderTextColor="#9CA3AF"
+                  style={styles.input}
+                  multiline
+                  maxLength={1000}
+                  editable={!isBusy}
+                  autoFocus={false}
+                  blurOnSubmit
+                />
+                <Text style={styles.helper}>
+                  {t("feed.report.helper", { count: description.trim().length })}
                 </Text>
-              </Pressable>
-            )}
-            <Text style={styles.helper}>
-              {detailsRequired
-                ? t("feed.report.helper", { count: description.trim().length })
-                : t("feed.report.helperOptional", { count: description.trim().length })}
-            </Text>
+              </>
+            ) : null}
           </ScrollView>
 
           <View style={styles.actions}>
@@ -320,16 +314,27 @@ const styles = StyleSheet.create({
   typeGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: sw(8),
-    marginBottom: sw(14),
+    marginHorizontal: -sw(4),
+    marginBottom: sw(8),
+  },
+  typeChipWrap: {
+    width: "50%",
+    paddingHorizontal: sw(4),
+    paddingVertical: sw(4),
+  },
+  typeChipWrapFull: {
+    width: "100%",
   },
   typeChip: {
-    paddingHorizontal: sw(12),
-    paddingVertical: sw(8),
-    borderRadius: 999,
+    minHeight: sw(48),
+    paddingHorizontal: sw(10),
+    paddingVertical: sw(10),
+    borderRadius: sw(12),
     backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
   },
   typeChipActive: {
     backgroundColor: "#D1FAF5",
@@ -338,7 +343,9 @@ const styles = StyleSheet.create({
   typeChipText: {
     fontFamily: Fonts.medium,
     fontSize: sf(12),
+    lineHeight: sf(16),
     color: "#64748B",
+    textAlign: "center",
   },
   typeChipTextActive: {
     color: Colors.brandPrimaryDeep,

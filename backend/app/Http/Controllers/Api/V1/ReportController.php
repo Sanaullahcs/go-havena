@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\ActivityLogService;
 use App\Services\NotificationService;
 use App\Services\UserBlockService;
+use App\Support\ReportTypes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -65,7 +66,7 @@ class ReportController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'type'               => 'required|in:noise,harassment,damage,spam,safety,other',
+            'type'               => ReportTypes::requestRules(true)['type'],
             'title'              => 'nullable|string|max:200',
             'description'        => 'nullable|string|max:2000',
             'reported_user_id'   => 'nullable|integer|exists:users,id',
@@ -76,8 +77,7 @@ class ReportController extends Controller
         $reporterId = (int) auth()->id();
         $listingId = $request->filled('listing_id') ? (int) $request->listing_id : null;
         $reportedUserId = $request->filled('reported_user_id') ? (int) $request->reported_user_id : null;
-        $description = trim((string) $request->input('description', ''));
-        $type = (string) $request->type;
+        [$type, $description] = ReportTypes::resolvePayload($request);
 
         if (! $listingId && ! $reportedUserId) {
             return response()->json(['message' => 'Choose a resident or listing to report.'], 422);

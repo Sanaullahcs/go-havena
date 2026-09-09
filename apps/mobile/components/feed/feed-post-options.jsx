@@ -200,6 +200,7 @@ export default function FeedPostOptions({ post, onDeleted, onUserBlocked }) {
           visible={reportOpen}
           post={post}
           submitting={reporting}
+          reasonKind="post"
           onClose={() => setReportOpen(false)}
           onSubmit={handleReportSubmit}
         />

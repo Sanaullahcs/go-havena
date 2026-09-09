@@ -441,9 +441,11 @@
       "subtitle": "Tell community admins why this post from {{name}} should be reviewed.",
       "reason": "Reason",
       "details": "Details",
-      "placeholder": "Describe what happened or why this post is inappropriate...",
-      "helper": "{{count}}/1000 · minimum 8 characters",
-      "helperOptional": "{{count}}/1000 · details optional",
+      "tellUsMoreOptional": "Tell us more about this report (optional)",
+      "tellUsMoreRequired": "Tell us more about this report",
+      "placeholder": "Add any extra details...",
+      "helper": "{{count}}/1000 · required",
+      "helperOptional": "{{count}}/1000 · optional",
       "submit": "Submit report",
       "thisNeighbor": "this neighbor",
       "reportedPostTitle": "Reported community post by {{name}}",
@@ -501,6 +503,31 @@
       "title": "Sensitive Content",
       "compactMessage": "This content has been flagged as sensitive.",
       "defaultMessage": "This post has been flagged as sensitive by community moderators."
+    }
+  },
+  "reportReasons": {
+    "other": "Other",
+    "post": {
+      "harassment": "Harassment or bullying",
+      "hate": "Hate or abusive content",
+      "spam": "Spam or misleading content",
+      "inappropriate": "Inappropriate or offensive content",
+      "illegal": "Illegal or unsafe activity",
+      "privacy": "Privacy concern"
+    },
+    "profile": {
+      "harassment": "Harassment or abusive behavior",
+      "impersonation": "Impersonation",
+      "fakeProfile": "Fake or misleading profile",
+      "inappropriate": "Inappropriate profile content",
+      "safety": "Safety concern"
+    },
+    "listing": {
+      "spam": "Spam or misleading listing",
+      "scam": "Scam or fraud",
+      "prohibited": "Prohibited or unsafe item",
+      "inappropriate": "Inappropriate content",
+      "incorrect": "Incorrect information"
     }
   },
   "categories": {

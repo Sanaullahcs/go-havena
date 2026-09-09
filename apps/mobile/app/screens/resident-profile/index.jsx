@@ -261,11 +261,10 @@ export default function ResidentProfileScreen() {
             user: { display_name: neighbor.displayName, name: neighbor.displayName },
           }}
           submitting={reporting}
-          detailsRequired={false}
+          reasonKind="profile"
           resetKey={neighbor.id}
           title={t("residentProfile.reportTitle")}
           subtitle={t("residentProfile.reportSubtitle", { name: neighbor.displayName })}
-          placeholder={t("residentProfile.reportPlaceholder")}
           onClose={() => setReportOpen(false)}
           onSubmit={async (payload) => {
             await completeReportAndNotify({

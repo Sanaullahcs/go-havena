@@ -23,7 +23,7 @@ export type LegalSection = {
 
 export const privacyPolicy = {
   title: "Privacy Policy",
-  updatedAt: "August 31, 2026",
+  updatedAt: "September 9, 2026",
   intro:
     "This Privacy Policy explains how Havena collects, uses, and protects information when you use our community platform, websites, and related services.",
   sections: [
@@ -42,8 +42,10 @@ export const privacyPolicy = {
       bullets: [
         "Account details such as name, email address, phone number, and profile information",
         "Community details such as community name, membership role, unit information, and admin settings",
-        "Content you submit, including notices, events, messages, marketplace listings, and reports",
-        "Usage and device information needed for security, diagnostics, and product improvement",
+        "User-generated content you submit, including community posts, comments, photos, notices, events, messages, and marketplace listings",
+        "Safety and moderation records, including reports you file, reports about content or users, and blocked-user relationships",
+        "Device and notification data, such as app platform and push notification tokens used to deliver alerts",
+        "Usage information needed for security, diagnostics, and product improvement",
         "Billing and subscription information for community administrators when applicable",
       ],
     },
@@ -54,7 +56,8 @@ export const privacyPolicy = {
       bullets: [
         "Provide, maintain, and improve the Havena platform",
         "Authenticate users and manage community access permissions",
-        "Send service-related communications such as login codes, notices, and account updates",
+        "Send service-related communications such as login codes, notices, push notifications, and account updates",
+        "Operate in-app safety tools, including reporting, blocking, content review, and hiding blocked-user content",
         "Support moderation, safety, fraud prevention, and abuse investigation",
         "Process subscriptions and respond to support requests",
       ],
@@ -107,8 +110,8 @@ export const termsAndConditions = {
       id: "acceptance",
       title: "1. Acceptance of terms",
       paragraphs: [
+        "By creating an account, signing in, checking the agreement box, or otherwise using GoHavena, you agree to these Terms and Conditions (the end-user license agreement). If you do not agree, you must not use the app or service.",
         "If you use Havena on behalf of a community, organization, or business, you confirm that you have authority to bind that entity to these terms.",
-        "If you do not agree, do not use the service.",
       ],
     },
     {
@@ -121,27 +124,29 @@ export const termsAndConditions = {
     },
     {
       id: "acceptable-use",
-      title: "3. Acceptable use",
+      title: "3. Zero tolerance for objectionable content and abusive users",
       paragraphs: [
-        "GoHavena has zero tolerance for objectionable, illegal, harassing, hateful, threatening, abusive, sexually explicit, or inappropriate content.",
-        "Abusive behavior toward other users is not allowed. This includes harassment, threats, intimidation, hate speech, and any conduct meant to harm or abuse another person.",
+        "GoHavena has zero tolerance for objectionable content and zero tolerance for abusive users.",
+        "You may not post, comment, upload, or share harassment, bullying, hate, threats, illegal content, sexually explicit material, or other inappropriate content.",
+        "Abusive behavior toward other users is not allowed. This includes harassment, bullying, threats, intimidation, hate speech, and any conduct meant to harm or abuse another person.",
         "You also agree not to:",
       ],
       bullets: [
         "Use Havena for unlawful, harmful, misleading, or abusive activity",
-        "Harass others, post illegal content, or attempt to bypass security or access controls",
+        "Harass, bully, threaten, or abuse others, or post illegal or sexually explicit content",
         "Interfere with platform availability, scrape data without permission, or misuse APIs",
         "Impersonate another person or misrepresent your affiliation with a community",
       ],
     },
     {
       id: "content",
-      title: "4. Content and moderation",
+      title: "4. Content, reporting, blocking, and moderation",
       paragraphs: [
+        "You are responsible for the posts, comments, listings, messages, photos, and other content you create, upload, or share.",
         "You retain rights to content you submit, and you grant Havena a license to host, display, and process that content as needed to operate the service.",
-        "You can report inappropriate or objectionable content in the app. Reports are reviewed by GoHavena and Community Admins.",
-        "You can block abusive users. Blocking hides that user’s content from your feed.",
-        "GoHavena and Community Admins may review, hide, or remove content that violates these rules.",
+        "You can report inappropriate or objectionable content in the app, including posts, comments, listings, and user profiles. Reports are reviewed by GoHavena and authorized Community Admins.",
+        "You can block abusive users. Blocking hides that user’s content from your feed and prevents messaging that user.",
+        "GoHavena and authorized Community Admins may review, hide, or remove content that violates these rules. Community Admins are notified of reports and user blocks so they can take action.",
       ],
     },
     {
@@ -165,7 +170,7 @@ export const termsAndConditions = {
       title: "7. Termination",
       paragraphs: [
         "You may stop using Havena at any time.",
-        "Accounts that violate these rules may be suspended or permanently terminated. We may also suspend or terminate access for security or legal reasons, or if a subscription lapses.",
+        "Accounts that violate these rules, including accounts that post objectionable content or abuse other users, may be suspended or permanently terminated. We may also suspend or terminate access for security or legal reasons, or if a subscription lapses.",
       ],
     },
     {

@@ -704,13 +704,12 @@ export default function ListingDetailScreen() {
             user: { display_name: listing.seller_name, name: listing.seller_name },
           }}
           submitting={reporting}
-          detailsRequired={false}
+          reasonKind="listing"
           resetKey={listing.id}
           title={t("marketplace.reportListing")}
           subtitle={t("marketplace.reportListingSubtitle", {
             name: listing.seller_name ?? t("marketplace.resident"),
           })}
-          placeholder={t("marketplace.reportListingPlaceholder")}
           onClose={() => setReportOpen(false)}
           onSubmit={handleReportSubmit}
         />

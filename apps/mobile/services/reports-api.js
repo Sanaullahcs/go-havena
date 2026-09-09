@@ -2,21 +2,64 @@ import { apiRequest } from "./api-client";
 import { getCommunityId } from "./auth-session";
 import i18n from "../i18n";
 
-export function getReportTypes() {
-  return [
-    { value: "spam", label: i18n.t("feed.reportSpam") },
-    { value: "harassment", label: i18n.t("feed.reportHarassment") },
-    { value: "safety", label: i18n.t("feed.reportSafety") },
-    { value: "damage", label: i18n.t("feed.reportDamage") },
-    { value: "noise", label: i18n.t("feed.reportNoise") },
-    { value: "other", label: i18n.t("feed.reportOther") },
-  ];
+export const REPORT_REASON_KINDS = {
+  post: "post",
+  comment: "comment",
+  profile: "profile",
+  listing: "listing",
+};
+
+const POST_COMMENT_REASONS = [
+  { value: "harassment", labelKey: "reportReasons.post.harassment" },
+  { value: "hate", labelKey: "reportReasons.post.hate" },
+  { value: "spam", labelKey: "reportReasons.post.spam" },
+  { value: "inappropriate", labelKey: "reportReasons.post.inappropriate" },
+  { value: "illegal", labelKey: "reportReasons.post.illegal" },
+  { value: "privacy", labelKey: "reportReasons.post.privacy" },
+  { value: "other", labelKey: "reportReasons.other" },
+];
+
+const PROFILE_REASONS = [
+  { value: "harassment", labelKey: "reportReasons.profile.harassment" },
+  { value: "impersonation", labelKey: "reportReasons.profile.impersonation" },
+  { value: "fake_profile", labelKey: "reportReasons.profile.fakeProfile" },
+  { value: "inappropriate", labelKey: "reportReasons.profile.inappropriate" },
+  { value: "safety", labelKey: "reportReasons.profile.safety" },
+  { value: "other", labelKey: "reportReasons.other" },
+];
+
+const LISTING_REASONS = [
+  { value: "spam", labelKey: "reportReasons.listing.spam" },
+  { value: "scam", labelKey: "reportReasons.listing.scam" },
+  { value: "prohibited", labelKey: "reportReasons.listing.prohibited" },
+  { value: "inappropriate", labelKey: "reportReasons.listing.inappropriate" },
+  { value: "incorrect", labelKey: "reportReasons.listing.incorrect" },
+  { value: "other", labelKey: "reportReasons.other" },
+];
+
+export function getReportReasons(kind = REPORT_REASON_KINDS.post) {
+  const keys =
+    kind === REPORT_REASON_KINDS.profile
+      ? PROFILE_REASONS
+      : kind === REPORT_REASON_KINDS.listing
+        ? LISTING_REASONS
+        : POST_COMMENT_REASONS;
+
+  return keys.map((item) => ({
+    value: item.value,
+    label: i18n.t(item.labelKey),
+  }));
 }
 
-/** @deprecated Use getReportTypes() instead for translated labels */
+/** @deprecated Use getReportReasons() for content-specific labels */
+export function getReportTypes() {
+  return getReportReasons(REPORT_REASON_KINDS.post);
+}
+
+/** @deprecated Use getReportReasons() instead for translated labels */
 export const REPORT_TYPES = new Proxy([], {
   get(target, prop) {
-    const types = getReportTypes();
+    const types = getReportReasons(REPORT_REASON_KINDS.post);
     if (prop === Symbol.iterator) return types[Symbol.iterator].bind(types);
     return Reflect.get(types, prop);
   },

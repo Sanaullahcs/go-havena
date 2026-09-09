@@ -4,6 +4,29 @@ import { X } from "lucide-react";
 import { AdminBadge } from "@/components/admin/ui";
 import { postReportStatusLabel, type AdminPost, type AdminPostReport } from "@/lib/api/posts";
 
+const REPORT_TYPE_LABELS: Record<string, string> = {
+  harassment: "Harassment or bullying",
+  hate: "Hate or abusive content",
+  spam: "Spam or misleading content",
+  inappropriate: "Inappropriate or offensive content",
+  illegal: "Illegal or unsafe activity",
+  privacy: "Privacy concern",
+  impersonation: "Impersonation",
+  fake_profile: "Fake or misleading profile",
+  safety: "Safety concern",
+  scam: "Scam or fraud",
+  prohibited: "Prohibited or unsafe item",
+  incorrect: "Incorrect information",
+  damage: "Property damage",
+  noise: "Noise or disturbance",
+  other: "Other",
+};
+
+function reportTypeLabel(type?: string | null) {
+  if (!type) return "Other";
+  return REPORT_TYPE_LABELS[type] ?? type.replace(/_/g, " ");
+}
+
 export function FeedPostReportsModal({
   post,
   reports,
@@ -102,7 +125,7 @@ export function FeedPostReportsModal({
                   ) : null}
                   {report.type ? (
                     <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Reason · {report.type}
+                      Reason · {reportTypeLabel(report.type)}
                     </p>
                   ) : null}
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">

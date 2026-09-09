@@ -441,9 +441,11 @@
       "subtitle": "Dile a los administradores por qué esta publicación de {{name}} debe ser revisada.",
       "reason": "Motivo",
       "details": "Detalles",
-      "placeholder": "Describe qué pasó o por qué esta publicación es inapropiada...",
-      "helper": "{{count}}/1000 · mínimo 8 caracteres",
-      "helperOptional": "{{count}}/1000 · detalles opcionales",
+      "tellUsMoreOptional": "Cuéntanos más sobre este reporte (opcional)",
+      "tellUsMoreRequired": "Cuéntanos más sobre este reporte",
+      "placeholder": "Añade cualquier detalle adicional...",
+      "helper": "{{count}}/1000 · obligatorio",
+      "helperOptional": "{{count}}/1000 · opcional",
       "submit": "Enviar reporte",
       "thisNeighbor": "este vecino",
       "reportedPostTitle": "Publicación de la comunidad reportada por {{name}}",
@@ -501,6 +503,31 @@
       "title": "Contenido sensible",
       "compactMessage": "Este contenido ha sido marcado como sensible.",
       "defaultMessage": "Esta publicación ha sido marcada como sensible por los moderadores de la comunidad."
+    }
+  },
+  "reportReasons": {
+    "other": "Otro",
+    "post": {
+      "harassment": "Acoso o intimidación",
+      "hate": "Contenido de odio o abusivo",
+      "spam": "Spam o contenido engañoso",
+      "inappropriate": "Contenido inapropiado u ofensivo",
+      "illegal": "Actividad ilegal o insegura",
+      "privacy": "Problema de privacidad"
+    },
+    "profile": {
+      "harassment": "Acoso o comportamiento abusivo",
+      "impersonation": "Suplantación de identidad",
+      "fakeProfile": "Perfil falso o engañoso",
+      "inappropriate": "Contenido inapropiado del perfil",
+      "safety": "Problema de seguridad"
+    },
+    "listing": {
+      "spam": "Publicación spam o engañosa",
+      "scam": "Estafa o fraude",
+      "prohibited": "Artículo prohibido o inseguro",
+      "inappropriate": "Contenido inapropiado",
+      "incorrect": "Información incorrecta"
     }
   },
   "categories": {
