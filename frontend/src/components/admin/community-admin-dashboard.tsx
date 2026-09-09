@@ -220,7 +220,9 @@ export default function CommunityAdminDashboard() {
       {
         label: "Total Members",
         value: String(stats.total_members),
-        hint: `${stats.pending_members} pending approval`,
+        hint: stats.pending_members
+          ? `${stats.pending_members} pending approval`
+          : "Residents in this community",
         tone: "blue" as const,
         href: "/admin/members",
         icon: dashIcon(Users),
@@ -228,7 +230,13 @@ export default function CommunityAdminDashboard() {
       {
         label: "Pending Review",
         value: String(stats.pending_approval_total),
-        hint: `${stats.pending_members} members · ${stats.pending_listings ?? 0} listings · ${stats.pending_posts} posts`,
+        hint: [
+          `${stats.pending_members} members`,
+          `${stats.pending_listings ?? 0} listings`,
+          `${stats.pending_posts} posts`,
+          ...(stats.pending_bookings ? [`${stats.pending_bookings} bookings`] : []),
+          ...(stats.pending_businesses ? [`${stats.pending_businesses} businesses`] : []),
+        ].join(" · "),
         tone: "amber" as const,
         href: "/admin/members?status=pending",
         icon: dashIcon(Clock),
@@ -275,7 +283,7 @@ export default function CommunityAdminDashboard() {
       {
         label: "Onboarding",
         value: String(stats.onboarding_members),
-        hint: "Residents not yet in a community",
+        hint: "Invited, not yet joined",
         tone: "slate" as const,
         href: "/admin/members?status=onboarding",
         icon: dashIcon(Users),
@@ -444,8 +452,8 @@ export default function CommunityAdminDashboard() {
       <div className="grid gap-5 lg:grid-cols-3 lg:items-stretch">
         <DashboardPanel
           className="h-full lg:col-span-2"
-          title="Platform Activity"
-          description="Actions in the last 7 days"
+          title="Community Activity"
+          description="Actions in this community over the last 7 days"
           icon={Activity}
           tone="blue"
           tall

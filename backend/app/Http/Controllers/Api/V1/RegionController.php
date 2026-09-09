@@ -47,6 +47,7 @@ class RegionController extends Controller
             ->with('regionRecord.stateRecord.country')
             ->withCount(['memberships as members_count' => fn ($m) => $m->where('status', 'approved')])
             ->where('status', 'active')
+            ->whereHas('regionRecord', fn ($region) => $region->where('status', 'active'))
             ->where(function ($w) {
                 $w->whereNull('review_status')
                     ->orWhere('review_status', 'approved');
@@ -194,9 +195,10 @@ class RegionController extends Controller
             'id' => $region->id,
             'title' => $region->title,
             'area' => $region->area,
-            'state' => $state?->name ?? $region->state,
+            'state' => $state?->code ?: ($state?->name ?? $region->state),
             'state_id' => $region->state_id,
             'state_name' => $state?->name ?? $region->state,
+            'state_code' => $state?->code,
             'country_id' => $country?->id,
             'country_code' => $country?->code,
             'country_name' => $country?->name,
@@ -223,9 +225,10 @@ class RegionController extends Controller
             'id' => $community->id,
             'title' => $community->name,
             'area' => $community->address ?? $community->description ?? '',
-            'state' => $state?->name ?? $community->regionRecord?->state,
+            'state' => $state?->code ?: ($state?->name ?? $community->regionRecord?->state),
             'state_id' => $community->regionRecord?->state_id,
             'state_name' => $state?->name ?? $community->regionRecord?->state,
+            'state_code' => $state?->code,
             'country_id' => $country?->id,
             'country_code' => $country?->code,
             'country_name' => $country?->name,

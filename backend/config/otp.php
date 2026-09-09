@@ -21,13 +21,31 @@ return [
     ),
 
     /*
-    | Per-email demo codes (sales / presentation accounts). These work in
-    | every environment and are not shared with other users.
+    | Per-email fallback codes (sales / presentation / client setup).
+    | These are accepted on verify in every environment and do not replace
+    | the emailed one-time code.
     */
-    'demo_email_codes' => [
-        'resident@gohavena.com' => env('OTP_DEMO_RESIDENT_CODE', '221322'),
-        'community@gohavena.com' => env('OTP_DEMO_COMMUNITY_CODE', '221322'),
-    ],
+    'demo_email_codes' => (static function (): array {
+        $codes = [
+            'resident@gohavena.com' => env('OTP_DEMO_RESIDENT_CODE', '221322'),
+            'community@gohavena.com' => env('OTP_DEMO_COMMUNITY_CODE', '221322'),
+            'umer@namuve.com' => env('OTP_DEMO_UMER_CODE', '221322'),
+        ];
+
+        $fallback = trim((string) env('OTP_DEMO_FALLBACK_CODE', '221322'));
+        if ($fallback === '' || preg_match('/^\d{4,8}$/', $fallback) !== 1) {
+            $fallback = '221322';
+        }
+
+        foreach (explode(',', (string) env('OTP_DEMO_FALLBACK_EMAILS', '')) as $email) {
+            $email = strtolower(trim($email));
+            if ($email !== '') {
+                $codes[$email] = $fallback;
+            }
+        }
+
+        return $codes;
+    })(),
 
     'expire_minutes' => (int) env('OTP_EXPIRE_MINUTES', 5),
 

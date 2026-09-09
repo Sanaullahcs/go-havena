@@ -18,7 +18,7 @@ export interface BillingPlan {
 
 export interface BillingSeats {
   seats_used: number;
-  seat_limit: number;
+  seat_limit: number | null;
   seats_available: number;
   has_subscription: boolean;
   subscription_status: string | null;
@@ -29,6 +29,8 @@ export interface BillingSeats {
   billing_interval: string | null;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
+  billing_exempt?: boolean;
+  unlimited_seats?: boolean;
 }
 
 export interface BillingSubscription {
@@ -89,6 +91,7 @@ export interface BillingPayload {
     driver: string;
     stripe_configured: boolean;
     publishable_key: string | null;
+    exempt?: boolean;
   };
   setup: BillingSetup;
   coupon?: BillingCouponSummary | null;
@@ -311,4 +314,8 @@ export async function removeBillingCoupon(communityId?: number | null): Promise<
     timeout: 45_000,
   });
   return data.data as BillingPayload;
+}
+
+export function isCommunityBillingExempt(data: Pick<BillingPayload, "billing" | "seats">): boolean {
+  return Boolean(data.billing?.exempt || data.seats?.billing_exempt || data.seats?.unlimited_seats);
 }

@@ -232,7 +232,8 @@ class CommunityBillingService
             return [
                 'seats_used' => $used,
                 'seat_limit' => null,
-                'seats_available' => null,
+                'seats_available' => 1_000_000,
+                'unlimited_seats' => true,
                 'has_subscription' => false,
                 'subscription_status' => null,
                 'allows_allocation' => true,
@@ -262,6 +263,7 @@ class CommunityBillingService
             'current_period_end' => $subscription?->current_period_end?->toIso8601String(),
             'cancel_at_period_end' => (bool) ($subscription?->cancel_at_period_end),
             'billing_exempt' => false,
+            'unlimited_seats' => false,
         ];
     }
 
@@ -453,8 +455,10 @@ class CommunityBillingService
                 'has_leftover_service' => $subscription?->hasLeftoverService() ?? false,
                 'requires_replacement_card' => ($subscription?->isAdminTransition() ?? false)
                     && ! ($subscription?->hasLeftoverService() ?? false),
-                'can_invite_residents' => $summary['allows_allocation'] && $summary['seats_available'] > 0
-                    && ($community->review_status === null || $community->review_status === 'approved'),
+                'can_invite_residents' => $billingExempt
+                    ? ($community->review_status === null || $community->review_status === 'approved')
+                    : ($summary['allows_allocation'] && ($summary['seats_available'] ?? 0) > 0
+                        && ($community->review_status === null || $community->review_status === 'approved')),
             ],
             'coupon' => $coupon,
             'next_charge' => $this->nextChargePayload($subscription, $coupon),

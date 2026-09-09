@@ -804,14 +804,7 @@ class MemberController extends Controller
 
         $rows = $query->groupBy('cm.status')->pluck('total', 'status');
 
-        $onboarding = (int) DB::table('users')
-            ->where('role', 'resident')
-            ->where('status', '!=', 'deleted')
-            ->whereNotExists(function ($sub) {
-                $sub->from('community_memberships as cm_all')
-                    ->whereColumn('cm_all.user_id', 'users.id');
-            })
-            ->count();
+        $onboarding = $this->countOnboardingResidents(null);
 
         $approved = (int) ($rows['approved'] ?? 0);
         $pending  = (int) $this->countVisiblePendingMemberships(null, $residentsOnly);
@@ -845,14 +838,7 @@ class MemberController extends Controller
 
         $rows = $query->groupBy('cm.status')->pluck('total', 'status');
 
-        $onboarding = (int) DB::table('users')
-            ->where('role', 'resident')
-            ->where('status', '!=', 'deleted')
-            ->whereNotExists(function ($sub) {
-                $sub->from('community_memberships as cm_all')
-                    ->whereColumn('cm_all.user_id', 'users.id');
-            })
-            ->count();
+        $onboarding = $this->countOnboardingResidents($communityId);
 
         $approved = (int) ($rows['approved'] ?? 0);
         $pending  = (int) $this->countVisiblePendingMemberships($communityId, $residentsOnly);
@@ -868,6 +854,27 @@ class MemberController extends Controller
             'rejected'   => $rejected,
             'onboarding' => $onboarding,
         ];
+    }
+
+    private function countOnboardingResidents(?int $communityId): int
+    {
+        $query = DB::table('users')
+            ->where('role', 'resident')
+            ->where('status', '!=', 'deleted')
+            ->whereNotExists(function ($sub) {
+                $sub->from('community_memberships as cm_all')
+                    ->whereColumn('cm_all.user_id', 'users.id');
+            });
+
+        if ($communityId) {
+            $query->whereExists(function ($sub) use ($communityId) {
+                $sub->from('invite_codes')
+                    ->whereColumn('invite_codes.invited_user_id', 'users.id')
+                    ->where('invite_codes.community_id', $communityId);
+            });
+        }
+
+        return (int) $query->count();
     }
 
     /** Pending memberships visible to community admins (excludes head-awaiting joiners). */

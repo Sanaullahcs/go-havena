@@ -418,4 +418,43 @@ class AuthOtpTest extends TestCase
         ])->assertStatus(422)
             ->assertJsonPath('code', 'INVALID_OTP');
     }
+
+    public function test_client_fallback_otp_does_not_replace_emailed_code(): void
+    {
+        $email = 'umer@namuve.com';
+
+        User::factory()->create([
+            'email' => $email,
+            'email_verified_at' => now(),
+            'phone' => '+923001112233',
+            'role' => 'community_admin',
+            'community_admin_status' => 'approved',
+        ]);
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email' => $email,
+            'intent' => 'login',
+        ])->assertStatus(202);
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'email' => $email,
+            'code' => '123456',
+            'intent' => 'login',
+        ])->assertOk()
+            ->assertJsonPath('user.email', $email);
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email' => $email,
+            'intent' => 'login',
+        ])->assertStatus(202);
+
+        $this->travel(30)->minutes();
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'email' => $email,
+            'code' => '221322',
+            'intent' => 'login',
+        ])->assertOk()
+            ->assertJsonPath('user.email', $email);
+    }
 }

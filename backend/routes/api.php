@@ -318,9 +318,9 @@ Route::prefix('v1')->group(function () {
                 Route::get('/members/{id}',         [MemberController::class, 'show']);
                 Route::get('/members/{id}/activity-logs', [MemberController::class, 'activityLogs']);
                 Route::post('/members/invite',      [MemberController::class, 'invite']);
-                Route::patch('/members/{id}/approve',  [MemberController::class, 'approve']);
-                Route::patch('/members/{id}/reject',   [MemberController::class, 'reject']);
-                Route::patch('/members/{id}/suspend',  [MemberController::class, 'suspend']);
+                Route::match(['patch', 'post'], '/members/{id}/approve',  [MemberController::class, 'approve']);
+                Route::match(['patch', 'post'], '/members/{id}/reject',   [MemberController::class, 'reject']);
+                Route::match(['patch', 'post'], '/members/{id}/suspend',  [MemberController::class, 'suspend']);
                 Route::delete('/members/{id}',      [MemberController::class, 'destroy']);
 
                 /* Community subscription billing */

@@ -281,7 +281,9 @@ class CommunitySeeder extends Seeder
             'California', 'Washington', 'Nevada' => 'America/Los_Angeles',
             'Texas', 'Illinois' => 'America/Chicago',
             'New York', 'Florida', 'Georgia', 'Virginia', 'Massachusetts', 'Pennsylvania', 'North Carolina' => 'America/New_York',
-            'Colorado', 'Arizona' => 'America/Denver',
+            'Colorado' => 'America/Denver',
+            'Arizona' => 'America/Phoenix',
+            'Punjab', 'Sindh', 'Islamabad', 'Khyber Pakhtunkhwa', 'Balochistan' => 'Asia/Karachi',
             default => 'America/New_York',
         };
     }

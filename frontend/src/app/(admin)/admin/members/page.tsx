@@ -26,7 +26,7 @@ import {
   type MembershipStatus,
 } from "@/lib/api/members";
 import { apiError } from "@/lib/api/client";
-import { fetchBilling, type BillingPayload } from "@/lib/api/billing";
+import { fetchBilling, isCommunityBillingExempt, type BillingPayload } from "@/lib/api/billing";
 import { getManagedCommunityId, getUser, isSystemAdminUser } from "@/lib/auth/session";
 import { PageLoader, PageError } from "@/components/shared/page-states";
 import Link from "next/link";
@@ -115,9 +115,9 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   const [exporting, setExporting] = useState(false);
   const [inviteResult, setInviteResult] = useState<MemberInviteResult | null>(null);
   const [provisionOpen, setProvisionOpen] = useState(false);
-  const [scopeCommunityId, setScopeCommunityId] = useState<number | "all">(() => {
+  const [scopeCommunityId, setScopeCommunityId] = useState<number | "all" | undefined>(() => {
     if (isSystemResidents || isSystemAdminUser()) return "all";
-    return getManagedCommunityId() ?? "all";
+    return getManagedCommunityId();
   });
   const [scopeCommunities, setScopeCommunities] = useState<AdminCommunityOption[]>([]);
 
@@ -213,8 +213,10 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
     count: f === "all" ? stats.total : stats[f as keyof MemberStats],
   }));
 
+  const billingExempt = Boolean(billing && isCommunityBillingExempt(billing));
+
   const openInviteModal = async () => {
-    if (billing && !billing.setup.can_invite_residents) {
+    if (billing && !billingExempt && !billing.setup.can_invite_residents) {
       if (!billing.setup.subscription_active) {
         toastError("An active subscription is required before inviting residents.");
       } else if (billing.seats.seats_available <= 0) {
@@ -369,7 +371,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   if (initialLoading) return <PageLoader skeleton />;
   if (error) return <PageError message={error} onRetry={() => load()} />;
 
-  const seatsBanner = !isSystemResidents && billing ? (
+  const seatsBanner = !isSystemResidents && billing && !billingExempt ? (
     <div
       className={[
         "flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-[13px]",
@@ -446,9 +448,9 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                 type="button"
                 className="nl-btn-primary disabled:opacity-60"
                 onClick={openInviteModal}
-                disabled={Boolean(billing && !billing.setup.can_invite_residents)}
+                disabled={Boolean(billing && !billingExempt && !billing.setup.can_invite_residents)}
                 title={
-                  billing && !billing.setup.can_invite_residents
+                  billing && !billingExempt && !billing.setup.can_invite_residents
                     ? "Subscription or seats required — open Billing"
                     : undefined
                 }

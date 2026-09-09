@@ -203,6 +203,96 @@ class AdminDashboardStatsTest extends TestCase
         $this->assertSame(2, $response->json('data.stats.published_notices'));
     }
 
+    public function test_community_admin_dashboard_is_scoped_to_their_community(): void
+    {
+        config(['billing.enabled' => false, 'billing.enforce' => false]);
+
+        $region = Region::query()->create([
+            'title'       => 'Pakistan - Lahore',
+            'area'        => 'Lahore',
+            'state'       => 'Punjab',
+            'users_label' => '0 users',
+            'sort_order'  => 1,
+            'status'      => 'active',
+        ]);
+
+        $community = Community::query()->create([
+            'name'          => 'Opus Luxury Apartments',
+            'region_id'     => $region->id,
+            'region'        => $region->title,
+            'status'        => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        $other = Community::query()->create([
+            'name'          => 'Other Society',
+            'region_id'     => $region->id,
+            'region'        => $region->title,
+            'status'        => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        $admin = User::factory()->create([
+            'role'                   => 'community_admin',
+            'community_admin_status' => 'approved',
+            'status'                 => 'active',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id'      => $admin->id,
+            'community_id' => $community->id,
+            'role'         => 'admin',
+            'status'       => 'approved',
+        ]);
+
+        $approved = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        $pending = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        CommunityMembership::query()->create([
+            'user_id'      => $approved->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id'      => $pending->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'pending',
+        ]);
+
+        $otherResident = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        CommunityMembership::query()->create([
+            'user_id'      => $otherResident->id,
+            'community_id' => $other->id,
+            'role'         => 'member',
+            'status'       => 'pending',
+        ]);
+
+        $unrelatedOnboarding = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        $this->assertDatabaseMissing('community_memberships', ['user_id' => $unrelatedOnboarding->id]);
+
+        User::factory()->count(3)->create([
+            'role'                   => 'community_admin',
+            'community_admin_status' => 'pending',
+            'status'                 => 'active',
+        ]);
+
+        Sanctum::actingAs($admin);
+        $response = $this->getJson('/api/v1/admin/dashboard/stats');
+        $response->assertOk();
+        $stats = $response->json('data.stats');
+
+        $this->assertSame($community->id, $response->json('data.scope.community_id'));
+        $this->assertSame(2, $stats['total_members']);
+        $this->assertSame(1, $stats['pending_members']);
+        $this->assertSame(0, $stats['onboarding_members']);
+        $this->assertSame(1, $stats['pending_approval_total']);
+
+        $status = collect($response->json('data.member_status'))->pluck('count', 'status');
+        $this->assertSame(1, (int) $status->get('approved'));
+        $this->assertSame(1, (int) $status->get('pending'));
+        $this->assertSame(0, (int) $status->get('onboarding'));
+    }
+
     public function test_mobile_dashboard_returns_lightweight_payload(): void
     {
         $this->seed(SystemAdminSeeder::class);

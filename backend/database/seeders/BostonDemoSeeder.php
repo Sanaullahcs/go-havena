@@ -45,7 +45,7 @@ class BostonDemoSeeder extends Seeder
         $region = Region::query()->updateOrCreate(
             ['title' => 'Massachusetts - Boston'],
             [
-                'area' => 'Greater Boston',
+                'area' => 'Boston',
                 'state' => 'Massachusetts',
                 'users_label' => '2,840 residents',
                 'sort_order' => 0,

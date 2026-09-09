@@ -9,6 +9,8 @@ export interface AdminDashboardStats {
   open_reports: number;
   active_listings: number;
   pending_listings: number;
+  pending_bookings?: number;
+  pending_businesses?: number;
   published_notices: number;
   total_posts: number;
   total_communities: number;

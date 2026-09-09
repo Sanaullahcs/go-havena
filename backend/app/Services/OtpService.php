@@ -105,11 +105,6 @@ class OtpService
 
     private function issueCode(string $email): string
     {
-        $demoCode = $this->demoCodeForEmail($email);
-        if ($demoCode !== null) {
-            return $demoCode;
-        }
-
         if ($this->isFixedEmail($email) && $this->configuredMasterCode() !== null) {
             return $this->configuredMasterCode();
         }
@@ -201,7 +196,7 @@ class OtpService
 
     private function usesKnownTestCode(string $email): bool
     {
-        return $this->isFixedEmail($email) || $this->demoCodeForEmail($email) !== null;
+        return $this->isFixedEmail($email);
     }
 
     private function isFixedEmail(string $email): bool

@@ -16,7 +16,9 @@ class GeographyController extends Controller
         $query = Country::query()->where('status', 'active');
 
         if ($request->boolean('with_states')) {
-            $query->with(['states' => fn ($q) => $q->where('status', 'active')]);
+            $query->with(['states' => fn ($q) => $q
+                ->where('status', 'active')
+                ->whereHas('regions', fn ($regions) => $regions->where('status', 'active'))]);
         }
 
         $countries = $query->orderBy('sort_order')->orderBy('name')->get();
@@ -34,6 +36,7 @@ class GeographyController extends Controller
         $states = State::query()
             ->where('country_id', $countryId)
             ->where('status', 'active')
+            ->whereHas('regions', fn ($regions) => $regions->where('status', 'active'))
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();

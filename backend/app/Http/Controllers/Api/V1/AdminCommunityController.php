@@ -128,6 +128,7 @@ class AdminCommunityController extends Controller
             'region'        => $region->title,
             'address'       => $validated['address'] ?? null,
             'description'   => $validated['description'] ?? null,
+            'timezone'      => $region->communityTimezone(),
             'status'        => 'active',
             'review_status' => 'approved',
             'reviewed_at'   => now(),

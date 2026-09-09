@@ -104,9 +104,9 @@ export function getAdminCommunityId(): number | undefined {
   return getManagedCommunityId(user) ?? user?.community_id;
 }
 
-function defaultCommunityScope(): number | "all" {
+function defaultCommunityScope(): number | "all" | undefined {
   if (isSystemAdminUser()) return "all";
-  return getManagedCommunityId() ?? "all";
+  return getManagedCommunityId();
 }
 
 export async function fetchMembers(params: MembersQuery = {}) {
@@ -216,14 +216,13 @@ export async function inviteMember(data: {
 }
 
 export async function approveMember(userId: number, communityId?: number) {
-  return api.patch(`/v1/admin/members/${userId}/approve`, null, {
-    params: communityId ? { community_id: communityId } : undefined,
-  });
+  return api.post(`/v1/admin/members/${userId}/approve`, communityId ? { community_id: communityId } : {});
 }
 
 export async function rejectMember(userId: number, reason: string, communityId?: number) {
-  return api.patch(`/v1/admin/members/${userId}/reject`, { reason }, {
-    params: communityId ? { community_id: communityId } : undefined,
+  return api.post(`/v1/admin/members/${userId}/reject`, {
+    reason,
+    ...(communityId ? { community_id: communityId } : {}),
   });
 }
 
@@ -248,9 +247,7 @@ export async function rejectFamilyAddMemberRequest(
 }
 
 export async function suspendMember(userId: number, communityId?: number) {
-  return api.patch(`/v1/admin/members/${userId}/suspend`, null, {
-    params: communityId ? { community_id: communityId } : undefined,
-  });
+  return api.post(`/v1/admin/members/${userId}/suspend`, communityId ? { community_id: communityId } : {});
 }
 
 export async function deleteMember(id: number) {

@@ -43,8 +43,9 @@ class DashboardController extends Controller
             ->selectRaw('cm.status, COUNT(*) as aggregate')
             ->groupBy('cm.status')
             ->pluck('aggregate', 'status');
-        $totalMembers = (int) ($memberCounts['approved'] ?? 0);
+        $approvedMembers = (int) ($memberCounts['approved'] ?? 0);
         $bannedMembers = (int) ($memberCounts['banned'] ?? 0);
+        $rejectedMembers = (int) ($memberCounts['rejected'] ?? 0);
         $pendingMembers = (clone $residentsQuery)
             ->where('cm.status', 'pending')
             ->whereNotExists(function ($sub) {
@@ -55,14 +56,8 @@ class DashboardController extends Controller
                     ->where('fjr.status', 'pending');
             })
             ->count();
-        $onboardingMembers = DB::table('users')
-            ->where('role', 'resident')
-            ->where('status', '!=', 'deleted')
-            ->whereNotExists(function ($sub) {
-                $sub->from('community_memberships as cm_all')
-                    ->whereColumn('cm_all.user_id', 'users.id');
-            })
-            ->count();
+        $onboardingMembers = $this->countOnboardingResidents($communityId);
+        $totalMembers = $approvedMembers + $pendingMembers + $bannedMembers + $rejectedMembers + $onboardingMembers;
         $openReports = (clone $reportsQuery)->whereIn('status', ['open', 'in_review', 'escalated'])->count();
         $listingCounts = (clone $listingsQuery)
             ->selectRaw('status, COUNT(*) as aggregate')
@@ -140,6 +135,11 @@ class DashboardController extends Controller
             DB::table('activity_logs')
                 ->selectRaw('DATE(created_at) as day, COUNT(*) as count')
                 ->where('created_at', '>=', now()->subDays(6)->startOfDay())
+                ->when($communityId, fn ($q) => $q->whereIn('user_id', function ($sub) use ($communityId) {
+                    $sub->from('community_memberships')
+                        ->where('community_id', $communityId)
+                        ->select('user_id');
+                }))
                 ->groupBy('day')
                 ->pluck('count', 'day'),
             7,
@@ -182,6 +182,11 @@ class DashboardController extends Controller
                 'status' => $row->status,
                 'count'  => (int) $row->count,
             ])
+            ->values();
+
+        $memberStatus = $memberStatus
+            ->reject(fn (array $row) => $row['status'] === 'onboarding')
+            ->push(['status' => 'onboarding', 'count' => $onboardingMembers])
             ->values();
 
         $reportsByType = DB::table('reports')
@@ -265,6 +270,11 @@ class DashboardController extends Controller
                 'activity_logs.created_at',
                 'users.name as user_name',
             ])
+            ->when($communityId, fn ($q) => $q->whereIn('activity_logs.user_id', function ($sub) use ($communityId) {
+                $sub->from('community_memberships')
+                    ->where('community_id', $communityId)
+                    ->select('user_id');
+            }))
             ->orderByDesc('activity_logs.created_at')
             ->limit(10)
             ->get()
@@ -295,7 +305,9 @@ class DashboardController extends Controller
                     'total_members'              => $totalMembers,
                     'pending_members'            => $pendingMembers,
                     'onboarding_members'         => $onboardingMembers,
-                    'pending_approval_total'     => $pendingMembers + $pendingCommunityRequests + ($communityId ? $pendingPosts : 0) + $pendingListings + $pendingCommunityAdmins,
+                    'pending_approval_total'     => $communityId
+                        ? $pendingMembers + $pendingListings + $pendingPosts + $pendingBookings + $pendingBusinesses
+                        : $pendingMembers + $pendingCommunityRequests + $pendingListings + $pendingCommunityAdmins,
                     'banned_members'             => $bannedMembers,
                     'open_reports'               => $openReports,
                     'active_listings'            => $activeListings,
@@ -483,6 +495,28 @@ class DashboardController extends Controller
             'recent_notices'    => $recentNotices,
             'personal_activity' => $personalActivity,
         ]]);
+    }
+
+    /** Residents invited to this community who have not created a membership yet. */
+    private function countOnboardingResidents(?int $communityId): int
+    {
+        $query = DB::table('users')
+            ->where('role', 'resident')
+            ->where('status', '!=', 'deleted')
+            ->whereNotExists(function ($sub) {
+                $sub->from('community_memberships as cm_all')
+                    ->whereColumn('cm_all.user_id', 'users.id');
+            });
+
+        if ($communityId) {
+            $query->whereExists(function ($sub) use ($communityId) {
+                $sub->from('invite_codes')
+                    ->whereColumn('invite_codes.invited_user_id', 'users.id')
+                    ->where('invite_codes.community_id', $communityId);
+            });
+        }
+
+        return (int) $query->count();
     }
 
     /** Approved/pending resident memberships only — excludes community admins. */

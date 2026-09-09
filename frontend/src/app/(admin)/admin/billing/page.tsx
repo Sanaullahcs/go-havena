@@ -692,13 +692,16 @@ function SetupChecklist({
           : "Platform sign-off",
     },
     {
-      done: data.setup.can_invite_residents,
+      done: data.setup.can_invite_residents || Boolean(data.billing?.exempt || data.seats?.billing_exempt),
       label: "Invite residents",
-      hint: billingReady
-        ? `${seats.seats_used} of ${seats.seat_limit || "—"} seats used`
-        : trialEligible
-          ? "Unlocks after trial + approval"
-          : "Unlocks after paid billing + approval",
+      hint:
+        data.billing?.exempt || data.seats?.billing_exempt
+          ? "Unlimited seats — billing not required"
+          : billingReady
+            ? `${seats.seats_used} of ${seats.seat_limit || "—"} seats used`
+            : trialEligible
+              ? "Unlocks after trial + approval"
+              : "Unlocks after paid billing + approval",
     },
   ];
 
@@ -1037,7 +1040,12 @@ function BillingPageInner() {
   const needsReplacementCard = Boolean(sub?.requires_replacement_card || data.setup.requires_replacement_card);
   const paidPendingApproval = cardSavedAwaitingApproval || (billingReady && data.community.review_status === "pending");
   const checkoutComplete = (billingReady || cardSavedAwaitingApproval || leftover) && !needsReplacementCard;
-  const seatLimitLabel = seats.seat_limit > 0 ? String(seats.seat_limit) : "—";
+  const billingExempt = Boolean(data.billing?.exempt || data.seats?.billing_exempt || data.seats?.unlimited_seats);
+  const seatLimitLabel = billingExempt
+    ? "Unlimited"
+    : seats.seat_limit && seats.seat_limit > 0
+      ? String(seats.seat_limit)
+      : "—";
   const trialEligible = communityTrialEligible(data);
   const effectiveTrialDays = trialEligible ? (data.trial_period_days ?? TRIAL_DAYS) : 0;
   const previewPlan = data.plans.find((p) => p.slug === selected) ?? data.plans[0] ?? null;
@@ -1218,16 +1226,18 @@ function BillingPageInner() {
                   <div
                     className="h-full rounded-full bg-teal-600 transition-all"
                     style={{
-                      width: `${Math.min(100, seats.seat_limit > 0 ? (seats.seats_used / seats.seat_limit) * 100 : 0)}%`,
+                      width: `${Math.min(100, !billingExempt && seats.seat_limit && seats.seat_limit > 0 ? (seats.seats_used / seats.seat_limit) * 100 : 0)}%`,
                     }}
                   />
                 </div>
                 <p className="mt-2 text-[11px] text-slate-500">
-                  {seats.seats_available > 0
-                    ? `${seats.seats_available} seats still open`
-                    : seats.seat_limit > 0
-                      ? "Seat pool is full"
-                      : "Seats unlock with an active plan"}
+                  {billingExempt
+                    ? "Unlimited resident seats in this region"
+                    : seats.seats_available > 0
+                      ? `${seats.seats_available} seats still open`
+                      : seats.seat_limit && seats.seat_limit > 0
+                        ? "Seat pool is full"
+                        : "Seats unlock with an active plan"}
                 </p>
               </div>
             </div>

@@ -36,4 +36,27 @@ class Region extends Model
     {
         return $this->hasMany(Profile::class);
     }
+
+    public function communities(): HasMany
+    {
+        return $this->hasMany(Community::class);
+    }
+
+    public function communityTimezone(): string
+    {
+        $this->loadMissing('stateRecord.country');
+        $countryCode = $this->stateRecord?->country?->code;
+
+        if ($countryCode === 'PK') {
+            return 'Asia/Karachi';
+        }
+
+        return match ($this->stateRecord?->name ?? $this->state) {
+            'California', 'Washington', 'Nevada' => 'America/Los_Angeles',
+            'Texas', 'Illinois' => 'America/Chicago',
+            'Arizona' => 'America/Phoenix',
+            'Colorado' => 'America/Denver',
+            default => 'America/New_York',
+        };
+    }
 }

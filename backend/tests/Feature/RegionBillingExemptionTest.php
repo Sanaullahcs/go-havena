@@ -148,8 +148,16 @@ class RegionBillingExemptionTest extends TestCase
     {
         config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
 
-        [, $admin] = $this->seedPakistanCommunity();
+        [$community, $admin] = $this->seedPakistanCommunity();
         $token = $admin->createToken('test')->plainTextToken;
+
+        $this->withToken($token)
+            ->getJson('/api/v1/admin/billing?community_id='.$community->id)
+            ->assertOk()
+            ->assertJsonPath('data.billing.exempt', true)
+            ->assertJsonPath('data.seats.billing_exempt', true)
+            ->assertJsonPath('data.seats.unlimited_seats', true)
+            ->assertJsonPath('data.setup.can_invite_residents', true);
 
         $this->withToken($token)
             ->postJson('/api/v1/admin/members/invite', [
@@ -159,6 +167,41 @@ class RegionBillingExemptionTest extends TestCase
                 'unit_number' => 'A1',
             ])
             ->assertCreated();
+    }
+
+    public function test_pakistan_community_can_approve_without_subscription(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        [$community, $admin] = $this->seedPakistanCommunity();
+
+        $pending = User::factory()->create([
+            'role' => 'resident',
+            'status' => 'active',
+            'email' => 'pending.pk@example.com',
+            'phone' => '+15555550102',
+            'phone_verified_at' => now(),
+        ]);
+        CommunityMembership::query()->create([
+            'user_id' => $pending->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'pending',
+        ]);
+
+        $token = $admin->createToken('test')->plainTextToken;
+
+        $this->withToken($token)
+            ->postJson("/api/v1/admin/members/{$pending->id}/approve", [
+                'community_id' => $community->id,
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id' => $pending->id,
+            'community_id' => $community->id,
+            'status' => 'approved',
+        ]);
     }
 
     public function test_us_community_still_requires_billing(): void
