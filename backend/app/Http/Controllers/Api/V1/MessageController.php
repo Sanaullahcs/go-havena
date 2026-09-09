@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\AdminRoleService;
 use App\Services\NotificationService;
+use App\Services\UserBlockService;
 use App\Support\MediaUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,6 +32,11 @@ class MessageController extends Controller
             })
             ->where('cp.user_id', $user->id)
             ->where('cp2.user_id', '!=', $user->id);
+
+        $blockedPeerIds = UserBlockService::blockedEitherWayIdsFor((int) $user->id);
+        if ($blockedPeerIds !== []) {
+            $query->whereNotIn('u.id', $blockedPeerIds);
+        }
 
         if ($communityId) {
             $communityIds = $this->resolveConversationCommunityIds($request, $user, $communityId);
@@ -116,6 +122,14 @@ class MessageController extends Controller
             return response()->json(['message' => 'Not a participant.'], 403);
         }
 
+        $peerId = DB::table('conversation_participants')
+            ->where('conversation_id', $id)
+            ->where('user_id', '!=', $user->id)
+            ->value('user_id');
+        if ($peerId && UserBlockService::isBlockedEitherWay((int) $user->id, (int) $peerId)) {
+            return response()->json(['message' => 'You cannot interact with this user.'], 422);
+        }
+
         $limit = min(max((int) ($request->limit ?? 25), 1), 50);
         $beforeId = $request->filled('before_id') ? (int) $request->before_id : null;
 
@@ -193,6 +207,14 @@ class MessageController extends Controller
             return response()->json(['message' => 'Not a participant.'], 403);
         }
 
+        $peerId = DB::table('conversation_participants')
+            ->where('conversation_id', $id)
+            ->where('user_id', '!=', $user->id)
+            ->value('user_id');
+        if ($peerId) {
+            UserBlockService::assertCanInteract((int) $user->id, (int) $peerId);
+        }
+
         $message = $this->insertMessage($id, $user->id, $validated['body'], 'text');
 
         $conversation = DB::table('conversations')->where('id', $id)->first();
@@ -242,6 +264,8 @@ class MessageController extends Controller
         if ($recipientId === (int) $user->id) {
             return response()->json(['message' => 'You cannot message yourself.'], 422);
         }
+
+        UserBlockService::assertCanInteract((int) $user->id, $recipientId);
 
         $communityId = $this->resolveCommunityId($request, $user);
         if (! $communityId) {
@@ -367,7 +391,14 @@ class MessageController extends Controller
             ->where('cm.status', 'approved')
             ->where('u.id', '!=', $user->id)
             ->where('u.status', 'active')
-            ->whereNotIn('u.role', ['system_admin', 'admin'])
+            ->whereNotIn('u.role', ['system_admin', 'admin']);
+
+        $blockedPeerIds = UserBlockService::blockedEitherWayIdsFor((int) $user->id);
+        if ($blockedPeerIds !== []) {
+            $query->whereNotIn('u.id', $blockedPeerIds);
+        }
+
+        $query
             ->select([
                 'u.id',
                 'u.name',

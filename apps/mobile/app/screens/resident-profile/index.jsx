@@ -17,6 +17,11 @@ import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
 import { Colors, Layout, Shadows } from "../../../constants/tokens";
 import { fetchNeighbor } from "../../../services/profile-api";
+import { fileReport } from "../../../services/reports-api";
+import FeedPostReportSheet, { completeReportAndNotify } from "../../../components/feed/feed-post-report-sheet";
+import { useApiAction } from "../../../hooks/use-api-action";
+import { useBlockUser } from "../../../hooks/use-block-user";
+import { canShowBlockUser } from "../../../utils/block-target";
 import { sw, sf } from "../../../utils/responsive";
 
 function roleLabel(role, t) {
@@ -39,6 +44,10 @@ export default function ResidentProfileScreen() {
   const [neighbor, setNeighbor] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { confirmAndBlock, confirmAndUnblock } = useBlockUser();
+  const { showSuccess, showFailure } = useApiAction();
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reporting, setReporting] = useState(false);
 
   const avatarSize = useMemo(() => {
     if (width < 360) return sw(68);
@@ -78,6 +87,16 @@ export default function ResidentProfileScreen() {
 
   const unitLine = neighbor?.unitNumber ? t("nav.unit", { number: neighbor.unitNumber }) : null;
   const residence = residenceLabel(neighbor?.residence_type, t);
+  const canReport = Boolean(neighbor?.canReport);
+  const canShowBlock = neighbor
+    ? neighbor.isBlocked || canShowBlockUser({
+        id: neighbor.id,
+        can_block: neighbor.canBlock,
+        isBlocked: neighbor.isBlocked,
+        account_role: neighbor.accountRole ?? neighbor.account_role,
+        role: neighbor.role,
+      })
+    : false;
   const chips = [
     { key: "role", label: roleLabel(neighbor?.role, t), tone: "brand" },
     residence ? { key: "residence", label: residence, tone: "neutral" } : null,
@@ -155,6 +174,44 @@ export default function ResidentProfileScreen() {
               ) : (
                 <Text style={styles.bioEmpty}>{t("residentProfile.noBioYet")}</Text>
               )}
+
+              {canReport || canShowBlock ? (
+                <View style={styles.actionRow}>
+                  {canReport ? (
+                    <Pressable style={styles.blockBtn} onPress={() => setReportOpen(true)}>
+                      <Feather name="flag" size={sf(14)} color="#DC2626" />
+                      <Text style={styles.blockBtnText}>{t("residentProfile.reportUser")}</Text>
+                    </Pressable>
+                  ) : null}
+                  {canShowBlock ? (
+                    <Pressable
+                      style={[styles.blockBtn, neighbor.isBlocked && styles.unblockBtn]}
+                      onPress={async () => {
+                        if (neighbor.isBlocked) {
+                          const ok = await confirmAndUnblock(neighbor.id);
+                          if (ok) setNeighbor((prev) => (prev ? { ...prev, isBlocked: false, canBlock: true } : prev));
+                          return;
+                        }
+                        const ok = await confirmAndBlock(neighbor.id, {
+                          can_block: neighbor.canBlock,
+                          account_role: neighbor.accountRole ?? neighbor.account_role,
+                          role: neighbor.role,
+                        });
+                        if (ok) setNeighbor((prev) => (prev ? { ...prev, isBlocked: true } : prev));
+                      }}
+                    >
+                      <Feather
+                        name={neighbor.isBlocked ? "user-check" : "slash"}
+                        size={sf(14)}
+                        color={neighbor.isBlocked ? Colors.brandPrimaryDeep : "#DC2626"}
+                      />
+                      <Text style={[styles.blockBtnText, neighbor.isBlocked && styles.unblockBtnText]}>
+                        {neighbor.isBlocked ? t("blocks.unblockUser") : t("blocks.blockUser")}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
             </View>
 
             <View style={styles.divider} />
@@ -193,6 +250,40 @@ export default function ResidentProfileScreen() {
             </View>
           </View>
         </ScrollView>
+      ) : null}
+
+      {neighbor && canReport ? (
+        <FeedPostReportSheet
+          visible={reportOpen}
+          post={{
+            id: neighbor.id,
+            user_id: neighbor.id,
+            user: { display_name: neighbor.displayName, name: neighbor.displayName },
+          }}
+          submitting={reporting}
+          detailsRequired={false}
+          resetKey={neighbor.id}
+          title={t("residentProfile.reportTitle")}
+          subtitle={t("residentProfile.reportSubtitle", { name: neighbor.displayName })}
+          placeholder={t("residentProfile.reportPlaceholder")}
+          onClose={() => setReportOpen(false)}
+          onSubmit={async (payload) => {
+            await completeReportAndNotify({
+              request: () =>
+                fileReport({
+                  type: payload.type,
+                  description: payload.description,
+                  title: t("residentProfile.reportedUserTitle", { name: neighbor.displayName }),
+                  reportedUserId: neighbor.id,
+                }),
+              close: () => setReportOpen(false),
+              setBusy: setReporting,
+              notifySuccess: () =>
+                showSuccess(t("feed.options.reportSubmitted"), t("residentProfile.adminWillReviewUser")),
+              notifyFailure: (error) => showFailure(t("apiAction.actionFailed"), error),
+            });
+          }}
+        />
       ) : null}
     </SafeAreaView>
   );
@@ -354,6 +445,39 @@ const styles = StyleSheet.create({
     lineHeight: sf(16),
     color: Colors.textMuted,
     textAlign: "center",
+  },
+  actionRow: {
+    marginTop: sw(12),
+    marginBottom: sw(8),
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: sw(8),
+  },
+  blockBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: sw(6),
+    paddingHorizontal: sw(14),
+    paddingVertical: sw(8),
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    backgroundColor: "#FEF2F2",
+  },
+  blockBtnText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(13),
+    color: "#DC2626",
+    fontWeight: "600",
+  },
+  unblockBtn: {
+    borderColor: "#BFDBFE",
+    backgroundColor: "#EFF6FF",
+  },
+  unblockBtnText: {
+    color: Colors.brandPrimaryDeep,
   },
   divider: {
     height: StyleSheet.hairlineWidth,

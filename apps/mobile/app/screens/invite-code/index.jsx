@@ -192,16 +192,18 @@ export default function InviteCodeScreen() {
               automaticallyAdjustKeyboardInsets: false,
             }}
             footer={
-              <AuthSubmitButton
-                label={t('guests.verifyCode')}
-                loadingLabel={t('guests.verifying')}
-                enabled={canVerify}
-                loading={submitting}
-                onPress={handleVerify}
-                solidColor={ScreenBrand.cta}
-                loadingColor={ScreenBrand.ctaLoading}
-                style={[styles.verifyButton, ScreenBrand.buttonShadow]}
-              />
+              <View style={styles.verifyButtonWrap}>
+                <AuthSubmitButton
+                  label={t('guests.verifyCode')}
+                  loadingLabel={t('guests.verifying')}
+                  enabled={canVerify}
+                  loading={submitting}
+                  onPress={handleVerify}
+                  solidColor={ScreenBrand.cta}
+                  loadingColor={ScreenBrand.ctaLoading}
+                  style={[styles.verifyButton, ScreenBrand.buttonShadow]}
+                />
+              </View>
             }
           >
             <View ref={contentRef} collapsable={false}>
@@ -317,7 +319,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   footer: {
-    paddingHorizontal: 6,
+    paddingHorizontal: 24,
     paddingTop: 16,
   },
   scrollContent: {
@@ -443,7 +445,13 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     color: "#DC2626",
   },
+  verifyButtonWrap: {
+    width: "100%",
+    alignSelf: "stretch",
+  },
   verifyButton: {
+    width: "100%",
+    alignSelf: "stretch",
     height: 56,
     borderRadius: 14,
   },

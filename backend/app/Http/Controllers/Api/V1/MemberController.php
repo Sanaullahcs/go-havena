@@ -104,24 +104,10 @@ class MemberController extends Controller
         $this->excludeGuestMembershipsScope($query);
 
         if ($request->filled('status') && $request->status !== 'all') {
-            if ($request->status === 'pending') {
-                $query->where(function ($q) {
-                    $q->where('cm.status', 'pending')
-                        ->orWhereNull('cm.id');
-                });
-                // Hide Complete Profile joiners until their family head approves.
-                $query->where(function ($q) use ($communityId) {
-                    $q->whereNull('cm.id')
-                        ->orWhereNotExists(function ($sub) use ($communityId) {
-                            $sub->from('family_join_requests as fjr')
-                                ->join('families', 'families.id', '=', 'fjr.family_id')
-                                ->whereColumn('fjr.requester_user_id', 'users.id')
-                                ->where('families.community_id', $communityId)
-                                ->where('fjr.status', 'pending');
-                        });
-                });
-            } elseif ($request->status === 'onboarding') {
+            if ($request->status === 'onboarding') {
                 $query->whereNull('cm.id');
+            } elseif ($request->status === 'pending') {
+                $query->where('cm.status', 'pending');
             } else {
                 $query->where('cm.status', $request->status);
             }
@@ -180,9 +166,6 @@ class MemberController extends Controller
         } else {
             $query = $this->membershipRowsQuery($request, $residentsOnly);
             $query->where('cm.status', $status);
-            if ($status === 'pending') {
-                $this->excludeAwaitingFamilyHeadJoiners($query);
-            }
             $members = $query->orderByDesc('cm.created_at')
                 ->paginate($perPage, ['*'], 'page', $page);
         }
@@ -804,22 +787,7 @@ class MemberController extends Controller
 
         $rows = $query->groupBy('cm.status')->pluck('total', 'status');
 
-        $onboarding = $this->countOnboardingResidents(null);
-
-        $approved = (int) ($rows['approved'] ?? 0);
-        $pending  = (int) $this->countVisiblePendingMemberships(null, $residentsOnly);
-        $banned   = (int) ($rows['banned'] ?? 0);
-        $rejected = (int) ($rows['rejected'] ?? 0);
-        $total    = $approved + $pending + $banned + $rejected + $onboarding;
-
-        return [
-            'total'      => $total,
-            'approved'   => $approved,
-            'pending'    => $pending,
-            'banned'     => $banned,
-            'rejected'   => $rejected,
-            'onboarding' => $onboarding,
-        ];
+        return $this->composeMemberStats($rows, $this->countOnboardingResidents(null));
     }
 
     private function memberStats(int $communityId, bool $residentsOnly = false): array
@@ -838,16 +806,22 @@ class MemberController extends Controller
 
         $rows = $query->groupBy('cm.status')->pluck('total', 'status');
 
-        $onboarding = $this->countOnboardingResidents($communityId);
+        return $this->composeMemberStats($rows, $this->countOnboardingResidents($communityId));
+    }
 
+    /**
+     * Same status buckets as formatMember(): membership status, plus
+     * residents with no membership counted as onboarding.
+     */
+    private function composeMemberStats($rows, int $onboarding): array
+    {
         $approved = (int) ($rows['approved'] ?? 0);
-        $pending  = (int) $this->countVisiblePendingMemberships($communityId, $residentsOnly);
+        $pending  = (int) ($rows['pending'] ?? 0);
         $banned   = (int) ($rows['banned'] ?? 0);
         $rejected = (int) ($rows['rejected'] ?? 0);
-        $total    = $approved + $pending + $banned + $rejected + $onboarding;
 
         return [
-            'total'      => $total,
+            'total'      => $approved + $pending + $banned + $rejected + $onboarding,
             'approved'   => $approved,
             'pending'    => $pending,
             'banned'     => $banned,
@@ -875,41 +849,6 @@ class MemberController extends Controller
         }
 
         return (int) $query->count();
-    }
-
-    /** Pending memberships visible to community admins (excludes head-awaiting joiners). */
-    private function countVisiblePendingMemberships(?int $communityId, bool $residentsOnly = false): int
-    {
-        $query = DB::table('community_memberships as cm')
-            ->join('users', 'users.id', '=', 'cm.user_id')
-            ->where('cm.status', 'pending')
-            ->whereNotIn('users.role', ['system_admin', 'admin', 'guest'])
-            ->where('cm.role', '!=', 'guest')
-            ->where('users.status', '!=', 'deleted');
-
-        if ($communityId) {
-            $query->where('cm.community_id', $communityId);
-        }
-
-        if ($residentsOnly) {
-            $query->where('cm.role', 'member')->where('users.role', 'resident');
-        }
-
-        $this->excludeAwaitingFamilyHeadJoiners($query);
-
-        return (int) $query->count();
-    }
-
-    /** Exclude Complete Profile joiners still waiting on family head approval. */
-    private function excludeAwaitingFamilyHeadJoiners($query): void
-    {
-        $query->whereNotExists(function ($sub) {
-            $sub->from('family_join_requests as fjr')
-                ->join('families', 'families.id', '=', 'fjr.family_id')
-                ->whereColumn('fjr.requester_user_id', 'users.id')
-                ->whereColumn('families.community_id', 'cm.community_id')
-                ->where('fjr.status', 'pending');
-        });
     }
 
     /** @return int|null null = platform-wide (system admin only) */

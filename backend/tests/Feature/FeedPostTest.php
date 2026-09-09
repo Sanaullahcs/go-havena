@@ -267,4 +267,124 @@ class FeedPostTest extends TestCase
             ->assertJsonPath('data.0.is_sensitive', false)
             ->assertJsonPath('data.0.body', 'Post that a neighbor will report.');
     }
+
+    public function test_resident_can_report_another_residents_comment(): void
+    {
+        ['community' => $community, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        $author = User::factory()->create([
+            'role'   => 'resident',
+            'status' => 'active',
+            'phone'  => '+201700000033',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $author->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+
+        Sanctum::actingAs($author);
+        $postId = $this->postJson('/api/v1/feed', [
+            'body' => 'A post neighbors can comment on.',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated()->json('data.id');
+
+        $commentId = $this->postJson('/api/v1/feed/'.$postId.'/comments', [
+            'body' => 'This comment should be reportable.',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated()->json('data.id');
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/feed/'.$postId.'/comments/'.$commentId.'/report', [
+            'type'        => 'harassment',
+            'description' => 'This comment is abusive toward neighbors.',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.comment_id', $commentId)
+            ->assertJsonPath('data.reported_user_id', $author->id);
+
+        $this->assertDatabaseHas('post_reports', [
+            'post_id'          => $postId,
+            'comment_id'       => $commentId,
+            'reporter_id'      => $resident->id,
+            'reported_user_id' => $author->id,
+            'source'           => 'resident',
+            'type'             => 'harassment',
+        ]);
+
+        $systemAdmin = User::factory()->create([
+            'role'   => 'system_admin',
+            'status' => 'active',
+            'phone'  => '+201700000034',
+        ]);
+
+        Sanctum::actingAs($systemAdmin);
+        $this->getJson('/api/v1/admin/posts/'.$postId.'/reports')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.target', 'comment')
+            ->assertJsonPath('data.0.comment_id', $commentId)
+            ->assertJsonPath('data.0.reporter_id', $resident->id)
+            ->assertJsonPath('data.0.reported_user_id', $author->id)
+            ->assertJsonPath('data.0.comment_body', 'This comment should be reportable.');
+    }
+
+    public function test_resident_cannot_report_own_comment(): void
+    {
+        ['community' => $community, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        Sanctum::actingAs($resident);
+        $postId = $this->postJson('/api/v1/feed', [
+            'body' => 'My post.',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated()->json('data.id');
+
+        $commentId = $this->postJson('/api/v1/feed/'.$postId.'/comments', [
+            'body' => 'My own comment.',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated()->json('data.id');
+
+        $this->postJson('/api/v1/feed/'.$postId.'/comments/'.$commentId.'/report', [
+            'type' => 'spam',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'You cannot report your own comment');
+    }
+
+    public function test_resident_can_report_community_admin_comment(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        Sanctum::actingAs($admin);
+        $postId = $this->postJson('/api/v1/feed', [
+            'body' => 'Official update.',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated()->json('data.id');
+
+        $commentId = $this->postJson('/api/v1/feed/'.$postId.'/comments', [
+            'body' => 'Admin-written comment that is still UGC.',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated()->json('data.id');
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/feed/'.$postId.'/comments/'.$commentId.'/report', [
+            'type' => 'other',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.comment_id', $commentId);
+    }
 }

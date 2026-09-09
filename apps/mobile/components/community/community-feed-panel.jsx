@@ -298,6 +298,11 @@ export default function CommunityFeedPanel() {
             onDeleted={(postId) =>
               setPosts((prev) => prev.filter((item) => String(item.id) !== String(postId)))
             }
+            onUserBlocked={(userId) =>
+              setPosts((prev) =>
+                prev.filter((item) => String(item.user_id ?? item.user?.id) !== String(userId)),
+              )
+            }
           />
         ))
       )}

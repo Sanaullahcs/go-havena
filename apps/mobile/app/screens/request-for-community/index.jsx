@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -25,10 +25,8 @@ const FIELD_BOX_HEIGHT = 52;
 const FIELD_FONT_SIZE = 14;
 
 /**
- * Match complete-profile single-line fields. iOS shifts placeholder + value
- * down when lineHeight, a 52px input height, and paddingVertical are combined.
- * The wrapper owns the 52px box; the TextInput stays intrinsically sized and
- * centered. A little extra bottom padding lifts Poppins on iOS.
+ * Plain object so the text-metrics patch cannot add lineHeight.
+ * iOS TextInput top-aligns when lineHeight is set; the 52px wrapper centers it.
  */
 const fieldTextStyle = {
   fontFamily: Fonts.regular,
@@ -37,9 +35,8 @@ const fieldTextStyle = {
   width: "100%",
   margin: 0,
   paddingHorizontal: 0,
-  paddingVertical: 0,
   paddingTop: 0,
-  paddingBottom: Platform.OS === "ios" ? 3 : 0,
+  paddingBottom: 0,
   textAlignVertical: "center",
   includeFontPadding: false,
 };

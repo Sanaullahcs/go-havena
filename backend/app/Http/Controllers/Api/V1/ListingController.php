@@ -8,6 +8,7 @@ use App\Http\Controllers\Concerns\BlocksGuestWrites;
 use App\Services\ActivityLogService;
 use App\Services\AdminRoleService;
 use App\Services\NotificationService;
+use App\Services\UserBlockService;
 use App\Support\MediaUrl;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -122,6 +123,7 @@ class ListingController extends Controller
             ->select(
                 'listings.*',
                 'users.name as seller_name', 'users.email as seller_email',
+                'users.role as seller_account_role',
                 'profiles.unit_number as seller_unit', 'profiles.avatar_url as seller_avatar'
             )
             ->where('listings.id', $id)
@@ -164,6 +166,9 @@ class ListingController extends Controller
         $listing->save_count = (int) DB::table('listing_saves')
             ->where('listing_id', $id)
             ->count();
+        $listing->can_report = $user && ! $isOwner
+            ? UserBlockService::canBlock((int) $user->id, (int) $listing->user_id, (int) $listing->community_id)
+            : false;
 
         return response()->json(['data' => $listing]);
     }

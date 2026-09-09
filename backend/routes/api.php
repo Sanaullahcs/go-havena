@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\MessageController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\PointsController;
 use App\Http\Controllers\Api\V1\ProfileController;
+use App\Http\Controllers\Api\V1\UserBlockController;
 use App\Http\Controllers\Api\V1\MemberController;
 use App\Http\Controllers\Api\V1\NoticeController;
 use App\Http\Controllers\Api\V1\ReportController;
@@ -85,6 +86,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/me/membership-review', [ProfileController::class, 'membershipReview']);
         Route::get('/guest-access/status',   [GuestAccessController::class, 'status']);
         Route::get('/neighbors/{id}', [ProfileController::class, 'showNeighbor'])->whereNumber('id');
+        Route::get('/users/blocked', [UserBlockController::class, 'index']);
+        Route::post('/users/{id}/block', [UserBlockController::class, 'store'])->whereNumber('id');
+        Route::delete('/users/{id}/block', [UserBlockController::class, 'destroy'])->whereNumber('id');
         Route::put('/me',             [ProfileController::class, 'update']);
         Route::post('/me',            [ProfileController::class, 'update']);
         Route::delete('/me',          [ProfileController::class, 'destroy']);
@@ -180,6 +184,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/feed/{id}/comments',                     [FeedController::class, 'addComment']);
         Route::post('/feed/{postId}/comments/{commentId}/like', [FeedController::class, 'likeComment']);
         Route::delete('/feed/{postId}/comments/{commentId}',   [FeedController::class, 'deleteComment']);
+        Route::post('/feed/{postId}/comments/{commentId}/report', [FeedController::class, 'reportComment']);
 
         /* ── Amenities & Bookings ── */
         Route::get('/amenities',                        [AmenityController::class, 'index']);

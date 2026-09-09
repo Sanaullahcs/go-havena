@@ -21,6 +21,20 @@ import { HomeTheme as T } from "../../../constants/home-theme";
 
 const SEARCH_DEBOUNCE_MS = 400;
 
+/** Plain object so the text-metrics patch cannot add lineHeight (iOS then sits the placeholder high). */
+const REGION_SEARCH_INPUT_STYLE = {
+  flex: 1,
+  margin: 0,
+  paddingTop: 0,
+  paddingBottom: 0,
+  paddingHorizontal: 0,
+  fontFamily: Fonts.regular,
+  fontSize: 13,
+  color: T.navy,
+  textAlignVertical: "center",
+  includeFontPadding: false,
+};
+
 export default function RegionScreen() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -137,9 +151,10 @@ export default function RegionScreen() {
               onChangeText={setSearchText}
               placeholder={t("region.searchRegions")}
               placeholderTextColor={T.gray}
-              style={styles.searchInput}
+              style={REGION_SEARCH_INPUT_STYLE}
               returnKeyType="search"
               autoCorrect={false}
+              textAlignVertical="center"
             />
             {isSearchPending || refreshing ? (
               <ActivityIndicator size="small" color={T.teal} />
@@ -383,12 +398,6 @@ const styles = StyleSheet.create({
     lineHeight: 12,
     color: T.white,
     fontWeight: "700",
-  },
-  searchInput: {
-    flex: 1,
-    fontFamily: Fonts.regular,
-    fontSize: 13,
-    color: T.navy,
   },
   centerState: {
     flex: 1,

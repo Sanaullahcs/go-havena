@@ -146,6 +146,7 @@ export default function ModerationPage() {
         <DtTable>
           <DtHead cols={[
             { label: "Reporter" },
+            { label: "Subject" },
             { label: "Type" },
             { label: "Description" },
             { label: "Priority" },
@@ -160,6 +161,13 @@ export default function ModerationPage() {
                 <DtRow key={r.id} muted={r.status === "dismissed"}>
                   <DtCell first>
                     <span className="font-semibold text-slate-900">{r.reporter_name}</span>
+                  </DtCell>
+                  <DtCell>
+                    <span className="line-clamp-2 max-w-[240px] text-[12.5px] font-medium text-slate-800">
+                      {r.listing_title
+                        ? `Listing: ${r.listing_title}`
+                        : r.title || (r.reported_name ? `Resident: ${r.reported_name}` : "Report")}
+                    </span>
                   </DtCell>
                   <DtCell nowrap>
                     <span className="rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold text-white" style={{ background: TYPE_COLOR[r.type] ?? "#64748b" }}>

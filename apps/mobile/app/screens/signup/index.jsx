@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import BackButton from "../../../components/ui/back-button";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
 import AuthEmailField from "../../../components/auth/auth-email-field";
+import AuthTermsAgreement from "../../../components/auth/auth-terms-agreement";
 import AuthLogo from "../../../components/ui/auth-logo";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
 import { Fonts } from "../../../constants/font";
@@ -55,6 +56,8 @@ export default function SignupScreen() {
 
   const [email, setEmail] = useState("");
   const [emailFocused, setEmailFocused] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [termsError, setTermsError] = useState(false);
   const { submitting, run } = useSubmitLock();
   const formatError = validateUserEmail(email);
   const isValid = !formatError;
@@ -64,8 +67,17 @@ export default function SignupScreen() {
     setEmail(value);
   };
 
+  const handleTermsChange = (next) => {
+    setAgreedToTerms(next);
+    if (next) setTermsError(false);
+  };
+
   const handleSendCode = () => {
     if (!isValid || submitting) return;
+    if (!agreedToTerms) {
+      setTermsError(true);
+      return;
+    }
 
     const normalizedEmail = email.trim().toLowerCase();
     run(async () => {
@@ -117,10 +129,15 @@ export default function SignupScreen() {
         keyboardVerticalOffset={8}
         footer={
           <View style={styles.footerInner}>
+            <AuthTermsAgreement
+              agreed={agreedToTerms}
+              onAgreedChange={handleTermsChange}
+              error={termsError}
+            />
             <AuthSubmitButton
               label={t("auth.sendCode")}
               loadingLabel={t("auth.sending")}
-              enabled={isValid && !submitting}
+              enabled={isValid && agreedToTerms && !submitting}
               loading={submitting}
               onPress={handleSendCode}
               variant="solid"

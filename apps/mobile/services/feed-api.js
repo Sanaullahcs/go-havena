@@ -204,6 +204,8 @@ export function normalizePost(raw) {
     comments: raw.comments_count ?? raw.comments ?? 0,
     liked_by_me: raw.liked_by_me ?? false,
     is_mine: raw.is_mine ?? false,
+    author_role: raw.author_role ?? raw.user?.role ?? null,
+    can_block: raw.can_block,
     status: raw.status ?? "approved",
     is_sensitive: sensitive,
     sensitive_message: sensitive
@@ -213,6 +215,7 @@ export function normalizePost(raw) {
       id: raw.user_id ?? raw.user?.id ?? null,
       name: authorName,
       display_name: authorName,
+      role: raw.author_role ?? raw.user?.role ?? null,
       avatar: avatarUrl,
       time: timeAgo(raw.created_at),
       location: raw.author_unit ? i18n.t("marketplace.unitLabel", { unit: raw.author_unit }) : raw.user?.location ?? "",
@@ -509,6 +512,24 @@ export async function reportFeedPost(postId, { type = "other", description } = {
 
   return {
     message: res?.message ?? "Report submitted. Community admins will review this post.",
+    data: res?.data ?? null,
+  };
+}
+
+/** POST /v1/feed/{postId}/comments/{commentId}/report — resident reports a comment. */
+export async function reportFeedComment(postId, commentId, { type = "other", description } = {}) {
+  await ensureFeedCommunityContext();
+  const res = await apiRequest(`/feed/${postId}/comments/${commentId}/report`, {
+    method: "POST",
+    body: {
+      type,
+      description,
+      reason: description,
+    },
+  });
+
+  return {
+    message: res?.message ?? "Report submitted. Community admins will review this comment.",
     data: res?.data ?? null,
   };
 }

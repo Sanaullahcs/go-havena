@@ -11,6 +11,7 @@ use App\Services\ActivityLogService;
 use App\Services\FcmNotificationService;
 use App\Services\NotificationService;
 use App\Services\PushNotificationService;
+use App\Services\UserBlockService;
 use App\Support\MediaUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -62,7 +63,9 @@ class FeedController extends Controller
             ]);
         }
 
-        $query = $this->basePostQuery($communityId)
+        $query = $this->basePostQuery($communityId);
+        $this->excludeBlockedAuthors($query, (int) $user->id, 'posts.user_id');
+        $query
             ->where(function ($w) use ($user) {
                 $w->where('posts.status', 'approved')
                     ->orWhere(function ($w2) use ($user) {
@@ -302,6 +305,7 @@ class FeedController extends Controller
             ->select(
                 'posts.*',
                 DB::raw('COALESCE(profiles.display_name, users.name) as author_name'),
+                'users.role as author_role',
                 'profiles.avatar_url as author_avatar',
                 'profiles.unit_number as author_unit',
             )
@@ -311,6 +315,8 @@ class FeedController extends Controller
         if ($communityId) {
             $query->where('posts.community_id', $communityId);
         }
+
+        $this->excludeBlockedAuthors($query, (int) $user->id, 'posts.user_id');
 
         $query->where(function ($w) use ($user) {
             $w->where('posts.status', 'approved')
@@ -348,6 +354,7 @@ class FeedController extends Controller
         }
 
         $userId = auth()->id();
+        UserBlockService::assertCanInteract((int) $userId, (int) $post->user_id);
         $exists = DB::table('post_likes')->where('user_id', $userId)->where('post_id', $id)->exists();
 
         if ($exists) {
@@ -408,8 +415,11 @@ class FeedController extends Controller
         $alreadyReported = DB::table('post_reports')
             ->where('post_id', $id)
             ->where('reporter_id', $userId)
-            ->where('source', 'resident')
-            ->exists();
+            ->where('source', 'resident');
+        if (Schema::hasColumn('post_reports', 'comment_id')) {
+            $alreadyReported->whereNull('comment_id');
+        }
+        $alreadyReported = $alreadyReported->exists();
 
         if ($alreadyReported) {
             return response()->json(['message' => 'You have already reported this post'], 422);
@@ -466,7 +476,9 @@ class FeedController extends Controller
 
         $comments = $this->commentQuery()
             ->where('post_comments.post_id', $id)
-            ->whereNull('post_comments.deleted_at')
+            ->whereNull('post_comments.deleted_at');
+        $this->excludeBlockedAuthors($comments, (int) $request->user()->id, 'post_comments.user_id');
+        $comments = $comments
             ->orderBy('post_comments.created_at')
             ->get();
 
@@ -494,6 +506,7 @@ class FeedController extends Controller
         }
 
         $userId = auth()->id();
+        UserBlockService::assertCanInteract((int) $userId, (int) $comment->user_id);
         $exists = DB::table('comment_likes')
             ->where('user_id', $userId)
             ->where('comment_id', $commentId)
@@ -564,6 +577,8 @@ class FeedController extends Controller
             'parent_id' => 'nullable|integer|min:1',
         ]);
 
+        UserBlockService::assertCanInteract((int) auth()->id(), (int) $post->user_id);
+
         $body = $request->input('body') ?? $request->input('content');
         $parentId = $request->filled('parent_id') ? (int) $request->input('parent_id') : null;
         $parent = null;
@@ -578,6 +593,8 @@ class FeedController extends Controller
             if (! $parent) {
                 return response()->json(['message' => 'Parent comment not found'], 422);
             }
+
+            UserBlockService::assertCanInteract((int) auth()->id(), (int) $parent->user_id);
 
             $parentDepth = $this->commentDepth((int) $parent->id, (int) $id);
             if ($parentDepth >= self::MAX_COMMENT_DEPTH) {
@@ -670,6 +687,104 @@ class FeedController extends Controller
         );
 
         return response()->json(['message' => 'Comment deleted']);
+    }
+
+    /** POST /v1/feed/{postId}/comments/{commentId}/report — resident reports a comment for admin review. */
+    public function reportComment(int $postId, int $commentId, Request $request): JsonResponse
+    {
+        $this->assertNotGuestWrite($request, 'report_comment');
+
+        $request->validate([
+            'type'        => 'nullable|in:noise,harassment,damage,spam,safety,other',
+            'reason'      => 'nullable|string|max:500',
+            'description' => 'nullable|string|max:500',
+        ]);
+
+        $post = $this->findApprovedPostForMember($postId, $request);
+        if (! $post) {
+            return response()->json(['message' => 'Post not found or not yet approved'], 404);
+        }
+
+        $comment = DB::table('post_comments')
+            ->where('id', $commentId)
+            ->where('post_id', $postId)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (! $comment) {
+            return response()->json(['message' => 'Comment not found'], 404);
+        }
+
+        $userId = (int) auth()->id();
+        if ((int) $comment->user_id === $userId) {
+            return response()->json(['message' => 'You cannot report your own comment'], 422);
+        }
+
+        $alreadyReported = DB::table('post_reports')
+            ->where('reporter_id', $userId)
+            ->where('source', 'resident');
+        if (Schema::hasColumn('post_reports', 'comment_id')) {
+            $alreadyReported->where('comment_id', $commentId);
+        } else {
+            $alreadyReported->where('post_id', $postId)->where('reason', 'like', '%comment #'.$commentId.'%');
+        }
+        if ($alreadyReported->exists()) {
+            return response()->json(['message' => 'You have already reported this comment'], 422);
+        }
+
+        $type = $request->input('type', 'other');
+        $details = trim((string) ($request->input('reason') ?? $request->input('description') ?? ''));
+        $reason = $details !== '' ? $details : (string) $type;
+
+        $payload = [
+            'post_id'     => $postId,
+            'reporter_id' => $userId,
+            'reason'      => $reason,
+            'source'      => 'resident',
+            'type'        => $type,
+            'created_at'  => now(),
+            'updated_at'  => now(),
+        ];
+        if (Schema::hasColumn('post_reports', 'comment_id')) {
+            $payload['comment_id'] = $commentId;
+        }
+        if (Schema::hasColumn('post_reports', 'reported_user_id')) {
+            $payload['reported_user_id'] = (int) $comment->user_id;
+        }
+
+        DB::table('post_reports')->insert($payload);
+
+        ActivityLogService::user(
+            'comment_reported_by_resident',
+            'Reported community comment #'.$commentId,
+            'Post',
+            $postId,
+            'warning',
+            null,
+            [
+                'comment_id' => $commentId,
+                'reported_user_id' => (int) $comment->user_id,
+                'reason' => \Illuminate\Support\Str::limit($reason, 120),
+            ],
+        );
+
+        $reportsCount = (int) DB::table('post_reports')->where('post_id', $postId)->count();
+        $residentReportsCount = (int) DB::table('post_reports')
+            ->where('post_id', $postId)
+            ->where('source', 'resident')
+            ->count();
+
+        return response()->json([
+            'message' => 'Report submitted. Community admins will review this comment.',
+            'data'    => [
+                'post_id'                => $postId,
+                'comment_id'             => $commentId,
+                'reported_user_id'       => (int) $comment->user_id,
+                'reports_count'          => $reportsCount,
+                'resident_reports_count' => $residentReportsCount,
+                'report_status'          => 'reported',
+            ],
+        ], 201);
     }
 
     /** GET /v1/admin/posts */
@@ -986,7 +1101,7 @@ class FeedController extends Controller
 
         $this->assertCanModeratePost($post);
 
-        $reports = DB::table('post_reports')
+        $query = DB::table('post_reports')
             ->join('users', 'users.id', '=', 'post_reports.reporter_id')
             ->leftJoin('profiles', 'profiles.user_id', '=', 'post_reports.reporter_id')
             ->select(
@@ -1001,20 +1116,41 @@ class FeedController extends Controller
                 DB::raw('COALESCE(profiles.display_name, users.name) as reporter_name'),
             )
             ->where('post_reports.post_id', $id)
-            ->orderByDesc('post_reports.created_at')
-            ->get();
+            ->orderByDesc('post_reports.created_at');
+
+        if (Schema::hasColumn('post_reports', 'comment_id')) {
+            $query->leftJoin('post_comments', 'post_comments.id', '=', 'post_reports.comment_id')
+                ->leftJoin('users as comment_authors', 'comment_authors.id', '=', 'post_comments.user_id')
+                ->leftJoin('profiles as comment_author_profiles', 'comment_author_profiles.user_id', '=', 'post_comments.user_id')
+                ->addSelect(
+                    'post_reports.comment_id',
+                    'post_comments.body as comment_body',
+                    DB::raw('COALESCE(comment_author_profiles.display_name, comment_authors.name) as comment_author_name'),
+                );
+        }
+
+        if (Schema::hasColumn('post_reports', 'reported_user_id')) {
+            $query->addSelect('post_reports.reported_user_id');
+        }
+
+        $reports = $query->get();
 
         return response()->json([
             'data' => $reports->map(fn ($report) => [
-                'id'             => (int) $report->id,
-                'post_id'        => (int) $report->post_id,
-                'reporter_id'    => (int) $report->reporter_id,
-                'reporter_name'  => $report->reporter_name,
-                'reporter_role'  => $report->reporter_role,
-                'source'         => $report->source ?? 'resident',
-                'type'           => $report->type,
-                'reason'         => $report->reason,
-                'created_at'     => $this->formatTimestamp($report->created_at),
+                'id'                  => (int) $report->id,
+                'post_id'             => (int) $report->post_id,
+                'comment_id'          => $report->comment_id ? (int) $report->comment_id : null,
+                'target'              => $report->comment_id ? 'comment' : 'post',
+                'reporter_id'         => (int) $report->reporter_id,
+                'reporter_name'       => $report->reporter_name,
+                'reporter_role'       => $report->reporter_role,
+                'reported_user_id'    => $report->reported_user_id ? (int) $report->reported_user_id : null,
+                'comment_author_name' => $report->comment_author_name,
+                'comment_body'        => $report->comment_body,
+                'source'              => $report->source ?? 'resident',
+                'type'                => $report->type,
+                'reason'              => $report->reason,
+                'created_at'          => $this->formatTimestamp($report->created_at),
             ])->values(),
             'meta' => [
                 'total' => $reports->count(),
@@ -1143,7 +1279,20 @@ class FeedController extends Controller
             $query->whereIn('posts.community_id', $approvedCommunityIds);
         }
 
-        return $query->first();
+        $post = $query->first();
+        if ($post && $user && in_array((int) $post->user_id, UserBlockService::hiddenAuthorIdsFor((int) $user->id), true)) {
+            return null;
+        }
+
+        return $post;
+    }
+
+    private function excludeBlockedAuthors($query, int $viewerId, string $authorColumn): void
+    {
+        $hiddenIds = UserBlockService::hiddenAuthorIdsFor($viewerId);
+        if ($hiddenIds !== []) {
+            $query->whereNotIn($authorColumn, $hiddenIds);
+        }
     }
 
     private function basePostQuery(int $communityId)
@@ -1154,6 +1303,7 @@ class FeedController extends Controller
             ->select(
                 'posts.*',
                 DB::raw('COALESCE(profiles.display_name, users.name) as author_name'),
+                'users.role as author_role',
                 'profiles.avatar_url as author_avatar',
                 'profiles.unit_number as author_unit',
             )
@@ -1184,6 +1334,8 @@ class FeedController extends Controller
             'community_id'   => (int) $post->community_id,
             'community_name' => $post->community_name ?? null,
             'user_id'        => (int) $post->user_id,
+            'author_role'    => $post->author_role ?? null,
+            'can_block'      => UserBlockService::canBlock($userId, (int) $post->user_id, isset($post->community_id) ? (int) $post->community_id : null),
             'body'           => $body,
             'body_es'        => $maskSensitive ? null : ($post->body_es ?? null),
             'body_ar'        => $maskSensitive ? null : ($post->body_ar ?? null),
@@ -1212,6 +1364,7 @@ class FeedController extends Controller
                 'id'           => (int) $post->user_id,
                 'name'         => $post->author_name,
                 'display_name' => $post->author_name,
+                'role'         => $post->author_role ?? null,
                 'avatar'       => MediaUrl::toPublic($post->author_avatar ?? null, request()),
                 'location'     => $post->author_unit ? 'Unit '.$post->author_unit : null,
             ],

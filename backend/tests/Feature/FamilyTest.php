@@ -604,12 +604,12 @@ class FamilyTest extends TestCase
             'user_id' => $joiner->id,
         ]);
 
-        // Hidden from community admin pending queue while waiting on family head.
+        // Still listed as pending so Members cards/tabs match the table.
         Sanctum::actingAs($admin);
         $pendingMembers = $this->getJson('/api/v1/admin/members?status=pending&role=member')
-            ->assertOk()
-            ->json('data');
-        $this->assertFalse(collect($pendingMembers)->contains(fn ($m) => (int) $m['id'] === (int) $joiner->id));
+            ->assertOk();
+        $this->assertTrue(collect($pendingMembers->json('data'))->contains(fn ($m) => (int) $m['id'] === (int) $joiner->id));
+        $this->assertSame(1, $pendingMembers->json('meta.stats.pending'));
 
         Sanctum::actingAs($head);
         $this->patchJson("/api/v1/family-join-requests/{$joinId}/approve")

@@ -28,13 +28,12 @@ import { useOtpCountdown } from "../../../hooks/use-otp-countdown";
 import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { handleAuthApiError } from "../../../utils/auth-errors";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
-import { authLayoutStyles as layout } from "../../../constants/auth-layout";
+import { AUTH_FIELD_INPUT_STYLE, authLayoutStyles as layout } from "../../../constants/auth-layout";
 import { authStyles } from "../../../constants/auth-styles";
 import { DEV_OTP_HINT } from "../../../constants/api-config";
 import { Fonts } from "../../../constants/font";
-import { Colors, Shadows } from "../../../constants/tokens";
+import { Shadows } from "../../../constants/tokens";
 import { ScreenBrand } from "../../../constants/screen-brand";
-import { sf, sw } from "../../../utils/responsive";
 import { guestAccessNoticeMessage } from "../../../utils/guest-access-schedule";
 
 const getStepMeta = (t) => ({
@@ -428,20 +427,25 @@ export default function GuestLoginScreen() {
                 <Text style={layout.fieldLabel}>
                   {t("guest.inviteCode")} <Text style={styles.required}>*</Text>
                 </Text>
-                <LocaleTextInput
-                  style={[styles.input, inviteFieldError ? styles.inputError : null]}
-                  value={inviteCode}
-                  onChangeText={(value) => {
-                    setInviteCode(value.toUpperCase());
-                    clearError("inviteCode");
-                  }}
-                  onFocus={() => touch("inviteCode")}
-                  onBlur={() => touch("inviteCode")}
-                  placeholder="GST-XXXX-1234"
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  placeholderTextColor="#9CA3AF"
-                />
+                <View style={[layout.emailField, inviteFieldError && layout.emailFieldError]}>
+                  <LocaleTextInput
+                    style={AUTH_FIELD_INPUT_STYLE}
+                    value={inviteCode}
+                    onChangeText={(value) => {
+                      setInviteCode(value.toUpperCase());
+                      clearError("inviteCode");
+                    }}
+                    onFocus={() => touch("inviteCode")}
+                    onBlur={() => touch("inviteCode")}
+                    placeholder="GST-XXXX-1234"
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    placeholderTextColor="#9CA3AF"
+                    forceLtr
+                    textAlign="left"
+                    underlineColorAndroid="transparent"
+                  />
+                </View>
                 {inviteFieldError ? (
                   <Text style={authStyles.inputErrorText}>{inviteFieldError}</Text>
                 ) : null}
@@ -462,20 +466,6 @@ const styles = StyleSheet.create({
   required: {
     color: "#DC2626",
     fontFamily: Fonts.semiBold,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: sw(12),
-    paddingHorizontal: sw(14),
-    paddingVertical: sw(12),
-    fontFamily: Fonts.regular,
-    fontSize: sf(16),
-    backgroundColor: "#FFF",
-    color: Colors.textPrimary,
-  },
-  inputError: {
-    borderColor: "#DC2626",
   },
   resendMuted: {
     opacity: 0.6,

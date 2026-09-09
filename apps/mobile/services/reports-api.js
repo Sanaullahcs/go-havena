@@ -30,6 +30,7 @@ export async function fileReport({
   title,
   description,
   reportedUserId,
+  listingId,
   severity = "medium",
 } = {}) {
   const communityId = await getCommunityId();
@@ -37,12 +38,15 @@ export async function fileReport({
   const body = {
     type,
     title,
-    description,
+    description: description ?? "",
     severity,
   };
 
   if (reportedUserId) {
     body.reported_user_id = reportedUserId;
+  }
+  if (listingId) {
+    body.listing_id = listingId;
   }
   if (communityId) {
     body.community_id = communityId;

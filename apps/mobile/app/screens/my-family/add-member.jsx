@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Keyboard, KeyboardAvoidingView, Platform } from "react-native";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -58,8 +58,23 @@ function Field({ label, error, children, onLayout }) {
   );
 }
 
+const INPUT_HEIGHT = sw(48);
+
+function SingleLineInput({ style, error, ...props }) {
+  return (
+    <View style={[styles.inputBox, error && styles.inputError]}>
+      <LocaleTextInput
+        {...props}
+        underlineColorAndroid="transparent"
+        style={[styles.inputText, style]}
+      />
+    </View>
+  );
+}
+
 export default function AddFamilyMemberScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { showFailure, showSuccess } = useApiAction();
   const scrollRef = useRef(null);
@@ -161,13 +176,13 @@ export default function AddFamilyMemberScreen() {
             error={errors.first_name}
             onLayout={rememberFieldOffset("first_name")}
           >
-            <LocaleTextInput
+            <SingleLineInput
               value={form.first_name}
               onChangeText={(value) => update("first_name", value)}
               onFocus={() => focusField("first_name")}
               placeholder={t("family.addMemberForm.firstName")}
               placeholderTextColor="#94A3B8"
-              style={[styles.input, errors.first_name && styles.inputError]}
+              error={errors.first_name}
               editable={!submitting}
               autoCapitalize="words"
               autoCorrect={false}
@@ -181,13 +196,13 @@ export default function AddFamilyMemberScreen() {
             error={errors.last_name}
             onLayout={rememberFieldOffset("last_name")}
           >
-            <LocaleTextInput
+            <SingleLineInput
               value={form.last_name}
               onChangeText={(value) => update("last_name", value)}
               onFocus={() => focusField("last_name")}
               placeholder={t("family.addMemberForm.lastName")}
               placeholderTextColor="#94A3B8"
-              style={[styles.input, errors.last_name && styles.inputError]}
+              error={errors.last_name}
               editable={!submitting}
               autoCapitalize="words"
               autoCorrect={false}
@@ -208,13 +223,13 @@ export default function AddFamilyMemberScreen() {
           </Field>
 
           <Field label={t("family.addMemberForm.email")} error={errors.email} onLayout={rememberFieldOffset("email")}>
-            <LocaleTextInput
+            <SingleLineInput
               value={form.email}
               onChangeText={(value) => update("email", value)}
               onFocus={() => focusField("email")}
               placeholder={t("family.addMemberForm.emailPlaceholder")}
               placeholderTextColor="#94A3B8"
-              style={[styles.input, errors.email && styles.inputError]}
+              error={errors.email}
               editable={!submitting}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -225,13 +240,13 @@ export default function AddFamilyMemberScreen() {
           </Field>
 
           <Field label={t("family.addMemberForm.age")} error={errors.age} onLayout={rememberFieldOffset("age")}>
-            <LocaleTextInput
+            <SingleLineInput
               value={form.age}
               onChangeText={(value) => update("age", value.replace(/[^0-9]/g, ""))}
               onFocus={() => focusField("age")}
               placeholder={t("family.addMemberForm.agePlaceholder")}
               placeholderTextColor="#94A3B8"
-              style={[styles.input, errors.age && styles.inputError]}
+              error={errors.age}
               editable={!submitting}
               keyboardType="number-pad"
               maxLength={3}
@@ -244,13 +259,13 @@ export default function AddFamilyMemberScreen() {
             error={errors.unit_number}
             onLayout={rememberFieldOffset("unit_number")}
           >
-            <LocaleTextInput
+            <SingleLineInput
               value={form.unit_number}
               onChangeText={(value) => update("unit_number", value)}
               onFocus={() => focusField("unit_number")}
               placeholder={t("family.addMemberForm.unitPlaceholder")}
               placeholderTextColor="#94A3B8"
-              style={[styles.input, errors.unit_number && styles.inputError]}
+              error={errors.unit_number}
               editable={!submitting}
               autoCapitalize="characters"
               autoCorrect={false}
@@ -260,7 +275,7 @@ export default function AddFamilyMemberScreen() {
           </Field>
         </ScrollView>
 
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, sw(12)) }]}>
           <TouchableOpacity
             style={styles.cancelBtn}
             disabled={submitting}
@@ -274,7 +289,9 @@ export default function AddFamilyMemberScreen() {
             ) : (
               <>
                 <Feather name="send" size={sf(15)} color="#FFFFFF" />
-                <Text style={styles.submitText}>{t("family.addMemberForm.submitRequest")}</Text>
+                <Text style={styles.submitText} numberOfLines={1}>
+                  {t("family.addMemberForm.submitRequest")}
+                </Text>
               </>
             )}
           </TouchableOpacity>
@@ -318,17 +335,32 @@ const styles = StyleSheet.create({
     color: "#334155",
     marginBottom: sw(8),
   },
-  input: {
-    minHeight: sw(48),
+  inputBox: {
+    height: INPUT_HEIGHT,
     borderWidth: 1,
     borderColor: "#E2E8F0",
     borderRadius: sw(12),
     paddingHorizontal: sw(14),
-    paddingVertical: sw(12),
+    paddingTop: 0,
+    paddingBottom: 0,
+    overflow: "hidden",
+    backgroundColor: "#FFFFFF",
+  },
+  inputText: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    margin: 0,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
     fontFamily: Fonts.regular,
     fontSize: sf(15),
     color: "#0F172A",
-    backgroundColor: "#FFFFFF",
+    includeFontPadding: false,
+    textAlignVertical: "center",
+    backgroundColor: "transparent",
   },
   inputError: {
     borderColor: "#FCA5A5",
@@ -342,10 +374,10 @@ const styles = StyleSheet.create({
   },
   footer: {
     flexDirection: "row",
+    alignItems: "stretch",
     gap: sw(10),
     paddingHorizontal: sw(16),
     paddingTop: sw(10),
-    paddingBottom: sw(16),
     borderTopWidth: 1,
     borderTopColor: "#E2E8F0",
     backgroundColor: "#FFFFFF",
@@ -354,7 +386,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: sw(50),
+    height: sw(50),
     borderRadius: sw(12),
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -366,12 +398,12 @@ const styles = StyleSheet.create({
     color: "#475569",
   },
   submitBtn: {
-    flex: 1.5,
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: sw(6),
-    minHeight: sw(50),
+    height: sw(50),
     borderRadius: sw(12),
     backgroundColor: "#1B4F8A",
   },

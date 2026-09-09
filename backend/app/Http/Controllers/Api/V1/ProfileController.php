@@ -12,6 +12,7 @@ use App\Services\CommunityLifecycleService;
 use App\Services\ContactIdentityService;
 use App\Services\MembershipService;
 use App\Services\PointsRewardService;
+use App\Services\UserBlockService;
 use App\Support\MediaUrl;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
@@ -99,8 +100,12 @@ class ProfileController extends Controller
                 'bio'            => $member->bio,
                 'residence_type' => $member->residence_type,
                 'role'           => $member->membership_role ?: $member->account_role ?: 'member',
+                'account_role'   => $member->account_role,
                 'community_name' => $member->community_name,
                 'is_mine'        => (int) $member->id === (int) $viewer->id,
+                'is_blocked'     => UserBlockService::viewerHasBlocked((int) $viewer->id, (int) $member->id),
+                'can_block'      => UserBlockService::canBlock((int) $viewer->id, (int) $member->id, $communityId),
+                'can_report'     => UserBlockService::canBlock((int) $viewer->id, (int) $member->id, $communityId),
             ],
         ]);
     }

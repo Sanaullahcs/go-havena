@@ -133,6 +133,15 @@ export default function ProfileSetting() {
           params: { mode: "edit" },
         }),
     },
+    {
+      id: 2,
+      title: t("settings.blockedUsers"),
+      subTitle: t("settings.blockedUsersSub"),
+      icon: "slash",
+      iconColor: "#DC2626",
+      iconBg: "#FEF2F2",
+      onPress: () => router.push("/screens/blocked-users"),
+    },
   ];
 
   const notification = [

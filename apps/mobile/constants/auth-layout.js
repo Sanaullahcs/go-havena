@@ -3,6 +3,27 @@ import { Fonts } from "./font";
 import { Colors } from "./tokens";
 import { ScreenBrand as B } from "./screen-brand";
 
+/**
+ * Single-line auth field text. Keep this a plain object (not StyleSheet.create).
+ * The global text-metrics patch adds lineHeight to StyleSheet text styles, and
+ * iOS TextInput then top-aligns the placeholder instead of centering it.
+ */
+export const AUTH_FIELD_INPUT_STYLE = {
+  width: "100%",
+  margin: 0,
+  paddingHorizontal: 0,
+  paddingTop: 0,
+  paddingBottom: 0,
+  fontFamily: Fonts.regular,
+  fontSize: 16,
+  color: Colors.textPrimary,
+  textAlign: "left",
+  textAlignVertical: "center",
+  includeFontPadding: false,
+  backgroundColor: "transparent",
+  ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),
+};
+
 /** Shared layout for phone login + OTP verify */
 export const authLayoutStyles = StyleSheet.create({
   container: {
@@ -80,24 +101,6 @@ export const authLayoutStyles = StyleSheet.create({
   },
   emailFieldError: {
     borderColor: "#DC2626",
-  },
-  emailInput: {
-    width: "100%",
-    height: "100%",
-    margin: 0,
-    paddingHorizontal: 0,
-    // Poppins sits optically low in a 56px iOS field; extra bottom pad lifts both
-    // placeholder and typed value without changing left inset or box size.
-    paddingTop: 0,
-    paddingBottom: Platform.OS === "ios" ? 6 : 0,
-    fontFamily: Fonts.regular,
-    fontSize: 16,
-    color: Colors.textPrimary,
-    textAlign: "left",
-    textAlignVertical: "center",
-    includeFontPadding: false,
-    backgroundColor: "transparent",
-    ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),
   },
   footerInner: {
     gap: 12,

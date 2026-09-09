@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\Community;
 use App\Models\CommunityMembership;
+use App\Models\CommunitySubscription;
+use App\Models\Family;
+use App\Models\FamilyJoinRequest;
 use App\Models\Region;
 use App\Models\User;
 use Database\Seeders\SystemAdminSeeder;
@@ -536,5 +539,101 @@ class AdminMembersListTest extends TestCase
         $this->assertTrue($ids->contains($resident->id));
         $this->assertFalse($ids->contains($guest->id));
         $this->assertSame(1, $response->json('meta.stats.approved'));
+    }
+
+    public function test_pending_stats_match_listed_members_including_family_joiners(): void
+    {
+        $region = Region::query()->create([
+            'title'       => 'Cairo Metro',
+            'area'        => 'Cairo',
+            'state'       => 'EG',
+            'users_label' => '0 users',
+            'sort_order'  => 1,
+            'status'      => 'active',
+        ]);
+
+        $community = Community::query()->create([
+            'name'          => 'Oak Valley',
+            'region_id'     => $region->id,
+            'region'        => $region->title,
+            'status'        => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        CommunitySubscription::query()->create([
+            'community_id' => $community->id,
+            'plan_slug' => 'starter',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_ACTIVE,
+            'seat_limit' => 100,
+            'meta' => ['card_on_file' => true, 'activated_via' => 'manual'],
+        ]);
+
+        $communityAdmin = User::factory()->create([
+            'role'                   => 'community_admin',
+            'community_admin_status' => 'approved',
+            'status'                 => 'active',
+        ]);
+
+        $activeResident = User::factory()->create([
+            'role'   => 'resident',
+            'status' => 'active',
+        ]);
+
+        $pendingResident = User::factory()->create([
+            'role'   => 'resident',
+            'status' => 'active',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $communityAdmin->id,
+            'community_id' => $community->id,
+            'role'         => 'admin',
+            'status'       => 'approved',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $activeResident->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $pendingResident->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'pending',
+        ]);
+
+        $family = Family::query()->create([
+            'community_id'  => $community->id,
+            'head_user_id'  => $activeResident->id,
+            'family_number' => 'FAM-TEST1',
+            'name'          => 'Test Family',
+            'status'        => 'active',
+        ]);
+
+        FamilyJoinRequest::query()->create([
+            'family_id'         => $family->id,
+            'requester_user_id' => $pendingResident->id,
+            'status'            => FamilyJoinRequest::STATUS_PENDING,
+        ]);
+
+        Sanctum::actingAs($communityAdmin);
+
+        $all = $this->getJson('/api/v1/admin/members')->assertOk();
+        $this->assertSame(3, $all->json('meta.total'));
+        $this->assertSame(3, $all->json('meta.stats.total'));
+        $this->assertSame(2, $all->json('meta.stats.approved'));
+        $this->assertSame(1, $all->json('meta.stats.pending'));
+        $this->assertTrue(collect($all->json('data'))->contains(
+            fn ($m) => (int) $m['id'] === (int) $pendingResident->id && $m['status'] === 'pending',
+        ));
+
+        $pending = $this->getJson('/api/v1/admin/members?status=pending')->assertOk();
+        $this->assertSame(1, $pending->json('meta.total'));
+        $this->assertSame(1, $pending->json('meta.stats.pending'));
+        $this->assertSame($pendingResident->id, $pending->json('data.0.id'));
     }
 }

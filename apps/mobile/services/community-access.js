@@ -282,6 +282,11 @@ export function isCommunityAdminRole(user) {
   return user?.role === "community_admin";
 }
 
+/** Region does not require a payment method (e.g. Pakistan / free-billing). */
+export function isBillingExempt(user) {
+  return Boolean(user?.access?.billing_exempt);
+}
+
 /** Joined because a community admin (or invite code) added them — not a self-serve request. */
 export function joinedViaAdminInvite(user) {
   return (user?.memberships ?? []).some((m) => Boolean(m?.invite_code_used));

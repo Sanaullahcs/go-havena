@@ -33,6 +33,11 @@ export async function fetchNeighbor(userId) {
     unitNumber: data.unit_number ?? null,
     communityName: data.community_name ?? null,
     bio: data.bio ?? "",
+    isBlocked: Boolean(data.is_blocked),
+    canBlock: data.can_block === true && !data.is_mine,
+    canReport: data.can_report === true && !data.is_mine,
+    accountRole: data.account_role ?? null,
+    role: data.role ?? data.account_role ?? null,
   };
 }
 

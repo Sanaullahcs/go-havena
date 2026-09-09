@@ -30,6 +30,7 @@ export default function FeedPostCard({
   onProfile,
   onShare,
   onDeleted,
+  onUserBlocked,
   footerVariant = "compact",
   showOptions = true,
   style,
@@ -104,7 +105,9 @@ export default function FeedPostCard({
                 <Text style={[styles.tagText, { color: theme.text }]}>{TOPIC_LABEL_KEY[post.tag] ? t(TOPIC_LABEL_KEY[post.tag]) : post.tag}</Text>
               </View>
             ) : null}
-            {showOptions && !isSensitive ? <FeedPostOptions post={post} onDeleted={onDeleted} /> : null}
+            {showOptions && !isSensitive ? (
+              <FeedPostOptions post={post} onDeleted={onDeleted} onUserBlocked={onUserBlocked} />
+            ) : null}
           </View>
         </View>
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, RefreshControl, Platform, ScrollView } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, RefreshControl, Platform, ScrollView, Keyboard, Pressable } from "react-native";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -39,6 +39,22 @@ import { rnShadow } from "../../../utils/shadow";
 
 
 const PREVIEW_REPLY_COUNT = 1;
+
+/** Plain object so the text-metrics patch cannot add lineHeight (iOS then sits the caret low). */
+const composerInputStyle = {
+  width: "100%",
+  minHeight: sw(40),
+  maxHeight: sw(88),
+  fontFamily: Fonts.regular,
+  fontSize: sf(15),
+  color: "#050505",
+  paddingTop: Platform.OS === "ios" ? 10 : 8,
+  paddingBottom: Platform.OS === "ios" ? 12 : 8,
+  paddingHorizontal: 0,
+  margin: 0,
+  includeFontPadding: false,
+  textAlignVertical: "center",
+};
 
 function getThreadRootId(comment, list) {
   if (!comment) return null;
@@ -110,7 +126,7 @@ export default function FeedCommentsScreen() {
   const scrollRef = useRef(null);
   const { postId = "1" } = useLocalSearchParams();
   const now = useNow(30000);
-  const { bottomOffset } = useKeyboardBottomOffset();
+  const { bottomOffset, safeBottom } = useKeyboardBottomOffset();
   const keyboardOpen = bottomOffset > 0;
 
   const [post, setPost] = useState(null);
@@ -393,8 +409,9 @@ export default function FeedCommentsScreen() {
           ref={scrollRef}
           style={styles.flex}
           contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="always"
-          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          onScrollBeginDrag={Keyboard.dismiss}
           automaticallyAdjustKeyboardInsets={false}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -404,7 +421,7 @@ export default function FeedCommentsScreen() {
           {loading && !post ? (
             <CommentScreenSkeleton />
           ) : (
-            <>
+            <Pressable style={styles.dismissArea} onPress={Keyboard.dismiss}>
           {post ? (
             <>
               <FeedPostCard
@@ -416,6 +433,16 @@ export default function FeedCommentsScreen() {
                 onComments={focusComposer}
                 onDeleted={() => {
                   if (router.canGoBack?.()) router.back();
+                }}
+                onUserBlocked={(userId) => {
+                  const authorId = post?.user_id ?? post?.user?.id;
+                  if (String(authorId) === String(userId)) {
+                    if (router.canGoBack?.()) router.back();
+                    return;
+                  }
+                  setComments((prev) =>
+                    prev.filter((item) => String(item.user_id ?? item.user?.id) !== String(userId)),
+                  );
                 }}
                 onProfile={() =>
                   openNeighborProfile(router, {
@@ -488,6 +515,7 @@ export default function FeedCommentsScreen() {
                   <FeedCommentBubble
                     key={String(item.id)}
                     comment={item}
+                    postId={postId}
                     depth={item.depth}
                     pending={item.pending}
                     now={now}
@@ -504,7 +532,7 @@ export default function FeedCommentsScreen() {
               })
             )}
           </View>
-            </>
+            </Pressable>
           )}
         </ScrollView>
 
@@ -512,7 +540,7 @@ export default function FeedCommentsScreen() {
           style={[
             styles.composerWrap,
             {
-              paddingBottom: keyboardOpen ? sw(8) : sw(6),
+              paddingBottom: keyboardOpen ? sw(8) : safeBottom,
             },
           ]}
         >
@@ -545,15 +573,17 @@ export default function FeedCommentsScreen() {
               />
               <View style={[styles.inputWrap, showError("body", liveErrors) && styles.inputError]}>
                 {showPlaceholder ? (
-                  <Text
-                    style={[
-                      styles.placeholderLabel,
-                      { textAlign: isRTL ? "right" : "left" },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {commentPlaceholder}
-                  </Text>
+                  <View style={styles.placeholderWrap} pointerEvents="none">
+                    <Text
+                      style={[
+                        styles.placeholderLabel,
+                        { textAlign: isRTL ? "right" : "left" },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {commentPlaceholder}
+                    </Text>
+                  </View>
                 ) : null}
                 <LocaleTextInput
                   ref={inputRef}
@@ -563,7 +593,7 @@ export default function FeedCommentsScreen() {
                     clearError("body");
                   }}
                   placeholder=""
-                  style={styles.input}
+                  style={composerInputStyle}
                   multiline
                   blurOnSubmit={false}
                   textAlignVertical="center"
@@ -596,7 +626,8 @@ export default function FeedCommentsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#F0F2F5" },
   flex: { flex: 1 },
-  scroll: { paddingHorizontal: sw(14), paddingBottom: sw(24) },
+  scroll: { paddingHorizontal: sw(14), paddingBottom: sw(24), flexGrow: 1 },
+  dismissArea: { flexGrow: 1 },
   postCard: {
     marginBottom: sw(10),
     marginTop: sw(8),
@@ -690,8 +721,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "#E4E6EB",
     paddingHorizontal: 0,
-    paddingTop: 0,
-    paddingBottom: 0,
+    paddingTop: sw(8),
   },
   sensitiveComposer: {
     flexDirection: "row",
@@ -735,46 +765,34 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: sw(8),
     paddingHorizontal: sw(12),
-    paddingTop: sw(8),
-    paddingBottom: sw(4),
+    paddingTop: 0,
+    paddingBottom: 0,
   },
   inputWrap: {
     flex: 1,
     minWidth: 0,
+    minHeight: sw(40),
+    maxHeight: sw(100),
     position: "relative",
     justifyContent: "center",
     backgroundColor: "#F0F2F5",
     borderRadius: sw(20),
-    paddingHorizontal: sw(14),
-    minHeight: sw(40),
-    maxHeight: sw(100),
+    paddingHorizontal: sw(16),
     overflow: "hidden",
   },
-  placeholderLabel: {
+  placeholderWrap: {
     position: "absolute",
-    start: 0,
-    end: 0,
+    start: sw(16),
+    end: sw(16),
     top: 0,
-    height: sw(40),
-    lineHeight: sw(40),
+    bottom: 0,
+    justifyContent: "center",
+  },
+  placeholderLabel: {
     fontFamily: Fonts.regular,
     fontSize: sf(15),
     color: "#9CA3AF",
-    pointerEvents: "none",
-  },
-  input: {
-    width: "100%",
-    minHeight: sw(40),
-    maxHeight: sw(88),
-    fontFamily: Fonts.regular,
-    fontSize: sf(15),
-    color: "#050505",
-    paddingTop: sw(10),
-    paddingBottom: sw(10),
-    paddingHorizontal: 0,
-    margin: 0,
     includeFontPadding: false,
-    textAlignVertical: "center",
   },
   inputError: {
     borderWidth: StyleSheet.hairlineWidth,

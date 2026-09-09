@@ -58,9 +58,14 @@ export interface AdminPostComment {
 export interface AdminPostReport {
   id: number;
   post_id: number;
+  comment_id?: number | null;
+  target?: "post" | "comment" | string;
   reporter_id: number;
   reporter_name: string;
   reporter_role?: string | null;
+  reported_user_id?: number | null;
+  comment_author_name?: string | null;
+  comment_body?: string | null;
   source?: "resident" | "admin" | string;
   type?: string | null;
   reason: string;

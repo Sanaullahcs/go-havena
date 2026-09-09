@@ -46,24 +46,25 @@ function isPdfAsset(asset) {
 
 const PLACEHOLDER_COLOR = "#9CA3AF";
 
-/** Family field still uses the old TextInput-as-box layout. */
-const singleLineInputStyle = {
-  lineHeight: 20,
-  includeFontPadding: false,
-  paddingTop: Platform.OS === "ios" ? 16 : 0,
-  paddingBottom: Platform.OS === "ios" ? 16 : 0,
-};
-
-/** Inline — no lineHeight. iOS TextInput top-aligns when lineHeight is set. */
+/** Plain object so the text-metrics patch cannot add lineHeight. */
 const fieldTextStyle = {
   fontFamily: Fonts.regular,
   fontSize: 14,
   color: T.navy,
   width: "100%",
   margin: 0,
+  paddingHorizontal: 0,
   paddingTop: 0,
   paddingBottom: 0,
+  textAlignVertical: "center",
   includeFontPadding: false,
+};
+
+const familyFieldTextStyle = {
+  ...fieldTextStyle,
+  fontFamily: Fonts.bold,
+  letterSpacing: 1,
+  paddingEnd: 44,
 };
 
 /** Multiline bio — pad from the top so typed text is not vertically centered. */
@@ -842,6 +843,7 @@ export default function CompleteProfile() {
                   autoCorrect={false}
                   maxLength={LIMITS.profileName}
                   underlineColorAndroid="transparent"
+                  textAlignVertical="center"
                 />
               </View>
               {showError("name", liveErrors) ? <Text style={styles.errorText}>{showError("name", liveErrors)}</Text> : null}
@@ -872,6 +874,7 @@ export default function CompleteProfile() {
                   forceLtr
                   textAlign="left"
                   underlineColorAndroid="transparent"
+                  textAlignVertical="center"
                 />
               </View>
               {showError("email", liveErrors) ? <Text style={styles.errorText}>{showError("email", liveErrors)}</Text> : null}
@@ -946,6 +949,7 @@ export default function CompleteProfile() {
                   onFocus={() => handleFieldFocus(unitFieldRef)}
                   maxLength={LIMITS.profileUnit}
                   underlineColorAndroid="transparent"
+                  textAlignVertical="center"
                 />
               </View>
               {showError("unitNumber", liveErrors) ? <Text style={styles.errorText}>{showError("unitNumber", liveErrors)}</Text> : null}
@@ -1084,30 +1088,34 @@ export default function CompleteProfile() {
                 </View>
 
                 <View style={styles.familyInputWrap}>
-                  <LocaleTextInput
+                  <View
                     style={[
-                      styles.input,
-                      styles.familyInput,
-                      singleLineInputStyle,
+                      styles.inputBox,
                       (familyNumberError || showError("familyNumber", liveErrors)) && styles.inputError,
                       familyNumberLocked && styles.inputReadOnly,
                     ]}
-                    placeholder={familyMode === "join" ? t("onboarding.enterFamilyNumber") : "FAM-XXXXXX"}
-                    placeholderTextColor={PLACEHOLDER_COLOR}
-                    value={familyNumber}
-                    onChangeText={(text) => {
-                      if (familyNumberLocked) return;
-                      setFamilyNumber(text.toUpperCase());
-                      clearError("familyNumber");
-                      setFamilyNumberError(null);
-                    }}
-                    onBlur={handleFamilyNumberBlur}
-                    onFocus={() => handleFieldFocus({ familyField: true })}
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                    maxLength={30}
-                    editable={!familyNumberLocked}
-                  />
+                  >
+                    <LocaleTextInput
+                      style={[familyFieldTextStyle, familyNumberLocked && styles.familyInputLockedText]}
+                      placeholder={familyMode === "join" ? t("onboarding.enterFamilyNumber") : "FAM-XXXXXX"}
+                      placeholderTextColor={PLACEHOLDER_COLOR}
+                      value={familyNumber}
+                      onChangeText={(text) => {
+                        if (familyNumberLocked) return;
+                        setFamilyNumber(text.toUpperCase());
+                        clearError("familyNumber");
+                        setFamilyNumberError(null);
+                      }}
+                      onBlur={handleFamilyNumberBlur}
+                      onFocus={() => handleFieldFocus({ familyField: true })}
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                      maxLength={30}
+                      editable={!familyNumberLocked}
+                      underlineColorAndroid="transparent"
+                      textAlignVertical="center"
+                    />
+                  </View>
                   {familyNumberLoading || familyNumberChecking ? (
                     <ActivityIndicator size="small" color={T.navy} style={styles.familyInputSpinner} />
                   ) : null}
@@ -1470,20 +1478,6 @@ const styles = StyleSheet.create({
   requiredMark: {
     color: "#E11D48",
   },
-  input: {
-    borderWidth: 1,
-    borderColor: T.border,
-    borderRadius: 12,
-    backgroundColor: T.white,
-    height: 52,
-    paddingHorizontal: 16,
-    paddingTop: 0,
-    paddingBottom: 0,
-    fontFamily: Fonts.regular,
-    fontSize: 14,
-    color: T.navy,
-    textAlignVertical: "center",
-  },
   inputBox: {
     height: 52,
     borderWidth: 1,
@@ -1651,10 +1645,8 @@ const styles = StyleSheet.create({
   familyInputWrap: {
     position: "relative",
   },
-  familyInput: {
-    fontFamily: Fonts.bold,
-    letterSpacing: 1,
-    paddingEnd: 44,
+  familyInputLockedText: {
+    color: "#475569",
   },
   familyInputSpinner: {
     position: "absolute",

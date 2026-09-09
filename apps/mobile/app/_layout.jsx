@@ -334,6 +334,10 @@ export default function RootLayout() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
+          name="screens/blocked-users/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="screens/leaderboard/index"
           options={{ headerShown: false }}
         />

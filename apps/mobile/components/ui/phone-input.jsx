@@ -13,10 +13,6 @@ import PhoneKeyboardAccessory, {
 } from "./phone-keyboard-accessory";
 import { sw, sf } from "../../utils/responsive";
 
-const iosPhonePadProps =
-  Platform.OS === "ios"
-    ? { inputAccessoryViewID: PHONE_KEYBOARD_ACCESSORY_ID }
-    : {};
 import {
   formatNationalDisplay,
   getCountryPlaceholder,
@@ -25,6 +21,26 @@ import {
   normalizeDigitsForCountry,
   parsePhoneInputChange,
 } from "../../utils/phone";
+
+const iosPhonePadProps =
+  Platform.OS === "ios"
+    ? { inputAccessoryViewID: PHONE_KEYBOARD_ACCESSORY_ID }
+    : {};
+
+/** Plain object so StyleSheet text-metrics cannot add lineHeight (iOS then sits the digits high). */
+const FORM_PHONE_FIELD_STYLE = {
+  flex: 1,
+  margin: 0,
+  paddingTop: 0,
+  paddingBottom: 0,
+  paddingHorizontal: 0,
+  fontFamily: Fonts.regular,
+  fontSize: sf(14),
+  color: "#1B4F8A",
+  textAlignVertical: "center",
+  includeFontPadding: false,
+  backgroundColor: "transparent",
+};
 
 function PhoneFieldMessage({ digits, country, showError }) {
   const { t } = useTranslation();
@@ -227,13 +243,14 @@ export function FormPhoneInput({
         </Pressable>
         <View style={formStyles.divider} />
         <LocaleTextInput
-          style={formStyles.field}
+          style={FORM_PHONE_FIELD_STYLE}
           placeholder={resolvedPlaceholder}
           placeholderTextColor="#9CA3AF"
           value={display}
           onChangeText={handleChange}
           onFocus={onFocus}
           forceLtr
+          textAlignVertical="center"
           keyboardType="phone-pad"
           textContentType="telephoneNumber"
           autoComplete="tel"
@@ -375,8 +392,11 @@ const formStyles = StyleSheet.create({
     borderRadius: sw(12),
     backgroundColor: "#FFFFFF",
     paddingHorizontal: sw(16),
+    paddingTop: 0,
+    paddingBottom: 0,
     height: sw(52),
     minHeight: sw(52),
+    overflow: "hidden",
   },
   rowError: {
     borderColor: "#DC2626",
@@ -401,15 +421,6 @@ const formStyles = StyleSheet.create({
     backgroundColor: "#E5E7EB",
     marginVertical: sw(12),
     marginEnd: sw(10),
-  },
-  field: {
-    flex: 1,
-    fontFamily: Fonts.regular,
-    fontSize: sf(14),
-    color: "#1B4F8A",
-    paddingVertical: 0,
-    height: "100%",
-    textAlignVertical: "center",
   },
   clearBtn: {
     paddingStart: sw(6),

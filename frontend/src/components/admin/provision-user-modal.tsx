@@ -5,9 +5,12 @@ import { UserPlus, Users, X } from "lucide-react";
 import { AdminPhoneInput } from "@/components/admin/phone-input";
 import { CommunityAssignmentPicker } from "@/components/admin/community-assignment-picker";
 import { ThemedSelect } from "@/components/ui/themed-select";
-import { fetchAdminCommunitiesList, type AdminCommunity } from "@/lib/api/communities";
+import { assignCommunityAdmin, fetchAdminCommunitiesList, type AdminCommunity } from "@/lib/api/communities";
+import { fetchCommunityAdmins, type CommunityAdminApplicant } from "@/lib/api/community-admins";
 import { apiError } from "@/lib/api/client";
 import { fetchRegions, type Region } from "@/lib/api/regions";
+import { PhoneDisplay } from "@/components/admin/phone-display";
+import { AdminBadge } from "@/components/admin/ui";
 import { emptyPhoneField, type PhoneFieldState } from "@/lib/phone/format";
 import {
   hasProvisionErrors,
@@ -44,17 +47,41 @@ const emptyResidentForm = {
 };
 
 type TouchedFields = Partial<Record<string, boolean>>;
+type AssignmentSource = "create" | "existing";
+
+async function fetchAllApprovedCommunityAdmins(): Promise<CommunityAdminApplicant[]> {
+  const first = await fetchCommunityAdmins({ status: "approved", page: 1, per_page: 100 });
+  const lastPage = first.meta.last_page ?? 1;
+  if (lastPage <= 1) return first.data;
+
+  const rest = await Promise.all(
+    Array.from({ length: lastPage - 1 }, (_, index) =>
+      fetchCommunityAdmins({ status: "approved", page: index + 2, per_page: 100 }),
+    ),
+  );
+
+  return [...first.data, ...rest.flatMap((page) => page.data)];
+}
+
+export type PresetCommunityAssignment = {
+  id: number;
+  name: string;
+  regionId: number | null;
+  regionTitle?: string | null;
+};
 
 export function ProvisionUserModal({
   type,
   open,
   onClose,
   onCreated,
+  presetCommunity,
 }: {
   type: ProvisionUserType;
   open: boolean;
   onClose: () => void;
   onCreated?: (user: ProvisionedUser) => void;
+  presetCommunity?: PresetCommunityAssignment | null;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [regions, setRegions] = useState<Region[]>([]);
@@ -69,6 +96,12 @@ export function ProvisionUserModal({
   const [errors, setErrors] = useState<ProvisionFieldErrors>({});
   const [touched, setTouched] = useState<TouchedFields>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [assignmentSource, setAssignmentSource] = useState<AssignmentSource>("create");
+  const [existingAdmins, setExistingAdmins] = useState<CommunityAdminApplicant[]>([]);
+  const [loadingExistingAdmins, setLoadingExistingAdmins] = useState(false);
+  const [selectedExistingId, setSelectedExistingId] = useState<number | null>(null);
+
+  const isPresetAssign = type === "community_admin" && Boolean(presetCommunity);
 
   useEffect(() => {
     if (!open) return;
@@ -99,7 +132,7 @@ export function ProvisionUserModal({
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || isPresetAssign) return;
     const regionId = type === "resident" ? residentForm.region_id : adminForm.region_id;
     if (!regionId) {
       setCommunities([]);
@@ -109,7 +142,7 @@ export function ProvisionUserModal({
       return;
     }
     loadCommunities(Number(regionId));
-  }, [open, type, residentForm.region_id, adminForm.region_id, loadCommunities]);
+  }, [open, type, isPresetAssign, residentForm.region_id, adminForm.region_id, loadCommunities]);
 
   useEffect(() => {
     if (!open) {
@@ -121,8 +154,40 @@ export function ProvisionUserModal({
       setErrors({});
       setTouched({});
       setSubmitAttempted(false);
+      setAssignmentSource("create");
+      setExistingAdmins([]);
+      setSelectedExistingId(null);
+      return;
     }
-  }, [open]);
+
+    if (type === "community_admin" && presetCommunity) {
+      setAdminForm({
+        ...emptyAdminForm,
+        region_id: presetCommunity.regionId ?? "",
+        community_mode: "existing",
+        community_id: presetCommunity.id,
+      });
+    }
+  }, [open, type, presetCommunity]);
+
+  useEffect(() => {
+    if (!open || !isPresetAssign) return;
+    let cancelled = false;
+    setLoadingExistingAdmins(true);
+    fetchAllApprovedCommunityAdmins()
+      .then((admins) => {
+        if (!cancelled) setExistingAdmins(admins);
+      })
+      .catch(() => {
+        if (!cancelled) setExistingAdmins([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingExistingAdmins(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, isPresetAssign]);
 
   const showError = (field: string) =>
     Boolean((submitAttempted || touched[field]) && errors[field]);
@@ -148,15 +213,49 @@ export function ProvisionUserModal({
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
+  const collectLiveErrors = useCallback((): ProvisionFieldErrors => {
+    if (isPresetAssign && assignmentSource === "existing") {
+      return selectedExistingId
+        ? {}
+        : { existing_admin: "Select an available community admin." };
+    }
+
+    if (isPresetAssign) {
+      const next = validateCommunityAdminForm(
+        {
+          ...adminForm,
+          region_id: adminForm.region_id || 1,
+          community_mode: "existing",
+          community_id: adminForm.community_id || presetCommunity?.id || 1,
+        },
+        adminPhone,
+      );
+      delete next.region_id;
+      delete next.community_id;
+      return next;
+    }
+
+    return type === "community_admin"
+      ? validateCommunityAdminForm(adminForm, adminPhone)
+      : validateResidentForm(residentForm, residentPhone);
+  }, [
+    isPresetAssign,
+    assignmentSource,
+    selectedExistingId,
+    adminForm,
+    adminPhone,
+    presetCommunity?.id,
+    type,
+    residentForm,
+    residentPhone,
+  ]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
 
     setSubmitAttempted(true);
-    const nextErrors =
-      type === "community_admin"
-        ? validateCommunityAdminForm(adminForm, adminPhone)
-        : validateResidentForm(residentForm, residentPhone);
+    const nextErrors = collectLiveErrors();
     setErrors(nextErrors);
 
     if (hasProvisionErrors(nextErrors)) {
@@ -166,6 +265,66 @@ export function ProvisionUserModal({
 
     setSubmitting(true);
     try {
+      if (isPresetAssign && presetCommunity) {
+        if (assignmentSource === "existing" && selectedExistingId) {
+          const res = await assignCommunityAdmin(presetCommunity.id, { user_id: selectedExistingId });
+          toastSuccess(res.message);
+          onCreated?.({
+            id: res.data.admin.id,
+            name: res.data.admin.name,
+            email: res.data.admin.email,
+            phone: res.data.admin.phone ?? "",
+            role: res.data.admin.role,
+            community_admin_status: "approved",
+            status: "active",
+            region_id: presetCommunity.regionId,
+            membership: {
+              community_id: presetCommunity.id,
+              role: "admin",
+              status: "approved",
+            },
+            community: {
+              id: presetCommunity.id,
+              name: presetCommunity.name,
+              region_id: presetCommunity.regionId,
+              region: presetCommunity.regionTitle ?? null,
+            },
+          });
+          onClose();
+          return;
+        }
+
+        const res = await assignCommunityAdmin(presetCommunity.id, {
+          name: adminForm.name.trim() || undefined,
+          email: adminForm.email.trim(),
+          phone: adminPhone.e164,
+        });
+        toastSuccess(res.message);
+        onCreated?.({
+          id: res.data.admin.id,
+          name: res.data.admin.name,
+          email: res.data.admin.email,
+          phone: res.data.admin.phone ?? "",
+          role: res.data.admin.role,
+          community_admin_status: "approved",
+          status: "active",
+          region_id: presetCommunity.regionId,
+          membership: {
+            community_id: presetCommunity.id,
+            role: "admin",
+            status: "approved",
+          },
+          community: {
+            id: presetCommunity.id,
+            name: presetCommunity.name,
+            region_id: presetCommunity.regionId,
+            region: presetCommunity.regionTitle ?? null,
+          },
+        });
+        onClose();
+        return;
+      }
+
       if (type === "community_admin") {
         const res = await provisionAdminUser(
           adminForm.community_mode === "existing"
@@ -211,13 +370,7 @@ export function ProvisionUserModal({
     }
   };
 
-  const liveErrors = useMemo(
-    () =>
-      type === "community_admin"
-        ? validateCommunityAdminForm(adminForm, adminPhone)
-        : validateResidentForm(residentForm, residentPhone),
-    [type, adminForm, adminPhone, residentForm, residentPhone],
-  );
+  const liveErrors = useMemo(() => collectLiveErrors(), [collectLiveErrors]);
 
   const canSubmit = !hasProvisionErrors(liveErrors);
 
@@ -237,9 +390,14 @@ export function ProvisionUserModal({
 
   if (!open) return null;
 
-  const title = type === "community_admin" ? "Create Community Admin" : "Create Resident";
-  const subtitle =
-    type === "community_admin"
+  const title = isPresetAssign
+    ? "Assign Community Admin"
+    : type === "community_admin"
+      ? "Create Community Admin"
+      : "Create Resident";
+  const subtitle = isPresetAssign
+    ? "Create a new community admin for this community, or assign an existing unassigned account."
+    : type === "community_admin"
       ? "Assign this admin to an available community, or create a new one in the selected region."
       : "Add a resident to an existing community with phone and email.";
 
@@ -286,6 +444,70 @@ export function ProvisionUserModal({
           noValidate
           className="min-h-0 flex-1 overflow-y-auto px-6 py-5"
         >
+          {isPresetAssign && presetCommunity ? (
+            <div className="mb-5 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 sm:grid-cols-2">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Region</p>
+                <p className="mt-0.5 text-sm font-semibold text-slate-800">
+                  {presetCommunity.regionTitle || "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Community</p>
+                <p className="mt-0.5 text-sm font-semibold text-slate-800">{presetCommunity.name}</p>
+              </div>
+            </div>
+          ) : null}
+
+          {isPresetAssign ? (
+            <div className="mb-5 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setAssignmentSource("create");
+                  setSelectedExistingId(null);
+                  clearFieldError("existing_admin");
+                }}
+                className={[
+                  "rounded-lg px-3 py-2 text-sm font-semibold transition",
+                  assignmentSource === "create"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700",
+                ].join(" ")}
+              >
+                Create new
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAssignmentSource("existing");
+                  setSubmitAttempted(false);
+                }}
+                className={[
+                  "rounded-lg px-3 py-2 text-sm font-semibold transition",
+                  assignmentSource === "existing"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700",
+                ].join(" ")}
+              >
+                Assign existing
+              </button>
+            </div>
+          ) : null}
+
+          {isPresetAssign && assignmentSource === "existing" ? (
+            <ExistingAdminPicker
+              admins={existingAdmins}
+              loading={loadingExistingAdmins}
+              selectedId={selectedExistingId}
+              error={showError("existing_admin") ? errors.existing_admin : undefined}
+              onSelect={(id) => {
+                setSelectedExistingId(id);
+                clearFieldError("existing_admin");
+              }}
+            />
+          ) : (
+          <>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Full name (optional)" error={showError("name") ? errors.name : undefined}>
               <input
@@ -345,7 +567,7 @@ export function ProvisionUserModal({
               error={showError("phone") ? errors.phone : undefined}
             >
               <AdminPhoneInput
-                resetKey={`${type}-${open}`}
+                resetKey={`${type}-${open}-${assignmentSource}`}
                 required
                 showError={showError("phone")}
                 onChange={(state) => {
@@ -366,7 +588,7 @@ export function ProvisionUserModal({
                 }}
               />
             </Field>
-            {type === "community_admin" ? (
+            {type === "community_admin" && !isPresetAssign ? (
               <div className="col-span-full grid grid-cols-2 items-start gap-4 [&>label]:min-w-0 [&>label]:w-full [&>label]:overflow-hidden [&>label>span:first-child]:flex [&>label>span:first-child]:h-5 [&>label>span:first-child]:items-center [&_.nl-notice-field]:min-w-0 [&_.nl-notice-field]:w-full [&_.nl-picker-wrap]:min-w-0 [&_.nl-picker-wrap]:w-full [&_.nl-picker-trigger]:box-border [&_.nl-picker-trigger]:h-[47px] [&_.nl-picker-trigger]:min-h-[47px]">
                 <Field label="Region" required error={showError("region_id") ? errors.region_id : undefined}>
                   <ThemedSelect
@@ -432,7 +654,7 @@ export function ProvisionUserModal({
                   />
                 </Field>
               </div>
-            ) : (
+            ) : type === "resident" ? (
               <Field label="Region" required error={showError("region_id") ? errors.region_id : undefined}>
                 <ThemedSelect
                   fieldKey="region_id"
@@ -448,10 +670,10 @@ export function ProvisionUserModal({
                   }}
                 />
               </Field>
-            )}
+            ) : null}
           </div>
 
-          {type === "community_admin" && adminForm.community_mode === "new" ? (
+          {!isPresetAssign && type === "community_admin" && adminForm.community_mode === "new" ? (
             <div className="mt-4 space-y-4 border-t border-slate-100 pt-4">
               <p className="text-sm font-medium text-slate-800">New community for this admin</p>
               <p className="text-[12px] text-slate-500">
@@ -563,6 +785,8 @@ export function ProvisionUserModal({
               </Field>
             </div>
           ) : null}
+          </>
+          )}
 
         </form>
 
@@ -573,17 +797,109 @@ export function ProvisionUserModal({
           <button
             type="submit"
             form="provision-user-form"
-            disabled={submitting || loadingRegions || !canSubmit}
+            disabled={submitting || (!isPresetAssign && loadingRegions) || !canSubmit}
             className="nl-btn-primary disabled:opacity-60"
           >
             {submitting
-              ? "Creating…"
-              : type === "community_admin"
-                ? "Create Community Admin"
-                : "Create Resident"}
+              ? isPresetAssign
+                ? "Saving…"
+                : "Creating…"
+              : isPresetAssign
+                ? assignmentSource === "existing"
+                  ? "Assign admin"
+                  : "Create Community Admin"
+                : type === "community_admin"
+                  ? "Create Community Admin"
+                  : "Create Resident"}
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ExistingAdminPicker({
+  admins,
+  loading,
+  selectedId,
+  error,
+  onSelect,
+}: {
+  admins: CommunityAdminApplicant[];
+  loading: boolean;
+  selectedId: number | null;
+  error?: string;
+  onSelect: (id: number) => void;
+}) {
+  const available = admins.filter((admin) => !admin.community_request);
+  const assigned = admins.filter((admin) => Boolean(admin.community_request));
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-slate-500">
+        Unassigned accounts can be attached to this community even if they were created in another region.
+        Admins already managing a community stay unavailable.
+      </p>
+      {loading ? (
+        <p className="rounded-xl border border-slate-200 px-4 py-6 text-center text-sm text-slate-500">
+          Loading community admins…
+        </p>
+      ) : admins.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">
+          No approved community admin accounts yet. Create a new one instead.
+        </p>
+      ) : (
+        <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+          {available.map((admin) => {
+            const selected = selectedId === admin.id;
+            return (
+              <button
+                key={admin.id}
+                type="button"
+                data-field="existing_admin"
+                onClick={() => onSelect(admin.id)}
+                className={[
+                  "flex w-full items-start justify-between gap-3 rounded-xl border px-4 py-3 text-left transition",
+                  selected
+                    ? "border-blue-300 bg-blue-50"
+                    : "border-slate-200 bg-white hover:border-blue-200 hover:bg-slate-50",
+                ].join(" ")}
+              >
+                <span>
+                  <span className="block text-sm font-semibold text-slate-900">{admin.name}</span>
+                  <span className="mt-0.5 block text-xs text-slate-500">{admin.email}</span>
+                  {admin.phone ? (
+                    <span className="mt-0.5 block text-xs text-slate-500">
+                      <PhoneDisplay value={admin.phone} compact />
+                    </span>
+                  ) : null}
+                </span>
+                <AdminBadge tone="green">Available</AdminBadge>
+              </button>
+            );
+          })}
+          {assigned.map((admin) => (
+            <div
+              key={admin.id}
+              className="flex items-start justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 opacity-70"
+            >
+              <div>
+                <p className="text-sm font-semibold text-slate-700">{admin.name}</p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Assigned to {admin.community_request?.name ?? "another community"}
+                </p>
+              </div>
+              <AdminBadge tone="slate">Unavailable</AdminBadge>
+            </div>
+          ))}
+          {available.length === 0 && assigned.length > 0 ? (
+            <p className="pt-1 text-center text-xs text-slate-500">
+              Every listed admin already manages a community. Create a new admin instead.
+            </p>
+          ) : null}
+        </div>
+      )}
+      {error ? <p className="text-[11px] font-medium text-red-600">{error}</p> : null}
     </div>
   );
 }

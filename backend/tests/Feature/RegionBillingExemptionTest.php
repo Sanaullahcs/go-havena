@@ -141,6 +141,7 @@ class RegionBillingExemptionTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.access.billing_complete', true)
             ->assertJsonPath('data.access.billing_exempt', true)
+            ->assertJsonPath('data.access.country_code', 'PK')
             ->assertJsonPath('data.access.next_step', 'ready');
     }
 
@@ -227,6 +228,7 @@ class RegionBillingExemptionTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.access.billing_complete', false)
             ->assertJsonPath('data.access.billing_exempt', false)
+            ->assertJsonPath('data.access.country_code', 'US')
             ->assertJsonPath('data.access.next_step', 'complete_billing_web');
 
         $community = Community::query()->where('name', 'Miami Community')->first();

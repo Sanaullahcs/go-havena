@@ -273,8 +273,8 @@ export function FamilyHeroCard({ familyNumber, onCopy, onShare }) {
           <Text style={styles.heroBtnText}>{t("family.heroCard.copy")}</Text>
         </Pressable>
         <Pressable style={[styles.heroBtn, styles.heroBtnGhost]} onPress={onShare}>
-          <Feather name="share-2" size={sf(14)} color="#FFFFFF" />
-          <Text style={[styles.heroBtnText, styles.heroBtnTextGhost]}>{t("family.heroCard.share")}</Text>
+          <Feather name="share-2" size={sf(14)} color="#1B4F8A" />
+          <Text style={styles.heroBtnText}>{t("family.heroCard.share")}</Text>
         </Pressable>
       </View>
     </View>
@@ -402,12 +402,15 @@ const styles = StyleSheet.create({
     borderRadius: sw(20),
     padding: sw(20),
     marginBottom: sw(16),
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   heroIcon: {
     width: sw(44),
     height: sw(44),
     borderRadius: sw(14),
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#E8F0F7",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: sw(12),
@@ -415,7 +418,7 @@ const styles = StyleSheet.create({
   heroLabel: {
     fontFamily: Fonts.medium,
     fontSize: sf(12),
-    color: "rgba(255,255,255,0.85)",
+    color: "#64748B",
     textTransform: "uppercase",
     letterSpacing: 0.6,
   },
@@ -423,7 +426,7 @@ const styles = StyleSheet.create({
     marginTop: sw(4),
     fontFamily: Fonts.bold,
     fontSize: sf(26),
-    color: "#FFFFFF",
+    color: "#1B4F8A",
     letterSpacing: 1.5,
   },
   heroHint: {
@@ -431,7 +434,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: sf(13),
     lineHeight: sf(19),
-    color: "rgba(255,255,255,0.88)",
+    color: "#475569",
   },
   heroActions: {
     flexDirection: "row",
@@ -446,19 +449,18 @@ const styles = StyleSheet.create({
     gap: sw(8),
     paddingVertical: sw(12),
     borderRadius: sw(12),
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   heroBtnGhost: {
-    backgroundColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "#F8FAFC",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.35)",
+    borderColor: "#E2E8F0",
   },
   heroBtnText: {
     fontFamily: Fonts.semiBold,
     fontSize: sf(14),
     color: "#1B4F8A",
-  },
-  heroBtnTextGhost: {
-    color: "#FFFFFF",
   },
 });

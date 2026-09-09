@@ -95,6 +95,8 @@
     "account": "Cuenta",
     "editProfile": "Editar perfil",
     "editProfileSub": "Actualiza tu nombre, correo y biografía",
+    "blockedUsers": "Usuarios bloqueados",
+    "blockedUsersSub": "Personas que bloqueaste y puedes desbloquear",
     "notifications": "Notificaciones",
     "pushNotifications": "Notificaciones push",
     "pushEnabledSub": "Alertas activadas en este dispositivo",
@@ -421,6 +423,10 @@
       "adminWillReview": "Los administradores revisarán esta publicación.",
       "downloadPhoto": "Descargar foto",
       "reportPost": "Reportar publicación",
+      "reportComment": "Reportar",
+      "commentOptions": "Opciones del comentario",
+      "commentOptionsMessage": "Reporta este comentario a los administradores.",
+      "adminWillReviewComment": "Los administradores revisarán este comentario.",
       "editPost": "Editar publicación",
       "deletePost": "Eliminar publicación",
       "deleteConfirm": "Esta publicación se quitará del muro de la comunidad.",
@@ -437,9 +443,13 @@
       "details": "Detalles",
       "placeholder": "Describe qué pasó o por qué esta publicación es inapropiada...",
       "helper": "{{count}}/1000 · mínimo 8 caracteres",
+      "helperOptional": "{{count}}/1000 · detalles opcionales",
       "submit": "Enviar reporte",
       "thisNeighbor": "este vecino",
-      "reportedPostTitle": "Publicación de la comunidad reportada por {{name}}"
+      "reportedPostTitle": "Publicación de la comunidad reportada por {{name}}",
+      "commentTitle": "Reportar comentario",
+      "commentSubtitle": "Dile a los administradores por qué este comentario de {{name}} debe ser revisado.",
+      "commentPlaceholder": "Opcional: describe qué pasó o por qué este comentario es inapropiado..."
     },
     "sensitive": "Contenido sensible",
     "neighbor": "Vecino",
@@ -646,7 +656,24 @@
     "notIncluded": "No incluido",
     "whatYouCanDo": "Qué puedes hacer",
     "contactResidentOrAdmin": "Contacta al residente o administrador de la comunidad que te invitó. Pueden actualizar los permisos de invitado en tu invitación.",
-    "yourPhone": "tu correo"
+    "yourPhone": "tu correo",
+    "agreeToTermsPrefix": "Acepto los ",
+    "termsOfUse": "Términos",
+    "agreeToTermsConjunction": " y la ",
+    "privacyPolicy": "Privacidad",
+    "agreeToTermsRequired": "Acepta los Términos y la Privacidad para continuar."
+  },
+  "blocks": {
+    "blockUser": "Bloquear usuario",
+    "unblockUser": "Desbloquear",
+    "blockAction": "Bloquear",
+    "confirmMessage": "¿Bloquear a este usuario? Ya no verás sus publicaciones, comentarios ni mensajes.",
+    "blockedTitle": "Usuario bloqueado",
+    "blockedMessage": "Usuario bloqueado correctamente.",
+    "unblockedTitle": "Usuario desbloqueado",
+    "unblockedMessage": "Volverás a ver el contenido de este usuario.",
+    "empty": "No has bloqueado a nadie.",
+    "couldNotLoad": "No se pudieron cargar los usuarios bloqueados."
   },
   "roles": {
     "communityAdmin": "Administrador de comunidad",
@@ -1021,6 +1048,11 @@
     "listingCount_other": "Publicaciones",
     "staySafe": "Mantente seguro",
     "staySafeItem": "Reúnete en áreas públicas de la comunidad. Nunca compartas datos bancarios ni pagues antes de ver el artículo.",
+    "reportListing": "Reportar publicación",
+    "reportListingSubtitle": "Dile a los administradores por qué esta publicación de {{name}} debe ser revisada.",
+    "reportListingPlaceholder": "Opcional: describe qué pasó o por qué esta publicación es inapropiada...",
+    "reportedListingTitle": "Publicación reportada \"{{title}}\" de {{name}}",
+    "adminWillReviewListing": "Los administradores revisarán esta publicación.",
     "aboutReviews": "Sobre las reseñas",
     "aboutReviewsMsg": "Las reseñas se recopilan tras transacciones completadas para ayudar a los vecinos a comprar y vender con confianza.",
     "markSold": "Marcar como vendido",
@@ -3673,7 +3705,13 @@
     "role": "Rol",
     "unitNotShared": "Unidad no compartida",
     "homeowner": "Propietario",
-    "tenant": "Inquilino"
+    "tenant": "Inquilino",
+    "reportUser": "Reportar",
+    "reportTitle": "Reportar residente",
+    "reportSubtitle": "Dile a los administradores por qué el perfil de {{name}} debe ser revisado.",
+    "reportPlaceholder": "Opcional: describe qué pasó o por qué este perfil es inapropiado...",
+    "reportedUserTitle": "Residente reportado: {{name}}",
+    "adminWillReviewUser": "Los administradores revisarán a este residente."
   },
   "points": {
     "title": "Historial de puntos",
@@ -3873,6 +3911,18 @@
     "success": "Éxito",
     "doneSuccessfully": "Realizado correctamente.",
     "actionFailed": "Acción fallida"
+  },
+  "billing": {
+    "cardSavedBadge": "Tarjeta guardada",
+    "submittedBadge": "Solicitud enviada",
+    "waitingTitle": "Esperando aprobación",
+    "waitingBody": "Tu tarjeta está guardada y aún no se te cobrará. Un administrador de Havena revisará tu comunidad. Cuando te aprueben, comienza tu prueba gratuita de 30 días.",
+    "waitingBodyExempt": "Tu solicitud de comunidad se ha enviado. Un administrador de Havena revisará tu comunidad. Una vez aprobada, tendrás acceso a tu panel.",
+    "timelineAccount": "Cuenta creada",
+    "timelineCard": "Tarjeta guardada",
+    "timelineSubmitted": "Comunidad enviada",
+    "timelineReview": "Revisión de Havena",
+    "timelineAccess": "Acceso al panel"
   },
   "apiErrors": {
     "sessionExpired": "Tu sesión expiró. Por favor, inicia sesión de nuevo.",

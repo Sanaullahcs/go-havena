@@ -5,6 +5,8 @@ export interface Report {
   status: string; severity: string; created_at: string;
   reporter_name: string; reporter_unit: string | null;
   reported_name: string | null; community_id: number;
+  listing_id?: number | null; listing_title?: string | null;
+  reported_user_id?: number | null;
 }
 
 export async function fetchReports(params?: Record<string, unknown>) {

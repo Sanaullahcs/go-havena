@@ -15,6 +15,7 @@ import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { formatCount, getCommentTimeLabel } from "../../services/feed-api";
 import { sw, sf } from "../../utils/responsive";
+import FeedCommentOptions from "./feed-comment-options";
 
 export const LIKE_HEART_RED = "#ED4956";
 
@@ -192,6 +193,7 @@ export function FeedCardFooter({
 
 export function FeedCommentBubble({
   comment,
+  postId,
   onReply,
   onProfile,
   onLike,
@@ -233,9 +235,12 @@ export function FeedCommentBubble({
             indentLevel > 0 && styles.bubbleNested,
           ]}
         >
-          <Pressable onPress={onProfile} disabled={!onProfile}>
-            <Text style={styles.bubbleName}>{authorName}</Text>
-          </Pressable>
+          <View style={styles.bubbleHeader}>
+            <Pressable onPress={onProfile} disabled={!onProfile} style={styles.bubbleNameWrap}>
+              <Text style={styles.bubbleName}>{authorName}</Text>
+            </Pressable>
+            <FeedCommentOptions comment={comment} postId={postId} />
+          </View>
           {parentAuthor && indentLevel > 0 ? (
             <Text style={styles.replyHint}>
               {t("feed.replyingTo")} <Text style={styles.replyHintName}>{parentAuthor}</Text>
@@ -421,12 +426,23 @@ const styles = StyleSheet.create({
   bubbleMine: {
     backgroundColor: T.mint,
   },
+  bubbleHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "nowrap",
+    gap: sw(4),
+    marginBottom: sw(3),
+    maxWidth: "100%",
+  },
+  bubbleNameWrap: {
+    flexShrink: 1,
+  },
   bubbleName: {
     fontFamily: Fonts.bold,
     fontSize: sf(13),
     color: T.navy,
     fontWeight: "700",
-    marginBottom: sw(3),
+    flexShrink: 0,
   },
   replyHint: {
     fontFamily: Fonts.regular,

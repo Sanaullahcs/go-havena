@@ -99,9 +99,9 @@ export const privacyPolicy = {
 
 export const termsAndConditions = {
   title: "Terms and Conditions",
-  updatedAt: "August 31, 2026",
+  updatedAt: "September 9, 2026",
   intro:
-    "These Terms and Conditions govern your access to and use of Havena. By using Havena, you agree to these terms.",
+    "These Terms and Conditions govern your access to and use of GoHavena (Havena). By using GoHavena, you agree to these terms, including our zero-tolerance policy for objectionable content and abusive users.",
   sections: [
     {
       id: "acceptance",
@@ -122,7 +122,11 @@ export const termsAndConditions = {
     {
       id: "acceptable-use",
       title: "3. Acceptable use",
-      paragraphs: ["You agree not to:"],
+      paragraphs: [
+        "GoHavena has zero tolerance for objectionable, illegal, harassing, hateful, threatening, abusive, sexually explicit, or inappropriate content.",
+        "Abusive behavior toward other users is not allowed. This includes harassment, threats, intimidation, hate speech, and any conduct meant to harm or abuse another person.",
+        "You also agree not to:",
+      ],
       bullets: [
         "Use Havena for unlawful, harmful, misleading, or abusive activity",
         "Harass others, post illegal content, or attempt to bypass security or access controls",
@@ -135,7 +139,9 @@ export const termsAndConditions = {
       title: "4. Content and moderation",
       paragraphs: [
         "You retain rights to content you submit, and you grant Havena a license to host, display, and process that content as needed to operate the service.",
-        "Community administrators may moderate content within their communities. Havena may remove content or restrict access that violates these terms or creates safety, legal, or operational risk.",
+        "You can report inappropriate or objectionable content in the app. Reports are reviewed by GoHavena and Community Admins.",
+        "You can block abusive users. Blocking hides that user’s content from your feed.",
+        "GoHavena and Community Admins may review, hide, or remove content that violates these rules.",
       ],
     },
     {
@@ -158,7 +164,8 @@ export const termsAndConditions = {
       id: "termination",
       title: "7. Termination",
       paragraphs: [
-        "You may stop using Havena at any time. We may suspend or terminate access if these terms are violated, if required for security or legal reasons, or if a subscription lapses.",
+        "You may stop using Havena at any time.",
+        "Accounts that violate these rules may be suspended or permanently terminated. We may also suspend or terminate access for security or legal reasons, or if a subscription lapses.",
       ],
     },
     {

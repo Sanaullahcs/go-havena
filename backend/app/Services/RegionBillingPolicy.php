@@ -59,6 +59,38 @@ class RegionBillingPolicy
         ])));
     }
 
+    public function countryCodeForCommunity(?int $communityId): ?string
+    {
+        if (! $communityId) {
+            return null;
+        }
+
+        $community = Community::query()
+            ->with('regionRecord.stateRecord.country')
+            ->find($communityId);
+
+        return $this->countryCodeForRegion($community?->regionRecord);
+    }
+
+    public function countryCodeForRegion(?Region $region): ?string
+    {
+        if (! $region) {
+            return null;
+        }
+
+        $region->loadMissing('stateRecord.country');
+        $code = strtoupper(trim((string) ($region->stateRecord?->country?->code ?? '')));
+        if ($code !== '') {
+            return $code;
+        }
+
+        return $this->textLooksLikeExemptCountry(implode(' ', array_filter([
+            $region->title,
+            $region->state,
+            $region->area,
+        ]))) ? 'PK' : null;
+    }
+
     /** Fallback when state_id is missing (legacy rows). Only Pakistan is exempt. */
     private function textLooksLikeExemptCountry(string $text): bool
     {

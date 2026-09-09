@@ -22,7 +22,7 @@ export function FeedPostReportsModal({
       <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-start justify-between border-b border-slate-100 px-5 py-4">
           <div>
-            <h3 className="text-lg font-bold text-slate-900">Post reports</h3>
+            <h3 className="text-lg font-bold text-slate-900">Reports</h3>
             <p className="mt-0.5 text-xs text-slate-500">
               Post by {post.author_name} · #{post.id}
             </p>
@@ -59,7 +59,7 @@ export function FeedPostReportsModal({
           {loading ? (
             <p className="py-8 text-center text-sm text-slate-500">Loading reports…</p>
           ) : reports.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-500">No reports submitted for this post yet.</p>
+            <p className="py-8 text-center text-sm text-slate-500">No reports submitted for this post or its comments yet.</p>
           ) : (
             <div className="space-y-3">
               {reports.map((report) => (
@@ -80,11 +80,32 @@ export function FeedPostReportsModal({
                         })}
                       </p>
                     </div>
-                    <AdminBadge tone={report.source === "admin" ? "amber" : "red"}>
-                      {report.source === "admin" ? "Admin report" : "Resident report"}
-                    </AdminBadge>
+                    <div className="flex flex-wrap justify-end gap-1.5">
+                      <AdminBadge tone={report.comment_id ? "cyan" : "slate"}>
+                        {report.comment_id ? "Comment report" : "Post report"}
+                      </AdminBadge>
+                      <AdminBadge tone={report.source === "admin" ? "amber" : "red"}>
+                        {report.source === "admin" ? "Admin report" : "Resident report"}
+                      </AdminBadge>
+                    </div>
                   </div>
-                  <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+                  {report.comment_id ? (
+                    <div className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                        Reported comment
+                        {report.comment_author_name ? ` · ${report.comment_author_name}` : ""}
+                      </p>
+                      <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+                        {report.comment_body || "Comment unavailable"}
+                      </p>
+                    </div>
+                  ) : null}
+                  {report.type ? (
+                    <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Reason · {report.type}
+                    </p>
+                  ) : null}
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
                     {report.reason}
                   </p>
                 </article>

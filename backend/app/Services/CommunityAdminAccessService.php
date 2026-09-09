@@ -169,6 +169,7 @@ class CommunityAdminAccessService
      *   next_step: string,
      *   billing_url: string,
      *   billing_exempt: bool,
+     *   country_code: ?string,
      *   blocking_reasons: string[]
      * }
      */
@@ -203,6 +204,8 @@ class CommunityAdminAccessService
         }
 
         $billingExempt = $this->regionBilling->isBillingExempt($communityId);
+        $community?->loadMissing('regionRecord.stateRecord.country');
+        $countryCode = $this->regionBilling->countryCodeForRegion($community?->regionRecord);
         $billingComplete = $this->isBillingComplete($communityId);
         $profileComplete = $this->isProfileComplete($user);
         $hasCommunity = $communityId !== null;
@@ -255,6 +258,7 @@ class CommunityAdminAccessService
             'platform_approved' => $platformApproved,
             'billing_complete' => $billingComplete,
             'billing_exempt' => $billingExempt,
+            'country_code' => $countryCode,
             'can_use_dashboard' => $canUse,
             'can_use_mobile_app' => $canUse,
             'has_linked_community' => $hasCommunity,

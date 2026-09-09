@@ -95,6 +95,8 @@
     "account": "الحساب",
     "editProfile": "تعديل الملف الشخصي",
     "editProfileSub": "تحديث الاسم والبريد الإلكتروني والنبذة",
+    "blockedUsers": "المستخدمون المحظورون",
+    "blockedUsersSub": "الأشخاص الذين حظرتهم ويمكنك إلغاء حظرهم",
     "notifications": "الإشعارات",
     "pushNotifications": "الإشعارات الفورية",
     "pushEnabledSub": "التنبيهات مفعّلة على هذا الجهاز",
@@ -421,6 +423,10 @@
       "adminWillReview": "سيراجع المسؤولون هذا المنشور.",
       "downloadPhoto": "تنزيل الصورة",
       "reportPost": "الإبلاغ عن المنشور",
+      "reportComment": "إبلاغ",
+      "commentOptions": "خيارات التعليق",
+      "commentOptionsMessage": "أبلغ عن هذا التعليق للمسؤولين.",
+      "adminWillReviewComment": "سيراجع المسؤولون هذا التعليق.",
       "editPost": "تعديل المنشور",
       "deletePost": "حذف المنشور",
       "deleteConfirm": "سيتم إزالة هذا المنشور من منشورات المجتمع.",
@@ -437,9 +443,13 @@
       "details": "التفاصيل",
       "placeholder": "صف ما حدث أو لماذا هذا المنشور غير لائق...",
       "helper": "{{count}}/1000 · الحد الأدنى 8 أحرف",
+      "helperOptional": "{{count}}/1000 · التفاصيل اختيارية",
       "submit": "إرسال البلاغ",
       "thisNeighbor": "هذا الجار",
-      "reportedPostTitle": "منشور مجتمعي تم الإبلاغ عنه بواسطة {{name}}"
+      "reportedPostTitle": "منشور مجتمعي تم الإبلاغ عنه بواسطة {{name}}",
+      "commentTitle": "الإبلاغ عن التعليق",
+      "commentSubtitle": "أخبر المسؤولين لماذا يجب مراجعة هذا التعليق من {{name}}.",
+      "commentPlaceholder": "اختياري: صف ما حدث أو لماذا هذا التعليق غير لائق..."
     },
     "sensitive": "محتوى حساس",
     "neighbor": "جار",
@@ -646,7 +656,24 @@
     "notIncluded": "غير مشمول",
     "whatYouCanDo": "ما يمكنك فعله",
     "contactResidentOrAdmin": "تواصل مع المقيم أو مسؤول المجتمع الذي دعاك. يمكنهم تحديث أذونات الضيف في دعوتك.",
-    "yourPhone": "بريدك"
+    "yourPhone": "بريدك",
+    "agreeToTermsPrefix": "أوافق على ",
+    "termsOfUse": "الشروط",
+    "agreeToTermsConjunction": " و",
+    "privacyPolicy": "سياسة الخصوصية",
+    "agreeToTermsRequired": "يرجى الموافقة على الشروط وسياسة الخصوصية قبل المتابعة."
+  },
+  "blocks": {
+    "blockUser": "حظر المستخدم",
+    "unblockUser": "إلغاء الحظر",
+    "blockAction": "حظر",
+    "confirmMessage": "هل تريد حظر هذا المستخدم؟ لن ترى منشوراته أو تعليقاته أو رسائله بعد الآن.",
+    "blockedTitle": "تم حظر المستخدم",
+    "blockedMessage": "تم حظر المستخدم بنجاح.",
+    "unblockedTitle": "تم إلغاء الحظر",
+    "unblockedMessage": "يمكنك رؤية محتوى هذا المستخدم مرة أخرى.",
+    "empty": "لم تحظر أحداً.",
+    "couldNotLoad": "تعذر تحميل المستخدمين المحظورين."
   },
   "roles": {
     "joinHavena": "انضم إلى Havena",
@@ -1021,6 +1048,11 @@
     "listingCount_other": "إعلانات",
     "staySafe": "ابقَ آمناً",
     "staySafeItem": "التقِ في الأماكن العامة داخل المجتمع. لا تشارك بياناتك البنكية أو تدفع قبل رؤية المنتج.",
+    "reportListing": "الإبلاغ عن الإعلان",
+    "reportListingSubtitle": "أخبر المسؤولين لماذا يجب مراجعة هذا الإعلان من {{name}}.",
+    "reportListingPlaceholder": "اختياري: صف ما حدث أو لماذا هذا الإعلان غير لائق...",
+    "reportedListingTitle": "إعلان مبلغ عنه \"{{title}}\" بواسطة {{name}}",
+    "adminWillReviewListing": "سيراجع المسؤولون هذا الإعلان.",
     "aboutReviews": "حول المراجعات",
     "aboutReviewsMsg": "يتم جمع المراجعات بعد إتمام المعاملات لمساعدة الجيران على الشراء والبيع بثقة.",
     "markSold": "وسم كمُباع",
@@ -3673,7 +3705,13 @@
     "role": "الدور",
     "unitNotShared": "الوحدة غير مشتركة",
     "homeowner": "مالك العقار",
-    "tenant": "مستأجر"
+    "tenant": "مستأجر",
+    "reportUser": "إبلاغ",
+    "reportTitle": "الإبلاغ عن مقيم",
+    "reportSubtitle": "أخبر المسؤولين لماذا يجب مراجعة ملف {{name}}.",
+    "reportPlaceholder": "اختياري: صف ما حدث أو لماذا هذا الملف غير لائق...",
+    "reportedUserTitle": "مقيم مبلغ عنه: {{name}}",
+    "adminWillReviewUser": "سيراجع المسؤولون هذا المقيم."
   },
   "points": {
     "title": "سجل النقاط",
@@ -3871,6 +3909,18 @@
     "success": "نجاح",
     "doneSuccessfully": "تم بنجاح.",
     "actionFailed": "فشل الإجراء"
+  },
+  "billing": {
+    "cardSavedBadge": "بطاقة محفوظة",
+    "submittedBadge": "تم إرسال الطلب",
+    "waitingTitle": "بانتظار الموافقة",
+    "waitingBody": "تم حفظ بطاقتك ولن يتم خصم أي مبلغ الآن. سيراجع أحد مسؤولي Havena مجتمعك. عند الموافقة تبدأ تجربتك المجانية لمدة 30 يوماً.",
+    "waitingBodyExempt": "تم إرسال طلب مجتمعك. سيراجع أحد مسؤولي Havena مجتمعك. بعد الموافقة ستحصل على وصول إلى لوحة التحكم.",
+    "timelineAccount": "تم إنشاء الحساب",
+    "timelineCard": "تم حفظ البطاقة",
+    "timelineSubmitted": "تم إرسال المجتمع",
+    "timelineReview": "مراجعة Havena",
+    "timelineAccess": "الوصول إلى لوحة التحكم"
   },
   "apiErrors": {
     "sessionExpired": "انتهت جلستك. يرجى تسجيل الدخول مرة أخرى.",

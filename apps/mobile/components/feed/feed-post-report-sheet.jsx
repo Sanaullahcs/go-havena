@@ -1,12 +1,52 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Modal, View, Text, TouchableOpacity, Pressable, StyleSheet, ActivityIndicator, ScrollView } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Modal,
+  View,
+  Text,
+  TouchableOpacity,
+  Pressable,
+  StyleSheet,
+  ActivityIndicator,
+  ScrollView,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import LocaleTextInput from "../ui/locale-text-input";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { Colors } from "../../constants/tokens";
 import { REPORT_TYPES } from "../../services/reports-api";
+import { useKeyboardBottomOffset } from "../layout/keyboard-safe-screen";
 import { sw, sf } from "../../utils/responsive";
+
+/** RN cannot present AppDialog over this sheet Modal — close the sheet first. */
+export function waitForReportSheetUnmount() {
+  return new Promise((resolve) => setTimeout(resolve, 300));
+}
+
+export async function completeReportAndNotify({
+  request,
+  close,
+  setBusy,
+  notifySuccess,
+  notifyFailure,
+}) {
+  setBusy(true);
+  try {
+    const result = await request();
+    close();
+    setBusy(false);
+    await waitForReportSheetUnmount();
+    await notifySuccess?.(result);
+    return result;
+  } catch (error) {
+    close();
+    setBusy(false);
+    await waitForReportSheetUnmount();
+    await notifyFailure?.(error);
+    return null;
+  }
+}
 
 export default function FeedPostReportSheet({
   visible,
@@ -14,38 +54,93 @@ export default function FeedPostReportSheet({
   submitting = false,
   onClose,
   onSubmit,
+  title,
+  subtitle,
+  placeholder,
+  detailsRequired = true,
+  resetKey,
 }) {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
+  const { bottomOffset } = useKeyboardBottomOffset();
   const [type, setType] = useState("spam");
   const [description, setDescription] = useState("");
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [pending, setPending] = useState(false);
+  const isBusy = submitting || pending;
 
   const authorName = post?.user?.display_name ?? post?.user?.name ?? t("feed.report.thisNeighbor");
+  const detailsPlaceholder = placeholder ?? t("feed.report.placeholder");
 
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      setEditingNotes(false);
+      setPending(false);
+      return;
+    }
     setType("spam");
     setDescription("");
-  }, [visible, post?.id]);
+    setEditingNotes(false);
+    setPending(false);
+  }, [visible, post?.id, resetKey]);
 
-  const canSubmit = useMemo(() => description.trim().length >= 8, [description]);
+  const handleClose = useCallback(() => {
+    if (isBusy) return;
+    setEditingNotes(false);
+    onClose?.();
+  }, [isBusy, onClose]);
 
-  const handleSubmit = () => {
-    if (!canSubmit || submitting) return;
-    onSubmit?.({
-      type,
-      description: description.trim(),
-      title: t("feed.report.reportedPostTitle", { name: authorName }),
-      reportedUserId: post?.user_id ?? post?.user?.id ?? null,
-    });
+  const canSubmit = useMemo(
+    () => (detailsRequired ? description.trim().length >= 8 : Boolean(type)),
+    [description, detailsRequired, type],
+  );
+
+  const handleSubmit = async () => {
+    if (!canSubmit || isBusy) return;
+    setEditingNotes(false);
+    setPending(true);
+    try {
+      await onSubmit?.({
+        type,
+        description: description.trim(),
+        title: t("feed.report.reportedPostTitle", { name: authorName }),
+        reportedUserId: post?.user_id ?? post?.user?.id ?? null,
+      });
+    } finally {
+      setPending(false);
+    }
   };
 
   if (!post) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <Pressable style={styles.backdrop} onPress={submitting ? undefined : onClose} />
-        <View style={styles.sheet}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      presentationStyle="overFullScreen"
+      onRequestClose={handleClose}
+    >
+      <View style={[styles.overlay, { paddingBottom: bottomOffset }]}>
+        <Pressable
+          style={styles.backdrop}
+          onPress={() => {
+            if (isBusy) return;
+            if (editingNotes) {
+              setEditingNotes(false);
+              return;
+            }
+            handleClose();
+          }}
+        />
+        <View
+          style={[
+            styles.sheet,
+            {
+              paddingBottom: bottomOffset > 0 ? sw(12) : Math.max(insets.bottom, sw(16)),
+            },
+          ]}
+        >
           <View style={styles.handle} />
 
           <View style={styles.headerRow}>
@@ -53,17 +148,19 @@ export default function FeedPostReportSheet({
               <Feather name="flag" size={22} color="#DC2626" />
             </View>
             <View style={styles.headerCopy}>
-              <Text style={styles.title}>{t("feed.report.title")}</Text>
+              <Text style={styles.title}>{title ?? t("feed.report.title")}</Text>
               <Text style={styles.subtitle}>
-                {t("feed.report.subtitle", { name: authorName })}
+                {subtitle ?? t("feed.report.subtitle", { name: authorName })}
               </Text>
             </View>
           </View>
 
           <ScrollView
-            keyboardShouldPersistTaps="handled"
+            keyboardShouldPersistTaps="always"
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.formScroll}
+            style={styles.form}
+            nestedScrollEnabled
           >
             <Text style={styles.label}>{t("feed.report.reason")}</Text>
             <View style={styles.typeGrid}>
@@ -74,7 +171,7 @@ export default function FeedPostReportSheet({
                     key={option.value}
                     style={[styles.typeChip, active && styles.typeChipActive]}
                     onPress={() => setType(option.value)}
-                    disabled={submitting}
+                    disabled={isBusy}
                   >
                     <Text style={[styles.typeChipText, active && styles.typeChipTextActive]}>
                       {option.label}
@@ -85,35 +182,55 @@ export default function FeedPostReportSheet({
             </View>
 
             <Text style={styles.label}>{t("feed.report.details")}</Text>
-            <LocaleTextInput
-              value={description}
-              onChangeText={setDescription}
-              placeholder={t("feed.report.placeholder")}
-              placeholderTextColor="#9CA3AF"
-              style={styles.input}
-              multiline
-              maxLength={1000}
-              editable={!submitting}
-            />
+            {editingNotes ? (
+              <LocaleTextInput
+                value={description}
+                onChangeText={setDescription}
+                placeholder={detailsPlaceholder}
+                placeholderTextColor="#9CA3AF"
+                style={styles.input}
+                multiline
+                maxLength={1000}
+                editable={!isBusy}
+                autoFocus
+                blurOnSubmit
+              />
+            ) : (
+              <Pressable
+                style={styles.input}
+                onPress={() => {
+                  if (!isBusy) setEditingNotes(true);
+                }}
+                disabled={isBusy}
+              >
+                <Text
+                  style={description.trim() ? styles.inputValue : styles.inputPlaceholder}
+                >
+                  {description.trim() || detailsPlaceholder}
+                </Text>
+              </Pressable>
+            )}
             <Text style={styles.helper}>
-              {t("feed.report.helper", { count: description.trim().length })}
+              {detailsRequired
+                ? t("feed.report.helper", { count: description.trim().length })
+                : t("feed.report.helperOptional", { count: description.trim().length })}
             </Text>
           </ScrollView>
 
           <View style={styles.actions}>
             <TouchableOpacity
               style={styles.cancelBtn}
-              onPress={onClose}
-              disabled={submitting}
+              onPress={handleClose}
+              disabled={isBusy}
             >
               <Text style={styles.cancelText}>{t("common.cancel")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.submitBtn, (!canSubmit || submitting) && styles.submitBtnDisabled]}
+              style={[styles.submitBtn, (!canSubmit || isBusy) && styles.submitBtnDisabled]}
               onPress={handleSubmit}
-              disabled={!canSubmit || submitting}
+              disabled={!canSubmit || isBusy}
             >
-              {submitting ? (
+              {isBusy ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <>
@@ -143,9 +260,10 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: sw(20),
     borderTopRightRadius: sw(20),
     paddingHorizontal: sw(16),
-    paddingBottom: sw(24),
     paddingTop: sw(8),
     maxHeight: "88%",
+    width: "100%",
+    flexShrink: 1,
   },
   handle: {
     alignSelf: "center",
@@ -183,8 +301,13 @@ const styles = StyleSheet.create({
     lineHeight: sf(19),
     color: "#64748B",
   },
+  form: {
+    flexGrow: 0,
+    flexShrink: 1,
+  },
   formScroll: {
     paddingBottom: sw(8),
+    flexGrow: 0,
   },
   label: {
     fontFamily: Fonts.semiBold,
@@ -237,6 +360,18 @@ const styles = StyleSheet.create({
     color: "#101828",
     textAlignVertical: "top",
   },
+  inputValue: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(14),
+    lineHeight: sf(20),
+    color: "#101828",
+  },
+  inputPlaceholder: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(14),
+    lineHeight: sf(20),
+    color: "#9CA3AF",
+  },
   helper: {
     marginTop: sw(6),
     fontFamily: Fonts.regular,
@@ -248,6 +383,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: sw(10),
     marginTop: sw(12),
+    flexShrink: 0,
   },
   cancelBtn: {
     flex: 1,
@@ -271,6 +407,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: sw(8),
+    minHeight: sw(50),
     paddingVertical: sw(14),
     borderRadius: sw(12),
     backgroundColor: Colors.brandPrimaryDeep,

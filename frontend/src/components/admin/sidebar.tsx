@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getUser, isSystemAdminUser } from "@/lib/auth/session";
+import { getUser, isPakistanCommunityRegion, isSystemAdminUser } from "@/lib/auth/session";
 import { fetchMessageUnreadCount } from "@/lib/api/messages";
 import { HavenaMark } from "@/components/shared/havena-mark";
 import { NL } from "@/lib/design-tokens";
@@ -187,9 +187,20 @@ function SidebarInner({
   onNavigate?: () => void;
   hideBrand?: boolean;
 }) {
-  const user = getUser();
+  const [user, setUser] = useState(() => getUser());
   const isSystemAdmin = user?.role === "system_admin" || user?.role === "admin";
   const [messageUnread, setMessageUnread] = useState(0);
+
+  useEffect(() => {
+    const syncUser = () => setUser(getUser());
+    syncUser();
+    window.addEventListener("nbr-session-updated", syncUser);
+    window.addEventListener("storage", syncUser);
+    return () => {
+      window.removeEventListener("nbr-session-updated", syncUser);
+      window.removeEventListener("storage", syncUser);
+    };
+  }, []);
 
   useEffect(() => {
     if (isSystemAdmin) return;
@@ -213,8 +224,10 @@ function SidebarInner({
     };
   }, [isSystemAdmin]);
 
+  const hideReferAndEarn = isPakistanCommunityRegion(user);
   const communityNav = communityAdminNav
     .filter((item) => !(item.href === "/admin/billing" && user?.access?.billing_exempt))
+    .filter((item) => !(hideReferAndEarn && item.href === "/admin/refer-and-earn"))
     .map((item) =>
       item.href === "/admin/messages" ? { ...item, badge: messageUnread } : item,
     );

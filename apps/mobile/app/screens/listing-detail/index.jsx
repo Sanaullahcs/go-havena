@@ -34,6 +34,9 @@ import { resolveMediaUrl } from "../../../utils/profile-display";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { MarketplaceRoutes } from "../../../constants/marketplace-routes";
 import ListingOfferSheet from "../../../components/marketplace/listing-offer-sheet";
+import FeedPostReportSheet, { completeReportAndNotify } from "../../../components/feed/feed-post-report-sheet";
+import { fileReport } from "../../../services/reports-api";
+import { useApiAction } from "../../../hooks/use-api-action";
 import { startListingConversation } from "../../../services/messages-api";
 import {
   formatListingPrice,
@@ -142,6 +145,7 @@ export default function ListingDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams();
   const { showConfirm, showSuccess, showError } = useAppDialog();
+  const { runAction, showFailure } = useApiAction();
   const scrollY = useRef(new Animated.Value(0)).current;
 
   const [listing, setListing] = useState(null);
@@ -153,6 +157,8 @@ export default function ListingDetailScreen() {
   const [offerBusy, setOfferBusy] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [heroFailed, setHeroFailed] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reporting, setReporting] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -269,6 +275,29 @@ export default function ListingDetailScreen() {
     listing &&
     currentUserId != null &&
     Number(listing.user_id) === Number(currentUserId);
+  const canReport = Boolean(listing?.can_report) && !isOwner;
+
+  const handleReportSubmit = async (payload) => {
+    if (!listing?.id) return;
+    await completeReportAndNotify({
+      request: () =>
+        fileReport({
+          type: payload.type,
+          description: payload.description,
+          title: t("marketplace.reportedListingTitle", {
+            title: listing.title,
+            name: listing.seller_name ?? t("marketplace.resident"),
+          }),
+          reportedUserId: listing.user_id,
+          listingId: listing.id,
+        }),
+      close: () => setReportOpen(false),
+      setBusy: setReporting,
+      notifySuccess: () =>
+        showSuccess(t("feed.options.reportSubmitted"), t("marketplace.adminWillReviewListing")),
+      notifyFailure: (error) => showFailure(t("apiAction.actionFailed"), error),
+    });
+  };
 
   const handleEdit = () => {
     router.push({
@@ -567,6 +596,11 @@ export default function ListingDetailScreen() {
           </HeaderBtn>
 
           <View style={styles.headerRight}>
+            {canReport ? (
+              <HeaderBtn onPress={() => setReportOpen(true)}>
+                <Ionicons name="flag-outline" size={17} color="#FFFFFF" />
+              </HeaderBtn>
+            ) : null}
             <HeaderBtn onPress={handleShare}>
               <Ionicons name="share-outline" size={17} color="#FFFFFF" />
             </HeaderBtn>
@@ -660,6 +694,27 @@ export default function ListingDetailScreen() {
           </>
         )}
       </View>
+
+      {canReport ? (
+        <FeedPostReportSheet
+          visible={reportOpen}
+          post={{
+            id: listing.id,
+            user_id: listing.user_id,
+            user: { display_name: listing.seller_name, name: listing.seller_name },
+          }}
+          submitting={reporting}
+          detailsRequired={false}
+          resetKey={listing.id}
+          title={t("marketplace.reportListing")}
+          subtitle={t("marketplace.reportListingSubtitle", {
+            name: listing.seller_name ?? t("marketplace.resident"),
+          })}
+          placeholder={t("marketplace.reportListingPlaceholder")}
+          onClose={() => setReportOpen(false)}
+          onSubmit={handleReportSubmit}
+        />
+      ) : null}
 
       <ListingOfferSheet
         visible={offerSheetVisible}

@@ -26,7 +26,11 @@ import { getUser } from "../../../services/auth-session";
 import { createWebHandoff, fetchMe } from "../../../services/auth-api";
 import { confirmSignOut } from "../../../services/sign-out";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
-import { canAccessDashboard, getPrimaryMembership } from "../../../services/community-access";
+import {
+  canAccessDashboard,
+  getPrimaryMembership,
+  isBillingExempt,
+} from "../../../services/community-access";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -66,7 +70,7 @@ function appendQuery(url, params) {
 function isBillingStillRequired(user) {
   if (!user) return true;
   const access = user.access ?? {};
-  if (access.card_on_file || access.billing_complete) return false;
+  if (isBillingExempt(user) || access.card_on_file || access.billing_complete) return false;
   const nextStep = access.next_step;
   if (nextStep === "await_approval" || nextStep === "ready") return false;
   return nextStep === "complete_billing_web";
@@ -80,6 +84,7 @@ export default function CompleteBillingScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [opening, setOpening] = useState(false);
   const [awaitingApproval, setAwaitingApproval] = useState(false);
+  const [billingExempt, setBillingExempt] = useState(false);
   const [communityName, setCommunityName] = useState("");
   const openedPortalRef = useRef(false);
   const pollTimersRef = useRef([]);
@@ -115,9 +120,14 @@ export default function CompleteBillingScreen() {
 
       const membership = getPrimaryMembership(user);
       setCommunityName(membership?.community?.name || membership?.community?.title || "");
+      const exempt = isBillingExempt(user);
+      setBillingExempt(exempt);
       // Prefer card_on_file over a possibly-stale next_step so the Continue CTA hides right away.
+      // Exempt regions skip checkout — never treat them as needing a card.
       const nextAwaiting =
-        nextStep === "await_approval" || Boolean(user?.access?.card_on_file);
+        nextStep === "await_approval" ||
+        exempt ||
+        (!exempt && Boolean(user?.access?.card_on_file));
       awaitingApprovalRef.current = nextAwaiting;
       setAwaitingApproval(nextAwaiting);
 
@@ -294,7 +304,12 @@ export default function CompleteBillingScreen() {
   const timeline = awaitingApproval
     ? [
         { label: t("billing.timelineAccount", { defaultValue: "Account created" }), status: "done" },
-        { label: t("billing.timelineCard", { defaultValue: "Card saved" }), status: "done" },
+        billingExempt
+          ? {
+              label: t("billing.timelineSubmitted", { defaultValue: "Community submitted" }),
+              status: "done",
+            }
+          : { label: t("billing.timelineCard", { defaultValue: "Card saved" }), status: "done" },
         { label: t("billing.timelineReview", { defaultValue: "Havena review" }), status: "current" },
         { label: t("billing.timelineAccess", { defaultValue: "Dashboard access" }), status: "upcoming" },
       ]
@@ -331,7 +346,9 @@ export default function CompleteBillingScreen() {
             <View style={styles.statusDot} />
             <Text style={styles.statusBadgeText}>
               {awaitingApproval
-                ? t("billing.cardSavedBadge", { defaultValue: "Card on file" })
+                ? billingExempt
+                  ? t("billing.submittedBadge", { defaultValue: "Request submitted" })
+                  : t("billing.cardSavedBadge", { defaultValue: "Card on file" })
                 : t("billing.setupRequired", { defaultValue: "Payment method" })}
             </Text>
           </View>
@@ -342,10 +359,15 @@ export default function CompleteBillingScreen() {
           </Text>
           <Text style={styles.subtitle}>
             {awaitingApproval
-              ? t("billing.waitingBody", {
-                  defaultValue:
-                    "Your card is saved and you will not be charged yet. A Havena administrator will review your community. When you’re approved, your 30-day free trial begins.",
-                })
+              ? billingExempt
+                ? t("billing.waitingBodyExempt", {
+                    defaultValue:
+                      "Your community request has been submitted. A Havena administrator will review your community. Once approved, you’ll get access to your dashboard.",
+                  })
+                : t("billing.waitingBody", {
+                    defaultValue:
+                      "Your card is saved and you will not be charged yet. A Havena administrator will review your community. When you’re approved, your 30-day free trial begins.",
+                  })
               : t("billing.completeSetupBody", {
                   defaultValue:
                     "Save a card in the Havena admin portal. $0 is due today. Your free trial starts only after a system administrator approves you.",

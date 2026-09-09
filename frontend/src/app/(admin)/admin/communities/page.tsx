@@ -17,6 +17,7 @@ import {
   approveCommunityRequest,
   createAdminCommunity,
   deleteAdminCommunity,
+  communityHasAssignedAdmin,
   fetchAdminCommunitiesList,
   fetchCommunityRequests,
   rejectCommunityRequest,
@@ -27,6 +28,7 @@ import {
   type CommunityRequest,
 } from "@/lib/api/communities";
 import { AssignCommunityAdminModal, type AssignAdminTarget } from "@/components/admin/assign-community-admin-modal";
+import { ProvisionUserModal, type PresetCommunityAssignment } from "@/components/admin/provision-user-modal";
 import { fetchRegions, type Region } from "@/lib/api/regions";
 import { apiError } from "@/lib/api/client";
 import { PhoneDisplay } from "@/components/admin/phone-display";
@@ -97,6 +99,7 @@ export default function CommunitiesPage() {
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [statusSubmitting, setStatusSubmitting] = useState(false);
   const [assignTarget, setAssignTarget] = useState<AssignAdminTarget | null>(null);
+  const [assignPreset, setAssignPreset] = useState<PresetCommunityAssignment | null>(null);
   const hasLoadedOnce = useRef(false);
   const prevFilterKey = useRef(`${tab}|`);
 
@@ -326,6 +329,16 @@ export default function CommunitiesPage() {
     });
   };
 
+  const openUnassignedAssign = (item: AdminCommunity) => {
+    if (communityHasAssignedAdmin(item)) return;
+    setAssignPreset({
+      id: item.id,
+      name: item.name,
+      regionId: item.region_id,
+      regionTitle: item.region_title ?? item.region,
+    });
+  };
+
   if (initialLoading) return <PageLoader text="Loading communities…" skeleton />;
   if (error && !communities.length && !requests.length) {
     return <PageError message={error} onRetry={() => load()} />;
@@ -435,7 +448,14 @@ export default function CommunitiesPage() {
                           </AdminBadge>
                         </div>
                       ) : (
-                        <span className="text-slate-400">Unassigned</span>
+                        <button
+                          type="button"
+                          onClick={() => openUnassignedAssign(item)}
+                          aria-label={`Assign a community admin to ${item.name}`}
+                          className="rounded-md text-left text-sm font-semibold text-blue-700 underline-offset-2 transition hover:text-blue-800 hover:underline"
+                        >
+                          Unassigned
+                        </button>
                       )}
                     </DtCell>
                     <DtCell nowrap>
@@ -618,6 +638,14 @@ export default function CommunitiesPage() {
         open={Boolean(assignTarget)}
         onClose={() => setAssignTarget(null)}
         onAssigned={() => load(true)}
+      />
+
+      <ProvisionUserModal
+        type="community_admin"
+        open={Boolean(assignPreset)}
+        presetCommunity={assignPreset}
+        onClose={() => setAssignPreset(null)}
+        onCreated={() => load(true)}
       />
 
       {viewing && (

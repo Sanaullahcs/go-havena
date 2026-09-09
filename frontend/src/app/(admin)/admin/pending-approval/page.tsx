@@ -37,6 +37,7 @@ export default function PendingApprovalPage() {
   const [state, setState] = useState<ReviewState>("waiting");
   const [communityName, setCommunityName] = useState<string | null>(null);
   const [billingComplete, setBillingComplete] = useState(false);
+  const [billingExempt, setBillingExempt] = useState(false);
   const [busy, setBusy] = useState(false);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
 
@@ -46,7 +47,9 @@ export default function PendingApprovalPage() {
       const access = user?.access;
       const community = communityFromUser(user);
       setCommunityName(community?.name ?? null);
-      setBillingComplete(Boolean(access?.billing_complete || access?.card_on_file));
+      const exempt = Boolean(access?.billing_exempt);
+      setBillingExempt(exempt);
+      setBillingComplete(!exempt && Boolean(access?.billing_complete || access?.card_on_file));
 
       if (step === "ready" || access?.can_use_dashboard) {
         router.replace("/admin");
@@ -80,7 +83,11 @@ export default function PendingApprovalPage() {
 
       setState("waiting");
       setTitle("Waiting for system approval");
-      if (access?.billing_complete) {
+      if (exempt) {
+        setMessage(
+          "Your community request has been submitted. A Havena administrator will review your community. Once approved, you’ll get access to your dashboard.",
+        );
+      } else if (access?.billing_complete || access?.card_on_file) {
         setMessage(
           "Your card is saved. A system administrator still needs to approve your profile and community. Your 30-day free trial starts only after that approval — you will not be charged before then.",
         );
@@ -120,15 +127,21 @@ export default function PendingApprovalPage() {
   const timeline = useMemo(
     () => [
       { label: "Application submitted", detail: "Profile and community details received", status: "done" as const },
-      {
-        label: billingComplete ? "Card saved" : "Add a card",
-        detail: billingComplete ? "Trial reserved — no charge yet" : "Required before the trial can start",
-        status: billingComplete ? ("done" as const) : ("current" as const),
-      },
+      billingExempt
+        ? {
+            label: "Community submitted",
+            detail: "No payment method required for this region",
+            status: "done" as const,
+          }
+        : {
+            label: billingComplete ? "Card saved" : "Add a card",
+            detail: billingComplete ? "Trial reserved — no charge yet" : "Required before the trial can start",
+            status: billingComplete ? ("done" as const) : ("current" as const),
+          },
       {
         label: "Havena review",
         detail: "A system admin is checking your community",
-        status: billingComplete ? ("current" as const) : ("upcoming" as const),
+        status: billingExempt || billingComplete ? ("current" as const) : ("upcoming" as const),
       },
       {
         label: "Dashboard unlocks",
@@ -136,7 +149,7 @@ export default function PendingApprovalPage() {
         status: "upcoming" as const,
       },
     ],
-    [billingComplete],
+    [billingComplete, billingExempt],
   );
 
   return (
@@ -227,18 +240,30 @@ export default function PendingApprovalPage() {
                 title: "Human review",
                 body: "A Havena admin confirms you’re the right operator.",
               },
-              {
-                icon: CreditCard,
-                title: billingComplete ? "Card on file" : "Card needed",
-                body: billingComplete
-                  ? "Saved securely with Stripe. No charge until after approval and trial."
-                  : "Save a card to reserve your plan before review finishes.",
-              },
-              {
-                icon: Timer,
-                title: "Trial waits",
-                body: "The 30-day clock starts only after approval — not when you submit.",
-              },
+              billingExempt
+                ? {
+                    icon: ShieldCheck,
+                    title: "No billing required",
+                    body: "This region does not require a payment method to request a community.",
+                  }
+                : {
+                    icon: CreditCard,
+                    title: billingComplete ? "Card on file" : "Card needed",
+                    body: billingComplete
+                      ? "Saved securely with Stripe. No charge until after approval and trial."
+                      : "Save a card to reserve your plan before review finishes.",
+                  },
+              billingExempt
+                ? {
+                    icon: Timer,
+                    title: "Dashboard waits",
+                    body: "You’ll get access after a Havena administrator approves your community.",
+                  }
+                : {
+                    icon: Timer,
+                    title: "Trial waits",
+                    body: "The 30-day clock starts only after approval — not when you submit.",
+                  },
             ].map((item) => (
               <div key={item.title} className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
                 <item.icon className="h-5 w-5 text-[#1B4F8A]" aria-hidden />

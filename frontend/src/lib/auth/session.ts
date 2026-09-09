@@ -170,6 +170,8 @@ export type CommunityAdminAccess = {
   subscription_status?: string | null;
   plan_slug?: string | null;
   card_on_file?: boolean;
+  billing_exempt?: boolean;
+  country_code?: string | null;
   trial_ends_at?: string | null;
   admin_transition?: boolean;
   leftover_ends_at?: string | null;
@@ -345,4 +347,11 @@ export function getManagedCommunityId(user?: WebUser | null): number | undefined
   );
 
   return pending?.community_id ?? u.community_id;
+}
+
+/** True when the managed community's region country is Pakistan. */
+export function isPakistanCommunityRegion(user?: WebUser | null): boolean {
+  const u = user ?? getUser();
+  const code = String(u?.access?.country_code ?? "").trim().toUpperCase();
+  return code === "PK";
 }
