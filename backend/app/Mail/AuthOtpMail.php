@@ -15,7 +15,7 @@ class AuthOtpMail extends Mailable
 
     public function __construct(public string $code)
     {
-        EmailBrand::attachInlineImages($this);
+        EmailBrand::attachInlineImages($this, EmailBrand::cidsForMail([], true));
     }
 
     public function envelope(): Envelope

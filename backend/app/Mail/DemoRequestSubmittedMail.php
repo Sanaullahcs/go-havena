@@ -21,7 +21,11 @@ class DemoRequestSubmittedMail extends Mailable
     public function __construct(public ContactSubmission $submission)
     {
         $this->demo = $this->parseDemoRequest($submission->message);
-        EmailBrand::attachInlineImages($this);
+        EmailBrand::attachInlineImages($this, EmailBrand::cidsForMail([
+            ['label' => 'Community'],
+            ['label' => 'Role'],
+            ['label' => 'Preferred time'],
+        ]));
     }
 
     public function envelope(): Envelope

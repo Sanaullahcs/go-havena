@@ -425,16 +425,15 @@ class LifecycleMailService
         }
 
         try {
-            TransactionalEmailSend::query()->create([
-                'mail_type' => $type,
-                'context_key' => $contextKey,
-                'recipient_email' => $email,
-                'sent_at' => now(),
-            ]);
-        } catch (UniqueConstraintViolationException) {
-            return false;
+            $alreadySent = TransactionalEmailSend::query()
+                ->where('mail_type', $type)
+                ->where('context_key', $contextKey)
+                ->exists();
+            if ($alreadySent) {
+                return false;
+            }
         } catch (Throwable $e) {
-            Log::warning('Transactional email lock failed', [
+            Log::warning('Transactional email lock check failed', [
                 'type' => $type,
                 'email' => $email,
                 'error' => $e->getMessage(),
@@ -447,8 +446,6 @@ class LifecycleMailService
                 'type' => $type,
                 'email' => $email,
             ]);
-
-            return true;
         } catch (Throwable $e) {
             Log::warning('Transactional email failed', [
                 'type' => $type,
@@ -456,17 +453,27 @@ class LifecycleMailService
                 'error' => $e->getMessage(),
             ]);
 
-            try {
-                TransactionalEmailSend::query()
-                    ->where('mail_type', $type)
-                    ->where('context_key', $contextKey)
-                    ->delete();
-            } catch (Throwable) {
-                // Keep the main action successful even if cleanup fails.
-            }
-
             return false;
         }
+
+        try {
+            TransactionalEmailSend::query()->create([
+                'mail_type' => $type,
+                'context_key' => $contextKey,
+                'recipient_email' => $email,
+                'sent_at' => now(),
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            // Another request recorded the same send after we delivered it.
+        } catch (Throwable $e) {
+            Log::warning('Transactional email lock failed', [
+                'type' => $type,
+                'email' => $email,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return true;
     }
 
     private function greeting(User $user): string

@@ -36,6 +36,17 @@ class EmailTemplateTest extends TestCase
         $this->assertStringContainsString('#14B8A6', $html);
         $this->assertStringContainsString(AppUrls::privacyUrl(), $html);
         $this->assertStringContainsString('href="https://gohavena.com/admin"', $html);
+        $this->assertSame(
+            ['havena-mark', 'badge-app-store', 'badge-google-play', 'icon-community', 'icon-person', 'icon-code'],
+            \App\Support\EmailBrand::cidsForMail(
+                [
+                    ['label' => 'Community'],
+                    ['label' => 'Invited by'],
+                ],
+                true,
+                true,
+            ),
+        );
     }
 
     public function test_otp_html_uses_the_same_branded_layout(): void
