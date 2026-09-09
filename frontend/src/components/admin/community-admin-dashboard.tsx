@@ -55,6 +55,7 @@ import { apiError } from "@/lib/api/client";
 import { PageError, PageLoader } from "@/components/shared/page-states";
 import { toastError, toastSuccess } from "@/lib/alert";
 import { getAdminCache, setAdminCache } from "@/lib/admin/navigation-cache";
+import { getUser } from "@/lib/auth/session";
 import {
   confirmPendingDashboardAction,
   confirmPublishCommunityContent,
@@ -406,7 +407,7 @@ export default function CommunityAdminDashboard() {
       tone: "amber",
       icon: dashIcon(Calendar),
     },
-  ];
+  ].filter((link) => !(link.href === "/admin/billing" && getUser()?.access?.billing_exempt));
 
   return (
     <div className="space-y-6">

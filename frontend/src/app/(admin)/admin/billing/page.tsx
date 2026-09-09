@@ -20,6 +20,7 @@ import {
   confirmBillingCheckout,
   fetchBilling,
   formatMoney,
+  isCommunityBillingExempt,
   openBillingPortal,
   type BillingInterval,
   type BillingPayload,
@@ -988,6 +989,7 @@ function BillingPageInner() {
 
     const plan = searchParams.get("plan");
     if (!plan) return;
+    if (isCommunityBillingExempt(data)) return;
     if (!data.plans.some((p) => p.slug === plan)) {
       toastError("That plan is not available.");
       return;
@@ -1040,12 +1042,70 @@ function BillingPageInner() {
   const needsReplacementCard = Boolean(sub?.requires_replacement_card || data.setup.requires_replacement_card);
   const paidPendingApproval = cardSavedAwaitingApproval || (billingReady && data.community.review_status === "pending");
   const checkoutComplete = (billingReady || cardSavedAwaitingApproval || leftover) && !needsReplacementCard;
-  const billingExempt = Boolean(data.billing?.exempt || data.seats?.billing_exempt || data.seats?.unlimited_seats);
+  const billingExempt = isCommunityBillingExempt(data);
   const seatLimitLabel = billingExempt
     ? "Unlimited"
     : seats.seat_limit && seats.seat_limit > 0
       ? String(seats.seat_limit)
       : "—";
+
+  if (billingExempt) {
+    return (
+      <div className="space-y-6 lg:space-y-8">
+        <header>
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#1B4F8A]">
+            Billing
+          </p>
+          <h1 className="mt-1 font-[family-name:var(--font-brand)] text-xl font-bold tracking-tight text-slate-900 sm:text-[2rem] sm:leading-tight">
+            No subscription required
+          </h1>
+          <p className="mt-1.5 max-w-2xl text-[13px] leading-relaxed text-slate-600 sm:mt-2 sm:text-[15px]">
+            Communities in this region do not need a plan, card, or checkout. Resident seats are unlimited.
+          </p>
+        </header>
+
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="h-1.5 bg-gradient-to-r from-[#1B4F8A] via-teal-600 to-teal-400" aria-hidden />
+          <div className="p-5 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                  Community
+                </p>
+                <h2 className="mt-1.5 font-[family-name:var(--font-brand)] text-[22px] font-bold tracking-tight text-slate-900 sm:text-[26px]">
+                  {data.community.name}
+                </h2>
+                <p className="mt-1.5 max-w-xl text-[13px] leading-relaxed text-slate-500">
+                  Billing is not required here. Invite as many residents as you need — there is no seat pack or card on file.
+                </p>
+              </div>
+              <div className="w-full min-w-[12rem] rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white px-4 py-3.5 sm:w-auto sm:min-w-[13.5rem]">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-teal-700">
+                  Seats used
+                </p>
+                <p className="mt-1 font-[family-name:var(--font-brand)] text-[30px] font-bold leading-none tabular-nums text-slate-900">
+                  {seats.seats_used}
+                  <span className="text-[16px] font-medium text-slate-400"> / Unlimited</span>
+                </p>
+                <p className="mt-2 text-[11px] text-slate-500">Unlimited resident seats in this region</p>
+              </div>
+            </div>
+            {data.setup.can_invite_residents ? (
+              <div className="mt-5">
+                <Link
+                  href="/admin/members"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#1B4F8A] px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm transition hover:bg-[#163A66]"
+                >
+                  Invite residents
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                </Link>
+              </div>
+            ) : null}
+          </div>
+        </section>
+      </div>
+    );
+  }
   const trialEligible = communityTrialEligible(data);
   const effectiveTrialDays = trialEligible ? (data.trial_period_days ?? TRIAL_DAYS) : 0;
   const previewPlan = data.plans.find((p) => p.slug === selected) ?? data.plans[0] ?? null;

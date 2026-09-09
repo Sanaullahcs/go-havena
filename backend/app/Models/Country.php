@@ -33,6 +33,10 @@ class Country extends Model
 
     public function isBillingExempt(): bool
     {
+        if (in_array(strtoupper((string) $this->code), \App\Support\CountriesData::exemptCodes(), true)) {
+            return true;
+        }
+
         return $this->billing_policy === self::BILLING_EXEMPT;
     }
 }

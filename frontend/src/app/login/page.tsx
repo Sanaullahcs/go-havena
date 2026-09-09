@@ -48,6 +48,8 @@ function LoginPageInner() {
   const billingReturnPath = planHint
     ? `/admin/billing?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
     : "/admin/billing";
+  const readyHomePath = (user?: { access?: { billing_exempt?: boolean } } | null) =>
+    planHint && !user?.access?.billing_exempt ? billingReturnPath : "/admin";
   const [email, setEmail] = useState("");
   const [emailFocused, setEmailFocused] = useState(false);
   const [otp, setOtp] = useState("");
@@ -79,14 +81,14 @@ function LoginPageInner() {
 
       const user = getUser();
       if (canAccessCommunityDashboard(user)) {
-        router.replace(planHint ? billingReturnPath : "/admin");
+        router.replace(readyHomePath(user));
         return;
       }
 
       if (isCommunityAdminUser(user)) {
         const step = getCommunityAdminNextStep(user);
         if (step === "ready" || canAccessCommunityDashboard(user)) {
-          router.replace(planHint ? billingReturnPath : "/admin");
+          router.replace(readyHomePath(user));
           return;
         }
         router.replace(
@@ -144,9 +146,7 @@ function LoginPageInner() {
       const step = getCommunityAdminNextStep(res.user);
       const next =
         canAccessCommunityDashboard(res.user) || step === "ready"
-          ? planHint
-            ? billingReturnPath
-            : "/admin"
+          ? readyHomePath(res.user)
           : `${communityAdminOnboardingPath(step)}${planQuery}`;
       router.replace(next);
     } catch (err) {

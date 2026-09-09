@@ -442,6 +442,11 @@ function PayInner() {
   const startGen = useRef(0);
 
   const start = useCallback(async () => {
+    if (getUser()?.access?.billing_exempt) {
+      router.replace("/admin");
+      return;
+    }
+
     if (!planSlug) {
       setError("Choose a plan first.");
       setLoading(false);
@@ -522,7 +527,12 @@ function PayInner() {
       setAppliedCoupon(result.coupon ?? null);
     } catch (err) {
       if (gen !== startGen.current) return;
-      setError(apiError(err));
+      const message = apiError(err);
+      if (/not required|BILLING_EXEMPT/i.test(message)) {
+        router.replace("/admin");
+        return;
+      }
+      setError(message);
     } finally {
       if (gen === startGen.current) setLoading(false);
     }

@@ -161,6 +161,7 @@ function lockPortal(portal: SessionPortal) {
 export type CommunityAdminAccess = {
   platform_approved?: boolean;
   billing_complete?: boolean;
+  billing_exempt?: boolean;
   can_use_dashboard?: boolean;
   can_use_mobile_app?: boolean;
   has_linked_community?: boolean;

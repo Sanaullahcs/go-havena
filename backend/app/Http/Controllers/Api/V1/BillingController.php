@@ -147,6 +147,14 @@ class BillingController extends Controller
         $communityId = AdminRoleService::requireManagedCommunityId($request->user(), $request);
         $community = Community::query()->findOrFail($communityId);
 
+        if (app(RegionBillingPolicy::class)->isBillingExempt($community->id)) {
+            throw new BillingException(
+                'Billing is not required for communities in this region.',
+                'BILLING_EXEMPT',
+                422,
+            );
+        }
+
         $subscription = $this->billing->changePlan(
             $community,
             $validated['plan_slug'],
@@ -172,6 +180,15 @@ class BillingController extends Controller
 
         $communityId = AdminRoleService::requireManagedCommunityId($request->user(), $request);
         $community = Community::query()->findOrFail($communityId);
+
+        if (app(RegionBillingPolicy::class)->isBillingExempt($community->id)) {
+            throw new BillingException(
+                'Billing is not required for communities in this region.',
+                'BILLING_EXEMPT',
+                422,
+            );
+        }
+
         $subscription = $this->billing->getSubscription($communityId);
         $interval = ($validated['interval'] ?? 'month') === 'year' ? 'year' : 'month';
         $plan = $this->billing->plan($validated['plan_slug']);

@@ -213,9 +213,11 @@ function SidebarInner({
     };
   }, [isSystemAdmin]);
 
-  const communityNav = communityAdminNav.map((item) =>
-    item.href === "/admin/messages" ? { ...item, badge: messageUnread } : item,
-  );
+  const communityNav = communityAdminNav
+    .filter((item) => !(item.href === "/admin/billing" && user?.access?.billing_exempt))
+    .map((item) =>
+      item.href === "/admin/messages" ? { ...item, badge: messageUnread } : item,
+    );
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">

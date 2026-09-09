@@ -27,7 +27,16 @@ class RegionBillingPolicy
             return false;
         }
 
-        return $this->isRegionBillingExempt($community->regionRecord);
+        if ($this->isRegionBillingExempt($community->regionRecord)) {
+            return true;
+        }
+
+        return $this->textLooksLikeExemptCountry(implode(' ', array_filter([
+            $community->region,
+            $community->regionRecord?->title,
+            $community->regionRecord?->state,
+            $community->regionRecord?->area,
+        ])));
     }
 
     public function isRegionBillingExempt(?Region $region): bool
@@ -43,13 +52,27 @@ class RegionBillingPolicy
             return $country->isBillingExempt();
         }
 
-        return $this->legacyTitleIsPakistan($region->title);
+        return $this->textLooksLikeExemptCountry(implode(' ', array_filter([
+            $region->title,
+            $region->state,
+            $region->area,
+        ])));
     }
 
-    /** Fallback when state_id is not set yet (legacy rows). */
-    private function legacyTitleIsPakistan(string $title): bool
+    /** Fallback when state_id is missing (legacy rows). Only Pakistan is exempt. */
+    private function textLooksLikeExemptCountry(string $text): bool
     {
-        return str_starts_with(trim($title), 'Pakistan -');
+        $haystack = mb_strtolower(trim($text));
+        if ($haystack === '') {
+            return false;
+        }
+
+        if (! in_array('PK', $this->exemptCountryCodes(), true)) {
+            return false;
+        }
+
+        return str_contains($haystack, 'pakistan')
+            || str_starts_with(trim($text), 'Pakistan -');
     }
 
     /** @return list<string> */

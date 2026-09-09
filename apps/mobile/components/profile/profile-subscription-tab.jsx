@@ -60,6 +60,10 @@ export default function ProfileSubscriptionTab() {
   const next = billing?.next_charge ?? null;
   const invoices = billing?.invoices ?? [];
   const communityName = billing?.community?.name ?? "";
+  const billingExempt = Boolean(
+    billing?.billing?.exempt || billing?.seats?.billing_exempt || billing?.seats?.unlimited_seats,
+  );
+  const seatsUsed = billing?.seats?.seats_used ?? 0;
 
   const openInvoice = async (url) => {
     if (!url) return;
@@ -103,8 +107,29 @@ export default function ProfileSubscriptionTab() {
       ) : null}
 
       <View style={styles.card}>
-        <Text style={styles.cardLabel}>{t("profile.subscription.currentPlan")}</Text>
-        {sub ? (
+        <Text style={styles.cardLabel}>
+          {billingExempt
+            ? t("profile.subscription.regionAccess", { defaultValue: "Region access" })
+            : t("profile.subscription.currentPlan")}
+        </Text>
+        {billingExempt ? (
+          <>
+            <Text style={styles.planName}>
+              {t("profile.subscription.noSubscriptionRequired", { defaultValue: "No subscription required" })}
+            </Text>
+            <Text style={styles.cardMeta}>
+              {t("profile.subscription.unlimitedSeatsUsed", {
+                defaultValue: "{{used}} / Unlimited resident seats",
+                used: seatsUsed,
+              })}
+            </Text>
+            <Text style={styles.emptyBody}>
+              {t("profile.subscription.exemptBody", {
+                defaultValue: "Communities in this region do not need a plan or card.",
+              })}
+            </Text>
+          </>
+        ) : sub ? (
           <>
             <View style={styles.planRow}>
               <Text style={styles.planName}>{sub.plan_name}</Text>
@@ -136,7 +161,7 @@ export default function ProfileSubscriptionTab() {
         )}
       </View>
 
-      {sub ? (
+      {sub && !billingExempt ? (
         <View style={styles.card}>
           <Text style={styles.cardLabel}>
             {next?.kind === "trial_ends" || next?.kind === "trial_starts"
@@ -162,6 +187,7 @@ export default function ProfileSubscriptionTab() {
         </View>
       ) : null}
 
+      {!billingExempt ? (
       <View style={styles.card}>
         <Text style={styles.cardLabel}>{t("profile.subscription.invoices")}</Text>
         {invoices.length === 0 ? (
@@ -198,6 +224,7 @@ export default function ProfileSubscriptionTab() {
           })
         )}
       </View>
+      ) : null}
     </ScrollView>
   );
 }

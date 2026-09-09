@@ -377,8 +377,9 @@ class CommunityBillingService
     public function billingPayload(Community $community): array
     {
         $this->refreshGraceIfNeeded($community->id);
+        $billingExempt = app(RegionBillingPolicy::class)->isBillingExempt($community->id);
         $subscription = $this->getSubscription($community->id);
-        if (! $subscription?->isAdminTransition()) {
+        if (! $billingExempt && ! $subscription?->isAdminTransition()) {
             $this->startTrialIfEligible($community);
             $subscription = $this->getSubscription($community->id);
         }
@@ -390,7 +391,6 @@ class CommunityBillingService
             $community->id,
             $subscription,
         );
-        $billingExempt = app(RegionBillingPolicy::class)->isBillingExempt($community->id);
 
         return [
             'community' => [
@@ -401,7 +401,9 @@ class CommunityBillingService
                 'estimated_residents' => $estimated,
                 'is_active_for_residents' => $community->isActiveForResidents(),
             ],
-            'plans' => $this->formattedPlans($estimated !== null ? (int) $estimated : null, $includeSlug),
+            'plans' => $billingExempt
+                ? []
+                : $this->formattedPlans($estimated !== null ? (int) $estimated : null, $includeSlug),
             'recommended_plan' => $subscription?->isAdminTransition()
                 ? $subscription->plan_slug
                 : $this->recommendPlanSlug($estimated !== null ? (int) $estimated : null),
