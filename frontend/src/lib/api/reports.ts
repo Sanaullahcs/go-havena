@@ -6,6 +6,7 @@ export interface Report {
   reporter_name: string; reporter_unit: string | null;
   reported_name: string | null; community_id: number;
   listing_id?: number | null; listing_title?: string | null;
+  notice_id?: number | null; event_title?: string | null;
   reported_user_id?: number | null;
 }
 

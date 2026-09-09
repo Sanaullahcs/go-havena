@@ -528,6 +528,13 @@
       "prohibited": "Artículo prohibido o inseguro",
       "inappropriate": "Contenido inapropiado",
       "incorrect": "Información incorrecta"
+    },
+    "event": {
+      "spam": "Evento falso o spam",
+      "scam": "Evento engañoso o fraudulento",
+      "inappropriate": "Contenido inapropiado del evento",
+      "safety": "Problema de seguridad",
+      "incorrect": "Detalles incorrectos del evento"
     }
   },
   "categories": {
@@ -3273,6 +3280,11 @@
     "close": "Cerrar",
     "organizer": "Organizador",
     "shareEventAccessibility": "Compartir evento",
+    "reportEventAccessibility": "Reportar evento",
+    "reportEvent": "Reportar evento",
+    "reportEventSubtitle": "Dile a los administradores por qué deben revisar este evento de {{name}}.",
+    "reportedEventTitle": "Evento reportado \"{{title}}\" de {{name}}",
+    "adminWillReviewEvent": "Los administradores revisarán este evento.",
     "endTimeAfterStart": "La hora de fin debe ser posterior a la de inicio",
     "joinedEvent": "Te has unido a esta actividad",
     "leftEvent": "Has abandonado esta actividad"

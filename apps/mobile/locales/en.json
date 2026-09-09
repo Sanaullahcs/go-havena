@@ -528,6 +528,13 @@
       "prohibited": "Prohibited or unsafe item",
       "inappropriate": "Inappropriate content",
       "incorrect": "Incorrect information"
+    },
+    "event": {
+      "spam": "Spam or fake event",
+      "scam": "Misleading or fraudulent event",
+      "inappropriate": "Inappropriate event content",
+      "safety": "Safety concern",
+      "incorrect": "Incorrect event details"
     }
   },
   "categories": {
@@ -3273,6 +3280,11 @@
     "close": "Close",
     "organizer": "Organizer",
     "shareEventAccessibility": "Share event",
+    "reportEventAccessibility": "Report event",
+    "reportEvent": "Report event",
+    "reportEventSubtitle": "Tell admins why this event from {{name}} should be reviewed.",
+    "reportedEventTitle": "Reported event \"{{title}}\" by {{name}}",
+    "adminWillReviewEvent": "Admins will review this event.",
     "endTimeAfterStart": "End time must be after start time",
     "joinedEvent": "You joined this event",
     "leftEvent": "You left this event"

@@ -37,6 +37,11 @@ class ReportController extends Controller
                 ->addSelect('listings.title as listing_title');
         }
 
+        if (Schema::hasTable('notices') && Schema::hasColumn('reports', 'notice_id')) {
+            $query->leftJoin('notices', 'notices.id', '=', 'reports.notice_id')
+                ->addSelect('notices.title as event_title');
+        }
+
         if ($request->filled('status') && $request->status !== 'all') {
             $query->where('reports.status', $request->status);
         }
@@ -71,16 +76,18 @@ class ReportController extends Controller
             'description'        => 'nullable|string|max:2000',
             'reported_user_id'   => 'nullable|integer|exists:users,id',
             'listing_id'         => 'nullable|integer|exists:listings,id',
+            'notice_id'          => 'nullable|integer|exists:notices,id',
             'severity'           => 'nullable|in:low,medium,high,critical',
         ]);
 
         $reporterId = (int) auth()->id();
         $listingId = $request->filled('listing_id') ? (int) $request->listing_id : null;
+        $noticeId = $request->filled('notice_id') ? (int) $request->notice_id : null;
         $reportedUserId = $request->filled('reported_user_id') ? (int) $request->reported_user_id : null;
         [$type, $description] = ReportTypes::resolvePayload($request);
 
-        if (! $listingId && ! $reportedUserId) {
-            return response()->json(['message' => 'Choose a resident or listing to report.'], 422);
+        if (! $listingId && ! $noticeId && ! $reportedUserId) {
+            return response()->json(['message' => 'Choose a resident, listing, or event to report.'], 422);
         }
 
         $listing = null;
@@ -95,13 +102,27 @@ class ReportController extends Controller
             $reportedUserId = (int) $listing->user_id;
         }
 
+        $notice = null;
+        if ($noticeId) {
+            $notice = DB::table('notices')->where('id', $noticeId)->first();
+            if (! $notice || ($notice->category ?? '') !== 'event') {
+                return response()->json(['message' => 'Event not found'], 404);
+            }
+            if ((int) $notice->author_id === $reporterId) {
+                return response()->json(['message' => 'You cannot report your own event'], 422);
+            }
+            $reportedUserId = (int) $notice->author_id;
+        }
+
         if ($reportedUserId === $reporterId) {
             return response()->json(['message' => 'You cannot report yourself'], 422);
         }
 
         $communityId = $listing
             ? (int) $listing->community_id
-            : $this->resolveCommunityId($request, $reporterId, $reportedUserId);
+            : ($notice
+                ? (int) $notice->community_id
+                : $this->resolveCommunityId($request, $reporterId, $reportedUserId));
 
         if ($communityId < 1) {
             return response()->json(['message' => 'Join a community to file a report.'], 403);
@@ -111,7 +132,9 @@ class ReportController extends Controller
             return response()->json([
                 'message' => $listingId
                     ? 'You can only report a listing created by another resident.'
-                    : 'You can only report another resident.',
+                    : ($noticeId
+                        ? 'You can only report an event created by another resident.'
+                        : 'You can only report another resident.'),
             ], 422);
         }
 
@@ -129,6 +152,14 @@ class ReportController extends Controller
             }
         }
 
+        if (Schema::hasColumn('reports', 'notice_id')) {
+            if ($noticeId) {
+                $already->where('notice_id', $noticeId);
+            } else {
+                $already->whereNull('notice_id');
+            }
+        }
+
         if ($already->exists()) {
             return response()->json(['message' => 'You have already reported this.'], 422);
         }
@@ -138,7 +169,9 @@ class ReportController extends Controller
         if ($title === '') {
             $title = $listing
                 ? 'Reported marketplace listing: '.$listing->title
-                : 'Reported resident: '.$reportedName;
+                : ($notice
+                    ? 'Reported event: '.$notice->title
+                    : 'Reported resident: '.$reportedName);
         }
 
         $payload = [
@@ -157,21 +190,31 @@ class ReportController extends Controller
         if (Schema::hasColumn('reports', 'listing_id')) {
             $payload['listing_id'] = $listingId;
         }
+        if (Schema::hasColumn('reports', 'notice_id')) {
+            $payload['notice_id'] = $noticeId;
+        }
 
         $id = DB::table('reports')->insertGetId($payload);
 
+        $activityKind = $listingId
+            ? 'listing_reported_by_resident'
+            : ($noticeId ? 'event_reported_by_resident' : 'user_reported_by_resident');
+
         ActivityLogService::user(
-            $listingId ? 'listing_reported_by_resident' : 'user_reported_by_resident',
+            $activityKind,
             $listingId
                 ? 'Reported marketplace listing #'.$listingId
-                : 'Reported resident #'.$reportedUserId,
-            $listingId ? 'Listing' : 'User',
-            $listingId ?: $reportedUserId,
+                : ($noticeId
+                    ? 'Reported event #'.$noticeId
+                    : 'Reported resident #'.$reportedUserId),
+            $listingId ? 'Listing' : ($noticeId ? 'Notice' : 'User'),
+            $listingId ?: ($noticeId ?: $reportedUserId),
             'warning',
             null,
             [
                 'reported_user_id' => $reportedUserId,
                 'listing_id'       => $listingId,
+                'notice_id'        => $noticeId,
                 'reason'           => Str::limit($description !== '' ? $description : $type, 120),
             ],
         );
@@ -179,10 +222,12 @@ class ReportController extends Controller
         $this->notifyCommunityAdmins(
             $communityId,
             $reporterId,
-            $listingId ? 'Marketplace listing reported' : 'Resident reported',
+            $listingId ? 'Marketplace listing reported' : ($noticeId ? 'Event reported' : 'Resident reported'),
             $listingId
                 ? "A resident reported \"{$listing->title}\"."
-                : "A resident reported {$reportedName}.",
+                : ($noticeId
+                    ? "A resident reported \"{$notice->title}\"."
+                    : "A resident reported {$reportedName}."),
         );
 
         return response()->json([
@@ -190,6 +235,7 @@ class ReportController extends Controller
                 'id'               => $id,
                 'reported_user_id' => $reportedUserId,
                 'listing_id'       => $listingId,
+                'notice_id'        => $noticeId,
             ],
             'message' => 'Report submitted. Admins will review it.',
         ], 201);

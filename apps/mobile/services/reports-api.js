@@ -7,6 +7,7 @@ export const REPORT_REASON_KINDS = {
   comment: "comment",
   profile: "profile",
   listing: "listing",
+  event: "event",
 };
 
 const POST_COMMENT_REASONS = [
@@ -37,13 +38,24 @@ const LISTING_REASONS = [
   { value: "other", labelKey: "reportReasons.other" },
 ];
 
+const EVENT_REASONS = [
+  { value: "spam", labelKey: "reportReasons.event.spam" },
+  { value: "scam", labelKey: "reportReasons.event.scam" },
+  { value: "inappropriate", labelKey: "reportReasons.event.inappropriate" },
+  { value: "safety", labelKey: "reportReasons.event.safety" },
+  { value: "incorrect", labelKey: "reportReasons.event.incorrect" },
+  { value: "other", labelKey: "reportReasons.other" },
+];
+
 export function getReportReasons(kind = REPORT_REASON_KINDS.post) {
   const keys =
     kind === REPORT_REASON_KINDS.profile
       ? PROFILE_REASONS
       : kind === REPORT_REASON_KINDS.listing
         ? LISTING_REASONS
-        : POST_COMMENT_REASONS;
+        : kind === REPORT_REASON_KINDS.event
+          ? EVENT_REASONS
+          : POST_COMMENT_REASONS;
 
   return keys.map((item) => ({
     value: item.value,
@@ -74,6 +86,7 @@ export async function fileReport({
   description,
   reportedUserId,
   listingId,
+  noticeId,
   severity = "medium",
 } = {}) {
   const communityId = await getCommunityId();
@@ -90,6 +103,9 @@ export async function fileReport({
   }
   if (listingId) {
     body.listing_id = listingId;
+  }
+  if (noticeId) {
+    body.notice_id = noticeId;
   }
   if (communityId) {
     body.community_id = communityId;

@@ -11,6 +11,7 @@ use App\Services\ActivityLogService;
 use App\Services\NoticeAudienceService;
 use App\Services\NotificationService;
 use App\Services\ScheduledNoticeService;
+use App\Services\UserBlockService;
 use App\Support\MediaUrl;
 use App\Support\NoticeExpiry;
 use App\Support\NoticeSchedule;
@@ -1112,6 +1113,7 @@ class NoticeController extends Controller
             'updated_at'       => $notice->updated_at,
             'author_name'      => $notice->author_name,
             'author_avatar'    => MediaUrl::toPublic($notice->author_avatar ?? null, request()),
+            'can_report'       => $this->canReportNotice($notice, $user),
         ];
 
         if ($notice->category === 'event') {
@@ -1715,5 +1717,18 @@ class NoticeController extends Controller
                 ['category' => $category, 'kind' => $kind],
             );
         }
+    }
+
+    private function canReportNotice(object $notice, $user): bool
+    {
+        if (! $user || ($notice->category ?? '') !== 'event') {
+            return false;
+        }
+
+        $viewerId = (int) $user->id;
+        $authorId = (int) $notice->author_id;
+
+        return $viewerId !== $authorId
+            && UserBlockService::canBlock($viewerId, $authorId, (int) $notice->community_id);
     }
 }

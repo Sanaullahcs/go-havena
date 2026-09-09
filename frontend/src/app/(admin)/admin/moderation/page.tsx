@@ -166,7 +166,9 @@ export default function ModerationPage() {
                     <span className="line-clamp-2 max-w-[240px] text-[12.5px] font-medium text-slate-800">
                       {r.listing_title
                         ? `Listing: ${r.listing_title}`
-                        : r.title || (r.reported_name ? `Resident: ${r.reported_name}` : "Report")}
+                        : r.event_title
+                          ? `Event: ${r.event_title}`
+                          : r.title || (r.reported_name ? `Resident: ${r.reported_name}` : "Report")}
                     </span>
                   </DtCell>
                   <DtCell nowrap>

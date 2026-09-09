@@ -237,6 +237,7 @@ export function normalizeNotice(raw) {
     isWaitlisted: Boolean(raw.is_waitlisted),
     waitlistPosition: raw.waitlist_position ?? null,
     isOrganizer: Boolean(raw.is_organizer),
+    canReport: raw.can_report === true && !raw.is_organizer,
     isPinned: Boolean(raw.is_pinned_active ?? raw.is_pinned),
     requiresRsvp: Boolean(raw.requires_rsvp),
     scheduledAt: raw.scheduled_at ?? null,

@@ -236,4 +236,99 @@ class UserReportTest extends TestCase
             ->assertJsonPath('data.0.listing_id', $listingId)
             ->assertJsonPath('data.0.listing_title', 'Used bike');
     }
+
+    public function test_resident_can_report_another_residents_event_but_not_their_own(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'reporter' => $reporter, 'resident' => $resident] = $this->seedCommunityWithTwoResidents();
+
+        $eventId = $this->createPublishedEvent($community->id, $resident->id, 'Yard sale');
+        $ownEventId = $this->createPublishedEvent($community->id, $reporter->id, 'My picnic');
+        $adminEventId = $this->createPublishedEvent($community->id, $admin->id, 'HOA meeting');
+
+        Sanctum::actingAs($reporter);
+
+        $this->getJson('/api/v1/notices/'.$eventId, [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.can_report', true);
+
+        $this->getJson('/api/v1/notices/'.$ownEventId, [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.can_report', false);
+
+        $this->getJson('/api/v1/notices/'.$adminEventId, [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.can_report', false);
+
+        $this->postJson('/api/v1/reports', [
+            'type'      => 'spam',
+            'notice_id' => $ownEventId,
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertStatus(422);
+
+        $this->postJson('/api/v1/reports', [
+            'type'      => 'spam',
+            'notice_id' => $adminEventId,
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertStatus(422);
+
+        $this->postJson('/api/v1/reports', [
+            'type'        => 'spam',
+            'notice_id'   => $eventId,
+            'description' => 'This event looks fake.',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.notice_id', $eventId)
+            ->assertJsonPath('data.reported_user_id', $resident->id);
+
+        $this->assertDatabaseHas('reports', [
+            'reporter_id'      => $reporter->id,
+            'reported_user_id' => $resident->id,
+            'notice_id'        => $eventId,
+            'type'             => 'spam',
+            'status'           => 'open',
+        ]);
+
+        $systemAdmin = User::factory()->create([
+            'role'   => 'system_admin',
+            'status' => 'active',
+            'phone'  => '+201700000065',
+        ]);
+
+        Sanctum::actingAs($systemAdmin);
+        $this->getJson('/api/v1/admin/reports?community_id='.$community->id)
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.notice_id', $eventId)
+            ->assertJsonPath('data.0.event_title', 'Yard sale');
+    }
+
+    private function createPublishedEvent(int $communityId, int $authorId, string $title): int
+    {
+        return DB::table('notices')->insertGetId([
+            'community_id'   => $communityId,
+            'author_id'      => $authorId,
+            'title'          => $title,
+            'body'           => 'Neighborhood event details.',
+            'category'       => 'event',
+            'status'         => 'published',
+            'review_status'  => 'approved',
+            'audience_type'  => 'all',
+            'event_date'     => now()->addDays(3)->toDateString(),
+            'event_time'     => '10:00:00',
+            'event_time_end' => '12:00:00',
+            'published_at'   => now(),
+            'created_at'     => now(),
+            'updated_at'     => now(),
+        ]);
+    }
 }

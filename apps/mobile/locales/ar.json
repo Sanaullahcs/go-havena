@@ -528,6 +528,13 @@
       "prohibited": "عنصر محظور أو غير آمن",
       "inappropriate": "محتوى غير لائق",
       "incorrect": "معلومات غير صحيحة"
+    },
+    "event": {
+      "spam": "فعالية مزيفة أو غير مرغوب فيها",
+      "scam": "فعالية مضللة أو احتيالية",
+      "inappropriate": "محتوى فعالية غير لائق",
+      "safety": "مخاوف تتعلق بالسلامة",
+      "incorrect": "تفاصيل فعالية غير صحيحة"
     }
   },
   "categories": {
@@ -3273,6 +3280,11 @@
     "close": "إغلاق",
     "organizer": "المنظم",
     "shareEventAccessibility": "مشاركة الفعالية",
+    "reportEventAccessibility": "الإبلاغ عن الفعالية",
+    "reportEvent": "الإبلاغ عن الفعالية",
+    "reportEventSubtitle": "أخبر المسؤولين لماذا يجب مراجعة هذه الفعالية من {{name}}.",
+    "reportedEventTitle": "فعالية مبلغ عنها \"{{title}}\" بواسطة {{name}}",
+    "adminWillReviewEvent": "سيراجع المسؤولون هذه الفعالية.",
     "endTimeAfterStart": "يجب أن يكون وقت الانتهاء بعد وقت البداية",
     "joinedEvent": "انضممت إلى هذه الفعالية",
     "leftEvent": "غادرت هذه الفعالية"

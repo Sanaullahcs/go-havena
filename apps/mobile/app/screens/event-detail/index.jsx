@@ -38,6 +38,9 @@ import { getApiErrorMessage, getApiErrorCode } from "../../../utils/auth-errors"
 import { useTranslation } from 'react-i18next';
 import i18n, { localizedField } from "../../../i18n";
 import { getLocaleForLang } from "../../../hooks/use-app-locale";
+import FeedPostReportSheet, { completeReportAndNotify } from "../../../components/feed/feed-post-report-sheet";
+import { fileReport } from "../../../services/reports-api";
+import { useApiAction } from "../../../hooks/use-api-action";
 
 function formatEventDateLabel(dateStr, t) {
   if (!dateStr) return null;
@@ -147,7 +150,7 @@ function ScheduleRow({ itemKey, title, detail }) {
   );
 }
 
-function EventDetailHeader({ title, onBack, onShare, shareDisabled }) {
+function EventDetailHeader({ title, onBack, onShare, shareDisabled, onReport, canReport }) {
   const { t } = useTranslation();
   return (
     <ScreenHeader
@@ -158,17 +161,31 @@ function EventDetailHeader({ title, onBack, onShare, shareDisabled }) {
       iconOnly
       compact
       right={
-        <Pressable
-          onPress={onShare}
-          disabled={shareDisabled}
-          accessibilityRole="button"
-          accessibilityLabel={t('events.shareEventAccessibility')}
-          style={({ pressed }) => [pressed && shareDisabled !== true && { opacity: 0.85 }]}
-        >
-          <HeaderIconSlot style={shareDisabled && { opacity: 0.35 }}>
-            <Feather name="share-2" size={sf(20)} color="#101828" />
-          </HeaderIconSlot>
-        </Pressable>
+        <View style={styles.headerActions}>
+          {canReport ? (
+            <Pressable
+              onPress={onReport}
+              accessibilityRole="button"
+              accessibilityLabel={t('events.reportEventAccessibility')}
+              style={({ pressed }) => [pressed && { opacity: 0.85 }]}
+            >
+              <HeaderIconSlot>
+                <Feather name="flag" size={sf(20)} color="#101828" />
+              </HeaderIconSlot>
+            </Pressable>
+          ) : null}
+          <Pressable
+            onPress={onShare}
+            disabled={shareDisabled}
+            accessibilityRole="button"
+            accessibilityLabel={t('events.shareEventAccessibility')}
+            style={({ pressed }) => [pressed && shareDisabled !== true && { opacity: 0.85 }]}
+          >
+            <HeaderIconSlot style={shareDisabled && { opacity: 0.35 }}>
+              <Feather name="share-2" size={sf(20)} color="#101828" />
+            </HeaderIconSlot>
+          </Pressable>
+        </View>
       }
     />
   );
@@ -178,6 +195,7 @@ export default function EventDetailScreen() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
+  const { showSuccess, showFailure } = useApiAction();
   const { id: rawId } = useLocalSearchParams();
   const noticeId = resolveNoticeId(rawId);
   const [event, setEvent] = useState(null);
@@ -190,6 +208,8 @@ export default function EventDetailScreen() {
   const [error, setError] = useState(null);
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
   const [heroImageFailed, setHeroImageFailed] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reporting, setReporting] = useState(false);
 
   const load = useCallback(async () => {
     if (!noticeId) {
@@ -263,6 +283,7 @@ export default function EventDetailScreen() {
   const isOrganizer =
     event?.isOrganizer ||
     (currentUserId != null && event?.authorId != null && Number(currentUserId) === Number(event.authorId));
+  const canReport = Boolean(event?.canReport) && !isOrganizer;
   const requiresRsvp = Boolean(event?.requiresRsvp);
   const isJoined = Boolean(event?.isJoined);
   const isWaitlisted = Boolean(event?.isWaitlisted);
@@ -393,6 +414,28 @@ export default function EventDetailScreen() {
     }
   }, [event]);
 
+  const handleReportSubmit = async (payload) => {
+    if (!event?.id) return;
+    await completeReportAndNotify({
+      request: () =>
+        fileReport({
+          type: payload.type,
+          description: payload.description,
+          title: t("events.reportedEventTitle", {
+            title: localizedField(event, "title") || event.title,
+            name: event.authorName ?? t("events.organizer"),
+          }),
+          reportedUserId: event.authorId,
+          noticeId: event.id,
+        }),
+      close: () => setReportOpen(false),
+      setBusy: setReporting,
+      notifySuccess: () =>
+        showSuccess(t("feed.options.reportSubmitted"), t("events.adminWillReviewEvent")),
+      notifyFailure: (error) => showFailure(t("apiAction.actionFailed"), error),
+    });
+  };
+
   const joinButtonLabel = useMemo(() => {
     if (isWaitlisted) return t('events.leaveWaitlist');
     if (isJoined) return t('events.leaveEvent');
@@ -464,6 +507,8 @@ export default function EventDetailScreen() {
         title={t('events.eventDetail')}
         onBack={() => router.back()}
         onShare={handleShare}
+        canReport={canReport}
+        onReport={() => setReportOpen(true)}
       />
       <ScrollView showsVerticalScrollIndicator={false} bounces>
         <Pressable
@@ -779,6 +824,26 @@ export default function EventDetailScreen() {
         ) : null}
       </ScrollView>
 
+      {canReport ? (
+        <FeedPostReportSheet
+          visible={reportOpen}
+          post={{
+            id: event.id,
+            user_id: event.authorId,
+            user: { display_name: event.authorName, name: event.authorName },
+          }}
+          submitting={reporting}
+          reasonKind="event"
+          resetKey={event.id}
+          title={t("events.reportEvent")}
+          subtitle={t("events.reportEventSubtitle", {
+            name: event.authorName ?? t("events.organizer"),
+          })}
+          onClose={() => setReportOpen(false)}
+          onSubmit={handleReportSubmit}
+        />
+      ) : null}
+
       <Modal
         visible={imagePreviewOpen}
         transparent
@@ -821,6 +886,11 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: "#FFFFFF",
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(6),
   },
   heroBlock: {
     width: "100%",
