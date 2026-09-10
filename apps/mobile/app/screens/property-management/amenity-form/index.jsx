@@ -1,11 +1,14 @@
-import React, { useCallback, useMemo, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Switch, ActivityIndicator } from "react-native";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import { View, Text, StyleSheet, Pressable, Switch, ActivityIndicator } from "react-native";
 import LocaleTextInput from "../../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../../components/layout/internal-screen-header";
+import KeyboardSafeScreen, {
+  useScrollFieldRefIntoView,
+} from "../../../../components/layout/keyboard-safe-screen";
 import BusinessHoursInput from "../../../../components/ui/business-hours-input";
 import AmenityIcon from "../../../../components/property/amenity-icon";
 import { Fonts } from "../../../../constants/font";
@@ -52,6 +55,30 @@ function RequiredLabel({ children }) {
     </Text>
   );
 }
+
+/**
+ * Keep this a plain object (not StyleSheet.create). The global text-metrics
+ * patch adds lineHeight to StyleSheet text styles, and iOS TextInput then
+ * top-aligns the placeholder instead of centering it.
+ *
+ * Height matches the previous paddingVertical + patched line box so the
+ * field chrome does not change.
+ */
+const SINGLE_LINE_INPUT_HEIGHT =
+  sw(12) * 2 + Math.max(16, Math.ceil(PropertyType.bodyMd * 1.5));
+
+const singleLineInputStyle = {
+  height: SINGLE_LINE_INPUT_HEIGHT,
+  paddingHorizontal: sw(14),
+  paddingTop: 0,
+  paddingBottom: 0,
+  paddingVertical: 0,
+  fontFamily: Fonts.regular,
+  fontSize: PropertyType.bodyMd,
+  color: "#101828",
+  textAlignVertical: "center",
+  includeFontPadding: false,
+};
 
 export default function AmenityFormScreen() {
   const router = useRouter();
@@ -117,6 +144,21 @@ export default function AmenityFormScreen() {
   const capacityError = showError("capacity", liveErrors);
   const floorError = showError("floor", liveErrors);
 
+  const scrollRef = useRef(null);
+  const nameFieldRef = useRef(null);
+  const capacityFieldRef = useRef(null);
+  const locationFieldRef = useRef(null);
+  const { scrollIntoView, onScroll } = useScrollFieldRefIntoView(scrollRef, {
+    topPad: 24,
+  });
+
+  const handleFieldFocus = useCallback(
+    (fieldRef) => {
+      scrollIntoView(fieldRef);
+    },
+    [scrollIntoView],
+  );
+
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <InternalScreenHeader
@@ -128,18 +170,20 @@ export default function AmenityFormScreen() {
         }
       />
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
+      <KeyboardSafeScreen
+        scrollRef={scrollRef}
+        keyboardAvoiding={false}
         contentContainerStyle={[styles.content, pageStyles.scrollBottom]}
-        keyboardShouldPersistTaps="handled"
+        scrollProps={{ onScroll, scrollEventThrottle: 16 }}
       >
-        <View style={styles.field}>
+        <View ref={nameFieldRef} collapsable={false} style={styles.field}>
           <RequiredLabel>{t("propertyMgmt.nameLabel")}</RequiredLabel>
           <LocaleTextInput
-            style={[styles.input, nameError && styles.inputError]}
+            style={[styles.input, singleLineInputStyle, nameError && styles.inputError]}
             value={form.name}
             onChangeText={(v) => setF("name", v)}
             onBlur={() => touch("name")}
+            onFocus={() => handleFieldFocus(nameFieldRef)}
             placeholder={t("propertyMgmt.namePlaceholder")}
             placeholderTextColor="#94A3B8"
             maxLength={100}
@@ -277,13 +321,14 @@ export default function AmenityFormScreen() {
           </View>
         ) : null}
 
-        <View style={styles.field}>
+        <View ref={capacityFieldRef} collapsable={false} style={styles.field}>
           <RequiredLabel>{t("propertyMgmt.capacityLabel")}</RequiredLabel>
           <LocaleTextInput
-            style={[styles.input, capacityError && styles.inputError]}
+            style={[styles.input, singleLineInputStyle, capacityError && styles.inputError]}
             value={String(form.capacity)}
             onChangeText={(v) => setF("capacity", v.replace(/[^0-9]/g, ""))}
             onBlur={() => touch("capacity")}
+            onFocus={() => handleFieldFocus(capacityFieldRef)}
             keyboardType="number-pad"
             placeholder="10"
             placeholderTextColor="#94A3B8"
@@ -291,13 +336,14 @@ export default function AmenityFormScreen() {
           {capacityError ? <Text style={styles.errorText}>{capacityError}</Text> : null}
         </View>
 
-        <View style={styles.field}>
+        <View ref={locationFieldRef} collapsable={false} style={styles.field}>
           <RequiredLabel>{t("propertyMgmt.locationLabel")}</RequiredLabel>
           <LocaleTextInput
-            style={[styles.input, floorError && styles.inputError]}
+            style={[styles.input, singleLineInputStyle, floorError && styles.inputError]}
             value={form.floor}
             onChangeText={(v) => setF("floor", v)}
             onBlur={() => touch("floor")}
+            onFocus={() => handleFieldFocus(locationFieldRef)}
             placeholder={t("propertyMgmt.locationPlaceholder")}
             placeholderTextColor="#94A3B8"
             maxLength={40}
@@ -321,7 +367,7 @@ export default function AmenityFormScreen() {
             </>
           )}
         </Pressable>
-      </ScrollView>
+      </KeyboardSafeScreen>
     </SafeAreaView>
   );
 }
@@ -348,13 +394,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E2E8F0",
     borderRadius: sw(12),
+  },
+  textArea: {
+    minHeight: sw(88),
     paddingHorizontal: sw(14),
-    paddingVertical: sw(12),
+    paddingTop: sw(12),
+    paddingBottom: sw(12),
     fontFamily: Fonts.regular,
     fontSize: PropertyType.bodyMd,
     color: "#101828",
+    textAlignVertical: "top",
   },
-  textArea: { minHeight: sw(88), textAlignVertical: "top" },
   inputError: { borderColor: "#DC2626" },
   groupError: {
     borderWidth: 1,
