@@ -16,6 +16,7 @@ use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -96,6 +97,13 @@ class AdminUserController extends Controller
             } else {
                 app(LifecycleMailService::class)->residentProvisioned($provisioned, $community);
             }
+        } else {
+            Log::warning('Provisioned user email skipped', [
+                'type' => $validated['type'],
+                'user_id' => $result['user']->id ?? null,
+                'email' => $validated['email'],
+                'has_community' => (bool) $community,
+            ]);
         }
 
         return response()->json([

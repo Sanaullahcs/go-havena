@@ -50,16 +50,49 @@ class EmailBrand
         ];
     }
 
-    public static function attachInlineImages(Mailable $mailable): void
+    /**
+     * @param  list<string>|null  $cids
+     */
+    public static function attachInlineImages(Mailable $mailable, ?array $cids = null): void
     {
-        $mailable->withSymfonyMessage(function (Email $email) {
-            foreach (self::inlineImageMap() as $cid => $filename) {
+        $map = self::inlineImageMap();
+        if ($cids !== null) {
+            $map = array_intersect_key($map, array_flip($cids));
+        }
+
+        $mailable->withSymfonyMessage(function (Email $email) use ($map) {
+            foreach ($map as $cid => $filename) {
                 $path = public_path('images/email/'.$filename);
                 if (is_file($path)) {
                     $email->embedFromPath($path, $cid);
                 }
             }
         });
+    }
+
+    /**
+     * @param  list<array{label?: string}>  $details
+     * @return list<string>
+     */
+    public static function cidsForMail(array $details = [], bool $highlightCode = false, bool $includeAppStoreLinks = false): array
+    {
+        $cids = ['havena-mark'];
+
+        if ($includeAppStoreLinks) {
+            $cids[] = 'badge-app-store';
+            $cids[] = 'badge-google-play';
+        }
+
+        foreach ($details as $detail) {
+            $file = self::iconForLabel((string) ($detail['label'] ?? ''));
+            $cids[] = pathinfo($file, PATHINFO_FILENAME);
+        }
+
+        if ($highlightCode) {
+            $cids[] = 'icon-code';
+        }
+
+        return array_values(array_unique($cids));
     }
 
     public static function logoSrc(mixed $message = null): string

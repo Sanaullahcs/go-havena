@@ -32,7 +32,11 @@ class HavenaTransactionalMail extends Mailable
         public ?string $footerNote = null,
         public bool $includeAppStoreLinks = false,
     ) {
-        EmailBrand::attachInlineImages($this);
+        EmailBrand::attachInlineImages($this, EmailBrand::cidsForMail(
+            $this->details,
+            $this->highlightCode !== null,
+            $this->includeAppStoreLinks,
+        ));
     }
 
     public function envelope(): Envelope
