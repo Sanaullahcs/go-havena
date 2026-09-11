@@ -109,12 +109,15 @@ export function AdminMembersBarChart({
 const STATUS_COLORS: Record<string, string> = {
   approved: "#059669",
   pending: "#d97706",
+  invitation_sent: "#64748b",
   banned: "#dc2626",
   rejected: "#94a3b8",
   onboarding: CHART_PRIMARY,
 };
 
 function formatStatusLabel(status: string) {
+  if (status === "invitation_sent") return "Invitation Sent";
+  if (status === "approved") return "Active";
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 

@@ -91,6 +91,30 @@ class ContactIdentityService
         return $user;
     }
 
+    /**
+     * Phone still reserved by a row, including soft-deleted users.
+     * Soft-deleted accounts keep the unique index, so re-invites must be rejected.
+     */
+    public static function findOccupyingUserByPhone(string $phone, ?int $excludeUserId = null): ?User
+    {
+        $normalized = PhoneNormalizer::normalize($phone);
+        if (! $normalized) {
+            return null;
+        }
+
+        $candidates = array_values(array_unique([
+            $normalized,
+            ...PhoneNormalizer::alternatesForLookup($normalized),
+        ]));
+
+        $user = User::withTrashed()->whereIn('phone', $candidates)->first();
+        if ($excludeUserId && $user && (int) $user->id === $excludeUserId) {
+            return null;
+        }
+
+        return $user;
+    }
+
     public static function hasActiveGuestInvitationForPhone(string $phone): bool
     {
         $normalized = PhoneNormalizer::normalize($phone);
@@ -124,11 +148,14 @@ class ContactIdentityService
         ?int $excludeUserId = null,
         ?string $field = null,
     ): void {
-        if ($email && self::findActiveUserByEmail($email, $excludeUserId)) {
-            self::failDuplicate($field ?? 'email', self::DUPLICATE_EMAIL_MESSAGE);
+        if ($email) {
+            $existingEmail = self::findUserByEmail($email, withTrashed: true);
+            if ($existingEmail && (! $excludeUserId || (int) $existingEmail->id !== $excludeUserId)) {
+                self::failDuplicate($field ?? 'email', self::DUPLICATE_EMAIL_MESSAGE);
+            }
         }
 
-        if ($phone && self::findActiveUserByPhone($phone, $excludeUserId)) {
+        if ($phone && self::findOccupyingUserByPhone($phone, $excludeUserId)) {
             self::failDuplicate($field ?? 'phone', self::DUPLICATE_PHONE_MESSAGE);
         }
     }

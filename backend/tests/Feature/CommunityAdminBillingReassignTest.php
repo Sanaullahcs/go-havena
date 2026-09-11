@@ -151,6 +151,8 @@ class CommunityAdminBillingReassignTest extends TestCase
         $this->postJson('/api/v1/admin/members/invite', [
             'name' => 'Leftover Resident',
             'email' => 'leftover.resident@example.com',
+            'phone' => '+15555550130',
+            'unit_number' => 'A1',
         ])->assertCreated();
     }
 

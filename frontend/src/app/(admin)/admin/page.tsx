@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AdminBadge, StatTile } from "@/components/admin/ui";
@@ -80,6 +80,7 @@ function pendingHint(stats: AdminDashboardData["stats"]) {
   if (stats.pending_members) parts.push(`${stats.pending_members} membership${stats.pending_members === 1 ? "" : "s"}`);
   if (stats.pending_community_admins) parts.push(`${stats.pending_community_admins} community admin${stats.pending_community_admins === 1 ? "" : "s"}`);
   if (stats.pending_community_requests) parts.push(`${stats.pending_community_requests} community request${stats.pending_community_requests === 1 ? "" : "s"}`);
+  if (stats.invitation_sent_members) parts.push(`${stats.invitation_sent_members} invitation sent`);
   if (stats.onboarding_members) parts.push(`${stats.onboarding_members} onboarding`);
   return parts.length ? parts.join(" · ") : "Nothing awaiting review";
 }
@@ -95,7 +96,7 @@ export default function AdminOverviewPage() {
   const [mounted, setMounted] = useState(false);
   const [isSystemAdmin, setIsSystemAdmin] = useState(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setIsSystemAdmin(isSystemAdminUser());
     setMounted(true);
   }, []);
@@ -246,7 +247,8 @@ export default function AdminOverviewPage() {
         icon: dashIcon(MessageSquare),
         href: "/admin/request-demo",
       },
-      { label: "Onboarding", value: String(stats.onboarding_members), hint: "Profile setup", tone: "cyan" as const, icon: dashIcon(UserCheck), href: "/admin/residents?status=onboarding" },
+      { label: "Invitation Sent", value: String(stats.invitation_sent_members ?? 0), hint: "Awaiting signup", tone: "slate" as const, icon: dashIcon(UserCheck), href: "/admin/residents?status=invitation_sent" },
+      { label: "Onboarding", value: String(stats.onboarding_members), hint: "Signup started", tone: "cyan" as const, icon: dashIcon(UserCheck), href: "/admin/residents?status=onboarding" },
       { label: "Suspended", value: String(stats.banned_members), hint: "Banned members", tone: "slate" as const, icon: dashIcon(Ban), href: "/admin/residents?status=banned" },
     ];
   }, [data]);

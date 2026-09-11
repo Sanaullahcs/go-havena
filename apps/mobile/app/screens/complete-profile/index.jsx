@@ -117,9 +117,8 @@ export default function CompleteProfile() {
     communityRequest,
     mode,
     familyMode: familyModeParam,
-    invited,
   } = useLocalSearchParams();
-  const [skipUtilityBill, setSkipUtilityBill] = useState(() => invited === "1");
+  const [skipUtilityBill, setSkipUtilityBill] = useState(false);
 
   const isEditMode = mode === "edit";
   const isCommunityRequest = communityRequest === "1";
@@ -156,8 +155,8 @@ export default function CompleteProfile() {
   const showFamilyNumberField = role !== "admin" && !isCommunityRequest;
   // Homeowner/Tenant for everyone except guests (incl. system-created community admins).
   const showResidenceType = !isGuestProfile;
-  // Utility bill only for self-signup verification — not invites / pre-approved admins.
-  const showUtilityBill = showResidenceType && !skipUtilityBill && invited !== "1";
+  // Utility bill is required for residents and community admins on every entry path.
+  const showUtilityBill = showResidenceType && !skipUtilityBill;
 
   const scrollRef = useRef(null);
   const contentRef = useRef(null);

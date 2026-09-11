@@ -45,13 +45,10 @@ class ResidentGuestController extends Controller
             abort(422, 'Join a community before inviting guests.');
         }
 
-        $data = $request->validate(array_merge([
-            'guest_name'  => 'required|string|max:100',
-            'guest_email' => 'required|email|max:200',
-            'guest_phone' => 'nullable|string|max:30',
-            'starts_at'   => 'required|date',
-            'ends_at'     => 'required|date|after:starts_at',
-        ], GuestAccessService::permissionValidationRules()));
+        $data = $request->validate(
+            array_merge(GuestInvitationService::inviteFieldRules(), GuestAccessService::permissionValidationRules()),
+            GuestInvitationService::inviteFieldMessages(),
+        );
 
         $invitation = GuestInvitationService::create($communityId, $user, 'resident', $data);
 

@@ -41,6 +41,7 @@ export type MeProfile = {
     unit_number?: string | null;
     residence_type?: string | null;
     utility_bill_url?: string | null;
+    utility_bill_review_status?: string | null;
     region_id?: number | null;
     region?: MeProfileRegion | null;
   } | null;

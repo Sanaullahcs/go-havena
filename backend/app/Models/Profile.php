@@ -12,6 +12,7 @@ class Profile extends Model
         'display_name',
         'avatar_url',
         'utility_bill_url',
+        'utility_bill_review_status',
         'bio',
         'unit_number',
         'residence_type',

@@ -35,6 +35,7 @@ export type CommunityAdminApplicant = {
     residence_type?: string;
     avatar_url?: string | null;
     utility_bill_url?: string | null;
+    utility_bill_review_status?: string | null;
   };
   community_request?: {
     id: number;

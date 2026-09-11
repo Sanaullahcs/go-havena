@@ -105,6 +105,38 @@ class GuestInvitationTest extends TestCase
         ]);
     }
 
+    public function test_admin_invite_rejects_guest_name_with_numbers(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $response = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Jane 2',
+            'guest_email' => 'jane@example.com',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['guest_name']);
+    }
+
+    public function test_admin_invite_rejects_invalid_guest_email(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $response = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Jane Guest',
+            'guest_email' => 'not-an-email',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['guest_email']);
+    }
+
     public function test_resident_can_invite_guest(): void
     {
         [$community, $admin] = $this->seedCommunityAdmin();

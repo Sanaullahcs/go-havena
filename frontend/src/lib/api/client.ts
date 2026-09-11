@@ -132,15 +132,17 @@ export function apiError(err: unknown): string {
     }
     const data = err.response?.data as { message?: string; errors?: Record<string, string[]> } | undefined;
     const genericValidation = "The given data was invalid.";
-    if (data?.errors) {
+    const message = data?.message ?? "";
+    const isInternalDbError = /SQLSTATE|Unknown column|SQL:/i.test(message);
+    if (data?.errors && !isInternalDbError) {
       const first = Object.values(data.errors)[0];
       if (Array.isArray(first) && first[0]) return first[0] as string;
     }
-    if (data?.message && data.message !== genericValidation) return data.message;
+    if (message && message !== genericValidation && !isInternalDbError) return message;
     if (err.response?.status === 403) {
       return "You do not have permission to view this page.";
     }
-    if (err.response?.status === 500) {
+    if (err.response?.status === 500 || isInternalDbError) {
       return "Server error — please try again or contact support.";
     }
   }

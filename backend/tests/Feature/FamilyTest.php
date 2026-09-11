@@ -273,6 +273,11 @@ class FamilyTest extends TestCase
 
         Sanctum::actingAs($resident);
 
+        $resident->profile()->updateOrCreate(
+            ['user_id' => $resident->id],
+            ['utility_bill_url' => '/storage/utility-bills/autofamily.jpg'],
+        );
+
         $this->putJson('/api/v1/me', [
             'display_name'   => 'Auto Family Resident',
             'email'          => 'autofamily@example.com',

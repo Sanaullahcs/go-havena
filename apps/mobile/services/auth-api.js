@@ -487,6 +487,8 @@ export function isProfileComplete(user) {
 
   const profile = user?.profile;
   if (!profile?.display_name?.trim() || !profile?.unit_number?.trim()) return false;
-  if (isGuestUser(user) || isCommunityAdminRole(user)) return true;
+  if (isGuestUser(user)) return true;
+  if (!String(profile?.utility_bill_url ?? "").trim()) return false;
+  if (isCommunityAdminRole(user)) return true;
   return Boolean(profile?.residence_type);
 }

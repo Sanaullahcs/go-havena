@@ -1630,6 +1630,24 @@ class CommunityBillingService
             ]);
     }
 
+    /** Free reserved seats when a pending member invitation is cancelled. */
+    public function releaseReservationsForUser(int $communityId, int $userId): int
+    {
+        if (! $this->seatReservationsAvailable()) {
+            return 0;
+        }
+
+        return CommunitySeatReservation::query()
+            ->where('community_id', $communityId)
+            ->where('user_id', $userId)
+            ->where('status', CommunitySeatReservation::STATUS_RESERVED)
+            ->update([
+                'status' => CommunitySeatReservation::STATUS_RELEASED,
+                'expires_at' => now(),
+                'updated_at' => now(),
+            ]);
+    }
+
     public function releaseExpiredReservations(?int $communityId = null): int
     {
         if (! $this->seatReservationsAvailable()) {

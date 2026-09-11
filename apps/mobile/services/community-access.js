@@ -293,29 +293,11 @@ export function joinedViaAdminInvite(user) {
 }
 
 /**
- * Utility bill is for self-serve signup verification (resident or community admin).
- * Skip only for guests, invitees, and users already approved via admin creation.
+ * Utility bill is required for every resident and community-admin path.
+ * Guests are the only role that skips it.
  */
-export function shouldSkipUtilityBill(user, { role } = {}) {
-  if (isGuestUser(user)) return true;
-  if (joinedViaAdminInvite(user)) return true;
-
-  // System Admin already created/approved this community admin — no proof needed.
-  if (
-    isCommunityAdminRole(user) &&
-    (user?.community_admin_status ?? "pending") === "approved"
-  ) {
-    return true;
-  }
-
-  // Resident created/approved by an admin (no invite code) — already trusted.
-  // Community admin self-signup keeps membership pending until system approval, so they still upload.
-  const isAdminOnboarding = role === "admin" || isCommunityAdminRole(user);
-  if (!isAdminOnboarding) {
-    return (user?.memberships ?? []).some((m) => m?.status === "approved");
-  }
-
-  return false;
+export function shouldSkipUtilityBill(user) {
+  return isGuestUser(user);
 }
 
 /** User applied as community admin but system admin has not approved yet. */

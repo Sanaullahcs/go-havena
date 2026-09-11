@@ -479,6 +479,7 @@ class AdminCommunityAdminController extends Controller
                 'residence_type'   => $user->profile->residence_type,
                 'avatar_url'       => $this->resolveMediaUrl($user->profile->avatar_url),
                 'utility_bill_url' => $this->resolveMediaUrl($user->profile->utility_bill_url),
+                'utility_bill_review_status' => $user->profile->utility_bill_review_status,
             ] : null,
             'community_request'      => $community ? [
                 'id'            => $community->id,

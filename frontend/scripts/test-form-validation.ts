@@ -2,7 +2,13 @@
  * Run: npx tsx scripts/test-form-validation.ts
  */
 import { emptyPhoneField } from "../src/lib/phone/format";
-import { validateInviteMemberForm } from "../src/lib/admin/invite-member-validation";
+import {
+  INVITE_MEMBER_NAME_RULE_MESSAGE,
+  INVITE_MEMBER_UNIT_RULE_MESSAGE,
+  inviteMemberNameLiveError,
+  inviteMemberUnitLiveError,
+  validateInviteMemberForm,
+} from "../src/lib/admin/invite-member-validation";
 import { validateNoticeForm } from "../src/lib/admin/notice-form-validation";
 import { validatePasswordForm, validateProfileForm } from "../src/lib/admin/profile-validation";
 import {
@@ -17,6 +23,13 @@ import {
   validateWellnessLessonEdit,
 } from "../src/lib/admin/wellness-form-validation";
 import { hasFieldErrors } from "../src/lib/admin/form-validation-utils";
+import {
+  GUEST_EMAIL_FORMAT_MESSAGE,
+  GUEST_NAME_FORMAT_MESSAGE,
+  canSubmitGuestInvite,
+  guestEmailFieldError,
+  guestNameFieldError,
+} from "../src/lib/admin/guest-invite-validation";
 import { getCompleteProfileFieldVisibility } from "../src/lib/admin/complete-profile-fields";
 import { validateCompleteProfileForm } from "../src/lib/admin/complete-profile-validation";
 
@@ -48,24 +61,79 @@ console.log("\nInvite member validation");
   assertHasError(empty, "name", "requires name");
   assertHasError(empty, "email", "requires email");
   assertHasError(empty, "phone", "requires phone");
+  assertHasError(empty, "unit", "requires unit");
 
   const badEmail = validateInviteMemberForm(
-    { name: "Jane Doe", email: "not-an-email", unit: "" },
+    { name: "Jane Doe", email: "not-an-email", unit: "12B" },
     emptyPhone,
   );
   assertHasError(badEmail, "email", "rejects invalid email");
 
   const longUnit = validateInviteMemberForm(
-    { name: "Jane Doe", email: "jane@example.com", unit: "x".repeat(51) },
+    { name: "Jane Doe", email: "jane@example.com", unit: "x".repeat(21) },
     { country: "US", digits: "4155552671", e164: "+14155552671", valid: true },
   );
   assertHasError(longUnit, "unit", "rejects long unit");
+  assert(longUnit.unit === INVITE_MEMBER_UNIT_RULE_MESSAGE, "unit length uses rule message");
+
+  const badName = validateInviteMemberForm(
+    { name: "Jane2", email: "jane@example.com", unit: "B-12" },
+    { country: "US", digits: "4155552671", e164: "+14155552671", valid: true },
+  );
+  assert(badName.name === INVITE_MEMBER_NAME_RULE_MESSAGE, "rejects numbers in name");
+
+  const badUnitChars = validateInviteMemberForm(
+    { name: "Jane Doe", email: "jane@example.com", unit: "B21+[" },
+    { country: "US", digits: "4155552671", e164: "+14155552671", valid: true },
+  );
+  assert(badUnitChars.unit === INVITE_MEMBER_UNIT_RULE_MESSAGE, "rejects unsupported unit characters");
+
+  assert(inviteMemberNameLiveError("") === null, "empty name has no live format error");
+  assert(inviteMemberNameLiveError("Jane2") === INVITE_MEMBER_NAME_RULE_MESSAGE, "live name error while typing");
+  assert(inviteMemberNameLiveError("Jane Doe") === null, "clears name error when valid");
+  assert(inviteMemberUnitLiveError("") === null, "empty unit has no live format error");
+  assert(inviteMemberUnitLiveError("B21+[") === INVITE_MEMBER_UNIT_RULE_MESSAGE, "rejects + and [ immediately");
+  assert(inviteMemberUnitLiveError("B@12") === INVITE_MEMBER_UNIT_RULE_MESSAGE, "rejects @");
+  assert(inviteMemberUnitLiveError("B#12") === INVITE_MEMBER_UNIT_RULE_MESSAGE, "rejects #");
+  assert(inviteMemberUnitLiveError("B-12") === null, "clears unit error when valid");
+  assert(inviteMemberUnitLiveError("12B/3") === null, "allows slash");
 
   const ok = validateInviteMemberForm(
     { name: "Jane Doe", email: "jane@example.com", unit: "12B" },
     { country: "US", digits: "4155552671", e164: "+14155552671", valid: true },
   );
   assertNoErrors(ok, "accepts valid invite");
+}
+
+console.log("\nGuest invite validation");
+{
+  assert(guestNameFieldError("") === null, "empty name has no live format error");
+  assert(guestNameFieldError("Alex Johnson") === null, "accepts letters and spaces");
+  assert(guestNameFieldError("J. R. Ewing") === null, "accepts full stops");
+  assert(guestNameFieldError("Alex2") === GUEST_NAME_FORMAT_MESSAGE, "rejects numbers in name");
+  assert(guestNameFieldError("Alex@") === GUEST_NAME_FORMAT_MESSAGE, "rejects special characters in name");
+  assert(guestEmailFieldError("") === null, "empty email has no live format error");
+  assert(guestEmailFieldError("guest@email.com") === null, "accepts valid email");
+  assert(guestEmailFieldError("not-an-email") === GUEST_EMAIL_FORMAT_MESSAGE, "rejects invalid email");
+
+  const window = { starts_at: "2026-09-11T10:00", ends_at: "2026-09-12T10:00" };
+  const emptyPhone = emptyPhoneField();
+  assert(
+    !canSubmitGuestInvite({ guest_name: "", guest_email: "a@b.com", ...window }, emptyPhone),
+    "button blocked when name empty",
+  );
+  assert(
+    !canSubmitGuestInvite({ guest_name: "Alex2", guest_email: "a@b.com", ...window }, emptyPhone),
+    "button blocked when name invalid",
+  );
+  assert(
+    !canSubmitGuestInvite({ guest_name: "Alex", guest_email: "bad", ...window }, emptyPhone),
+    "button blocked when email invalid",
+  );
+  assert(
+    canSubmitGuestInvite({ guest_name: "Alex Johnson", guest_email: "guest@email.com", ...window }, emptyPhone),
+    "button enabled when required fields are valid",
+  );
 }
 
 console.log("\nNotice form validation");
@@ -485,10 +553,10 @@ console.log("\nComplete profile field visibility (mobile parity)");
     role: "admin",
   });
   assert(systemCreatedAdmin.showResidenceType, "system-created CA shows residence type");
-  assert(!systemCreatedAdmin.showUtilityBill, "system-created CA hides utility bill");
+  assert(systemCreatedAdmin.showUtilityBill, "system-created CA shows utility bill");
   assert(!systemCreatedAdmin.showFamilyNumberField, "system-created CA hides family number");
   assert(systemCreatedAdmin.unitRequired, "system-created CA requires unit");
-  assert(systemCreatedAdmin.skipUtilityBill, "system-created CA skips utility bill");
+  assert(!systemCreatedAdmin.skipUtilityBill, "system-created CA does not skip utility bill");
 
   const selfServeAdmin = getCompleteProfileFieldVisibility({
     user: {
@@ -511,7 +579,7 @@ console.log("\nComplete profile field visibility (mobile parity)");
     },
     role: "admin",
   });
-  assert(!invitedAdmin.showUtilityBill, "invited CA hides utility bill");
+  assert(invitedAdmin.showUtilityBill, "invited CA shows utility bill");
   assert(invitedAdmin.showResidenceType, "invited CA still shows residence type");
   assert(!invitedAdmin.showFamilyNumberField, "invited CA hides family number");
 
@@ -523,7 +591,7 @@ console.log("\nComplete profile field visibility (mobile parity)");
     role: "admin",
     invited: true,
   });
-  assert(!invitedQuery.showUtilityBill, "invited=1 query hides utility bill");
+  assert(invitedQuery.showUtilityBill, "invited=1 query still shows utility bill");
 
   const residentJoin = getCompleteProfileFieldVisibility({
     user: { role: "resident", memberships: [{ role: "resident", status: "pending" }] },
@@ -533,11 +601,22 @@ console.log("\nComplete profile field visibility (mobile parity)");
   assert(residentJoin.showResidenceType, "resident join shows residence type");
   assert(residentJoin.showUtilityBill, "resident join shows utility bill");
 
+  const invitedResident = getCompleteProfileFieldVisibility({
+    user: {
+      role: "resident",
+      memberships: [{ role: "resident", status: "approved", invite_code_used: "ABC123" }],
+    },
+    role: "resident",
+    invited: true,
+  });
+  assert(invitedResident.showUtilityBill, "invited resident shows utility bill");
+  assert(!invitedResident.skipUtilityBill, "invited resident does not skip utility bill");
+
   const approvedResident = getCompleteProfileFieldVisibility({
     user: { role: "resident", memberships: [{ role: "resident", status: "approved" }] },
     role: "resident",
   });
-  assert(!approvedResident.showUtilityBill, "admin-created resident hides utility bill");
+  assert(approvedResident.showUtilityBill, "admin-created resident shows utility bill");
   assert(approvedResident.showFamilyNumberField, "admin-created resident still shows family");
 
   const guest = getCompleteProfileFieldVisibility({

@@ -140,4 +140,27 @@ class InviteCodeService
     {
         return 'havena://join?invite_code='.urlencode($code);
     }
+
+    /**
+     * Soft-cancel unused member invites so the code cannot be redeemed later.
+     *
+     * @return list<InviteCode>
+     */
+    public static function cancelPendingInvitesForUser(int $communityId, int $userId): array
+    {
+        $invites = InviteCode::query()
+            ->where('community_id', $communityId)
+            ->where('invited_user_id', $userId)
+            ->get();
+
+        foreach ($invites as $invite) {
+            $invite->forceFill([
+                'expires_at' => now(),
+                'used_count' => max((int) $invite->used_count, (int) ($invite->max_uses ?? 1)),
+            ])->save();
+            $invite->delete();
+        }
+
+        return $invites->all();
+    }
 }

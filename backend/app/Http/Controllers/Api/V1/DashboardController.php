@@ -9,6 +9,7 @@ use App\Models\FamilyAddMemberRequest;
 use App\Models\Region;
 use App\Models\User;
 use App\Services\AdminRoleService;
+use App\Services\MemberLifecycleStatus;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -56,8 +57,9 @@ class DashboardController extends Controller
                     ->where('fjr.status', 'pending');
             })
             ->count();
-        $onboardingMembers = $this->countOnboardingResidents($communityId);
-        $totalMembers = $approvedMembers + $pendingMembers + $bannedMembers + $rejectedMembers + $onboardingMembers;
+        $invitationSentMembers = MemberLifecycleStatus::countInvitationSent($communityId);
+        $onboardingMembers = MemberLifecycleStatus::countOnboarding($communityId);
+        $totalMembers = $approvedMembers + $pendingMembers + $bannedMembers + $rejectedMembers + $onboardingMembers + $invitationSentMembers;
         $openReports = (clone $reportsQuery)->whereIn('status', ['open', 'in_review', 'escalated'])->count();
         $listingCounts = (clone $listingsQuery)
             ->selectRaw('status, COUNT(*) as aggregate')
@@ -185,7 +187,8 @@ class DashboardController extends Controller
             ->values();
 
         $memberStatus = $memberStatus
-            ->reject(fn (array $row) => $row['status'] === 'onboarding')
+            ->reject(fn (array $row) => in_array($row['status'], ['onboarding', 'invitation_sent'], true))
+            ->push(['status' => 'invitation_sent', 'count' => $invitationSentMembers])
             ->push(['status' => 'onboarding', 'count' => $onboardingMembers])
             ->values();
 
@@ -304,6 +307,7 @@ class DashboardController extends Controller
                 'stats' => [
                     'total_members'              => $totalMembers,
                     'pending_members'            => $pendingMembers,
+                    'invitation_sent_members'    => $invitationSentMembers,
                     'onboarding_members'         => $onboardingMembers,
                     'pending_approval_total'     => $communityId
                         ? $pendingMembers + $pendingListings + $pendingPosts + $pendingBookings + $pendingBusinesses
@@ -495,28 +499,6 @@ class DashboardController extends Controller
             'recent_notices'    => $recentNotices,
             'personal_activity' => $personalActivity,
         ]]);
-    }
-
-    /** Residents invited to this community who have not created a membership yet. */
-    private function countOnboardingResidents(?int $communityId): int
-    {
-        $query = DB::table('users')
-            ->where('role', 'resident')
-            ->where('status', '!=', 'deleted')
-            ->whereNotExists(function ($sub) {
-                $sub->from('community_memberships as cm_all')
-                    ->whereColumn('cm_all.user_id', 'users.id');
-            });
-
-        if ($communityId) {
-            $query->whereExists(function ($sub) use ($communityId) {
-                $sub->from('invite_codes')
-                    ->whereColumn('invite_codes.invited_user_id', 'users.id')
-                    ->where('invite_codes.community_id', $communityId);
-            });
-        }
-
-        return (int) $query->count();
     }
 
     /** Approved/pending resident memberships only — excludes community admins. */

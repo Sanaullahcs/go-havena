@@ -1,9 +1,5 @@
 import { getPhoneValidationError, type PhoneFieldState } from "@/lib/phone/format";
-import {
-  type FieldErrors,
-  validateEmailField,
-  validateRequiredName,
-} from "@/lib/admin/form-validation-utils";
+import { type FieldErrors, validateEmailField } from "@/lib/admin/form-validation-utils";
 
 export type InviteMemberForm = {
   name: string;
@@ -11,13 +7,63 @@ export type InviteMemberForm = {
   unit: string;
 };
 
+export const INVITE_MEMBER_NAME_RE = /^[\p{L} .]+$/u;
+/** Letters, numbers, spaces, hyphen, and slash only. */
+export const INVITE_MEMBER_UNIT_RE = new RegExp("^[A-Za-z0-9 /\\-]{1,20}$");
+
+export const INVITE_MEMBER_NAME_RULE_MESSAGE =
+  "Full Name can only contain letters, spaces, and full stops, with a maximum of 25 characters.";
+
+export const INVITE_MEMBER_UNIT_RULE_MESSAGE = "Please enter a valid Unit / Apartment number.";
+
+function unitHasOnlyAllowedChars(unit: string): boolean {
+  for (const ch of unit) {
+    const allowed =
+      (ch >= "A" && ch <= "Z") ||
+      (ch >= "a" && ch <= "z") ||
+      (ch >= "0" && ch <= "9") ||
+      ch === " " ||
+      ch === "-" ||
+      ch === "/";
+    if (!allowed) return false;
+  }
+  return true;
+}
+
+export function inviteMemberNameFieldError(name: string): string | null {
+  if (!name.trim()) return "Full name is required.";
+  if (name.length > 25 || !INVITE_MEMBER_NAME_RE.test(name)) {
+    return INVITE_MEMBER_NAME_RULE_MESSAGE;
+  }
+  return null;
+}
+
+export function inviteMemberUnitFieldError(unit: string): string | null {
+  if (!unit.trim()) return "Unit / Apartment is required.";
+  if (unit.length > 20 || !unitHasOnlyAllowedChars(unit) || !INVITE_MEMBER_UNIT_RE.test(unit)) {
+    return INVITE_MEMBER_UNIT_RULE_MESSAGE;
+  }
+  return null;
+}
+
+/** Format/length only — empty values stay silent until submit/touch. */
+export function inviteMemberNameLiveError(name: string): string | null {
+  if (!name.trim()) return null;
+  return inviteMemberNameFieldError(name);
+}
+
+export function inviteMemberUnitLiveError(unit: string): string | null {
+  if (!unit.trim()) return null;
+  return inviteMemberUnitFieldError(unit);
+}
+
 export function validateInviteMemberForm(
   form: InviteMemberForm,
   phone: PhoneFieldState,
 ): FieldErrors {
   const errors: FieldErrors = {};
 
-  const nameError = validateRequiredName(form.name, "Full name");
+  const nameError = inviteMemberNameFieldError(form.name);
   if (nameError) errors.name = nameError;
 
   const emailError = validateEmailField(form.email);
@@ -29,10 +75,8 @@ export function validateInviteMemberForm(
     errors.phone = getPhoneValidationError(phone.digits, phone.country) ?? "Enter a valid phone number.";
   }
 
-  const unit = form.unit.trim();
-  if (unit.length > 50) {
-    errors.unit = "Unit must be 50 characters or less.";
-  }
+  const unitError = inviteMemberUnitFieldError(form.unit);
+  if (unitError) errors.unit = unitError;
 
   return errors;
 }

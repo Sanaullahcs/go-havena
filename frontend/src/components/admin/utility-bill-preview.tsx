@@ -17,12 +17,20 @@ export function UtilityBillPreview({
   url,
   label = "Utility bill / lease",
   compact = false,
+  reviewStatus = null,
 }: {
   url?: string | null;
   label?: string;
   compact?: boolean;
+  reviewStatus?: string | null;
 }) {
   const resolved = resolveUrl(url);
+  const needsReview = reviewStatus === "review" || reviewStatus === "pending_review";
+  const reviewNote = needsReview ? (
+    <p className={`text-amber-700 ${compact ? "text-[10px]" : "text-[11px]"}`}>
+      Needs admin review — not auto-verified.
+    </p>
+  ) : null;
 
   if (!resolved) {
     return (
@@ -36,6 +44,7 @@ export function UtilityBillPreview({
     return (
       <div className={compact ? "space-y-1" : "space-y-2"}>
         <p className={`font-semibold text-slate-700 ${compact ? "text-[11px]" : "text-[12px]"}`}>{label}</p>
+        {reviewNote}
         <a
           href={resolved}
           target="_blank"
@@ -51,6 +60,7 @@ export function UtilityBillPreview({
   return (
     <div className={compact ? "space-y-1" : "space-y-2"}>
       <p className={`font-semibold text-slate-700 ${compact ? "text-[11px]" : "text-[12px]"}`}>{label}</p>
+      {reviewNote}
       <a href={resolved} target="_blank" rel="noopener noreferrer" className="inline-block">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img

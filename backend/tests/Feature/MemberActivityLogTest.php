@@ -17,6 +17,8 @@ class MemberActivityLogTest extends TestCase
 
     private function seedCommunityWithAdminAndResident(): array
     {
+        config(['billing.enabled' => false, 'billing.enforce' => false]);
+
         $region = Region::query()->create([
             'title'       => 'Test Region',
             'area'        => 'Test',
@@ -42,6 +44,13 @@ class MemberActivityLogTest extends TestCase
         $resident = User::factory()->create([
             'role'   => 'resident',
             'status' => 'active',
+        ]);
+
+        $admin->profile()->update([
+            'display_name' => $admin->name,
+            'unit_number' => 'HQ',
+            'utility_bill_url' => '/storage/utility-bills/admin.jpg',
+            'updated_at' => now()->addMinute(),
         ]);
 
         CommunityMembership::query()->create([
@@ -157,5 +166,34 @@ class MemberActivityLogTest extends TestCase
         $this->getJson("/api/v1/admin/members/{$resident->id}/activity-logs?search=Spaceship")
             ->assertOk()
             ->assertJsonPath('data.0.status', 'approved');
+    }
+
+    public function test_community_admin_can_view_onboarding_member_activity_without_membership(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunityWithAdminAndResident();
+
+        $onboarding = User::factory()->create([
+            'role' => 'resident',
+            'status' => 'active',
+            'name' => 'Onboarding Resident',
+        ]);
+
+        \App\Models\InviteCode::query()->create([
+            'community_id' => $community->id,
+            'code' => 'ONBOARD-TEST-1',
+            'created_by' => $admin->id,
+            'invited_user_id' => $onboarding->id,
+            'max_uses' => 1,
+            'used_count' => 0,
+            'expires_at' => now()->addDays(7),
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson("/api/v1/admin/members/{$onboarding->id}/activity-logs")
+            ->assertOk()
+            ->assertJsonPath('data', [])
+            ->assertJsonPath('meta.total', 0)
+            ->assertJsonPath('meta.member.id', $onboarding->id);
     }
 }

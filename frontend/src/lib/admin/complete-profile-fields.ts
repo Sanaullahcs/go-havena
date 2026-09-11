@@ -47,32 +47,14 @@ export function joinedViaAdminInvite(user?: CompleteProfileUser | null): boolean
 }
 
 /**
- * Utility bill is for self-serve signup verification (resident or community admin).
- * Skip for guests, invitees, and users already approved via admin creation.
+ * Utility bill is required for every resident and community-admin path.
+ * Guests are the only role that skips it.
  */
 export function shouldSkipUtilityBill(
   user?: CompleteProfileUser | null,
-  { role }: { role?: string } = {},
+  _options: { role?: string } = {},
 ): boolean {
-  if (isGuestProfile(user)) return true;
-  if (joinedViaAdminInvite(user)) return true;
-
-  // System Admin already created/approved this community admin — no proof needed.
-  if (
-    isCommunityAdminRole(user) &&
-    (user?.community_admin_status ?? "pending") === "approved"
-  ) {
-    return true;
-  }
-
-  // Resident created/approved by an admin (no invite code) — already trusted.
-  // Community admin self-signup stays pending until system approval, so they still upload.
-  const isAdminOnboarding = role === "admin" || isCommunityAdminRole(user);
-  if (!isAdminOnboarding) {
-    return (user?.memberships ?? []).some((m) => m?.status === "approved");
-  }
-
-  return false;
+  return isGuestProfile(user);
 }
 
 /** Mobile route `role=admin` for community-admin onboarding; residents keep their role. */
@@ -101,8 +83,7 @@ export function getCompleteProfileFieldVisibility(input: {
 }): CompleteProfileFieldVisibility {
   const role = input.role ?? completeProfileOnboardingRole(input.user);
   const guest = isGuestProfile(input.user);
-  const skip =
-    shouldSkipUtilityBill(input.user, { role }) || Boolean(input.invited);
+  const skip = shouldSkipUtilityBill(input.user, { role });
   const showResidenceType = !guest;
 
   return {

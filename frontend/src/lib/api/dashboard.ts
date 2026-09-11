@@ -3,6 +3,7 @@ import api from "./client";
 export interface AdminDashboardStats {
   total_members: number;
   pending_members: number;
+  invitation_sent_members?: number;
   onboarding_members: number;
   pending_approval_total: number;
   banned_members: number;

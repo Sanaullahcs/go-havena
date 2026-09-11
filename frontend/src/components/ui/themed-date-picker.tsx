@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { useAnchoredPopover } from "@/components/ui/use-anchored-popover";
@@ -73,6 +73,14 @@ function shiftMonth(y: number, m: number, delta: number) {
   return { y: next.getFullYear(), m: next.getMonth() };
 }
 
+type CalendarPane = "day" | "month" | "year";
+
+const YEAR_PAGE_SIZE = 12;
+
+function yearPageStart(year: number) {
+  return Math.floor(year / YEAR_PAGE_SIZE) * YEAR_PAGE_SIZE;
+}
+
 function usePopoverDismiss(
   open: boolean,
   onClose: () => void,
@@ -131,18 +139,23 @@ export function ThemedDatePicker({
   const popoverRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const { style: popoverStyle } = useAnchoredPopover(open, triggerRef, {
-    popoverRef,
-    width: 296,
-  });
+  const popoverOptions = useMemo(() => ({ popoverRef, width: 296 }), []);
+  const { style: popoverStyle } = useAnchoredPopover(open, triggerRef, popoverOptions);
   const initial = parseIso(value) ?? todayParts();
   const [viewYear, setViewYear] = useState(initial.y);
   const [viewMonth, setViewMonth] = useState(initial.m);
+  const [pane, setPane] = useState<CalendarPane>("day");
+  const [yearPage, setYearPage] = useState(() => yearPageStart(initial.y));
+  const onBlurRef = useRef(onBlur);
+  onBlurRef.current = onBlur;
 
-  usePopoverDismiss(open, () => {
+  const closePicker = useCallback(() => {
+    setPane("day");
     setOpen(false);
-    onBlur?.();
-  }, wrapRef, popoverRef);
+    onBlurRef.current?.();
+  }, []);
+
+  usePopoverDismiss(open, closePicker, wrapRef, popoverRef);
 
   useEffect(() => {
     setMounted(true);
@@ -166,8 +179,7 @@ export function ThemedDatePicker({
     onChange(iso);
     setViewYear(shifted.y);
     setViewMonth(shifted.m);
-    setOpen(false);
-    onBlur?.();
+    closePicker();
   };
 
   const goToday = () => {
@@ -175,15 +187,42 @@ export function ThemedDatePicker({
     onChange(iso);
     setViewYear(today.y);
     setViewMonth(today.m);
-    setOpen(false);
-    onBlur?.();
+    closePicker();
   };
 
   const clear = () => {
     onChange("");
-    setOpen(false);
-    onBlur?.();
+    closePicker();
   };
+
+  const openYearPane = () => {
+    setYearPage(yearPageStart(viewYear));
+    setPane("year");
+  };
+
+  const stepView = (delta: number) => {
+    if (pane === "year") {
+      setYearPage((start) => start + delta * YEAR_PAGE_SIZE);
+      return;
+    }
+    if (pane === "month") {
+      setViewYear((year) => year + delta);
+      return;
+    }
+    const next = shiftMonth(viewYear, viewMonth, delta);
+    setViewYear(next.y);
+    setViewMonth(next.m);
+  };
+
+  const yearOptions = Array.from({ length: YEAR_PAGE_SIZE }, (_, index) => yearPage + index);
+  const titleLabel =
+    pane === "year"
+      ? `${yearPage} – ${yearPage + YEAR_PAGE_SIZE - 1}`
+      : pane === "month"
+        ? String(viewYear)
+        : `${MONTHS[viewMonth]} ${viewYear}`;
+  const navBackLabel = pane === "year" ? "Previous years" : pane === "month" ? "Previous year" : "Previous month";
+  const navForwardLabel = pane === "year" ? "Next years" : pane === "month" ? "Next year" : "Next month";
 
   return (
     <div
@@ -198,7 +237,12 @@ export function ThemedDatePicker({
           data-field={fieldKey}
           aria-expanded={open}
           aria-haspopup="dialog"
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => {
+            setOpen((v) => {
+              if (!v) setPane("day");
+              return !v;
+            });
+          }}
           className={[
             "nl-picker-trigger",
             hasValue ? "has-value" : "",
@@ -215,71 +259,138 @@ export function ThemedDatePicker({
 
         {open && mounted
           ? createPortal(
-              <div ref={popoverRef} className="nl-themed-popover nl-calendar-popover" style={popoverStyle} role="dialog" aria-label="Choose date">
+              <div
+                ref={popoverRef}
+                className={["nl-themed-popover", "nl-calendar-popover", pane === "day" ? "" : "nl-calendar-popover-settled"].filter(Boolean).join(" ")}
+                style={popoverStyle}
+                role="dialog"
+                aria-label="Choose date"
+              >
                 <div className="nl-calendar-head">
                   <button
                     type="button"
                     className="nl-calendar-nav"
-                    aria-label="Previous month"
-                    onClick={() => {
-                      const next = shiftMonth(viewYear, viewMonth, -1);
-                      setViewYear(next.y);
-                      setViewMonth(next.m);
-                    }}
+                    aria-label={navBackLabel}
+                    onClick={() => stepView(-1)}
                   >
                     <ChevronLeft size={16} strokeWidth={2.5} />
                   </button>
-                  <p className="nl-calendar-title">
-                    {MONTHS[viewMonth]} {viewYear}
-                  </p>
+                  {pane === "year" ? (
+                    <p className="nl-calendar-title">{titleLabel}</p>
+                  ) : (
+                    <button
+                      type="button"
+                      className="nl-calendar-title-btn"
+                      aria-label="Choose year"
+                      onClick={openYearPane}
+                    >
+                      <span>{titleLabel}</span>
+                      <ChevronDown size={14} strokeWidth={2.5} aria-hidden />
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="nl-calendar-nav"
-                    aria-label="Next month"
-                    onClick={() => {
-                      const next = shiftMonth(viewYear, viewMonth, 1);
-                      setViewYear(next.y);
-                      setViewMonth(next.m);
-                    }}
+                    aria-label={navForwardLabel}
+                    onClick={() => stepView(1)}
                   >
                     <ChevronRight size={16} strokeWidth={2.5} />
                   </button>
                 </div>
 
-                <div className="nl-calendar-weekdays">
-                  {WEEKDAYS.map((day) => (
-                    <span key={day} className="nl-calendar-weekday">
-                      {day}
-                    </span>
-                  ))}
-                </div>
+                {pane === "year" ? (
+                  <div className="nl-calendar-meta-grid" role="listbox" aria-label="Choose year">
+                    {yearOptions.map((year) => {
+                      const isSelected = year === viewYear;
+                      const isToday = year === today.y;
+                      return (
+                        <button
+                          key={year}
+                          type="button"
+                          role="option"
+                          aria-selected={isSelected}
+                          onClick={() => {
+                            setViewYear(year);
+                            setPane("month");
+                          }}
+                          className={[
+                            "nl-calendar-meta-cell",
+                            isSelected ? "nl-calendar-day-selected" : "",
+                            isToday && !isSelected ? "nl-calendar-day-today" : "",
+                          ].join(" ")}
+                        >
+                          {year}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : pane === "month" ? (
+                  <div className="nl-calendar-meta-grid" role="listbox" aria-label="Choose month">
+                    {MONTHS.map((month, index) => {
+                      const selectedParts = parseIso(value);
+                      const monthSelected = selectedParts
+                        ? selectedParts.y === viewYear && selectedParts.m === index
+                        : index === viewMonth;
+                      const isToday = today.y === viewYear && today.m === index;
+                      return (
+                        <button
+                          key={month}
+                          type="button"
+                          role="option"
+                          aria-selected={monthSelected}
+                          onClick={() => {
+                            setViewMonth(index);
+                            setPane("day");
+                          }}
+                          className={[
+                            "nl-calendar-meta-cell",
+                            monthSelected ? "nl-calendar-day-selected" : "",
+                            isToday && !monthSelected ? "nl-calendar-day-today" : "",
+                          ].join(" ")}
+                        >
+                          {month.slice(0, 3)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <>
+                    <div className="nl-calendar-weekdays">
+                      {WEEKDAYS.map((day) => (
+                        <span key={day} className="nl-calendar-weekday">
+                          {day}
+                        </span>
+                      ))}
+                    </div>
 
-                <div className="nl-calendar-grid">
-                  {cells.map((cell, index) => {
-                    const shifted = shiftMonth(viewYear, viewMonth, cell.monthOffset);
-                    const iso = toIso(shifted.y, shifted.m, cell.day);
-                    const isSelected = value === iso;
-                    const isToday =
-                      today.y === shifted.y && today.m === shifted.m && today.d === cell.day;
-                    const isMuted = cell.monthOffset !== 0;
+                    <div className="nl-calendar-grid">
+                      {cells.map((cell, index) => {
+                        const shifted = shiftMonth(viewYear, viewMonth, cell.monthOffset);
+                        const iso = toIso(shifted.y, shifted.m, cell.day);
+                        const isSelected = value === iso;
+                        const isToday =
+                          today.y === shifted.y && today.m === shifted.m && today.d === cell.day;
+                        const isMuted = cell.monthOffset !== 0;
 
-                    return (
-                      <button
-                        key={`${index}-${iso}`}
-                        type="button"
-                        onClick={() => pickDay(cell.day, cell.monthOffset)}
-                        className={[
-                          "nl-calendar-day",
-                          isMuted ? "nl-calendar-day-muted" : "",
-                          isSelected ? "nl-calendar-day-selected" : "",
-                          isToday && !isSelected ? "nl-calendar-day-today" : "",
-                        ].join(" ")}
-                      >
-                        {cell.day}
-                      </button>
-                    );
-                  })}
-                </div>
+                        return (
+                          <button
+                            key={`${index}-${iso}`}
+                            type="button"
+                            onClick={() => pickDay(cell.day, cell.monthOffset)}
+                            className={[
+                              "nl-calendar-day",
+                              isMuted ? "nl-calendar-day-muted" : "",
+                              isSelected ? "nl-calendar-day-selected" : "",
+                              isToday && !isSelected ? "nl-calendar-day-today" : "",
+                            ].join(" ")}
+                          >
+                            {cell.day}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
 
                 <div className="nl-calendar-foot">
                   <button type="button" className="nl-calendar-foot-btn" onClick={clear}>

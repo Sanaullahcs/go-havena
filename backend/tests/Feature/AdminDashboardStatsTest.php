@@ -284,12 +284,14 @@ class AdminDashboardStatsTest extends TestCase
         $this->assertSame($community->id, $response->json('data.scope.community_id'));
         $this->assertSame(2, $stats['total_members']);
         $this->assertSame(1, $stats['pending_members']);
+        $this->assertSame(0, $stats['invitation_sent_members']);
         $this->assertSame(0, $stats['onboarding_members']);
         $this->assertSame(1, $stats['pending_approval_total']);
 
         $status = collect($response->json('data.member_status'))->pluck('count', 'status');
         $this->assertSame(1, (int) $status->get('approved'));
         $this->assertSame(1, (int) $status->get('pending'));
+        $this->assertSame(0, (int) $status->get('invitation_sent'));
         $this->assertSame(0, (int) $status->get('onboarding'));
     }
 

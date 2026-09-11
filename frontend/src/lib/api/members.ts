@@ -2,7 +2,7 @@ import api from "./client";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { getManagedCommunityId, getUser, isSystemAdminUser } from "@/lib/auth/session";
 
-export type MembershipStatus = "approved" | "pending" | "banned" | "rejected" | "onboarding";
+export type MembershipStatus = "approved" | "pending" | "banned" | "rejected" | "onboarding" | "invitation_sent";
 export type MembershipRole = "member" | "moderator" | "admin";
 
 export interface Member {
@@ -35,6 +35,7 @@ export interface MemberStats {
   banned: number;
   rejected: number;
   onboarding?: number;
+  invitation_sent?: number;
 }
 
 export interface MemberMeta {
@@ -88,6 +89,8 @@ export function statusLabel(status: MembershipStatus): string {
       return "Active";
     case "pending":
       return "Pending";
+    case "invitation_sent":
+      return "Invitation Sent";
     case "onboarding":
       return "Onboarding";
     case "banned":
@@ -250,15 +253,18 @@ export async function suspendMember(userId: number, communityId?: number) {
   return api.post(`/v1/admin/members/${userId}/suspend`, communityId ? { community_id: communityId } : {});
 }
 
-export async function deleteMember(id: number) {
-  return api.delete(`/v1/admin/members/${id}`);
+export async function deleteMember(id: number, communityId?: number) {
+  return api.delete(`/v1/admin/members/${id}`, {
+    params: communityId ? { community_id: communityId } : undefined,
+  });
 }
 
 export function membersToCsv(rows: Member[]): string {
-  const header = ["Name", "Email", "Community", "Unit", "Role", "Status", "Joined"];
+  const header = ["Name", "Email", "Phone Number", "Community", "Unit", "Role", "Status", "Joined"];
   const lines = rows.map((m) => [
     m.name,
     m.email,
+    (m.phone ?? "").trim(),
     m.community_name ?? "",
     m.unit_number ?? "",
     roleLabel(m.role),

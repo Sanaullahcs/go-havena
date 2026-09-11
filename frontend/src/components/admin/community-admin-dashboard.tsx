@@ -80,7 +80,6 @@ export default function CommunityAdminDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionId, setActionId] = useState<number | null>(null);
-  const [mounted, setMounted] = useState(false);
 
   const [inviteOpen, setInviteOpen] = useState(false);
 
@@ -104,13 +103,9 @@ export default function CommunityAdminDashboard() {
   }, []);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted || pathname !== "/admin") return;
+    if (pathname !== "/admin") return;
     void load(Boolean(getAdminCache("dashboard:community-stats")));
-  }, [mounted, pathname, load]);
+  }, [pathname, load]);
 
   const handleAction = useCallback(
     async (action: AdminDashboardPendingAction, verb: PendingVerb) => {
@@ -282,11 +277,13 @@ export default function CommunityAdminDashboard() {
         icon: dashIcon(CheckCircle2),
       },
       {
-        label: "Onboarding",
-        value: String(stats.onboarding_members),
-        hint: "Invited, not yet joined",
+        label: "Invitation Sent",
+        value: String(stats.invitation_sent_members ?? 0),
+        hint: stats.onboarding_members
+          ? `${stats.onboarding_members} in onboarding`
+          : "Awaiting signup",
         tone: "slate" as const,
-        href: "/admin/members?status=onboarding",
+        href: "/admin/members?status=invitation_sent",
         icon: dashIcon(Users),
       },
       {
@@ -310,7 +307,6 @@ export default function CommunityAdminDashboard() {
     [],
   );
 
-  if (!mounted) return <PageLoader text="Loading community dashboard…" variant="community" />;
   if (loading && !data) return <PageLoader text="Loading community dashboard…" variant="community" />;
   if ((error && !data) || !data) {
     return <PageError message={error ?? "Unable to load dashboard."} onRetry={() => load()} />;

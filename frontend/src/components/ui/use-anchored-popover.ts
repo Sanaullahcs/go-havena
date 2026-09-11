@@ -117,21 +117,36 @@ export function useAnchoredPopover(
               ? "bottom right"
               : "bottom left";
 
-      setResult({
-        ready: true,
-        placement,
-        style: {
-          position: "fixed",
-          top,
-          left,
-          width,
-          zIndex,
-          maxHeight,
-          opacity: 1,
-          pointerEvents: "auto",
-          visibility: "visible",
-          transformOrigin,
-        },
+      setResult((prev) => {
+        const prevStyle = prev.style;
+        if (
+          prev.ready &&
+          prev.placement === placement &&
+          prevStyle.top === top &&
+          prevStyle.left === left &&
+          prevStyle.width === width &&
+          prevStyle.maxHeight === maxHeight &&
+          prevStyle.zIndex === zIndex
+        ) {
+          return prev;
+        }
+
+        return {
+          ready: true,
+          placement,
+          style: {
+            position: "fixed",
+            top,
+            left,
+            width,
+            zIndex,
+            maxHeight,
+            opacity: 1,
+            pointerEvents: "auto",
+            visibility: "visible",
+            transformOrigin,
+          },
+        };
       });
     };
 

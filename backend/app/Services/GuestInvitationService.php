@@ -12,6 +12,26 @@ use Illuminate\Support\Str;
 
 class GuestInvitationService
 {
+    /** @return array<string, mixed> */
+    public static function inviteFieldRules(): array
+    {
+        return [
+            'guest_name'  => ['required', 'string', 'max:100', 'regex:/^[\p{L} .]+$/u'],
+            'guest_email' => 'required|email|max:200',
+            'guest_phone' => 'nullable|string|max:30',
+            'starts_at'   => 'required|date',
+            'ends_at'     => 'required|date|after:starts_at',
+        ];
+    }
+
+    /** @return array<string, string> */
+    public static function inviteFieldMessages(): array
+    {
+        return [
+            'guest_name.regex' => 'Guest name can only contain letters, spaces, and full stops.',
+        ];
+    }
+
     public static function generateInviteCode(): string
     {
         do {

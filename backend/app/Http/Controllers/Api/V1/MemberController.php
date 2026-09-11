@@ -14,12 +14,14 @@ use App\Services\ContactIdentityService;
 use App\Services\FamilyService;
 use App\Services\InviteCodeService;
 use App\Services\LifecycleMailService;
+use App\Services\MemberLifecycleStatus;
 use App\Services\NotificationService;
 use App\Support\ActivityActionCatalog;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -72,6 +74,8 @@ class MemberController extends Controller
                 'users.email',
                 'users.phone',
                 'users.status as account_status',
+                'users.email_verified_at',
+                'users.phone_verified_at',
                 'users.created_at',
                 'cm.id as membership_id',
                 'cm.role',
@@ -83,6 +87,8 @@ class MemberController extends Controller
                 'profiles.avatar_url',
                 'profiles.display_name',
                 'profiles.utility_bill_url',
+                MemberLifecycleStatus::pendingInviteCountSelect(),
+                MemberLifecycleStatus::authTokenCountSelect(),
             )
             ->where('users.status', '!=', 'deleted')
             ->where(function ($q) use ($communityId) {
@@ -96,7 +102,8 @@ class MemberController extends Controller
                             ->whereExists(function ($sub) use ($communityId) {
                                 $sub->from('invite_codes')
                                     ->whereColumn('invite_codes.invited_user_id', 'users.id')
-                                    ->where('invite_codes.community_id', $communityId);
+                                    ->where('invite_codes.community_id', $communityId)
+                                    ->whereNull('invite_codes.deleted_at');
                             });
                     });
             });
@@ -105,8 +112,12 @@ class MemberController extends Controller
         $this->excludeGuestMembershipsScope($query);
 
         if ($request->filled('status') && $request->status !== 'all') {
-            if ($request->status === 'onboarding') {
+            if ($request->status === MemberLifecycleStatus::INVITATION_SENT) {
                 $query->whereNull('cm.id');
+                MemberLifecycleStatus::applyNotStartedSignup($query);
+            } elseif ($request->status === MemberLifecycleStatus::ONBOARDING) {
+                $query->whereNull('cm.id');
+                MemberLifecycleStatus::applyStartedSignup($query);
             } elseif ($request->status === 'pending') {
                 $query->where('cm.status', 'pending');
             } else {
@@ -158,8 +169,8 @@ class MemberController extends Controller
         $perPage = min((int) ($request->per_page ?? 15), 100);
         $page = max(1, (int) ($request->page ?? 1));
 
-        if ($status === 'onboarding') {
-            $members = $this->onboardingUsersQuery($request, $residentsOnly)
+        if (in_array($status, [MemberLifecycleStatus::ONBOARDING, MemberLifecycleStatus::INVITATION_SENT], true)) {
+            $members = $this->onboardingUsersQuery($request, $residentsOnly, $status)
                 ->orderByDesc('users.created_at')
                 ->paginate($perPage, ['*'], 'page', $page);
         } elseif ($status === null) {
@@ -197,6 +208,8 @@ class MemberController extends Controller
                 'users.email',
                 'users.phone',
                 'users.status as account_status',
+                'users.email_verified_at',
+                'users.phone_verified_at',
                 'users.created_at',
                 'cm.id as membership_id',
                 'cm.role',
@@ -209,6 +222,8 @@ class MemberController extends Controller
                 'profiles.avatar_url',
                 'profiles.display_name',
                 'profiles.utility_bill_url',
+                MemberLifecycleStatus::pendingInviteCountSelect(),
+                MemberLifecycleStatus::authTokenCountSelect(),
                 'cm.created_at as sort_created_at',
             )
             ->where('users.status', '!=', 'deleted');
@@ -221,7 +236,7 @@ class MemberController extends Controller
         return $query;
     }
 
-    private function onboardingUsersQuery(Request $request, bool $residentsOnly)
+    private function onboardingUsersQuery(Request $request, bool $residentsOnly, ?string $preMembershipStatus = null)
     {
         $query = DB::table('users')
             ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
@@ -231,6 +246,8 @@ class MemberController extends Controller
                 'users.email',
                 'users.phone',
                 'users.status as account_status',
+                'users.email_verified_at',
+                'users.phone_verified_at',
                 'users.created_at',
                 DB::raw('NULL as membership_id'),
                 DB::raw("'member' as role"),
@@ -243,6 +260,8 @@ class MemberController extends Controller
                 'profiles.avatar_url',
                 'profiles.display_name',
                 'profiles.utility_bill_url',
+                MemberLifecycleStatus::pendingInviteCountSelect(),
+                MemberLifecycleStatus::authTokenCountSelect(),
                 'users.created_at as sort_created_at',
             )
             ->where('users.role', 'resident')
@@ -250,9 +269,33 @@ class MemberController extends Controller
             ->whereNotExists(function ($sub) {
                 $sub->from('community_memberships as cm_all')
                     ->whereColumn('cm_all.user_id', 'users.id');
+            })
+            ->where(function ($q) {
+                $q->whereNotExists(function ($sub) {
+                    $sub->from('invite_codes')
+                        ->whereColumn('invite_codes.invited_user_id', 'users.id')
+                        ->whereNotNull('invite_codes.deleted_at');
+                })->orWhereExists(function ($sub) {
+                    $sub->from('invite_codes')
+                        ->whereColumn('invite_codes.invited_user_id', 'users.id')
+                        ->whereNull('invite_codes.deleted_at');
+                });
             });
 
         $this->excludePlatformAdminsScope($query);
+
+        if ($preMembershipStatus === MemberLifecycleStatus::INVITATION_SENT) {
+            MemberLifecycleStatus::applyNotStartedSignup($query);
+            MemberLifecycleStatus::applyAssignedUnusedInviteExists($query);
+        } elseif ($preMembershipStatus === MemberLifecycleStatus::ONBOARDING) {
+            $query->where(function ($q) {
+                $q->where(function ($started) {
+                    MemberLifecycleStatus::applyStartedSignup($started);
+                })->orWhere(function ($noInvite) {
+                    MemberLifecycleStatus::applyNoAssignedUnusedInvite($noInvite);
+                });
+            });
+        }
 
         $this->applyMemberSearch($query, $request, includeCommunityName: false);
 
@@ -374,6 +417,10 @@ class MemberController extends Controller
             ->first();
 
         if (! $member) {
+            $member = $this->onboardingMemberForActivity($id, $communityId);
+        }
+
+        if (! $member) {
             return response()->json(['message' => 'Member not found'], 404);
         }
 
@@ -430,12 +477,30 @@ class MemberController extends Controller
     public function invite(Request $request): JsonResponse
     {
         $request->validate([
-            'name'         => 'required|string|max:100',
+            'name'         => ['required', 'string', 'max:25', 'regex:/^[\p{L} .]+$/u'],
             'email'        => 'required|email',
             'phone'        => 'required|string|max:30',
             'role'         => 'in:member,moderator,admin',
-            'unit_number'  => 'nullable|string|max:50',
+            'unit_number'  => [
+                'required',
+                'string',
+                'max:20',
+                static function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (! is_string($value)) {
+                        $fail('Please enter a valid Unit / Apartment number.');
+                        return;
+                    }
+                    if (! preg_match('/^[A-Za-z0-9 \/\\-]{1,20}$/', $value)) {
+                        $fail('Please enter a valid Unit / Apartment number.');
+                    }
+                },
+            ],
             'community_id' => 'integer',
+        ], [
+            'name.max' => 'Full Name can only contain letters, spaces, and full stops, with a maximum of 25 characters.',
+            'name.regex' => 'Full Name can only contain letters, spaces, and full stops, with a maximum of 25 characters.',
+            'unit_number.required' => 'Unit / Apartment is required.',
+            'unit_number.max' => 'Please enter a valid Unit / Apartment number.',
         ]);
 
         $phone = PhoneNormalizer::normalize($request->phone);
@@ -459,17 +524,30 @@ class MemberController extends Controller
             $billing->assertCanAllocateSeat($communityId);
         }
 
-        $userId = DB::table('users')->insertGetId([
-            'name'               => $request->name,
-            'email'              => $request->email,
-            'phone'              => $phone,
-            'phone_verified_at'  => null,
-            'password'           => Hash::make($password),
-            'role'               => $role === 'admin' ? 'community_admin' : 'resident',
-            'status'             => 'active',
-            'created_at'         => now(),
-            'updated_at'         => now(),
-        ]);
+        try {
+            $userId = DB::table('users')->insertGetId([
+                'name'               => $request->name,
+                'email'              => $request->email,
+                'phone'              => $phone,
+                'email_verified_at'  => null,
+                'phone_verified_at'  => null,
+                'password'           => Hash::make($password),
+                'role'               => $role === 'admin' ? 'community_admin' : 'resident',
+                'status'             => 'active',
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        } catch (UniqueConstraintViolationException $e) {
+            $sql = $e->getMessage();
+            if (str_contains($sql, 'users_phone_unique')) {
+                ContactIdentityService::failDuplicate('phone', ContactIdentityService::DUPLICATE_PHONE_MESSAGE);
+            }
+            if (str_contains($sql, 'users_email_unique')) {
+                ContactIdentityService::failDuplicate('email', ContactIdentityService::DUPLICATE_EMAIL_MESSAGE);
+            }
+
+            throw $e;
+        }
 
         DB::table('profiles')->insert([
             'user_id'      => $userId,
@@ -744,13 +822,35 @@ class MemberController extends Controller
             ->where('community_id', $communityId)
             ->first();
 
-        if (! $membership) {
+        $pendingInvites = InviteCode::query()
+            ->where('community_id', $communityId)
+            ->where('invited_user_id', $id)
+            ->get();
+
+        if (! $membership && $pendingInvites->isEmpty()) {
             return response()->json(['message' => 'Member not found in this community'], 404);
         }
 
         $user = DB::table('users')->find($id);
         if (! $user) {
             return response()->json(['message' => 'Member not found'], 404);
+        }
+
+        if (! $membership) {
+            DB::transaction(function () use ($communityId, $id) {
+                InviteCodeService::cancelPendingInvitesForUser($communityId, $id);
+                app(CommunityBillingService::class)->releaseReservationsForUser($communityId, $id);
+            });
+
+            ActivityLogService::user(
+                'member_invite_cancelled',
+                "Cancelled onboarding invitation for {$user->name}",
+                'User',
+                $id,
+                'warning',
+            );
+
+            return response()->json(['message' => 'Invitation cancelled successfully.']);
         }
 
         DB::table('users')->where('id', $id)->update(['status' => 'deleted', 'deleted_at' => now()]);
@@ -763,7 +863,15 @@ class MemberController extends Controller
     {
         $membershipStatus = $member->status ?? null;
         if (! $member->membership_id) {
-            $membershipStatus = 'onboarding';
+            $startedSignup = MemberLifecycleStatus::hasStartedSignup(
+                $member->email_verified_at ?? null,
+                $member->phone_verified_at ?? null,
+                isset($member->auth_token_count) && (int) $member->auth_token_count > 0,
+            );
+            $hasPendingInvite = isset($member->pending_invite_count)
+                ? (int) $member->pending_invite_count > 0
+                : InviteCode::query()->pendingForUser((int) $member->id)->exists();
+            $membershipStatus = MemberLifecycleStatus::statusWithoutMembership($startedSignup, $hasPendingInvite);
         }
 
         $payload = [
@@ -811,7 +919,11 @@ class MemberController extends Controller
 
         $rows = $query->groupBy('cm.status')->pluck('total', 'status');
 
-        return $this->composeMemberStats($rows, $this->countOnboardingResidents(null));
+        return $this->composeMemberStats(
+            $rows,
+            MemberLifecycleStatus::countOnboarding(null),
+            MemberLifecycleStatus::countInvitationSent(null),
+        );
     }
 
     private function memberStats(int $communityId, bool $residentsOnly = false): array
@@ -830,14 +942,18 @@ class MemberController extends Controller
 
         $rows = $query->groupBy('cm.status')->pluck('total', 'status');
 
-        return $this->composeMemberStats($rows, $this->countOnboardingResidents($communityId));
+        return $this->composeMemberStats(
+            $rows,
+            MemberLifecycleStatus::countOnboarding($communityId),
+            MemberLifecycleStatus::countInvitationSent($communityId),
+        );
     }
 
     /**
      * Same status buckets as formatMember(): membership status, plus
-     * residents with no membership counted as onboarding.
+     * invitation_sent / onboarding for residents who have not joined yet.
      */
-    private function composeMemberStats($rows, int $onboarding): array
+    private function composeMemberStats($rows, int $onboarding, int $invitationSent): array
     {
         $approved = (int) ($rows['approved'] ?? 0);
         $pending  = (int) ($rows['pending'] ?? 0);
@@ -845,34 +961,14 @@ class MemberController extends Controller
         $rejected = (int) ($rows['rejected'] ?? 0);
 
         return [
-            'total'      => $approved + $pending + $banned + $rejected + $onboarding,
-            'approved'   => $approved,
-            'pending'    => $pending,
-            'banned'     => $banned,
-            'rejected'   => $rejected,
-            'onboarding' => $onboarding,
+            'total'            => $approved + $pending + $banned + $rejected + $onboarding + $invitationSent,
+            'approved'         => $approved,
+            'pending'          => $pending,
+            'banned'           => $banned,
+            'rejected'         => $rejected,
+            'onboarding'       => $onboarding,
+            'invitation_sent'  => $invitationSent,
         ];
-    }
-
-    private function countOnboardingResidents(?int $communityId): int
-    {
-        $query = DB::table('users')
-            ->where('role', 'resident')
-            ->where('status', '!=', 'deleted')
-            ->whereNotExists(function ($sub) {
-                $sub->from('community_memberships as cm_all')
-                    ->whereColumn('cm_all.user_id', 'users.id');
-            });
-
-        if ($communityId) {
-            $query->whereExists(function ($sub) use ($communityId) {
-                $sub->from('invite_codes')
-                    ->whereColumn('invite_codes.invited_user_id', 'users.id')
-                    ->where('invite_codes.community_id', $communityId);
-            });
-        }
-
-        return (int) $query->count();
     }
 
     /** @return int|null null = platform-wide (system admin only) */
@@ -898,7 +994,10 @@ class MemberController extends Controller
                 $id = (int) $request->community_id;
                 if (
                     $id > 0
-                    && DB::table('community_memberships')->where('user_id', $userId)->where('community_id', $id)->exists()
+                    && (
+                        DB::table('community_memberships')->where('user_id', $userId)->where('community_id', $id)->exists()
+                        || $this->hasOnboardingInvite($userId, $id)
+                    )
                 ) {
                     return $id;
                 }
@@ -909,11 +1008,16 @@ class MemberController extends Controller
                 ->orderByDesc('updated_at')
                 ->first();
 
-            if (! $membership) {
-                abort(404, 'Member not found in any community');
+            if ($membership) {
+                return (int) $membership->community_id;
             }
 
-            return (int) $membership->community_id;
+            $inviteCommunityId = $this->onboardingInviteCommunityId($userId);
+            if ($inviteCommunityId) {
+                return $inviteCommunityId;
+            }
+
+            abort(404, 'Member not found in any community');
         }
 
         $communityId = AdminRoleService::requireManagedCommunityId($actor, $request);
@@ -921,13 +1025,59 @@ class MemberController extends Controller
         $exists = DB::table('community_memberships')
             ->where('user_id', $userId)
             ->where('community_id', $communityId)
-            ->exists();
+            ->exists()
+            || $this->hasOnboardingInvite($userId, $communityId);
 
         if (! $exists) {
             abort(404, 'Member not found in this community');
         }
 
         return $communityId;
+    }
+
+    private function hasOnboardingInvite(int $userId, int $communityId): bool
+    {
+        return InviteCode::query()
+            ->where('invited_user_id', $userId)
+            ->where('community_id', $communityId)
+            ->exists();
+    }
+
+    private function onboardingInviteCommunityId(int $userId): ?int
+    {
+        $invite = InviteCode::query()
+            ->where('invited_user_id', $userId)
+            ->orderByDesc('id')
+            ->first();
+
+        return $invite ? (int) $invite->community_id : null;
+    }
+
+    private function onboardingMemberForActivity(int $userId, int $communityId): ?object
+    {
+        if (! $this->hasOnboardingInvite($userId, $communityId)) {
+            return null;
+        }
+
+        $user = DB::table('users')
+            ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
+            ->select(
+                'users.id',
+                'users.name',
+                'profiles.display_name',
+                'profiles.unit_number',
+            )
+            ->where('users.id', $userId)
+            ->where('users.status', '!=', 'deleted')
+            ->first();
+
+        if (! $user) {
+            return null;
+        }
+
+        $user->community_id = $communityId;
+
+        return $user;
     }
 
     private function resolveMediaUrl(?string $url): ?string

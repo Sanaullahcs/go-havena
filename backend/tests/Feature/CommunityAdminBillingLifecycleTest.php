@@ -129,6 +129,8 @@ class CommunityAdminBillingLifecycleTest extends TestCase
         $this->postJson('/api/v1/admin/members/invite', [
             'name' => 'Active Resident',
             'email' => 'active.resident@example.com',
+            'phone' => '+15555550131',
+            'unit_number' => 'A1',
         ])->assertCreated();
     }
 
@@ -468,6 +470,8 @@ class CommunityAdminBillingLifecycleTest extends TestCase
         $this->postJson('/api/v1/admin/members/invite', [
             'name' => 'During Leftover',
             'email' => 'during.leftover@example.com',
+            'phone' => '+15555550132',
+            'unit_number' => 'A1',
         ])->assertCreated();
 
         Sanctum::actingAs($this->systemAdmin());
@@ -550,6 +554,8 @@ class CommunityAdminBillingLifecycleTest extends TestCase
         $this->postJson('/api/v1/admin/members/invite', [
             'name' => 'After Reapprove Billing',
             'email' => 'after.reapprove.billing@example.com',
+            'phone' => '+15555550133',
+            'unit_number' => 'A1',
         ])->assertCreated();
     }
 }

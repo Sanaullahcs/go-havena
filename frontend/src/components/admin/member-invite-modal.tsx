@@ -5,9 +5,11 @@ import { Mail, X } from "lucide-react";
 import { AdminPhoneInput } from "@/components/admin/phone-input";
 import { MemberInviteResultModal } from "@/components/admin/member-invite-result-modal";
 import { inviteMember, type MemberInviteResult } from "@/lib/api/members";
-import { apiError } from "@/lib/api/client";
+import { apiError, apiFieldErrors } from "@/lib/api/client";
 import { confirmSendMemberInvite } from "@/lib/admin/dashboard-confirmations";
 import {
+  inviteMemberNameLiveError,
+  inviteMemberUnitLiveError,
   validateInviteMemberForm,
   type InviteMemberForm,
 } from "@/lib/admin/invite-member-validation";
@@ -107,6 +109,15 @@ export function MemberInviteModal({
       toastSuccess("Invite sent");
       onSent?.();
     } catch (err) {
+      const fieldErrors = apiFieldErrors(err);
+      if (fieldErrors.phone || fieldErrors.email) {
+        setErrors((prev) => ({
+          ...prev,
+          ...(fieldErrors.email ? { email: fieldErrors.email } : {}),
+          ...(fieldErrors.phone ? { phone: fieldErrors.phone } : {}),
+        }));
+        setTouched((prev) => ({ ...prev, email: true, phone: true }));
+      }
       toastError(apiError(err));
     } finally {
       setInviting(false);
@@ -153,12 +164,11 @@ export function MemberInviteModal({
         </div>
 
         <form ref={formRef} onSubmit={handleSubmit} noValidate className="space-y-4 px-6 py-5">
-          <Field label="Full name" required error={showError("name") ? errors.name : undefined}>
+          <Field label="Full name" required error={inviteMemberNameLiveError(form.name) || (showError("name") ? errors.name : undefined)}>
             <input
               data-field="name"
-              className={inputClass(showError("name") ? errors.name : undefined)}
+              className={inputClass(inviteMemberNameLiveError(form.name) || (showError("name") ? errors.name : undefined))}
               value={form.name}
-              maxLength={100}
               onBlur={() => {
                 touch("name");
                 const next = validateInviteMemberForm(form, phone);
@@ -209,18 +219,18 @@ export function MemberInviteModal({
             />
           </Field>
 
-          <Field label="Unit (optional)" error={showError("unit") ? errors.unit : undefined}>
+          <Field label="Unit / Apartment" required error={inviteMemberUnitLiveError(form.unit) || (showError("unit") ? errors.unit : undefined)}>
             <input
               data-field="unit"
-              className={inputClass(showError("unit") ? errors.unit : undefined)}
+              className={inputClass(inviteMemberUnitLiveError(form.unit) || (showError("unit") ? errors.unit : undefined))}
               value={form.unit}
-              maxLength={50}
               onBlur={() => {
                 touch("unit");
                 const next = validateInviteMemberForm(form, phone);
                 setErrors((prev) => ({ ...prev, unit: next.unit }));
               }}
               onChange={(e) => {
+                touch("unit");
                 clearFieldError("unit");
                 setForm((f) => ({ ...f, unit: e.target.value }));
               }}

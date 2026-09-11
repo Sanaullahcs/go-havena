@@ -142,6 +142,8 @@ class ProfileController extends Controller
             ],
         ]);
 
+        $this->assertUtilityBillPresentIfRequired($user, $request);
+
         if ($request->filled('name')) {
             $user->update(['name' => $request->name]);
         }
@@ -347,6 +349,28 @@ class ProfileController extends Controller
         return in_array($tokenName, ['web-admin', 'web_admin'], true)
             ? 'community_admin_dashboard'
             : null;
+    }
+
+    private function assertUtilityBillPresentIfRequired(User $user, Request $request): void
+    {
+        $isCompletingProfile = $request->filled('display_name') || $request->filled('unit_number');
+        if (! $isCompletingProfile) {
+            return;
+        }
+
+        if (AdminRoleService::isGuest($user) || AdminRoleService::isSystemAdmin($user)) {
+            return;
+        }
+
+        $user->unsetRelation('profile');
+        $user->load('profile');
+        if (filled($user->profile?->utility_bill_url)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'utility_bill' => ['Lease or utility bill is required.'],
+        ]);
     }
 
     private function maybeAwardProfileCompleted($user): void

@@ -226,7 +226,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return () => {
       cancelled = true;
     };
-  }, [router, pathname]);
+    // Fetch session once per mount. Re-running on every pathname/router identity
+    // change remounts the admin shell into AuthShellSkeleton / onboarding chrome.
+  }, [router]);
 
   useEffect(() => {
     if (!checked || accessBlocked || onboardingOnly) return;

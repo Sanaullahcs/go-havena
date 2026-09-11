@@ -237,16 +237,18 @@ export function DashboardMembersBarChart({
 const STATUS_COLORS: Record<string, string> = {
   approved: NL.success,
   pending: NL.warning,
+  invitation_sent: "#64748B",
   banned: NL.danger,
   rejected: "#94A3B8",
   onboarding: CHART_PRIMARY,
 };
 
-const STATUS_ORDER = ["approved", "pending", "onboarding", "banned", "rejected"] as const;
+const STATUS_ORDER = ["approved", "pending", "invitation_sent", "onboarding", "banned", "rejected"] as const;
 
 const STATUS_LABELS: Record<string, string> = {
-  approved: "Approved",
+  approved: "Active",
   pending: "Pending",
+  invitation_sent: "Invitation Sent",
   onboarding: "Onboarding",
   banned: "Suspended",
   rejected: "Rejected",
@@ -273,8 +275,9 @@ export function DashboardMembersPieChart({
   const total = statusData.reduce((sum, item) => sum + item.value, 0);
   const active = statusData.find((item) => item.status === "approved")?.value ?? 0;
   const pending = statusData.find((item) => item.status === "pending")?.value ?? 0;
+  const invitationSent = statusData.find((item) => item.status === "invitation_sent")?.value ?? 0;
   const onboarding = statusData.find((item) => item.status === "onboarding")?.value ?? 0;
-  const needsAttention = pending + onboarding + (statusData.find((item) => item.status === "banned")?.value ?? 0);
+  const needsAttention = pending + invitationSent + onboarding + (statusData.find((item) => item.status === "banned")?.value ?? 0);
   const activeRate = total > 0 ? Math.round((active / total) * 100) : 0;
   const chartSlices = useMemo(() => statusData.filter((item) => item.value > 0), [statusData]);
 
@@ -283,11 +286,13 @@ export function DashboardMembersPieChart({
   const insight =
     pending > 0
       ? `${pending} membership${pending === 1 ? "" : "s"} waiting for your review.`
-      : onboarding > 0
-        ? `${onboarding} resident${onboarding === 1 ? "" : "s"} still completing onboarding.`
-        : activeRate === 100
-          ? "All members are approved and active in your community."
-          : `${activeRate}% of members are fully approved.`;
+      : invitationSent > 0
+        ? `${invitationSent} invitation${invitationSent === 1 ? "" : "s"} awaiting signup.`
+        : onboarding > 0
+          ? `${onboarding} resident${onboarding === 1 ? "" : "s"} still completing onboarding.`
+          : activeRate === 100
+            ? "All members are approved and active in your community."
+            : `${activeRate}% of members are fully approved.`;
 
   if (variant === "minimal") {
     const visibleStatuses = statusData.filter((item) => item.value > 0 || item.status === "approved" || item.status === "pending");
@@ -362,6 +367,7 @@ export function DashboardMembersPieChart({
       <div className="flex flex-wrap gap-2">
         <MetricPill label="Active rate" value={`${activeRate}%`} accent={activeRate >= 80} compact />
         <MetricPill label="Pending" value={pending.toLocaleString()} accent={pending > 0} compact />
+        <MetricPill label="Invitation Sent" value={invitationSent.toLocaleString()} compact />
         <MetricPill label="Onboarding" value={onboarding.toLocaleString()} compact />
       </div>
 

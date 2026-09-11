@@ -104,6 +104,20 @@ class AdminUserCreationTest extends TestCase
             'display_name' => 'Ahmed Admin',
             'email' => 'ahmed.login@example.com',
             'unit_number' => 'Office',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['utility_bill']);
+
+        $admin->unsetRelation('profile');
+        $admin->profile()->updateOrCreate(
+            ['user_id' => $admin->id],
+            ['utility_bill_url' => '/storage/utility-bills/ahmed.jpg'],
+        );
+        $admin->refresh();
+
+        $this->putJson('/api/v1/me', [
+            'display_name' => 'Ahmed Admin',
+            'email' => 'ahmed.login@example.com',
+            'unit_number' => 'Office',
         ])->assertOk();
 
         $this->getJson('/api/v1/me')

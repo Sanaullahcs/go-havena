@@ -125,6 +125,10 @@ class CommunityAdminAccessService
             return false;
         }
 
+        if (! $this->hasRequiredUtilityBill($user)) {
+            return false;
+        }
+
         // System-admin invite/create writes a stub profile; first login must complete it.
         if ($this->isUnsubmittedOnboardingProfile($profile)) {
             return false;
@@ -151,6 +155,18 @@ class CommunityAdminAccessService
         }
 
         return $profile->updated_at->getTimestamp() <= $profile->created_at->getTimestamp() + 2;
+    }
+
+    private function hasRequiredUtilityBill(User $user): bool
+    {
+        if (AdminRoleService::isGuest($user) || AdminRoleService::isSystemAdmin($user)) {
+            return true;
+        }
+
+        $user->unsetRelation('profile');
+        $user->load('profile');
+
+        return filled($user->profile?->utility_bill_url);
     }
 
     /**

@@ -189,6 +189,7 @@ class CommunityBillingTest extends TestCase
             ->postJson('/api/v1/admin/members/invite', [
                 'name' => 'Jane Resident',
                 'email' => 'jane.billing@example.com',
+                'phone' => '+15555550123',
                 'unit_number' => 'A1',
             ])
             ->assertCreated();
@@ -227,6 +228,8 @@ class CommunityBillingTest extends TestCase
             ->postJson('/api/v1/admin/members/invite', [
                 'name' => 'Overflow',
                 'email' => 'overflow@example.com',
+                'phone' => '+15555550124',
+                'unit_number' => 'A1',
             ])
             ->assertStatus(422)
             ->assertJsonPath('code', 'SEATS_FULL');

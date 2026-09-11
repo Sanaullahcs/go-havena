@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Calendar,
@@ -27,6 +27,7 @@ import type { Member } from "@/lib/api/members";
 
 type Props = {
   member: Member | null;
+  communityId?: number;
   onClose: () => void;
 };
 
@@ -51,7 +52,7 @@ function statusStyle(status: string) {
   if (key === "approved" || key === "active" || key === "published") {
     return { bg: "#ECFDF5", color: "#059669", border: "rgba(16, 185, 129, 0.25)" };
   }
-  if (key === "pending" || key === "draft" || key === "onboarding") {
+  if (key === "pending" || key === "draft" || key === "onboarding" || key === "invitation_sent") {
     return { bg: "#FFFBEB", color: "#D97706", border: "rgba(217, 119, 6, 0.25)" };
   }
   if (key === "rejected" || key === "deleted" || key === "banned") {
@@ -311,7 +312,7 @@ const DATE_PRESETS: { id: DatePreset; label: string }[] = [
   { id: "week", label: "Last 7 days" },
 ];
 
-export function ResidentActivityModal({ member, onClose }: Props) {
+export function ResidentActivityModal({ member, communityId, onClose }: Props) {
   const [logs, setLogs] = useState<MemberActivityLog[]>([]);
   const [meta, setMeta] = useState<MemberActivityMeta | null>(null);
   const [loading, setLoading] = useState(false);
@@ -332,15 +333,19 @@ export function ResidentActivityModal({ member, onClose }: Props) {
     return {};
   }, [datePreset, customDate]);
 
-  const load = useCallback(async () => {
-    if (!member) return;
+  const memberId = member?.id ?? null;
+  const memberCommunityId = communityId ?? member?.community_id ?? undefined;
+  const hasLoadedLogs = useRef(false);
 
-    setLoading(true);
+  const load = useCallback(async () => {
+    if (!memberId) return;
+
+    if (!hasLoadedLogs.current) setLoading(true);
     setError(null);
 
     try {
-      const res = await fetchMemberActivityLogs(member.id, {
-        communityId: member.community_id ?? undefined,
+      const res = await fetchMemberActivityLogs(memberId, {
+        communityId: memberCommunityId,
         search: debouncedSearch || undefined,
         ...dateParams,
         page,
@@ -348,6 +353,7 @@ export function ResidentActivityModal({ member, onClose }: Props) {
       });
       setLogs(res.data);
       setMeta(res.meta);
+      hasLoadedLogs.current = true;
     } catch (err) {
       setLogs([]);
       setMeta(null);
@@ -355,7 +361,7 @@ export function ResidentActivityModal({ member, onClose }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [member, debouncedSearch, dateParams, page]);
+  }, [memberId, memberCommunityId, debouncedSearch, dateParams, page]);
 
   useEffect(() => {
     setMounted(true);
@@ -367,6 +373,7 @@ export function ResidentActivityModal({ member, onClose }: Props) {
       return;
     }
 
+    hasLoadedLogs.current = false;
     setPage(1);
     setSearch("");
     setDatePreset("all");
@@ -386,9 +393,9 @@ export function ResidentActivityModal({ member, onClose }: Props) {
   }, [member?.id]);
 
   useEffect(() => {
-    if (!member) return;
+    if (!memberId) return;
     setPage(1);
-  }, [member, debouncedSearch, datePreset, customDate]);
+  }, [memberId, debouncedSearch, datePreset, customDate]);
 
   useEffect(() => {
     load();
@@ -551,13 +558,19 @@ export function ResidentActivityModal({ member, onClose }: Props) {
               style={{ borderColor: NL.borderCard, background: NL.surfaceMuted }}
             >
               <p className="text-[13px] font-semibold" style={{ color: NL.textSecondary }}>
-                No activity found
+                {member.status === "invitation_sent" && !hasFilters
+                  ? "No activity available yet. This invitation has not been accepted."
+                  : member.status === "onboarding" && !hasFilters
+                    ? "No activity available yet. This member is still completing onboarding."
+                    : "No activity found"}
               </p>
-              <p className="mt-1 text-[12px]" style={{ color: NL.textMuted }}>
-                {hasFilters
-                  ? "Try a different search term or date range."
-                  : "This resident has no recorded activity yet."}
-              </p>
+              {(member.status === "invitation_sent" || member.status === "onboarding") && !hasFilters ? null : (
+                <p className="mt-1 text-[12px]" style={{ color: NL.textMuted }}>
+                  {hasFilters
+                    ? "Try a different search term or date range."
+                    : "This resident has no recorded activity yet."}
+                </p>
+              )}
             </div>
           ) : (
             groupedLogs.map((group) => (

@@ -1314,6 +1314,9 @@ body {
 .nl-calendar-popover {
   max-width: calc(100vw - 1.5rem);
 }
+.nl-calendar-popover-settled {
+  animation: none;
+}
 .nl-time-popover {
   max-width: calc(100vw - 1.5rem);
 }
@@ -1337,6 +1340,51 @@ body {
   font-size: 0.8125rem;
   font-weight: 700;
   color: #0f172a;
+}
+.nl-calendar-title-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  border-radius: 0.5rem;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #0f172a;
+  transition: background 150ms ease;
+}
+.nl-calendar-title-btn:hover {
+  background: #f1f5f9;
+}
+.nl-calendar-title-btn:focus-visible {
+  outline: 2px solid var(--brand-primary-deep);
+  outline-offset: 2px;
+}
+.nl-calendar-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.25rem;
+  min-height: 10.5rem;
+  padding: 0.5rem 0.625rem 0.75rem;
+}
+.nl-calendar-meta-cell {
+  display: flex;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #334155;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.nl-calendar-meta-cell:hover {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+.nl-calendar-meta-cell:focus-visible {
+  outline: 2px solid var(--brand-primary-deep);
+  outline-offset: 1px;
 }
 .nl-calendar-nav {
   display: flex;

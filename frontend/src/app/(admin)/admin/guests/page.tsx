@@ -33,6 +33,11 @@ import {
   type GuestPermissions,
 } from "@/lib/api/guests";
 import { inputClass } from "@/lib/admin/form-validation-utils";
+import {
+  canSubmitGuestInvite,
+  guestEmailFieldError,
+  guestNameFieldError,
+} from "@/lib/admin/guest-invite-validation";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { adminTableBusy, isAdminSearchPending, shouldSkipStalePageFetch } from "@/lib/admin/table-loading";
@@ -312,18 +317,16 @@ export default function GuestsPage() {
 
   const activityGroups = useMemo(() => groupActivityByDay(activity), [activity]);
 
+  const nameError = guestNameFieldError(form.guest_name);
+  const emailError = guestEmailFieldError(form.guest_email);
+  const canCreateInvitation = canSubmitGuestInvite(form, phoneField) && !submitting;
+
   const handleInvite = async () => {
-    if (!form.guest_name.trim() || !form.guest_email.trim() || !form.starts_at || !form.ends_at) {
-      toastError("Fill in all required fields, including email.");
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.guest_email.trim())) {
-      toastError("Enter a valid email address.");
-      return;
-    }
-    if (phoneField.digits && (!phoneField.valid || !phoneField.e164)) {
-      setPhoneShowError(true);
-      toastError("Enter a valid phone number, or leave phone blank.");
+    if (!canSubmitGuestInvite(form, phoneField)) {
+      if (phoneField.digits && (!phoneField.valid || !phoneField.e164)) {
+        setPhoneShowError(true);
+        toastError("Enter a valid phone number, or leave phone blank.");
+      }
       return;
     }
     setSubmitting(true);
@@ -435,7 +438,7 @@ export default function GuestsPage() {
           <p className="nl-eyebrow">Community Admin</p>
           <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Guest Users</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Invite temporary guests, review resident requests, and manage access windows.
+            Invite temporary guests, review resident requests and manage access windows.
           </p>
         </div>
         <button type="button" onClick={() => { setForm({ ...emptyForm, ...defaultInviteWindow() }); setPhoneField(emptyPhoneField()); setPhoneShowError(false); setInviteFormKey((k) => k + 1); setShowForm(true); }} className="nl-btn-primary">
@@ -564,7 +567,7 @@ export default function GuestsPage() {
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center">
           <div className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200">
-            <div className="border-b border-slate-100 bg-gradient-to-r from-indigo-600 to-sky-500 px-6 py-5 text-white">
+            <div className="border-b border-slate-100 bg-gradient-to-r from-[var(--navy)] via-[#163A66] to-[var(--deep-teal)] px-6 py-5 text-white">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
                   <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20">
@@ -590,14 +593,29 @@ export default function GuestsPage() {
                       <UserPlus className="h-3.5 w-3.5 text-slate-400" />
                       Guest Name *
                     </label>
-                    <input className={inputClass(false, "nl-input")} value={form.guest_name} onChange={(e) => setForm((f) => ({ ...f, guest_name: e.target.value }))} placeholder="e.g. Alex Johnson" />
+                    <input
+                      className={inputClass(nameError, "nl-input")}
+                      value={form.guest_name}
+                      onChange={(e) => setForm((f) => ({ ...f, guest_name: e.target.value }))}
+                      placeholder="e.g. Alex Johnson"
+                      aria-invalid={Boolean(nameError)}
+                    />
+                    {nameError ? <p className="mt-1 text-xs text-red-600">{nameError}</p> : null}
                   </div>
                   <div>
                     <label className="mb-1.5 flex items-center gap-2 text-[13px] font-medium text-slate-700">
                       <Mail className="h-3.5 w-3.5 text-slate-400" />
                       Email *
                     </label>
-                    <input type="email" className={inputClass(false, "nl-input")} value={form.guest_email} onChange={(e) => setForm((f) => ({ ...f, guest_email: e.target.value }))} placeholder="guest@email.com" />
+                    <input
+                      type="email"
+                      className={inputClass(emailError, "nl-input")}
+                      value={form.guest_email}
+                      onChange={(e) => setForm((f) => ({ ...f, guest_email: e.target.value }))}
+                      placeholder="guest@email.com"
+                      aria-invalid={Boolean(emailError)}
+                    />
+                    {emailError ? <p className="mt-1 text-xs text-red-600">{emailError}</p> : null}
                   </div>
                   <div>
                     <label className="mb-1.5 flex items-center gap-2 text-[13px] font-medium text-slate-700">
@@ -700,7 +718,12 @@ export default function GuestsPage() {
 
             <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50/80 px-6 py-4">
               <button type="button" onClick={() => setShowForm(false)} className="nl-btn-secondary">Cancel</button>
-              <button type="button" onClick={handleInvite} disabled={submitting} className="nl-btn-primary disabled:opacity-60">
+              <button
+                type="button"
+                onClick={handleInvite}
+                disabled={!canCreateInvitation}
+                className="nl-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+              >
                 <Plus />
                 {submitting ? "Creating…" : "Create Invitation"}
               </button>

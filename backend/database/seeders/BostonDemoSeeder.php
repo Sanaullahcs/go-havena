@@ -114,6 +114,7 @@ class BostonDemoSeeder extends Seeder
         $this->upsertProfile($admin, [
             'display_name' => 'Elena Vasquez',
             'avatar_url' => '/storage/seed/avatar-admin.jpg',
+            'utility_bill_url' => '/storage/seed/utility-bill-admin.jpg',
             'unit_number' => 'Management Office',
             'residence_type' => 'Management',
             'bio' => 'Community manager at Harbor Point Residences. I look after notices, amenities, and day-to-day resident services for our Seaport neighbors.',
@@ -149,6 +150,7 @@ class BostonDemoSeeder extends Seeder
         $this->upsertProfile($resident, [
             'display_name' => 'James Whitaker',
             'avatar_url' => '/storage/seed/avatar-alex.jpg',
+            'utility_bill_url' => '/storage/seed/utility-bill-resident.jpg',
             'unit_number' => '1204',
             'residence_type' => 'homeowner',
             'bio' => 'Harbor Point homeowner in the Seaport. I work in downtown Boston and spend weekends on the Harborwalk, at SoWa, and catching a game when I can.',

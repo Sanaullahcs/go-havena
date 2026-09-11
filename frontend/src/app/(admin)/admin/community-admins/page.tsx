@@ -670,7 +670,10 @@ function CommunityAdminDetailModal({
 
           {!isReassignRow && item.profile?.utility_bill_url ? (
             <div className="border-t border-slate-100 pt-3">
-              <UtilityBillPreview url={item.profile.utility_bill_url} />
+              <UtilityBillPreview
+                url={item.profile.utility_bill_url}
+                reviewStatus={item.profile.utility_bill_review_status}
+              />
             </div>
           ) : null}
 

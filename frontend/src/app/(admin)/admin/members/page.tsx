@@ -25,7 +25,7 @@ import {
   type MemberStats,
   type MembershipStatus,
 } from "@/lib/api/members";
-import { apiError } from "@/lib/api/client";
+import { apiError, apiFieldErrors } from "@/lib/api/client";
 import { fetchBilling, isCommunityBillingExempt, type BillingPayload } from "@/lib/api/billing";
 import { getManagedCommunityId, getUser, isSystemAdminUser } from "@/lib/auth/session";
 import { PageLoader, PageError } from "@/components/shared/page-states";
@@ -42,16 +42,21 @@ import { ResidentActivityModal } from "@/components/admin/resident-activity-moda
 import { formatDisplayEmail } from "@/lib/user/email-display";
 import type { MemberInviteResult } from "@/lib/api/members";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
-import { validateSystemMemberInviteForm } from "@/lib/admin/invite-member-validation";
+import {
+  inviteMemberNameLiveError,
+  inviteMemberUnitLiveError,
+  validateSystemMemberInviteForm,
+} from "@/lib/admin/invite-member-validation";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
 import { emptyPhoneField, type PhoneFieldState } from "@/lib/phone/format";
 
 const STATUS_META: Record<MembershipStatus, { tone: "green" | "amber" | "slate" | "red" | "blue"; label: string }> = {
-  approved:   { tone: "green", label: "Active" },
-  pending:    { tone: "amber", label: "Pending" },
-  onboarding: { tone: "blue",  label: "Onboarding" },
-  banned:     { tone: "red",   label: "Suspended" },
-  rejected:   { tone: "slate", label: "Rejected" },
+  approved:         { tone: "green", label: "Active" },
+  pending:          { tone: "amber", label: "Pending" },
+  invitation_sent:  { tone: "slate", label: "Invitation Sent" },
+  onboarding:       { tone: "blue",  label: "Onboarding" },
+  banned:           { tone: "red",   label: "Suspended" },
+  rejected:         { tone: "slate", label: "Rejected" },
 };
 
 const ROLE_STYLE: Record<string, string> = {
@@ -63,7 +68,11 @@ const ROLE_STYLE: Record<string, string> = {
 
 type Filter = "all" | MembershipStatus;
 
-const EMPTY_STATS: MemberStats = { total: 0, approved: 0, pending: 0, banned: 0, rejected: 0, onboarding: 0 };
+const EMPTY_STATS: MemberStats = { total: 0, approved: 0, pending: 0, banned: 0, rejected: 0, onboarding: 0, invitation_sent: 0 };
+
+function isCancellableInvitation(m: Member) {
+  return !m.membership_id && (m.status === "invitation_sent" || m.status === "onboarding");
+}
 
 function contactDisplay(m: Member) {
   const email = formatDisplayEmail(m.email);
@@ -93,7 +102,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   const searchParams = useSearchParams();
   const initialFilter = (searchParams.get("status") as Filter | null) ?? "all";
   const [filter, setFilter] = useState<Filter>(
-    ["all", "approved", "pending", "banned", "rejected", "onboarding"].includes(initialFilter)
+    ["all", "approved", "pending", "banned", "rejected", "onboarding", "invitation_sent"].includes(initialFilter)
       ? initialFilter
       : "all",
   );
@@ -105,7 +114,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   const [form, setForm] = useState({ name: "", email: "", unit: "", communityId: "" });
   const [invitePhone, setInvitePhone] = useState<PhoneFieldState>(emptyPhoneField());
   const [phoneResetKey, setPhoneResetKey] = useState(0);
-  const { touch, clearError, showError, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
+  const { touch, clearError, showError, setErrors, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
   const [communities, setCommunities] = useState<AdminCommunityOption[]>([]);
   const [communitiesLoading, setCommunitiesLoading] = useState(false);
   const [viewing, setViewing] = useState<Member | null>(null);
@@ -138,6 +147,8 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
     [form, invitePhone],
   );
   const canInvite = !hasFieldErrors(inviteLiveErrors);
+  const nameShownError = inviteMemberNameLiveError(form.name) || showError("name", inviteLiveErrors);
+  const unitShownError = inviteMemberUnitLiveError(form.unit) || showError("unit", inviteLiveErrors);
 
   const load = useCallback(async (silent = false) => {
     if (!hasLoadedOnce.current) {
@@ -204,11 +215,12 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
     { label: isSystemResidents ? "Total Residents" : "Total Members", value: String(stats.total), hint: isSystemResidents ? "Across all communities" : "All community members", tone: "blue" as const, icon: <IcoMembers /> },
     { label: "Pending Approval", value: String(stats.pending), hint: "Awaiting review", tone: "amber" as const, icon: <IcoClock /> },
     { label: "Active", value: String(stats.approved), hint: "Approved residents", tone: "green" as const, icon: <IcoActivity /> },
-    { label: "Onboarding", value: String(stats.onboarding), hint: "Profile incomplete", tone: "cyan" as const, icon: <IcoUser /> },
+    { label: "Invitation Sent", value: String(stats.invitation_sent ?? 0), hint: "Awaiting signup", tone: "slate" as const, icon: <IcoUser /> },
+    { label: "Onboarding", value: String(stats.onboarding ?? 0), hint: "Signup started", tone: "cyan" as const, icon: <IcoUser /> },
     { label: "Suspended", value: String(stats.banned), hint: "Banned from community", tone: "slate" as const, icon: <IcoBanStat /> },
   ], [stats, isSystemResidents]);
 
-  const filters = (["all", "approved", "pending", "onboarding", "banned", "rejected"] as Filter[]).map((f) => ({
+  const filters = (["all", "approved", "pending", "invitation_sent", "onboarding", "banned", "rejected"] as Filter[]).map((f) => ({
     key: f,
     label: f === "all" ? "All" : STATUS_META[f as MembershipStatus]?.label ?? f,
     count: f === "all" ? stats.total : stats[f as keyof MemberStats],
@@ -585,17 +597,29 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                                   },
                                 },
                                 {
-                                  label: "Delete member",
+                                  label: isCancellableInvitation(m) ? "Cancel invitation" : "Delete member",
                                   icon: "delete",
                                   tone: "danger",
                                   hidden: isSystemResidents || m.role === "admin",
                                   onClick: async () => {
-                                    const r = await confirmDelete({ title: `Delete ${m.name}?`, confirmText: "Delete" });
+                                    const canCancelInvite = isCancellableInvitation(m);
+                                    const r = await confirmDelete({
+                                      title: canCancelInvite ? `Cancel invitation for ${m.name}?` : `Delete ${m.name}?`,
+                                      text: canCancelInvite
+                                        ? "This cancels the pending invite. They will not be able to join with this code."
+                                        : undefined,
+                                      confirmText: canCancelInvite ? "Cancel invitation" : "Delete",
+                                    });
                                     if (r.isConfirmed) {
                                       setProfileActionLoading(true);
                                       try {
-                                        await deleteMember(m.id);
-                                        toastSuccess(`${m.name} deleted.`);
+                                        await deleteMember(m.id, memberCommunityId(m));
+                                        toastSuccess(
+                                          canCancelInvite
+                                            ? "Invitation cancelled successfully."
+                                            : "Member removed successfully.",
+                                        );
+                                        if (viewing?.id === m.id) setViewing(null);
                                         await load(true);
                                       } catch (err) {
                                         toastError(apiError(err));
@@ -666,7 +690,9 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="nl-label">Full Name</label>
+                  <label className="nl-label">
+                    Full Name <span className="text-red-500">*</span>
+                  </label>
                   <input
                     value={form.name}
                     onChange={(e) => {
@@ -674,27 +700,29 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                       setForm((f) => ({ ...f, name: e.target.value }));
                     }}
                     onBlur={() => touch("name")}
-                    className={inputClass(showError("name", inviteLiveErrors), "nl-input mt-1.5")}
+                    className={inputClass(nameShownError, "nl-input mt-1.5")}
                     placeholder="e.g. Sarah Mitchell"
                   />
-                  {showError("name", inviteLiveErrors) ? (
-                    <p className="mt-1 text-xs text-red-600">{showError("name", inviteLiveErrors)}</p>
+                  {nameShownError ? (
+                    <p className="mt-1 text-xs text-red-600">{nameShownError}</p>
                   ) : null}
                 </div>
                 <div>
-                  <label className="nl-label">Unit / Apartment</label>
+                  <label className="nl-label">
+                    Unit / Apartment <span className="text-red-500">*</span>
+                  </label>
                   <input
                     value={form.unit}
                     onChange={(e) => {
-                      clearError("unit");
+                      touch("unit");
                       setForm((f) => ({ ...f, unit: e.target.value }));
                     }}
                     onBlur={() => touch("unit")}
-                    className={inputClass(showError("unit", inviteLiveErrors), "nl-input mt-1.5")}
+                    className={inputClass(unitShownError, "nl-input mt-1.5")}
                     placeholder="e.g. B-12"
                   />
-                  {showError("unit", inviteLiveErrors) ? (
-                    <p className="mt-1 text-xs text-red-600">{showError("unit", inviteLiveErrors)}</p>
+                  {unitShownError ? (
+                    <p className="mt-1 text-xs text-red-600">{unitShownError}</p>
                   ) : null}
                 </div>
               </div>
@@ -772,6 +800,16 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                     toastSuccess(`Invitation sent to ${memberEmail}`);
                     load(true);
                   } catch (err) {
+                    const fieldErrors = apiFieldErrors(err);
+                    if (fieldErrors.phone || fieldErrors.email) {
+                      setErrors((prev) => ({
+                        ...prev,
+                        ...(fieldErrors.email ? { email: fieldErrors.email } : {}),
+                        ...(fieldErrors.phone ? { phone: fieldErrors.phone } : {}),
+                      }));
+                      touch("email");
+                      touch("phone");
+                    }
                     toastError(apiError(err));
                     setInviting(false);
                   }
@@ -801,6 +839,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
       <ResidentActivityModal
         key={activityMember?.id ?? "closed"}
         member={activityMember}
+        communityId={activityMember ? memberCommunityId(activityMember) : undefined}
         onClose={() => setActivityMember(null)}
       />
 
