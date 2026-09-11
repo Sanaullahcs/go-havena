@@ -1,0 +1,71 @@
+# EAS reads this file from the git root only. apps/mobile/.easignore is ignored.
+# If this file exists, .gitignore is not used — keep both in sync for secrets.
+
+# Other apps and local deploy leftovers (mobile builds do not need these)
+.git/
+.deploy/
+.tmp/
+frontend/
+backend/
+landing-page/
+docs/
+design/
+scripts/
+.cursor/
+.claude/
+.vscode/
+App Store Screenshots/
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+
+# Expo / web build leftovers
+.expo/
+**/.expo/
+**/.expo-*/
+dist/
+web-build/
+expo-env.d.ts
+**/.next/
+out/
+
+# Generated native projects. Keep the custom locale native module.
+**/ios/
+!apps/mobile/modules/**/ios/
+!apps/mobile/modules/**/ios/**
+**/android/
+!apps/mobile/modules/**/android/
+!apps/mobile/modules/**/android/**
+apps/mobile/modules/**/android/build/
+apps/mobile/modules/**/ios/build/
+
+# Secrets and local credentials (EAS uploads these separately)
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+apps/mobile/apple-secrets/
+apps/mobile/android-secrets/
+apps/mobile/credentials.json
+apps/mobile/google-services.json
+apps/mobile/GoogleService-Info.plist
+apps/mobile/.ngrok-token
+.env
+.env*.local
+
+# Store listing assets and local Expo QR / check folders
+apps/mobile/store/
+apps/mobile/.tmp*/
+apps/mobile/*.ps1
+apps/mobile/*.html
+apps/mobile/*.log
+apps/mobile/expo-qr*.png
+apps/mobile/expo-go-qr.png
+*.tgz
+*.csv
+Thumbs.db
+.DS_Store
