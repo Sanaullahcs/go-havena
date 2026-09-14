@@ -12,6 +12,8 @@ export interface ProvisionUserPayload {
   community_address?: string;
   community_description?: string;
   community_id?: number;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface ProvisionedUser {

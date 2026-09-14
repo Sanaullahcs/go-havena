@@ -43,6 +43,53 @@ class AdminCommunityCrudTest extends TestCase
         ]);
     }
 
+    public function test_creating_community_keeps_description_separate_from_address(): void
+    {
+        Sanctum::actingAs($this->systemAdmin());
+
+        $region = Region::query()->create([
+            'title'       => 'Cairo Metro',
+            'area'        => 'Cairo',
+            'users_label' => '0 users',
+            'sort_order'  => 1,
+            'status'      => 'active',
+        ]);
+
+        $this->postJson('/api/v1/admin/communities', [
+            'name'        => 'Oak Valley Residences',
+            'region_id'   => $region->id,
+            'address'     => 'West Pinnacle Peak Road, Phoenix, AZ',
+            'description' => 'Quiet hillside community.',
+        ])->assertCreated()
+            ->assertJsonPath('data.address', 'West Pinnacle Peak Road, Phoenix, AZ')
+            ->assertJsonPath('data.description', 'Quiet hillside community.');
+
+        $this->assertDatabaseHas('communities', [
+            'name'        => 'Oak Valley Residences',
+            'address'     => 'West Pinnacle Peak Road, Phoenix, AZ',
+            'description' => 'Quiet hillside community.',
+        ]);
+    }
+
+    public function test_creating_community_requires_address(): void
+    {
+        Sanctum::actingAs($this->systemAdmin());
+
+        $region = Region::query()->create([
+            'title'       => 'Cairo Metro',
+            'area'        => 'Cairo',
+            'users_label' => '0 users',
+            'sort_order'  => 1,
+            'status'      => 'active',
+        ]);
+
+        $this->postJson('/api/v1/admin/communities', [
+            'name'      => 'No Address Place',
+            'region_id' => $region->id,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['address']);
+    }
+
     public function test_system_admin_can_update_community(): void
     {
         Sanctum::actingAs($this->systemAdmin());

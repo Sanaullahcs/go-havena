@@ -41,6 +41,7 @@ import { Check, X } from "lucide-react";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
 import { validateCommunityForm } from "@/lib/admin/community-form-validation";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
+import { CommunityAddressPicker } from "@/components/admin/community-address-picker";
 
 type Tab = "communities" | "requests";
 
@@ -58,6 +59,8 @@ const emptyForm = {
   name: "",
   region_id: "" as number | "",
   address: "",
+  latitude: null as number | null,
+  longitude: null as number | null,
   description: "",
 };
 
@@ -186,6 +189,8 @@ export default function CommunitiesPage() {
       name: community.name,
       region_id: community.region_id ?? "",
       address: community.address ?? "",
+      latitude: community.latitude ?? null,
+      longitude: community.longitude ?? null,
       description: community.description ?? "",
     });
     resetTouched();
@@ -200,8 +205,10 @@ export default function CommunitiesPage() {
       const payload = {
         name: form.name.trim(),
         region_id: Number(form.region_id),
-        address: form.address.trim() || undefined,
+        address: form.address.trim(),
         description: form.description.trim() || undefined,
+        latitude: form.latitude,
+        longitude: form.longitude,
       };
 
       if (editing) {
@@ -545,7 +552,7 @@ export default function CommunitiesPage() {
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200">
+          <div className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">
@@ -560,7 +567,7 @@ export default function CommunitiesPage() {
               </div>
               <button type="button" onClick={() => { setModalOpen(false); setEditing(null); }} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">✕</button>
             </div>
-            <div className="space-y-4 px-6 py-5">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
               <div>
                 <label className="nl-label">Region <span className="text-red-500">*</span></label>
                 <select
@@ -600,13 +607,27 @@ export default function CommunitiesPage() {
                 ) : null}
               </div>
               <div>
-                <label className="nl-label">Address</label>
-                <input
-                  value={form.address}
-                  onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-                  className="nl-input mt-1.5"
-                  placeholder="123 Main Street, City, State"
-                />
+                <label className="nl-label">Address <span className="text-red-500">*</span></label>
+                <div className="mt-1.5">
+                  <CommunityAddressPicker
+                    required
+                    value={{
+                      address: form.address,
+                      latitude: form.latitude,
+                      longitude: form.longitude,
+                    }}
+                    onChange={(next) => {
+                      clearError("address");
+                      setForm((f) => ({ ...f, ...next }));
+                    }}
+                    onBlur={() => touch("address")}
+                    inputClassName={inputClass(showError("address", liveErrors), "nl-input")}
+                    placeholder="123 Main Street, City, State"
+                  />
+                </div>
+                {showError("address", liveErrors) ? (
+                  <p className="mt-1 text-xs text-red-600">{showError("address", liveErrors)}</p>
+                ) : null}
               </div>
               <div>
                 <label className="nl-label">Description</label>

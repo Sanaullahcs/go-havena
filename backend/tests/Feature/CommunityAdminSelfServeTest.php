@@ -72,9 +72,42 @@ class CommunityAdminSelfServeTest extends TestCase
 
         $this->assertDatabaseHas('communities', [
             'name' => 'Palm Court HOA',
+            'address' => '100 Palm Ave, Miami, FL',
+            'description' => null,
             'status' => 'inactive',
             'review_status' => 'pending',
             'estimated_residents' => 120,
+        ]);
+    }
+
+    public function test_self_serve_saves_description_separately_from_address(): void
+    {
+        $region = Region::query()->create([
+            'title' => 'Florida',
+            'area' => 'FL',
+            'users_label' => '0 users',
+            'sort_order' => 1,
+            'status' => 'active',
+        ]);
+
+        $admin = User::factory()->create([
+            'role' => 'community_admin',
+            'community_admin_status' => 'pending',
+            'status' => 'active',
+            'name' => '',
+        ]);
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/v1/communities/self-serve', [
+            'community_name' => 'Palm Court HOA',
+            'address' => '100 Palm Ave, Miami, FL',
+            'description' => 'Gated community near the waterfront.',
+            'region_id' => $region->id,
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('communities', [
+            'name' => 'Palm Court HOA',
+            'address' => '100 Palm Ave, Miami, FL',
+            'description' => 'Gated community near the waterfront.',
         ]);
     }
 }

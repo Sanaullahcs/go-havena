@@ -25,6 +25,7 @@ import {
   type ProvisionedUser,
 } from "@/lib/api/users";
 import { alertError, toastError, toastSuccess } from "@/lib/alert";
+import { CommunityAddressPicker } from "@/components/admin/community-address-picker";
 
 const emptyAdminForm = {
   name: "",
@@ -36,6 +37,8 @@ const emptyAdminForm = {
   community_name: "",
   community_address: "",
   community_description: "",
+  latitude: null as number | null,
+  longitude: null as number | null,
 };
 
 const emptyResidentForm = {
@@ -345,6 +348,8 @@ export function ProvisionUserModal({
                 community_name: adminForm.community_name.trim(),
                 community_address: adminForm.community_address.trim(),
                 community_description: adminForm.community_description.trim() || undefined,
+                latitude: adminForm.latitude,
+                longitude: adminForm.longitude,
               },
         );
         toastSuccess(res.message);
@@ -608,6 +613,8 @@ export function ProvisionUserModal({
                         community_name: "",
                         community_address: "",
                         community_description: "",
+                        latitude: null,
+                        longitude: null,
                       }));
                       clearFieldError("community_id");
                       clearFieldError("community_name");
@@ -641,6 +648,8 @@ export function ProvisionUserModal({
                         community_name: "",
                         community_address: "",
                         community_description: "",
+                        latitude: null,
+                        longitude: null,
                       }));
                     }}
                     onAddNew={() => {
@@ -709,21 +718,31 @@ export function ProvisionUserModal({
                   className="sm:col-span-2"
                   error={showError("community_address") ? errors.community_address : undefined}
                 >
-                  <input
-                    data-field="community_address"
-                    className={provisionInputClass(showError("community_address") ? errors.community_address : undefined)}
-                    value={adminForm.community_address}
-                    maxLength={500}
+                  <CommunityAddressPicker
+                    value={{
+                      address: adminForm.community_address,
+                      latitude: adminForm.latitude ?? null,
+                      longitude: adminForm.longitude ?? null,
+                    }}
+                    inputClassName={provisionInputClass(showError("community_address") ? errors.community_address : undefined)}
+                    placeholder="Street address"
                     onBlur={() => {
                       touch("community_address");
-                      const next = validateCommunityAdminForm(adminForm, adminPhone);
+                      const next = validateCommunityAdminForm(
+                        { ...adminForm, community_address: adminForm.community_address },
+                        adminPhone,
+                      );
                       setErrors((prev) => ({ ...prev, community_address: next.community_address }));
                     }}
-                    onChange={(e) => {
+                    onChange={(next) => {
                       clearFieldError("community_address");
-                      setAdminForm((f) => ({ ...f, community_address: e.target.value }));
+                      setAdminForm((f) => ({
+                        ...f,
+                        community_address: next.address,
+                        latitude: next.latitude,
+                        longitude: next.longitude,
+                      }));
                     }}
-                    placeholder="Street address"
                   />
                 </Field>
                 <Field

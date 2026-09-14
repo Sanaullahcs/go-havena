@@ -34,6 +34,7 @@ export const LIMITS = {
   dealDescription: 2000,
   communityName: 150,
   communityAddress: 255,
+  communityDescription: 1000,
   inviteCode: 64,
   inviteUnit: 50,
   ruleTitle: 200,
@@ -413,7 +414,7 @@ export function validateDealForm(form, { businessStatus, isAdmin = false } = {})
   return errors;
 }
 
-export function validateCommunityRequestForm({ communityName, address, regionId }) {
+export function validateCommunityRequestForm({ communityName, address, regionId, description }) {
   const errors = {};
 
   const nameErr = requiredText(communityName, "validation.fields.communityName", { min: 2, max: LIMITS.communityName });
@@ -421,6 +422,14 @@ export function validateCommunityRequestForm({ communityName, address, regionId 
 
   const addrErr = requiredText(address, "validation.fields.address", { min: 5, max: LIMITS.communityAddress });
   if (addrErr) errors.address = addrErr;
+
+  const notes = String(description ?? "").trim();
+  if (notes.length > LIMITS.communityDescription) {
+    errors.description = i18n.t("validation.maxChars", {
+      field: i18n.t("guests.descriptionLabel"),
+      max: LIMITS.communityDescription,
+    });
+  }
 
   if (!regionId) errors.regionId = i18n.t("validation.regionRequired");
 

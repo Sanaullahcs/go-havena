@@ -19,6 +19,8 @@ export type ProvisionAdminForm = {
   community_name: string;
   community_address: string;
   community_description: string;
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 export type ProvisionResidentForm = {

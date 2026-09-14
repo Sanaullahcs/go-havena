@@ -46,6 +46,8 @@ class UserResource extends JsonResource
                     'invite_code_used' => $m->invite_code_used,
                     'rejection_reason' => $m->rejection_reason,
                     'rejected_by' => $m->rejected_by,
+                    'created_at' => $m->created_at,
+                    'updated_at' => $m->updated_at,
                     'community' => $m->relationLoaded('community') ? [
                         'id' => $m->community->id,
                         'name' => $m->community->name,

@@ -10,6 +10,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import BackButton from "../../../components/ui/back-button";
 import RegionPicker from "../../../components/ui/region-picker";
 import { requestCommunity } from "../../../services/auth-api";
+import CommunityAddressPicker from "../../../components/ui/community-address-picker";
 import { fetchRegionsOnly } from "../../../services/regions-api";
 import { showApiFailure } from "../../../utils/auth-errors";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
@@ -54,6 +55,9 @@ export default function RequestForCommunityScreen() {
 
   const [communityName, setCommunityName] = useState("");
   const [address, setAddress] = useState("");
+  const [description, setDescription] = useState("");
+  const [latitude, setLatitude] = useState(null);
+  const [longitude, setLongitude] = useState(null);
   const [regions, setRegions] = useState([]);
   const [selectedRegionId, setSelectedRegionId] = useState(
     regionIdParam ? Number(regionIdParam) : null,
@@ -68,9 +72,10 @@ export default function RequestForCommunityScreen() {
       validateCommunityRequestForm({
         communityName,
         address,
+        description,
         regionId: selectedRegionId,
       }),
-    [communityName, address, selectedRegionId],
+    [communityName, address, description, selectedRegionId],
   );
 
   const loadRegions = useCallback(async () => {
@@ -109,7 +114,10 @@ export default function RequestForCommunityScreen() {
         const data = await requestCommunity({
           communityName: communityName.trim(),
           address: address.trim(),
+          description: description.trim(),
           regionId: selectedRegionId,
+          latitude,
+          longitude,
         });
         await dialog.showSuccess(
           t('guests.requestSentTitle'),
@@ -264,30 +272,42 @@ export default function RequestForCommunityScreen() {
           <Text style={[styles.label, styles.labelSpacing]}>
             {t('guests.addressLabel')} <Text style={styles.required}>*</Text>
           </Text>
-          <View style={[styles.addressInputWrap, showError("address", liveErrors) && styles.inputError]}>
-            <View style={[styles.addressIconSlot, { pointerEvents: "none" }]}>
-              <MapPin size={16} color={T.gray} strokeWidth={1.75} />
-            </View>
-            <View style={styles.addressTextSlot}>
-              <LocaleTextInput
-                value={address}
-                onChangeText={(text) => {
-                  setAddress(text);
-                  clearError("address");
-                }}
-                onBlur={() => touch("address")}
-                placeholder={t('guests.addressPlaceholder')}
-                placeholderTextColor={T.gray}
-                style={fieldTextStyle}
-                maxLength={LIMITS.communityAddress}
-                underlineColorAndroid="transparent"
-                textAlignVertical="center"
-                allowFontScaling={false}
-              />
-            </View>
-          </View>
+          <CommunityAddressPicker
+            value={{ address, latitude, longitude }}
+            error={Boolean(showError("address", liveErrors))}
+            placeholder={t("guests.addressPlaceholder")}
+            onBlur={() => touch("address")}
+            onChange={(next) => {
+              setAddress(next.address);
+              setLatitude(next.latitude);
+              setLongitude(next.longitude);
+              clearError("address");
+            }}
+          />
           {showError("address", liveErrors) ? (
             <Text style={styles.errorText}>{showError("address", liveErrors)}</Text>
+          ) : null}
+
+          <Text style={[styles.label, styles.labelSpacing]}>{t("guests.descriptionLabel")}</Text>
+          <View style={styles.textAreaBox}>
+            <LocaleTextInput
+              value={description}
+              onChangeText={(text) => {
+                setDescription(text);
+                clearError("description");
+              }}
+              onBlur={() => touch("description")}
+              placeholder={t("guests.descriptionPlaceholder")}
+              placeholderTextColor={T.gray}
+              style={styles.textArea}
+              maxLength={LIMITS.communityDescription}
+              multiline
+              textAlignVertical="top"
+              allowFontScaling={false}
+            />
+          </View>
+          {showError("description", liveErrors) ? (
+            <Text style={styles.errorText}>{showError("description", liveErrors)}</Text>
           ) : null}
 
           <View style={styles.stepsCard}>
@@ -488,32 +508,27 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     justifyContent: "center",
   },
-  labelSpacing: {
-    marginTop: 20,
-  },
-  addressInputWrap: {
+  textAreaBox: {
     marginTop: 8,
-    height: FIELD_BOX_HEIGHT,
+    minHeight: 96,
     borderWidth: 1,
     borderColor: T.border,
     borderRadius: 14,
     paddingHorizontal: 14,
+    paddingVertical: 12,
     backgroundColor: T.white,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    overflow: "hidden",
   },
-  addressIconSlot: {
-    width: 16,
-    height: "100%",
-    alignItems: "center",
-    justifyContent: "center",
+  textArea: {
+    fontFamily: Fonts.regular,
+    fontSize: FIELD_FONT_SIZE,
+    color: T.navy,
+    minHeight: 72,
+    margin: 0,
+    padding: 0,
+    textAlignVertical: "top",
   },
-  addressTextSlot: {
-    flex: 1,
-    height: "100%",
-    justifyContent: "center",
+  labelSpacing: {
+    marginTop: 20,
   },
   stepsCard: {
     marginTop: 20,

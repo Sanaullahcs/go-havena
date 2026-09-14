@@ -298,6 +298,10 @@ export default function RootLayout() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
+          name="screens/nearby-place-detail/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="screens/community-listings/index"
           options={{ headerShown: false }}
         />

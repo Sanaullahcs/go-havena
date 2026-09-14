@@ -91,6 +91,13 @@ class EnsureAccountAccessValid
             return true;
         }
 
+        if ($request->isMethod('GET') && (
+            str_ends_with($path, 'v1/geo/address-suggest')
+            || str_ends_with($path, 'v1/geo/address-reverse')
+        )) {
+            return true;
+        }
+
         if ($request->isMethod('POST') && (
             str_ends_with($path, 'v1/communities/request')
             || str_ends_with($path, 'v1/communities/self-serve')

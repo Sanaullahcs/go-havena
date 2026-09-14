@@ -5,7 +5,7 @@ import ScreenHeader from "./screen-header";
 import { sw } from "../../utils/responsive";
 
 /** Compact header for stack/internal screens -- always shows back chevron. */
-export default function InternalScreenHeader({ title, subtitle, onBack, right, compact = false }) {
+export default function InternalScreenHeader({ title, subtitle, onBack, right, compact = false, dense = false }) {
   const router = useRouter();
 
   return (
@@ -18,6 +18,7 @@ export default function InternalScreenHeader({ title, subtitle, onBack, right, c
       iconOnly
       padded
       compact={compact}
+      dense={dense}
     />
   );
 }

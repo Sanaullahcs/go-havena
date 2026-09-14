@@ -27,6 +27,7 @@ export default function ScreenHeader({
   compact = false,
   style,
   padded = true,
+  dense = false,
   titleAlign = "left",
 }) {
   const router = useRouter();
@@ -49,7 +50,7 @@ export default function ScreenHeader({
 
   if (layout === "back-only") {
     return (
-      <HeaderShell style={style} padded={padded}>
+      <HeaderShell style={style} padded={padded} dense={dense}>
         <View style={headerChromeStyles.navRow}>
           {backControl}
           <View style={headerChromeStyles.right}>{right ?? null}</View>
@@ -60,7 +61,7 @@ export default function ScreenHeader({
 
   if (layout === "inline" && titleAlign === "center") {
     return (
-      <HeaderShell style={style} padded={padded}>
+      <HeaderShell style={style} padded={padded} dense={dense}>
         <View style={headerChromeStyles.navRow}>
           <View style={headerChromeStyles.sideSlot}>{backControl}</View>
           <View style={headerChromeStyles.centerSlot}>
@@ -81,7 +82,7 @@ export default function ScreenHeader({
   const showInlineTitle = layout === "inline" && title;
 
   return (
-    <HeaderShell style={style} padded={padded}>
+    <HeaderShell style={style} padded={padded} dense={dense}>
       <View style={headerChromeStyles.navRow}>
         {showBack ? <View style={styles.leadSlot}>{backControl}</View> : null}
 

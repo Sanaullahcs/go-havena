@@ -42,6 +42,8 @@ use App\Http\Controllers\Api\V1\SubscriptionCouponController;
 use App\Http\Controllers\Api\V1\ReferralController;
 use App\Http\Controllers\Api\V1\ReferralProgramController;
 use App\Http\Controllers\Api\V1\PlaidController;
+use App\Http\Controllers\Api\V1\GeoController;
+use App\Http\Controllers\Api\V1\NearbyPlaceController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -108,6 +110,10 @@ Route::prefix('v1')->group(function () {
         Route::post('/communities/request',        [CommunityController::class, 'requestCommunity']);
         Route::post('/communities/self-serve',     [CommunityController::class, 'selfServeCreate']);
         Route::post('/communities/{id}/join',      [CommunityController::class, 'join']);
+
+        Route::get('/geo/address-suggest', [GeoController::class, 'suggest']);
+        Route::get('/geo/address-reverse', [GeoController::class, 'reverse']);
+        Route::get('/nearby-places', [NearbyPlaceController::class, 'index']);
 
         /* Guest invitations (resident) */
         Route::get('/guest-invitations/mine',              [ResidentGuestController::class, 'mine']);

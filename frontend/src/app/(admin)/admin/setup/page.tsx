@@ -33,6 +33,7 @@ import { apiError } from "@/lib/api/client";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
 import { validateCommunitySetupForm } from "@/lib/admin/community-setup-validation";
 import { inputClass } from "@/lib/admin/form-validation-utils";
+import { CommunityAddressPicker } from "@/components/admin/community-address-picker";
 
 type SetupView = "regions" | "communities" | "add";
 
@@ -61,6 +62,9 @@ function SetupInner() {
 
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
+  const [description, setDescription] = useState("");
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [selectingId, setSelectingId] = useState<number | null>(null);
@@ -200,7 +204,10 @@ function SetupInner() {
       await selfServeCreateCommunity({
         community_name: name.trim(),
         address: address.trim(),
+        description: description.trim() || undefined,
         region_id: selectedRegion.id,
+        latitude,
+        longitude,
       });
       await syncSessionFromMe();
       goToProfile();
@@ -343,23 +350,41 @@ function SetupInner() {
                 error={addressErr}
                 hint="Street, city, and state"
               >
-                <input
+                <CommunityAddressPicker
                   id="community-address"
-                  type="text"
-                  autoComplete="street-address"
-                  className={inputClass(
+                  value={{ address, latitude, longitude }}
+                  inputClassName={inputClass(
                     addressErr,
                     "h-12 w-full rounded-xl border border-slate-200 px-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1B4F8A] focus:ring-2 focus:ring-[#1B4F8A]/20",
                   )}
-                  value={address}
-                  onChange={(e) => {
-                    setAddress(e.target.value);
+                  placeholder="100 Palm Ave, Miami, FL"
+                  onBlur={() => touch("address")}
+                  onChange={(next) => {
+                    setAddress(next.address);
+                    setLatitude(next.latitude);
+                    setLongitude(next.longitude);
                     clearError("address");
                     setFormError(null);
                   }}
-                  onBlur={() => touch("address")}
-                  placeholder="100 Palm Ave, Miami, FL"
-                  aria-invalid={Boolean(addressErr)}
+                />
+              </OnboardingField>
+
+              <OnboardingField
+                id="community-description"
+                label="Description"
+                hint="Optional notes about this community"
+              >
+                <textarea
+                  id="community-description"
+                  rows={3}
+                  maxLength={1000}
+                  className="min-h-[88px] w-full resize-none rounded-xl border border-slate-200 px-3.5 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1B4F8A] focus:ring-2 focus:ring-[#1B4F8A]/20"
+                  value={description}
+                  onChange={(e) => {
+                    setDescription(e.target.value);
+                    setFormError(null);
+                  }}
+                  placeholder="Optional notes about this community"
                 />
               </OnboardingField>
 

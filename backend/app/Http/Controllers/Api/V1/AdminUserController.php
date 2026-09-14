@@ -12,6 +12,8 @@ use App\Services\ActivityLogService;
 use App\Services\CommunityLifecycleService;
 use App\Services\ContactIdentityService;
 use App\Services\LifecycleMailService;
+use App\Services\OsmGeocodingService;
+use App\Support\CommunityLocation;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -50,6 +52,7 @@ class AdminUserController extends Controller
                 'max:500',
             ],
             'community_description' => ['nullable', 'string', 'max:1000'],
+            ...CommunityLocation::coordinateRules(),
             'community_id' => [
                 Rule::requiredIf(fn () => $request->input('type') === 'resident'
                     || ($request->input('type') === 'community_admin' && ! $request->filled('community_name'))),
@@ -182,12 +185,21 @@ class AdminUserController extends Controller
             return $community;
         }
 
+        $coords = CommunityLocation::resolve(
+            $validated['community_address'] ?? null,
+            $validated['latitude'] ?? null,
+            $validated['longitude'] ?? null,
+            app(OsmGeocodingService::class),
+        );
+
         return Community::query()->create([
             'name' => $validated['community_name'],
             'region_id' => $region->id,
             'region' => $region->title,
             'address' => $validated['community_address'],
             'description' => $validated['community_description'] ?? null,
+            'latitude' => $coords['latitude'],
+            'longitude' => $coords['longitude'],
             'status' => 'active',
             'review_status' => 'approved',
             'reviewed_at' => now(),

@@ -4,12 +4,14 @@ import i18n from "../../i18n";
 import {
   getToken,
   getUser,
+  getCommunityId,
   getBiometricUnlockCredentials,
   setSession,
   setCommunityId,
   clearSession,
   clearBiometricUnlock,
 } from "../../services/auth-session";
+import { getPrimaryMembership } from "../../services/community-access";
 import { fetchMe } from "../../services/auth-api";
 import { DEV_OFFLINE_TOKEN } from "../../constants/api-config";
 import { ApiError } from "../../services/api-client";
@@ -54,14 +56,15 @@ export async function authenticate(promptMessage = "Authenticate") {
 }
 
 async function restoreCommunityFromUser(user) {
-  const memberships = user?.memberships ?? [];
-  const approved = memberships.find((m) => m.status === "approved");
-  const admin = memberships.find(
-    (m) => m.status === "approved" && ["admin", "moderator"].includes(m.role),
-  );
-  const membership = admin ?? approved;
-  if (membership?.community_id) {
-    await setCommunityId(membership.community_id);
+  const approved = (user?.memberships ?? []).filter((m) => m.status === "approved");
+  const stored = await getCommunityId();
+  let next = getPrimaryMembership(user);
+  if (stored) {
+    const match = approved.find((m) => String(m.community_id) === String(stored));
+    if (match) next = match;
+  }
+  if (next?.community_id) {
+    await setCommunityId(next.community_id);
   }
 }
 

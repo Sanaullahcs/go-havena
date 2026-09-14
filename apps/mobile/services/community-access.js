@@ -2,20 +2,22 @@
  * Determines whether a resident can access the main app (tabs/dashboard).
  */
 
+function membershipRecency(membership) {
+  const stamp = Date.parse(membership?.updated_at || membership?.created_at || "");
+  if (Number.isFinite(stamp)) return stamp;
+  return Number(membership?.id) || 0;
+}
+
 export function getPrimaryMembership(user) {
   const memberships = user?.memberships ?? [];
   if (!memberships.length) return null;
 
-  const approved = memberships.find((m) => m.status === "approved");
-  if (approved) return approved;
+  const newest = (status) =>
+    memberships
+      .filter((m) => m.status === status)
+      .sort((a, b) => membershipRecency(b) - membershipRecency(a))[0] ?? null;
 
-  const pending = memberships.find((m) => m.status === "pending");
-  if (pending) return pending;
-
-  const rejected = memberships.find((m) => m.status === "rejected");
-  if (rejected) return rejected;
-
-  return memberships[0];
+  return newest("approved") || newest("pending") || newest("rejected") || memberships[0];
 }
 
 function isAwaitingCommunityReview(membership) {

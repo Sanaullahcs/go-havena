@@ -13,6 +13,8 @@ use App\Services\CommunityBillingService;
 use App\Services\CommunityLifecycleService;
 use App\Services\InviteCodeService;
 use App\Services\MembershipService;
+use App\Services\OsmGeocodingService;
+use App\Support\CommunityLocation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -269,14 +271,17 @@ class CommunityController extends Controller
      * Web onboarding: create a community request (pending system review) and admin membership.
      * Admin stays pending until System Admin approval. Billing can still proceed next.
      */
-    public function selfServeCreate(Request $request): JsonResponse
+    public function selfServeCreate(Request $request, OsmGeocodingService $geocoding): JsonResponse
     {
         $validated = $request->validate([
             'community_name' => ['required', 'string', 'min:2', 'max:150'],
             'address' => ['required', 'string', 'min:5', 'max:255'],
+            'description' => ['nullable', 'string', 'max:1000'],
             'region_id' => ['required', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
             'estimated_residents' => ['nullable', 'integer', 'min:1', 'max:100000'],
+            ...CommunityLocation::coordinateRules(),
         ]);
+        $validated = CommunityLocation::applyOnCreate($validated, $geocoding);
 
         $user = $request->user();
 
@@ -327,7 +332,9 @@ class CommunityController extends Controller
         $community = Community::query()->create([
             'name' => $validated['community_name'],
             'address' => $validated['address'],
-            'description' => $validated['address'],
+            'description' => filled($validated['description'] ?? null) ? trim((string) $validated['description']) : null,
+            'latitude' => $validated['latitude'],
+            'longitude' => $validated['longitude'],
             'region_id' => $region->id,
             'region' => $region->title,
             'timezone' => $region->communityTimezone(),
@@ -368,14 +375,17 @@ class CommunityController extends Controller
         ], 201);
     }
 
-    public function requestCommunity(Request $request): JsonResponse
+    public function requestCommunity(Request $request, OsmGeocodingService $geocoding): JsonResponse
     {
         $validated = $request->validate([
             'community_name' => ['required', 'string', 'min:2', 'max:150'],
             'address' => ['required', 'string', 'min:5', 'max:255'],
+            'description' => ['nullable', 'string', 'max:1000'],
             'region_id' => ['required', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
             'estimated_residents' => ['nullable', 'integer', 'min:1', 'max:100000'],
+            ...CommunityLocation::coordinateRules(),
         ]);
+        $validated = CommunityLocation::applyOnCreate($validated, $geocoding);
 
         $user = $request->user();
 
@@ -411,7 +421,9 @@ class CommunityController extends Controller
         $community = Community::query()->create([
             'name' => $validated['community_name'],
             'address' => $validated['address'],
-            'description' => $validated['address'],
+            'description' => filled($validated['description'] ?? null) ? trim((string) $validated['description']) : null,
+            'latitude' => $validated['latitude'],
+            'longitude' => $validated['longitude'],
             'region_id' => $region->id,
             'region' => $region->title,
             'timezone' => $region->communityTimezone(),
@@ -459,6 +471,9 @@ class CommunityController extends Controller
             'region' => $community->region,
             'region_id' => $community->region_id,
             'address' => $community->address,
+            'description' => $community->description,
+            'latitude' => $community->latitude,
+            'longitude' => $community->longitude,
             'status' => $community->status,
             'review_status' => $community->review_status,
         ];

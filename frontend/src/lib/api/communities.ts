@@ -49,6 +49,8 @@ export interface AdminCommunityOption {
 
 export interface AdminCommunity extends AdminCommunityOption {
   address: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   description?: string | null;
   status: string;
   review_status: CommunityReviewStatus | null;
@@ -109,6 +111,8 @@ export async function createAdminCommunity(data: {
   region_id: number;
   address?: string;
   description?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }) {
   const res = await api.post("/v1/admin/communities", data);
   return res.data as { data: AdminCommunity; message: string };
@@ -121,6 +125,8 @@ export async function updateAdminCommunity(
     region_id?: number;
     address?: string;
     description?: string;
+    latitude?: number | null;
+    longitude?: number | null;
   },
 ) {
   const res = await api.put(`/v1/admin/communities/${id}`, data);
@@ -198,8 +204,11 @@ export async function assignCommunityAdmin(
 export async function selfServeCreateCommunity(payload: {
   community_name: string;
   address: string;
+  description?: string;
   region_id: number;
   estimated_residents?: number;
+  latitude?: number | null;
+  longitude?: number | null;
 }) {
   const res = await api.post("/v1/communities/self-serve", payload);
   return res.data as {

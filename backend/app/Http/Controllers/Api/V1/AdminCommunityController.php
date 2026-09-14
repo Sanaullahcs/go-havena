@@ -15,7 +15,9 @@ use App\Services\ContactIdentityService;
 use App\Services\MembershipService;
 use App\Services\NotificationService;
 use App\Services\LifecycleMailService;
+use App\Services\OsmGeocodingService;
 use App\Services\ReferralService;
+use App\Support\CommunityLocation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -112,15 +114,17 @@ class AdminCommunityController extends Controller
     }
 
     /** POST /v1/admin/communities — admin creates an active community */
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, OsmGeocodingService $geocoding): JsonResponse
     {
         $validated = $request->validate([
             'name'        => ['required', 'string', 'max:255'],
             'region_id'   => ['required', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
-            'address'     => ['nullable', 'string', 'max:500'],
+            'address'     => ['required', 'string', 'min:5', 'max:500'],
             'description' => ['nullable', 'string', 'max:1000'],
+            ...CommunityLocation::coordinateRules(),
         ]);
 
+        $validated = CommunityLocation::applyOnCreate($validated, $geocoding);
         $region = Region::query()->where('status', 'active')->findOrFail($validated['region_id']);
 
         $community = Community::query()->create([
@@ -129,6 +133,8 @@ class AdminCommunityController extends Controller
             'region'        => $region->title,
             'address'       => $validated['address'] ?? null,
             'description'   => $validated['description'] ?? null,
+            'latitude'      => $validated['latitude'],
+            'longitude'     => $validated['longitude'],
             'timezone'      => $region->communityTimezone(),
             'status'        => 'active',
             'review_status' => 'approved',
@@ -345,7 +351,7 @@ class AdminCommunityController extends Controller
     }
 
     /** PUT /v1/admin/communities/{id} */
-    public function update(int $id, Request $request): JsonResponse
+    public function update(int $id, Request $request, OsmGeocodingService $geocoding): JsonResponse
     {
         $community = Community::query()->findOrFail($id);
 
@@ -358,8 +364,9 @@ class AdminCommunityController extends Controller
         $validated = $request->validate([
             'name'        => ['sometimes', 'string', 'max:255'],
             'region_id'   => ['sometimes', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
-            'address'     => ['nullable', 'string', 'max:500'],
+            'address'     => ['sometimes', 'required', 'string', 'min:5', 'max:500'],
             'description' => ['nullable', 'string', 'max:1000'],
+            ...CommunityLocation::coordinateRules(),
         ]);
 
         if (array_key_exists('region_id', $validated)) {
@@ -367,6 +374,7 @@ class AdminCommunityController extends Controller
             $validated['region'] = $region->title;
         }
 
+        $validated = CommunityLocation::applyOnUpdate($community, $validated, $geocoding);
         $community->update($validated);
 
         ActivityLogService::user(
@@ -616,6 +624,8 @@ class AdminCommunityController extends Controller
             'name'           => $community->name,
             'address'        => $community->address,
             'description'    => $community->description,
+            'latitude'       => $community->latitude,
+            'longitude'      => $community->longitude,
             'region'         => $community->region,
             'region_id'      => $community->region_id,
             'status'         => $community->status,
@@ -688,6 +698,8 @@ class AdminCommunityController extends Controller
             'name'           => $community->name,
             'address'        => $community->address,
             'description'    => $community->description,
+            'latitude'       => $community->latitude,
+            'longitude'      => $community->longitude,
             'region'         => $community->region,
             'region_id'      => $community->region_id,
             'region_title'   => $community->regionRecord?->title ?? $community->region,

@@ -3062,3 +3062,12 @@ input[type="password"] {
   font-weight: 600 !important;
   padding: 0.5rem 0.625rem !important;
 }
+
+/* Leaflet tiles break under Tailwind Preflight (img { max-width: 100% }). */
+.leaflet-container img.leaflet-tile,
+.leaflet-pane img,
+.leaflet-container .leaflet-marker-icon,
+.leaflet-container .leaflet-marker-shadow {
+  max-width: none !important;
+  max-height: none !important;
+}

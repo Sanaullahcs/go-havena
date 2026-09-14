@@ -27,6 +27,11 @@ class NearbyDiscovery
         return 2 * $earthMiles * asin(min(1, sqrt($a)));
     }
 
+    public static function metersBetween(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        return self::milesBetween($lat1, $lng1, $lat2, $lng2) * 1609.344;
+    }
+
     /** @return array{0: float, 1: float}|null */
     public static function communityCoordinates(int $communityId): ?array
     {

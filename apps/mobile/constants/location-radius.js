@@ -36,6 +36,19 @@ export function walkingMinutes(miles) {
   return Math.max(1, Math.round(value * 20));
 }
 
+export function walkingMinutesFromMeters(meters) {
+  const value = Number(meters);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return Math.max(1, Math.round(value / 80));
+}
+
+export function formatKmLabel(meters) {
+  const km = Number(meters) / 1000;
+  if (!Number.isFinite(km) || km < 0) return "";
+  if (km < 0.1) return `${Math.round(meters)} m`;
+  return `${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
+}
+
 /** Smallest saved radius that still includes this distance. */
 export function coveringRadius(miles) {
   const value = Number(miles);
@@ -60,6 +73,11 @@ export function categoryIcon(category) {
   if (value.includes("fitness") || value.includes("gym")) return "activity";
   if (value.includes("spa") || value.includes("beauty") || value.includes("salon")) return "sun";
   if (value.includes("restaurant") || value.includes("pizza") || value.includes("food")) return "heart";
-  if (value.includes("grocery") || value.includes("market")) return "shopping-bag";
+  if (value.includes("pharmac")) return "plus-square";
+  if (value.includes("bank") || value.includes("atm")) return "credit-card";
+  if (value.includes("supermarket") || value.includes("convenience") || value.includes("grocery") || value.includes("market")) {
+    return "shopping-bag";
+  }
+  if (value === "all") return "grid";
   return "map-pin";
 }

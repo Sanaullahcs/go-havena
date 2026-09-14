@@ -1,8 +1,14 @@
 import { Linking, Platform } from "react-native";
 
 export function telUrl(phone) {
-  const digits = String(phone || "").replace(/[^\d+]/g, "");
-  return digits.length >= 7 ? `tel:${digits}` : null;
+  const first = String(phone || "")
+    .split(/[;|,/]/)[0]
+    .trim();
+  if (!first) return null;
+  let digits = first.replace(/[^\d+]/g, "");
+  if (digits.startsWith("00")) digits = `+${digits.slice(2)}`;
+  const count = (digits.match(/\d/g) || []).length;
+  return count >= 7 ? `tel:${digits}` : null;
 }
 
 export async function callPlace(phone) {

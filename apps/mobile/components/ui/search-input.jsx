@@ -12,6 +12,7 @@ export default function SearchInput({
   value: valueProp,
   onChangeText,
   autoFocus = false,
+  imeSync = true,
 }) {
   const { t } = useTranslation();
   const [internal, setInternal] = useState("");
@@ -36,6 +37,8 @@ export default function SearchInput({
         autoCorrect={false}
         autoCapitalize="none"
         returnKeyType="search"
+        blurOnSubmit={false}
+        imeSync={imeSync}
         clearButtonMode="never"
       />
       {value?.length > 0 ? (

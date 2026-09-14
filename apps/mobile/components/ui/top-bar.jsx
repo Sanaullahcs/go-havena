@@ -10,7 +10,7 @@ import { useFocusEffect } from "expo-router";
 import { getProfileFields, getRoleLabel } from "../../utils/profile-display";
 import { isGuestUser } from "../../services/community-access";
 import { fetchMe } from "../../services/profile-api";
-import { getUser } from "../../services/auth-session";
+import { getCommunityId, getUser } from "../../services/auth-session";
 import { HeaderShell } from "../layout/header-chrome";
 import { sw, sf } from "../../utils/responsive";
 import { useNotificationUnread } from "../../hooks/use-notification-unread";
@@ -19,12 +19,6 @@ import NotificationCountBadge from "./notification-count-badge";
 import LanguageToggle from "./language-toggle";
 import InboxMenu from "./inbox-menu";
 import LocationPickerSheet from "./location-picker-sheet";
-import { useLocationScope } from "../../providers/location-scope-provider";
-import {
-  THIS_COMMUNITY_RADIUS,
-  compactRadiusLabel,
-  coveringRadius,
-} from "../../constants/location-radius";
 
 export default function TopBar({ onMenuPress }) {
   const router = useRouter();
@@ -32,12 +26,12 @@ export default function TopBar({ onMenuPress }) {
   const [user, setUser] = useState(null);
   const { unread } = useNotificationUnread();
   const { unread: messageUnread } = useMessageUnread();
-  const { radiusMiles, setRadiusMiles } = useLocationScope();
-
   const headerRef = useRef(null);
   const inboxBtnRef = useRef(null);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [locationOpen, setLocationOpen] = useState(false);
+  const [locationFresh, setLocationFresh] = useState(true);
+  const [activeCommunityId, setActiveCommunityId] = useState(null);
 
   const totalUnread = (unread || 0) + (messageUnread || 0);
 
@@ -52,20 +46,24 @@ export default function TopBar({ onMenuPress }) {
   useFocusEffect(
     useCallback(() => {
       fetchMe()
-        .then(setUser)
-        .catch(() => getUser().then(setUser));
+        .then(async (next) => {
+          setUser(next);
+          setActiveCommunityId(await getCommunityId());
+        })
+        .catch(async () => {
+          const cached = await getUser();
+          setUser(cached);
+          setActiveCommunityId(await getCommunityId());
+        });
     }, []),
   );
 
   const guestUser = isGuestUser(user);
-  const { communityName } = getProfileFields(user);
+  const { communityName } = getProfileFields(user, activeCommunityId);
   const roleLabel = getRoleLabel(user);
   const hasCommunity = Boolean(user?.memberships?.some((m) => m?.community?.name));
   const title = hasCommunity ? communityName : t("topBar.chooseYourCommunity");
-  const rangeLabel =
-    radiusMiles > THIS_COMMUNITY_RADIUS
-      ? compactRadiusLabel(radiusMiles)
-      : t("topBar.nearbyBadge");
+  const rangeLabel = t("topBar.compactKm", { count: 3 });
 
   return (
     <View ref={headerRef} collapsable={false}>
@@ -77,7 +75,10 @@ export default function TopBar({ onMenuPress }) {
               style={styles.location}
               accessibilityRole="button"
               accessibilityLabel={t("topBar.communityLocation", { name: title })}
-              onPress={() => setLocationOpen(true)}
+              onPress={() => {
+                setLocationFresh(true);
+                setLocationOpen(true);
+              }}
             >
               <View style={styles.pinWrap}>
                 <Feather name="map-pin" size={sf(12)} color={T.white} />
@@ -118,15 +119,10 @@ export default function TopBar({ onMenuPress }) {
 
       <LocationPickerSheet
         visible={locationOpen}
+        freshOpen={locationFresh}
         onClose={() => setLocationOpen(false)}
         communityName={hasCommunity ? communityName : title}
-        radiusMiles={radiusMiles}
-        onSelectRadius={setRadiusMiles}
-        onSelectBusiness={(business) => {
-          if (!business.isLocal && Number(business.distanceMiles) > radiusMiles) {
-            setRadiusMiles(coveringRadius(business.distanceMiles));
-          }
-        }}
+        communityId={activeCommunityId}
       />
 
       <InboxMenu

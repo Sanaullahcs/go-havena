@@ -1,6 +1,8 @@
 import { apiRequest, ApiError } from "./api-client";
 import { canAccessDashboard, isCommunityAdminRole, isGuestUser } from "./community-access";
-import { setCommunityId, setSession, clearSession, getToken, getUser } from "./auth-session";
+import { getCommunityId, setCommunityId, setSession, clearSession, getToken, getUser } from "./auth-session";
+import { getPrimaryMembership } from "./community-access";
+import { clearNearbyPlacesCache } from "./nearby-places-api";
 import { unregisterPushDeviceOnSignOut } from "./push-notifications";
 import { parsePhoneNumberFromString } from "libphonenumber-js/min";
 import { toE164, extractNationalDigits } from "../utils/phone";
@@ -40,6 +42,22 @@ function devMockCommunityJoin(communityName = "Oak Valley Residences") {
   };
 }
 
+async function applyCommunityFromUser(user, { preferStored = false } = {}) {
+  const approved = (user?.memberships ?? []).filter((m) => m.status === "approved");
+  const stored = await getCommunityId();
+  let next = getPrimaryMembership(user);
+  if (preferStored && stored) {
+    const match = approved.find((m) => String(m.community_id) === String(stored));
+    if (match) next = match;
+  }
+  const nextId = next?.community_id ?? null;
+  if (String(nextId ?? "") !== String(stored ?? "")) {
+    clearNearbyPlacesCache();
+  }
+  await setCommunityId(nextId);
+  return nextId;
+}
+
 async function syncSessionFromMe(data) {
   const token = await getToken();
   if (!token || !data) return;
@@ -64,6 +82,7 @@ async function syncSessionFromMe(data) {
       family: data.family ?? existing?.family ?? null,
     },
   });
+  await applyCommunityFromUser(data, { preferStored: true });
 }
 
 export async function syncUserFromApi(data) {
@@ -110,13 +129,8 @@ export async function verifyOtp(email, code, { intent = "login", role = "residen
     }
   }
 
-  const adminMembership = result.user?.memberships?.find(
-    (m) => m.status === "approved" && ["admin", "moderator"].includes(m.role),
-  );
-  const approved = adminMembership ?? result.user?.memberships?.find((m) => m.status === "approved");
-  if (approved?.community_id) {
-    await setCommunityId(approved.community_id);
-  }
+  await applyCommunityFromUser(result.user);
+  clearNearbyPlacesCache();
 
   return result;
 }
@@ -132,13 +146,8 @@ export async function loginWithPhonePassword(phone, password) {
 
   await setSession({ token: result.token, user: result.user });
 
-  const adminMembership = result.user?.memberships?.find(
-    (m) => m.status === "approved" && ["admin", "moderator"].includes(m.role),
-  );
-  const approved = adminMembership ?? result.user?.memberships?.find((m) => m.status === "approved");
-  if (approved?.community_id) {
-    await setCommunityId(approved.community_id);
-  }
+  await applyCommunityFromUser(result.user);
+  clearNearbyPlacesCache();
 
   return result;
 }
@@ -158,6 +167,7 @@ export async function logout({ revokeServer = false } = {}) {
   }
   // Keep unlock credentials so fingerprint / Face ID work without email OTP again
   await clearSession({ keepBiometricUnlock: true });
+  clearNearbyPlacesCache();
 }
 
 /** Permanently delete the signed-in account, then wipe local session. */
@@ -169,19 +179,12 @@ export async function deleteAccount() {
   }
   await apiRequest("/me", { method: "DELETE", community: false });
   await clearSession({ keepBiometricUnlock: false });
+  clearNearbyPlacesCache();
 }
 
 export async function fetchMe() {
   const result = await apiRequest("/me", { community: false });
   await syncSessionFromMe(result.data);
-  const approved = result.data?.memberships?.find((m) => m.status === "approved");
-  const adminMembership = result.data?.memberships?.find(
-    (m) => m.status === "approved" && ["admin", "moderator"].includes(m.role),
-  );
-  const communityMembership = adminMembership ?? approved;
-  if (communityMembership?.community_id) {
-    await setCommunityId(communityMembership.community_id);
-  }
   return result.data;
 }
 
@@ -384,7 +387,7 @@ export async function joinByInviteCode(inviteCode) {
   }
 }
 
-export async function requestCommunity({ communityName, address, regionId }) {
+export async function requestCommunity({ communityName, address, description, regionId, latitude, longitude }) {
   try {
     const token = await getToken();
     if (!token) {
@@ -399,7 +402,10 @@ export async function requestCommunity({ communityName, address, regionId }) {
       body: {
         community_name: communityName,
         address,
+        description: description || undefined,
         region_id: regionId,
+        latitude: latitude ?? null,
+        longitude: longitude ?? null,
       },
       community: false,
     });
@@ -487,8 +493,6 @@ export function isProfileComplete(user) {
 
   const profile = user?.profile;
   if (!profile?.display_name?.trim() || !profile?.unit_number?.trim()) return false;
-  if (isGuestUser(user)) return true;
-  if (!String(profile?.utility_bill_url ?? "").trim()) return false;
-  if (isCommunityAdminRole(user)) return true;
+  if (isGuestUser(user) || isCommunityAdminRole(user)) return true;
   return Boolean(profile?.residence_type);
 }

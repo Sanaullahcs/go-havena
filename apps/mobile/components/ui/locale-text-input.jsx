@@ -22,7 +22,7 @@ const LTR_KEYBOARD_TYPES = new Set([
  * Pass `forceLtr` (or use phone/number keyboardType) for digit fields.
  */
 const LocaleTextInput = forwardRef(function LocaleTextInput(
-  { style, onFocus, forceLtr = false, textAlign: textAlignProp, keyboardType, ...rest },
+  { style, onFocus, forceLtr = false, textAlign: textAlignProp, keyboardType, imeSync = true, ...rest },
   ref,
 ) {
   const { language } = useLanguage();
@@ -31,10 +31,10 @@ const LocaleTextInput = forwardRef(function LocaleTextInput(
 
   const handleFocus = useCallback(
     (event) => {
-      syncKeyboardForFocusedInput(language);
+      if (imeSync) syncKeyboardForFocusedInput(language);
       onFocus?.(event);
     },
-    [language, onFocus],
+    [imeSync, language, onFocus],
   );
 
   const resolvedTextAlign = useMemo(() => {

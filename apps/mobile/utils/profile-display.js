@@ -227,7 +227,7 @@ export function isPlaceholderResidenceType(type) {
 }
 
 /** Normalize API `/me` payload or cached session user for UI. */
-export function getProfileFields(user) {
+export function getProfileFields(user, preferredCommunityId) {
   if (!user) {
     return {
       displayName: "",
@@ -254,10 +254,19 @@ export function getProfileFields(user) {
     avatarUrl: resolveMediaUrl(profile.avatar_url ?? user.avatar_url),
     utilityBillUrl: resolveMediaUrl(profile.utility_bill_url ?? user.utility_bill_url),
     unitNumber: profile.unit_number ?? user.unit_number ?? null,
-    communityName:
-      user.memberships?.find((m) => m.status === "approved")?.community?.name ??
-      user.memberships?.[0]?.community?.name ??
-      i18n.t("community.myCommunity"),
+    communityName: (() => {
+      const memberships = user.memberships ?? [];
+      const approved = memberships.filter((m) => m.status === "approved");
+      const preferred = preferredCommunityId
+        ? approved.find((m) => String(m.community_id) === String(preferredCommunityId))
+        : null;
+      return (
+        preferred?.community?.name ??
+        approved[0]?.community?.name ??
+        memberships[0]?.community?.name ??
+        i18n.t("community.myCommunity")
+      );
+    })(),
     regionId: profile.region_id ?? profile.region?.id ?? null,
     regionTitle: profile.region?.title ?? null,
     bio: profile.bio ?? user.bio ?? "",

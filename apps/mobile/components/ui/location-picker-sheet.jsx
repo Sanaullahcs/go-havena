@@ -1,13 +1,16 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Dimensions,
+  Easing,
+  Keyboard,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,49 +19,23 @@ import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import {
-  LOCATION_RADIUS_MILES,
-  THIS_COMMUNITY_RADIUS,
-  categoryIcon,
-  formatMilesLabel,
-  radiusChipIcon,
-  walkingMinutes,
+  formatKmLabel,
+  walkingMinutesFromMeters,
 } from "../../constants/location-radius";
-import { fetchBusinesses } from "../../services/businesses-api";
+import {
+  fetchNearbyPlacesBundle,
+  mergeNearbyPlaces,
+  NEARBY_FILTER_CATEGORIES,
+  NEARBY_PLACE_CATEGORIES,
+} from "../../services/nearby-places-api";
+import PlaceCategoryIcon from "./place-category-icon";
+import NearbyPlaceDetails from "./nearby-place-details";
 import SearchInput from "./search-input";
-import CrispImage from "./crisp-image";
 import { sf, sw } from "../../utils/responsive";
-import { useAppDialog } from "../../providers/app-dialog-provider";
-import { callPlace, openPlaceDirections, telUrl } from "../../utils/open-place-actions";
 
-const PREVIEW_MILES = 10;
-const ALL_CATEGORY = "all";
-
-function matchesCategory(business, category) {
-  if (category === ALL_CATEGORY) return true;
-  return String(business.category || "").toLowerCase() === category.toLowerCase();
-}
-
-function RadiusChip({ miles, label, count, active, onPress }) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.85}
-      style={[styles.chip, active && styles.chipActive]}
-    >
-      <Feather
-        name={radiusChipIcon(miles)}
-        size={sf(13)}
-        color={active ? T.white : T.navy}
-      />
-      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
-      {count != null ? (
-        <View style={[styles.chipCount, active && styles.chipCountActive]}>
-          <Text style={[styles.chipCountText, active && styles.chipCountTextActive]}>{count}</Text>
-        </View>
-      ) : null}
-    </TouchableOpacity>
-  );
-}
+const WINDOW_HEIGHT = Dimensions.get("window").height;
+const TOP_GAP = Math.round(WINDOW_HEIGHT * 0.06);
+const DETAIL_SLIDE_MS = 280;
 
 function CategoryChip({ label, active, onPress }) {
   return (
@@ -72,236 +49,228 @@ function CategoryChip({ label, active, onPress }) {
   );
 }
 
-function BusinessRow({ business, t, onPress, selected }) {
-  const miles = Number(business.distanceMiles);
-  const outside = !business.isLocal && Number.isFinite(miles) && miles > 0;
-  const walk = walkingMinutes(miles);
-  const distance = outside
-    ? t("topBar.milesAway", { distance: formatMilesLabel(miles).replace(" mi", "") })
-    : null;
-  const walkLabel = outside && walk ? t("topBar.minWalk", { count: walk }) : null;
-  const meta = [business.category, outside ? business.communityName : null]
-    .filter(Boolean)
-    .join(" · ");
+function PlaceRow({ place, t, onPress }) {
+  const distance = formatKmLabel(place.distanceMeters);
+  const walk = walkingMinutesFromMeters(place.distanceMeters);
+  const walkLabel = walk ? t("topBar.minWalk", { count: walk }) : null;
+  const categoryLabel = t(`topBar.category${capitalize(place.category)}`, {
+    defaultValue: place.category || "",
+  });
 
   return (
-    <TouchableOpacity
-      style={[styles.resultRow, selected && styles.resultRowSelected]}
-      onPress={() => onPress(business)}
-      activeOpacity={0.88}
-    >
-      <View style={styles.thumbWrap}>
-        {business.imageUrl ? (
-          <CrispImage source={business.imageUrl} style={styles.thumb} />
-        ) : (
-          <View style={styles.thumbFallback}>
-            <Feather name={categoryIcon(business.category)} size={sf(14)} color={T.white} />
-          </View>
-        )}
-      </View>
+    <TouchableOpacity style={styles.resultRow} onPress={() => onPress(place)} activeOpacity={0.88}>
+      <PlaceCategoryIcon category={place.category} />
       <View style={styles.resultCopy}>
-        <View style={styles.resultTitleRow}>
-          <Text style={styles.resultName} numberOfLines={1}>
-            {business.name}
-          </Text>
-          {outside ? (
-            <View style={styles.outsidePill}>
-              <Text style={styles.outsidePillText}>{t("topBar.outsidePill")}</Text>
-            </View>
-          ) : (
-            <View style={styles.insidePill}>
-              <Text style={styles.insidePillText}>{t("topBar.homePill")}</Text>
-            </View>
-          )}
-        </View>
-        {meta ? (
+        <Text style={styles.resultName} numberOfLines={1}>
+          {place.name}
+        </Text>
+        {place.address ? (
           <Text style={styles.resultMeta} numberOfLines={1}>
-            {meta}
+            {place.address}
+          </Text>
+        ) : (
+          <Text style={styles.resultMeta} numberOfLines={1}>
+            {categoryLabel}
+          </Text>
+        )}
+        {place.phone ? (
+          <Text style={styles.resultPhone} numberOfLines={1}>
+            {place.phone}
           </Text>
         ) : null}
         {distance ? (
           <Text style={styles.resultWalk} numberOfLines={1}>
-            {walkLabel ? `${distance} · ${walkLabel}` : distance}
+            {walkLabel
+              ? `${t("topBar.kmAway", { distance })} · ${walkLabel}`
+              : t("topBar.kmAway", { distance })}
           </Text>
         ) : null}
       </View>
-      <Feather name="chevron-right" size={sf(16)} color={T.border} />
+      <Feather name="chevron-right" size={sf(16)} color={T.border} style={styles.rowChevron} />
     </TouchableOpacity>
   );
 }
 
-function PlaceActions({ business, t, showError }) {
-  const canCall = Boolean(telUrl(business.phone));
-  const address = business.address || business.communityName || "";
+function capitalize(value) {
+  const text = String(value || "");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
-  const onCall = async () => {
-    try {
-      await callPlace(business.phone);
-    } catch (err) {
-      await showError(
-        t("topBar.unableToCall"),
-        err?.code === "no-phone" ? t("topBar.noPhoneListed") : t("deals.callingNotSupported"),
-      );
-    }
-  };
-
-  const onDirections = async () => {
-    try {
-      await openPlaceDirections(business);
-    } catch {
-      await showError(t("topBar.unableToOpenMaps"), t("topBar.noMapLocation"));
-    }
-  };
-
-  return (
-    <View style={styles.actions}>
-      <Text style={styles.actionsName} numberOfLines={1}>
-        {business.name}
-      </Text>
-      {address ? (
-        <Text style={styles.actionsAddress} numberOfLines={2}>
-          {address}
-        </Text>
-      ) : null}
-      <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={[styles.actionBtn, !canCall && styles.actionBtnDisabled]}
-          onPress={onCall}
-          activeOpacity={0.85}
-          disabled={!canCall}
-        >
-          <Feather name="phone" size={sf(15)} color={canCall ? T.white : T.gray} />
-          <Text style={[styles.actionBtnText, !canCall && styles.actionBtnTextDisabled]}>
-            {t("topBar.call")}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionBtn, styles.actionBtnSecondary]}
-          onPress={onDirections}
-          activeOpacity={0.85}
-        >
-          <Feather name="navigation" size={sf(15)} color={T.navy} />
-          <Text style={[styles.actionBtnText, styles.actionBtnTextSecondary]}>
-            {t("topBar.directions")}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+function placeSearchText(place) {
+  return [
+    place?.name,
+    place?.address,
+    place?.category,
+    place?.cuisine,
+    place?.brand,
+    place?.operator,
+  ]
+    .filter((part) => typeof part === "string" && part.trim())
+    .join(" ")
+    .toLowerCase();
 }
 
 export default function LocationPickerSheet({
   visible,
   onClose,
   communityName,
-  radiusMiles,
-  onSelectRadius,
-  onSelectBusiness,
+  communityId,
+  freshOpen = true,
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const { height: windowHeight } = useWindowDimensions();
-  const sheetHeight = Math.round(windowHeight * 0.94);
-  const [draftRadius, setDraftRadius] = useState(radiusMiles ?? THIS_COMMUNITY_RADIUS);
+  const requestId = useRef(0);
+  const slide = useRef(new Animated.Value(WINDOW_HEIGHT)).current;
+  const closingRef = useRef(false);
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState(ALL_CATEGORY);
-  const [results, setResults] = useState([]);
+  const [category, setCategory] = useState("all");
+  const [selectedPlace, setSelectedPlace] = useState(null);
+  const [sheetHeight, setSheetHeight] = useState(WINDOW_HEIGHT - TOP_GAP);
+  const [groups, setGroups] = useState(() =>
+    Object.fromEntries(NEARBY_PLACE_CATEGORIES.map((key) => [key, []])),
+  );
+  const [hasCoordinates, setHasCoordinates] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [selected, setSelected] = useState(null);
-  const { showError } = useAppDialog();
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const lastCommunityId = useRef(communityId);
 
   useEffect(() => {
-    if (visible) {
-      setDraftRadius(radiusMiles ?? THIS_COMMUNITY_RADIUS);
+    if (!visible) {
+      slide.stopAnimation();
+      closingRef.current = false;
+      setSelectedPlace(null);
+      return;
+    }
+    if (freshOpen) {
       setQuery("");
-      setCategory(ALL_CATEGORY);
-      setSelected(null);
+      setCategory("all");
+      closingRef.current = false;
+      setSelectedPlace(null);
     }
-  }, [visible, radiusMiles]);
+  }, [visible, freshOpen, slide]);
 
-  const loadResults = useCallback(async (search) => {
+  const loadResults = useCallback(async () => {
+    const id = ++requestId.current;
     setLoading(true);
+    setLoadError(false);
     try {
-      const res = await fetchBusinesses({
-        search,
-        radiusMiles: PREVIEW_MILES,
-        perPage: 40,
+      const res = await fetchNearbyPlacesBundle({
+        force: true,
+        communityId,
       });
-      const rows = [...(res.businesses ?? [])].sort((a, b) => {
-        if (Boolean(a.isLocal) !== Boolean(b.isLocal)) return a.isLocal ? -1 : 1;
-        return (Number(a.distanceMiles) || 0) - (Number(b.distanceMiles) || 0);
-      });
-      setResults(rows);
+      if (id !== requestId.current) return;
+      setGroups(res.byCategory ?? {});
+      setHasCoordinates(res.hasCoordinates);
+      setLoadError(Boolean(res.overpassFailed));
+      setLoaded(true);
     } catch {
-      setResults([]);
+      if (id !== requestId.current) return;
+      setGroups(Object.fromEntries(NEARBY_PLACE_CATEGORIES.map((key) => [key, []])));
+      setHasCoordinates(true);
+      setLoadError(true);
+      setLoaded(true);
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
-  }, []);
+  }, [communityId]);
 
   useEffect(() => {
-    if (!visible) return undefined;
-    const handle = setTimeout(() => loadResults(query), query ? 220 : 0);
-    return () => clearTimeout(handle);
-  }, [visible, query, loadResults]);
+    if (lastCommunityId.current === communityId) return;
+    lastCommunityId.current = communityId;
+    setGroups(Object.fromEntries(NEARBY_PLACE_CATEGORIES.map((key) => [key, []])));
+    setLoaded(false);
+    setLoadError(false);
+    setSelectedPlace(null);
+  }, [communityId]);
 
-  const searched = useMemo(
-    () => results.filter((row) => matchesCategory(row, category)),
-    [results, category],
-  );
+  useEffect(() => {
+    if (!visible) return;
+    void loadResults();
+  }, [visible, loadResults, communityId]);
 
-  const localRows = useMemo(
-    () => searched.filter((row) => row.isLocal),
-    [searched],
-  );
+  const results = category === "all" ? mergeNearbyPlaces(groups) : (groups[category] ?? []);
 
-  const outsideRows = useMemo(() => {
-    const nearby = searched.filter((row) => !row.isLocal);
-    if (draftRadius <= THIS_COMMUNITY_RADIUS) return nearby.slice(0, 6);
-    return nearby.filter((row) => Number(row.distanceMiles) <= draftRadius + 0.08);
-  }, [searched, draftRadius]);
+  const searched = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (!term) return results;
+    return results.filter((row) => placeSearchText(row).includes(term));
+  }, [results, query]);
 
-  const chipCounts = useMemo(() => {
-    const local = results.filter((row) => row.isLocal).length;
-    const counts = { [THIS_COMMUNITY_RADIUS]: local };
-    for (const miles of LOCATION_RADIUS_MILES) {
-      counts[miles] =
-        local +
-        results.filter((row) => !row.isLocal && Number(row.distanceMiles) <= miles + 0.08).length;
-    }
-    return counts;
-  }, [results]);
-
-  const categories = useMemo(() => {
-    const unique = [];
-    for (const row of results) {
-      const label = String(row.category || "").trim();
-      if (label && !unique.includes(label)) unique.push(label);
-    }
-    return unique;
-  }, [results]);
-
-  const chips = useMemo(
-    () => [
-      { miles: THIS_COMMUNITY_RADIUS, label: t("topBar.thisCommunity") },
-      ...LOCATION_RADIUS_MILES.map((miles) => ({
-        miles,
-        label: t("topBar.compactMiles", { count: miles }),
-      })),
-    ],
-    [t],
-  );
-
-  const applyRadius = (miles) => {
-    setDraftRadius(miles);
-    onSelectRadius?.(miles);
+  const openPlace = (place) => {
+    if (!place?.id) return;
+    Keyboard.dismiss();
+    closingRef.current = false;
+    slide.stopAnimation();
+    slide.setValue(sheetHeight);
+    setSelectedPlace(place);
+    Animated.timing(slide, {
+      toValue: 0,
+      duration: DETAIL_SLIDE_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
   };
 
+  const closeDetails = () => {
+    if (!selectedPlace || closingRef.current) return;
+    closingRef.current = true;
+    Keyboard.dismiss();
+    slide.stopAnimation();
+    Animated.timing(slide, {
+      toValue: sheetHeight,
+      duration: DETAIL_SLIDE_MS,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      closingRef.current = false;
+      if (finished) setSelectedPlace(null);
+    });
+  };
+
+  const closeSheet = () => {
+    Keyboard.dismiss();
+    slide.stopAnimation();
+    slide.setValue(sheetHeight);
+    closingRef.current = false;
+    setSelectedPlace(null);
+    onClose?.();
+  };
+
+  const emptyMessage = loadError
+    ? t("topBar.nearbyLoadFailed")
+    : !hasCoordinates
+      ? t("topBar.noCommunityPin")
+      : query.trim()
+        ? t("topBar.noSearchMatches")
+        : t("topBar.noBusinessesInCategory");
+
+  const showInitialLoader = loading && !loaded;
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      statusBarTranslucent
+      onRequestClose={selectedPlace ? closeDetails : closeSheet}
+    >
       <View style={styles.overlay}>
-        <Pressable style={styles.backdrop} onPress={onClose} />
-        <View style={[styles.sheet, { height: sheetHeight, paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <Pressable
+          style={styles.backdrop}
+          onPress={() => {
+            Keyboard.dismiss();
+            if (selectedPlace) closeDetails();
+            else closeSheet();
+          }}
+        />
+        <View
+          style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
+          onLayout={(event) => {
+            const next = Math.round(event.nativeEvent.layout.height);
+            if (next > 0 && next !== sheetHeight) setSheetHeight(next);
+          }}
+        >
           <View style={styles.handle} />
           <View style={styles.header}>
             <View style={styles.headerCopy}>
@@ -310,90 +279,105 @@ export default function LocationPickerSheet({
               </Text>
               <Text style={styles.title}>{t("topBar.discoverTitle")}</Text>
             </View>
-            <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={10}>
+            <TouchableOpacity style={styles.closeBtn} onPress={closeSheet} hitSlop={10}>
               <Feather name="x" size={sf(18)} color={T.gray} />
             </TouchableOpacity>
           </View>
 
-          <SearchInput
-            placeholder={t("topBar.searchPlaceholder")}
-            value={query}
-            onChangeText={setQuery}
-          />
+          <View style={styles.searchWrap}>
+            <SearchInput
+              placeholder={t("topBar.searchPlaceholder")}
+              value={query}
+              onChangeText={setQuery}
+              imeSync={false}
+            />
+          </View>
 
           <View style={styles.filters}>
-            <Text style={styles.sectionLabel}>{t("topBar.distance")}</Text>
+            <Text style={styles.sectionLabel}>{t("topBar.categories")}</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               style={styles.chipScroll}
               contentContainerStyle={styles.chipRow}
+              keyboardShouldPersistTaps="handled"
             >
-              {chips.map((chip) => (
-                <RadiusChip
-                  key={String(chip.miles)}
-                  miles={chip.miles}
-                  label={chip.label}
-                  count={chipCounts[chip.miles]}
-                  active={draftRadius === chip.miles}
-                  onPress={() => applyRadius(chip.miles)}
+              {NEARBY_FILTER_CATEGORIES.map((item) => (
+                <CategoryChip
+                  key={item}
+                  label={t(`topBar.category${capitalize(item)}`)}
+                  active={category === item}
+                  onPress={() => setCategory(item)}
                 />
               ))}
             </ScrollView>
+          </View>
 
-            {categories.length > 1 ? (
+          <View style={styles.resultsWrap}>
+            {showInitialLoader ? (
+              <View style={styles.loader}>
+                <ActivityIndicator color={T.teal} />
+              </View>
+            ) : searched.length === 0 ? (
+              <View style={styles.emptyWrap}>
+                <Feather name={loadError ? "wifi-off" : "map-pin"} size={sf(22)} color={T.border} />
+                <Text style={styles.empty}>{emptyMessage}</Text>
+                {loadError ? (
+                  <TouchableOpacity style={styles.retryBtn} onPress={() => void loadResults()}>
+                    <Text style={styles.retryBtnText}>{t("common.retry")}</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : (
               <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={[styles.chipScroll, styles.catRow]}
-                contentContainerStyle={styles.chipRow}
+                style={styles.results}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                showsVerticalScrollIndicator={false}
               >
-                <CategoryChip
-                  label={t("topBar.allCategories")}
-                  active={category === ALL_CATEGORY}
-                  onPress={() => setCategory(ALL_CATEGORY)}
-                />
-                {categories.map((item) => (
-                  <CategoryChip
-                    key={item}
-                    label={item}
-                    active={category === item}
-                    onPress={() => setCategory(item)}
+                {searched.map((place, index) => (
+                  <PlaceRow
+                    key={`${place.id}-${index}`}
+                    place={place}
+                    t={t}
+                    onPress={openPlace}
                   />
                 ))}
               </ScrollView>
+            )}
+            {loading && loaded ? (
+              <View style={styles.refreshBadge} pointerEvents="none">
+                <ActivityIndicator color={T.teal} size="small" />
+              </View>
             ) : null}
           </View>
 
-          {loading ? (
-            <View style={styles.loader}>
-              <ActivityIndicator color={T.teal} />
-            </View>
-          ) : localRows.length === 0 && outsideRows.length === 0 ? (
-            <Text style={styles.empty}>{t("topBar.noNearby")}</Text>
-          ) : (
-            <ScrollView
-              style={styles.results}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
+          {selectedPlace ? (
+            <Animated.View
+              pointerEvents="auto"
+              style={[
+                styles.detailSheet,
+                { paddingBottom: Math.max(insets.bottom, 16), transform: [{ translateY: slide }] },
+              ]}
             >
-              {[...localRows, ...outsideRows].map((business) => (
-                <BusinessRow
-                  key={`${business.isLocal ? "local" : "out"}-${business.id}`}
-                  business={business}
-                  t={t}
-                  selected={selected?.id === business.id}
-                  onPress={(item) => {
-                    setSelected(item);
-                    onSelectBusiness?.(item);
-                  }}
-                />
-              ))}
-            </ScrollView>
-          )}
-
-          {selected ? (
-            <PlaceActions business={selected} t={t} showError={showError} />
+              <View style={styles.handle} />
+              <View style={styles.header}>
+                <View style={styles.headerCopy}>
+                  <Text style={styles.kicker} numberOfLines={1}>
+                    {t("topBar.placeDetail")}
+                  </Text>
+                  <Text style={styles.title} numberOfLines={2}>
+                    {selectedPlace.name}
+                  </Text>
+                </View>
+                <TouchableOpacity style={styles.closeBtn} onPress={closeDetails} hitSlop={10}>
+                  <Feather name="x" size={sf(18)} color={T.gray} />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.detailBody}>
+                <NearbyPlaceDetails place={selectedPlace} />
+              </View>
+            </Animated.View>
           ) : null}
         </View>
       </View>
@@ -404,18 +388,37 @@ export default function LocationPickerSheet({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    justifyContent: "flex-end",
     backgroundColor: "rgba(15, 23, 42, 0.4)",
+    overflow: "hidden",
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
   },
   sheet: {
+    flex: 1,
+    marginTop: TOP_GAP,
     backgroundColor: T.white,
     borderTopLeftRadius: sw(22),
     borderTopRightRadius: sw(22),
     paddingHorizontal: sw(18),
     paddingTop: sw(8),
+    overflow: "hidden",
+  },
+  detailSheet: {
+    position: "absolute",
+    top: 0,
+    start: 0,
+    end: 0,
+    bottom: 0,
+    backgroundColor: T.white,
+    paddingHorizontal: sw(18),
+    paddingTop: sw(8),
+    zIndex: 4,
+    elevation: 8,
+  },
+  detailBody: {
+    flex: 1,
+    minHeight: 0,
   },
   handle: {
     alignSelf: "center",
@@ -424,12 +427,20 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: "#E5E7EB",
     marginBottom: sw(10),
+    flexGrow: 0,
+    flexShrink: 0,
   },
   header: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: sw(12),
     marginBottom: sw(12),
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  searchWrap: {
+    flexGrow: 0,
+    flexShrink: 0,
   },
   headerCopy: {
     flex: 1,
@@ -482,63 +493,6 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     paddingEnd: sw(8),
   },
-  catRow: {
-    marginTop: sw(10),
-  },
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    alignSelf: "center",
-    flexGrow: 0,
-    flexShrink: 0,
-    height: sw(36),
-    marginEnd: sw(8),
-    paddingHorizontal: sw(12),
-    borderRadius: sw(18),
-    borderWidth: 1,
-    borderColor: T.border,
-    backgroundColor: "#F8FAFC",
-    overflow: "hidden",
-  },
-  chipActive: {
-    backgroundColor: T.teal,
-    borderColor: T.teal,
-  },
-  chipText: {
-    marginStart: sw(6),
-    fontFamily: Fonts.semiBold,
-    fontSize: sf(13),
-    lineHeight: sf(16),
-    color: T.navy,
-    includeFontPadding: false,
-  },
-  chipTextActive: {
-    color: T.white,
-  },
-  chipCount: {
-    minWidth: sw(18),
-    height: sw(18),
-    marginStart: sw(6),
-    borderRadius: sw(9),
-    paddingHorizontal: sw(5),
-    backgroundColor: T.white,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  chipCountActive: {
-    backgroundColor: "rgba(255,255,255,0.22)",
-  },
-  chipCountText: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(10),
-    lineHeight: sf(13),
-    color: T.gray,
-    includeFontPadding: false,
-  },
-  chipCountTextActive: {
-    color: T.white,
-  },
   catChip: {
     alignSelf: "center",
     flexGrow: 0,
@@ -568,64 +522,67 @@ const styles = StyleSheet.create({
   catChipTextActive: {
     color: T.white,
   },
-  loader: {
-    flex: 1,
-    paddingVertical: sw(28),
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  empty: {
-    fontFamily: Fonts.regular,
-    fontSize: sf(13),
-    lineHeight: sf(18),
-    color: T.gray,
-    paddingVertical: sw(16),
-  },
-  results: {
+  resultsWrap: {
     flex: 1,
     minHeight: 0,
     marginTop: sw(10),
   },
+  loader: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: sw(16),
+    gap: sw(10),
+  },
+  empty: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(14),
+    lineHeight: sf(20),
+    color: T.gray,
+    textAlign: "center",
+  },
+  retryBtn: {
+    marginTop: sw(4),
+    backgroundColor: T.teal,
+    borderRadius: 999,
+    paddingHorizontal: sw(16),
+    paddingVertical: sw(8),
+  },
+  retryBtnText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(13),
+    color: T.white,
+  },
+  results: {
+    flex: 1,
+  },
+  refreshBadge: {
+    position: "absolute",
+    top: sw(8),
+    alignSelf: "center",
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderRadius: 999,
+    padding: sw(6),
+  },
   resultRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: sw(10),
     paddingVertical: sw(10),
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: T.border,
   },
-  resultRowSelected: {
-    backgroundColor: "#F0FDFA",
-    marginHorizontal: -sw(8),
-    paddingHorizontal: sw(8),
-    borderRadius: sw(12),
-    borderBottomColor: "transparent",
-  },
-  thumbWrap: {
-    width: sw(44),
-    height: sw(44),
-    borderRadius: sw(12),
-    overflow: "hidden",
-    backgroundColor: T.navy,
-    flexShrink: 0,
-  },
-  thumb: {
-    width: "100%",
-    height: "100%",
-  },
-  thumbFallback: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+  rowChevron: {
+    marginTop: sw(4),
   },
   resultCopy: {
     flex: 1,
     minWidth: 0,
-  },
-  resultTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: sw(6),
   },
   resultName: {
     flexShrink: 1,
@@ -634,99 +591,22 @@ const styles = StyleSheet.create({
     lineHeight: sf(19),
     color: T.navy,
   },
-  outsidePill: {
-    flexShrink: 0,
-    paddingHorizontal: sw(6),
-    paddingVertical: sw(2),
-    borderRadius: 999,
-    backgroundColor: "#FFF7ED",
-  },
-  outsidePillText: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(9),
-    lineHeight: sf(12),
-    color: "#C2410C",
-    textTransform: "uppercase",
-  },
-  insidePill: {
-    flexShrink: 0,
-    paddingHorizontal: sw(6),
-    paddingVertical: sw(2),
-    borderRadius: 999,
-    backgroundColor: T.mint,
-  },
-  insidePillText: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(9),
-    lineHeight: sf(12),
-    color: T.deepTeal,
-  },
   resultMeta: {
     fontFamily: Fonts.regular,
     fontSize: sf(11),
     lineHeight: sf(15),
     color: T.gray,
   },
+  resultPhone: {
+    fontFamily: Fonts.medium,
+    fontSize: sf(11),
+    lineHeight: sf(15),
+    color: T.navy,
+  },
   resultWalk: {
     fontFamily: Fonts.medium,
     fontSize: sf(11),
     lineHeight: sf(15),
     color: T.deepTeal,
-  },
-  actions: {
-    flexGrow: 0,
-    flexShrink: 0,
-    marginTop: sw(8),
-    paddingTop: sw(12),
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: T.border,
-  },
-  actionsName: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(15),
-    lineHeight: sf(20),
-    color: T.navy,
-  },
-  actionsAddress: {
-    marginTop: sw(2),
-    fontFamily: Fonts.regular,
-    fontSize: sf(12),
-    lineHeight: sf(16),
-    color: T.gray,
-  },
-  actionRow: {
-    flexDirection: "row",
-    gap: sw(8),
-    marginTop: sw(10),
-  },
-  actionBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: sw(8),
-    height: sw(44),
-    borderRadius: sw(12),
-    backgroundColor: T.teal,
-  },
-  actionBtnSecondary: {
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: T.border,
-  },
-  actionBtnDisabled: {
-    backgroundColor: "#F1F5F9",
-  },
-  actionBtnText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: sf(14),
-    lineHeight: sf(18),
-    color: T.white,
-  },
-  actionBtnTextSecondary: {
-    color: T.navy,
-  },
-  actionBtnTextDisabled: {
-    color: T.gray,
   },
 });
