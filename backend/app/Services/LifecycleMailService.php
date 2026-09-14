@@ -8,6 +8,8 @@ use App\Models\GuestInvitation;
 use App\Models\InviteCode;
 use App\Models\TransactionalEmailSend;
 use App\Models\User;
+use App\Services\GuestInvitationService;
+use App\Services\InviteCodeService;
 use App\Support\AppUrls;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Mail\Mailable;
@@ -247,7 +249,7 @@ class LifecycleMailService
                 heading: 'You are invited',
                 intro: $this->greeting($invitee)." {$inviterName} invited you to join {$community->name} on Havena.",
                 paragraphs: [
-                    'Download the Havena app from the App Store or Google Play, sign in with this email, then enter the invite code below. We will send a verification code when you sign in.',
+                    'Download the Havena app from the App Store or Google Play, sign in with this email, then enter the invite code below or scan the QR code. We will send a verification code when you sign in.',
                     $invite->expires_at
                         ? 'This invite expires on '.$invite->expires_at->timezone(config('app.timezone'))->format('M j, Y').'.'
                         : 'Use the code the next time you open Havena.',
@@ -258,6 +260,7 @@ class LifecycleMailService
                 ],
                 highlightCode: $invite->code,
                 highlightLabel: 'Invite code',
+                highlightQrPayload: InviteCodeService::qrPayload($invite->code),
                 ctaLabel: 'Open Havena',
                 ctaUrl: AppUrls::residentLogin(),
                 footerNote: 'If you were not expecting this invitation, you can ignore this email.',
@@ -355,6 +358,7 @@ class LifecycleMailService
                 ],
                 highlightCode: $invitation->invite_code,
                 highlightLabel: 'Guest invite code',
+                highlightQrPayload: GuestInvitationService::qrPayload($invitation->invite_code),
                 ctaLabel: 'Open Havena',
                 ctaUrl: AppUrls::residentLogin(),
                 footerNote: 'If you were not expecting this invitation, you can ignore this email.',

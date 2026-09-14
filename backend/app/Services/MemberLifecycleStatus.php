@@ -124,8 +124,10 @@ class MemberLifecycleStatus
 
     public static function pendingInviteCountSelect(string $usersAlias = 'users'): \Illuminate\Contracts\Database\Query\Expression
     {
+        $now = now()->toDateTimeString();
+
         return DB::raw(
-            "(select count(*) from invite_codes where invited_user_id = {$usersAlias}.id and deleted_at is null and (max_uses is null or used_count < max_uses)) as pending_invite_count"
+            "(select count(*) from invite_codes where invited_user_id = {$usersAlias}.id and deleted_at is null and (max_uses is null or used_count < max_uses) and (expires_at is null or expires_at > '{$now}')) as pending_invite_count"
         );
     }
 
@@ -153,6 +155,10 @@ class MemberLifecycleStatus
             ->where(function ($q) {
                 $q->whereNull('invite_codes.max_uses')
                     ->orWhereColumn('invite_codes.used_count', '<', 'invite_codes.max_uses');
+            })
+            ->where(function ($q) {
+                $q->whereNull('invite_codes.expires_at')
+                    ->orWhere('invite_codes.expires_at', '>', now());
             });
 
         if ($communityId) {

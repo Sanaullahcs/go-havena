@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('notices:publish-scheduled')->everyMinute();
         $schedule->command('guests:expire-access')->everyMinute();
         $schedule->command('billing:prune-reservations')->hourly();
+        $schedule->command('amenity-bills:process-reminders')->hourly();
     })
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->prepend(\Illuminate\Http\Middleware\HandleCors::class);

@@ -189,6 +189,8 @@ class LifecycleMailTest extends TestCase
         Mail::assertSent(HavenaTransactionalMail::class, function (HavenaTransactionalMail $mail) {
             return $mail->hasTo('jane.invite@example.com')
                 && $mail->highlightCode !== null
+                && filled($mail->highlightQrPayload)
+                && str_starts_with((string) $mail->highlightQrPayload, 'havena://join?invite_code=')
                 && $mail->includeAppStoreLinks === true
                 && str_contains($mail->subjectLine, 'invited');
         });

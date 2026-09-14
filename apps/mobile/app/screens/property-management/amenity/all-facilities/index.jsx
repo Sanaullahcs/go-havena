@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking } from "react-native";
 import React, { useCallback, useState } from "react";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -11,11 +11,14 @@ import { Colors, Layout } from "../../../../../constants/tokens";
 import { sw, sf } from "../../../../../utils/responsive";
 import { pageStyles } from "../../../../../constants/page-styles";
 import { PropertyManagementRoutes, amenityFlowRoutes } from "../../../../../constants/property-management-routes";
-import { fetchMyBookings } from "../../../../../services/amenity-api";
+import { fetchAmenityBills, fetchMyBookings } from "../../../../../services/amenity-api";
+import AmenityPaymentProofModal from "../../../../../components/property/amenity-payment-proof-modal";
 import {
   getAmenityVisual,
   getAmenityStatus,
   formatLongDate,
+  formatUsdAmount,
+  bookingFeeAmount,
   hasUpcomingUserBooking,
   getNextUserBookingDate,
 } from "../../../../../utils/amenity-display";
@@ -45,6 +48,8 @@ export default function AllFacilities() {
     reviewStatus,
     userHasUpcomingBooking,
     userNextBookingDate,
+    hasOverdueSharedAmenityBill,
+    bookingFee,
   } = useLocalSearchParams();
 
   const amenityObj = { name: nameEn, name_es: nameEs, name_ar: nameAr, description: descEn, description_es: descriptionEs, description_ar: descriptionAr };
@@ -52,13 +57,26 @@ export default function AllFacilities() {
   const description = localizedField(amenityObj, "description") || descEn;
 
   const [myBookings, setMyBookings] = useState([]);
+  const [bills, setBills] = useState([]);
+  const [billsError, setBillsError] = useState(null);
+  const [proofBill, setProofBill] = useState(null);
 
   useFocusEffect(
     useCallback(() => {
       fetchMyBookings()
         .then((rows) => setMyBookings(rows ?? []))
         .catch(() => setMyBookings([]));
-    }, []),
+      if (!id) return;
+      fetchAmenityBills(id)
+        .then((rows) => {
+          setBills(rows ?? []);
+          setBillsError(null);
+        })
+        .catch(() => {
+          setBills([]);
+          setBillsError(t("propertyMgmt.couldNotLoadBills"));
+        });
+    }, [id, t]),
   );
 
   const amenityId = Number(id);
@@ -74,9 +92,15 @@ export default function AllFacilities() {
   const visual = getAmenityVisual(name, iconKey || null);
   const statusMeta = getAmenityStatus(status);
   const ownedByMe = isMine === "1" || isMine === "true";
+  const billingRestricted =
+    hasOverdueSharedAmenityBill === "1" ||
+    hasOverdueSharedAmenityBill === "true" ||
+    bills.some((bill) => bill.has_overdue_shared_amenity_bill);
+  const outstandingPrevious = bills.find((bill) => bill.outstanding_previous_bill)?.outstanding_previous_bill;
   const canBook =
     !ownedByMe &&
     !alreadyBooked &&
+    !billingRestricted &&
     reviewStatus !== "pending" &&
     reviewStatus !== "rejected" &&
     (status === "bookable" || status === "open");
@@ -107,6 +131,14 @@ export default function AllFacilities() {
           value: t("propertyMgmt.people", { count: Number(capacity) }),
         }
       : null,
+    bookingFeeAmount(bookingFee) > 0
+      ? {
+          icon: "credit-card",
+          tint: "#B45309",
+          label: t("propertyMgmt.bookingFee"),
+          value: formatUsdAmount(bookingFee),
+        }
+      : null,
   ].filter(Boolean);
 
   const goToCalendar = () => {
@@ -123,6 +155,7 @@ export default function AllFacilities() {
         status: String(status ?? ""),
         weekendsAvailable: String(weekendsAvailable ?? "1"),
         isMine: ownedByMe ? "1" : "0",
+        bookingFee: String(bookingFee ?? "0"),
       },
     });
   };
@@ -186,6 +219,171 @@ export default function AllFacilities() {
           </View>
         ) : null}
 
+        {billsError || bills.length > 0 ? (
+          <View style={styles.card}>
+            <Text style={styles.cardHeading}>{t("propertyMgmt.billingHistory")}</Text>
+            {billsError ? <Text style={styles.billMuted}>{billsError}</Text> : null}
+            {billingRestricted && outstandingPrevious ? (
+              <Text style={styles.rejectedNote}>
+                {t("propertyMgmt.outstandingPreviousBill", {
+                  amenity: name,
+                  month: outstandingPrevious.billing_month_label || outstandingPrevious.billing_month,
+                })}
+              </Text>
+            ) : null}
+            {bills.map((bill) => {
+              const pending = bill.status === "pending_verification";
+              const paid = bill.status === "paid";
+              const rejected = bill.status === "rejected";
+              const overdue = bill.status === "overdue";
+              const proof = bill.payment_proof;
+              const acknowledgement = bill.payment_acknowledgement;
+              return (
+              <View key={String(bill.id)} style={styles.billBlock}>
+                <View style={styles.billHeader}>
+                  <Text style={styles.billTitle}>{name}</Text>
+                  <View
+                    style={[
+                      styles.unpaidPill,
+                      pending && styles.pendingPill,
+                      paid && styles.paidPill,
+                      (rejected || overdue) && styles.rejectedPill,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.unpaidText,
+                        pending && styles.pendingText,
+                        paid && styles.paidText,
+                        (rejected || overdue) && styles.rejectedText,
+                      ]}
+                    >
+                      {bill.status_label
+                        || (paid
+                          ? t("propertyMgmt.billPaid")
+                          : overdue
+                            ? t("propertyMgmt.billOverdue")
+                            : rejected
+                              ? t("propertyMgmt.billRejected")
+                              : pending
+                                ? t("propertyMgmt.pendingVerification")
+                                : t("propertyMgmt.billUnpaid"))}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.billMeta}>
+                  {t("propertyMgmt.billingMonth")}: {bill.billing_month_label || bill.billing_month}
+                </Text>
+                <Text style={styles.billMeta}>
+                  {t("propertyMgmt.billAmount")}: {bill.amount ?? bill.amount_per_resident}
+                </Text>
+                <Text style={styles.billMeta}>
+                  {t("propertyMgmt.billDueDate")}: {formatLongDate(bill.due_date) || bill.due_date}
+                </Text>
+                {paid && bill.paid_at ? (
+                  <Text style={styles.billMeta}>
+                    {t("propertyMgmt.paidDate")}: {formatLongDate(bill.paid_at) || bill.paid_at}
+                  </Text>
+                ) : null}
+                {bill.file_url ? (
+                  <TouchableOpacity
+                    onPress={() => Linking.openURL(bill.file_url)}
+                    activeOpacity={0.8}
+                    style={styles.billLink}
+                  >
+                    <Feather name="file-text" size={sf(14)} color="#1B4F8A" />
+                    <Text style={styles.billLinkText}>
+                      {bill.file_name || t("propertyMgmt.viewBillDocument")}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+                {pending ? (
+                  <Text style={styles.proofNote}>{t("propertyMgmt.paymentProofSubmitted")}</Text>
+                ) : null}
+                {(rejected || overdue) && bill.rejection_reason ? (
+                  <Text style={styles.rejectedNote}>
+                    {t("propertyMgmt.paymentRejected")}: {bill.rejection_reason}
+                  </Text>
+                ) : null}
+                {paid && acknowledgement ? (
+                  <View style={styles.ackBox}>
+                    <Text style={styles.ackLabel}>{t("propertyMgmt.paymentAcknowledgement")}</Text>
+                    <Text style={styles.ackMessage}>{acknowledgement.message}</Text>
+                    <Text style={styles.billMeta}>
+                      {t("propertyMgmt.billingMonth")}: {acknowledgement.billing_month_label || acknowledgement.billing_month}
+                    </Text>
+                    <Text style={styles.billMeta}>
+                      {t("propertyMgmt.billAmount")}: {acknowledgement.amount}
+                    </Text>
+                    {acknowledgement.payment_date ? (
+                      <Text style={styles.billMeta}>
+                        {t("propertyMgmt.paymentDate")}: {formatLongDate(acknowledgement.payment_date) || acknowledgement.payment_date}
+                      </Text>
+                    ) : null}
+                    {acknowledgement.approved_at ? (
+                      <Text style={styles.billMeta}>
+                        {t("propertyMgmt.approvedDate")}: {formatLongDate(acknowledgement.approved_at) || acknowledgement.approved_at}
+                      </Text>
+                    ) : null}
+                    {acknowledgement.payment_reference ? (
+                      <Text style={styles.billMeta}>
+                        {t("propertyMgmt.paymentReference")}: {acknowledgement.payment_reference}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.billMeta}>
+                      {t("propertyMgmt.billStatus")}: {acknowledgement.status_label || t("propertyMgmt.billPaid")}
+                    </Text>
+                    <Text style={styles.billMeta}>
+                      {t("propertyMgmt.communityAcknowledgement")}: {acknowledgement.acknowledged_by_label}
+                    </Text>
+                  </View>
+                ) : null}
+                {bill.can_submit_proof && bill.resident_bill_id ? (
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.proofBtn}
+                    onPress={() => setProofBill(bill)}
+                  >
+                    <Feather name="upload" size={sf(14)} color="#FFFFFF" />
+                    <Text style={styles.proofBtnText}>
+                      {rejected ? t("propertyMgmt.uploadNewPaymentProof") : t("propertyMgmt.uploadPaymentProof")}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+                {proof ? (
+                  <View style={styles.proofBox}>
+                    <Text style={styles.proofBoxLabel}>{t("propertyMgmt.submittedProof")}</Text>
+                    {proof.payment_date ? (
+                      <Text style={styles.billMeta}>
+                        {t("propertyMgmt.paymentDate")}: {formatLongDate(proof.payment_date) || proof.payment_date}
+                      </Text>
+                    ) : null}
+                    {proof.payment_reference ? (
+                      <Text style={styles.billMeta}>
+                        {t("propertyMgmt.paymentReference")}: {proof.payment_reference}
+                      </Text>
+                    ) : null}
+                    {proof.payment_note ? <Text style={styles.billMeta}>{proof.payment_note}</Text> : null}
+                    {proof.file_url ? (
+                      <TouchableOpacity
+                        onPress={() => Linking.openURL(proof.file_url)}
+                        activeOpacity={0.8}
+                        style={styles.billLink}
+                      >
+                        <Feather name="image" size={sf(14)} color="#1B4F8A" />
+                        <Text style={styles.billLinkText}>
+                          {proof.file_name || t("propertyMgmt.viewPaymentProof")}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                ) : null}
+              </View>
+              );
+            })}
+          </View>
+        ) : null}
+
         {/* Guidelines */}
         <View style={styles.card}>
           <Text style={styles.cardHeading}>{t("propertyMgmt.goodToKnow")}</Text>
@@ -220,6 +418,16 @@ export default function AllFacilities() {
             <Feather name="send" size={sf(16)} color="#FFFFFF" />
             <Text style={styles.primaryBtnText}>{t("propertyMgmt.requestAccess")}</Text>
           </TouchableOpacity>
+        ) : billingRestricted && !ownedByMe ? (
+          <View style={styles.bookedBtn}>
+            <Feather name="alert-circle" size={sf(15)} color="#B91C1C" />
+            <View style={styles.bookedCopy}>
+              <Text style={[styles.bookedTitle, { color: "#B91C1C" }]}>
+                {t("propertyMgmt.bookingPausedForBill")}
+              </Text>
+              <Text style={styles.bookedText}>{t("propertyMgmt.bookingPausedForBillHint")}</Text>
+            </View>
+          </View>
         ) : alreadyBooked && !ownedByMe ? (
           <View style={styles.bookedBtn}>
             <Feather name="bookmark" size={sf(15)} color="#64748B" />
@@ -245,6 +453,24 @@ export default function AllFacilities() {
           </View>
         )}
       </View>
+
+      <AmenityPaymentProofModal
+        visible={Boolean(proofBill)}
+        bill={proofBill}
+        amenityId={amenityId}
+        amenityName={name}
+        onClose={() => setProofBill(null)}
+        onSubmitted={(updated) => {
+          if (updated) {
+            setBills((current) =>
+              current.map((row) =>
+                row.resident_bill_id === updated.resident_bill_id ? updated : row,
+              ),
+            );
+          }
+          setProofBill(null);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -356,6 +582,135 @@ const styles = StyleSheet.create({
     fontSize: sf(14),
     color: Colors.textPrimary,
     marginTop: sw(12),
+    marginBottom: sw(4),
+  },
+  billMuted: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(12),
+    color: Colors.textMuted,
+    paddingBottom: sw(12),
+  },
+  billBlock: {
+    paddingVertical: sw(12),
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(0,0,0,0.06)",
+  },
+  billHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: sw(8),
+    marginBottom: sw(6),
+  },
+  billTitle: {
+    flex: 1,
+    fontFamily: Fonts.semiBold,
+    fontWeight: "600",
+    fontSize: sf(14),
+    color: Colors.textPrimary,
+  },
+  unpaidPill: {
+    backgroundColor: "#FEF3C7",
+    borderRadius: 999,
+    paddingHorizontal: sw(8),
+    paddingVertical: sw(3),
+  },
+  unpaidText: {
+    fontFamily: Fonts.semiBold,
+    fontWeight: "600",
+    fontSize: sf(11),
+    color: "#B45309",
+  },
+  billMeta: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(12),
+    lineHeight: sf(18),
+    color: Colors.textSecondary,
+  },
+  billLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(6),
+    marginTop: sw(8),
+  },
+  billLinkText: {
+    fontFamily: Fonts.semiBold,
+    fontWeight: "600",
+    fontSize: sf(12),
+    color: "#1B4F8A",
+  },
+  pendingPill: { backgroundColor: "#DBEAFE" },
+  pendingText: { color: "#1D4ED8" },
+  paidPill: { backgroundColor: "#D1FAE5" },
+  paidText: { color: "#047857" },
+  rejectedPill: { backgroundColor: "#FEE2E2" },
+  rejectedText: { color: "#B91C1C" },
+  rejectedNote: {
+    marginTop: sw(8),
+    fontFamily: Fonts.regular,
+    fontSize: sf(12),
+    lineHeight: sf(17),
+    color: "#B91C1C",
+  },
+  proofNote: {
+    marginTop: sw(8),
+    fontFamily: Fonts.regular,
+    fontSize: sf(12),
+    lineHeight: sf(17),
+    color: Colors.textSecondary,
+  },
+  proofBtn: {
+    marginTop: sw(10),
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: sw(8),
+    backgroundColor: "#1B4F8A",
+    borderRadius: sw(12),
+    paddingVertical: sw(11),
+  },
+  proofBtnText: {
+    fontFamily: Fonts.bold,
+    fontWeight: "700",
+    fontSize: sf(13),
+    color: "#FFFFFF",
+  },
+  proofBox: {
+    marginTop: sw(10),
+    backgroundColor: "#F8FAFC",
+    borderRadius: sw(12),
+    padding: sw(10),
+    gap: sw(2),
+  },
+  ackBox: {
+    marginTop: sw(10),
+    backgroundColor: "#ECFDF5",
+    borderRadius: sw(12),
+    padding: sw(10),
+    gap: sw(2),
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  ackLabel: {
+    fontFamily: Fonts.semiBold,
+    fontWeight: "600",
+    fontSize: sf(11),
+    color: "#047857",
+    marginBottom: sw(4),
+  },
+  ackMessage: {
+    fontFamily: Fonts.semiBold,
+    fontWeight: "600",
+    fontSize: sf(13),
+    lineHeight: sf(18),
+    color: "#065F46",
+    marginBottom: sw(4),
+  },
+  proofBoxLabel: {
+    fontFamily: Fonts.semiBold,
+    fontWeight: "600",
+    fontSize: sf(11),
+    color: Colors.textMuted,
     marginBottom: sw(4),
   },
   tipRow: {

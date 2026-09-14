@@ -2,12 +2,15 @@
 
 namespace App\Mail;
 
+use App\Services\InviteCodeService;
 use App\Support\EmailBrand;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
+use Symfony\Component\Mime\Email;
 
 class HavenaTransactionalMail extends Mailable
 {
@@ -27,6 +30,7 @@ class HavenaTransactionalMail extends Mailable
         public array $details = [],
         public ?string $highlightCode = null,
         public ?string $highlightLabel = null,
+        public ?string $highlightQrPayload = null,
         public ?string $ctaLabel = null,
         public ?string $ctaUrl = null,
         public ?string $footerNote = null,
@@ -37,6 +41,18 @@ class HavenaTransactionalMail extends Mailable
             $this->highlightCode !== null,
             $this->includeAppStoreLinks,
         ));
+
+        if (filled($this->highlightQrPayload)) {
+            try {
+                $png = InviteCodeService::qrPngBytes($this->highlightQrPayload);
+                $this->withSymfonyMessage(function (Email $email) use ($png) {
+                    $email->embed($png, 'invite-qr', 'image/png');
+                });
+            } catch (\Throwable $e) {
+                Log::warning('Could not embed invite QR in email', ['error' => $e->getMessage()]);
+                $this->highlightQrPayload = null;
+            }
+        }
     }
 
     public function envelope(): Envelope
@@ -60,6 +76,7 @@ class HavenaTransactionalMail extends Mailable
                 'details' => $this->details,
                 'highlightCode' => $this->highlightCode,
                 'highlightLabel' => $this->highlightLabel,
+                'highlightQrSrc' => filled($this->highlightQrPayload) ? 'cid:invite-qr' : null,
                 'ctaLabel' => $this->ctaLabel,
                 'ctaUrl' => $this->ctaUrl,
                 'footerNote' => $this->footerNote,

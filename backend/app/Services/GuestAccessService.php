@@ -230,13 +230,43 @@ class GuestAccessService
     /** @return array<string, string> */
     public static function permissionValidationRules(): array
     {
-        $rules = ['permissions' => 'nullable|array'];
+        $rules = [
+            'permissions' => [
+                'nullable',
+                'array',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if ($value === null) {
+                        return;
+                    }
+
+                    if (! is_array($value) || ! self::hasAtLeastOneEnabledPermission($value)) {
+                        $fail('Please select at least one permission.');
+                    }
+                },
+            ],
+        ];
 
         foreach (self::PERMISSION_KEYS as $key) {
             $rules["permissions.{$key}"] = 'sometimes|boolean';
         }
 
         return $rules;
+    }
+
+    /** @param  array<string, mixed>|null  $permissions */
+    public static function hasAtLeastOneEnabledPermission(?array $permissions): bool
+    {
+        if ($permissions === null) {
+            return true;
+        }
+
+        foreach (self::PERMISSION_KEYS as $key) {
+            if (array_key_exists($key, $permissions) && (bool) $permissions[$key]) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** @return array{message: string, code: string}|null */
@@ -264,7 +294,7 @@ class GuestAccessService
     /** @return array{message: string, code: string}|null */
     public static function loginTerminationBlock(GuestInvitation $invitation): ?array
     {
-        if ($invitation->status === 'revoked') {
+        if ($invitation->status === 'revoked' || $invitation->status === 'cancelled') {
             return [
                 'message' => self::MSG_ACCESS_REVOKED,
                 'code'    => 'GUEST_ACCESS_REVOKED',
@@ -415,7 +445,7 @@ class GuestAccessService
             self::denyGuestAccess('Your guest access is pending host approval.', 'PENDING_APPROVAL');
         }
 
-        if (in_array($invitation->status, ['rejected', 'revoked'], true)) {
+        if (in_array($invitation->status, ['rejected', 'revoked', 'cancelled'], true)) {
             self::denyGuestAccess(self::MSG_ACCESS_REVOKED, 'GUEST_ACCESS_REVOKED');
         }
 

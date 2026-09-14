@@ -25,6 +25,7 @@ import {
 import { PageError, PageLoader } from "@/components/shared/page-states";
 import { getAdminCache, setAdminCache } from "@/lib/admin/navigation-cache";
 import { adminTableBusy } from "@/lib/admin/table-loading";
+import { formatUsdAmount } from "@/lib/admin/amenity-bill-validation";
 
 type StatusFilter = "all" | "pending" | "confirmed" | "rejected";
 
@@ -184,8 +185,11 @@ export default function AdminBookingsPage() {
             cols={[
               { label: "Facility" },
               { label: "Resident" },
-              { label: "When" },
-              { label: "Guests" },
+              { label: "Booking date" },
+              { label: "Slot / time" },
+              { label: "Fee" },
+              { label: "Payment" },
+              { label: "Requested" },
               { label: "Status" },
               { label: "Actions", right: true },
             ]}
@@ -208,9 +212,6 @@ export default function AdminBookingsPage() {
                       </div>
                       <div className="min-w-0">
                         <p className="truncate font-semibold text-slate-900">{booking.amenity_name}</p>
-                        <p className="truncate text-xs text-slate-500">
-                          {booking.time_slot || "Open access request"}
-                        </p>
                       </div>
                     </div>
                   </DtCell>
@@ -219,7 +220,43 @@ export default function AdminBookingsPage() {
                     <p className="text-xs text-slate-500">{booking.user_unit || "—"}</p>
                   </DtCell>
                   <DtCell>{booking.date}</DtCell>
-                  <DtCell>{booking.guests}</DtCell>
+                  <DtCell>{booking.time_slot || "Open access"}</DtCell>
+                  <DtCell>{formatUsdAmount(booking.booking_fee)}</DtCell>
+                  <DtCell>
+                    {booking.payment_proof ? (
+                      <div>
+                        <p>{booking.payment_proof.payment_date || "—"}</p>
+                        <p className="text-xs text-slate-500">
+                          {booking.payment_proof.payment_reference || "No reference"}
+                        </p>
+                        {booking.payment_proof.file_url ? (
+                          <a
+                            href={booking.payment_proof.file_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs font-semibold text-[#1B4F8A]"
+                          >
+                            View proof
+                          </a>
+                        ) : null}
+                      </div>
+                    ) : (
+                      "—"
+                    )}
+                  </DtCell>
+                  <DtCell>
+                    {booking.requested_at || booking.created_at
+                      ? new Date(
+                          (booking.requested_at ?? booking.created_at ?? "").includes("T")
+                            ? (booking.requested_at ?? booking.created_at)!
+                            : (booking.requested_at ?? booking.created_at)!.replace(" ", "T"),
+                        ).toLocaleDateString("en-GB", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "—"}
+                  </DtCell>
                   <DtCell>
                     <AdminBadge tone={status.tone}>{status.label}</AdminBadge>
                   </DtCell>

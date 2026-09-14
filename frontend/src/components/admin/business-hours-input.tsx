@@ -66,6 +66,9 @@ export function BusinessHoursInput({ value, onChange, onBlur, error }: BusinessH
       {value ? (
         <p className="text-xs text-slate-500">
           Residents will see: <span className="font-medium text-slate-700">{value}</span>
+          {open && close && close <= open ? (
+            <span className="block mt-1">Closes the next day (overnight hours).</span>
+          ) : null}
         </p>
       ) : (
         <p className="text-xs text-slate-400">Use the time pickers to set opening and closing hours.</p>

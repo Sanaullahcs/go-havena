@@ -22,7 +22,8 @@ class GuestController extends Controller
 
         $query = GuestInvitation::query()
             ->with(['invitedBy.profile', 'guestUser.profile', 'community'])
-            ->where('community_id', $communityId);
+            ->where('community_id', $communityId)
+            ->where('status', '!=', 'cancelled');
 
         if ($request->filled('status') && $request->status !== 'all') {
             if ($request->status === 'pending') {
@@ -147,6 +148,26 @@ class GuestController extends Controller
         ]);
     }
 
+    /** DELETE /v1/admin/guests/{id} */
+    public function destroy(Request $request, int $id): JsonResponse
+    {
+        $communityId = AdminRoleService::requireManagedCommunityId($request->user(), $request);
+        $invitation = $this->findInCommunity($id, $communityId);
+
+        if ($invitation->status !== 'pending_verification') {
+            return response()->json([
+                'message' => 'Only pending invitations that have not been accepted can be deleted.',
+                'code'    => 'INVITATION_ALREADY_ACCEPTED',
+            ], 422);
+        }
+
+        GuestInvitationService::cancelPending($invitation, $request->user());
+
+        return response()->json([
+            'message' => 'Invitation deleted successfully.',
+        ]);
+    }
+
     /** PATCH /v1/admin/guests/{id}/revoke */
     public function revoke(Request $request, int $id): JsonResponse
     {
@@ -246,7 +267,7 @@ class GuestController extends Controller
             ->pluck('count', 'status');
 
         return [
-            'total'                 => (int) $rows->sum(),
+            'total'                 => (int) $rows->except(['cancelled'])->sum(),
             'pending_verification'  => (int) ($rows['pending_verification'] ?? 0),
             'pending_approval'      => (int) ($rows['pending_approval'] ?? 0),
             'active'                => (int) ($rows['active'] ?? 0),

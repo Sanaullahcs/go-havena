@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import {
   createBooking,
@@ -10,6 +10,14 @@ import {
 } from "@/lib/api/amenities";
 import { apiError } from "@/lib/api/client";
 import { toastError, toastSuccess } from "@/lib/alert";
+import { todayIsoDate, validatePaymentProofForm } from "@/lib/admin/amenity-bill-validation";
+import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
+import {
+  BookingPaymentFields,
+  BookingPaymentSummary,
+  bookingFeeAmount,
+  type BookingPaymentForm,
+} from "@/components/property/booking-payment-fields";
 
 function tomorrowIso() {
   const d = new Date();
@@ -34,13 +42,28 @@ export function AmenityBookModal({
   const [slotsMessage, setSlotsMessage] = useState<string | null>(null);
   const [alreadyBooked, setAlreadyBooked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [payment, setPayment] = useState<BookingPaymentForm>({
+    file: null,
+    payment_date: todayIsoDate(),
+    payment_reference: "",
+    payment_note: "",
+  });
+  const { showError, touch, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
+  const paymentErrors = useMemo(() => validatePaymentProofForm(payment), [payment]);
 
   useEffect(() => {
     if (!amenity) return;
     setDate(tomorrowIso());
     setSlot("");
     setGuests("1");
-  }, [amenity]);
+    setPayment({
+      file: null,
+      payment_date: todayIsoDate(),
+      payment_reference: "",
+      payment_note: "",
+    });
+    resetTouched();
+  }, [amenity, resetTouched]);
 
   useEffect(() => {
     if (!amenity || amenity.status !== "bookable" || !date) {
@@ -104,6 +127,7 @@ export function AmenityBookModal({
   }
 
   const maxGuests = Math.max(1, Number(amenity.capacity) || 50);
+  const fee = bookingFeeAmount(amenity.booking_fee);
 
   const handleSubmit = async () => {
     if (!date) {
@@ -123,6 +147,10 @@ export function AmenityBookModal({
       toastError(`This amenity allows up to ${maxGuests} guests.`);
       return;
     }
+    if (fee > 0 && !validateOnSubmit(paymentErrors)) {
+      toastError(paymentErrors.file || paymentErrors.payment_date || "Add payment proof to continue.");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -131,6 +159,14 @@ export function AmenityBookModal({
         date,
         ...(amenity.status === "bookable" ? { time_slot: slot } : {}),
         guests: guestCount,
+        ...(fee > 0
+          ? {
+              payment_proof: payment.file,
+              payment_date: payment.payment_date,
+              payment_reference: payment.payment_reference.trim() || undefined,
+              payment_note: payment.payment_note.trim() || undefined,
+            }
+          : {}),
       });
       toastSuccess(`Booking request sent for ${amenity.name}.`);
       onBooked?.();
@@ -144,7 +180,7 @@ export function AmenityBookModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-start justify-between border-b border-slate-100 px-5 py-4">
           <div>
             <h3 className="text-lg font-bold text-slate-900">
@@ -164,7 +200,7 @@ export function AmenityBookModal({
           </button>
         </div>
 
-        <div className="space-y-4 px-5 py-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
           <div>
             <label className="nl-label">Date</label>
             <input
@@ -226,6 +262,21 @@ export function AmenityBookModal({
             />
             <p className="mt-1 text-xs text-slate-400">Max {maxGuests} guests</p>
           </div>
+
+          <BookingPaymentSummary
+            amenityName={amenity.name}
+            date={date}
+            slot={amenity.status === "bookable" ? slot : "Open access"}
+            fee={fee}
+          />
+          <BookingPaymentFields
+            fee={fee}
+            form={payment}
+            errors={paymentErrors}
+            showError={showError}
+            onChange={(key, value) => setPayment((prev) => ({ ...prev, [key]: value }))}
+            onBlur={(field) => touch(field)}
+          />
         </div>
 
         <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">

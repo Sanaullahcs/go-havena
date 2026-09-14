@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Services\ActivityLogService;
 use App\Services\AdminRoleService;
+use App\Services\AmenityBillReminderService;
 use App\Services\GuestAccessService;
 use App\Services\GuestActivityService;
 use App\Services\NotificationService;
@@ -12,7 +13,9 @@ use App\Support\AmenitySlots;
 use App\Support\MediaUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class AmenityController extends Controller
 {
@@ -23,6 +26,20 @@ class AmenityController extends Controller
         'playground', 'terrace', 'spa', 'library', 'parking',
         'laundry', 'cinema', 'bike', 'building',
     ];
+
+    public const SHARED_BILLING_TYPE_ALL_RESIDENTS = 'all_residents';
+
+    public const SHARED_BILLING_FREQUENCY_MONTHLY = 'monthly';
+
+    public const PAYMENT_NOT_REQUIRED = 'not_required';
+
+    public const PAYMENT_PENDING = 'pending';
+
+    public const PAYMENT_ACCEPTED = 'accepted';
+
+    public const PAYMENT_REJECTED = 'rejected';
+
+    public const BOOKING_PROOF_FILE_RULE = 'file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png,webp';
 
     /** GET /v1/amenities — approved amenities (+ caller's own pending). */
     public function index(Request $request): JsonResponse
@@ -36,7 +53,8 @@ class AmenityController extends Controller
 
         $amenities = DB::table('amenities')
             ->leftJoin('users', 'users.id', '=', 'amenities.created_by')
-            ->select('amenities.*', 'users.name as creator_name')
+            ->leftJoin('communities', 'communities.id', '=', 'amenities.community_id')
+            ->select('amenities.*', 'users.name as creator_name', 'communities.name as community_name')
             ->where('amenities.community_id', $communityId)
             ->where(function ($q) use ($user) {
                 $q->where('amenities.review_status', 'approved')
@@ -49,9 +67,14 @@ class AmenityController extends Controller
             ->get();
 
         $nextBookingByAmenity = $this->upcomingBookingsByAmenityForUser((int) $user->id);
+        $restrictedAmenityIds = app(AmenityBillReminderService::class)->restrictedAmenityIds(
+            (int) $user->id,
+            $amenities->pluck('id')->map(fn ($id) => (int) $id)->all(),
+        );
 
-        $amenities = $amenities->map(function ($row) use ($user, $nextBookingByAmenity) {
+        $amenities = $amenities->map(function ($row) use ($user, $nextBookingByAmenity, $restrictedAmenityIds) {
             $formatted = $this->formatAmenity($row, $user->id);
+            $formatted['has_overdue_shared_amenity_bill'] = in_array((int) $row->id, $restrictedAmenityIds, true);
             $booking = $nextBookingByAmenity->get((int) $row->id);
 
             return $this->withViewerBookingState($formatted, $booking);
@@ -121,6 +144,15 @@ class AmenityController extends Controller
 
         $date = (string) $request->date;
 
+        if (app(AmenityBillReminderService::class)->hasOverdueSharedAmenityBill($id, (int) $user->id)) {
+            return response()->json([
+                'data' => [],
+                'message' => AmenityBillReminderService::BOOKING_RESTRICTED_MESSAGE,
+                'error' => AmenityBillReminderService::BOOKING_RESTRICTED_ERROR,
+                'has_overdue_shared_amenity_bill' => true,
+            ], 422);
+        }
+
         $userAlreadyBooked = DB::table('bookings')
             ->where('amenity_id', $id)
             ->where('user_id', $user->id)
@@ -150,6 +182,7 @@ class AmenityController extends Controller
             $amenity->end_time ?? null,
             $amenity->slot_duration_minutes !== null ? (int) $amenity->slot_duration_minutes : null,
             $amenity->hours ?? null,
+            $date,
         );
 
         $taken = DB::table('bookings')
@@ -158,11 +191,15 @@ class AmenityController extends Controller
             ->whereNotIn('status', ['cancelled', 'rejected'])
             ->pluck('time_slot')
             ->all();
+        $takenNormalized = array_map(
+            static fn ($slot) => AmenitySlots::normalizeSlotLabel(is_string($slot) ? $slot : ''),
+            $taken,
+        );
 
-        $data = array_map(function (array $slot) use ($taken) {
+        $data = array_map(function (array $slot) use ($takenNormalized) {
             return [
                 ...$slot,
-                'available' => ! in_array($slot['value'], $taken, true),
+                'available' => ! in_array(AmenitySlots::normalizeSlotLabel($slot['value']), $takenNormalized, true),
             ];
         }, $slots);
 
@@ -188,7 +225,9 @@ class AmenityController extends Controller
             )
             ->where('bookings.user_id', auth()->id())
             ->orderBy('bookings.date', 'desc')
-            ->get();
+            ->get()
+            ->map(fn ($row) => $this->formatResidentBooking($row))
+            ->values();
 
         return response()->json(['data' => $bookings]);
     }
@@ -197,7 +236,7 @@ class AmenityController extends Controller
     public function bookingInbox(Request $request): JsonResponse
     {
         $user = $request->user();
-        $communityId = $this->resolveResidentCommunityId($request, $user);
+        $communityId = $this->resolveInboxCommunityId($request, $user);
 
         $query = DB::table('bookings')
             ->join('amenities', 'amenities.id', '=', 'bookings.amenity_id')
@@ -231,7 +270,9 @@ class AmenityController extends Controller
         $bookings = $query
             ->orderByRaw("FIELD(bookings.status, 'pending', 'confirmed', 'rejected', 'cancelled')")
             ->orderBy('bookings.date', 'asc')
-            ->get();
+            ->get()
+            ->map(fn ($row) => $this->formatInboxBooking($row))
+            ->values();
 
         return response()->json(['data' => $bookings]);
     }
@@ -245,6 +286,10 @@ class AmenityController extends Controller
             'time_slot' => 'nullable|string|max:50',
             'guests' => 'integer|min:1|max:50',
             'notes' => 'nullable|string|max:500',
+            'payment_proof' => 'nullable|'.self::BOOKING_PROOF_FILE_RULE,
+            'payment_date' => 'nullable|date|before_or_equal:today',
+            'payment_reference' => 'nullable|string|max:100',
+            'payment_note' => 'nullable|string|max:1000',
         ]);
 
         $user = $request->user();
@@ -272,6 +317,14 @@ class AmenityController extends Controller
         $communityId = $this->resolveResidentCommunityId($request, $user);
         if ((int) $amenity->community_id !== $communityId) {
             return response()->json(['message' => 'Amenity not found in your community.'], 404);
+        }
+
+        if (app(AmenityBillReminderService::class)->hasOverdueSharedAmenityBill((int) $amenity->id, (int) $user->id)) {
+            return response()->json([
+                'message' => AmenityBillReminderService::BOOKING_RESTRICTED_MESSAGE,
+                'error' => AmenityBillReminderService::BOOKING_RESTRICTED_ERROR,
+                'has_overdue_shared_amenity_bill' => true,
+            ], 422);
         }
 
         $date = (string) $request->date;
@@ -311,18 +364,29 @@ class AmenityController extends Controller
                 $amenity->end_time ?? null,
                 $amenity->slot_duration_minutes !== null ? (int) $amenity->slot_duration_minutes : null,
                 $amenity->hours ?? null,
+                $date,
             );
             $validValues = array_column($validSlots, 'value');
-            if ($validValues && ! in_array($timeSlot, $validValues, true)) {
+            $normalizedSlot = AmenitySlots::normalizeSlotLabel((string) $timeSlot);
+            $validNormalized = array_map(
+                static fn ($value) => AmenitySlots::normalizeSlotLabel((string) $value),
+                $validValues,
+            );
+            if ($validNormalized && ! in_array($normalizedSlot, $validNormalized, true)) {
                 return response()->json(['message' => 'Selected time slot is not available for this amenity.'], 422);
             }
 
-            $conflict = DB::table('bookings')
+            $existingSlots = DB::table('bookings')
                 ->where('amenity_id', $request->amenity_id)
                 ->where('date', $date)
-                ->where('time_slot', $timeSlot)
                 ->whereNotIn('status', ['cancelled', 'rejected'])
-                ->exists();
+                ->pluck('time_slot');
+
+            $conflict = $existingSlots->contains(
+                static fn ($existing) => AmenitySlots::slotLabelsMatch((string) $existing, $normalizedSlot),
+            );
+
+            $timeSlot = $normalizedSlot !== '' ? $normalizedSlot : $timeSlot;
 
             if ($conflict) {
                 return response()->json(['message' => 'This time slot is already requested or booked.'], 422);
@@ -332,17 +396,67 @@ class AmenityController extends Controller
             $timeSlot = $timeSlot ?: 'Open access';
         }
 
+        $bookingFee = $this->amenityBookingFee($amenity);
+        $requiresProof = $bookingFee > 0;
+        $paymentStatus = $requiresProof ? self::PAYMENT_PENDING : self::PAYMENT_NOT_REQUIRED;
+        $proofFile = $request->file('payment_proof');
+
+        if ($requiresProof) {
+            if (! $proofFile instanceof UploadedFile) {
+                throw ValidationException::withMessages([
+                    'payment_proof' => 'Upload a payment screenshot or receipt for this booking fee.',
+                ]);
+            }
+            if (! $request->filled('payment_date')) {
+                throw ValidationException::withMessages([
+                    'payment_date' => 'Payment date is required.',
+                ]);
+            }
+        }
+
+        $now = now();
         $id = DB::table('bookings')->insertGetId([
             'amenity_id' => $request->amenity_id,
             'user_id' => $user->id,
             'date' => $date,
             'time_slot' => $timeSlot,
             'guests' => $guests,
+            'booking_fee' => $bookingFee,
             'status' => 'pending',
+            'payment_verification_status' => $paymentStatus,
             'notes' => $request->notes,
-            'created_at' => now(),
-            'updated_at' => now(),
+            'created_at' => $now,
+            'updated_at' => $now,
         ]);
+
+        if ($requiresProof && $proofFile instanceof UploadedFile) {
+            try {
+                $fileMeta = $this->storeBookingProofFile(
+                    $proofFile,
+                    (int) $amenity->community_id,
+                    (int) $amenity->id,
+                    $id,
+                );
+                DB::table('bookings')->where('id', $id)->update([
+                    'proof_file_path' => $fileMeta['file_path'],
+                    'proof_file_name' => $fileMeta['file_name'],
+                    'proof_file_size' => $fileMeta['file_size'],
+                    'proof_mime_type' => $fileMeta['mime_type'],
+                    'payment_date' => $request->payment_date,
+                    'payment_reference' => $request->filled('payment_reference')
+                        ? trim((string) $request->payment_reference)
+                        : null,
+                    'payment_note' => $request->filled('payment_note')
+                        ? trim((string) $request->payment_note)
+                        : null,
+                    'proof_submitted_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            } catch (\Throwable $e) {
+                DB::table('bookings')->where('id', $id)->delete();
+                throw $e;
+            }
+        }
 
         ActivityLogService::user(
             'amenity_booking_requested',
@@ -367,17 +481,7 @@ class AmenityController extends Controller
             ->first();
 
         return response()->json([
-            'data' => [
-                'id' => $id,
-                'amenity_id' => (int) $request->amenity_id,
-                'amenity_name' => $booking->amenity_name ?? $amenity->name,
-                'amenity_name_es' => $booking->amenity_name_es ?? null,
-                'amenity_name_ar' => $booking->amenity_name_ar ?? null,
-                'date' => $date,
-                'time_slot' => $timeSlot,
-                'guests' => $guests,
-                'status' => 'pending',
-            ],
+            'data' => $this->formatResidentBooking($booking),
             'message' => 'Reservation requested. The amenity owner will review your request.',
         ], 201);
     }
@@ -417,8 +521,14 @@ class AmenityController extends Controller
             ], 422);
         }
 
+        $paymentStatus = ($booking->payment_verification_status ?? self::PAYMENT_NOT_REQUIRED) === self::PAYMENT_PENDING
+            ? self::PAYMENT_ACCEPTED
+            : ($booking->payment_verification_status ?? self::PAYMENT_NOT_REQUIRED);
+
         DB::table('bookings')->where('id', $id)->update([
             'status' => 'confirmed',
+            'payment_verification_status' => $paymentStatus,
+            'rejection_reason' => null,
             'updated_at' => now(),
         ]);
 
@@ -452,18 +562,15 @@ class AmenityController extends Controller
             ], 422);
         }
 
-        // Keep original requester notes; append decline reason when provided.
-        $notes = $booking->notes;
-        if ($request->filled('reason')) {
-            $reason = trim((string) $request->reason);
-            $notes = $notes
-                ? rtrim((string) $notes)."\nDecline reason: {$reason}"
-                : "Decline reason: {$reason}";
-        }
+        $reason = $request->filled('reason') ? trim((string) $request->reason) : null;
+        $paymentStatus = ($booking->payment_verification_status ?? self::PAYMENT_NOT_REQUIRED) === self::PAYMENT_PENDING
+            ? self::PAYMENT_REJECTED
+            : ($booking->payment_verification_status ?? self::PAYMENT_NOT_REQUIRED);
 
         DB::table('bookings')->where('id', $id)->update([
             'status' => 'rejected',
-            'notes' => $notes,
+            'payment_verification_status' => $paymentStatus,
+            'rejection_reason' => $reason,
             'updated_at' => now(),
         ]);
 
@@ -490,7 +597,8 @@ class AmenityController extends Controller
 
         $query = DB::table('amenities')
             ->leftJoin('users', 'users.id', '=', 'amenities.created_by')
-            ->select('amenities.*', 'users.name as creator_name')
+            ->leftJoin('communities', 'communities.id', '=', 'amenities.community_id')
+            ->select('amenities.*', 'users.name as creator_name', 'communities.name as community_name')
             ->where('amenities.community_id', $communityId)
             ->orderByRaw("FIELD(amenities.review_status, 'pending', 'approved', 'rejected')")
             ->orderBy('amenities.name');
@@ -685,14 +793,39 @@ class AmenityController extends Controller
             'floor' => 'nullable|string|max:40',
             'hours' => 'nullable|string|max:100',
             'start_time' => ($creating ? 'required' : 'sometimes').'|date_format:H:i',
-            'end_time' => ($creating ? 'required' : 'sometimes').'|date_format:H:i|after:start_time',
+            'end_time' => [
+                ($creating ? 'required' : 'sometimes'),
+                'date_format:H:i',
+                function (string $attribute, mixed $value, \Closure $fail) use ($request) {
+                    $start = $request->input('start_time');
+                    if (! is_string($start) || $start === '' || ! is_string($value) || $value === '') {
+                        return;
+                    }
+
+                    $window = AmenitySlots::resolvedWindow($start, $value);
+                    if ($window === null) {
+                        $fail('Enter a valid opening and closing time.');
+                    }
+                },
+            ],
             'weekends_available' => 'nullable|boolean',
             'slot_duration_minutes' => 'nullable|integer|min:15|max:480',
             'icon_key' => 'nullable|string|in:'.implode(',', self::ICON_KEYS),
+            'shared_billing_enabled' => 'nullable|boolean',
+            'shared_billing_type' => 'nullable|string|in:'.self::SHARED_BILLING_TYPE_ALL_RESIDENTS,
+            'shared_billing_frequency' => 'nullable|string|in:'.self::SHARED_BILLING_FREQUENCY_MONTHLY,
+            'shared_billing_amount' => 'nullable|numeric|min:0.01|max:999999.99',
+            'shared_billing_due_day' => 'nullable|integer|min:1|max:31',
+            'booking_fee' => 'nullable|numeric|min:0|max:999999.99',
         ];
 
         if ($creating && $request->input('status') === 'bookable') {
             $rules['slot_duration_minutes'] = 'required|integer|min:15|max:480';
+        }
+
+        if ($request->boolean('shared_billing_enabled')) {
+            $rules['shared_billing_amount'] = 'required|numeric|min:0.01|max:999999.99';
+            $rules['shared_billing_due_day'] = 'required|integer|min:1|max:31';
         }
 
         return $request->validate($rules);
@@ -735,6 +868,8 @@ class AmenityController extends Controller
             'slot_duration_minutes' => $slotDuration,
             'image_url' => null,
             'icon_key' => $data['icon_key'] ?? null,
+            ...$this->normalizedSharedBilling($data),
+            'booking_fee' => $this->normalizedBookingFee($data),
             'created_at' => now(),
             'updated_at' => now(),
         ];
@@ -774,7 +909,48 @@ class AmenityController extends Controller
             }
         }
 
+        if (array_key_exists('shared_billing_enabled', $data)) {
+            $payload = array_merge($payload, $this->normalizedSharedBilling($data));
+        }
+
+        if (array_key_exists('booking_fee', $data)) {
+            $payload['booking_fee'] = $this->normalizedBookingFee($data);
+        }
+
         return $payload;
+    }
+
+    /** @param  array<string, mixed>  $data */
+    private function normalizedSharedBilling(array $data): array
+    {
+        if (! ($data['shared_billing_enabled'] ?? false)) {
+            return [
+                'shared_billing_enabled' => false,
+                'shared_billing_type' => null,
+                'shared_billing_frequency' => null,
+                'shared_billing_amount' => null,
+                'shared_billing_due_day' => null,
+            ];
+        }
+
+        return [
+            'shared_billing_enabled' => true,
+            'shared_billing_type' => $data['shared_billing_type'] ?? self::SHARED_BILLING_TYPE_ALL_RESIDENTS,
+            'shared_billing_frequency' => $data['shared_billing_frequency'] ?? self::SHARED_BILLING_FREQUENCY_MONTHLY,
+            'shared_billing_amount' => $data['shared_billing_amount'],
+            'shared_billing_due_day' => (int) $data['shared_billing_due_day'],
+        ];
+    }
+
+    private function communityNameFor(int $communityId): ?string
+    {
+        if ($communityId < 1) {
+            return null;
+        }
+
+        $name = DB::table('communities')->where('id', $communityId)->value('name');
+
+        return is_string($name) && $name !== '' ? $name : null;
     }
 
     private function formatAmenity(object $row, ?int $viewerId = null): array
@@ -801,6 +977,7 @@ class AmenityController extends Controller
             'hours' => AmenitySlots::formatHoursDisplay($start, $end, $row->hours ?? null),
             'start_time' => $start ? substr((string) $start, 0, 5) : null,
             'end_time' => $end ? substr((string) $end, 0, 5) : null,
+            'hours_overnight' => AmenitySlots::isOvernight($start, $end),
             'weekends_available' => (bool) ($row->weekends_available ?? true),
             'slot_duration_minutes' => $duration !== null ? (int) $duration : null,
             'slots' => $row->status === 'bookable'
@@ -808,6 +985,14 @@ class AmenityController extends Controller
                 : [],
             'image_url' => MediaUrl::toPublic($row->image_url ?? null, request()),
             'icon_key' => $row->icon_key ?? null,
+            'community_name' => $row->community_name ?? $this->communityNameFor((int) $row->community_id),
+            'shared_billing_enabled' => (bool) ($row->shared_billing_enabled ?? false),
+            'shared_billing_type' => $row->shared_billing_type ?? null,
+            'shared_billing_frequency' => $row->shared_billing_frequency ?? null,
+            'shared_billing_amount' => $row->shared_billing_amount !== null ? (float) $row->shared_billing_amount : null,
+            'shared_billing_due_day' => $row->shared_billing_due_day !== null ? (int) $row->shared_billing_due_day : null,
+            'booking_fee' => $this->amenityBookingFee($row),
+            'has_overdue_shared_amenity_bill' => false,
             'is_mine' => $viewerId !== null && (int) ($row->created_by ?? 0) === $viewerId,
             'created_at' => $row->created_at,
             'updated_at' => $row->updated_at,
@@ -837,6 +1022,138 @@ class AmenityController extends Controller
         $amenity['user_next_booking_guests'] = $booking ? (int) ($booking->guests ?? 1) : null;
 
         return $amenity;
+    }
+
+    /** Community admin inbox must use managed-community scope, not the latest resident membership. */
+    private function resolveInboxCommunityId(Request $request, $user): int
+    {
+        if (AdminRoleService::isSystemAdmin($user) || AdminRoleService::isCommunityAdminRole($user)) {
+            $scope = AdminRoleService::resolveAdminCommunityScope($user, $request);
+            if ($scope) {
+                return (int) $scope;
+            }
+        }
+
+        return $this->resolveResidentCommunityId($request, $user);
+    }
+
+    private function formatInboxBooking(object $row): array
+    {
+        return [
+            ...$this->formatBookingCore($row),
+            'community_id' => isset($row->community_id) ? (int) $row->community_id : null,
+            'amenity_icon_key' => $row->amenity_icon_key ?? null,
+            'amenity_created_by' => $row->amenity_created_by !== null ? (int) $row->amenity_created_by : null,
+            'amenity_status' => $row->amenity_status ?? null,
+            'amenity_description' => $row->amenity_description ?? null,
+            'amenity_description_es' => $row->amenity_description_es ?? null,
+            'amenity_description_ar' => $row->amenity_description_ar ?? null,
+            'amenity_capacity' => $row->amenity_capacity !== null ? (int) $row->amenity_capacity : null,
+            'amenity_floor' => $row->amenity_floor ?? null,
+            'amenity_hours' => $row->amenity_hours ?? null,
+            'user_id' => isset($row->user_id) ? (int) $row->user_id : null,
+            'user_name' => $row->user_name ?? null,
+            'user_unit' => $row->user_unit ?? null,
+        ];
+    }
+
+    private function formatResidentBooking(object $row): array
+    {
+        return [
+            ...$this->formatBookingCore($row),
+            'amenity_image' => MediaUrl::toPublic($row->amenity_image ?? null, request()),
+            'amenity_icon_key' => $row->amenity_icon_key ?? null,
+            'amenity_status' => $row->amenity_status ?? null,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function formatBookingCore(object $row): array
+    {
+        return [
+            'id' => (int) $row->id,
+            'amenity_id' => (int) $row->amenity_id,
+            'date' => $row->date,
+            'time_slot' => $row->time_slot,
+            'guests' => (int) ($row->guests ?? 1),
+            'booking_fee' => (float) ($row->booking_fee ?? 0),
+            'status' => $row->status,
+            'payment_verification_status' => $row->payment_verification_status ?? self::PAYMENT_NOT_REQUIRED,
+            'notes' => $row->notes,
+            'rejection_reason' => $row->rejection_reason ?? null,
+            'created_at' => $row->created_at,
+            'updated_at' => $row->updated_at,
+            'requested_at' => $row->created_at,
+            'amenity_name' => $row->amenity_name ?? null,
+            'amenity_name_es' => $row->amenity_name_es ?? null,
+            'amenity_name_ar' => $row->amenity_name_ar ?? null,
+            'payment_proof' => $this->formatBookingPaymentProof($row),
+        ];
+    }
+
+    /** @return array<string, mixed>|null */
+    private function formatBookingPaymentProof(object $row): ?array
+    {
+        if (empty($row->proof_file_path) && empty($row->payment_date) && empty($row->proof_submitted_at)) {
+            return null;
+        }
+
+        $size = $row->proof_file_size !== null ? (int) $row->proof_file_size : null;
+
+        return [
+            'file_url' => MediaUrl::toPublic($row->proof_file_path ?? null, request()),
+            'file_name' => $row->proof_file_name ?? null,
+            'file_size' => $size,
+            'file_size_label' => $size !== null ? $this->formatProofBytes($size) : null,
+            'mime_type' => $row->proof_mime_type ?? null,
+            'payment_date' => $row->payment_date ?? null,
+            'payment_reference' => $row->payment_reference ?? null,
+            'payment_note' => $row->payment_note ?? null,
+            'submitted_at' => $row->proof_submitted_at ?? null,
+        ];
+    }
+
+    private function amenityBookingFee(object $amenity): float
+    {
+        $fee = (float) ($amenity->booking_fee ?? 0);
+
+        return $fee > 0 ? round($fee, 2) : 0.0;
+    }
+
+    /** @param  array<string, mixed>  $data */
+    private function normalizedBookingFee(array $data): float
+    {
+        if (! array_key_exists('booking_fee', $data) || $data['booking_fee'] === null || $data['booking_fee'] === '') {
+            return 0.0;
+        }
+
+        return max(0, round((float) $data['booking_fee'], 2));
+    }
+
+    /** @return array{file_path: string, file_name: string, file_size: int, mime_type: ?string} */
+    private function storeBookingProofFile(UploadedFile $file, int $communityId, int $amenityId, int $bookingId): array
+    {
+        $path = $file->store("amenity-booking-proofs/{$communityId}/{$amenityId}/{$bookingId}", 'public');
+        $relative = '/storage/'.ltrim(str_replace('\\', '/', $path), '/');
+
+        return [
+            'file_path' => MediaUrl::normalize($relative) ?? $relative,
+            'file_name' => $file->getClientOriginalName(),
+            'file_size' => (int) $file->getSize(),
+            'mime_type' => $file->getClientMimeType(),
+        ];
+    }
+
+    private function formatProofBytes(int $bytes): string
+    {
+        if ($bytes < 1024) {
+            return $bytes.' B';
+        }
+        if ($bytes < 1048576) {
+            return round($bytes / 1024, 1).' KB';
+        }
+
+        return round($bytes / 1048576, 1).' MB';
     }
 
     private function resolveResidentCommunityId(Request $request, $user): int

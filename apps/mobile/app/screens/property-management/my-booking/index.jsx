@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, RefreshControl, Platform } from "react-native";
 import { PropertyType } from "../../../../constants/property-management-type";
 import React, { useState, useEffect, useCallback } from "react";
+import { useRouter } from "expo-router";
 import { Fonts } from "../../../../constants/font";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -8,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import i18n, { localizedField } from "../../../../i18n";
 import { getLocaleForLang } from "../../../../hooks/use-app-locale";
 import InternalScreenHeader from "../../../../components/layout/internal-screen-header";
+import { HeaderIconSlot } from "../../../../components/layout/header-chrome";
 import { pageStyles } from "../../../../constants/page-styles";
 import { Property, propertyStyles } from "../../../../constants/property-styles";
 import { fetchMyBookings, cancelBooking } from "../../../../services/amenity-api";
@@ -38,6 +40,7 @@ function formatDateTime(dateStr, timeStr) {
 
 export default function MyBooking() {
   const { t } = useTranslation();
+  const router = useRouter();
   const [selectedTab, setSelectedTab] = useState("upcoming");
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -112,25 +115,54 @@ export default function MyBooking() {
 
   return (
     <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
-      <InternalScreenHeader title={t("propertyMgmt.bookingsTitle")} subtitle={t("propertyMgmt.upcomingSubtitle", { count: upcomingCount })} />
+      <InternalScreenHeader
+        title={t("propertyMgmt.bookingsTitle")}
+        subtitle={t("propertyMgmt.upcomingSubtitle", { count: upcomingCount })}
+        right={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("settings.title")}
+            onPress={() => router.push("/screens/settings")}
+            hitSlop={10}
+          >
+            <HeaderIconSlot>
+              <Feather name="settings" size={sf(16)} color="#1B4F8A" />
+            </HeaderIconSlot>
+          </Pressable>
+        }
+      />
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.tabBar}
-        style={styles.tabScroll}
-      >
-        {tabs.map((tab) => {
-          const isSelected = selectedTab === tab.id;
-          return (
-            <Pressable key={tab.id} onPress={() => setSelectedTab(tab.id)} style={[styles.tab, isSelected && styles.tabActive]}>
-              <Text style={[styles.tabText, isSelected && styles.tabTextActive]} numberOfLines={1}>
-                {tab.title}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      <View style={styles.toolbar}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabBar}
+          style={styles.tabScroll}
+          keyboardShouldPersistTaps="handled"
+        >
+          {tabs.map((tab) => {
+            const isSelected = selectedTab === tab.id;
+            return (
+              <Pressable
+                key={tab.id}
+                onPress={() => setSelectedTab(tab.id)}
+                style={[styles.tab, isSelected && styles.tabActive]}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: isSelected }}
+                accessibilityLabel={tab.title}
+              >
+                <Text
+                  style={[styles.tabText, isSelected && styles.tabTextActive]}
+                  numberOfLines={1}
+                  includeFontPadding={false}
+                >
+                  {tab.title}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       {loading ? (
         <ActivityIndicator color="#14B8A6" style={{ marginTop: 40 }} />
@@ -169,7 +201,10 @@ export default function MyBooking() {
                         {amenityName}
                       </Text>
                       {reservation.status === "pending" ? (
-                        <Text style={styles.pendingNote}>{t("propertyMgmt.awaitingOwnerApproval")}</Text>
+                        <Text style={styles.pendingNote}>{t("propertyMgmt.statusPendingApproval")}</Text>
+                      ) : null}
+                      {reservation.status === "rejected" && reservation.rejection_reason ? (
+                        <Text style={styles.pendingNote}>{reservation.rejection_reason}</Text>
                       ) : null}
                     </View>
                     <View style={[styles.statusPill, { backgroundColor: meta.bg }]}>
@@ -193,6 +228,16 @@ export default function MyBooking() {
                           <Feather name="clock" size={sf(14)} color="#1B4F8A" />
                         </View>
                         <Text style={styles.detailText}>{reservation.time_slot}</Text>
+                      </View>
+                    ) : null}
+                    {Number(reservation.booking_fee ?? 0) > 0 ? (
+                      <View style={styles.detailRow}>
+                        <View style={styles.detailIcon}>
+                          <Feather name="credit-card" size={sf(14)} color="#1B4F8A" />
+                        </View>
+                        <Text style={styles.detailText}>
+                          {t("propertyMgmt.bookingFee")}: ${Number(reservation.booking_fee).toFixed(Number(reservation.booking_fee) % 1 === 0 ? 0 : 2)}
+                        </Text>
                       </View>
                     ) : null}
                   </View>
@@ -233,21 +278,43 @@ export default function MyBooking() {
 }
 
 const styles = StyleSheet.create({
-  tabScroll: { flexGrow: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#E5E7EB", backgroundColor: "#FFFFFF" },
-  tabBar: { paddingHorizontal: Property.gutter, paddingVertical: sw(12), gap: sw(8) },
+  toolbar: {
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E5E7EB",
+    overflow: "visible",
+    zIndex: 1,
+  },
+  tabScroll: {
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  tabBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Property.gutter,
+    paddingVertical: sw(12),
+    gap: sw(8),
+    minHeight: sw(56),
+  },
   tab: {
     backgroundColor: "#F1F5F9",
-    paddingVertical: sw(8),
+    height: sw(36),
     paddingHorizontal: sw(14),
     borderRadius: sw(10),
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
   tabActive: { backgroundColor: "#1B4F8A" },
   tabText: {
     fontFamily: Fonts.medium,
     fontSize: PropertyType.bodyMd,
-    lineHeight: PropertyType.bodyMdLine,
+    lineHeight: sf(16),
     color: "#4A5565",
     fontWeight: "500",
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   tabTextActive: { fontFamily: Fonts.bold, color: "#FFFFFF", fontWeight: "700" },
   content: { paddingHorizontal: Property.gutter, paddingTop: sw(16), gap: sw(12) },

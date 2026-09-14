@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\FamilyController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\AmenityController;
+use App\Http\Controllers\Api\V1\AmenitySharedBillController;
 use App\Http\Controllers\Api\V1\WellnessController;
 use App\Http\Controllers\Api\V1\AdminWellnessController;
 use App\Http\Controllers\Api\V1\GeographyController;
@@ -196,6 +197,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/amenities',                        [AmenityController::class, 'index']);
         Route::post('/amenities',                       [AmenityController::class, 'create']);
         Route::get('/amenities/{id}/slots',             [AmenityController::class, 'slots']);
+        Route::get('/amenities/{id}/bills',             [AmenitySharedBillController::class, 'residentIndex']);
+        Route::post('/amenities/{id}/bills/{residentBillId}/proof', [AmenitySharedBillController::class, 'residentSubmitProof']);
         Route::get('/bookings',                         [AmenityController::class, 'myBookings']);
         Route::get('/bookings/inbox',                   [AmenityController::class, 'bookingInbox']);
         Route::post('/bookings',                        [AmenityController::class, 'book']);
@@ -322,6 +325,7 @@ Route::prefix('v1')->group(function () {
                 Route::patch('/guests/{id}/reject',      [GuestController::class, 'reject']);
                 Route::patch('/guests/{id}/revoke',       [GuestController::class, 'revoke']);
                 Route::patch('/guests/{id}/extend',       [GuestController::class, 'extend']);
+                Route::delete('/guests/{id}',             [GuestController::class, 'destroy']);
 
                 Route::get('/dashboard/stats', [DashboardController::class, 'adminStats']);
 
@@ -372,6 +376,12 @@ Route::prefix('v1')->group(function () {
                 Route::delete('/amenities/{id}',              [AmenityController::class, 'destroy']);
                 Route::patch('/amenities/{id}/approve',       [AmenityController::class, 'approveAmenity']);
                 Route::patch('/amenities/{id}/reject',        [AmenityController::class, 'rejectAmenity']);
+                Route::get('/amenities/{id}/bills',           [AmenitySharedBillController::class, 'adminIndex']);
+                Route::post('/amenities/{id}/bills',          [AmenitySharedBillController::class, 'adminStore']);
+                Route::get('/amenities/{id}/bills/{monthlyBillId}/residents', [AmenitySharedBillController::class, 'adminResidentIndex']);
+                Route::get('/amenities/{id}/resident-bills/{residentBillId}/reviews', [AmenitySharedBillController::class, 'adminReviews']);
+                Route::patch('/amenities/{id}/resident-bills/{residentBillId}/approve', [AmenitySharedBillController::class, 'adminApprove']);
+                Route::patch('/amenities/{id}/resident-bills/{residentBillId}/reject', [AmenitySharedBillController::class, 'adminReject']);
 
                 /* Amenity bookings — admin can still review community-wide */
                 Route::get('/bookings',                       [AmenityController::class, 'adminBookings']);

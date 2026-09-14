@@ -17,10 +17,26 @@ import AuthSubmitButton from "../../../components/ui/auth-submit-button";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { hasFieldErrors, LIMITS, validateInviteCodeForm } from "../../../utils/form-validation";
+import { normalizeResidentInviteCode } from "../../../utils/guest-invite";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
 import { confirmLeaveOnboarding } from "../../../services/sign-out";
 import { ScreenBrand } from "../../../constants/screen-brand";
+
+/**
+ * Plain object so the text-metrics patch cannot add lineHeight.
+ * iOS TextInput top-aligns placeholder and typed text when lineHeight is set.
+ */
+const INVITE_CODE_INPUT_TEXT = {
+  paddingTop: 0,
+  paddingBottom: 0,
+  paddingVertical: 0,
+  fontFamily: Fonts.regular,
+  fontSize: 14,
+  color: "rgba(17, 24, 39, 1)",
+  textAlignVertical: "center",
+  includeFontPadding: false,
+};
 
 export default function InviteCodeScreen() {
   const { t } = useTranslation();
@@ -133,7 +149,7 @@ export default function InviteCodeScreen() {
   };
 
   const handleScannedCode = (code) => {
-    setInviteCode(String(code).trim().toUpperCase());
+    setInviteCode(normalizeResidentInviteCode(code));
     touch("inviteCode");
     clearError("inviteCode");
   };
@@ -142,7 +158,7 @@ export default function InviteCodeScreen() {
     if (submitting) return;
     if (!validateOnSubmit(liveErrors)) return;
 
-    const normalizedCode = inviteCode.trim().toUpperCase();
+    const normalizedCode = normalizeResidentInviteCode(inviteCode);
 
     run(async () => {
       try {
@@ -269,12 +285,14 @@ export default function InviteCodeScreen() {
                   placeholderTextColor="#9CA3AF"
                   style={[
                     styles.input,
+                    INVITE_CODE_INPUT_TEXT,
                     showError("inviteCode", liveErrors) && styles.inputError,
                   ]}
                   autoCapitalize="characters"
                   autoCorrect={false}
                   editable={!submitting}
                   maxLength={LIMITS.inviteCode}
+                  underlineColorAndroid="transparent"
                 />
                 {showError("inviteCode", liveErrors) ? (
                   <Text style={styles.errorText}>
@@ -429,9 +447,6 @@ const styles = StyleSheet.create({
     borderColor: "rgba(229, 231, 235, 1)",
     borderRadius: 14,
     paddingHorizontal: 16,
-    fontFamily: Fonts.regular,
-    fontSize: 14,
-    color: "rgba(17, 24, 39, 1)",
     backgroundColor: "rgba(255, 255, 255, 1)",
     marginBottom: 4,
   },

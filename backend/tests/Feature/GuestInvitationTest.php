@@ -9,6 +9,7 @@ use App\Models\GuestInvitation;
 use App\Models\Region;
 use App\Models\User;
 use App\Services\GuestAccessService;
+use App\Services\GuestInvitationService;
 use App\Services\OtpService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -121,6 +122,60 @@ class GuestInvitationTest extends TestCase
             ->assertJsonValidationErrors(['guest_name']);
     }
 
+    public function test_admin_invite_rejects_when_no_permission_is_selected(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $response = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Jane Guest',
+            'guest_email' => 'jane@example.com',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+            'permissions' => [
+                'feed'        => false,
+                'notices'     => false,
+                'events'      => false,
+                'marketplace' => false,
+                'businesses'  => false,
+                'wellness'    => false,
+            ],
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['permissions']);
+        $this->assertSame(
+            'Please select at least one permission.',
+            $response->json('errors.permissions.0'),
+        );
+        $this->assertDatabaseMissing('guest_invitations', [
+            'guest_email' => 'jane@example.com',
+        ]);
+    }
+
+    public function test_admin_invite_accepts_wellness_only_permission(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Wellness Guest',
+            'guest_email' => 'wellness.only@example.com',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+            'permissions' => [
+                'feed'        => false,
+                'notices'     => false,
+                'events'      => false,
+                'marketplace' => false,
+                'businesses'  => false,
+                'wellness'    => true,
+            ],
+        ])->assertCreated()
+            ->assertJsonPath('data.permissions.wellness', true)
+            ->assertJsonPath('data.permissions.feed', false);
+    }
+
     public function test_admin_invite_rejects_invalid_guest_email(): void
     {
         [, $admin] = $this->seedCommunityAdmin();
@@ -186,6 +241,101 @@ class GuestInvitationTest extends TestCase
         ]);
     }
 
+    public function test_admin_invite_rejects_access_window_shorter_than_30_minutes(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->addHour();
+        $response = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Too Short Guest',
+            'guest_email' => 'tooshort@example.com',
+            'starts_at'   => $startsAt->toIso8601String(),
+            'ends_at'     => $startsAt->copy()->addMinutes(29)->toIso8601String(),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['ends_at']);
+        $this->assertSame(
+            'Guest access duration must be at least 30 minutes.',
+            $response->json('errors.ends_at.0'),
+        );
+        $this->assertDatabaseMissing('guest_invitations', [
+            'guest_email' => 'tooshort@example.com',
+        ]);
+    }
+
+    public function test_admin_invite_accepts_30_minute_access_window(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->addHour();
+        $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Half Hour Guest',
+            'guest_email' => 'halfhour@example.com',
+            'starts_at'   => $startsAt->toIso8601String(),
+            'ends_at'     => $startsAt->copy()->addMinutes(30)->toIso8601String(),
+        ])->assertCreated();
+    }
+
+    public function test_admin_invite_rejects_start_in_the_past(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $response = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Past Start Guest',
+            'guest_email' => 'paststart@example.com',
+            'starts_at'   => now()->subYear()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['starts_at']);
+        $this->assertSame(
+            GuestInvitationService::START_IN_PAST_MESSAGE,
+            $response->json('errors.starts_at.0'),
+        );
+        $this->assertDatabaseMissing('guest_invitations', [
+            'guest_email' => 'paststart@example.com',
+        ]);
+    }
+
+    public function test_admin_invite_rejects_start_one_minute_ago(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $response = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Minute Ago Guest',
+            'guest_email' => 'minuteago@example.com',
+            'starts_at'   => now()->subMinute()->startOfMinute()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['starts_at']);
+        $this->assertSame(
+            GuestInvitationService::START_IN_PAST_MESSAGE,
+            $response->json('errors.starts_at.0'),
+        );
+    }
+
+    public function test_admin_invite_accepts_start_at_current_minute(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->startOfMinute();
+        $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Now Start Guest',
+            'guest_email' => 'nowstart@example.com',
+            'starts_at'   => $startsAt->toIso8601String(),
+            'ends_at'     => $startsAt->copy()->addHour()->toIso8601String(),
+        ])->assertCreated();
+    }
+
     public function test_guest_verify_flow_admin_invite_requires_admin_approval(): void
     {
         [$community, $admin] = $this->seedCommunityAdmin();
@@ -195,7 +345,7 @@ class GuestInvitationTest extends TestCase
             'guest_name'  => 'Active Guest',
             'guest_email' => 'activeguest@example.com',
             'guest_phone' => '+15551112222',
-            'starts_at'   => now()->subHour()->toIso8601String(),
+            'starts_at'   => now()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
@@ -249,7 +399,7 @@ class GuestInvitationTest extends TestCase
             'guest_name'  => 'Pending Guest',
             'guest_email' => 'pending.guest@example.com',
             'guest_phone' => '+15553334444',
-            'starts_at'   => now()->subHour()->toIso8601String(),
+            'starts_at'   => now()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
@@ -280,7 +430,7 @@ class GuestInvitationTest extends TestCase
             'guest_name'  => 'Two Step Guest',
             'guest_email' => 'twostep@example.com',
             'guest_phone' => '+15554443333',
-            'starts_at'   => now()->subHour()->toIso8601String(),
+            'starts_at'   => now()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
@@ -375,9 +525,14 @@ class GuestInvitationTest extends TestCase
             'guest_name'  => 'Expired Window Guest',
             'guest_email' => 'expiredwindow@example.com',
             'guest_phone' => '+15551230999',
-            'starts_at'   => now()->subHours(2)->toIso8601String(),
-            'ends_at'     => now()->subHour()->toIso8601String(),
-        ])->json('data');
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data');
+
+        GuestInvitation::query()->where('invite_code', $create['invite_code'])->update([
+            'starts_at' => now()->subHours(2),
+            'ends_at'   => now()->subHour(),
+        ]);
 
         app(OtpService::class)->send('expiredwindow@example.com');
 
@@ -398,7 +553,7 @@ class GuestInvitationTest extends TestCase
             'guest_name'  => 'Revoked Guest',
             'guest_email' => 'revoked@example.com',
             'guest_phone' => '+15551230555',
-            'starts_at'   => now()->subHour()->toIso8601String(),
+            'starts_at'   => now()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
@@ -447,12 +602,12 @@ class GuestInvitationTest extends TestCase
         Sanctum::actingAs($admin);
 
         $create = $this->postJson('/api/v1/admin/guests/invite', [
-            'guest_name'  => 'No Re-login Guest',
+            'guest_name'  => 'No Relogin Guest',
             'guest_email' => 'norelogin@example.com',
             'guest_phone' => '+15551230666',
-            'starts_at'   => now()->subHour()->toIso8601String(),
+            'starts_at'   => now()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
-        ])->json('data');
+        ])->assertCreated()->json('data');
 
         app(OtpService::class)->send('norelogin@example.com');
         $this->postJson('/api/v1/auth/guest/verify-invite', [
@@ -499,7 +654,7 @@ class GuestInvitationTest extends TestCase
             'guest_name'  => 'Timed Guest',
             'guest_email' => 'timed@example.com',
             'guest_phone' => '+15551230444',
-            'starts_at'   => now()->subHour()->toIso8601String(),
+            'starts_at'   => now()->toIso8601String(),
             'ends_at'     => now()->addHour()->toIso8601String(),
         ])->json('data');
 
@@ -542,7 +697,7 @@ class GuestInvitationTest extends TestCase
             'guest_name'  => 'Email Conflict Guest',
             'guest_email' => 'existing@example.com',
             'guest_phone' => '+15559998888',
-            'starts_at'   => now()->subHour()->toIso8601String(),
+            'starts_at'   => now()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])
             ->assertStatus(422)
@@ -566,7 +721,7 @@ class GuestInvitationTest extends TestCase
             'guest_name'  => 'Phone Conflict Guest',
             'guest_email' => 'newguest@example.com',
             'guest_phone' => '+15551230001',
-            'starts_at'   => now()->subHour()->toIso8601String(),
+            'starts_at'   => now()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])
             ->assertStatus(422)
@@ -582,7 +737,7 @@ class GuestInvitationTest extends TestCase
             'guest_name'  => 'First Guest',
             'guest_email' => 'first@example.com',
             'guest_phone' => '+15551230002',
-            'starts_at'   => now()->subHour()->toIso8601String(),
+            'starts_at'   => now()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
         ];
 
@@ -607,7 +762,7 @@ class GuestInvitationTest extends TestCase
             'guest_name'  => 'Admin Approves Me',
             'guest_email' => 'admin.approves@example.com',
             'guest_phone' => '+15556667777',
-            'starts_at'   => now()->subHour()->toIso8601String(),
+            'starts_at'   => now()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
@@ -647,7 +802,7 @@ class GuestInvitationTest extends TestCase
             'guest_name'  => 'Not Your Guest',
             'guest_email' => 'not.your.guest@example.com',
             'guest_phone' => '+15558889999',
-            'starts_at'   => now()->subHour()->toIso8601String(),
+            'starts_at'   => now()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
@@ -675,7 +830,7 @@ class GuestInvitationTest extends TestCase
             'guest_name'  => 'Admin Rejects Me',
             'guest_email' => 'admin.rejects@example.com',
             'guest_phone' => '+15558889999',
-            'starts_at'   => now()->subHour()->toIso8601String(),
+            'starts_at'   => now()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
@@ -704,7 +859,7 @@ class GuestInvitationTest extends TestCase
             'guest_name'  => 'Readonly Guest',
             'guest_email' => 'readonly@example.com',
             'guest_phone' => '+15557778888',
-            'starts_at'   => now()->subHour()->toIso8601String(),
+            'starts_at'   => now()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
@@ -733,7 +888,7 @@ class GuestInvitationTest extends TestCase
             'guest_name'  => 'Retry Guest',
             'guest_email' => 'retry@example.com',
             'guest_phone' => '+15556667777',
-            'starts_at'   => now()->subHour()->toIso8601String(),
+            'starts_at'   => now()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
@@ -765,7 +920,7 @@ class GuestInvitationTest extends TestCase
             'guest_name'  => 'Spaced Code Guest',
             'guest_email' => 'spaced@example.com',
             'guest_phone' => '+15556668888',
-            'starts_at'   => now()->subHour()->toIso8601String(),
+            'starts_at'   => now()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
         ])->json('data');
 
@@ -791,7 +946,7 @@ class GuestInvitationTest extends TestCase
             'guest_name'  => 'Activity Guest',
             'guest_email' => 'activity-guest@example.com',
             'guest_phone' => '+15551230911',
-            'starts_at'   => now()->subHour()->toIso8601String(),
+            'starts_at'   => now()->toIso8601String(),
             'ends_at'     => now()->addDay()->toIso8601String(),
             'permissions' => [
                 'feed'        => true,
@@ -852,5 +1007,115 @@ class GuestInvitationTest extends TestCase
             'viewed_services',
             'viewed_wellness',
         ], $actions);
+    }
+
+    public function test_admin_can_delete_pending_guest_invitation(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $created = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Pending Delete',
+            'guest_email' => 'pending.delete@example.com',
+            'guest_phone' => '+15550002222',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data');
+
+        $originalCode = $created['invite_code'];
+        $invitationId = $created['id'];
+
+        $this->getJson('/api/v1/admin/guests?status=pending')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $invitationId]);
+
+        $this->deleteJson("/api/v1/admin/guests/{$invitationId}")
+            ->assertOk()
+            ->assertJsonPath('message', 'Invitation deleted successfully.');
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'id'     => $invitationId,
+            'status' => 'cancelled',
+        ]);
+
+        $invitation = GuestInvitation::query()->findOrFail($invitationId);
+        $this->assertNotSame($originalCode, $invitation->invite_code);
+        $this->assertStringStartsWith('CXL-'.$invitationId.'-', $invitation->invite_code);
+        $this->assertNull($invitation->guest_user_id);
+        $this->assertTrue($invitation->ends_at->lte(now()));
+
+        $list = $this->getJson('/api/v1/admin/guests?status=pending')->assertOk();
+        $this->assertFalse(collect($list->json('data'))->contains(fn ($row) => (int) $row['id'] === (int) $invitationId));
+        $this->assertSame(0, (int) $list->json('meta.stats.pending_verification'));
+
+        app(OtpService::class)->send('pending.delete@example.com');
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'pending.delete@example.com',
+            'code'        => '123456',
+            'invite_code' => $originalCode,
+        ])->assertUnprocessable();
+
+        $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Pending Delete',
+            'guest_email' => 'pending.delete@example.com',
+            'guest_phone' => '+15550002222',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated();
+    }
+
+    public function test_admin_cannot_delete_accepted_or_active_guest_invitation(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $created = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Accepted Guest',
+            'guest_email' => 'accepted.guest@example.com',
+            'guest_phone' => '+15550003333',
+            'starts_at'   => now()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data');
+
+        app(OtpService::class)->send('accepted.guest@example.com');
+        $this->postJson('/api/v1/auth/guest/verify-invite', [
+            'email'       => 'accepted.guest@example.com',
+            'code'        => '123456',
+            'invite_code' => $created['invite_code'],
+        ])->assertOk()->assertJsonPath('invitation_status', 'pending_approval');
+
+        $invitation = GuestInvitation::query()->findOrFail($created['id']);
+        $this->assertSame('pending_approval', $invitation->status);
+        $guestUserId = $invitation->guest_user_id;
+        $this->assertNotNull($guestUserId);
+
+        Sanctum::actingAs($admin);
+        $this->deleteJson("/api/v1/admin/guests/{$invitation->id}")
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'INVITATION_ALREADY_ACCEPTED');
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'id'          => $invitation->id,
+            'status'      => 'pending_approval',
+            'invite_code' => $created['invite_code'],
+            'guest_user_id' => $guestUserId,
+        ]);
+        $this->assertDatabaseHas('users', ['id' => $guestUserId]);
+
+        $this->patchJson("/api/v1/admin/guests/{$invitation->id}/approve")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'active');
+
+        $this->deleteJson("/api/v1/admin/guests/{$invitation->id}")
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'INVITATION_ALREADY_ACCEPTED');
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'id'            => $invitation->id,
+            'status'        => 'active',
+            'invite_code'   => $created['invite_code'],
+            'guest_user_id' => $guestUserId,
+        ]);
+        $this->assertDatabaseHas('users', ['id' => $guestUserId]);
     }
 }

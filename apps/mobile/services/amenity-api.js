@@ -1,5 +1,9 @@
-import { apiRequest } from "./api-client";
+import { API_BASE_URL } from "../constants/api-config";
+import { apiRequest, ApiError } from "./api-client";
+import { getCommunityId, getToken } from "./auth-session";
 import { HOME_SECTION_CARD_LIMIT } from "../constants/home-sections";
+import { guessImageMeta } from "../utils/upload-form-data";
+import i18n from "../i18n";
 
 export async function fetchAmenities() {
   const res = await apiRequest("/amenities");
@@ -60,7 +64,64 @@ export async function fetchBookingInbox({ status } = {}) {
   return res.data ?? [];
 }
 
-export async function bookAmenity({ amenity_id, date, time_slot, notes, guests }) {
+export async function bookAmenity({
+  amenity_id,
+  date,
+  time_slot,
+  notes,
+  guests,
+  paymentProof,
+  paymentDate,
+  paymentReference,
+  paymentNote,
+}) {
+  if (paymentProof?.uri) {
+    const token = await getToken();
+    if (!token) throw new ApiError(i18n.t("imagePicker.signInRequired"), { status: 401 });
+
+    const communityId = await getCommunityId();
+    const { mimeType, fileName } = guessImageMeta(paymentProof.uri, paymentProof, "booking-proof");
+    const formData = new FormData();
+    formData.append("amenity_id", String(amenity_id));
+    formData.append("date", date);
+    if (time_slot) formData.append("time_slot", time_slot);
+    if (notes) formData.append("notes", notes);
+    if (guests != null) formData.append("guests", String(guests));
+    if (paymentDate) formData.append("payment_date", paymentDate);
+    if (paymentReference) formData.append("payment_reference", paymentReference);
+    if (paymentNote) formData.append("payment_note", paymentNote);
+    formData.append("payment_proof", { uri: paymentProof.uri, name: fileName, type: mimeType });
+
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    };
+    if (communityId) headers["X-Community-Id"] = String(communityId);
+    if (API_BASE_URL.includes("loca.lt")) headers["Bypass-Tunnel-Reminder"] = "true";
+
+    const response = await fetch(`${API_BASE_URL}/bookings`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+    const text = await response.text();
+    let body = null;
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = { message: text };
+      }
+    }
+    if (!response.ok) {
+      throw new ApiError(body?.message ?? i18n.t("propertyMgmt.couldNotBook"), {
+        status: response.status,
+        errors: body?.errors,
+      });
+    }
+    return body?.data ?? null;
+  }
+
   const body = { amenity_id, date };
   if (time_slot) body.time_slot = time_slot;
   if (notes) body.notes = notes;
@@ -128,6 +189,57 @@ export async function rejectAmenity(id, reason) {
     method: "PATCH",
     body: reason ? { reason } : {},
   });
+}
+
+export async function fetchAmenityBills(amenityId) {
+  const res = await apiRequest(`/amenities/${amenityId}/bills`);
+  return res.data ?? [];
+}
+
+export async function submitAmenityBillProof(amenityId, residentBillId, { fileAsset, paymentDate, paymentReference, paymentNote }) {
+  const token = await getToken();
+  if (!token) throw new ApiError(i18n.t("imagePicker.signInRequired"), { status: 401 });
+
+  const communityId = await getCommunityId();
+  const { mimeType, fileName } = guessImageMeta(fileAsset?.uri, fileAsset ?? {}, "payment-proof");
+  const formData = new FormData();
+  if (paymentDate) formData.append("payment_date", paymentDate);
+  if (paymentReference) formData.append("payment_reference", paymentReference);
+  if (paymentNote) formData.append("payment_note", paymentNote);
+  if (fileAsset?.uri) {
+    formData.append("file", { uri: fileAsset.uri, name: fileName, type: mimeType });
+  }
+
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/json",
+  };
+  if (communityId) headers["X-Community-Id"] = String(communityId);
+  if (API_BASE_URL.includes("loca.lt")) headers["Bypass-Tunnel-Reminder"] = "true";
+
+  const response = await fetch(
+    `${API_BASE_URL}/amenities/${amenityId}/bills/${residentBillId}/proof`,
+    { method: "POST", headers, body: formData },
+  );
+  const text = await response.text();
+  let body = null;
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = { message: text };
+    }
+  }
+  if (!response.ok) {
+    throw new ApiError(body?.message ?? i18n.t("propertyMgmt.couldNotSubmitProof"), {
+      status: response.status,
+      errors: body?.errors,
+    });
+  }
+  return {
+    data: body?.data ?? null,
+    message: body?.message ?? i18n.t("propertyMgmt.paymentProofSubmitted"),
+  };
 }
 
 /** @deprecated Prefer fetchBookingInbox — kept for older call sites. */

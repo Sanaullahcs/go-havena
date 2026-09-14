@@ -8,6 +8,8 @@ import {
   RefreshControl,
   Modal,
   TouchableOpacity,
+  TextInput,
+  Linking,
 } from "react-native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Feather } from "@expo/vector-icons";
@@ -24,9 +26,8 @@ import {
   approveBooking,
   rejectBooking,
 } from "../../../services/amenity-api";
-import { getAmenityVisual, formatLongDate } from "../../../utils/amenity-display";
+import { getAmenityVisual, formatLongDate, formatUsdAmount } from "../../../utils/amenity-display";
 import { useApiAction } from "../../../hooks/use-api-action";
-import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { localizedField } from "../../../i18n";
 
 const TABS = [
@@ -123,6 +124,32 @@ function BookingInfoSheet({ booking, onClose, t }) {
               </Text>
             </View>
             {booking.notes ? <Text style={styles.notesText}>{booking.notes}</Text> : null}
+            <View style={styles.detailRow}>
+              <Feather name="credit-card" size={sf(14)} color={Colors.brandPrimaryDeep} />
+              <Text style={styles.detailText}>
+                {t("propertyMgmt.bookingFee")}: {formatUsdAmount(booking.booking_fee)}
+              </Text>
+            </View>
+            {booking.payment_proof ? (
+              <>
+                <Text style={styles.notesText}>
+                  {t("propertyMgmt.paymentDate")}: {booking.payment_proof.payment_date || "—"}
+                </Text>
+                <Text style={styles.notesText}>
+                  {t("propertyMgmt.paymentReference")}: {booking.payment_proof.payment_reference || "—"}
+                </Text>
+                {booking.payment_proof.file_url ? (
+                  <TouchableOpacity onPress={() => Linking.openURL(booking.payment_proof.file_url)}>
+                    <Text style={styles.proofLink}>{t("propertyMgmt.viewPaymentProof")}</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </>
+            ) : null}
+            {booking.rejection_reason ? (
+              <Text style={styles.notesText}>
+                {t("propertyMgmt.rejectionReason")}: {booking.rejection_reason}
+              </Text>
+            ) : null}
           </View>
         </Pressable>
       </Pressable>
@@ -139,8 +166,9 @@ export default function AdminBookings() {
   const [busyId, setBusyId] = useState(null);
   const [menuBooking, setMenuBooking] = useState(null);
   const [viewing, setViewing] = useState(null);
+  const [rejecting, setRejecting] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
   const { runAction, showFailure } = useApiAction();
-  const { showConfirm } = useAppDialog();
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -193,17 +221,19 @@ export default function AdminBookings() {
 
   const handleReject = async (booking) => {
     setMenuBooking(null);
-    const confirmed = await showConfirm(
-      t("admin.declineReservation"),
-      t("admin.declineMessage", { name: booking.user_name, amenity: booking.amenity_name }),
-      { confirmLabel: t("admin.decline"), cancelLabel: t("admin.keep"), destructive: true },
-    );
-    if (confirmed !== "confirm") return;
+    setRejecting(booking);
+    setRejectReason("");
+  };
 
+  const submitReject = async () => {
+    if (!rejecting) return;
+    const booking = rejecting;
+    const reason = rejectReason.trim();
+    setRejecting(null);
     setBusyId(booking.id);
     try {
       await runAction({
-        action: () => rejectBooking(booking.id),
+        action: () => rejectBooking(booking.id, reason || undefined),
         successTitle: t("admin.reservationDeclined"),
         successMessage: t("admin.residentNotified"),
         errorTitle: t("admin.couldNotDecline"),
@@ -211,6 +241,7 @@ export default function AdminBookings() {
       });
     } finally {
       setBusyId(null);
+      setRejectReason("");
     }
   };
 
@@ -331,6 +362,10 @@ export default function AdminBookings() {
                       <Feather name="clock" size={sf(14)} color={Colors.brandPrimaryDeep} />
                       <Text style={styles.detailText}>{booking.time_slot}</Text>
                     </View>
+                    <View style={styles.detailRow}>
+                      <Feather name="credit-card" size={sf(14)} color={Colors.brandPrimaryDeep} />
+                      <Text style={styles.detailText}>{formatUsdAmount(booking.booking_fee)}</Text>
+                    </View>
                   </View>
                 </View>
               );
@@ -384,6 +419,35 @@ export default function AdminBookings() {
       </Modal>
 
       <BookingInfoSheet booking={viewing} onClose={() => setViewing(null)} t={t} />
+
+      <Modal
+        visible={Boolean(rejecting)}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setRejecting(null)}
+      >
+        <Pressable style={styles.sheetBackdrop} onPress={() => setRejecting(null)}>
+          <Pressable style={styles.actionSheet} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.actionSheetTitle}>{t("admin.declineReservation")}</Text>
+            <Text style={styles.emptyText}>{t("propertyMgmt.rejectionReason")}</Text>
+            <TextInput
+              style={styles.rejectInput}
+              value={rejectReason}
+              onChangeText={setRejectReason}
+              placeholder={t("propertyMgmt.optional")}
+              placeholderTextColor="#94A3B8"
+              multiline
+            />
+            <Pressable style={styles.actionSheetItem} onPress={() => void submitReject()}>
+              <Feather name="x" size={sf(16)} color="#E11D48" />
+              <Text style={[styles.actionSheetText, { color: "#E11D48" }]}>{t("admin.reject")}</Text>
+            </Pressable>
+            <Pressable style={styles.actionSheetCancel} onPress={() => setRejecting(null)}>
+              <Text style={styles.actionSheetCancelText}>{t("admin.cancel")}</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -616,5 +680,24 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
     borderRadius: sw(8),
     padding: sw(10),
+  },
+  proofLink: {
+    marginTop: sw(6),
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(13),
+    color: Colors.brandPrimaryDeep,
+  },
+  rejectInput: {
+    marginTop: sw(8),
+    minHeight: sw(72),
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: sw(12),
+    paddingHorizontal: sw(12),
+    paddingVertical: sw(10),
+    fontFamily: Fonts.regular,
+    fontSize: sf(13),
+    color: Colors.textPrimary,
+    textAlignVertical: "top",
   },
 });

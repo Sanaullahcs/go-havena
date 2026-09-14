@@ -12,6 +12,22 @@ use Illuminate\Support\Str;
 
 class GuestInvitationService
 {
+    public const MIN_ACCESS_MINUTES = 30;
+
+    public const MIN_ACCESS_DURATION_MESSAGE = 'Guest access duration must be at least 30 minutes.';
+
+    public const START_IN_PAST_MESSAGE = 'Start date cannot be earlier than the current date and time.';
+
+    public static function earliestAllowedStart(): \Illuminate\Support\Carbon
+    {
+        return now()->timezone((string) config('app.timezone'))->startOfMinute();
+    }
+
+    public static function startIsInThePast(\Illuminate\Support\Carbon $startsAt): bool
+    {
+        return $startsAt->lt(self::earliestAllowedStart());
+    }
+
     /** @return array<string, mixed> */
     public static function inviteFieldRules(): array
     {
@@ -19,8 +35,38 @@ class GuestInvitationService
             'guest_name'  => ['required', 'string', 'max:100', 'regex:/^[\p{L} .]+$/u'],
             'guest_email' => 'required|email|max:200',
             'guest_phone' => 'nullable|string|max:30',
-            'starts_at'   => 'required|date',
-            'ends_at'     => 'required|date|after:starts_at',
+            'starts_at'   => ['required', 'date', function (string $attribute, mixed $value, \Closure $fail): void {
+                if (! is_string($value) || $value === '') {
+                    return;
+                }
+
+                try {
+                    $start = \Illuminate\Support\Carbon::parse($value);
+                } catch (\Throwable) {
+                    return;
+                }
+
+                if (self::startIsInThePast($start)) {
+                    $fail(self::START_IN_PAST_MESSAGE);
+                }
+            }],
+            'ends_at'     => ['required', 'date', 'after:starts_at', function (string $attribute, mixed $value, \Closure $fail): void {
+                $startsAt = request()->input('starts_at');
+                if (! is_string($startsAt) || $startsAt === '' || ! is_string($value) || $value === '') {
+                    return;
+                }
+
+                try {
+                    $start = \Illuminate\Support\Carbon::parse($startsAt);
+                    $end = \Illuminate\Support\Carbon::parse($value);
+                } catch (\Throwable) {
+                    return;
+                }
+
+                if ($end->lt($start->copy()->addMinutes(self::MIN_ACCESS_MINUTES))) {
+                    $fail(self::MIN_ACCESS_DURATION_MESSAGE);
+                }
+            }],
         ];
     }
 
@@ -29,6 +75,8 @@ class GuestInvitationService
     {
         return [
             'guest_name.regex' => 'Guest name can only contain letters, spaces, and full stops.',
+            'permissions.required' => 'Please select at least one permission.',
+            'ends_at.after' => self::MIN_ACCESS_DURATION_MESSAGE,
         ];
     }
 
@@ -36,6 +84,15 @@ class GuestInvitationService
     {
         do {
             $code = 'GST-'.strtoupper(Str::random(4)).'-'.random_int(1000, 9999);
+        } while (GuestInvitation::query()->where('invite_code', $code)->exists());
+
+        return $code;
+    }
+
+    private static function generateCancelledInviteCode(int $invitationId): string
+    {
+        do {
+            $code = 'CXL-'.$invitationId.'-'.strtoupper(Str::random(6));
         } while (GuestInvitation::query()->where('invite_code', $code)->exists());
 
         return $code;
@@ -81,13 +138,22 @@ class GuestInvitationService
         $startsAt = \Illuminate\Support\Carbon::parse($data['starts_at']);
         $endsAt = \Illuminate\Support\Carbon::parse($data['ends_at']);
 
-        if ($endsAt->lte($startsAt)) {
-            abort(422, 'End date must be after start date.');
+        if (self::startIsInThePast($startsAt)) {
+            abort(422, self::START_IN_PAST_MESSAGE);
+        }
+
+        if ($endsAt->lt($startsAt->copy()->addMinutes(self::MIN_ACCESS_MINUTES))) {
+            abort(422, self::MIN_ACCESS_DURATION_MESSAGE);
         }
 
         ContactIdentityService::assertAvailableForGuestInvite($guestEmail, $phone);
 
         $code = self::generateInviteCode();
+        $rawPermissions = $data['permissions'] ?? null;
+        if (is_array($rawPermissions) && ! GuestAccessService::hasAtLeastOneEnabledPermission($rawPermissions)) {
+            abort(422, 'Please select at least one permission.');
+        }
+        $permissions = GuestAccessService::normalizePermissions($rawPermissions);
 
         $invitation = GuestInvitation::query()->create([
             'community_id'       => $communityId,
@@ -99,7 +165,7 @@ class GuestInvitationService
             'invite_code'        => $code,
             'starts_at'          => $startsAt,
             'ends_at'            => $endsAt,
-            'permissions'        => GuestAccessService::normalizePermissions($data['permissions'] ?? null),
+            'permissions'        => $permissions,
             'status'             => 'pending_verification',
         ]);
 
@@ -220,6 +286,38 @@ class GuestInvitationService
         GuestActivityService::log($invitation, 'access_rejected', 'Guest access rejected by resident', [
             'reason' => $reason,
         ]);
+
+        return $invitation->fresh();
+    }
+
+    /**
+     * Cancel a pending invite that the guest has not accepted yet.
+     * The original invite code is replaced so it cannot be redeemed later.
+     */
+    public static function cancelPending(GuestInvitation $invitation, User $actor): GuestInvitation
+    {
+        if ($invitation->status !== 'pending_verification') {
+            abort(422, 'Only pending invitations that have not been accepted can be deleted.');
+        }
+
+        $invitation->update([
+            'status'             => 'cancelled',
+            'invite_code'        => self::generateCancelledInviteCode((int) $invitation->id),
+            'ends_at'            => now()->min($invitation->ends_at),
+            'revoked_at'         => now(),
+            'revoked_by_user_id' => $actor->id,
+        ]);
+
+        ActivityLogService::user(
+            'guest_invite_cancelled',
+            "Cancelled pending guest invitation for {$invitation->guest_name}",
+            'GuestInvitation',
+            $invitation->id,
+            'warning',
+            $actor->id,
+        );
+
+        GuestActivityService::log($invitation, 'invitation_cancelled', 'Pending guest invitation deleted');
 
         return $invitation->fresh();
     }

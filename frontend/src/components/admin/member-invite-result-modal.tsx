@@ -135,8 +135,8 @@ export function MemberInviteResultModal({ result, onClose }: Props) {
 
             <div className="rounded-xl border border-blue-100 bg-blue-50/70 px-4 py-4 text-[12.5px] leading-relaxed text-slate-700">
               <p>
-                The resident can open <strong>Havena → Enter invite code</strong> and scan this QR or type{" "}
-                <strong className="font-mono">{result.invite_code}</strong>.
+                The resident can open <strong>Havena → Enter Invite Code</strong>{" "}
+                (<strong className="font-mono">{result.invite_code}</strong>) manually or scan this QR code.
               </p>
               {result.community_name ? (
                 <p className="mt-2.5 text-slate-600">

@@ -195,7 +195,7 @@ class AuthOtpTest extends TestCase
         $token = $verify->json('token');
 
         $this->withToken($token)
-            ->postJson('/api/v1/communities/join-by-invite', ['invite_code' => 'MAPLE-2024-XYZ'])
+            ->postJson('/api/v1/communities/join-by-invite', ['invite_code' => 'MAPLE 2024 XYZ'])
             ->assertCreated()
             ->assertJsonPath('data.membership.status', 'approved')
             ->assertJsonPath('data.community.name', 'Oak Valley Residences');

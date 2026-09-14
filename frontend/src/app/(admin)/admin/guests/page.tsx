@@ -5,14 +5,15 @@ import { Activity, Calendar, Check, ChevronLeft, ChevronRight, Clock, Eye, Info,
 import { AdminBadge, DataTable, DtPagination, StatTile } from "@/components/admin/ui";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { UserAvatar } from "@/components/admin/user-avatar";
-import { confirmAction, confirmRejectWithReason, alertError, toastError, toastSuccess } from "@/lib/alert";
-import { apiError } from "@/lib/api/client";
+import { confirmAction, confirmDelete, confirmRejectWithReason, alertError, toastError, toastSuccess } from "@/lib/alert";
+import { apiError, apiFieldErrors } from "@/lib/api/client";
 import { PageLoader, PageError } from "@/components/shared/page-states";
 import { PhoneDisplay } from "@/components/admin/phone-display";
 import { AdminPhoneInput } from "@/components/admin/phone-input";
 import { emptyPhoneField, type PhoneFieldState } from "@/lib/phone/format";
 import {
   approveGuest,
+  deleteGuestInvitation,
   extendGuest,
   fetchGuest,
   fetchGuestActivity,
@@ -27,16 +28,21 @@ import {
   type GuestForm,
   type GuestInvitation,
   type GuestStatus,
-  DEFAULT_GUEST_PERMISSIONS,
+  INITIAL_GUEST_INVITE_PERMISSIONS,
+  applyGuestPermissionToggle,
   normalizeGuestPermissions,
   GUEST_PERMISSION_OPTIONS,
   type GuestPermissions,
 } from "@/lib/api/guests";
 import { inputClass } from "@/lib/admin/form-validation-utils";
+import { toDatetimeLocalValue } from "@/lib/admin/datetime-local";
 import {
   canSubmitGuestInvite,
+  guestDurationFieldError,
   guestEmailFieldError,
   guestNameFieldError,
+  guestPermissionsFieldError,
+  guestStartFieldError,
 } from "@/lib/admin/guest-invite-validation";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -49,7 +55,7 @@ const emptyForm: GuestForm = {
   guest_phone: "",
   starts_at: "",
   ends_at: "",
-  permissions: { ...DEFAULT_GUEST_PERMISSIONS },
+  permissions: { ...INITIAL_GUEST_INVITE_PERMISSIONS },
 };
 
 type GuestFilter = GuestStatus | "all" | "pending";
@@ -66,13 +72,8 @@ const INVITE_DURATION_PRESETS = [
 
 function defaultInviteWindow() {
   const start = new Date();
-  start.setSeconds(0, 0);
   const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-  const toLocal = (d: Date) => {
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
-  return { starts_at: toLocal(start), ends_at: toLocal(end) };
+  return { starts_at: toDatetimeLocalValue(start), ends_at: toDatetimeLocalValue(end) };
 }
 
 const GUEST_ACTION_VISUAL: Record<string, { bg: string; color: string; label: string }> = {
@@ -81,6 +82,7 @@ const GUEST_ACTION_VISUAL: Record<string, { bg: string; color: string; label: st
   access_activated: { bg: "#ECFDF5", color: "#059669", label: "Access activated" },
   access_rejected: { bg: "#FEF2F2", color: "#DC2626", label: "Access rejected" },
   access_revoked: { bg: "#FEF2F2", color: "#DC2626", label: "Access revoked" },
+  invitation_cancelled: { bg: "#FEF2F2", color: "#DC2626", label: "Invitation deleted" },
   access_extended: { bg: "#F5F3FF", color: "#7C3AED", label: "Access extended" },
   viewed_posts: { bg: "#F0FDF4", color: "#16A34A", label: "Viewed feed" },
   viewed_notices: { bg: "#E8F0F7", color: "#1B4F8A", label: "Viewed notices" },
@@ -233,6 +235,8 @@ export default function GuestsPage() {
   const [phoneField, setPhoneField] = useState<PhoneFieldState>(emptyPhoneField());
   const [phoneShowError, setPhoneShowError] = useState(false);
   const [inviteFormKey, setInviteFormKey] = useState(0);
+  const [permissionsError, setPermissionsError] = useState<string | null>(null);
+  const [inviteNowMs, setInviteNowMs] = useState(() => Date.now());
 
   const hasLoadedOnce = useRef(false);
   const prevFilterKey = useRef(`${filterStatus}|`);
@@ -243,6 +247,13 @@ export default function GuestsPage() {
     window.addEventListener("nbr-session-updated", onSessionUpdate);
     return () => window.removeEventListener("nbr-session-updated", onSessionUpdate);
   }, []);
+
+  useEffect(() => {
+    if (!showForm) return;
+    setInviteNowMs(Date.now());
+    const id = window.setInterval(() => setInviteNowMs(Date.now()), 15_000);
+    return () => window.clearInterval(id);
+  }, [showForm]);
 
   const load = useCallback(async () => {
     if (!hasLoadedOnce.current) {
@@ -317,12 +328,30 @@ export default function GuestsPage() {
 
   const activityGroups = useMemo(() => groupActivityByDay(activity), [activity]);
 
+  const inviteNow = useMemo(() => new Date(inviteNowMs), [inviteNowMs]);
+  const minStartAt = useMemo(() => toDatetimeLocalValue(inviteNow), [inviteNow]);
   const nameError = guestNameFieldError(form.guest_name);
   const emailError = guestEmailFieldError(form.guest_email);
-  const canCreateInvitation = canSubmitGuestInvite(form, phoneField) && !submitting;
+  const startError = guestStartFieldError(form.starts_at, inviteNow);
+  const durationError = guestDurationFieldError(form.starts_at, form.ends_at);
+  const canCreateInvitation = canSubmitGuestInvite(form, phoneField, inviteNow) && !submitting;
+
+  const handlePermissionToggle = (key: keyof GuestPermissions, checked: boolean) => {
+    setForm((f) => {
+      const current = f.permissions ?? { ...INITIAL_GUEST_INVITE_PERMISSIONS };
+      const result = applyGuestPermissionToggle(current, key, checked);
+      setPermissionsError(result.error);
+      return { ...f, permissions: result.permissions };
+    });
+  };
 
   const handleInvite = async () => {
-    if (!canSubmitGuestInvite(form, phoneField)) {
+    const permissionError = guestPermissionsFieldError(form.permissions);
+    if (permissionError) {
+      setPermissionsError(permissionError);
+      return;
+    }
+    if (!canSubmitGuestInvite(form, phoneField, inviteNow)) {
       if (phoneField.digits && (!phoneField.valid || !phoneField.e164)) {
         setPhoneShowError(true);
         toastError("Enter a valid phone number, or leave phone blank.");
@@ -345,8 +374,13 @@ export default function GuestsPage() {
       setForm(emptyForm);
       setPhoneField(emptyPhoneField());
       setPhoneShowError(false);
+      setPermissionsError(null);
       await load();
     } catch (err) {
+      const fields = apiFieldErrors(err);
+      if (fields.permissions) setPermissionsError(fields.permissions);
+      if (fields.starts_at) toastError(fields.starts_at);
+      if (fields.ends_at) toastError(fields.ends_at);
       await alertError("Could not create invitation", apiError(err));
     } finally {
       setSubmitting(false);
@@ -413,6 +447,27 @@ export default function GuestsPage() {
     }
   };
 
+  const handleDeleteInvitation = async (guest: GuestInvitation) => {
+    const ok = await confirmDelete({
+      title: `Delete invitation for ${guest.guest_name}?`,
+      text: "This cancels the pending invite. They will not be able to join with this code.",
+      confirmText: "Delete invitation",
+    });
+    if (!ok.isConfirmed) return;
+
+    setActionId(guest.id);
+    try {
+      await deleteGuestInvitation(guest.id);
+      toastSuccess("Invitation deleted successfully.");
+      if (viewing?.id === guest.id) setViewing(null);
+      await load();
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setActionId(null);
+    }
+  };
+
   const handleExtend = async (guest: GuestInvitation) => {
     const nextWeek = new Date(guest.ends_at);
     nextWeek.setDate(nextWeek.getDate() + 7);
@@ -441,7 +496,7 @@ export default function GuestsPage() {
             Invite temporary guests, review resident requests and manage access windows.
           </p>
         </div>
-        <button type="button" onClick={() => { setForm({ ...emptyForm, ...defaultInviteWindow() }); setPhoneField(emptyPhoneField()); setPhoneShowError(false); setInviteFormKey((k) => k + 1); setShowForm(true); }} className="nl-btn-primary">
+        <button type="button" onClick={() => { setForm({ ...emptyForm, permissions: { ...INITIAL_GUEST_INVITE_PERMISSIONS }, ...defaultInviteWindow() }); setPhoneField(emptyPhoneField()); setPhoneShowError(false); setPermissionsError(null); setInviteFormKey((k) => k + 1); setShowForm(true); }} className="nl-btn-primary">
           <Plus className="h-4 w-4" />
           Invite Guest User
         </button>
@@ -536,6 +591,9 @@ export default function GuestsPage() {
                   <AdminActionsMenu
                     actions={[
                       { label: "View details", icon: "view", onClick: () => openView(guest) },
+                      ...(guest.status === "pending_verification"
+                        ? [{ label: "Delete Invitation", icon: "delete", tone: "danger" as const, onClick: () => handleDeleteInvitation(guest) }]
+                        : []),
                       ...(pending && canDecide
                         ? [
                             { label: "Approve", icon: "approve", tone: "primary" as const, onClick: () => handleApprove(guest) },
@@ -661,11 +719,19 @@ export default function GuestsPage() {
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div>
                     <label className="mb-1.5 block text-[13px] font-medium text-slate-700">Start *</label>
-                    <input type="datetime-local" className={inputClass(false, "nl-input")} value={form.starts_at} onChange={(e) => setForm((f) => ({ ...f, starts_at: e.target.value }))} />
+                    <input
+                      type="datetime-local"
+                      min={minStartAt}
+                      className={inputClass(Boolean(startError), "nl-input")}
+                      value={form.starts_at}
+                      onChange={(e) => setForm((f) => ({ ...f, starts_at: e.target.value }))}
+                    />
+                    {startError ? <p className="mt-1 text-xs text-red-600">{startError}</p> : null}
                   </div>
                   <div>
                     <label className="mb-1.5 block text-[13px] font-medium text-slate-700">End *</label>
-                    <input type="datetime-local" className={inputClass(false, "nl-input")} value={form.ends_at} onChange={(e) => setForm((f) => ({ ...f, ends_at: e.target.value }))} />
+                    <input type="datetime-local" className={inputClass(Boolean(durationError), "nl-input")} value={form.ends_at} onChange={(e) => setForm((f) => ({ ...f, ends_at: e.target.value }))} />
+                    {durationError ? <p className="mt-1 text-xs text-red-600">{durationError}</p> : null}
                   </div>
                 </div>
               </div>
@@ -678,7 +744,7 @@ export default function GuestsPage() {
                 <p className="mt-2 text-sm text-slate-600">Choose what this guest can view after approval.</p>
                 <div className="mt-4 space-y-3">
                   {GUEST_PERMISSION_OPTIONS.map((option) => {
-                    const enabled = form.permissions?.[option.key] !== false;
+                    const enabled = Boolean(form.permissions?.[option.key]);
                     return (
                       <label
                         key={option.key}
@@ -692,20 +758,13 @@ export default function GuestsPage() {
                           type="checkbox"
                           className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                           checked={enabled}
-                          onChange={(e) =>
-                            setForm((f) => ({
-                              ...f,
-                              permissions: {
-                                ...(f.permissions ?? DEFAULT_GUEST_PERMISSIONS),
-                                [option.key]: e.target.checked,
-                              },
-                            }))
-                          }
+                          onChange={(e) => handlePermissionToggle(option.key, e.target.checked)}
                         />
                       </label>
                     );
                   })}
                 </div>
+                {permissionsError ? <p className="mt-2 text-xs text-red-600">{permissionsError}</p> : null}
               </div>
 
               <div className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">

@@ -10,6 +10,7 @@ use App\Models\Region;
 use App\Models\User;
 use App\Services\CommunityBillingService;
 use App\Services\ContactIdentityService;
+use App\Services\InviteCodeService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -333,6 +334,74 @@ class MemberInviteTest extends TestCase
             'email' => 'za1@gmail.com',
             'deleted_at' => null,
         ]);
+    }
+
+    public function test_join_by_invite_accepts_spaced_and_hyphenless_member_codes(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        Sanctum::actingAs($admin);
+
+        $inviteResponse = $this->postJson('/api/v1/admin/members/invite', [
+            'name'        => 'Copy Paste Resident',
+            'email'       => 'copy.paste.invite@example.com',
+            'phone'       => '+12025550777',
+            'unit_number' => '9A',
+        ])->assertCreated();
+
+        $inviteCode = $inviteResponse->json('data.invite_code');
+        $this->assertMatchesRegularExpression('/^NBR-[A-Z0-9]{4}-\d{4}$/', $inviteCode);
+        $this->assertSame($inviteCode, InviteCodeService::normalize(str_replace('-', ' - ', $inviteCode)));
+
+        $resident = User::factory()->create([
+            'role' => 'resident',
+            'status' => 'active',
+            'email' => 'copy.paste.claimer@example.com',
+        ]);
+        Sanctum::actingAs($resident);
+
+        $this->postJson('/api/v1/communities/join-by-invite', [
+            'invite_code' => str_replace('-', '', $inviteCode),
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.membership.invite_code_used', $inviteCode)
+            ->assertJsonPath('data.membership.status', 'approved');
+    }
+
+    public function test_join_by_invite_accepts_unicode_dashes_from_email_copy(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        Sanctum::actingAs($admin);
+
+        $inviteResponse = $this->postJson('/api/v1/admin/members/invite', [
+            'name'        => 'Dash Resident',
+            'email'       => 'dash.invite@example.com',
+            'phone'       => '+12025550778',
+            'unit_number' => '10A',
+        ])->assertCreated();
+
+        $inviteCode = $inviteResponse->json('data.invite_code');
+        $messy = str_replace('-', "\u{2013}", $inviteCode);
+
+        $resident = User::factory()->create([
+            'role' => 'resident',
+            'status' => 'active',
+            'email' => 'dash.claimer@example.com',
+        ]);
+        Sanctum::actingAs($resident);
+
+        $this->postJson('/api/v1/communities/join-by-invite', [
+            'invite_code' => $messy,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.membership.invite_code_used', $inviteCode);
     }
 
     public function test_member_invite_rejects_invalid_name_and_unit(): void

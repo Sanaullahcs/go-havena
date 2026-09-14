@@ -30,6 +30,39 @@ export const DEFAULT_GUEST_PERMISSIONS: GuestPermissions = {
   wellness: true,
 };
 
+/** Invite form opens with Wellness on; the admin can add more modules. */
+export const INITIAL_GUEST_INVITE_PERMISSIONS: GuestPermissions = {
+  feed: false,
+  notices: false,
+  events: false,
+  marketplace: false,
+  businesses: false,
+  wellness: true,
+};
+
+export const GUEST_PERMISSION_REQUIRED_MESSAGE = "Please select at least one permission.";
+
+export function hasSelectedGuestPermission(
+  permissions?: Partial<GuestPermissions> | null,
+): boolean {
+  if (!permissions) return true;
+
+  return GUEST_PERMISSION_OPTIONS.some((option) => permissions[option.key] === true);
+}
+
+export function applyGuestPermissionToggle(
+  current: GuestPermissions,
+  key: GuestPermissionKey,
+  checked: boolean,
+): { permissions: GuestPermissions; error: string | null } {
+  const next = { ...current, [key]: checked };
+  if (!hasSelectedGuestPermission(next)) {
+    return { permissions: current, error: GUEST_PERMISSION_REQUIRED_MESSAGE };
+  }
+
+  return { permissions: next, error: null };
+}
+
 export function normalizeGuestPermissions(
   permissions?: Partial<GuestPermissions> | null,
 ): GuestPermissions {

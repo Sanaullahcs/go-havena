@@ -8,9 +8,11 @@ import { Home } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { sw, sf, hp } from "../../utils/responsive";
 import { chevronForward } from "../../utils/rtl";
+import { PropertyManagementRoutes } from "../../constants/property-management-routes";
 
 const STEPS = [
   { id: "feed", labelKey: "home.ftb.exploreFeed", route: "/screens/community-feed" },
+  { id: "amenities", labelKey: "home.ftb.browseAmenities", route: PropertyManagementRoutes.AMENITY_SCREEN },
   { id: "wellness", labelKey: "home.ftb.browseWellness", route: "/wellness" },
   { id: "profile", labelKey: "home.ftb.completeProfile", route: "/(tabs)/profile" },
 ];

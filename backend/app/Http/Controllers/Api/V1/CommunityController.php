@@ -17,6 +17,7 @@ use App\Services\OsmGeocodingService;
 use App\Support\CommunityLocation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -113,23 +114,28 @@ class CommunityController extends Controller
         if ($existing) {
             $inviteModel = null;
             if (! empty($validated['invite_code'])) {
-                $inviteModel = InviteCode::query()
-                    ->where('community_id', $community->id)
-                    ->whereRaw('UPPER(code) = ?', [strtoupper(trim($validated['invite_code']))])
-                    ->first();
+                $inviteModel = InviteCodeService::findUsableByCode($validated['invite_code'], (int) $community->id);
 
-                if (! $inviteModel || ! $inviteModel->isValid()) {
+                if (! $inviteModel) {
                     throw ValidationException::withMessages([
                         'invite_code' => ['Invalid or expired invite code.'],
                     ]);
                 }
 
-                // Invited placeholder redeeming their own code (or legacy approved invite rows).
-                $inviteModel->increment('used_count');
-                $existing->update([
-                    'status' => 'approved',
-                    'invite_code_used' => $inviteModel->code,
-                ]);
+                DB::transaction(function () use ($inviteModel, $existing, $community) {
+                    $locked = InviteCode::query()->whereKey($inviteModel->id)->lockForUpdate()->first();
+                    if (! $locked || ! $locked->isValid()) {
+                        throw ValidationException::withMessages([
+                            'invite_code' => ['Invalid or expired invite code.'],
+                        ]);
+                    }
+
+                    $existing->update([
+                        'status' => 'approved',
+                        'invite_code_used' => $locked->code,
+                    ]);
+                    $locked->increment('used_count');
+                });
                 $existing->refresh();
 
                 $billing = app(CommunityBillingService::class);
@@ -182,12 +188,9 @@ class CommunityController extends Controller
         if ($isCommunityAdmin) {
             $status = 'pending';
         } elseif (! empty($validated['invite_code'])) {
-            $inviteModel = InviteCode::query()
-                ->where('community_id', $community->id)
-                ->whereRaw('UPPER(code) = ?', [strtoupper(trim($validated['invite_code']))])
-                ->first();
+            $inviteModel = InviteCodeService::findUsableByCode($validated['invite_code'], (int) $community->id);
 
-            if (! $inviteModel || ! $inviteModel->isValid()) {
+            if (! $inviteModel) {
                 throw ValidationException::withMessages([
                     'invite_code' => ['Invalid or expired invite code.'],
                 ]);
@@ -197,7 +200,6 @@ class CommunityController extends Controller
             $inviteUsed = $inviteModel->code;
             // Admin member invites already allocated a seat to the placeholder user.
             $seatAlreadyHeldByInvite = filled($inviteModel->invited_user_id);
-            $inviteModel->increment('used_count');
         } else {
             $status = MembershipService::joinStatusFor($community, $user, false);
         }
@@ -208,21 +210,52 @@ class CommunityController extends Controller
             $billing->assertCanAllocateSeat($community->id);
         }
 
-        $membership = CommunityMembership::query()->create([
-            'user_id' => $user->id,
-            'community_id' => $community->id,
-            'role' => MembershipService::membershipRoleFor($user),
-            'status' => $status,
-            'invite_code_used' => $inviteUsed,
-        ]);
-
+        $membership = null;
         $invitedProfile = null;
+
         if ($inviteModel) {
-            $invitedProfile = InviteCodeService::claimInvitedMember($user, $inviteModel);
+            DB::transaction(function () use (
+                $inviteModel,
+                $user,
+                $community,
+                $status,
+                $inviteUsed,
+                $seatAlreadyHeldByInvite,
+                $billing,
+                &$membership,
+                &$invitedProfile,
+            ) {
+                $locked = InviteCode::query()->whereKey($inviteModel->id)->lockForUpdate()->first();
+                if (! $locked || ! $locked->isValid()) {
+                    throw ValidationException::withMessages([
+                        'invite_code' => ['Invalid or expired invite code.'],
+                    ]);
+                }
+
+                $membership = CommunityMembership::query()->create([
+                    'user_id' => $user->id,
+                    'community_id' => $community->id,
+                    'role' => MembershipService::membershipRoleFor($user),
+                    'status' => $status,
+                    'invite_code_used' => $locked->code ?: $inviteUsed,
+                ]);
+
+                $locked->increment('used_count');
+                $invitedProfile = InviteCodeService::claimInvitedMember($user, $locked);
+                if ($seatAlreadyHeldByInvite) {
+                    $billing->consumeReservationsForUser($community->id, (int) $locked->invited_user_id);
+                }
+            });
+
             $user->refresh()->load(['profile', 'memberships.community']);
-            if ($seatAlreadyHeldByInvite) {
-                $billing->consumeReservationsForUser($community->id, (int) $inviteModel->invited_user_id);
-            }
+        } else {
+            $membership = CommunityMembership::query()->create([
+                'user_id' => $user->id,
+                'community_id' => $community->id,
+                'role' => MembershipService::membershipRoleFor($user),
+                'status' => $status,
+                'invite_code_used' => $inviteUsed,
+            ]);
         }
 
         // Family create/join is handled by Complete Profile (ensure / join-request),
@@ -251,12 +284,9 @@ class CommunityController extends Controller
             'invite_code' => ['required', 'string', 'min:6', 'max:64'],
         ]);
 
-        $invite = InviteCode::query()
-            ->whereRaw('UPPER(code) = ?', [strtoupper(trim($validated['invite_code']))])
-            ->with('community')
-            ->first();
+        $invite = InviteCodeService::findUsableByCode($validated['invite_code']);
 
-        if (! $invite || ! $invite->isValid()) {
+        if (! $invite) {
             throw ValidationException::withMessages([
                 'invite_code' => ['Invalid or expired invite code.'],
             ]);

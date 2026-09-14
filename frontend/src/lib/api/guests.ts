@@ -2,7 +2,15 @@ import api from "./client";
 import { DEFAULT_GUEST_PERMISSIONS, type GuestPermissions } from "../guest-permissions";
 
 export type { GuestPermissions } from "../guest-permissions";
-export { DEFAULT_GUEST_PERMISSIONS, GUEST_PERMISSION_OPTIONS, normalizeGuestPermissions } from "../guest-permissions";
+export {
+  DEFAULT_GUEST_PERMISSIONS,
+  GUEST_PERMISSION_OPTIONS,
+  GUEST_PERMISSION_REQUIRED_MESSAGE,
+  INITIAL_GUEST_INVITE_PERMISSIONS,
+  applyGuestPermissionToggle,
+  hasSelectedGuestPermission,
+  normalizeGuestPermissions,
+} from "../guest-permissions";
 
 export type GuestStatus =
   | "pending_verification"
@@ -10,7 +18,8 @@ export type GuestStatus =
   | "active"
   | "rejected"
   | "expired"
-  | "revoked";
+  | "revoked"
+  | "cancelled";
 
 export type GuestInvitation = {
   id: number;
@@ -114,6 +123,10 @@ export async function extendGuest(id: number, ends_at: string): Promise<GuestInv
   return res.data.data as GuestInvitation;
 }
 
+export async function deleteGuestInvitation(id: number): Promise<void> {
+  await api.delete(`/v1/admin/guests/${id}`);
+}
+
 export type GuestActivityMeta = {
   current_page: number;
   last_page: number;
@@ -143,6 +156,7 @@ export const GUEST_STATUS_LABELS: Record<GuestStatus, string> = {
   rejected: "Rejected",
   expired: "Expired",
   revoked: "Revoked",
+  cancelled: "Cancelled",
 };
 
 export const GUEST_STATUS_TONE: Record<GuestStatus, "green" | "amber" | "slate" | "red" | "blue" | "violet"> = {
@@ -152,4 +166,5 @@ export const GUEST_STATUS_TONE: Record<GuestStatus, "green" | "amber" | "slate" 
   rejected: "red",
   expired: "slate",
   revoked: "slate",
+  cancelled: "slate",
 };

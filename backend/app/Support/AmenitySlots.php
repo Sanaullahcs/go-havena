@@ -2,13 +2,12 @@
 
 namespace App\Support;
 
+use Carbon\Carbon;
+
 final class AmenitySlots
 {
-    /**
-     * Build booking slots from start/end wall times and duration minutes.
-     *
-     * @return list<array{label: string, value: string, start: string, end: string}>
-     */
+    public const MINUTES_PER_DAY = 1440;
+
     /**
      * Parse display hours like "8:00 AM - 10:00 PM" into 24h start/end times.
      *
@@ -34,8 +33,69 @@ final class AmenitySlots
         return [self::formatTime($startMin), self::formatTime($endMin)];
     }
 
-    public static function generate(?string $startTime, ?string $endTime, ?int $durationMinutes, ?string $hoursFallback = null): array
+    /**
+     * True when closing is earlier than or equal to opening on the clock,
+     * so the close belongs to the next calendar day.
+     */
+    public static function isOvernight(?string $startTime, ?string $endTime): bool
     {
+        $start = self::toMinutes($startTime ?? '');
+        $end = self::toMinutes($endTime ?? '');
+
+        return $start !== null && $end !== null && $end <= $start;
+    }
+
+    /**
+     * Resolve opening/closing into a linear minute window.
+     * Overnight (and equal clock times) extend the end by 24 hours.
+     *
+     * @return array{start: int, end: int, overnight: bool}|null
+     */
+    public static function resolvedWindow(?string $startTime, ?string $endTime): ?array
+    {
+        $start = self::toMinutes($startTime ?? '');
+        $end = self::toMinutes($endTime ?? '');
+        if ($start === null || $end === null) {
+            return null;
+        }
+
+        $overnight = $end <= $start;
+        if ($overnight) {
+            $end += self::MINUTES_PER_DAY;
+        }
+
+        if ($end <= $start) {
+            return null;
+        }
+
+        return [
+            'start' => $start,
+            'end' => $end,
+            'overnight' => $overnight,
+        ];
+    }
+
+    /**
+     * Build booking slots from start/end wall times and duration minutes.
+     *
+     * @return list<array{
+     *     label: string,
+     *     value: string,
+     *     start: string,
+     *     end: string,
+     *     start_day_offset: int,
+     *     end_day_offset: int,
+     *     starts_at: ?string,
+     *     ends_at: ?string
+     * }>
+     */
+    public static function generate(
+        ?string $startTime,
+        ?string $endTime,
+        ?int $durationMinutes,
+        ?string $hoursFallback = null,
+        ?string $sessionDate = null,
+    ): array {
         if ((! $startTime || ! $endTime) && $hoursFallback) {
             [$parsedStart, $parsedEnd] = self::parseHoursRange($hoursFallback);
             $startTime = $startTime ?: $parsedStart;
@@ -46,26 +106,50 @@ final class AmenitySlots
             return [];
         }
 
-        $start = self::toMinutes($startTime);
-        $end = self::toMinutes($endTime);
-        if ($start === null || $end === null || $end <= $start) {
+        $window = self::resolvedWindow($startTime, $endTime);
+        if ($window === null) {
             return [];
         }
 
+        $sessionStart = null;
+        if (is_string($sessionDate) && $sessionDate !== '') {
+            try {
+                $sessionStart = Carbon::parse($sessionDate.' 00:00:00');
+            } catch (\Throwable) {
+                $sessionStart = null;
+            }
+        }
+
         $slots = [];
-        for ($cursor = $start; $cursor + $durationMinutes <= $end; $cursor += $durationMinutes) {
+        for ($cursor = $window['start']; $cursor + $durationMinutes <= $window['end']; $cursor += $durationMinutes) {
+            $slotEnd = $cursor + $durationMinutes;
             $from = self::formatLabel($cursor);
-            $to = self::formatLabel($cursor + $durationMinutes);
+            $to = self::formatLabel($slotEnd);
             $slots[] = [
                 'label' => $from,
                 // ASCII hyphen avoids mojibake when DB/connection charset is misaligned.
                 'value' => "{$from} - {$to}",
                 'start' => self::formatTime($cursor),
-                'end' => self::formatTime($cursor + $durationMinutes),
+                'end' => self::formatTime($slotEnd),
+                'start_day_offset' => intdiv($cursor, self::MINUTES_PER_DAY),
+                'end_day_offset' => intdiv($slotEnd, self::MINUTES_PER_DAY),
+                'starts_at' => $sessionStart?->copy()->addMinutes($cursor)->format('Y-m-d H:i:s'),
+                'ends_at' => $sessionStart?->copy()->addMinutes($slotEnd)->format('Y-m-d H:i:s'),
             ];
         }
 
         return $slots;
+    }
+
+    public static function normalizeSlotLabel(?string $value): string
+    {
+        return (string) self::normalizeHoursText($value ?? '');
+    }
+
+    public static function slotLabelsMatch(?string $left, ?string $right): bool
+    {
+        return self::normalizeSlotLabel($left) === self::normalizeSlotLabel($right)
+            && self::normalizeSlotLabel($left) !== '';
     }
 
     public static function formatHoursDisplay(?string $startTime, ?string $endTime, ?string $fallback = null): ?string
@@ -123,6 +207,10 @@ final class AmenitySlots
 
     private static function toMinutes(string $time): ?int
     {
+        if ($time === '') {
+            return null;
+        }
+
         if (preg_match('/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/', trim($time), $m)) {
             return ((int) $m[1]) * 60 + (int) $m[2];
         }
@@ -135,18 +223,27 @@ final class AmenitySlots
         return ((int) date('G', $ts)) * 60 + (int) date('i', $ts);
     }
 
+    private static function wrapMinutes(int $minutes): int
+    {
+        $wrapped = $minutes % self::MINUTES_PER_DAY;
+
+        return $wrapped < 0 ? $wrapped + self::MINUTES_PER_DAY : $wrapped;
+    }
+
     private static function formatTime(int $minutes): string
     {
-        $h = intdiv($minutes, 60);
-        $m = $minutes % 60;
+        $wrapped = self::wrapMinutes($minutes);
+        $h = intdiv($wrapped, 60);
+        $m = $wrapped % 60;
 
         return sprintf('%02d:%02d:00', $h, $m);
     }
 
     private static function formatLabel(int $minutes): string
     {
-        $h24 = intdiv($minutes, 60);
-        $m = $minutes % 60;
+        $wrapped = self::wrapMinutes($minutes);
+        $h24 = intdiv($wrapped, 60);
+        $m = $wrapped % 60;
         $suffix = $h24 >= 12 ? 'PM' : 'AM';
         $h12 = $h24 % 12;
         if ($h12 === 0) {

@@ -334,6 +334,16 @@ export default function RequestForCommunityScreen() {
               </View>
               <Text style={styles.stepText}>{t('guests.step3')}</Text>
             </View>
+            <View style={styles.stepRow}>
+              <View style={styles.stepDot}>
+                <Text style={styles.stepNum}>4</Text>
+              </View>
+              <Text style={styles.stepText}>
+                {isAdminRequest
+                  ? t('guests.step4Admin')
+                  : t('guests.step4Resident')}
+              </Text>
+            </View>
           </View>
 
           <TouchableOpacity

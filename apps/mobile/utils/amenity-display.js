@@ -114,21 +114,37 @@ function timeToMinutes(hhmm) {
   return h * 60 + m;
 }
 
+const MINUTES_PER_DAY = 1440;
+
+function wrapMinutes(total) {
+  const wrapped = total % MINUTES_PER_DAY;
+  return wrapped < 0 ? wrapped + MINUTES_PER_DAY : wrapped;
+}
+
 function formatMinutesLabel(total) {
-  const h24 = Math.floor(total / 60);
-  const m = total % 60;
+  const wrapped = wrapMinutes(total);
+  const h24 = Math.floor(wrapped / 60);
+  const m = wrapped % 60;
   const suffix = h24 >= 12 ? "PM" : "AM";
   let h12 = h24 % 12;
   if (h12 === 0) h12 = 12;
   return m === 0 ? `${h12}:00 ${suffix}` : `${h12}:${String(m).padStart(2, "0")} ${suffix}`;
 }
 
-/** Generate slots from start/end (HH:mm) and duration minutes. */
+function formatMinutesClock(total) {
+  const wrapped = wrapMinutes(total);
+  const h = Math.floor(wrapped / 60);
+  const m = wrapped % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/** Generate slots from start/end (HH:mm) and duration minutes. Overnight close (end <= start) wraps to the next day. */
 export function generateAmenitySlots(startTime, endTime, durationMinutes) {
   const start = timeToMinutes(startTime);
-  const end = timeToMinutes(endTime);
+  let end = timeToMinutes(endTime);
   const duration = Number(durationMinutes);
-  if (start == null || end == null || !duration || duration < 15 || end <= start) return [];
+  if (start == null || end == null || !duration || duration < 15) return [];
+  if (end <= start) end += MINUTES_PER_DAY;
 
   const slots = [];
   for (let cursor = start; cursor + duration <= end; cursor += duration) {
@@ -136,9 +152,11 @@ export function generateAmenitySlots(startTime, endTime, durationMinutes) {
     const to = formatMinutesLabel(cursor + duration);
     slots.push({
       label: from,
-      value: `${from} – ${to}`,
-      start: `${String(Math.floor(cursor / 60)).padStart(2, "0")}:${String(cursor % 60).padStart(2, "0")}`,
-      end: `${String(Math.floor((cursor + duration) / 60)).padStart(2, "0")}:${String((cursor + duration) % 60).padStart(2, "0")}`,
+      value: `${from} - ${to}`,
+      start: formatMinutesClock(cursor),
+      end: formatMinutesClock(cursor + duration),
+      start_day_offset: Math.floor(cursor / MINUTES_PER_DAY),
+      end_day_offset: Math.floor((cursor + duration) / MINUTES_PER_DAY),
     });
   }
   return slots;
@@ -200,6 +218,14 @@ export function validateAmenityForm(form) {
     errors.icon_key = i18n.t("amenities.validation.categoryRequired");
   }
 
+  const feeRaw = String(form.booking_fee ?? "").trim();
+  if (feeRaw !== "") {
+    const fee = Number(feeRaw);
+    if (!Number.isFinite(fee) || fee < 0) {
+      errors.booking_fee = i18n.t("amenities.validation.bookingFeeInvalid");
+    }
+  }
+
   return errors;
 }
 
@@ -217,6 +243,7 @@ export function buildAmenityPayload(form) {
     start_time: times?.start_time,
     end_time: times?.end_time,
     hours: String(form.hours ?? "").trim(),
+    booking_fee: String(form.booking_fee ?? "").trim() === "" ? 0 : Number(form.booking_fee),
   };
   if (form.status === "bookable") {
     payload.slot_duration_minutes = Number(form.slot_duration_minutes);
@@ -320,6 +347,20 @@ export function getNextUserBookingDate(bookings, amenityId) {
     .filter(Boolean)
     .sort();
   return dates[0] ?? null;
+}
+
+export function formatUsdAmount(value) {
+  const amount = Number(value ?? 0);
+  if (!Number.isFinite(amount)) return "$0";
+  return `$${amount.toLocaleString("en-US", {
+    minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+export function bookingFeeAmount(value) {
+  const amount = Number(value ?? 0);
+  return Number.isFinite(amount) && amount > 0 ? amount : 0;
 }
 
 export function isDateBookedByUser(bookings, amenityId, dateKey) {

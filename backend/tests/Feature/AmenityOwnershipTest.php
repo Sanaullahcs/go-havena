@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Community;
 use App\Models\CommunityMembership;
+use App\Models\CommunitySubscription;
 use App\Models\Region;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -58,6 +59,15 @@ class AmenityOwnershipTest extends TestCase
             'community_id' => $community->id,
             'role'         => 'member',
             'status'       => 'approved',
+        ]);
+
+        CommunitySubscription::query()->create([
+            'community_id' => $community->id,
+            'plan_slug' => 'starter',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_ACTIVE,
+            'seat_limit' => 100,
+            'meta' => ['card_on_file' => true, 'activated_via' => 'manual'],
         ]);
 
         return compact('community', 'admin', 'resident');
@@ -295,9 +305,9 @@ class AmenityOwnershipTest extends TestCase
             'reason' => 'Fully booked',
         ])->assertOk();
 
-        $notes = DB::table('bookings')->where('id', $bookingId)->value('notes');
-        $this->assertStringContainsString('Birthday party', (string) $notes);
-        $this->assertStringContainsString('Fully booked', (string) $notes);
+        $row = DB::table('bookings')->where('id', $bookingId)->first();
+        $this->assertSame('Birthday party', $row->notes);
+        $this->assertSame('Fully booked', $row->rejection_reason);
     }
 
     public function test_resident_amenity_creator_can_approve_own_booking_request(): void
@@ -427,6 +437,45 @@ class AmenityOwnershipTest extends TestCase
         $this->assertSame('pending', $creatorInbox[0]['status']);
     }
 
+    public function test_community_admin_sees_pending_bookings_for_amenities_they_created(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity();
+        Sanctum::actingAs($admin);
+
+        $amenityId = $this->postJson('/api/v1/admin/amenities', [
+            'name' => 'Admin Gym',
+            'status' => 'bookable',
+            'capacity' => 10,
+            'icon_key' => 'gym',
+            'start_time' => '09:00',
+            'end_time' => '18:00',
+            'slot_duration_minutes' => 60,
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated()->json('data.id');
+
+        Sanctum::actingAs($resident);
+
+        $this->postJson('/api/v1/bookings', [
+            'amenity_id' => $amenityId,
+            'date' => now()->addDay()->toDateString(),
+            'time_slot' => '9:00 AM - 10:00 AM',
+        ])->assertCreated()->assertJsonPath('data.status', 'pending');
+
+        Sanctum::actingAs($admin);
+
+        $inbox = $this->getJson('/api/v1/bookings/inbox')->assertOk()->json('data');
+        $this->assertCount(1, $inbox);
+        $this->assertSame($amenityId, (int) $inbox[0]['amenity_id']);
+        $this->assertSame('pending', $inbox[0]['status']);
+        $this->assertSame($resident->name, $inbox[0]['user_name']);
+        $this->assertNotEmpty($inbox[0]['requested_at']);
+
+        $adminInbox = $this->getJson('/api/v1/admin/bookings')->assertOk()->json('data');
+        $this->assertCount(1, $adminInbox);
+        $this->assertSame($amenityId, (int) $adminInbox[0]['amenity_id']);
+    }
+
     public function test_non_creator_admin_cannot_approve_booking(): void
     {
         ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity();
@@ -519,5 +568,144 @@ class AmenityOwnershipTest extends TestCase
         $inbox = $this->getJson('/api/v1/bookings/inbox')->assertOk()->json('data');
         $this->assertCount(1, $inbox);
         $this->assertSame($adminAmenityId, (int) $inbox[0]['amenity_id']);
+    }
+
+    public function test_admin_can_create_amenity_with_shared_billing(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity();
+        Sanctum::actingAs($admin);
+
+        $response = $this->postJson('/api/v1/admin/amenities', [
+            'name' => 'Swimming Pool',
+            'status' => 'open',
+            'capacity' => 20,
+            'icon_key' => 'pool',
+            'start_time' => '06:00',
+            'end_time' => '22:00',
+            'shared_billing_enabled' => true,
+            'shared_billing_amount' => 25,
+            'shared_billing_due_day' => 10,
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated();
+
+        $response
+            ->assertJsonPath('data.shared_billing_enabled', true)
+            ->assertJsonPath('data.shared_billing_type', 'all_residents')
+            ->assertJsonPath('data.shared_billing_frequency', 'monthly')
+            ->assertJsonPath('data.shared_billing_amount', 25)
+            ->assertJsonPath('data.shared_billing_due_day', 10)
+            ->assertJsonPath('data.community_name', 'Oak Valley');
+
+        $this->assertDatabaseHas('amenities', [
+            'name' => 'Swimming Pool',
+            'community_id' => $community->id,
+            'shared_billing_enabled' => 1,
+            'shared_billing_type' => 'all_residents',
+            'shared_billing_frequency' => 'monthly',
+            'shared_billing_due_day' => 10,
+        ]);
+    }
+
+    public function test_admin_can_create_amenity_with_40_character_location(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity();
+        Sanctum::actingAs($admin);
+        $floor = str_repeat('A', 40);
+
+        $this->postJson('/api/v1/admin/amenities', [
+            'name' => 'Clubhouse',
+            'status' => 'open',
+            'capacity' => 30,
+            'floor' => $floor,
+            'icon_key' => 'hall',
+            'start_time' => '06:00',
+            'end_time' => '22:00',
+            'shared_billing_enabled' => true,
+            'shared_billing_amount' => 25,
+            'shared_billing_due_day' => 1,
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.floor', $floor)
+            ->assertJsonPath('data.shared_billing_enabled', true);
+
+        $this->postJson('/api/v1/admin/amenities', [
+            'name' => 'Too Long Location',
+            'status' => 'open',
+            'capacity' => 10,
+            'floor' => str_repeat('B', 41),
+            'icon_key' => 'hall',
+            'start_time' => '06:00',
+            'end_time' => '22:00',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertUnprocessable()->assertJsonValidationErrors(['floor']);
+    }
+
+    public function test_shared_billing_defaults_off_when_omitted(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity();
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/v1/admin/amenities', [
+            'name' => 'Gym',
+            'status' => 'open',
+            'capacity' => 10,
+            'icon_key' => 'gym',
+            'start_time' => '06:00',
+            'end_time' => '22:00',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.shared_billing_enabled', false)
+            ->assertJsonPath('data.shared_billing_amount', null)
+            ->assertJsonPath('data.shared_billing_due_day', null);
+    }
+
+    public function test_shared_billing_requires_amount_and_due_day(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity();
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/v1/admin/amenities', [
+            'name' => 'Pool',
+            'status' => 'open',
+            'capacity' => 10,
+            'icon_key' => 'pool',
+            'start_time' => '06:00',
+            'end_time' => '22:00',
+            'shared_billing_enabled' => true,
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['shared_billing_amount', 'shared_billing_due_day']);
+    }
+
+    public function test_turning_off_shared_billing_clears_config(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity();
+        $amenityId = $this->createAmenity($community->id, $admin->id, [
+            'shared_billing_enabled' => true,
+            'shared_billing_type' => 'all_residents',
+            'shared_billing_frequency' => 'monthly',
+            'shared_billing_amount' => 25,
+            'shared_billing_due_day' => 10,
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $this->patchJson("/api/v1/admin/amenities/{$amenityId}", [
+            'shared_billing_enabled' => false,
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.shared_billing_enabled', false)
+            ->assertJsonPath('data.shared_billing_amount', null)
+            ->assertJsonPath('data.shared_billing_due_day', null);
     }
 }

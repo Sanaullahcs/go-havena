@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Mail\AuthOtpMail;
 use App\Mail\HavenaTransactionalMail;
+use App\Services\InviteCodeService;
 use App\Support\AppUrls;
 use Tests\TestCase;
 
@@ -47,6 +48,28 @@ class EmailTemplateTest extends TestCase
                 true,
             ),
         );
+    }
+
+    public function test_invite_email_includes_code_and_qr(): void
+    {
+        $code = 'NBR-ABCD-2345';
+        $mailable = new HavenaTransactionalMail(
+            subjectLine: 'You are invited',
+            preheader: 'Use your invite code.',
+            eyebrow: 'Invitation',
+            heading: 'You are invited',
+            intro: 'Enter or scan your invite code.',
+            highlightCode: $code,
+            highlightLabel: 'Invite code',
+            highlightQrPayload: InviteCodeService::qrPayload($code),
+        );
+
+        $html = $mailable->render();
+
+        $this->assertStringContainsString($code, $html);
+        $this->assertStringContainsString('cid:invite-qr', $html);
+        $this->assertStringContainsString('Scan this QR', $html);
+        $this->assertSame('havena://join?invite_code='.rawurlencode($code), $mailable->highlightQrPayload);
     }
 
     public function test_otp_html_uses_the_same_branded_layout(): void

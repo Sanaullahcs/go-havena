@@ -174,5 +174,8 @@ export function amenityFacilityParams(amenity) {
       amenity.user_has_upcoming_booking || amenity.userHasUpcomingBooking ? "1" : "0",
     userNextBookingDate:
       amenity.user_next_booking_date ?? amenity.userNextBookingDate ?? "",
+    hasOverdueSharedAmenityBill:
+      amenity.has_overdue_shared_amenity_bill || amenity.hasOverdueSharedAmenityBill ? "1" : "0",
+    bookingFee: amenity.booking_fee != null ? String(amenity.booking_fee) : "0",
   };
 }

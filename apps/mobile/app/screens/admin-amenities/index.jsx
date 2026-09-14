@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Pressable, A
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 
@@ -25,6 +25,7 @@ import { sf, sw } from "../../../utils/responsive";
 import { chevronForward } from "../../../utils/rtl";
 import {
   fetchAdminAmenities,
+  fetchBookingInbox,
   createAmenity,
   updateAmenity,
   deleteAmenity,
@@ -58,6 +59,7 @@ const FILTERS = [
   { key: "all", labelKey: "admin.all" },
   { key: "mine", labelKey: "admin.yours" },
   { key: "my_bookings", labelKey: "admin.myBooking" },
+  { key: "booking_requests", labelKey: "admin.bookingRequests" },
   { key: "pending", labelKey: "admin.needApproval" },
   { key: "bookable", labelKey: "admin.slotsShort" },
   { key: "open", labelKey: "admin.openShort" },
@@ -84,6 +86,7 @@ const EMPTY_FORM = {
   weekends_available: true,
   slot_duration_minutes: 60,
   icon_key: "",
+  booking_fee: "0",
 };
 
 function shortStatusLabel(status, t) {
@@ -377,6 +380,8 @@ export default function AdminAmenitiesScreen() {
   const [busyId, setBusyId] = useState(null);
   const { runAction, showFailure } = useApiAction();
   const { showConfirm } = useAppDialog();
+  const router = useRouter();
+  const [pendingBookingRequests, setPendingBookingRequests] = useState(0);
 
   const formErrors = useMemo(() => validateAmenityForm(form), [form]);
   const canSubmit = isAmenityFormReady(form) && !saving;
@@ -400,9 +405,13 @@ export default function AdminAmenitiesScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await fetchAdminAmenities();
+      const [result, requests] = await Promise.all([
+        fetchAdminAmenities(),
+        fetchBookingInbox().catch(() => []),
+      ]);
       setAmenities(result.data ?? []);
       setPendingReview(result.pendingReview ?? 0);
+      setPendingBookingRequests((requests ?? []).filter((b) => b.status === "pending").length);
     } catch (err) {
       await showFailure(t("admin.couldNotLoadAmenities"), err);
     } finally {
@@ -424,8 +433,17 @@ export default function AdminAmenitiesScreen() {
     const open = amenities.filter((a) => a.status === "open").length;
     const closed = amenities.filter((a) => a.status === "closed").length;
     const pending = amenities.filter((a) => a.review_status === "pending").length;
-    return { total, mine, myBookings, bookable, open, closed, pending: pending || pendingReview };
-  }, [amenities, pendingReview]);
+    return {
+      total,
+      mine,
+      myBookings,
+      bookingRequests: pendingBookingRequests,
+      bookable,
+      open,
+      closed,
+      pending: pending || pendingReview,
+    };
+  }, [amenities, pendingReview, pendingBookingRequests]);
 
   const filtered = useMemo(() => {
     if (filter === "all") return amenities;
@@ -457,6 +475,7 @@ export default function AdminAmenitiesScreen() {
       weekends_available: item.weekends_available !== false,
       slot_duration_minutes: item.slot_duration_minutes ?? 60,
       icon_key: item.icon_key || getAmenityVisual(item.name).key || "",
+      booking_fee: item.booking_fee != null ? String(item.booking_fee) : "0",
     });
     setFieldErrors({});
     setTouched({});
@@ -513,6 +532,7 @@ export default function AdminAmenitiesScreen() {
       icon_key: true,
       weekends_available: true,
       slot_duration_minutes: true,
+      booking_fee: true,
     });
     if (Object.keys(errors).length > 0) return;
 
@@ -664,6 +684,8 @@ export default function AdminAmenitiesScreen() {
                         ? stats.mine
                         : f.key === "my_bookings"
                           ? stats.myBookings
+                        : f.key === "booking_requests"
+                          ? stats.bookingRequests
                         : f.key === "pending"
                           ? stats.pending
                           : f.key === "bookable"
@@ -675,7 +697,13 @@ export default function AdminAmenitiesScreen() {
                     <TouchableOpacity
                       key={f.key}
                       style={[styles.filterChip, active && styles.filterChipActive]}
-                      onPress={() => setFilter(f.key)}
+                      onPress={() => {
+                        if (f.key === "booking_requests") {
+                          router.push("/screens/admin-bookings");
+                          return;
+                        }
+                        setFilter(f.key);
+                      }}
                     >
                       <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
                         {t(f.labelKey)}
@@ -932,6 +960,18 @@ export default function AdminAmenitiesScreen() {
                     ) : null}
                   </>
                 ) : null}
+
+                <FieldLabel>{t("admin.bookingFee")}</FieldLabel>
+                <LocaleTextInput
+                  style={[styles.input, errorFor("booking_fee") && styles.inputError]}
+                  value={String(form.booking_fee ?? "")}
+                  onChangeText={(v) => setField("booking_fee", v.replace(/[^0-9.]/g, ""))}
+                  onBlur={() => setTouched((prev) => ({ ...prev, booking_fee: true }))}
+                  placeholder="0"
+                  keyboardType="decimal-pad"
+                />
+                <Text style={styles.switchHint}>{t("admin.bookingFeeHint")}</Text>
+                <FieldError message={errorFor("booking_fee")} />
 
                 <FieldLabel required>{t("admin.category")}</FieldLabel>
                 <IconSelectField

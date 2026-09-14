@@ -607,7 +607,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                                       title: canCancelInvite ? `Cancel invitation for ${m.name}?` : `Delete ${m.name}?`,
                                       text: canCancelInvite
                                         ? "This cancels the pending invite. They will not be able to join with this code."
-                                        : undefined,
+                                        : "Are you sure you want to delete this member? This member will be removed from the community.",
                                       confirmText: canCancelInvite ? "Cancel invitation" : "Delete",
                                     });
                                     if (r.isConfirmed) {

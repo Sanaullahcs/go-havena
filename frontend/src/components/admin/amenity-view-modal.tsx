@@ -8,7 +8,13 @@ import {
   getAmenityStatusMeta,
   getAmenityVisual,
 } from "@/lib/admin/amenity-display";
+import {
+  SHARED_BILLING_FREQUENCY_LABEL,
+  SHARED_BILLING_TYPE_LABEL,
+  sharedBillingDueDayLabel,
+} from "@/lib/admin/amenity-form-validation";
 import type { Amenity } from "@/lib/api/amenities";
+import { AmenitySharedBillsSection } from "@/components/admin/amenity-shared-bills-section";
 
 export function AmenityViewModal({
   amenity,
@@ -17,6 +23,8 @@ export function AmenityViewModal({
   onApprove,
   onReject,
   onManageRequests,
+  onCreateBill,
+  billsRefreshKey = 0,
 }: {
   amenity: Amenity | null;
   onClose: () => void;
@@ -24,6 +32,8 @@ export function AmenityViewModal({
   onApprove?: () => void;
   onReject?: () => void;
   onManageRequests?: () => void;
+  onCreateBill?: () => void;
+  billsRefreshKey?: number;
 }) {
   if (!amenity) return null;
 
@@ -33,7 +43,7 @@ export function AmenityViewModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-4 sm:items-center">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-start justify-between border-b border-slate-100 px-5 py-4">
           <div className="flex min-w-0 items-start gap-3">
             <div
@@ -60,7 +70,7 @@ export function AmenityViewModal({
           </button>
         </div>
 
-        <div className="space-y-4 px-5 py-4 text-sm text-slate-600">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4 text-sm text-slate-600">
           {amenity.is_mine ? (
             <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2.5 text-sm text-blue-800">
               This is your amenity. Booking is disabled — you can edit details and manage booking
@@ -90,6 +100,9 @@ export function AmenityViewModal({
             <div className="col-span-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
               <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Hours</dt>
               <dd className="mt-0.5 font-semibold text-slate-900">{amenity.hours || "—"}</dd>
+              {amenity.hours_overnight ? (
+                <p className="mt-1 text-xs font-normal text-slate-500">Closes the next day.</p>
+              ) : null}
             </div>
             <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
               <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Weekends</dt>
@@ -109,6 +122,37 @@ export function AmenityViewModal({
               <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Created by</dt>
               <dd className="mt-0.5 font-semibold text-slate-900">{amenity.creator_name || "—"}</dd>
             </div>
+            <div className="col-span-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+              <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Booking fee</dt>
+              <dd className="mt-0.5 font-semibold text-slate-900">
+                {Number(amenity.booking_fee ?? 0) > 0
+                  ? `$${Number(amenity.booking_fee).toLocaleString("en-US", { maximumFractionDigits: 2 })} per reservation`
+                  : "Free"}
+              </dd>
+            </div>
+            <div className="col-span-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+              <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Shared billing</dt>
+              <dd className="mt-0.5 font-semibold text-slate-900">
+                {amenity.shared_billing_enabled ? "On" : "Off"}
+              </dd>
+              {amenity.shared_billing_enabled ? (
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                  {SHARED_BILLING_TYPE_LABEL} · {SHARED_BILLING_FREQUENCY_LABEL}
+                  {amenity.shared_billing_amount != null ? ` · ${amenity.shared_billing_amount} per resident` : ""}
+                  {amenity.shared_billing_due_day != null
+                    ? ` · due ${sharedBillingDueDayLabel(amenity.shared_billing_due_day)}`
+                    : ""}
+                  {amenity.community_name ? ` · ${amenity.community_name}` : ""}
+                </p>
+              ) : null}
+            </div>
+            {amenity.shared_billing_enabled ? (
+              <AmenitySharedBillsSection
+                amenity={amenity}
+                refreshKey={billsRefreshKey}
+                onCreate={onCreateBill}
+              />
+            ) : null}
           </dl>
         </div>
 

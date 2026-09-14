@@ -4,6 +4,7 @@ import { Building2, Calendar, Clock3, User, Users, X } from "lucide-react";
 import { AdminBadge } from "@/components/admin/ui";
 import { AmenityIcon } from "@/components/admin/amenity-icon";
 import type { Booking } from "@/lib/api/amenities";
+import { formatUsdAmount } from "@/lib/admin/amenity-bill-validation";
 
 const STATUS_META: Record<string, { label: string; tone: "amber" | "green" | "red" | "slate" }> = {
   pending: { label: "Pending", tone: "amber" },
@@ -123,9 +124,70 @@ export function BookingInfoModal({
               <Users className="h-4 w-4 shrink-0 text-slate-400" />
               <span>{booking.guests} guest{booking.guests === 1 ? "" : "s"}</span>
             </div>
+            {booking.requested_at || booking.created_at ? (
+              <p className="mt-3 text-xs text-slate-500">
+                Requested{" "}
+                {new Date(
+                  (booking.requested_at ?? booking.created_at ?? "").includes("T")
+                    ? (booking.requested_at ?? booking.created_at)!
+                    : (booking.requested_at ?? booking.created_at)!.replace(" ", "T"),
+                ).toLocaleString("en-GB", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+            ) : null}
             {booking.notes ? (
               <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">{booking.notes}</p>
             ) : null}
+            {booking.rejection_reason ? (
+              <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                Rejection reason: {booking.rejection_reason}
+              </p>
+            ) : null}
+          </section>
+
+          <section className="rounded-xl border border-slate-100 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Booking fee</p>
+            <p className="mt-2 text-sm font-semibold text-slate-900">
+              {formatUsdAmount(booking.booking_fee)}
+            </p>
+            {booking.payment_proof ? (
+              <div className="mt-3 space-y-2 text-sm text-slate-700">
+                <p>Payment date: {booking.payment_proof.payment_date || "—"}</p>
+                <p>Reference: {booking.payment_proof.payment_reference || "—"}</p>
+                {booking.payment_proof.payment_note ? (
+                  <p>Note: {booking.payment_proof.payment_note}</p>
+                ) : null}
+                {booking.payment_proof.file_url ? (
+                  booking.payment_proof.mime_type?.startsWith("image/") ? (
+                    <a href={booking.payment_proof.file_url} target="_blank" rel="noreferrer">
+                      <img
+                        src={booking.payment_proof.file_url}
+                        alt="Payment proof"
+                        className="mt-2 max-h-56 w-full rounded-lg object-contain bg-slate-50"
+                      />
+                    </a>
+                  ) : (
+                    <a
+                      href={booking.payment_proof.file_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-semibold text-[#1B4F8A]"
+                    >
+                      View payment proof
+                    </a>
+                  )
+                ) : null}
+              </div>
+            ) : Number(booking.booking_fee ?? 0) > 0 ? (
+              <p className="mt-2 text-sm text-slate-500">No payment proof uploaded.</p>
+            ) : (
+              <p className="mt-2 text-sm text-slate-500">No payment required.</p>
+            )}
           </section>
         </div>
 

@@ -94,10 +94,20 @@
                                             </table>
                                             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#F4F8FD;border:1px solid #D1FAF5;border-radius:12px;">
                                                 <tr>
-                                                    <td align="center" style="padding:16px 12px;font-size:24px;font-weight:700;letter-spacing:0.14em;color:#0A2A43;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">
+                                                    <td align="center" style="padding:16px 12px;font-size:22px;font-weight:700;letter-spacing:0.04em;color:#0A2A43;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">
                                                         {{ $highlightCode }}
                                                     </td>
                                                 </tr>
+                                                @if(!empty($highlightQrSrc))
+                                                    <tr>
+                                                        <td align="center" style="padding:0 12px 16px;">
+                                                            <img src="{{ $highlightQrSrc }}" width="168" height="168" alt="Invite QR code" style="display:block;border:0;outline:none;width:168px;height:168px;">
+                                                            <p style="margin:10px 0 0;font-size:12px;line-height:1.5;color:#64748B;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+                                                                Scan this QR in the Havena app, or type the code above.
+                                                            </p>
+                                                        </td>
+                                                    </tr>
+                                                @endif
                                             </table>
                                         </td>
                                     </tr>

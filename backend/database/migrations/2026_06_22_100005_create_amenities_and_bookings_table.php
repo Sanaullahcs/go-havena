@@ -15,7 +15,7 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->enum('status', ['open', 'closed', 'bookable'])->default('open');
             $table->unsignedSmallInteger('capacity')->default(10);
-            $table->string('floor', 20)->nullable();
+            $table->string('floor', 40)->nullable();
             $table->string('image_url', 512)->nullable();
             $table->string('hours', 100)->nullable();
             $table->timestamps();

@@ -5,18 +5,90 @@ namespace App\Services;
 use App\Models\CommunityMembership;
 use App\Models\InviteCode;
 use App\Models\User;
+use Endroid\QrCode\Builder\Builder;
+use Endroid\QrCode\Encoding\Encoding;
+use Endroid\QrCode\ErrorCorrectionLevel;
+use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class InviteCodeService
 {
+    /** Letters/digits that stay readable when typed from email or a QR label. */
+    private const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
     public static function generateUniqueCode(): string
     {
         do {
-            $code = 'NBR-'.strtoupper(Str::random(4)).'-'.random_int(1000, 9999);
+            $code = 'NBR-'.self::randomSegment(4).'-'.random_int(2345, 9876);
         } while (InviteCode::query()->where('code', $code)->exists());
 
         return $code;
+    }
+
+    /**
+     * Strip copy/paste noise from email (spaces, unicode dashes, zero-width chars).
+     */
+    public static function compactCode(string $code): string
+    {
+        $value = strtoupper(trim($code));
+        $value = strtr($value, [
+            "\u{2010}" => '-',
+            "\u{2011}" => '-',
+            "\u{2012}" => '-',
+            "\u{2013}" => '-',
+            "\u{2014}" => '-',
+            "\u{2212}" => '-',
+            "\u{00AD}" => '-',
+        ]);
+        $value = preg_replace('/[\x{200B}-\x{200D}\x{FEFF}]/u', '', $value) ?? $value;
+
+        return preg_replace('/[^A-Z0-9]/', '', $value) ?? '';
+    }
+
+    public static function normalize(string $code): string
+    {
+        $compact = self::compactCode($code);
+        if (preg_match('/^NBR([A-Z0-9]{4})(\d{4})$/', $compact, $matches)) {
+            return 'NBR-'.$matches[1].'-'.$matches[2];
+        }
+
+        $trimmed = strtoupper(trim($code));
+        $trimmed = strtr($trimmed, [
+            "\u{2010}" => '-',
+            "\u{2011}" => '-',
+            "\u{2012}" => '-',
+            "\u{2013}" => '-',
+            "\u{2014}" => '-',
+            "\u{2212}" => '-',
+            "\u{00AD}" => '-',
+        ]);
+        $trimmed = preg_replace('/[\x{200B}-\x{200D}\x{FEFF}]/u', '', $trimmed) ?? $trimmed;
+        $trimmed = preg_replace('/\s+/', '', $trimmed) ?? $trimmed;
+
+        return $trimmed;
+    }
+
+    public static function findUsableByCode(string $input, ?int $communityId = null): ?InviteCode
+    {
+        $compact = self::compactCode($input);
+        if (strlen($compact) < 6) {
+            return null;
+        }
+
+        $query = InviteCode::query()->with('community');
+        if ($communityId !== null) {
+            $query->where('community_id', $communityId);
+        }
+
+        $invite = $query
+            ->whereRaw("REPLACE(REPLACE(UPPER(code), '-', ''), ' ', '') = ?", [$compact])
+            ->first();
+
+        if (! $invite || ! $invite->isValid()) {
+            return null;
+        }
+
+        return $invite;
     }
 
     public static function createForCommunity(
@@ -139,6 +211,31 @@ class InviteCodeService
     public static function qrPayload(string $code): string
     {
         return 'havena://join?invite_code='.urlencode($code);
+    }
+
+    public static function qrPngBytes(string $payload, int $size = 280): string
+    {
+        $result = Builder::create()
+            ->writer(new PngWriter())
+            ->data($payload)
+            ->encoding(new Encoding('UTF-8'))
+            ->errorCorrectionLevel(ErrorCorrectionLevel::Medium)
+            ->size($size)
+            ->margin(12)
+            ->build();
+
+        return $result->getString();
+    }
+
+    private static function randomSegment(int $length): string
+    {
+        $max = strlen(self::CODE_ALPHABET) - 1;
+        $out = '';
+        for ($i = 0; $i < $length; $i++) {
+            $out .= self::CODE_ALPHABET[random_int(0, $max)];
+        }
+
+        return $out;
     }
 
     /**

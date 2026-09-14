@@ -41,6 +41,7 @@ class AuthOtpMail extends Mailable
                 'details' => [],
                 'highlightCode' => $this->code,
                 'highlightLabel' => 'Verification code',
+                'highlightQrSrc' => null,
                 'ctaLabel' => null,
                 'ctaUrl' => null,
                 'footerNote' => 'Never share this code with anyone. Havena will never ask for it.',

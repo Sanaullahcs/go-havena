@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { confirmAction, toastSuccess, toastError } from "@/lib/alert";
 import {
   fetchAmenities,
@@ -19,6 +19,15 @@ import {
 import { apiError } from "@/lib/api/client";
 import { PageLoader } from "@/components/shared/page-states";
 import { AmenityFormModal } from "@/components/admin/amenity-form-modal";
+import { AmenityResidentBills } from "@/components/property/amenity-resident-bills";
+import {
+  BookingPaymentFields,
+  BookingPaymentSummary,
+  bookingFeeAmount,
+  type BookingPaymentForm,
+} from "@/components/property/booking-payment-fields";
+import { formatUsdAmount, todayIsoDate, validatePaymentProofForm } from "@/lib/admin/amenity-bill-validation";
+import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; label: string; dot: string }> = {
   open:     { bg: "#ecfdf5", text: "#059669", label: "Open availability", dot: "#10b981" },
@@ -47,6 +56,14 @@ export default function PropertyPage() {
   const [tab, setTab] = useState<"amenities" | "rules" | "bookings" | "inbox">("amenities");
   const [bookModal, setBookModal] = useState<Amenity | null>(null);
   const [bookForm, setBookForm] = useState({ date: tomorrowIso(), slot: "", guests: "1" });
+  const [payment, setPayment] = useState<BookingPaymentForm>({
+    file: null,
+    payment_date: todayIsoDate(),
+    payment_reference: "",
+    payment_note: "",
+  });
+  const { showError, touch, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
+  const paymentErrors = useMemo(() => validatePaymentProofForm(payment), [payment]);
   const [slots, setSlots] = useState<Array<AmenitySlot & { available?: boolean }>>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsMessage, setSlotsMessage] = useState<string | null>(null);
@@ -128,6 +145,13 @@ export default function PropertyPage() {
       return;
     }
     setBookForm({ date: tomorrowIso(), slot: "", guests: "1" });
+    setPayment({
+      file: null,
+      payment_date: todayIsoDate(),
+      payment_reference: "",
+      payment_note: "",
+    });
+    resetTouched();
     setBookModal(amenity);
   };
 
@@ -155,11 +179,16 @@ export default function PropertyPage() {
       return;
     }
 
+    const fee = bookingFeeAmount(amenity.booking_fee);
+    if (fee > 0 && !validateOnSubmit(paymentErrors)) {
+      toastError(paymentErrors.file || paymentErrors.payment_date || "Add payment proof to continue.");
+      return;
+    }
     const slotLabel =
       amenity.status === "bookable" ? bookForm.slot : "Open access request";
     const r = await confirmAction({
       title: `Request ${amenity.name}?`,
-      text: `Date: ${bookForm.date}${amenity.status === "bookable" ? ` · ${slotLabel}` : ""} · Guests: ${guestCount}. The amenity creator will review your request.`,
+      text: `Date: ${bookForm.date}${amenity.status === "bookable" ? ` · ${slotLabel}` : ""} · Booking fee: ${formatUsdAmount(fee)}. The amenity creator will review your request.`,
       confirmText: "Submit request",
       color: "green",
     });
@@ -172,6 +201,14 @@ export default function PropertyPage() {
         date: bookForm.date,
         ...(amenity.status === "bookable" ? { time_slot: bookForm.slot } : {}),
         guests: guestCount,
+        ...(fee > 0
+          ? {
+              payment_proof: payment.file,
+              payment_date: payment.payment_date,
+              payment_reference: payment.payment_reference.trim() || undefined,
+              payment_note: payment.payment_note.trim() || undefined,
+            }
+          : {}),
       });
       setBookModal(null);
       toastSuccess(`Request submitted for ${amenity.name}.`);
@@ -250,8 +287,10 @@ export default function PropertyPage() {
               const statusKey = a.status?.toLowerCase() ?? "open";
               const st = STATUS_STYLE[statusKey] ?? STATUS_STYLE.open;
               const color = AMENITY_COLOR[idx % AMENITY_COLOR.length];
+              const billingRestricted = Boolean(a.has_overdue_shared_amenity_bill);
               const canRequest =
                 !owned &&
+                !billingRestricted &&
                 a.review_status !== "pending" &&
                 a.review_status !== "rejected" &&
                 (statusKey === "bookable" || statusKey === "open");
@@ -319,6 +358,10 @@ export default function PropertyPage() {
                           Manage booking requests
                         </button>
                       </div>
+                    ) : billingRestricted && !owned ? (
+                      <p className="mt-3 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-[12px] font-medium text-rose-700">
+                        Booking is paused for this amenity until the previous month&apos;s bill is paid.
+                      </p>
                     ) : canRequest ? (
                       <button
                         onClick={() => openBookModal(a)}
@@ -328,6 +371,7 @@ export default function PropertyPage() {
                         {statusKey === "open" ? "Request Access" : "Book a Slot"}
                       </button>
                     ) : null}
+                    {a.shared_billing_enabled ? <AmenityResidentBills amenity={a} /> : null}
                   </div>
                 </div>
               );
@@ -404,7 +448,13 @@ export default function PropertyPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-slate-900">{b.amenity_name}</p>
-                  <p className="text-[12.5px] text-slate-500">{b.date} · {b.time_slot}</p>
+                  <p className="text-[12.5px] text-slate-500">
+                    {b.date} · {b.time_slot}
+                    {Number(b.booking_fee ?? 0) > 0 ? ` · Fee ${formatUsdAmount(b.booking_fee)}` : ""}
+                  </p>
+                  {b.status === "rejected" && b.rejection_reason ? (
+                    <p className="mt-1 text-[12px] text-rose-600">{b.rejection_reason}</p>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold capitalize"
@@ -447,6 +497,7 @@ export default function PropertyPage() {
                       {b.user_name || "Resident"}
                       {b.user_unit ? ` · Unit ${b.user_unit}` : ""} · {b.date}
                       {b.time_slot ? ` · ${b.time_slot}` : " · Open access"}
+                      {Number(b.booking_fee ?? 0) > 0 ? ` · ${formatUsdAmount(b.booking_fee)}` : ""}
                     </p>
                   </div>
                   <span
@@ -521,7 +572,7 @@ export default function PropertyPage() {
       {/* Book modal */}
       {bookModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200">
+          <div className="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
               <div>
                 <h3 className="text-[15px] font-bold text-slate-900">
@@ -537,7 +588,7 @@ export default function PropertyPage() {
                 <IcoX />
               </button>
             </div>
-            <div className="space-y-4 px-6 py-5">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
               <div>
                 <label className="nl-label">Date</label>
                 <input
@@ -600,6 +651,20 @@ export default function PropertyPage() {
                   Max {Math.max(1, Number(bookModal.capacity) || 50)} guests
                 </p>
               </div>
+              <BookingPaymentSummary
+                amenityName={bookModal.name}
+                date={bookForm.date}
+                slot={bookModal.status === "bookable" ? bookForm.slot : "Open access"}
+                fee={bookingFeeAmount(bookModal.booking_fee)}
+              />
+              <BookingPaymentFields
+                fee={bookingFeeAmount(bookModal.booking_fee)}
+                form={payment}
+                errors={paymentErrors}
+                showError={showError}
+                onChange={(key, value) => setPayment((prev) => ({ ...prev, [key]: value }))}
+                onBlur={(field) => touch(field)}
+              />
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
               <button onClick={() => setBookModal(null)} className="nl-btn-secondary">Cancel</button>

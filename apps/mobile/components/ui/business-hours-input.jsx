@@ -71,6 +71,10 @@ export default function BusinessHoursInput({ value = "", onChange, showError = f
 
   const isEmpty = !openTime || !closeTime;
   const shouldShowError = showError && isEmpty;
+  const isOvernight =
+    !isEmpty &&
+    closeTime.getHours() * 60 + closeTime.getMinutes() <=
+      openTime.getHours() * 60 + openTime.getMinutes();
 
   const openPicker = (which) => {
     const existing = which === "open" ? openTime : closeTime;
@@ -135,6 +139,7 @@ export default function BusinessHoursInput({ value = "", onChange, showError = f
       ) : !isEmpty ? (
         <Text style={styles.hintText}>
           <Ionicons name="time-outline" size={11} color="#6B7280" /> {displayOpen} – {displayClose}
+          {isOvernight ? `\n${t("businessHours.overnightHint")}` : ""}
         </Text>
       ) : (
         <Text style={styles.hintText}>{t("businessHours.tapChipsHint")}</Text>

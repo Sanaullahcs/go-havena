@@ -26,10 +26,20 @@ import { hasFieldErrors } from "../src/lib/admin/form-validation-utils";
 import {
   GUEST_EMAIL_FORMAT_MESSAGE,
   GUEST_NAME_FORMAT_MESSAGE,
+  GUEST_DURATION_MIN_MESSAGE,
+  GUEST_START_PAST_MESSAGE,
   canSubmitGuestInvite,
+  guestDurationFieldError,
   guestEmailFieldError,
   guestNameFieldError,
+  guestPermissionsFieldError,
+  guestStartFieldError,
 } from "../src/lib/admin/guest-invite-validation";
+import {
+  GUEST_PERMISSION_REQUIRED_MESSAGE,
+  INITIAL_GUEST_INVITE_PERMISSIONS,
+  applyGuestPermissionToggle,
+} from "../src/lib/guest-permissions";
 import { getCompleteProfileFieldVisibility } from "../src/lib/admin/complete-profile-fields";
 import { validateCompleteProfileForm } from "../src/lib/admin/complete-profile-validation";
 
@@ -117,22 +127,112 @@ console.log("\nGuest invite validation");
   assert(guestEmailFieldError("not-an-email") === GUEST_EMAIL_FORMAT_MESSAGE, "rejects invalid email");
 
   const window = { starts_at: "2026-09-11T10:00", ends_at: "2026-09-12T10:00" };
+  const now = new Date("2026-09-11T10:00");
   const emptyPhone = emptyPhoneField();
   assert(
-    !canSubmitGuestInvite({ guest_name: "", guest_email: "a@b.com", ...window }, emptyPhone),
+    !canSubmitGuestInvite({ guest_name: "", guest_email: "a@b.com", ...window }, emptyPhone, now),
     "button blocked when name empty",
   );
   assert(
-    !canSubmitGuestInvite({ guest_name: "Alex2", guest_email: "a@b.com", ...window }, emptyPhone),
+    !canSubmitGuestInvite({ guest_name: "Alex2", guest_email: "a@b.com", ...window }, emptyPhone, now),
     "button blocked when name invalid",
   );
   assert(
-    !canSubmitGuestInvite({ guest_name: "Alex", guest_email: "bad", ...window }, emptyPhone),
+    !canSubmitGuestInvite({ guest_name: "Alex", guest_email: "bad", ...window }, emptyPhone, now),
     "button blocked when email invalid",
   );
   assert(
-    canSubmitGuestInvite({ guest_name: "Alex Johnson", guest_email: "guest@email.com", ...window }, emptyPhone),
+    canSubmitGuestInvite({ guest_name: "Alex Johnson", guest_email: "guest@email.com", ...window }, emptyPhone, now),
     "button enabled when required fields are valid",
+  );
+  assert(INITIAL_GUEST_INVITE_PERMISSIONS.wellness === true, "wellness is selected by default");
+  assert(
+    guestPermissionsFieldError({
+      feed: false,
+      notices: false,
+      events: false,
+      marketplace: false,
+      businesses: false,
+      wellness: false,
+    }) === GUEST_PERMISSION_REQUIRED_MESSAGE,
+    "requires at least one permission",
+  );
+  assert(
+    guestPermissionsFieldError(INITIAL_GUEST_INVITE_PERMISSIONS) === null,
+    "default wellness permission is valid",
+  );
+  const blocked = applyGuestPermissionToggle(INITIAL_GUEST_INVITE_PERMISSIONS, "wellness", false);
+  assert(blocked.permissions.wellness === true, "cannot uncheck the last permission");
+  assert(blocked.error === GUEST_PERMISSION_REQUIRED_MESSAGE, "shows permission required message");
+  const added = applyGuestPermissionToggle(INITIAL_GUEST_INVITE_PERMISSIONS, "feed", true);
+  assert(added.permissions.feed === true && added.error === null, "can select additional permissions");
+  const removedWellness = applyGuestPermissionToggle(added.permissions, "wellness", false);
+  assert(removedWellness.permissions.wellness === false && removedWellness.permissions.feed === true, "can deselect wellness when another remains");
+  assert(
+    !canSubmitGuestInvite({
+      guest_name: "Alex Johnson",
+      guest_email: "guest@email.com",
+      ...window,
+      permissions: {
+        feed: false,
+        notices: false,
+        events: false,
+        marketplace: false,
+        businesses: false,
+        wellness: false,
+      },
+    }, emptyPhone, now),
+    "button blocked when no permission is selected",
+  );
+  assert(
+    guestDurationFieldError("2026-09-11T10:00", "2026-09-11T10:01") === GUEST_DURATION_MIN_MESSAGE,
+    "rejects a 1-minute access window",
+  );
+  assert(
+    guestDurationFieldError("2026-09-11T10:00", "2026-09-11T10:29") === GUEST_DURATION_MIN_MESSAGE,
+    "rejects a 29-minute access window",
+  );
+  assert(
+    guestDurationFieldError("2026-09-11T10:00", "2026-09-11T10:30") === null,
+    "accepts a 30-minute access window",
+  );
+  assert(
+    guestDurationFieldError("2026-09-11T10:00", "2026-09-11T09:30") === GUEST_DURATION_MIN_MESSAGE,
+    "rejects an end time before start time",
+  );
+  assert(
+    !canSubmitGuestInvite({
+      guest_name: "Alex Johnson",
+      guest_email: "guest@email.com",
+      starts_at: "2026-09-11T10:00",
+      ends_at: "2026-09-11T10:10",
+    }, emptyPhone, now),
+    "button blocked when duration is under 30 minutes",
+  );
+  assert(
+    guestStartFieldError("2026-09-11T09:59", now) === GUEST_START_PAST_MESSAGE,
+    "rejects a start one minute in the past",
+  );
+  assert(
+    guestStartFieldError("2025-09-11T10:00", now) === GUEST_START_PAST_MESSAGE,
+    "rejects a start from a previous year",
+  );
+  assert(
+    guestStartFieldError("2026-09-11T10:00", now) === null,
+    "accepts a start at the current minute",
+  );
+  assert(
+    guestStartFieldError("2026-09-11T10:01", now) === null,
+    "accepts a start in the future",
+  );
+  assert(
+    !canSubmitGuestInvite({
+      guest_name: "Alex Johnson",
+      guest_email: "guest@email.com",
+      starts_at: "2026-09-10T10:00",
+      ends_at: "2026-09-11T10:00",
+    }, emptyPhone, now),
+    "button blocked when start is in the past",
   );
 }
 

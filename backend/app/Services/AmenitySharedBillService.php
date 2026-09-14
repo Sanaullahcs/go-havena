@@ -1,0 +1,1036 @@
+<?php
+
+namespace App\Services;
+
+use App\Support\MediaUrl;
+use Carbon\Carbon;
+use Illuminate\Database\QueryException;
+use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
+
+class AmenitySharedBillService
+{
+    public const STATUS_PUBLISHED = 'published';
+
+    public const RESIDENT_STATUS_UNPAID = 'unpaid';
+
+    public const RESIDENT_STATUS_PENDING = 'pending_verification';
+
+    public const RESIDENT_STATUS_PAID = 'paid';
+
+    public const RESIDENT_STATUS_REJECTED = 'rejected';
+
+    public const RESIDENT_STATUS_OVERDUE = 'overdue';
+
+    public const ACTION_SUBMITTED = 'submitted';
+
+    public const ACTION_APPROVED = 'approved';
+
+    public const ACTION_REJECTED = 'rejected';
+
+    public const APPROVED_MESSAGE = 'Payment approved successfully.';
+
+    public const ACKNOWLEDGED_MESSAGE = 'Payment received. Your %s bill for %s has been acknowledged.';
+
+    public const REJECTED_MESSAGE = 'Payment rejected.';
+
+    public const REVIEW_NOT_PENDING_MESSAGE = 'Only payments pending verification can be reviewed.';
+
+    public const REJECTION_REASONS = [
+        'unclear_proof' => 'Payment proof is unclear',
+        'amount_mismatch' => 'Amount does not match',
+        'incorrect_bill' => 'Incorrect bill/payment',
+        'invalid_receipt' => 'Invalid receipt',
+        'other' => 'Other',
+    ];
+
+    public const DUPLICATE_MONTH_MESSAGE = 'A monthly bill already exists for this amenity and this billing month.';
+
+    public const PROOF_SUBMITTED_MESSAGE = 'Payment proof submitted. Your Community Admin will review it.';
+
+    public const PROOF_ALREADY_PENDING_MESSAGE = 'Payment proof has already been submitted and is pending verification.';
+
+    public const PROOF_ALREADY_PAID_MESSAGE = 'This bill is already marked as paid.';
+
+    public const PROOF_INACTIVE_MESSAGE = 'This bill is no longer active.';
+
+    public const SHARED_BILLING_REQUIRED_MESSAGE = 'Shared billing is not enabled for this amenity.';
+
+    public const FILE_RULE = 'required|file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png,webp';
+
+    /** Approved resident members of the amenity's community, excluding deleted users. */
+    public function eligibleResidentIds(int $communityId): array
+    {
+        return DB::table('community_memberships as cm')
+            ->join('users', 'users.id', '=', 'cm.user_id')
+            ->where('cm.community_id', $communityId)
+            ->where('cm.role', 'member')
+            ->where('cm.status', 'approved')
+            ->where('users.role', 'resident')
+            ->where('users.status', '!=', 'deleted')
+            ->distinct()
+            ->pluck('users.id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    public function normalizeBillingMonth(string $value): string
+    {
+        $value = trim($value);
+        if (preg_match('/^\d{4}-\d{2}$/', $value)) {
+            return Carbon::createFromFormat('Y-m', $value)->startOfMonth()->toDateString();
+        }
+
+        return Carbon::parse($value)->startOfMonth()->toDateString();
+    }
+
+    public function hasMonthlyBill(int $amenityId, string $billingMonth): bool
+    {
+        return DB::table('amenity_monthly_bills')
+            ->where('amenity_id', $amenityId)
+            ->where('billing_month', $this->normalizeBillingMonth($billingMonth))
+            ->exists();
+    }
+
+    /**
+     * @param  array{title: string, description?: ?string, amount_per_resident: float|int|string, due_date: string, billing_month: string}  $data
+     * @return array<string, mixed>
+     */
+    public function publish(object $amenity, array $data, UploadedFile $file, int $createdBy, Request $request): array
+    {
+        if (! ($amenity->shared_billing_enabled ?? false)) {
+            throw ValidationException::withMessages([
+                'amenity' => self::SHARED_BILLING_REQUIRED_MESSAGE,
+            ]);
+        }
+
+        $billingMonth = $this->normalizeBillingMonth((string) $data['billing_month']);
+
+        if ($this->hasMonthlyBill((int) $amenity->id, $billingMonth)) {
+            throw ValidationException::withMessages([
+                'billing_month' => self::DUPLICATE_MONTH_MESSAGE,
+            ]);
+        }
+
+        $fileMeta = $this->storeBillFile($file, (int) $amenity->community_id, (int) $amenity->id);
+
+        try {
+            $billId = DB::transaction(function () use ($amenity, $data, $billingMonth, $fileMeta, $createdBy) {
+                $now = now();
+                $amount = round((float) $data['amount_per_resident'], 2);
+
+                $billId = DB::table('amenity_monthly_bills')->insertGetId([
+                    'amenity_id' => (int) $amenity->id,
+                    'community_id' => (int) $amenity->community_id,
+                    'billing_month' => $billingMonth,
+                    'title' => $data['title'],
+                    'description' => $data['description'] ?? null,
+                    'amount_per_resident' => $amount,
+                    'due_date' => $data['due_date'],
+                    'file_path' => $fileMeta['file_path'],
+                    'file_name' => $fileMeta['file_name'],
+                    'file_size' => $fileMeta['file_size'],
+                    'mime_type' => $fileMeta['mime_type'],
+                    'status' => self::STATUS_PUBLISHED,
+                    'created_by' => $createdBy,
+                    'published_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+
+                $residentIds = $this->eligibleResidentIds((int) $amenity->community_id);
+                $rows = [];
+                foreach ($residentIds as $userId) {
+                    $rows[] = [
+                        'monthly_bill_id' => $billId,
+                        'amenity_id' => (int) $amenity->id,
+                        'community_id' => (int) $amenity->community_id,
+                        'user_id' => $userId,
+                        'amount' => $amount,
+                        'status' => self::RESIDENT_STATUS_UNPAID,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+
+                if ($rows !== []) {
+                    DB::table('amenity_resident_bills')->insert($rows);
+                }
+
+                return $billId;
+            });
+        } catch (QueryException $e) {
+            $this->deleteStoredFile($fileMeta['file_path'] ?? null);
+            if ($this->isUniqueViolation($e)) {
+                throw ValidationException::withMessages([
+                    'billing_month' => self::DUPLICATE_MONTH_MESSAGE,
+                ]);
+            }
+            throw $e;
+        } catch (\Throwable $e) {
+            $this->deleteStoredFile($fileMeta['file_path'] ?? null);
+            throw $e;
+        }
+
+        $bill = $this->findMonthlyBill((int) $billId);
+        abort_if(! $bill, 500, 'Monthly bill could not be loaded after publish.');
+
+        app(AmenityBillReminderService::class)->notifyPublishedMonthlyBill($bill, (string) $amenity->name);
+
+        return $this->formatAdminBill($bill, $request);
+    }
+
+    public function listAdminBills(int $amenityId, Request $request): array
+    {
+        app(AmenityBillReminderService::class)->markOverdue($amenityId);
+
+        $rows = DB::table('amenity_monthly_bills')
+            ->where('amenity_id', $amenityId)
+            ->orderByDesc('billing_month')
+            ->orderByDesc('id')
+            ->get();
+
+        $this->attachResidentCounts($rows);
+
+        return $rows->map(fn ($row) => $this->formatAdminBill($row, $request))->all();
+    }
+
+    public function listResidentBills(int $amenityId, int $userId, Request $request): array
+    {
+        $reminders = app(AmenityBillReminderService::class);
+        $reminders->markOverdue($amenityId, $userId);
+        $restricted = $reminders->hasOverdueSharedAmenityBill($amenityId, $userId);
+
+        $rows = DB::table('amenity_resident_bills as rb')
+            ->join('amenity_monthly_bills as mb', 'mb.id', '=', 'rb.monthly_bill_id')
+            ->join('amenities as a', 'a.id', '=', 'mb.amenity_id')
+            ->where('rb.amenity_id', $amenityId)
+            ->where('rb.user_id', $userId)
+            ->where('mb.status', self::STATUS_PUBLISHED)
+            ->orderByDesc('mb.billing_month')
+            ->orderByDesc('mb.id')
+            ->select([
+                'mb.id',
+                'mb.amenity_id',
+                'mb.community_id',
+                'mb.billing_month',
+                'mb.title',
+                'mb.description',
+                'mb.amount_per_resident',
+                'mb.due_date',
+                'mb.file_path',
+                'mb.file_name',
+                'mb.file_size',
+                'mb.mime_type',
+                'mb.status as monthly_status',
+                'mb.published_at',
+                'mb.created_at',
+                'a.name as amenity_name',
+                'rb.id as resident_bill_id',
+                'rb.amount as resident_amount',
+                'rb.status as resident_status',
+                'rb.proof_file_path',
+                'rb.proof_file_name',
+                'rb.proof_file_size',
+                'rb.proof_mime_type',
+                'rb.payment_date',
+                'rb.payment_reference',
+                'rb.payment_note',
+                'rb.proof_submitted_at',
+                'rb.proof_submitted_by',
+                'rb.approved_by',
+                'rb.approved_at',
+                'rb.rejected_by',
+                'rb.rejected_at',
+                'rb.rejection_reason',
+            ])
+            ->get();
+
+        return $rows->map(function ($row) use ($request, $reminders, $restricted, $amenityId, $userId) {
+            $formatted = $this->formatResidentBill($row, $request);
+            $previous = $reminders->outstandingPreviousBill(
+                $amenityId,
+                $userId,
+                Carbon::parse((string) $row->billing_month)->startOfMonth()->toDateString(),
+            );
+            $formatted['has_overdue_shared_amenity_bill'] = $restricted;
+            $formatted['has_outstanding_previous_bill'] = $previous !== null;
+            $formatted['outstanding_previous_bill'] = $previous;
+
+            return $formatted;
+        })->all();
+    }
+
+    public function findMonthlyBill(int $id): ?object
+    {
+        $row = DB::table('amenity_monthly_bills')->where('id', $id)->first();
+        if (! $row) {
+            return null;
+        }
+
+        $this->attachResidentCounts(collect([$row]));
+
+        return $row;
+    }
+
+    /** @param  \Illuminate\Support\Collection<int, object>  $rows */
+    private function attachResidentCounts($rows): void
+    {
+        $ids = $rows->pluck('id')->map(fn ($id) => (int) $id)->all();
+        if ($ids === []) {
+            return;
+        }
+
+        $counts = DB::table('amenity_resident_bills')
+            ->whereIn('monthly_bill_id', $ids)
+            ->selectRaw(
+                'monthly_bill_id, COUNT(*) as resident_count,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as unpaid_count,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as pending_count,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as paid_count,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as rejected_count,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as overdue_count,
+                COALESCE(SUM(amount), 0) as total_amount_expected,
+                COALESCE(SUM(CASE WHEN status = ? THEN amount ELSE 0 END), 0) as total_amount_paid',
+                [
+                    self::RESIDENT_STATUS_UNPAID,
+                    self::RESIDENT_STATUS_PENDING,
+                    self::RESIDENT_STATUS_PAID,
+                    self::RESIDENT_STATUS_REJECTED,
+                    self::RESIDENT_STATUS_OVERDUE,
+                    self::RESIDENT_STATUS_PAID,
+                ]
+            )
+            ->groupBy('monthly_bill_id')
+            ->get()
+            ->keyBy('monthly_bill_id');
+
+        foreach ($rows as $row) {
+            $stats = $counts->get($row->id);
+            $row->resident_count = (int) ($stats->resident_count ?? 0);
+            $row->unpaid_count = (int) ($stats->unpaid_count ?? 0);
+            $row->pending_count = (int) ($stats->pending_count ?? 0);
+            $row->paid_count = (int) ($stats->paid_count ?? 0);
+            $row->rejected_count = (int) ($stats->rejected_count ?? 0);
+            $row->overdue_count = (int) ($stats->overdue_count ?? 0);
+            $row->total_amount_expected = round((float) ($stats->total_amount_expected ?? 0), 2);
+            $row->total_amount_paid = round((float) ($stats->total_amount_paid ?? 0), 2);
+            $row->outstanding_amount = round($row->total_amount_expected - $row->total_amount_paid, 2);
+        }
+    }
+
+    /** @return array<string, mixed> */
+    public function formatAdminBill(object $row, Request $request): array
+    {
+        return array_merge($this->formatBillCore($row, $request), [
+            'resident_count' => (int) ($row->resident_count ?? 0),
+            'unpaid_count' => (int) ($row->unpaid_count ?? 0),
+            'pending_count' => (int) ($row->pending_count ?? 0),
+            'paid_count' => (int) ($row->paid_count ?? 0),
+            'rejected_count' => (int) ($row->rejected_count ?? 0),
+            'overdue_count' => (int) ($row->overdue_count ?? 0),
+            'total_residents_billed' => (int) ($row->resident_count ?? 0),
+            'total_amount_expected' => (float) ($row->total_amount_expected ?? 0),
+            'total_amount_paid' => (float) ($row->total_amount_paid ?? 0),
+            'outstanding_amount' => (float) ($row->outstanding_amount ?? 0),
+            'status' => $row->status ?? self::STATUS_PUBLISHED,
+            'created_by' => $row->created_by !== null ? (int) $row->created_by : null,
+            'published_at' => $row->published_at ?? null,
+        ]);
+    }
+
+    /** @return array<string, mixed> */
+    public function formatResidentBill(object $row, Request $request): array
+    {
+        $status = (string) ($row->resident_status ?? self::RESIDENT_STATUS_UNPAID);
+
+        return array_merge($this->formatBillCore($row, $request), [
+            'resident_bill_id' => (int) $row->resident_bill_id,
+            'amenity_name' => $row->amenity_name ?? null,
+            'amount' => (float) ($row->resident_amount ?? $row->amount_per_resident),
+            'status' => $status,
+            'status_label' => $this->statusLabel($status),
+            'can_submit_proof' => in_array($status, [
+                self::RESIDENT_STATUS_UNPAID,
+                self::RESIDENT_STATUS_REJECTED,
+                self::RESIDENT_STATUS_OVERDUE,
+            ], true),
+            'payment_proof' => $this->formatPaymentProof($row, $request),
+            'rejection_reason' => in_array($status, [self::RESIDENT_STATUS_REJECTED, self::RESIDENT_STATUS_OVERDUE], true)
+                ? ($row->rejection_reason ?? null)
+                : null,
+            'paid_at' => $status === self::RESIDENT_STATUS_PAID ? ($row->approved_at ?? null) : null,
+            'approved_at' => $row->approved_at ?? null,
+            'rejected_at' => $row->rejected_at ?? null,
+            'payment_acknowledgement' => $this->formatPaymentAcknowledgement($row, $status),
+        ]);
+    }
+
+    public function findOwnedResidentBill(int $amenityId, int $residentBillId, int $userId): ?object
+    {
+        return DB::table('amenity_resident_bills as rb')
+            ->join('amenity_monthly_bills as mb', 'mb.id', '=', 'rb.monthly_bill_id')
+            ->join('amenities as a', 'a.id', '=', 'rb.amenity_id')
+            ->where('rb.id', $residentBillId)
+            ->where('rb.amenity_id', $amenityId)
+            ->where('rb.user_id', $userId)
+            ->select([
+                'mb.id',
+                'mb.amenity_id',
+                'mb.community_id',
+                'mb.billing_month',
+                'mb.title',
+                'mb.description',
+                'mb.amount_per_resident',
+                'mb.due_date',
+                'mb.file_path',
+                'mb.file_name',
+                'mb.file_size',
+                'mb.mime_type',
+                'mb.status as monthly_status',
+                'mb.published_at',
+                'mb.created_at',
+                'a.name as amenity_name',
+                'rb.id as resident_bill_id',
+                'rb.user_id',
+                'rb.amount as resident_amount',
+                'rb.status as resident_status',
+                'rb.proof_file_path',
+                'rb.proof_file_name',
+                'rb.proof_file_size',
+                'rb.proof_mime_type',
+                'rb.payment_date',
+                'rb.payment_reference',
+                'rb.payment_note',
+                'rb.proof_submitted_at',
+                'rb.proof_submitted_by',
+                'rb.approved_by',
+                'rb.approved_at',
+                'rb.rejected_by',
+                'rb.rejected_at',
+                'rb.rejection_reason',
+            ])
+            ->first();
+    }
+
+    public function listAdminResidentBills(int $amenityId, int $monthlyBillId, Request $request): array
+    {
+        app(AmenityBillReminderService::class)->markOverdue($amenityId);
+
+        $exists = DB::table('amenity_monthly_bills')
+            ->where('id', $monthlyBillId)
+            ->where('amenity_id', $amenityId)
+            ->exists();
+        abort_if(! $exists, 404, 'Monthly bill not found.');
+
+        $query = $this->adminResidentBillQuery($amenityId)
+            ->where('rb.monthly_bill_id', $monthlyBillId);
+
+        $status = trim((string) $request->query('status', 'all'));
+        if ($status !== '' && $status !== 'all') {
+            abort_unless(in_array($status, [
+                self::RESIDENT_STATUS_UNPAID,
+                self::RESIDENT_STATUS_PENDING,
+                self::RESIDENT_STATUS_PAID,
+                self::RESIDENT_STATUS_REJECTED,
+                self::RESIDENT_STATUS_OVERDUE,
+            ], true), 422, 'Invalid payment status filter.');
+            $query->where('rb.status', $status);
+        }
+
+        $rows = $query
+            ->orderByRaw("CASE rb.status
+                WHEN '".self::RESIDENT_STATUS_PENDING."' THEN 0
+                WHEN '".self::RESIDENT_STATUS_OVERDUE."' THEN 1
+                WHEN '".self::RESIDENT_STATUS_REJECTED."' THEN 2
+                WHEN '".self::RESIDENT_STATUS_UNPAID."' THEN 3
+                ELSE 4 END")
+            ->orderBy('users.name')
+            ->get();
+
+        return $rows->map(fn ($row) => $this->formatAdminResidentBill($row, $request))->all();
+    }
+
+    public function findAdminResidentBill(int $amenityId, int $residentBillId): ?object
+    {
+        return $this->adminResidentBillQuery($amenityId)
+            ->where('rb.id', $residentBillId)
+            ->first();
+    }
+
+    /** @return array<string, mixed> */
+    public function approveResidentPayment(object $bill, int $adminId, Request $request): array
+    {
+        $this->reviewResidentPayment($bill, $adminId, self::ACTION_APPROVED, self::RESIDENT_STATUS_PAID);
+
+        $updated = $this->findAdminResidentBill((int) $bill->amenity_id, (int) $bill->resident_bill_id);
+        abort_if(! $updated, 500, 'Payment could not be loaded after approval.');
+
+        $formatted = $this->formatAdminResidentBill($updated, $request);
+        $ack = $formatted['payment_acknowledgement'] ?? null;
+        if ($ack) {
+            NotificationService::send(
+                (int) $updated->user_id,
+                'success',
+                'Payment received',
+                (string) $ack['message'],
+                '/screens/property-management/amenity/all-facilities',
+                [
+                    'kind' => 'amenity_bill_acknowledged',
+                    'amenity_id' => (int) $updated->amenity_id,
+                    'resident_bill_id' => (int) $updated->resident_bill_id,
+                    'monthly_bill_id' => (int) $updated->monthly_bill_id,
+                ],
+            );
+        }
+
+        return $formatted;
+    }
+
+    public function acknowledgementMessage(string $amenityName, string $billingMonth): string
+    {
+        $month = Carbon::parse($billingMonth)->startOfMonth()->format('F Y');
+
+        return sprintf(self::ACKNOWLEDGED_MESSAGE, $amenityName, $month);
+    }
+
+    public function listAdminReviews(int $amenityId, int $residentBillId, Request $request): array
+    {
+        $bill = $this->findAdminResidentBill($amenityId, $residentBillId);
+        abort_if(! $bill, 404, 'Bill not found.');
+
+        $rows = DB::table('amenity_resident_bill_reviews as r')
+            ->leftJoin('users as actor', 'actor.id', '=', 'r.actor_id')
+            ->where('r.resident_bill_id', $residentBillId)
+            ->where('r.amenity_id', $amenityId)
+            ->orderBy('r.created_at')
+            ->orderBy('r.id')
+            ->select([
+                'r.id',
+                'r.action',
+                'r.actor_id',
+                'actor.name as actor_name',
+                'r.status_from',
+                'r.status_to',
+                'r.proof_file_path',
+                'r.proof_file_name',
+                'r.proof_file_size',
+                'r.proof_mime_type',
+                'r.payment_date',
+                'r.payment_reference',
+                'r.payment_note',
+                'r.rejection_reason',
+                'r.created_at',
+            ])
+            ->get();
+
+        return $rows->map(function ($row) use ($request) {
+            return [
+                'id' => (int) $row->id,
+                'action' => $row->action,
+                'action_label' => match ((string) $row->action) {
+                    self::ACTION_SUBMITTED => 'Proof submitted',
+                    self::ACTION_APPROVED => 'Approved',
+                    self::ACTION_REJECTED => 'Rejected',
+                    default => ucfirst((string) $row->action),
+                },
+                'actor_id' => $row->actor_id !== null ? (int) $row->actor_id : null,
+                'actor_name' => $row->actor_name ?? null,
+                'status_from' => $row->status_from,
+                'status_from_label' => $row->status_from ? $this->statusLabel((string) $row->status_from) : null,
+                'status_to' => $row->status_to,
+                'status_to_label' => $row->status_to ? $this->statusLabel((string) $row->status_to) : null,
+                'proof' => $this->formatPaymentProof($row, $request),
+                'rejection_reason' => $row->rejection_reason,
+                'created_at' => $row->created_at,
+            ];
+        })->all();
+    }
+
+    /** @return array<string, mixed> */
+    public function rejectResidentPayment(object $bill, int $adminId, string $reason, Request $request): array
+    {
+        $this->reviewResidentPayment($bill, $adminId, self::ACTION_REJECTED, self::RESIDENT_STATUS_REJECTED, $reason);
+        app(AmenityBillReminderService::class)->markOverdue((int) $bill->amenity_id, (int) $bill->user_id);
+
+        $updated = $this->findAdminResidentBill((int) $bill->amenity_id, (int) $bill->resident_bill_id);
+        abort_if(! $updated, 500, 'Payment could not be loaded after rejection.');
+
+        return $this->formatAdminResidentBill($updated, $request);
+    }
+
+    public function resolveRejectionReason(string $code, ?string $customReason): string
+    {
+        if (! array_key_exists($code, self::REJECTION_REASONS)) {
+            throw ValidationException::withMessages([
+                'rejection_code' => 'Select a valid rejection reason.',
+            ]);
+        }
+
+        if ($code === 'other') {
+            $custom = trim((string) $customReason);
+            if ($custom === '') {
+                throw ValidationException::withMessages([
+                    'rejection_reason' => 'Enter a rejection reason.',
+                ]);
+            }
+
+            return mb_substr($custom, 0, 500);
+        }
+
+        return self::REJECTION_REASONS[$code];
+    }
+
+    /**
+     * @param  array{payment_date: string, payment_reference?: ?string, payment_note?: ?string}  $data
+     * @return array<string, mixed>
+     */
+    public function submitPaymentProof(object $ownedBill, UploadedFile $file, array $data, Request $request): array
+    {
+        if (($ownedBill->monthly_status ?? null) !== self::STATUS_PUBLISHED) {
+            throw ValidationException::withMessages([
+                'file' => self::PROOF_INACTIVE_MESSAGE,
+            ]);
+        }
+
+        $this->assertCanSubmitProof((string) ($ownedBill->resident_status ?? ''));
+
+        $fileMeta = $this->storeProofFile(
+            $file,
+            (int) $ownedBill->community_id,
+            (int) $ownedBill->amenity_id,
+            (int) $ownedBill->resident_bill_id,
+        );
+
+        try {
+            DB::transaction(function () use ($ownedBill, $data, $fileMeta) {
+                $locked = DB::table('amenity_resident_bills')
+                    ->where('id', (int) $ownedBill->resident_bill_id)
+                    ->where('user_id', (int) $ownedBill->user_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                abort_if(! $locked, 404, 'Bill not found.');
+
+                $this->assertCanSubmitProof((string) ($locked->status ?? ''));
+
+                $now = now();
+                $statusFrom = (string) $locked->status;
+
+                DB::table('amenity_resident_bills')
+                    ->where('id', (int) $ownedBill->resident_bill_id)
+                    ->update([
+                        'status' => self::RESIDENT_STATUS_PENDING,
+                        'proof_file_path' => $fileMeta['file_path'],
+                        'proof_file_name' => $fileMeta['file_name'],
+                        'proof_file_size' => $fileMeta['file_size'],
+                        'proof_mime_type' => $fileMeta['mime_type'],
+                        'payment_date' => $data['payment_date'],
+                        'payment_reference' => $data['payment_reference'] ?? null,
+                        'payment_note' => $data['payment_note'] ?? null,
+                        'proof_submitted_at' => $now,
+                        'proof_submitted_by' => (int) $ownedBill->user_id,
+                        'approved_by' => null,
+                        'approved_at' => null,
+                        'rejected_by' => null,
+                        'rejected_at' => null,
+                        'rejection_reason' => null,
+                        'updated_at' => $now,
+                    ]);
+
+                $this->writeReview([
+                    'resident_bill_id' => (int) $locked->id,
+                    'monthly_bill_id' => (int) $locked->monthly_bill_id,
+                    'amenity_id' => (int) $locked->amenity_id,
+                    'community_id' => (int) $locked->community_id,
+                    'user_id' => (int) $locked->user_id,
+                    'action' => self::ACTION_SUBMITTED,
+                    'actor_id' => (int) $ownedBill->user_id,
+                    'status_from' => $statusFrom,
+                    'status_to' => self::RESIDENT_STATUS_PENDING,
+                    'proof_file_path' => $fileMeta['file_path'],
+                    'proof_file_name' => $fileMeta['file_name'],
+                    'proof_file_size' => $fileMeta['file_size'],
+                    'proof_mime_type' => $fileMeta['mime_type'],
+                    'payment_date' => $data['payment_date'],
+                    'payment_reference' => $data['payment_reference'] ?? null,
+                    'payment_note' => $data['payment_note'] ?? null,
+                    'rejection_reason' => null,
+                ]);
+            });
+        } catch (\Throwable $e) {
+            $this->deleteStoredFile($fileMeta['file_path'] ?? null);
+            throw $e;
+        }
+
+        $updated = $this->findOwnedResidentBill(
+            (int) $ownedBill->amenity_id,
+            (int) $ownedBill->resident_bill_id,
+            (int) $ownedBill->user_id,
+        );
+        abort_if(! $updated, 500, 'Payment proof could not be loaded after submit.');
+
+        $formatted = $this->formatResidentBill($updated, $request);
+        $reminders = app(AmenityBillReminderService::class);
+        $formatted['has_overdue_shared_amenity_bill'] = $reminders->hasOverdueSharedAmenityBill(
+            (int) $updated->amenity_id,
+            (int) $updated->user_id,
+        );
+        $formatted['has_outstanding_previous_bill'] = false;
+        $formatted['outstanding_previous_bill'] = $reminders->outstandingPreviousBill(
+            (int) $updated->amenity_id,
+            (int) $updated->user_id,
+            Carbon::parse((string) $updated->billing_month)->startOfMonth()->toDateString(),
+        );
+        $formatted['has_outstanding_previous_bill'] = $formatted['outstanding_previous_bill'] !== null;
+
+        return $formatted;
+    }
+
+    /** @return array<string, mixed> */
+    private function formatBillCore(object $row, Request $request): array
+    {
+        $month = Carbon::parse((string) $row->billing_month)->startOfMonth();
+
+        return [
+            'id' => (int) $row->id,
+            'amenity_id' => (int) $row->amenity_id,
+            'community_id' => (int) $row->community_id,
+            'billing_month' => $month->format('Y-m'),
+            'billing_month_label' => $month->format('F Y'),
+            'title' => $row->title,
+            'description' => $row->description,
+            'amount_per_resident' => (float) $row->amount_per_resident,
+            'due_date' => Carbon::parse((string) $row->due_date)->toDateString(),
+            'file_url' => MediaUrl::toPublic($row->file_path ?? null, $request),
+            'file_name' => $row->file_name,
+            'file_size' => $row->file_size !== null ? (int) $row->file_size : null,
+            'file_size_label' => $row->file_size !== null ? $this->formatBytes((int) $row->file_size) : null,
+            'mime_type' => $row->mime_type,
+            'created_at' => $row->created_at ?? null,
+        ];
+    }
+
+    /** @return array{file_path: string, file_name: string, file_size: int, mime_type: ?string} */
+    public function storeBillFile(UploadedFile $file, int $communityId, int $amenityId): array
+    {
+        return $this->storePublicFile($file, "amenity-bills/{$communityId}/{$amenityId}");
+    }
+
+    public function storeProofFile(UploadedFile $file, int $communityId, int $amenityId, int $residentBillId): array
+    {
+        return $this->storePublicFile($file, "amenity-bill-proofs/{$communityId}/{$amenityId}/{$residentBillId}");
+    }
+
+    /** @return array{file_path: string, file_name: string, file_size: int, mime_type: ?string} */
+    private function storePublicFile(UploadedFile $file, string $directory): array
+    {
+        $path = $file->store($directory, 'public');
+        $relative = '/storage/'.ltrim(str_replace('\\', '/', $path), '/');
+
+        return [
+            'file_path' => MediaUrl::normalize($relative) ?? $relative,
+            'file_name' => $file->getClientOriginalName(),
+            'file_size' => (int) $file->getSize(),
+            'mime_type' => $file->getClientMimeType(),
+        ];
+    }
+
+    /** @return array<string, mixed>|null */
+    private function formatPaymentAcknowledgement(object $row, string $status): ?array
+    {
+        if ($status !== self::RESIDENT_STATUS_PAID) {
+            return null;
+        }
+
+        $amenityName = trim((string) ($row->amenity_name ?? '')) ?: 'amenity';
+        $month = Carbon::parse((string) $row->billing_month)->startOfMonth();
+        $amount = (float) ($row->resident_amount ?? $row->amount_per_resident ?? 0);
+
+        return [
+            'amenity_name' => $amenityName,
+            'billing_month' => $month->format('Y-m'),
+            'billing_month_label' => $month->format('F Y'),
+            'amount' => $amount,
+            'payment_date' => ! empty($row->payment_date)
+                ? Carbon::parse((string) $row->payment_date)->toDateString()
+                : null,
+            'approved_at' => $row->approved_at ?? null,
+            'payment_reference' => $row->payment_reference ?? null,
+            'status' => self::RESIDENT_STATUS_PAID,
+            'status_label' => $this->statusLabel(self::RESIDENT_STATUS_PAID),
+            'acknowledged_by_label' => 'Community Admin',
+            'message' => $this->acknowledgementMessage($amenityName, $month->toDateString()),
+        ];
+    }
+
+    /** @return array<string, mixed>|null */
+    private function formatPaymentProof(object $row, Request $request): ?array
+    {
+        if (empty($row->proof_file_path) && empty($row->payment_date) && empty($row->proof_submitted_at)) {
+            return null;
+        }
+
+        return [
+            'file_url' => MediaUrl::toPublic($row->proof_file_path ?? null, $request),
+            'file_name' => $row->proof_file_name ?? null,
+            'file_size' => $row->proof_file_size !== null ? (int) $row->proof_file_size : null,
+            'file_size_label' => $row->proof_file_size !== null ? $this->formatBytes((int) $row->proof_file_size) : null,
+            'mime_type' => $row->proof_mime_type ?? null,
+            'payment_date' => ! empty($row->payment_date)
+                ? Carbon::parse((string) $row->payment_date)->toDateString()
+                : null,
+            'payment_reference' => $row->payment_reference ?? null,
+            'payment_note' => $row->payment_note ?? null,
+            'submitted_at' => $row->proof_submitted_at ?? $row->created_at ?? null,
+        ];
+    }
+
+    public function deleteStoredFile(?string $filePath): void
+    {
+        if (! $filePath) {
+            return;
+        }
+
+        $normalized = MediaUrl::normalize($filePath);
+        if (! $normalized || ! str_starts_with($normalized, '/storage/')) {
+            return;
+        }
+
+        $diskPath = ltrim(substr($normalized, strlen('/storage/')), '/');
+        if ($diskPath) {
+            Storage::disk('public')->delete($diskPath);
+        }
+    }
+
+    public function statusLabel(string $status): string
+    {
+        return match ($status) {
+            self::RESIDENT_STATUS_UNPAID => 'Unpaid',
+            self::RESIDENT_STATUS_PENDING => 'Pending Verification',
+            self::RESIDENT_STATUS_PAID => 'Paid',
+            self::RESIDENT_STATUS_REJECTED => 'Rejected',
+            self::RESIDENT_STATUS_OVERDUE => 'Overdue',
+            default => ucfirst(str_replace('_', ' ', $status)),
+        };
+    }
+
+    private function assertCanSubmitProof(string $status): void
+    {
+        if ($status === self::RESIDENT_STATUS_PENDING) {
+            throw ValidationException::withMessages([
+                'file' => self::PROOF_ALREADY_PENDING_MESSAGE,
+            ]);
+        }
+        if ($status === self::RESIDENT_STATUS_PAID) {
+            throw ValidationException::withMessages([
+                'file' => self::PROOF_ALREADY_PAID_MESSAGE,
+            ]);
+        }
+        if (! in_array($status, [
+            self::RESIDENT_STATUS_UNPAID,
+            self::RESIDENT_STATUS_REJECTED,
+            self::RESIDENT_STATUS_OVERDUE,
+        ], true)) {
+            throw ValidationException::withMessages([
+                'file' => 'Payment proof cannot be submitted for this bill.',
+            ]);
+        }
+    }
+
+    private function reviewResidentPayment(
+        object $bill,
+        int $adminId,
+        string $action,
+        string $statusTo,
+        ?string $rejectionReason = null,
+    ): void {
+        DB::transaction(function () use ($bill, $adminId, $action, $statusTo, $rejectionReason) {
+            $locked = DB::table('amenity_resident_bills')
+                ->where('id', (int) $bill->resident_bill_id)
+                ->where('amenity_id', (int) $bill->amenity_id)
+                ->lockForUpdate()
+                ->first();
+
+            abort_if(! $locked, 404, 'Bill not found.');
+
+            if (($locked->status ?? '') !== self::RESIDENT_STATUS_PENDING) {
+                throw ValidationException::withMessages([
+                    'status' => self::REVIEW_NOT_PENDING_MESSAGE,
+                ]);
+            }
+
+            $now = now();
+            $updates = [
+                'status' => $statusTo,
+                'updated_at' => $now,
+            ];
+
+            if ($action === self::ACTION_APPROVED) {
+                $updates['approved_by'] = $adminId;
+                $updates['approved_at'] = $now;
+                $updates['rejected_by'] = null;
+                $updates['rejected_at'] = null;
+                $updates['rejection_reason'] = null;
+            } else {
+                $updates['rejected_by'] = $adminId;
+                $updates['rejected_at'] = $now;
+                $updates['rejection_reason'] = $rejectionReason;
+                $updates['approved_by'] = null;
+                $updates['approved_at'] = null;
+            }
+
+            DB::table('amenity_resident_bills')
+                ->where('id', (int) $locked->id)
+                ->update($updates);
+
+            $this->writeReview([
+                'resident_bill_id' => (int) $locked->id,
+                'monthly_bill_id' => (int) $locked->monthly_bill_id,
+                'amenity_id' => (int) $locked->amenity_id,
+                'community_id' => (int) $locked->community_id,
+                'user_id' => (int) $locked->user_id,
+                'action' => $action,
+                'actor_id' => $adminId,
+                'status_from' => self::RESIDENT_STATUS_PENDING,
+                'status_to' => $statusTo,
+                'proof_file_path' => $locked->proof_file_path ?? null,
+                'proof_file_name' => $locked->proof_file_name ?? null,
+                'proof_file_size' => $locked->proof_file_size ?? null,
+                'proof_mime_type' => $locked->proof_mime_type ?? null,
+                'payment_date' => $locked->payment_date ?? null,
+                'payment_reference' => $locked->payment_reference ?? null,
+                'payment_note' => $locked->payment_note ?? null,
+                'rejection_reason' => $rejectionReason,
+            ]);
+        });
+    }
+
+    /** @param  array<string, mixed>  $row */
+    private function writeReview(array $row): void
+    {
+        $now = now();
+        DB::table('amenity_resident_bill_reviews')->insert([
+            'resident_bill_id' => $row['resident_bill_id'],
+            'monthly_bill_id' => $row['monthly_bill_id'],
+            'amenity_id' => $row['amenity_id'],
+            'community_id' => $row['community_id'],
+            'user_id' => $row['user_id'],
+            'action' => $row['action'],
+            'actor_id' => $row['actor_id'],
+            'status_from' => $row['status_from'],
+            'status_to' => $row['status_to'],
+            'proof_file_path' => $row['proof_file_path'],
+            'proof_file_name' => $row['proof_file_name'],
+            'proof_file_size' => $row['proof_file_size'],
+            'proof_mime_type' => $row['proof_mime_type'],
+            'payment_date' => $row['payment_date'],
+            'payment_reference' => $row['payment_reference'],
+            'payment_note' => $row['payment_note'],
+            'rejection_reason' => $row['rejection_reason'],
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    }
+
+    private function adminResidentBillQuery(int $amenityId)
+    {
+        return DB::table('amenity_resident_bills as rb')
+            ->join('amenity_monthly_bills as mb', 'mb.id', '=', 'rb.monthly_bill_id')
+            ->join('amenities as a', 'a.id', '=', 'rb.amenity_id')
+            ->join('users', 'users.id', '=', 'rb.user_id')
+            ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
+            ->where('rb.amenity_id', $amenityId)
+            ->select([
+                'mb.id as monthly_bill_id',
+                'mb.amenity_id',
+                'mb.community_id',
+                'mb.billing_month',
+                'mb.title',
+                'mb.due_date',
+                'mb.amount_per_resident',
+                'a.name as amenity_name',
+                'users.name as resident_name',
+                'profiles.unit_number',
+                'rb.id as resident_bill_id',
+                'rb.user_id',
+                'rb.amount as resident_amount',
+                'rb.status as resident_status',
+                'rb.proof_file_path',
+                'rb.proof_file_name',
+                'rb.proof_file_size',
+                'rb.proof_mime_type',
+                'rb.payment_date',
+                'rb.payment_reference',
+                'rb.payment_note',
+                'rb.proof_submitted_at',
+                'rb.proof_submitted_by',
+                'rb.approved_by',
+                'rb.approved_at',
+                'rb.rejected_by',
+                'rb.rejected_at',
+                'rb.rejection_reason',
+            ]);
+    }
+
+    /** @return array<string, mixed> */
+    public function formatAdminResidentBill(object $row, Request $request): array
+    {
+        $status = (string) ($row->resident_status ?? self::RESIDENT_STATUS_UNPAID);
+        $month = Carbon::parse((string) $row->billing_month)->startOfMonth();
+
+        return [
+            'id' => (int) $row->resident_bill_id,
+            'resident_bill_id' => (int) $row->resident_bill_id,
+            'monthly_bill_id' => (int) $row->monthly_bill_id,
+            'amenity_id' => (int) $row->amenity_id,
+            'community_id' => (int) $row->community_id,
+            'user_id' => (int) $row->user_id,
+            'resident_name' => $row->resident_name ?? null,
+            'unit_number' => $row->unit_number ?? null,
+            'amenity_name' => $row->amenity_name ?? null,
+            'billing_month' => $month->format('Y-m'),
+            'billing_month_label' => $month->format('F Y'),
+            'amount' => (float) ($row->resident_amount ?? $row->amount_per_resident),
+            'due_date' => ! empty($row->due_date) ? Carbon::parse((string) $row->due_date)->toDateString() : null,
+            'status' => $status,
+            'status_label' => $this->statusLabel($status),
+            'can_review' => $status === self::RESIDENT_STATUS_PENDING,
+            'payment_proof' => $this->formatPaymentProof($row, $request),
+            'payment_acknowledgement' => $this->formatPaymentAcknowledgement($row, $status),
+            'rejection_reason' => $row->rejection_reason ?? null,
+            'proof_submitted_by' => $row->proof_submitted_by !== null ? (int) $row->proof_submitted_by : null,
+            'proof_submitted_at' => $row->proof_submitted_at ?? null,
+            'paid_at' => $status === self::RESIDENT_STATUS_PAID ? ($row->approved_at ?? null) : null,
+            'approved_by' => $row->approved_by !== null ? (int) $row->approved_by : null,
+            'approved_at' => $row->approved_at ?? null,
+            'rejected_by' => $row->rejected_by !== null ? (int) $row->rejected_by : null,
+            'rejected_at' => $row->rejected_at ?? null,
+        ];
+    }
+
+    private function formatBytes(int $bytes): string
+    {
+        if ($bytes >= 1048576) {
+            return round($bytes / 1048576, 1).' MB';
+        }
+        if ($bytes >= 1024) {
+            return round($bytes / 1024, 1).' KB';
+        }
+
+        return $bytes.' B';
+    }
+
+    private function isUniqueViolation(QueryException $e): bool
+    {
+        $code = (string) $e->getCode();
+        $message = $e->getMessage();
+
+        return $code === '23000'
+            || str_contains($message, 'UNIQUE constraint failed')
+            || str_contains($message, 'amenity_monthly_bills_unique');
+    }
+}

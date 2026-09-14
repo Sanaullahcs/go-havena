@@ -13,8 +13,8 @@
       "bundleIdentifier": "com.zsquare.havena",
       "infoPlist": {
         "NSFaceIDUsageDescription": "Havena uses Face ID to sign you in quickly and securely.",
-        "NSCameraUsageDescription": "Havena uses the camera to scan invite QR codes and take profile or feed photos.",
-        "NSPhotoLibraryUsageDescription": "Allow Havena to choose a photo from your library or save community photos to your gallery.",
+        "NSCameraUsageDescription": "Havena uses the camera to scan invite QR codes and take photos for your profile, feed, or payment receipts.",
+        "NSPhotoLibraryUsageDescription": "Allow Havena to choose a photo from your library for your profile, feed, or payment receipts.",
         "NSPhotoLibraryAddUsageDescription": "Allow Havena to save photos from the community feed to your gallery.",
         "NSUserNotificationsUsageDescription": "Havena sends notifications about notices, messages, and community activity.",
         "ITSAppUsesNonExemptEncryption": false,
@@ -86,8 +86,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Havena to choose a profile photo from your library.",
-          "cameraPermission": "Allow Havena to take a profile photo with your camera."
+          "photosPermission": "Allow Havena to choose a photo from your library for your profile, feed, or payment receipts.",
+          "cameraPermission": "Allow Havena to take a photo for your profile, feed, or payment receipts."
         }
       ],
       [
