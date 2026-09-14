@@ -16,7 +16,12 @@ import { Fonts } from "../../../constants/font";
 import { Colors, SolidFills } from "../../../constants/tokens";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
 import { useRouter } from "expo-router";
-import { navigateAfterAuth } from "../../../constants/onboarding-routes";
+import {
+  getCompleteProfileParams,
+  navigateAfterAuth,
+  needsCompleteProfile,
+  Routes,
+} from "../../../constants/onboarding-routes";
 import { getUser } from "../../../services/auth-session";
 import { fetchMe } from "../../../services/auth-api";
 import { confirmSignOut } from "../../../services/sign-out";
@@ -42,6 +47,14 @@ export default function PendingCommunityAdminScreen() {
     (user) => {
       if (canAccessDashboard(user)) {
         navigateAfterAuth(router, user);
+        return true;
+      }
+
+      if (needsCompleteProfile(user)) {
+        router.replace({
+          pathname: Routes.COMPLETE_PROFILE,
+          params: getCompleteProfileParams(user, "admin"),
+        });
         return true;
       }
 

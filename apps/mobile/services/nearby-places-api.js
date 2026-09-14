@@ -89,6 +89,7 @@ export async function fetchNearbyPlacesBundle({ force = false, communityId: requ
     const res = await apiRequest(`/nearby-places?${params}`, {
       cache: "no-store",
       timeoutMs: 40000,
+      community: false,
     });
     const grouped = res?.meta?.grouped && res?.data && !Array.isArray(res.data);
     const byCategory = emptyGroups();
@@ -112,7 +113,7 @@ export async function fetchNearbyPlacesBundle({ force = false, communityId: requ
       longitude: res?.meta?.longitude ?? null,
     };
     const hasPlaces = NEARBY_PLACE_CATEGORIES.some((key) => (byCategory[key] ?? []).length > 0);
-    if ((hasPlaces || !payload.hasCoordinates) && !payload.overpassFailed) {
+    if (hasPlaces && !payload.overpassFailed) {
       bundleCache = payload;
       bundleCommunityId = cacheKey;
     }

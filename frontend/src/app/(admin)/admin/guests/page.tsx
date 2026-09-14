@@ -43,7 +43,9 @@ import {
   guestNameFieldError,
   guestPermissionsFieldError,
   guestStartFieldError,
+  normalizeGuestInviteWindow,
 } from "@/lib/admin/guest-invite-validation";
+import { parseDatetimeLocalValue } from "@/lib/admin/datetime-local";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { adminTableBusy, isAdminSearchPending, shouldSkipStalePageFetch } from "@/lib/admin/table-loading";
@@ -236,8 +238,6 @@ export default function GuestsPage() {
   const [phoneShowError, setPhoneShowError] = useState(false);
   const [inviteFormKey, setInviteFormKey] = useState(0);
   const [permissionsError, setPermissionsError] = useState<string | null>(null);
-  const [inviteNowMs, setInviteNowMs] = useState(() => Date.now());
-
   const hasLoadedOnce = useRef(false);
   const prevFilterKey = useRef(`${filterStatus}|`);
 
@@ -247,13 +247,6 @@ export default function GuestsPage() {
     window.addEventListener("nbr-session-updated", onSessionUpdate);
     return () => window.removeEventListener("nbr-session-updated", onSessionUpdate);
   }, []);
-
-  useEffect(() => {
-    if (!showForm) return;
-    setInviteNowMs(Date.now());
-    const id = window.setInterval(() => setInviteNowMs(Date.now()), 15_000);
-    return () => window.clearInterval(id);
-  }, [showForm]);
 
   const load = useCallback(async () => {
     if (!hasLoadedOnce.current) {
@@ -328,13 +321,14 @@ export default function GuestsPage() {
 
   const activityGroups = useMemo(() => groupActivityByDay(activity), [activity]);
 
-  const inviteNow = useMemo(() => new Date(inviteNowMs), [inviteNowMs]);
-  const minStartAt = useMemo(() => toDatetimeLocalValue(inviteNow), [inviteNow]);
+  const minStartAt = useMemo(() => toDatetimeLocalValue(new Date()), [showForm]);
+  const startValidationNow = useMemo(() => new Date(), [form.starts_at]);
   const nameError = guestNameFieldError(form.guest_name);
   const emailError = guestEmailFieldError(form.guest_email);
-  const startError = guestStartFieldError(form.starts_at, inviteNow);
+  const startError = guestStartFieldError(form.starts_at, startValidationNow);
   const durationError = guestDurationFieldError(form.starts_at, form.ends_at);
-  const canCreateInvitation = canSubmitGuestInvite(form, phoneField, inviteNow) && !submitting;
+  const canCreateInvitation =
+    canSubmitGuestInvite(form, phoneField, startValidationNow) && !submitting;
 
   const handlePermissionToggle = (key: keyof GuestPermissions, checked: boolean) => {
     setForm((f) => {
@@ -351,7 +345,16 @@ export default function GuestsPage() {
       setPermissionsError(permissionError);
       return;
     }
-    if (!canSubmitGuestInvite(form, phoneField, inviteNow)) {
+    const normalizedWindow = normalizeGuestInviteWindow(form.starts_at, form.ends_at);
+    if (
+      normalizedWindow.starts_at !== form.starts_at ||
+      normalizedWindow.ends_at !== form.ends_at
+    ) {
+      setForm((f) => ({ ...f, ...normalizedWindow }));
+    }
+
+    const submitForm = { ...form, ...normalizedWindow };
+    if (!canSubmitGuestInvite(submitForm, phoneField)) {
       if (phoneField.digits && (!phoneField.valid || !phoneField.e164)) {
         setPhoneShowError(true);
         toastError("Enter a valid phone number, or leave phone blank.");
@@ -361,11 +364,11 @@ export default function GuestsPage() {
     setSubmitting(true);
     try {
       const payload = {
-        ...form,
+        ...submitForm,
         guest_phone: phoneField.e164 || "",
-        starts_at: new Date(form.starts_at).toISOString(),
-        ends_at: new Date(form.ends_at).toISOString(),
-        permissions: normalizeGuestPermissions(form.permissions),
+        starts_at: parseDatetimeLocalValue(submitForm.starts_at)!.toISOString(),
+        ends_at: parseDatetimeLocalValue(submitForm.ends_at)!.toISOString(),
+        permissions: normalizeGuestPermissions(submitForm.permissions),
       };
       const created = await inviteGuest(payload);
       toastSuccess("Guest invitation created");
@@ -704,11 +707,19 @@ export default function GuestsPage() {
                       key={preset.label}
                       type="button"
                       onClick={() => {
-                        const start = new Date(form.starts_at || defaultInviteWindow().starts_at);
+                        const now = new Date();
+                        now.setSeconds(0, 0);
+                        const parsedStart =
+                          parseDatetimeLocalValue(form.starts_at) ??
+                          parseDatetimeLocalValue(defaultInviteWindow().starts_at) ??
+                          now;
+                        const start = parsedStart.getTime() < now.getTime() ? now : parsedStart;
                         const end = new Date(start.getTime() + preset.hours * 60 * 60 * 1000);
-                        const pad = (n: number) => String(n).padStart(2, "0");
-                        const toLocal = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-                        setForm((f) => ({ ...f, starts_at: toLocal(start), ends_at: toLocal(end) }));
+                        setForm((f) => ({
+                          ...f,
+                          starts_at: toDatetimeLocalValue(start),
+                          ends_at: toDatetimeLocalValue(end),
+                        }));
                       }}
                       className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
                     >

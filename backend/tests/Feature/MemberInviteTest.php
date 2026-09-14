@@ -11,7 +11,9 @@ use App\Models\User;
 use App\Services\CommunityBillingService;
 use App\Services\ContactIdentityService;
 use App\Services\InviteCodeService;
+use Database\Seeders\SystemAdminSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -166,6 +168,34 @@ class MemberInviteTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('data.email', 'jane.invite@example.com');
+    }
+
+    public function test_community_admin_can_view_invited_resident_profile_with_invite_code(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+
+        Sanctum::actingAs($admin);
+
+        $inviteResponse = $this->postJson('/api/v1/admin/members/invite', [
+            'name'        => 'Profile View Resident',
+            'email'       => 'profile.view@example.com',
+            'phone'       => '+12025550888',
+            'unit_number' => 'Unit 3A',
+        ])->assertCreated();
+
+        $inviteCode = $inviteResponse->json('data.invite_code');
+        $invitedUserId = (int) $inviteResponse->json('data.id');
+
+        $this->getJson("/api/v1/admin/members/{$invitedUserId}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $invitedUserId)
+            ->assertJsonPath('data.status', 'invitation_sent')
+            ->assertJsonPath('data.invite_code', $inviteCode)
+            ->assertJsonPath('data.community_id', $community->id);
     }
 
     public function test_community_admin_can_cancel_onboarding_invitation_without_deleting_user(): void
@@ -440,5 +470,68 @@ class MemberInviteTest extends TestCase
         ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['name', 'unit_number']);
+    }
+
+    public function test_system_admin_invite_provisions_resident_without_invite_code(): void
+    {
+        Mail::fake();
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $this->seed(SystemAdminSeeder::class);
+        $systemAdmin = User::query()->where('email', 'admin@havena.app')->firstOrFail();
+        Sanctum::actingAs($systemAdmin);
+
+        $response = $this->postJson('/api/v1/admin/members/invite', [
+            'name' => 'Direct Resident',
+            'email' => 'direct.resident@example.com',
+            'phone' => '+12025550888',
+            'unit_number' => '101',
+            'community_id' => $community->id,
+        ])->assertCreated();
+
+        $response->assertJsonMissingPath('data.invite_code');
+        $response->assertJsonPath('message', 'Resident created successfully. A welcome email was sent.');
+
+        $userId = (int) $response->json('data.id');
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id' => $userId,
+            'community_id' => $community->id,
+            'status' => 'approved',
+        ]);
+        $this->assertDatabaseMissing('invite_codes', [
+            'invited_user_id' => $userId,
+            'community_id' => $community->id,
+        ]);
+    }
+
+    public function test_system_admin_can_resend_invite_without_community_scope(): void
+    {
+        Mail::fake();
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        Sanctum::actingAs($admin);
+
+        $inviteResponse = $this->postJson('/api/v1/admin/members/invite', [
+            'name' => 'Scope Resident',
+            'email' => 'scope.invite@example.com',
+            'phone' => '+12025550999',
+            'unit_number' => '920',
+        ])->assertCreated();
+
+        $invitedUserId = (int) $inviteResponse->json('data.id');
+
+        $this->seed(SystemAdminSeeder::class);
+        $systemAdmin = User::query()->where('email', 'admin@havena.app')->firstOrFail();
+        Sanctum::actingAs($systemAdmin);
+
+        $this->postJson("/api/v1/admin/members/{$invitedUserId}/resend-invite", [
+            'community_id' => 'all',
+        ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Invitation email sent.');
     }
 }

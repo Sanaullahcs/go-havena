@@ -18,6 +18,7 @@ use App\Services\LifecycleMailService;
 use App\Services\OsmGeocodingService;
 use App\Services\ReferralService;
 use App\Support\CommunityLocation;
+use App\Support\CommunityNameUniqueness;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -126,6 +127,12 @@ class AdminCommunityController extends Controller
 
         $validated = CommunityLocation::applyOnCreate($validated, $geocoding);
         $region = Region::query()->where('status', 'active')->findOrFail($validated['region_id']);
+
+        CommunityNameUniqueness::assertUniqueInRegion(
+            $validated['name'],
+            $region->id,
+            field: 'name',
+        );
 
         $community = Community::query()->create([
             'name'          => $validated['name'],
@@ -374,6 +381,15 @@ class AdminCommunityController extends Controller
             $validated['region'] = $region->title;
         }
 
+        $nextName = array_key_exists('name', $validated) ? (string) $validated['name'] : $community->name;
+        $nextRegionId = (int) (array_key_exists('region_id', $validated) ? $validated['region_id'] : $community->region_id);
+        CommunityNameUniqueness::assertUniqueInRegion(
+            $nextName,
+            $nextRegionId,
+            field: 'name',
+            exceptCommunityId: $community->id,
+        );
+
         $validated = CommunityLocation::applyOnUpdate($community, $validated, $geocoding);
         $community->update($validated);
 
@@ -593,7 +609,7 @@ class AdminCommunityController extends Controller
         );
 
         app(ReferralService::class)->ensureReferralCode($assigned->fresh());
-        app(LifecycleMailService::class)->communityAdminProvisioned(
+        $emailSent = app(LifecycleMailService::class)->communityAdminProvisioned(
             $assigned->fresh(['profile']),
             $community,
             $createdNewAdmin,
@@ -609,8 +625,11 @@ class AdminCommunityController extends Controller
                     'phone' => $assigned->phone,
                     'role'  => $assigned->role,
                 ],
+                'email_sent' => $emailSent,
             ],
-            'message' => 'Community admin assigned successfully.',
+            'message' => $emailSent
+                ? 'Community admin assigned successfully. A welcome email was sent.'
+                : 'Community admin assigned successfully. The welcome email could not be sent — share sign-in instructions manually.',
         ]);
     }
 

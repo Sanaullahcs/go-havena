@@ -1,3 +1,32 @@
+/** Parse `<input type="datetime-local">` value as a local wall-clock time. */
+export function parseDatetimeLocalValue(value: string | null | undefined): Date | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(trimmed);
+  if (match) {
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const hour = Number(match[4]);
+    const minute = Number(match[5]);
+    const parsed = new Date(year, month - 1, day, hour, minute, 0, 0);
+    if (
+      parsed.getFullYear() === year &&
+      parsed.getMonth() === month - 1 &&
+      parsed.getDate() === day &&
+      parsed.getHours() === hour &&
+      parsed.getMinutes() === minute
+    ) {
+      return parsed;
+    }
+    return null;
+  }
+
+  const fallback = new Date(trimmed);
+  return Number.isNaN(fallback.getTime()) ? null : fallback;
+}
+
 /** Format a Date as `<input type="datetime-local">` value in the browser timezone. */
 export function toDatetimeLocalValue(date: Date = new Date()): string {
   const next = new Date(date);
@@ -18,8 +47,8 @@ export function isoToDatetimeLocal(iso: string | null | undefined): string {
 export function datetimeLocalToIso(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   if (!trimmed) return null;
-  const date = new Date(trimmed);
-  if (Number.isNaN(date.getTime())) return null;
+  const date = parseDatetimeLocalValue(trimmed);
+  if (!date) return null;
   return date.toISOString();
 }
 

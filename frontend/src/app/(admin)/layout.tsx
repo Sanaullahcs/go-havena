@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AuthShellSkeleton, AdminOnboardingShellSkeleton } from "@/components/shared/loaders";
 import {
@@ -132,103 +132,98 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
+  const refreshAccess = useCallback(async () => {
+    await consumeWebHandoffIfPresent();
 
-    (async () => {
-      await consumeWebHandoffIfPresent();
-      if (cancelled) return;
-
-      const token = getToken();
-      if (!token) {
-        // Always clear the loading shell — otherwise Stripe return on a different host
-        // (localhost vs LAN IP) leaves AuthShellSkeleton spinning forever.
-        setChecked(true);
-        setOnboardingOnly(false);
-        const qs = typeof window !== "undefined" ? window.location.search : "";
-        router.replace(qs ? `/login${qs}` : "/login");
-        return;
-      }
-
-      let user = getUser();
-
-      try {
-        const me = await fetchMe();
-        if (cancelled) return;
-        updateUser(meToSessionUser(me));
-        user = getUser();
-      } catch {
-        // Keep cached session if /me fails (offline / transient).
-      }
-
-      if (cancelled) return;
-
-      if (isSystemAdminUser(user)) {
-        setAccessBlocked(null);
-        setOnboardingOnly(false);
-        setChecked(true);
-        return;
-      }
-
-      if (!isCommunityAdminUser(user)) {
-        clearSession();
-        setChecked(true);
-        setOnboardingOnly(false);
-        router.replace("/login");
-        return;
-      }
-
-      if (!canAccessCommunityOnboarding(user)) {
-        const blocked = communityAdminAccessBlockedCopy(user);
-        setAccessBlockedTitle(blocked.title);
-        setAccessBlocked(blocked.message);
-        setOnboardingOnly(false);
-        setChecked(true);
-        return;
-      }
-
-      const nextStep = getCommunityAdminNextStep(user);
-      const fullAccess = canAccessCommunityDashboard(user);
-
-      if (!fullAccess) {
-        setOnboardingOnly(true);
-        setAccessBlocked(null);
-
-        const expected = routeForNextStep(nextStep);
-        const onAllowedOnboardingPath =
-          isOnboardingPath(pathname) &&
-          (pathname === expected ||
-            pathname.startsWith(`${expected}/`) ||
-            (nextStep === "complete_billing_web" && (pathname === "/admin/billing" || pathname.startsWith("/admin/billing/"))) ||
-            (nextStep === "await_approval" &&
-              (pathname.startsWith("/admin/pending-approval") || pathname.startsWith("/admin/billing/"))) ||
-            (nextStep === "complete_profile" && pathname.startsWith("/admin/complete-profile")) ||
-            (nextStep === "link_community" && pathname.startsWith("/admin/setup")) ||
-            ((pathname === "/admin/billing" || pathname.startsWith("/admin/billing/")) &&
-              (nextStep === "await_approval" || nextStep === "ready")) ||
-            (pathname.startsWith("/admin/pending-approval") &&
-              nextStep === "complete_billing_web"));
-
-        // Show onboarding shell immediately; redirect in background if needed.
-        setChecked(true);
-
-        if (!onAllowedOnboardingPath) {
-          router.replace(expected);
-        }
-        return;
-      }
-
-      setOnboardingOnly(false);
-      setAccessBlocked(null);
+    const token = getToken();
+    if (!token) {
       setChecked(true);
-    })();
+      setOnboardingOnly(false);
+      const qs = typeof window !== "undefined" ? window.location.search : "";
+      router.replace(qs ? `/login${qs}` : "/login");
+      return;
+    }
 
-    return () => {
-      cancelled = true;
+    let user = getUser();
+
+    try {
+      const me = await fetchMe();
+      updateUser(meToSessionUser(me));
+      user = getUser();
+    } catch {
+      // Keep cached session if /me fails (offline / transient).
+    }
+
+    if (isSystemAdminUser(user)) {
+      setAccessBlocked(null);
+      setOnboardingOnly(false);
+      setChecked(true);
+      return;
+    }
+
+    if (!isCommunityAdminUser(user)) {
+      clearSession();
+      setChecked(true);
+      setOnboardingOnly(false);
+      router.replace("/login");
+      return;
+    }
+
+    if (!canAccessCommunityOnboarding(user)) {
+      const blocked = communityAdminAccessBlockedCopy(user);
+      setAccessBlockedTitle(blocked.title);
+      setAccessBlocked(blocked.message);
+      setOnboardingOnly(false);
+      setChecked(true);
+      return;
+    }
+
+    const nextStep = getCommunityAdminNextStep(user);
+    const fullAccess = canAccessCommunityDashboard(user);
+
+    if (!fullAccess) {
+      setOnboardingOnly(true);
+      setAccessBlocked(null);
+
+      const expected = routeForNextStep(nextStep);
+      const onAllowedOnboardingPath =
+        isOnboardingPath(pathname) &&
+        (pathname === expected ||
+          pathname.startsWith(`${expected}/`) ||
+          (nextStep === "complete_billing_web" &&
+            (pathname === "/admin/billing" || pathname.startsWith("/admin/billing/"))) ||
+          (nextStep === "await_approval" &&
+            (pathname.startsWith("/admin/pending-approval") || pathname.startsWith("/admin/billing/"))) ||
+          (nextStep === "complete_profile" && pathname.startsWith("/admin/complete-profile")) ||
+          (nextStep === "link_community" && pathname.startsWith("/admin/setup")) ||
+          ((pathname === "/admin/billing" || pathname.startsWith("/admin/billing/")) &&
+            (nextStep === "await_approval" || nextStep === "ready")) ||
+          (pathname.startsWith("/admin/pending-approval") && nextStep === "complete_billing_web"));
+
+      setChecked(true);
+
+      if (!onAllowedOnboardingPath) {
+        router.replace(expected);
+      }
+      return;
+    }
+
+    setOnboardingOnly(false);
+    setAccessBlocked(null);
+    setChecked(true);
+  }, [pathname, router]);
+
+  useEffect(() => {
+    void refreshAccess();
+  }, [refreshAccess]);
+
+  useEffect(() => {
+    const onSessionUpdated = () => {
+      void refreshAccess();
     };
-    // Fetch session once per mount. Re-running on every pathname/router identity
-    // change remounts the admin shell into AuthShellSkeleton / onboarding chrome.
-  }, [router]);
+    window.addEventListener("nbr-session-updated", onSessionUpdated);
+    return () => window.removeEventListener("nbr-session-updated", onSessionUpdated);
+  }, [refreshAccess]);
 
   useEffect(() => {
     if (!checked || accessBlocked || onboardingOnly) return;

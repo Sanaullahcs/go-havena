@@ -12,6 +12,7 @@ import {
   getCompleteProfileFieldVisibility,
   isPlaceholderResidenceType,
   isPlaceholderUnitNumber,
+  shouldUseSimpleCompleteProfileSubmit,
 } from "@/lib/admin/complete-profile-fields";
 import {
   COMPLETE_PROFILE_LIMITS,
@@ -35,7 +36,6 @@ import {
   getCommunityAdminNextStep,
   getToken,
   getUser,
-  setSession,
   updateUser,
 } from "@/lib/auth/session";
 import { emptyPhoneField, phoneFieldFromE164, type PhoneFieldState } from "@/lib/phone/format";
@@ -84,6 +84,15 @@ function CompleteProfileInner() {
         role: completeProfileOnboardingRole(profileUser),
         invited,
         communityRequest,
+      }),
+    [profileUser, invited, communityRequest],
+  );
+
+  const useSimpleSubmitLabel = useMemo(
+    () =>
+      shouldUseSimpleCompleteProfileSubmit(profileUser, {
+        invited,
+        isAdminClaim: completeProfileOnboardingRole(profileUser) === "admin" && !communityRequest,
       }),
     [profileUser, invited, communityRequest],
   );
@@ -202,11 +211,7 @@ function CompleteProfileInner() {
         ...(fields.showResidenceType && residenceType ? { residence_type: residenceType } : {}),
       });
 
-      const token = getToken();
-      const current = getUser();
-      if (token && current) {
-        setSession(token, { ...current, ...meToSessionUser(me) });
-      }
+      updateUser(meToSessionUser(me));
 
       const next = communityAdminOnboardingPath(getCommunityAdminNextStep(me));
       router.replace(`${next}${planQuery}`);
@@ -564,7 +569,7 @@ function CompleteProfileInner() {
             disabled={busy || hasFieldErrors(liveErrors)}
             className="order-1 inline-flex h-12 w-full items-center justify-center rounded-xl bg-[#1B4F8A] px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-[#163A66] focus:outline-none focus:ring-2 focus:ring-[#1B4F8A]/30 disabled:cursor-not-allowed disabled:opacity-60 sm:order-2 sm:w-auto sm:min-w-[14rem]"
           >
-            {busy ? "Saving profile…" : "Save & continue"}
+            {busy ? "Saving profile…" : useSimpleSubmitLabel ? "Submit" : "Save & continue"}
           </button>
         </div>
         <p className="text-center text-[11px] leading-relaxed text-slate-500 sm:text-left">

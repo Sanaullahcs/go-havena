@@ -170,6 +170,15 @@ export function ProvisionUserModal({
         community_mode: "existing",
         community_id: presetCommunity.id,
       });
+      return;
+    }
+
+    if (type === "resident" && presetCommunity) {
+      setResidentForm({
+        ...emptyResidentForm,
+        region_id: presetCommunity.regionId ?? "",
+        community_id: presetCommunity.id,
+      });
     }
   }, [open, type, presetCommunity]);
 

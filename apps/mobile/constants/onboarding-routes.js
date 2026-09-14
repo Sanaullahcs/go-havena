@@ -7,6 +7,7 @@ import {
   hasRejectedCommunityRequest,
   hasRejectedMembershipApproval,
   getPrimaryMembership,
+  hasLinkedCommunityForProfile,
   isCommunityAdminRole,
   isCommunityAdminRejected,
   awaitsCommunityAdminApproval,
@@ -51,18 +52,11 @@ function resetTo(router, pathname, params = {}) {
   router.replace({ pathname, params });
 }
 
-/** Resume complete-profile only when user already joined a live community mid-onboarding. */
+/** Resume complete-profile before any approval/waiting screen once a community is linked. */
 export function needsCompleteProfile(user) {
-  if (canAccessDashboard(user) || hasApprovedMembership(user)) return false;
-  if (hasPendingCommunityRequest(user) || hasRejectedMembershipApproval(user)) return false;
-  if (isProfileComplete(user)) return false;
-
-  return (user?.memberships ?? []).some((m) => {
-    const community = m.community;
-    if (community?.review_status === "pending") return false;
-    if (community?.review_status === "rejected") return false;
-    return Boolean(m.community_id);
-  });
+  if (!user || isProfileComplete(user)) return false;
+  if (needsInviteCode(user)) return false;
+  return hasLinkedCommunityForProfile(user);
 }
 
 export function getCompleteProfileParams(user, role = "resident") {
@@ -148,13 +142,14 @@ export function getPostAuthRoute(user, { role, mode } = {}) {
     };
   }
 
+  if (needsCompleteProfile(user)) {
+    return {
+      pathname: Routes.COMPLETE_PROFILE,
+      params: getCompleteProfileParams(user, onboardingRole),
+    };
+  }
+
   if (canAccessDashboard(user)) {
-    if (!isProfileComplete(user)) {
-      return {
-        pathname: Routes.COMPLETE_PROFILE,
-        params: getCompleteProfileParams(user, onboardingRole),
-      };
-    }
     return { pathname: Routes.TABS_HOME, params: { role: onboardingRole } };
   }
 
@@ -180,12 +175,6 @@ export function getPostAuthRoute(user, { role, mode } = {}) {
         },
       };
     }
-    if (nextStep === "complete_profile" || (!nextStep && !isProfileComplete(user) && getPrimaryMembership(user)?.community_id)) {
-      return {
-        pathname: Routes.COMPLETE_PROFILE,
-        params: getCompleteProfileParams(user, "admin"),
-      };
-    }
     if (nextStep === "complete_billing_web") {
       return { pathname: Routes.COMPLETE_BILLING, params: { role: "admin" } };
     }
@@ -199,12 +188,6 @@ export function getPostAuthRoute(user, { role, mode } = {}) {
       return { pathname: Routes.TABS_HOME, params: { role: "admin" } };
     }
     if (getPrimaryMembership(user)?.community_id) {
-      if (!isProfileComplete(user)) {
-        return {
-          pathname: Routes.COMPLETE_PROFILE,
-          params: getCompleteProfileParams(user, "admin"),
-        };
-      }
       return { pathname: Routes.COMPLETE_BILLING, params: { role: "admin" } };
     }
   }
@@ -228,12 +211,6 @@ export function getPostAuthRoute(user, { role, mode } = {}) {
     if (awaitsCommunityAdminApproval(user)) {
       return { pathname: Routes.PENDING_COMMUNITY_ADMIN, params: { role: onboardingRole } };
     }
-    if (needsCompleteProfile(user)) {
-      return {
-        pathname: Routes.COMPLETE_PROFILE,
-        params: getCompleteProfileParams(user, onboardingRole),
-      };
-    }
     if (user?.profile?.region_id) {
       return {
         pathname: Routes.REGION_COMMUNITIES,
@@ -249,13 +226,6 @@ export function getPostAuthRoute(user, { role, mode } = {}) {
 
   if (hasPendingCommunityRequest(user)) {
     return { pathname: Routes.PENDING_COMMUNITY, params: { role: onboardingRole } };
-  }
-
-  if (needsCompleteProfile(user)) {
-    return {
-      pathname: Routes.COMPLETE_PROFILE,
-      params: getCompleteProfileParams(user, onboardingRole),
-    };
   }
 
   if (hasPendingMembershipApproval(user)) {

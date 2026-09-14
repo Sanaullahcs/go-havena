@@ -10,7 +10,7 @@ return [
         'https://overpass.osm.ch/api/interpreter',
         'https://overpass.kumi.systems/api/interpreter',
     ],
-    'overpass_timeout' => (int) env('OSM_OVERPASS_TIMEOUT', 15),
+    'overpass_timeout' => (int) env('OSM_OVERPASS_TIMEOUT', 25),
     'overpass_max_elements' => (int) env('OSM_OVERPASS_MAX_ELEMENTS', 150),
     'radius_meters' => 3000,
     'cache_seconds' => 3600,

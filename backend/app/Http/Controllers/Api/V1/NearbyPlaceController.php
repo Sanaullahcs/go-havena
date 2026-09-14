@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Services\OsmGeocodingService;
 use App\Services\OsmNearbyPlacesService;
 use App\Support\NearbyDiscovery;
 use App\Support\OsmPlaceCategories;
@@ -14,7 +15,7 @@ use Illuminate\Validation\Rule;
 class NearbyPlaceController extends Controller
 {
     /** GET /v1/nearby-places?category= */
-    public function index(Request $request, OsmNearbyPlacesService $places): JsonResponse
+    public function index(Request $request, OsmNearbyPlacesService $places, OsmGeocodingService $geocoder): JsonResponse
     {
         $validated = $request->validate([
             'category' => ['nullable', 'string', Rule::in(OsmPlaceCategories::KEYS)],
@@ -25,7 +26,7 @@ class NearbyPlaceController extends Controller
         $category = $validated['category'] ?? 'restaurants';
         $grouped = $request->boolean('all');
         $communityId = $this->resolveCommunityId($request, $request->user());
-        $coords = NearbyDiscovery::communityCoordinates($communityId);
+        $coords = NearbyDiscovery::resolveCommunityCoordinates($communityId, $geocoder);
         if (function_exists('set_time_limit')) {
             set_time_limit(45);
         }
@@ -90,7 +91,8 @@ class NearbyPlaceController extends Controller
         if ($user) {
             $membership = DB::table('community_memberships')
                 ->where('user_id', $user->id)
-                ->where('status', 'approved')
+                ->whereIn('status', ['approved', 'pending'])
+                ->orderByRaw("CASE WHEN status = 'approved' THEN 0 ELSE 1 END")
                 ->orderByDesc('updated_at')
                 ->orderByDesc('id')
                 ->first();
@@ -108,7 +110,7 @@ class NearbyPlaceController extends Controller
         return DB::table('community_memberships')
             ->where('user_id', $userId)
             ->where('community_id', $communityId)
-            ->where('status', 'approved')
+            ->whereIn('status', ['approved', 'pending'])
             ->exists();
     }
 }

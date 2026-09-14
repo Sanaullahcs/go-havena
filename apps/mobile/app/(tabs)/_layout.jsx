@@ -15,7 +15,7 @@ import { fetchMe } from "../../services/auth-api";
 
 import { canAccessDashboard, isCommunityAdmin, isGuestUser } from "../../services/community-access";
 
-import { getPostAuthRoute, Routes } from "../../constants/onboarding-routes";
+import { getPostAuthRoute, needsCompleteProfile, Routes } from "../../constants/onboarding-routes";
 import { syncRoleFromUser } from "../../constants/role-session";
 
 import { isAccountSuspendedError, loginRouteWithSuspendedNotice, persistBlockedAccountNotice } from "../../utils/auth-errors";
@@ -67,7 +67,7 @@ export default function TabLayout() {
       let user = await getUser();
 
       // Show tabs immediately when cached profile already grants access.
-      if (user && canAccessDashboard(user)) {
+      if (user && canAccessDashboard(user) && !needsCompleteProfile(user)) {
         syncRoleFromUser(user);
         setCommunityAdminUser(isCommunityAdmin(user));
         setAccessChecked(true);
@@ -75,7 +75,7 @@ export default function TabLayout() {
         withTimeout(fetchMe(), 8000)
           .then((fresh) => {
             if (cancelled) return;
-            if (!canAccessDashboard(fresh)) {
+            if (!canAccessDashboard(fresh) || needsCompleteProfile(fresh)) {
               const route = getPostAuthRoute(fresh);
               router.replace({ pathname: route.pathname, params: route.params });
               return;
@@ -133,7 +133,7 @@ export default function TabLayout() {
 
       if (cancelled) return;
 
-      if (canAccessDashboard(user)) {
+      if (canAccessDashboard(user) && !needsCompleteProfile(user)) {
         syncRoleFromUser(user);
         setCommunityAdminUser(isCommunityAdmin(user));
         setAccessChecked(true);

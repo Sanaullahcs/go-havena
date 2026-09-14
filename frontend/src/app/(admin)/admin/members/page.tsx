@@ -12,6 +12,7 @@ import {
   fetchMembers,
   fetchMember,
   inviteMember,
+  resendMemberInvite,
   approveMember,
   rejectMember,
   suspendMember,
@@ -211,6 +212,18 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
 
   const viewingAllCommunities = scopeCommunityId === "all";
 
+  const scopePresetCommunity = useMemo(() => {
+    if (scopeCommunityId === "all" || !scopeCommunityId) return null;
+    const community = scopeCommunities.find((c) => c.id === scopeCommunityId);
+    if (!community) return null;
+    return {
+      id: community.id,
+      name: community.name,
+      regionId: community.region_id,
+      regionTitle: community.region_title ?? community.region,
+    };
+  }, [scopeCommunityId, scopeCommunities]);
+
   const statTiles = useMemo(() => [
     { label: isSystemResidents ? "Total Residents" : "Total Members", value: String(stats.total), hint: isSystemResidents ? "Across all communities" : "All community members", tone: "blue" as const, icon: <IcoMembers /> },
     { label: "Pending Approval", value: String(stats.pending), hint: "Awaiting review", tone: "amber" as const, icon: <IcoClock /> },
@@ -280,10 +293,11 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
     setViewLoading(true);
     setViewing(member);
     try {
-      const detail = await fetchMember(member.id, member.community_id ?? undefined);
+      const detail = await fetchMember(member.id, memberCommunityId(member));
       setViewing(detail);
     } catch (err) {
       toastError(apiError(err));
+      setViewing(null);
     } finally {
       setViewLoading(false);
     }
@@ -597,6 +611,22 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                                   },
                                 },
                                 {
+                                  label: "Resend invitation email",
+                                  icon: "view",
+                                  hidden: !isCancellableInvitation(m) || m.status !== "invitation_sent",
+                                  onClick: async () => {
+                                    setProfileActionLoading(true);
+                                    try {
+                                      await resendMemberInvite(m.id, memberCommunityId(m));
+                                      toastSuccess(`Invitation email sent to ${formatDisplayEmail(m.email) || m.name}.`);
+                                    } catch (err) {
+                                      toastError(apiError(err));
+                                    } finally {
+                                      setProfileActionLoading(false);
+                                    }
+                                  },
+                                },
+                                {
                                   label: isCancellableInvitation(m) ? "Cancel invitation" : "Delete member",
                                   icon: "delete",
                                   tone: "danger",
@@ -833,6 +863,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
           open={provisionOpen}
           onClose={() => setProvisionOpen(false)}
           onCreated={() => load(true)}
+          presetCommunity={scopePresetCommunity}
         />
       )}
 
@@ -862,6 +893,32 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                   <ProfileRow label="Unit" value={viewing.unit_number ?? "—"} />
                   <ProfileRow label="Role" value={roleLabel(viewing.role)} />
                   <ProfileRow label="Status" value={statusLabel(viewing.status)} />
+                  {viewing.status === "invitation_sent" && viewing.invite_code ? (
+                    <ProfileRow
+                      label="Invite code"
+                      value={
+                        <span className="inline-flex items-center gap-2">
+                          <span className="font-mono text-[13px] font-semibold tracking-wide text-slate-900">
+                            {viewing.invite_code}
+                          </span>
+                          <button
+                            type="button"
+                            className="text-[12px] font-semibold text-blue-600 hover:text-blue-700"
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(viewing.invite_code ?? "");
+                                toastSuccess("Invite code copied");
+                              } catch {
+                                toastError("Could not copy code");
+                              }
+                            }}
+                          >
+                            Copy
+                          </button>
+                        </span>
+                      }
+                    />
+                  ) : null}
                   {viewing.rejection_reason ? (
                     <ProfileRow label="Rejection reason" value={viewing.rejection_reason} />
                   ) : null}

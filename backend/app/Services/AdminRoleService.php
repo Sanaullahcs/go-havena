@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\InviteCode;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -192,6 +193,39 @@ class AdminRoleService
         }
 
         return $scope;
+    }
+
+    /**
+     * Resolve community for a member action when the admin scope is "all".
+     * Falls back to the member's pending invite or latest membership.
+     */
+    public static function requireManagedCommunityIdForMember(User $user, Request $request, int $memberUserId): int
+    {
+        $scope = self::resolveAdminCommunityScope($user, $request);
+        if ($scope !== null) {
+            return $scope;
+        }
+
+        if (self::isSystemAdmin($user)) {
+            $inviteCommunityId = InviteCode::query()
+                ->where('invited_user_id', $memberUserId)
+                ->whereNull('deleted_at')
+                ->orderByDesc('id')
+                ->value('community_id');
+            if ($inviteCommunityId) {
+                return (int) $inviteCommunityId;
+            }
+
+            $membershipCommunityId = DB::table('community_memberships')
+                ->where('user_id', $memberUserId)
+                ->orderByDesc('updated_at')
+                ->value('community_id');
+            if ($membershipCommunityId) {
+                return (int) $membershipCommunityId;
+            }
+        }
+
+        abort(422, 'Select a community before performing this action.');
     }
 
     public static function assertCanManageCommunity(User $user, int $communityId): void

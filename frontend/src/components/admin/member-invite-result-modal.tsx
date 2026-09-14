@@ -86,10 +86,11 @@ export function MemberInviteResultModal({ result, onClose }: Props) {
                 <IcoCheck />
               </div>
               <div className="min-w-0 pt-0.5">
-                <h3 className="text-[16px] font-bold text-slate-900">Invitation sent</h3>
+                <h3 className="text-[16px] font-bold text-slate-900">Invitation created</h3>
                 <p className="mt-1 text-[13px] leading-relaxed text-slate-500">
-                  Share this invite code and QR with{" "}
-                  <span className="font-medium text-slate-700">{result.member_name ?? "the resident"}</span>.
+                  {result.email_sent === false
+                    ? <>We could not email the invite. Share this code and QR with{" "}<span className="font-medium text-slate-700">{result.member_name ?? "the resident"}</span> manually.</>
+                    : <>An invitation email was sent to{" "}<span className="font-medium text-slate-700">{result.member_email ?? result.member_name ?? "the resident"}</span>. You can also share the code or QR below.</>}
                 </p>
               </div>
             </div>

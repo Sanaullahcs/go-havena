@@ -34,13 +34,18 @@ import {
   guestNameFieldError,
   guestPermissionsFieldError,
   guestStartFieldError,
+  normalizeGuestInviteWindow,
 } from "../src/lib/admin/guest-invite-validation";
+import { parseDatetimeLocalValue } from "../src/lib/admin/datetime-local";
 import {
   GUEST_PERMISSION_REQUIRED_MESSAGE,
   INITIAL_GUEST_INVITE_PERMISSIONS,
   applyGuestPermissionToggle,
 } from "../src/lib/guest-permissions";
-import { getCompleteProfileFieldVisibility } from "../src/lib/admin/complete-profile-fields";
+import {
+  getCompleteProfileFieldVisibility,
+  shouldUseSimpleCompleteProfileSubmit,
+} from "../src/lib/admin/complete-profile-fields";
 import { validateCompleteProfileForm } from "../src/lib/admin/complete-profile-validation";
 
 let passed = 0;
@@ -233,6 +238,19 @@ console.log("\nGuest invite validation");
       ends_at: "2026-09-11T10:00",
     }, emptyPhone, now),
     "button blocked when start is in the past",
+  );
+  assert(
+    parseDatetimeLocalValue("2026-09-14T21:40")?.getHours() === 21,
+    "parses datetime-local as local wall-clock time",
+  );
+  const normalized = normalizeGuestInviteWindow(
+    "2026-09-14T21:40",
+    "2026-09-14T23:40",
+    new Date(2026, 8, 14, 21, 42, 0, 0),
+  );
+  assert(
+    normalized.starts_at === "2026-09-14T21:42" && normalized.ends_at === "2026-09-14T23:42",
+    "bumps stale start/end forward while preserving duration",
   );
 }
 
@@ -727,6 +745,33 @@ console.log("\nComplete profile field visibility (mobile parity)");
   assert(!guest.showResidenceType, "guest hides residence type");
   assert(!guest.showUtilityBill, "guest hides utility bill");
   assert(!guest.unitRequired, "guest unit is optional");
+
+  assert(
+    shouldUseSimpleCompleteProfileSubmit({
+      role: "resident",
+      invited_by_admin: true,
+    }),
+    "provisioned resident uses Submit label",
+  );
+  assert(
+    shouldUseSimpleCompleteProfileSubmit({
+      role: "community_admin",
+      community_admin_status: "approved",
+      invited_by_admin: true,
+    }),
+    "provisioned community admin uses Submit label",
+  );
+  assert(
+    !shouldUseSimpleCompleteProfileSubmit({
+      role: "resident",
+      memberships: [{ role: "member", status: "pending" }],
+    }),
+    "self-serve resident keeps approval label",
+  );
+  assert(
+    shouldUseSimpleCompleteProfileSubmit(null, { invited: true }),
+    "invited query param uses Submit label",
+  );
 }
 
 console.log("\nComplete profile form validation");

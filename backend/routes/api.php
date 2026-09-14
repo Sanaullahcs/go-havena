@@ -45,6 +45,7 @@ use App\Http\Controllers\Api\V1\ReferralProgramController;
 use App\Http\Controllers\Api\V1\PlaidController;
 use App\Http\Controllers\Api\V1\GeoController;
 use App\Http\Controllers\Api\V1\NearbyPlaceController;
+use App\Http\Controllers\Api\V1\InviteQrImageController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -57,6 +58,10 @@ Route::prefix('v1')->group(function () {
     /* ── Stripe webhooks (no auth; verified by signature) ── */
     Route::post('/billing/stripe/webhook', StripeWebhookController::class);
     Route::get('/billing/plans', [SubscriptionPlanController::class, 'publicIndex']);
+    Route::get('/public/invite-qr.png', [InviteQrImageController::class, 'show'])
+        ->name('public.invite-qr');
+    Route::get('/public/invite-qr', [InviteQrImageController::class, 'view'])
+        ->name('public.invite-qr-view');
 
     /* ── Auth ── */
     Route::prefix('auth')->group(function () {
@@ -333,6 +338,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('/members/{id}',         [MemberController::class, 'show']);
                 Route::get('/members/{id}/activity-logs', [MemberController::class, 'activityLogs']);
                 Route::post('/members/invite',      [MemberController::class, 'invite']);
+                Route::post('/members/{id}/resend-invite', [MemberController::class, 'resendInvite'])->whereNumber('id');
                 Route::match(['patch', 'post'], '/members/{id}/approve',  [MemberController::class, 'approve']);
                 Route::match(['patch', 'post'], '/members/{id}/reject',   [MemberController::class, 'reject']);
                 Route::match(['patch', 'post'], '/members/{id}/suspend',  [MemberController::class, 'suspend']);

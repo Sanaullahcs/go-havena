@@ -15,6 +15,7 @@ use App\Services\InviteCodeService;
 use App\Services\MembershipService;
 use App\Services\OsmGeocodingService;
 use App\Support\CommunityLocation;
+use App\Support\CommunityNameUniqueness;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -344,20 +345,12 @@ class CommunityController extends Controller
 
         $region = Region::query()->where('status', 'active')->findOrFail($validated['region_id']);
 
-        $existingActive = Community::query()
-            ->where('name', $validated['community_name'])
-            ->where('status', 'active')
-            ->where(function ($w) {
-                $w->whereNull('review_status')
-                    ->orWhere('review_status', 'approved');
-            })
-            ->exists();
-
-        if ($existingActive) {
-            throw ValidationException::withMessages([
-                'community_name' => ['This community already exists. Choose a different name.'],
-            ]);
-        }
+        CommunityNameUniqueness::assertUniqueInRegion(
+            $validated['community_name'],
+            $region->id,
+            field: 'community_name',
+            message: 'This community already exists. Choose a different name.',
+        );
 
         $community = Community::query()->create([
             'name' => $validated['community_name'],
@@ -429,24 +422,16 @@ class CommunityController extends Controller
 
         $region = Region::query()->where('status', 'active')->findOrFail($validated['region_id']);
 
-        $existingActive = Community::query()
-            ->where('name', $validated['community_name'])
-            ->where('status', 'active')
-            ->where(function ($w) {
-                $w->whereNull('review_status')
-                    ->orWhere('review_status', 'approved');
-            })
-            ->exists();
+        $duplicateMessage = AdminRoleService::isCommunityAdminRole($user)
+            ? 'This community already exists. Select it from your region list to apply as community admin, or choose a different name.'
+            : 'This community already exists. Please search and join it from your region list.';
 
-        if ($existingActive) {
-            $message = AdminRoleService::isCommunityAdminRole($user)
-                ? 'This community already exists. Select it from your region list to apply as community admin, or choose a different name.'
-                : 'This community already exists. Please search and join it from your region list.';
-
-            throw ValidationException::withMessages([
-                'community_name' => [$message],
-            ]);
-        }
+        CommunityNameUniqueness::assertUniqueInRegion(
+            $validated['community_name'],
+            $region->id,
+            field: 'community_name',
+            message: $duplicateMessage,
+        );
 
         $community = Community::query()->create([
             'name' => $validated['community_name'],

@@ -82,7 +82,7 @@ class MemberController extends Controller
                 'cm.status',
                 'cm.rejection_reason',
                 'cm.rejected_by',
-                'cm.community_id',
+                DB::raw("COALESCE(cm.community_id, {$communityId}) as community_id"),
                 'profiles.unit_number',
                 'profiles.avatar_url',
                 'profiles.display_name',
@@ -254,8 +254,8 @@ class MemberController extends Controller
                 DB::raw('NULL as status'),
                 DB::raw('NULL as rejection_reason'),
                 DB::raw('NULL as rejected_by'),
-                DB::raw('NULL as community_id'),
-                DB::raw('NULL as community_name'),
+                DB::raw('(SELECT ic.community_id FROM invite_codes ic WHERE ic.invited_user_id = users.id AND ic.deleted_at IS NULL ORDER BY ic.id DESC LIMIT 1) as community_id'),
+                DB::raw('(SELECT c.name FROM invite_codes ic INNER JOIN communities c ON c.id = ic.community_id WHERE ic.invited_user_id = users.id AND ic.deleted_at IS NULL ORDER BY ic.id DESC LIMIT 1) as community_name'),
                 'profiles.unit_number',
                 'profiles.avatar_url',
                 'profiles.display_name',
@@ -358,12 +358,15 @@ class MemberController extends Controller
         $member = DB::table('users')
             ->join('community_memberships as cm', 'cm.user_id', '=', 'users.id')
             ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
+            ->leftJoin('communities', 'communities.id', '=', 'cm.community_id')
             ->select(
                 'users.id',
                 'users.name',
                 'users.email',
                 'users.phone',
                 'users.status as account_status',
+                'users.email_verified_at',
+                'users.phone_verified_at',
                 'users.created_at',
                 'users.updated_at',
                 'cm.id as membership_id',
@@ -372,17 +375,24 @@ class MemberController extends Controller
                 'cm.rejection_reason',
                 'cm.rejected_by',
                 'cm.community_id',
+                'communities.name as community_name',
                 'profiles.unit_number',
                 'profiles.avatar_url',
                 'profiles.display_name',
                 'profiles.utility_bill_url',
                 'profiles.bio',
                 'profiles.residence_type',
+                MemberLifecycleStatus::pendingInviteCountSelect(),
+                MemberLifecycleStatus::authTokenCountSelect(),
             )
             ->where('users.id', $id)
             ->where('cm.community_id', $communityId)
             ->where('users.status', '!=', 'deleted')
             ->first();
+
+        if (! $member) {
+            $member = $this->onboardingMemberForShow($id, $communityId);
+        }
 
         if (! $member) {
             return response()->json(['message' => 'Member not found'], 404);
@@ -513,6 +523,11 @@ class MemberController extends Controller
         ContactIdentityService::assertAvailableForRegistration($request->email, $phone);
 
         $communityId = AdminRoleService::requireManagedCommunityId($request->user(), $request);
+
+        if (AdminRoleService::isSystemAdmin($request->user())) {
+            return $this->provisionResidentForSystemAdmin($request, $phone, $communityId);
+        }
+
         $password    = \Illuminate\Support\Str::random(12);
         $role        = $request->role ?? 'member';
         $billing     = app(CommunityBillingService::class);
@@ -583,8 +598,9 @@ class MemberController extends Controller
 
         $community = Community::query()->find($communityId);
         $invitee = User::query()->find($userId);
+        $emailSent = false;
         if ($community && $invitee) {
-            app(LifecycleMailService::class)->residentInvited(
+            $emailSent = app(LifecycleMailService::class)->residentInvited(
                 $invitee,
                 $community,
                 $invite,
@@ -600,9 +616,160 @@ class MemberController extends Controller
                 'invite_qr_value'=> $qrPayload,
                 'community_name' => $communityName,
                 'expires_at'     => $invite->expires_at?->toIso8601String(),
+                'member_name'    => $request->name,
+                'member_email'   => $request->email,
+                'email_sent'     => $emailSent,
             ],
-            'message' => 'Member invited successfully. Share the invite code or QR with the resident.',
+            'message' => $emailSent
+                ? 'Member invited successfully. An invitation email was sent.'
+                : 'Member invited successfully. Share the invite code or QR with the resident — the invitation email could not be sent.',
         ], 201);
+    }
+
+    /** System admins add residents directly — no invite code or QR onboarding. */
+    private function provisionResidentForSystemAdmin(Request $request, string $phone, int $communityId): JsonResponse
+    {
+        $community = Community::query()->findOrFail($communityId);
+        $displayName = trim((string) $request->name);
+
+        try {
+            $userId = DB::table('users')->insertGetId([
+                'uuid'               => (string) \Illuminate\Support\Str::ulid(),
+                'name'               => $displayName,
+                'email'              => $request->email,
+                'phone'              => $phone,
+                'email_verified_at'  => null,
+                'phone_verified_at'  => now(),
+                'password'           => Hash::make(\Illuminate\Support\Str::random(32)),
+                'role'               => 'resident',
+                'status'             => 'active',
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        } catch (UniqueConstraintViolationException $e) {
+            $sql = $e->getMessage();
+            if (str_contains($sql, 'users_phone_unique')) {
+                ContactIdentityService::failDuplicate('phone', ContactIdentityService::DUPLICATE_PHONE_MESSAGE);
+            }
+            if (str_contains($sql, 'users_email_unique')) {
+                ContactIdentityService::failDuplicate('email', ContactIdentityService::DUPLICATE_EMAIL_MESSAGE);
+            }
+
+            throw $e;
+        }
+
+        DB::table('profiles')->insert([
+            'user_id'      => $userId,
+            'display_name' => $displayName,
+            'unit_number'  => $request->unit_number,
+            'created_at'   => now(),
+            'updated_at'   => now(),
+        ]);
+
+        DB::table('community_memberships')->insert([
+            'user_id'      => $userId,
+            'community_id' => $communityId,
+            'role'         => 'member',
+            'status'       => 'approved',
+            'created_at'   => now(),
+            'updated_at'   => now(),
+        ]);
+
+        NotificationService::send(
+            $userId,
+            'info',
+            'Community membership',
+            "You have been added to {$community->name}. Sign in to Havena with this email to get started.",
+        );
+
+        ActivityLogService::user(
+            'member_provisioned',
+            "Provisioned resident: {$displayName} ({$request->email})",
+            'User',
+            $userId,
+        );
+
+        $invitee = User::query()->find($userId);
+        $emailSent = false;
+        if ($invitee) {
+            $emailSent = app(LifecycleMailService::class)->residentProvisioned($invitee, $community, true);
+        }
+
+        return response()->json([
+            'data' => [
+                'id'             => $userId,
+                'member_name'    => $displayName,
+                'member_email'   => $request->email,
+                'community_name' => $community->name,
+                'email_sent'     => $emailSent,
+            ],
+            'message' => $emailSent
+                ? 'Resident created successfully. A welcome email was sent.'
+                : 'Resident created successfully. The welcome email could not be sent — share sign-in instructions manually.',
+        ], 201);
+    }
+
+    /** POST /v1/admin/members/{id}/resend-invite */
+    public function resendInvite(int $id, Request $request): JsonResponse
+    {
+        $communityId = AdminRoleService::requireManagedCommunityIdForMember($request->user(), $request, $id);
+
+        $membership = DB::table('community_memberships')
+            ->where('user_id', $id)
+            ->where('community_id', $communityId)
+            ->first();
+        if ($membership) {
+            return response()->json([
+                'message' => 'This resident has already joined the community.',
+            ], 422);
+        }
+
+        $invite = InviteCode::query()
+            ->pendingForUser($id)
+            ->where('community_id', $communityId)
+            ->orderByDesc('id')
+            ->first();
+        if (! $invite) {
+            return response()->json(['message' => 'No pending invitation found for this resident.'], 404);
+        }
+
+        $invitee = User::query()->find($id);
+        $community = Community::query()->find($communityId);
+        if (! $invitee || ! $community) {
+            return response()->json(['message' => 'Invitation not found.'], 404);
+        }
+
+        $inviter = User::query()->find($invite->created_by) ?: $request->user();
+        $emailSent = app(LifecycleMailService::class)->residentInvited(
+            $invitee,
+            $community,
+            $invite,
+            $inviter,
+            resend: true,
+        );
+
+        if (! $emailSent) {
+            return response()->json([
+                'message' => 'Could not send the invitation email. Check the resident email address and try again.',
+            ], 502);
+        }
+
+        ActivityLogService::user(
+            'member_invite_resent',
+            "Resent invitation email to {$invitee->name} ({$invitee->email})",
+            'User',
+            $id,
+        );
+
+        return response()->json([
+            'message' => 'Invitation email sent.',
+            'data' => [
+                'id' => $id,
+                'email' => $invitee->email,
+                'invite_code' => $invite->code,
+                'invite_qr_value' => InviteCodeService::qrPayload($invite->code),
+            ],
+        ]);
     }
 
     /** PATCH /v1/admin/members/{id}/approve */
@@ -815,7 +982,7 @@ class MemberController extends Controller
     /** DELETE /v1/admin/members/{id} */
     public function destroy(int $id, Request $request): JsonResponse
     {
-        $communityId = AdminRoleService::requireManagedCommunityId($request->user(), $request);
+        $communityId = AdminRoleService::requireManagedCommunityIdForMember($request->user(), $request, $id);
 
         $membership = DB::table('community_memberships')
             ->where('user_id', $id)
@@ -899,6 +1066,22 @@ class MemberController extends Controller
             $payload['bio'] = $member->bio ?? null;
             $payload['residence_type'] = $member->residence_type ?? null;
             $payload['updated_at'] = $member->updated_at ?? null;
+
+            if ($membershipStatus === MemberLifecycleStatus::INVITATION_SENT) {
+                $invite = InviteCode::query()
+                    ->pendingForUser((int) $member->id)
+                    ->when(
+                        $member->community_id,
+                        fn ($query) => $query->where('community_id', (int) $member->community_id),
+                    )
+                    ->orderByDesc('id')
+                    ->first();
+
+                if ($invite) {
+                    $payload['invite_code'] = $invite->code;
+                    $payload['invite_code_expires_at'] = $invite->expires_at?->toIso8601String();
+                }
+            }
         }
 
         return $payload;
@@ -1051,6 +1234,56 @@ class MemberController extends Controller
             ->first();
 
         return $invite ? (int) $invite->community_id : null;
+    }
+
+    private function onboardingMemberForShow(int $userId, int $communityId): ?object
+    {
+        $invite = InviteCode::query()
+            ->pendingForUser($userId)
+            ->where('community_id', $communityId)
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $invite) {
+            return null;
+        }
+
+        $member = DB::table('users')
+            ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
+            ->leftJoin('communities', function ($join) use ($communityId) {
+                $join->where('communities.id', '=', $communityId);
+            })
+            ->select(
+                'users.id',
+                'users.name',
+                'users.email',
+                'users.phone',
+                'users.status as account_status',
+                'users.email_verified_at',
+                'users.phone_verified_at',
+                'users.created_at',
+                'users.updated_at',
+                DB::raw('NULL as membership_id'),
+                DB::raw("'member' as role"),
+                DB::raw('NULL as status'),
+                DB::raw('NULL as rejection_reason'),
+                DB::raw('NULL as rejected_by'),
+                DB::raw(((int) $communityId).' as community_id'),
+                'communities.name as community_name',
+                'profiles.unit_number',
+                'profiles.avatar_url',
+                'profiles.display_name',
+                'profiles.utility_bill_url',
+                'profiles.bio',
+                'profiles.residence_type',
+                MemberLifecycleStatus::pendingInviteCountSelect(),
+                MemberLifecycleStatus::authTokenCountSelect(),
+            )
+            ->where('users.id', $userId)
+            ->where('users.status', '!=', 'deleted')
+            ->first();
+
+        return $member ?: null;
     }
 
     private function onboardingMemberForActivity(int $userId, int $communityId): ?object

@@ -7,6 +7,8 @@
 export type CompleteProfileUser = {
   role?: string | null;
   community_admin_status?: string | null;
+  invited_by_admin?: boolean;
+  needs_invite_code?: boolean;
   memberships?: Array<{
     role?: string | null;
     status?: string | null;
@@ -44,6 +46,36 @@ export function isCommunityAdminRole(user?: CompleteProfileUser | null): boolean
 
 export function joinedViaAdminInvite(user?: CompleteProfileUser | null): boolean {
   return (user?.memberships ?? []).some((m) => Boolean(m?.invite_code_used));
+}
+
+export function invitedByAdmin(user?: CompleteProfileUser | null): boolean {
+  if (user?.invited_by_admin === true) return true;
+  if (user?.needs_invite_code) return true;
+  return joinedViaAdminInvite(user);
+}
+
+export function shouldShowUtilityVerificationDelay(input: {
+  user?: CompleteProfileUser | null;
+  invited?: boolean;
+  communityRequest?: boolean;
+  role?: string;
+}): boolean {
+  if (input.communityRequest) return true;
+  if (input.invited) return false;
+  if (input.role === "admin") return false;
+  if (invitedByAdmin(input.user)) return false;
+  return true;
+}
+
+/** Admin-invited/provisioned onboarding uses a plain "Submit" CTA. */
+export function shouldUseSimpleCompleteProfileSubmit(
+  user?: CompleteProfileUser | null,
+  options: { invited?: boolean; isAdminClaim?: boolean } = {},
+): boolean {
+  if (options.invited) return true;
+  if (invitedByAdmin(user)) return true;
+  if (options.isAdminClaim && isCommunityAdminRole(user)) return true;
+  return false;
 }
 
 /**

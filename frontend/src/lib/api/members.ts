@@ -26,6 +26,8 @@ export interface Member {
   updated_at?: string | null;
   rejection_reason?: string | null;
   rejected_by?: "system_admin" | "community_admin" | null;
+  invite_code?: string | null;
+  invite_code_expires_at?: string | null;
 }
 
 export interface MemberStats {
@@ -196,6 +198,7 @@ export interface MemberInviteResult {
   expires_at?: string;
   member_name?: string;
   member_email?: string;
+  email_sent?: boolean;
 }
 
 export async function inviteMember(data: {
@@ -216,6 +219,13 @@ export async function inviteMember(data: {
     ...(communityId ? { community_id: communityId } : {}),
   });
   return res.data as { data: MemberInviteResult; message: string };
+}
+
+export async function resendMemberInvite(userId: number, communityId?: number) {
+  const res = await api.post(`/v1/admin/members/${userId}/resend-invite`, {
+    ...(communityId ? { community_id: communityId } : {}),
+  });
+  return res.data as { message: string; data?: { invite_code?: string; invite_qr_value?: string } };
 }
 
 export async function approveMember(userId: number, communityId?: number) {

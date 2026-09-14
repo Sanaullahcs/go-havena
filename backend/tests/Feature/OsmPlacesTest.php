@@ -421,4 +421,71 @@ class OsmPlacesTest extends TestCase
             ->assertJsonPath('data.cafes.0.name', 'Lahore Cafe')
             ->assertJsonMissing(['name' => 'Haram Cafe']);
     }
+
+    public function test_pending_membership_can_load_nearby_places(): void
+    {
+        $this->fakeOsmApis();
+
+        $region = $this->activeRegion();
+        $community = Community::query()->create([
+            'name' => 'Harbor Homes',
+            'region_id' => $region->id,
+            'region' => $region->title,
+            'address' => '1 Seaport Blvd',
+            'latitude' => 42.34955,
+            'longitude' => -71.04185,
+            'status' => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        $resident = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        CommunityMembership::query()->create([
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'pending',
+        ]);
+
+        Sanctum::actingAs($resident);
+
+        $this->getJson('/api/v1/nearby-places?all=1')
+            ->assertOk()
+            ->assertJsonPath('meta.community_id', $community->id)
+            ->assertJsonPath('meta.has_coordinates', true)
+            ->assertJsonPath('data.cafes.0.name', 'Harbor Cafe');
+    }
+
+    public function test_nearby_places_geocodes_community_address_when_pin_missing(): void
+    {
+        $this->fakeOsmApis();
+
+        $region = $this->activeRegion();
+        $community = Community::query()->create([
+            'name' => 'Harbor Homes',
+            'region_id' => $region->id,
+            'region' => $region->title,
+            'address' => '1 Seaport Blvd, Boston, MA',
+            'status' => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        $resident = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        CommunityMembership::query()->create([
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+        ]);
+
+        Sanctum::actingAs($resident);
+
+        $this->getJson('/api/v1/nearby-places?category=cafes')
+            ->assertOk()
+            ->assertJsonPath('meta.has_coordinates', true)
+            ->assertJsonPath('data.0.name', 'Harbor Cafe');
+
+        $community->refresh();
+        $this->assertSame(42.34955, (float) $community->latitude);
+        $this->assertSame(-71.04185, (float) $community->longitude);
+    }
 }

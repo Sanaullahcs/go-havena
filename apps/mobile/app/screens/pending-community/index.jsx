@@ -371,6 +371,14 @@ export default function PendingCommunityScreen() {
     (user, reviewSnapshot = null) => {
       if (!user) return false;
 
+      if (needsCompleteProfile(user)) {
+        router.replace({
+          pathname: Routes.COMPLETE_PROFILE,
+          params: getCompleteProfileParams(user, role),
+        });
+        return true;
+      }
+
       setCurrentUser(user);
       setIsAdminApplicant(isCommunityAdminRole(user));
       setAdminApprovedAwaitingCommunity(awaitsCommunityReviewOnly(user));
@@ -435,13 +443,6 @@ export default function PendingCommunityScreen() {
         }
 
         navigateAfterAuth(router, user);
-        return true;
-      }
-      if (needsCompleteProfile(user)) {
-        router.replace({
-          pathname: Routes.COMPLETE_PROFILE,
-          params: getCompleteProfileParams(user, role),
-        });
         return true;
       }
       if (needsSystemApprovalWait(user)) {

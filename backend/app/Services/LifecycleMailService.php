@@ -235,14 +235,11 @@ class LifecycleMailService
         Community $community,
         InviteCode $invite,
         User $inviter,
-    ): void {
+        bool $resend = false,
+    ): bool {
         $inviterName = $this->personName($inviter);
 
-        $this->sendOnce(
-            'resident_invitation',
-            'invite:'.$invite->id,
-            $invitee->email,
-            new HavenaTransactionalMail(
+        $mail = new HavenaTransactionalMail(
                 subjectLine: "{$inviterName} invited you to {$community->name}",
                 preheader: "Use your invite code to join {$community->name} on Havena.",
                 eyebrow: 'Invitation',
@@ -265,13 +262,28 @@ class LifecycleMailService
                 ctaUrl: AppUrls::residentLogin(),
                 footerNote: 'If you were not expecting this invitation, you can ignore this email.',
                 includeAppStoreLinks: true,
-            ),
+            );
+
+        if ($resend) {
+            return $this->resend(
+                'resident_invitation',
+                'invite:'.$invite->id,
+                $invitee->email,
+                $mail,
+            );
+        }
+
+        return $this->sendOnce(
+            'resident_invitation',
+            'invite:'.$invite->id,
+            $invitee->email,
+            $mail,
         );
     }
 
-    public function communityAdminProvisioned(User $user, Community $community, bool $newAccount = true): void
+    public function communityAdminProvisioned(User $user, Community $community, bool $newAccount = true): bool
     {
-        $this->sendOnce(
+        return $this->sendOnce(
             'community_admin_provisioned',
             'user:'.$user->id.':community:'.$community->id.':'.($newAccount ? 'created' : 'assigned'),
             $user->email,
@@ -304,9 +316,13 @@ class LifecycleMailService
         );
     }
 
-    public function residentProvisioned(User $user, Community $community): void
+    public function residentProvisioned(User $user, Community $community, bool $provisionedBySystemAdmin = false): bool
     {
-        $this->sendOnce(
+        $addedBy = $provisionedBySystemAdmin
+            ? 'A Havena system administrator added you'
+            : 'A community administrator added you';
+
+        return $this->sendOnce(
             'resident_provisioned',
             'user:'.$user->id.':community:'.$community->id,
             $user->email,
@@ -315,9 +331,9 @@ class LifecycleMailService
                 preheader: "Your Havena resident account for {$community->name} is ready.",
                 eyebrow: 'Account ready',
                 heading: 'You have been added',
-                intro: $this->greeting($user)." A community administrator added you to {$community->name}.",
+                intro: $this->greeting($user)." {$addedBy} to {$community->name}.",
                 paragraphs: [
-                    'Sign in with this email address in the Havena app or on the web. We will send a verification code when you log in.',
+                    'Sign in with this email address in the Havena app or on the web. We will send a verification code when you log in — no invite code is required.',
                 ],
                 details: [
                     ['label' => 'Community', 'value' => $community->name],
@@ -418,6 +434,16 @@ class LifecycleMailService
                     'Contact the person who invited you if you have questions.',
                 ])),
             ),
+        );
+    }
+
+    public function resend(string $type, string $contextKey, ?string $email, Mailable $mail): bool
+    {
+        return $this->sendOnce(
+            $type,
+            $contextKey.':resend:'.now()->timestamp,
+            $email,
+            $mail,
         );
     }
 

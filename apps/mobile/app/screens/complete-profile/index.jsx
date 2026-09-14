@@ -21,7 +21,12 @@ import {
 } from "../../../services/family-api";
 import { uploadUtilityBill } from "../../../services/profile-api";
 import { finishOnboarding, Routes, goToPendingFamily } from "../../../constants/onboarding-routes";
-import { isGuestUser, shouldSkipUtilityBill } from "../../../services/community-access";
+import {
+  isGuestUser,
+  shouldShowUtilityVerificationDelay,
+  shouldSkipUtilityBill,
+  shouldUseSimpleCompleteProfileSubmit,
+} from "../../../services/community-access";
 import { showApiFailure } from "../../../utils/auth-errors";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { confirmLeaveOnboarding } from "../../../services/sign-out";
@@ -102,6 +107,7 @@ export default function CompleteProfile() {
   const [existingUtilityBillUrl, setExistingUtilityBillUrl] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [isGuestProfile, setIsGuestProfile] = useState(false);
+  const [profileUser, setProfileUser] = useState(null);
 
   const { submitting, run } = useSubmitLock();
   const [showSuccess, setShowSuccess] = useState(false);
@@ -117,8 +123,12 @@ export default function CompleteProfile() {
     communityRequest,
     mode,
     familyMode: familyModeParam,
+    invited: invitedParam,
   } = useLocalSearchParams();
   const [skipUtilityBill, setSkipUtilityBill] = useState(false);
+  const [hideUtilityVerificationDelay, setHideUtilityVerificationDelay] = useState(
+    invitedParam === "1",
+  );
 
   const isEditMode = mode === "edit";
   const isCommunityRequest = communityRequest === "1";
@@ -152,6 +162,10 @@ export default function CompleteProfile() {
     savedUser?.access?.next_step,
   );
   const isResidentJoin = !isCommunityRequest && role !== "admin" && Boolean(communityId);
+  const useSimpleSubmitLabel = shouldUseSimpleCompleteProfileSubmit(profileUser, {
+    invitedParam,
+    isAdminClaim,
+  });
   const showFamilyNumberField = role !== "admin" && !isCommunityRequest;
   // Homeowner/Tenant for everyone except guests (incl. system-created community admins).
   const showResidenceType = !isGuestProfile;
@@ -395,8 +409,16 @@ export default function CompleteProfile() {
       try {
         const user = await fetchMe();
         if (cancelled) return;
+        setProfileUser(user);
         setIsGuestProfile(isGuestUser(user));
         setSkipUtilityBill(shouldSkipUtilityBill(user, { role }));
+        setHideUtilityVerificationDelay(
+          !shouldShowUtilityVerificationDelay(user, {
+            invitedParam,
+            isAdminClaim,
+            isCommunityRequest,
+          }),
+        );
         const fields = getProfileFields(user);
         setName(isPlaceholderDisplayName(fields.displayName) ? "" : fields.displayName);
         setEmail(fields.displayEmail ?? "");
@@ -421,7 +443,7 @@ export default function CompleteProfile() {
     return () => {
       cancelled = true;
     };
-  }, [isEditMode, router, dialog, role]);
+  }, [isEditMode, router, dialog, role, invitedParam, isAdminClaim, isCommunityRequest]);
 
   useEffect(() => {
     if (name && isPlaceholderDisplayName(name)) {
@@ -641,11 +663,13 @@ export default function CompleteProfile() {
             <Text style={styles.buttonText}>
               {isEditMode
                 ? t("onboarding.saveChanges")
-                : isCommunityRequest || isAdminClaim
-                  ? t("onboarding.saveContinue")
-                  : isResidentJoin
-                    ? t("onboarding.submitForApproval")
-                    : t("onboarding.joinCommunity")}
+                : useSimpleSubmitLabel
+                  ? t("onboarding.submit")
+                  : isCommunityRequest || isAdminClaim
+                    ? t("onboarding.saveContinue")
+                    : isResidentJoin
+                      ? t("onboarding.submitForApproval")
+                      : t("onboarding.joinCommunity")}
             </Text>
           )}
         </View>
@@ -1289,9 +1313,11 @@ export default function CompleteProfile() {
               <Text style={styles.errorText}>{showError("utilityFile", liveErrors)}</Text>
             ) : null}
 
-            <Text style={styles.helperText}>
-              {t("onboarding.verificationDelay")}
-            </Text>
+            {!hideUtilityVerificationDelay ? (
+              <Text style={styles.helperText}>
+                {t("onboarding.verificationDelay")}
+              </Text>
+            ) : null}
           </View>
           ) : null}
           </View>

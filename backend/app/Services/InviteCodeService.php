@@ -9,7 +9,9 @@ use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\Encoding\Encoding;
 use Endroid\QrCode\ErrorCorrectionLevel;
 use Endroid\QrCode\Writer\PngWriter;
+use Endroid\QrCode\Writer\SvgWriter;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\URL;
 
 class InviteCodeService
 {
@@ -213,18 +215,200 @@ class InviteCodeService
         return 'havena://join?invite_code='.urlencode($code);
     }
 
-    public static function qrPngBytes(string $payload, int $size = 280): string
+    /** Signed HTTPS URL for email clients that block CID/data-URI images (e.g. Gmail mobile). */
+    public static function qrPublicImageUrl(string $code, string $scope = 'member'): ?string
     {
-        $result = Builder::create()
-            ->writer(new PngWriter())
-            ->data($payload)
-            ->encoding(new Encoding('UTF-8'))
-            ->errorCorrectionLevel(ErrorCorrectionLevel::Medium)
-            ->size($size)
-            ->margin(12)
-            ->build();
+        return self::signedPublicQrRoute('public.invite-qr', $code, $scope);
+    }
 
-        return $result->getString();
+    /** HTML page with the QR image — fallback when email clients block inline images. */
+    public static function qrPublicViewUrl(string $code, string $scope = 'member'): ?string
+    {
+        return self::signedPublicQrRoute('public.invite-qr-view', $code, $scope);
+    }
+
+    public static function emailImageBaseUrl(): string
+    {
+        $configured = rtrim((string) config('mail.brand.api_url', ''), '/');
+
+        if ($configured !== '' && self::isPublicEmailImageHost($configured)) {
+            return $configured;
+        }
+
+        $appUrl = rtrim((string) config('app.url', ''), '/');
+        if ($appUrl !== '' && self::isPublicEmailImageHost($appUrl)) {
+            return $appUrl;
+        }
+
+        $derived = self::deriveProductionApiUrl();
+        if ($derived !== null) {
+            return $derived;
+        }
+
+        return $configured !== '' ? $configured : ($appUrl ?: 'http://localhost:8000');
+    }
+
+    public static function isPublicEmailImageHost(string $url): bool
+    {
+        $host = parse_url($url, PHP_URL_HOST);
+        if (! is_string($host) || $host === '') {
+            return false;
+        }
+
+        $host = strtolower($host);
+        if (in_array($host, ['localhost', '127.0.0.1', '0.0.0.0'], true)) {
+            return false;
+        }
+
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            return (bool) filter_var(
+                $host,
+                FILTER_VALIDATE_IP,
+                FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE,
+            );
+        }
+
+        return true;
+    }
+
+    private static function signedPublicQrRoute(string $routeName, string $code, string $scope): ?string
+    {
+        if (! self::isPublicEmailImageHost(self::emailImageBaseUrl())) {
+            return null;
+        }
+
+        $normalized = $scope === 'guest'
+            ? GuestInvitationService::normalizeInviteCode($code)
+            : self::normalize($code);
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        $base = self::emailImageBaseUrl();
+        $baseScheme = parse_url($base, PHP_URL_SCHEME) ?: 'https';
+        $appScheme = parse_url((string) config('app.url'), PHP_URL_SCHEME);
+
+        URL::forceRootUrl($base);
+        URL::forceScheme($baseScheme);
+        try {
+            $url = URL::temporarySignedRoute(
+                $routeName,
+                now()->addDays(90),
+                [
+                    'scope' => $scope,
+                    'code' => $normalized,
+                ],
+                absolute: true,
+            );
+
+            if ($baseScheme === 'https' && str_starts_with($url, 'http://')) {
+                $url = 'https://'.substr($url, 7);
+            }
+
+            return $url;
+        } finally {
+            URL::forceRootUrl((string) config('app.url'));
+            URL::forceScheme($appScheme ?: null);
+        }
+    }
+
+    private static function deriveProductionApiUrl(): ?string
+    {
+        $mailHost = strtolower((string) (config('mail.mailers.smtp.host') ?: env('MAIL_HOST', '')));
+        if (str_contains($mailHost, 'gohavena.com')) {
+            return 'https://api.gohavena.com';
+        }
+
+        $from = strtolower((string) (config('mail.from.address') ?: env('MAIL_FROM_ADDRESS', '')));
+        if (str_contains($from, 'gohavena.com')) {
+            return 'https://api.gohavena.com';
+        }
+
+        $website = rtrim((string) config('mail.brand.website_url', ''), '/');
+        if ($website !== '' && self::isPublicEmailImageHost($website)) {
+            $host = parse_url($website, PHP_URL_HOST);
+            $scheme = parse_url($website, PHP_URL_SCHEME) ?: 'https';
+            if (is_string($host) && $host !== '' && ! str_starts_with($host, 'api.')) {
+                $apiHost = 'api.'.preg_replace('/^www\./', '', $host);
+                $candidate = $scheme.'://'.$apiHost;
+                if (self::isPublicEmailImageHost($candidate)) {
+                    return $candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public static function qrPngBytes(string $payload, int $size = 280): ?string
+    {
+        if (! extension_loaded('gd')) {
+            return null;
+        }
+
+        try {
+            $result = Builder::create()
+                ->writer(new PngWriter())
+                ->data($payload)
+                ->encoding(new Encoding('UTF-8'))
+                ->errorCorrectionLevel(ErrorCorrectionLevel::Medium)
+                ->size($size)
+                ->margin(12)
+                ->build();
+
+            return $result->getString();
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    public static function qrSvgBytes(string $payload, int $size = 280): ?string
+    {
+        try {
+            $result = Builder::create()
+                ->writer(new SvgWriter())
+                ->data($payload)
+                ->encoding(new Encoding('UTF-8'))
+                ->errorCorrectionLevel(ErrorCorrectionLevel::Medium)
+                ->size($size)
+                ->margin(12)
+                ->build();
+
+            return $result->getString();
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * QR image for transactional email: PNG when GD is available, otherwise SVG.
+     *
+     * @return array{bytes: string, mime: string, data_uri: string, use_cid: bool}|null
+     */
+    public static function qrEmailImage(string $payload, int $size = 280): ?array
+    {
+        $png = self::qrPngBytes($payload, $size);
+        if ($png) {
+            return [
+                'bytes' => $png,
+                'mime' => 'image/png',
+                'data_uri' => 'data:image/png;base64,'.base64_encode($png),
+                'use_cid' => true,
+            ];
+        }
+
+        $svg = self::qrSvgBytes($payload, $size);
+        if ($svg) {
+            return [
+                'bytes' => $svg,
+                'mime' => 'image/svg+xml',
+                'data_uri' => 'data:image/svg+xml;base64,'.base64_encode($svg),
+                'use_cid' => false,
+            ];
+        }
+
+        return null;
     }
 
     private static function randomSegment(int $length): string

@@ -98,12 +98,45 @@
                                                         {{ $highlightCode }}
                                                     </td>
                                                 </tr>
-                                                @if(!empty($highlightQrSrc))
+                                                @php
+                                                    $qrHostedSrc = $highlightQrUrl ?? null;
+                                                    $qrCidSrc = $highlightQrCidSrc ?? null;
+                                                    $qrDataSrc = $highlightQrDataUri ?? null;
+                                                    $qrViewUrl = $highlightQrViewUrl ?? $highlightQrUrl ?? null;
+                                                    $hasQrImage = ! empty($qrHostedSrc) || ! empty($qrCidSrc) || ! empty($qrDataSrc);
+                                                @endphp
+                                                @if($hasQrImage || ! empty($qrViewUrl))
                                                     <tr>
                                                         <td align="center" style="padding:0 12px 16px;">
-                                                            <img src="{{ $highlightQrSrc }}" width="168" height="168" alt="Invite QR code" style="display:block;border:0;outline:none;width:168px;height:168px;">
+                                                            @if($hasQrImage)
+                                                                @if(! empty($qrViewUrl))
+                                                                    <a href="{{ $qrViewUrl }}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
+                                                                @endif
+                                                                <!--[if mso]>
+                                                                @if(! empty($qrCidSrc))
+                                                                    <img src="{{ $qrCidSrc }}" width="168" height="168" alt="Invite QR code" style="display:block;border:0;outline:none;width:168px;height:168px;">
+                                                                @elseif(! empty($qrHostedSrc))
+                                                                    <img src="{{ $qrHostedSrc }}" width="168" height="168" alt="Invite QR code" style="display:block;border:0;outline:none;width:168px;height:168px;">
+                                                                @endif
+                                                                <![endif]-->
+                                                                <!--[if !mso]><!-->
+                                                                @if(! empty($qrHostedSrc))
+                                                                    <img src="{{ $qrHostedSrc }}" width="168" height="168" alt="Invite QR code" style="display:block;border:0;outline:none;width:168px;height:168px;">
+                                                                @elseif(! empty($qrCidSrc))
+                                                                    <img src="{{ $qrCidSrc }}" width="168" height="168" alt="Invite QR code" style="display:block;border:0;outline:none;width:168px;height:168px;">
+                                                                @elseif(! empty($qrDataSrc))
+                                                                    <img src="{{ $qrDataSrc }}" width="168" height="168" alt="Invite QR code" style="display:block;border:0;outline:none;width:168px;height:168px;">
+                                                                @endif
+                                                                <!--<![endif]-->
+                                                                @if(! empty($qrViewUrl))
+                                                                    </a>
+                                                                @endif
+                                                            @endif
                                                             <p style="margin:10px 0 0;font-size:12px;line-height:1.5;color:#64748B;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
                                                                 Scan this QR in the Havena app, or type the code above.
+                                                                @if(! empty($qrViewUrl))
+                                                                    <br><a href="{{ $qrViewUrl }}" target="_blank" rel="noopener noreferrer" style="color:#0F766E;font-weight:600;text-decoration:underline;">View invite QR code</a>
+                                                                @endif
                                                             </p>
                                                         </td>
                                                     </tr>

@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Services\OsmGeocodingService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -45,6 +46,43 @@ class NearbyDiscovery
         }
 
         return [(float) $row->latitude, (float) $row->longitude];
+    }
+
+    /** Resolve stored pin or geocode the community address once and persist it. */
+    public static function resolveCommunityCoordinates(int $communityId, ?OsmGeocodingService $geocoder = null): ?array
+    {
+        $existing = self::communityCoordinates($communityId);
+        if ($existing) {
+            return $existing;
+        }
+
+        if (! $geocoder) {
+            return null;
+        }
+
+        $row = DB::table('communities')->where('id', $communityId)->first(['address', 'latitude', 'longitude']);
+        if (! $row) {
+            return null;
+        }
+
+        $coords = CommunityLocation::resolve(
+            isset($row->address) ? (string) $row->address : null,
+            $row->latitude,
+            $row->longitude,
+            $geocoder,
+        );
+
+        if (! CommunityLocation::hasPin($coords['latitude'], $coords['longitude'])) {
+            return null;
+        }
+
+        DB::table('communities')->where('id', $communityId)->update([
+            'latitude' => $coords['latitude'],
+            'longitude' => $coords['longitude'],
+            'updated_at' => now(),
+        ]);
+
+        return [(float) $coords['latitude'], (float) $coords['longitude']];
     }
 
     /**

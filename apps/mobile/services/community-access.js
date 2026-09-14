@@ -294,6 +294,32 @@ export function joinedViaAdminInvite(user) {
   return (user?.memberships ?? []).some((m) => Boolean(m?.invite_code_used));
 }
 
+/** Invited or provisioned by a community/system admin (not self-serve signup). */
+export function invitedByAdmin(user) {
+  if (user?.invited_by_admin === true) return true;
+  if (user?.needs_invite_code) return true;
+  return joinedViaAdminInvite(user);
+}
+
+/** Hide the 48–72h utility verification note for admin-invited onboarding. */
+export function shouldShowUtilityVerificationDelay(user, options = {}) {
+  const { invitedParam, isAdminClaim, isCommunityRequest } = options;
+  if (isCommunityRequest) return true;
+  if (invitedParam === "1" || invitedParam === true) return false;
+  if (isAdminClaim) return false;
+  if (invitedByAdmin(user)) return false;
+  return true;
+}
+
+/** Admin-invited/provisioned onboarding uses a plain "Submit" CTA. */
+export function shouldUseSimpleCompleteProfileSubmit(user, options = {}) {
+  const { invitedParam, isAdminClaim } = options;
+  if (invitedParam === "1" || invitedParam === true) return true;
+  if (invitedByAdmin(user)) return true;
+  if (isAdminClaim && isCommunityAdminRole(user)) return true;
+  return false;
+}
+
 /**
  * Utility bill is required for every resident and community-admin path.
  * Guests are the only role that skips it.
@@ -319,9 +345,31 @@ export function awaitsCommunityAdminApproval(user) {
   return isCommunityAdminPending(user) && hasCommunityAdminLinkedCommunity(user);
 }
 
+function profileIncompleteBeforeApproval(user) {
+  if (isCommunityAdminRole(user) && typeof user?.access?.profile_complete === "boolean") {
+    return !user.access.profile_complete;
+  }
+
+  const profile = user?.profile;
+  if (!profile?.display_name?.trim() || !profile?.unit_number?.trim()) return true;
+  if (isGuestUser(user) || isCommunityAdminRole(user)) return false;
+  return !profile?.residence_type;
+}
+
+export function hasLinkedCommunityForProfile(user) {
+  if (isCommunityAdminRole(user) && typeof user?.access?.has_linked_community === "boolean") {
+    return user.access.has_linked_community;
+  }
+
+  return (user?.memberships ?? []).some(
+    (m) => m.community_id && m.status !== "rejected" && m.community?.review_status !== "rejected",
+  );
+}
+
 /** Signup complete but system admin has not fully approved the user and/or their community. */
 export function needsSystemApprovalWait(user) {
   if (!user || canAccessDashboard(user)) return false;
+  if (profileIncompleteBeforeApproval(user) && hasLinkedCommunityForProfile(user)) return false;
 
   return (
     hasPendingCommunityRequest(user) ||

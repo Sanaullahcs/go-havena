@@ -10,7 +10,8 @@ import { useFocusEffect } from "expo-router";
 import { getProfileFields, getRoleLabel } from "../../utils/profile-display";
 import { isGuestUser } from "../../services/community-access";
 import { fetchMe } from "../../services/profile-api";
-import { getCommunityId, getUser } from "../../services/auth-session";
+import { getCommunityId, getUser, setCommunityId } from "../../services/auth-session";
+import { getPrimaryMembership } from "../../services/community-access";
 import { HeaderShell } from "../layout/header-chrome";
 import { sw, sf } from "../../utils/responsive";
 import { useNotificationUnread } from "../../hooks/use-notification-unread";
@@ -45,15 +46,23 @@ export default function TopBar({ onMenuPress }) {
 
   useFocusEffect(
     useCallback(() => {
+      const applyCommunityContext = async (next) => {
+        setUser(next);
+        const membership = getPrimaryMembership(next);
+        const membershipCommunityId = membership?.community_id ?? null;
+        const storedId = await getCommunityId();
+        const resolvedId = membershipCommunityId ?? storedId ?? null;
+        if (membershipCommunityId && String(membershipCommunityId) !== String(storedId ?? "")) {
+          await setCommunityId(membershipCommunityId);
+        }
+        setActiveCommunityId(resolvedId != null ? String(resolvedId) : null);
+      };
+
       fetchMe()
-        .then(async (next) => {
-          setUser(next);
-          setActiveCommunityId(await getCommunityId());
-        })
+        .then(applyCommunityContext)
         .catch(async () => {
           const cached = await getUser();
-          setUser(cached);
-          setActiveCommunityId(await getCommunityId());
+          await applyCommunityContext(cached);
         });
     }, []),
   );

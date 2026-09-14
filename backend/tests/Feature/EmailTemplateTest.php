@@ -67,8 +67,17 @@ class EmailTemplateTest extends TestCase
         $html = $mailable->render();
 
         $this->assertStringContainsString($code, $html);
-        $this->assertStringContainsString('cid:invite-qr', $html);
         $this->assertStringContainsString('Scan this QR', $html);
+        $this->assertTrue(
+            filled($mailable->highlightQrCidSrc) || filled($mailable->highlightQrDataUri),
+            'Invite email should include a QR image source.',
+        );
+        $this->assertTrue(
+            str_contains($html, 'cid:invite-qr')
+                || str_contains($html, 'data:image/')
+                || str_contains($html, 'invite-qr.png'),
+            'Invite email HTML should embed QR via hosted URL, CID, or inline data URI.',
+        );
         $this->assertSame('havena://join?invite_code='.rawurlencode($code), $mailable->highlightQrPayload);
     }
 

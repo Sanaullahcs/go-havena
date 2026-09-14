@@ -195,7 +195,11 @@ export async function assignCommunityAdmin(
 ) {
   const res = await api.post(`/v1/admin/communities/${communityId}/assign-admin`, payload);
   return res.data as {
-    data: { community: AdminCommunity; admin: { id: number; name: string; email: string; phone: string | null; role: string } };
+    data: {
+      community: AdminCommunity;
+      admin: { id: number; name: string; email: string; phone: string | null; role: string };
+      email_sent?: boolean;
+    };
     message: string;
   };
 }

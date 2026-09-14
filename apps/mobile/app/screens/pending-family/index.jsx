@@ -33,6 +33,7 @@ import {
 import {
   getCompleteProfileParams,
   navigateAfterAuth,
+  needsCompleteProfile,
   Routes,
 } from "../../../constants/onboarding-routes";
 import { getUser, getToken, setSession } from "../../../services/auth-session";
@@ -146,6 +147,14 @@ export default function PendingFamilyScreen() {
 
   const routeFromFamilyState = useCallback(
     async (familyPayload, user) => {
+      if (needsCompleteProfile(user)) {
+        router.replace({
+          pathname: Routes.COMPLETE_PROFILE,
+          params: getCompleteProfileParams(user, user?.role || "resident"),
+        });
+        return true;
+      }
+
       const state = familyPayload?.state ?? "none";
       const nextRequest =
         familyPayload?.pending_request ?? familyPayload?.rejected_request ?? null;

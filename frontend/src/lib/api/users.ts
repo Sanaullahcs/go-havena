@@ -25,6 +25,7 @@ export interface ProvisionedUser {
   community_admin_status: string | null;
   status: string;
   region_id: number | null;
+  email_sent?: boolean;
   membership: {
     community_id: number;
     role: string;
@@ -40,5 +41,5 @@ export interface ProvisionedUser {
 
 export async function provisionAdminUser(payload: ProvisionUserPayload) {
   const res = await api.post("/v1/admin/users", payload);
-  return res.data as { data: ProvisionedUser; message: string };
+  return res.data as { data: ProvisionedUser; message: string; email_sent?: boolean };
 }

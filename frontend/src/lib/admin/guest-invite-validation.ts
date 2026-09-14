@@ -1,3 +1,4 @@
+import { parseDatetimeLocalValue, toDatetimeLocalValue } from "@/lib/admin/datetime-local";
 import { EMAIL_RE } from "@/lib/admin/form-validation-utils";
 import {
   GUEST_PERMISSION_REQUIRED_MESSAGE,
@@ -28,8 +29,8 @@ function startOfLocalMinute(value: Date): Date {
 export function guestStartFieldError(startsAt: string, now: Date = new Date()): string | null {
   if (!startsAt) return null;
 
-  const start = new Date(startsAt);
-  if (Number.isNaN(start.getTime())) return null;
+  const start = parseDatetimeLocalValue(startsAt);
+  if (!start) return null;
 
   if (start.getTime() < startOfLocalMinute(now).getTime()) {
     return GUEST_START_PAST_MESSAGE;
@@ -41,9 +42,9 @@ export function guestStartFieldError(startsAt: string, now: Date = new Date()): 
 export function guestDurationFieldError(startsAt: string, endsAt: string): string | null {
   if (!startsAt || !endsAt) return null;
 
-  const start = new Date(startsAt);
-  const end = new Date(endsAt);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  const start = parseDatetimeLocalValue(startsAt);
+  const end = parseDatetimeLocalValue(endsAt);
+  if (!start || !end) return null;
 
   const durationMs = end.getTime() - start.getTime();
   if (durationMs < MIN_GUEST_ACCESS_MINUTES * 60 * 1000) {
@@ -95,13 +96,39 @@ export function canSubmitGuestInvite(
   if (guestStartFieldError(form.starts_at, now)) return false;
   if (guestDurationFieldError(form.starts_at, form.ends_at)) return false;
 
-  const start = new Date(form.starts_at);
-  const end = new Date(form.ends_at);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+  const start = parseDatetimeLocalValue(form.starts_at);
+  const end = parseDatetimeLocalValue(form.ends_at);
+  if (!start || !end || end <= start) {
     return false;
   }
 
   if (phone.digits && (!phone.valid || !phone.e164)) return false;
 
   return true;
+}
+
+/** Bump start/end forward when the picked start minute has passed (datetime-local has no seconds). */
+export function normalizeGuestInviteWindow(
+  startsAt: string,
+  endsAt: string,
+  now: Date = new Date(),
+): { starts_at: string; ends_at: string } {
+  const start = parseDatetimeLocalValue(startsAt);
+  const end = parseDatetimeLocalValue(endsAt);
+  if (!start || !end) {
+    return { starts_at: startsAt, ends_at: endsAt };
+  }
+
+  const earliest = startOfLocalMinute(now);
+  if (start.getTime() >= earliest.getTime()) {
+    return { starts_at: startsAt, ends_at: endsAt };
+  }
+
+  const durationMs = Math.max(end.getTime() - start.getTime(), MIN_GUEST_ACCESS_MINUTES * 60 * 1000);
+  const nextStart = earliest;
+  const nextEnd = new Date(nextStart.getTime() + durationMs);
+  return {
+    starts_at: toDatetimeLocalValue(nextStart),
+    ends_at: toDatetimeLocalValue(nextEnd),
+  };
 }

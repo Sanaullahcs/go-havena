@@ -87,7 +87,7 @@ class OsmNearbyPlacesService
 
         $ttl = (int) config('osm.cache_seconds', 3600);
         $cacheKey = sprintf(
-            'osm_nearby:v5:%s:%s:%s',
+            'osm_nearby:v6:%s:%s:%s',
             $communityId ?: 'none',
             round($lat, 4),
             round($lng, 4),
@@ -109,7 +109,9 @@ class OsmNearbyPlacesService
 
         $this->bundleFailed = false;
 
-        Cache::put($cacheKey, $places, $ttl);
+        if ($places !== []) {
+            Cache::put($cacheKey, $places, $ttl);
+        }
 
         return $places;
     }
@@ -166,19 +168,19 @@ class OsmNearbyPlacesService
         $filters = [];
 
         foreach (OsmPlaceCategories::overpassRegexByKey() as $key => $regex) {
-            $filters[] = "node[\"{$key}\"~\"{$regex}\"](around:{$radius},{$lat},{$lng});";
+            $filters[] = "  node[\"{$key}\"~\"{$regex}\"](around:{$radius},{$lat},{$lng});";
+            $filters[] = "  way[\"{$key}\"~\"{$regex}\"](around:{$radius},{$lat},{$lng});";
         }
 
-        $union = implode("\n  ", $filters);
-        $timeout = (int) config('osm.overpass_timeout', 15);
-        $limit = max(40, (int) config('osm.overpass_max_elements', 150));
+        $union = implode("\n", $filters);
+        $timeout = (int) config('osm.overpass_timeout', 25);
 
         return <<<QL
 [out:json][timeout:{$timeout}];
 (
-  {$union}
+{$union}
 );
-out center tags {$limit};
+out center tags;
 QL;
     }
 
@@ -190,40 +192,45 @@ QL;
             return null;
         }
 
-        $timeout = (int) config('osm.overpass_timeout', 15);
+        $timeout = (int) config('osm.overpass_timeout', 25);
         $headers = [
             'User-Agent' => (string) config('osm.user_agent'),
             'Accept' => 'application/json',
         ];
         $lastEmpty = null;
+        $anyFailure = false;
         $started = microtime(true);
 
         foreach ($urls as $url) {
-            if ((microtime(true) - $started) > 22) {
+            if ((microtime(true) - $started) > ($timeout + 12)) {
                 break;
             }
 
             try {
                 $response = Http::withHeaders($headers)
                     ->asForm()
-                    ->connectTimeout(4)
-                    ->timeout($timeout + 3)
+                    ->connectTimeout(5)
+                    ->timeout($timeout + 5)
                     ->post((string) $url, [
                         'data' => $query,
                     ]);
             } catch (\Throwable $e) {
+                $anyFailure = true;
                 Log::warning('Overpass request failed', ['url' => $url, 'error' => $e->getMessage()]);
 
                 continue;
             }
 
             if (! $response->successful() || ! is_array($response->json())) {
+                $anyFailure = true;
+
                 continue;
             }
 
             $json = $response->json();
             $remark = strtolower((string) ($json['remark'] ?? ''));
-            if ($remark !== '' && (str_contains($remark, 'timed out') || str_contains($remark, 'runtime error'))) {
+            if ($remark !== '' && (str_contains($remark, 'timed out') || str_contains($remark, 'runtime error') || str_contains($remark, 'error'))) {
+                $anyFailure = true;
                 Log::warning('Overpass query remark', ['url' => $url, 'remark' => $json['remark']]);
 
                 continue;
@@ -236,7 +243,7 @@ QL;
             $lastEmpty = $json;
         }
 
-        if (is_array($lastEmpty)) {
+        if (is_array($lastEmpty) && ! $anyFailure) {
             return $lastEmpty;
         }
 

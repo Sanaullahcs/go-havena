@@ -17,8 +17,12 @@
 @if($highlightCode)
 
 {{ $highlightLabel ?: 'Your code' }}: {{ $highlightCode }}
-@if(!empty($highlightQrSrc))
+@if(!empty($highlightQrUrl) || !empty($highlightQrCidSrc) || !empty($highlightQrDataUri))
 Scan the QR code in this email with the Havena app, or enter the code manually.
+@endif
+@if(!empty($highlightQrViewUrl))
+
+View invite QR code: {{ $highlightQrViewUrl }}
 @endif
 @endif
 @if(!empty($includeAppStoreLinks))

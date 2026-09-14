@@ -210,7 +210,10 @@ export function getToken(): string | null {
 export function setSession(token: string, user?: WebUser) {
   const portal = portalFromUser(user) ?? resolveSessionPortal();
   localStorage.setItem(SESSION_KEYS[portal].token, token);
-  if (user) localStorage.setItem(SESSION_KEYS[portal].user, JSON.stringify(user));
+  if (user) {
+    localStorage.setItem(SESSION_KEYS[portal].user, JSON.stringify(user));
+    window.dispatchEvent(new CustomEvent("nbr-session-updated"));
+  }
   lockPortal(portal);
 }
 
@@ -318,7 +321,18 @@ export function communityAdminAccessBlockedCopy(user?: WebUser | null): { title:
 export function getCommunityAdminNextStep(user?: WebUser | null): string {
   const u = user ?? getUser();
   if (!u || !isCommunityAdminUser(u)) return "ready";
-  return u.access?.next_step ?? "link_community";
+
+  const step = u.access?.next_step ?? "link_community";
+  if (
+    step !== "complete_profile" &&
+    step !== "link_community" &&
+    u.access?.profile_complete === false &&
+    u.access?.has_linked_community
+  ) {
+    return "complete_profile";
+  }
+
+  return step;
 }
 
 /** Community admin still in setup / billing / approval — not full dashboard yet. */

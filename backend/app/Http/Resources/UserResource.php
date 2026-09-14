@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use App\Support\MediaUrl;
+use App\Support\OnboardingContext;
 
 /** @mixin \App\Models\User */
 class UserResource extends JsonResource
@@ -63,6 +64,7 @@ class UserResource extends JsonResource
             'guest_access' => \App\Services\GuestAccessService::guestAccessSummary($this->resource),
             'family' => \App\Services\FamilyService::onboardingBrief($this->resource),
             'needs_invite_code' => \App\Services\InviteCodeService::userNeedsInviteCode($this->resource),
+            'invited_by_admin' => OnboardingContext::invitedByAdmin($this->resource),
         ];
     }
 }

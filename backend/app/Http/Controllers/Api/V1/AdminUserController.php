@@ -14,6 +14,7 @@ use App\Services\ContactIdentityService;
 use App\Services\LifecycleMailService;
 use App\Services\OsmGeocodingService;
 use App\Support\CommunityLocation;
+use App\Support\CommunityNameUniqueness;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -94,11 +95,12 @@ class AdminUserController extends Controller
 
         $provisioned = $result['user']->fresh(['profile', 'memberships.community']);
         $community = $result['community'] ?? $provisioned?->memberships->first()?->community;
+        $emailSent = false;
         if ($provisioned && $community) {
             if ($validated['type'] === 'community_admin') {
-                app(LifecycleMailService::class)->communityAdminProvisioned($provisioned, $community);
+                $emailSent = app(LifecycleMailService::class)->communityAdminProvisioned($provisioned, $community);
             } else {
-                app(LifecycleMailService::class)->residentProvisioned($provisioned, $community);
+                $emailSent = app(LifecycleMailService::class)->residentProvisioned($provisioned, $community, true);
             }
         } else {
             Log::warning('Provisioned user email skipped', [
@@ -109,9 +111,17 @@ class AdminUserController extends Controller
             ]);
         }
 
+        $payload = array_merge($result['payload'], ['email_sent' => $emailSent]);
+        $message = $result['message'];
+        if ($provisioned && $community) {
+            $message = $emailSent
+                ? $result['message'].' A welcome email was sent.'
+                : $result['message'].' The welcome email could not be sent — share sign-in instructions manually.';
+        }
+
         return response()->json([
-            'data' => $result['payload'],
-            'message' => $result['message'],
+            'data' => $payload,
+            'message' => $message,
         ], 201);
     }
 
@@ -184,6 +194,12 @@ class AdminUserController extends Controller
 
             return $community;
         }
+
+        CommunityNameUniqueness::assertUniqueInRegion(
+            $validated['community_name'],
+            $region->id,
+            field: 'community_name',
+        );
 
         $coords = CommunityLocation::resolve(
             $validated['community_address'] ?? null,
