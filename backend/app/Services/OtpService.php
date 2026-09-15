@@ -30,7 +30,19 @@ class OtpService
         Log::info('Havena OTP', ['email' => $email, 'code' => $this->usesKnownTestCode($email) ? $code : '[hidden]']);
 
         if ($this->shouldSendMail() && ! $this->usesKnownTestCode($email)) {
-            Mail::to($email)->send(new AuthOtpMail($code));
+            try {
+                Mail::to($email)->send(new AuthOtpMail($code));
+            } catch (\Throwable $e) {
+                Log::error('Havena OTP mail failed', [
+                    'email' => $email,
+                    'error' => $e->getMessage(),
+                ]);
+
+                throw new \Illuminate\Http\Exceptions\HttpResponseException(response()->json([
+                    'message' => 'We could not send a verification email. Please try again.',
+                    'code' => 'OTP_MAIL_FAILED',
+                ], 503));
+            }
         }
     }
 
@@ -196,7 +208,7 @@ class OtpService
 
     private function usesKnownTestCode(string $email): bool
     {
-        return $this->isFixedEmail($email);
+        return $this->isFixedEmail($email) || $this->demoCodeForEmail($email) !== null;
     }
 
     private function isFixedEmail(string $email): bool

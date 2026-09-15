@@ -469,6 +469,11 @@ export default function AllFacilities() {
             );
           }
           setProofBill(null);
+          if (id) {
+            fetchAmenityBills(id)
+              .then((rows) => setBills(rows ?? []))
+              .catch(() => {});
+          }
         }}
       />
     </SafeAreaView>

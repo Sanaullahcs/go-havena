@@ -42,14 +42,14 @@ const FAQS = [
 const CONTACTS = [
   {
     label: "Technical Support",
-    value: "support@havena.app",
+    value: "support@gohavena.com",
     note: "Response within 4 hours",
     icon: <IcoMail />,
     color: "blue",
   },
   {
     label: "Billing Inquiries",
-    value: "billing@havena.app",
+    value: "billing@gohavena.com",
     note: "Mon–Fri, 9 AM – 6 PM",
     icon: <IcoCard />,
     color: "violet",
@@ -257,7 +257,7 @@ export default function AdminSupportPage() {
           All systems operational — Havena platform is running smoothly.
         </p>
         <a
-          href="https://status.havena.app"
+          href="https://gohavena.com"
           target="_blank"
           rel="noopener noreferrer"
           className="ml-auto shrink-0 text-[12px] font-semibold text-emerald-700 underline underline-offset-2 hover:text-emerald-900"

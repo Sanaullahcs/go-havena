@@ -60,6 +60,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/community-rules": "Community Rules",
   "/admin/documents": "Documents",
   "/admin/amenities": "Amenities",
+  "/admin/bookings": "Booking Request",
+  "/admin/feed": "Feed Moderation",
   "/admin/moderation": "Moderation",
   "/admin/marketplace": "Marketplace",
   "/admin/businesses": "Businesses",

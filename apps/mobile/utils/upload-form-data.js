@@ -406,6 +406,7 @@ async function uploadWithLegacyMultipart({
   token,
   mimeType,
   headers = {},
+  parameters = {},
 }) {
   const info = await LegacyFileSystem.getInfoAsync(uri);
   if (!info.exists || (info.size ?? 0) === 0) {
@@ -422,6 +423,7 @@ async function uploadWithLegacyMultipart({
       Accept: "application/json",
       ...headers,
     },
+    parameters,
   });
 
   return parseUploadResult(result, fieldName);
@@ -460,6 +462,7 @@ export async function uploadMultipartFile({
   mimeType = "image/jpeg",
   assetMeta = {},
   headers: extraHeaders = {},
+  parameters = {},
 }) {
   const defaultBaseName = fieldName.replace(/_/g, "-");
   const prepared = assetMeta.uploadPrepared
@@ -478,6 +481,7 @@ export async function uploadMultipartFile({
       token,
       mimeType: prepared.mimeType,
       headers: extraHeaders,
+      parameters,
     });
   } catch (primaryError) {
     const primaryMessage = String(primaryError?.message ?? "");
@@ -495,6 +499,7 @@ export async function uploadMultipartFile({
         token,
         mimeType: rebuilt.mimeType,
         headers: extraHeaders,
+        parameters,
       });
     }
 
