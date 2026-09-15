@@ -144,7 +144,7 @@ export function useHomeScreen() {
   }, [load]);
 
   const carouselNotices = useMemo(
-    () => pickNeighborhoodCarousel(notices),
+    () => pickNeighborhoodCarousel(notices, 7),
     [notices],
   );
 

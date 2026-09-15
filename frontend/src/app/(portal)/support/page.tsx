@@ -35,7 +35,7 @@ const FAQS = [
 const CONTACTS = [
   {
     label: "Resident Support",
-    value: "residents@havena.app",
+    value: "hello@gohavena.com",
     note: "Response within 24 hours",
     icon: <IcoMail />,
     color: "emerald",

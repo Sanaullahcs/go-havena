@@ -260,7 +260,7 @@ export default function Notices({ items = [] }) {
     () =>
       items
         .filter((n) => n && n.id)
-        .slice(0, 6)
+        .slice(0, 7)
         .map((n) => mapNoticeToHero(n, t)),
     [items, t, i18n.language],
   );

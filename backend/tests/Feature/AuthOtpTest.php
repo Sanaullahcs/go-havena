@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\EmailOtp;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class AuthOtpTest extends TestCase
@@ -372,10 +373,15 @@ class AuthOtpTest extends TestCase
             'community_admin_status' => 'approved',
         ]);
 
+        Mail::fake();
+        config(['mail.default' => 'smtp']);
+
         $this->postJson('/api/v1/auth/otp/request', [
             'email' => $resident,
             'intent' => 'login',
         ])->assertStatus(202);
+
+        Mail::assertNothingSent();
 
         $this->postJson('/api/v1/auth/otp/verify', [
             'email' => $resident,
