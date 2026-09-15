@@ -26,6 +26,7 @@ import { sf, sw } from "../../utils/responsive";
 import { pickImage, pickImageFile, takePhoto } from "../../utils/pickImage";
 import { formatDisplayDate } from "../../utils/form-datetime";
 import { useApiAction } from "../../hooks/use-api-action";
+import { getApiErrorMessage } from "../../utils/auth-errors";
 import { submitAmenityBillProof } from "../../services/amenity-api";
 
 function todayDate() {
@@ -86,7 +87,7 @@ export default function AmenityPaymentProofModal({
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const { runAction } = useApiAction();
+  const { showSuccess } = useApiAction();
   const [fileAsset, setFileAsset] = useState(null);
   const [paymentDate, setPaymentDate] = useState(todayDate);
   const [iosDraft, setIosDraft] = useState(todayDate);
@@ -205,31 +206,30 @@ export default function AmenityPaymentProofModal({
       setError(t("propertyMgmt.paymentDateFuture"));
       return;
     }
-    if (!bill?.resident_bill_id) return;
+    if (!bill?.resident_bill_id || !amenityId) {
+      setError(t("propertyMgmt.couldNotSubmitProof"));
+      return;
+    }
 
     submitLockRef.current = true;
     setSubmitting(true);
     setError(null);
-    // Let the spinner paint before the upload occupies the JS thread.
     await waitForNextPaint();
 
     try {
-      await runAction({
-        action: () =>
-          submitAmenityBillProof(amenityId, bill.resident_bill_id, {
-            fileAsset,
-            paymentDate: dateIso,
-            paymentReference: reference.trim(),
-            paymentNote: note.trim(),
-          }),
-        successTitle: t("propertyMgmt.paymentProof"),
-        successMessage: t("propertyMgmt.paymentProofSubmitted"),
-        errorTitle: t("propertyMgmt.couldNotSubmitProof"),
-        onSuccess: (result) => {
-          reset();
-          onSubmitted?.(result?.data ?? null);
-        },
+      const result = await submitAmenityBillProof(amenityId, bill.resident_bill_id, {
+        fileAsset,
+        paymentDate: dateIso,
+        paymentReference: reference.trim(),
+        paymentNote: note.trim(),
       });
+      onSubmitted?.(result?.data ?? null);
+      showSuccess(
+        t("propertyMgmt.paymentProof"),
+        result?.message ?? t("propertyMgmt.paymentProofSubmitted"),
+      );
+    } catch (err) {
+      setError(getApiErrorMessage(err) || t("propertyMgmt.couldNotSubmitProof"));
     } finally {
       submitLockRef.current = false;
       setSubmitting(false);
@@ -387,7 +387,7 @@ export default function AmenityPaymentProofModal({
                   !canSubmit && !submitting && styles.submitDisabled,
                 ]}
                 onPress={handleSubmit}
-                disabled={!canSubmit}
+                disabled={!canSubmit || submitting}
                 activeOpacity={0.85}
               >
                 {submitting ? (
@@ -400,13 +400,6 @@ export default function AmenityPaymentProofModal({
                 )}
               </TouchableOpacity>
             </View>
-
-            {submitting ? (
-              <View style={styles.loadingOverlay}>
-                <ActivityIndicator size="large" color="#1B4F8A" />
-                <Text style={styles.loadingOverlayText}>{t("propertyMgmt.submittingProof")}</Text>
-              </View>
-            ) : null}
 
             {showIosPicker ? (
               <View style={styles.dateOverlay} pointerEvents="box-none">
@@ -642,20 +635,6 @@ const styles = StyleSheet.create({
     gap: sw(8),
   },
   submitDisabled: { opacity: 0.45 },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.72)",
-    zIndex: 30,
-    gap: sw(10),
-  },
-  loadingOverlayText: {
-    fontFamily: Fonts.semiBold,
-    fontWeight: "600",
-    fontSize: sf(13),
-    color: "#1B4F8A",
-  },
   submitText: {
     fontFamily: Fonts.bold,
     fontWeight: "700",

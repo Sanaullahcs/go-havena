@@ -2,7 +2,7 @@ import { API_BASE_URL } from "../constants/api-config";
 import { apiRequest, ApiError } from "./api-client";
 import { getCommunityId, getToken } from "./auth-session";
 import { HOME_SECTION_CARD_LIMIT } from "../constants/home-sections";
-import { guessImageMeta } from "../utils/upload-form-data";
+import { persistUploadAsset, uploadMultipartFile } from "../utils/upload-form-data";
 import i18n from "../i18n";
 
 export async function fetchAmenities() {
@@ -196,50 +196,81 @@ export async function fetchAmenityBills(amenityId) {
   return res.data ?? [];
 }
 
+const PROOF_UPLOAD_TIMEOUT_MS = 30000;
+
+function withTimeout(promise, ms, message) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new ApiError(message, { status: 408 }));
+    }, ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 export async function submitAmenityBillProof(amenityId, residentBillId, { fileAsset, paymentDate, paymentReference, paymentNote }) {
   const token = await getToken();
   if (!token) throw new ApiError(i18n.t("imagePicker.signInRequired"), { status: 401 });
-
-  const communityId = await getCommunityId();
-  const { mimeType, fileName } = guessImageMeta(fileAsset?.uri, fileAsset ?? {}, "payment-proof");
-  const formData = new FormData();
-  if (paymentDate) formData.append("payment_date", paymentDate);
-  if (paymentReference) formData.append("payment_reference", paymentReference);
-  if (paymentNote) formData.append("payment_note", paymentNote);
-  if (fileAsset?.uri) {
-    formData.append("file", { uri: fileAsset.uri, name: fileName, type: mimeType });
+  if (!amenityId || !residentBillId) {
+    throw new ApiError(i18n.t("propertyMgmt.couldNotSubmitProof"), { status: 400 });
+  }
+  if (!fileAsset?.uri) {
+    throw new ApiError(i18n.t("propertyMgmt.paymentProofRequired"), { status: 422 });
+  }
+  if (!paymentDate) {
+    throw new ApiError(i18n.t("propertyMgmt.paymentDateRequired"), { status: 422 });
   }
 
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    Accept: "application/json",
-  };
+  const communityId = await getCommunityId();
+  const headers = {};
   if (communityId) headers["X-Community-Id"] = String(communityId);
   if (API_BASE_URL.includes("loca.lt")) headers["Bypass-Tunnel-Reminder"] = "true";
 
-  const response = await fetch(
-    `${API_BASE_URL}/amenities/${amenityId}/bills/${residentBillId}/proof`,
-    { method: "POST", headers, body: formData },
-  );
-  const text = await response.text();
-  let body = null;
-  if (text) {
-    try {
-      body = JSON.parse(text);
-    } catch {
-      body = { message: text };
-    }
-  }
-  if (!response.ok) {
-    throw new ApiError(body?.message ?? i18n.t("propertyMgmt.couldNotSubmitProof"), {
-      status: response.status,
-      errors: body?.errors,
+  const parameters = { payment_date: String(paymentDate) };
+  if (paymentReference) parameters.payment_reference = String(paymentReference);
+  if (paymentNote) parameters.payment_note = String(paymentNote);
+
+  try {
+    const body = await withTimeout(
+      (async () => {
+        let prepared = fileAsset;
+        if (!fileAsset.uploadPrepared) {
+          prepared = await persistUploadAsset(fileAsset, "payment-proof");
+        }
+        return uploadMultipartFile({
+          url: `${API_BASE_URL}/amenities/${amenityId}/bills/${residentBillId}/proof`,
+          uri: prepared.uri,
+          fieldName: "file",
+          token,
+          mimeType: prepared.mimeType || "image/jpeg",
+          assetMeta: prepared,
+          headers,
+          parameters,
+        });
+      })(),
+      PROOF_UPLOAD_TIMEOUT_MS,
+      i18n.t("imagePicker.uploadFailed"),
+    );
+
+    return {
+      data: body?.data ?? null,
+      message: body?.message ?? i18n.t("propertyMgmt.paymentProofSubmitted"),
+    };
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    throw new ApiError(err?.message || i18n.t("propertyMgmt.couldNotSubmitProof"), {
+      status: err?.status ?? 0,
+      errors: err?.errors,
     });
   }
-  return {
-    data: body?.data ?? null,
-    message: body?.message ?? i18n.t("propertyMgmt.paymentProofSubmitted"),
-  };
 }
 
 /** @deprecated Prefer fetchBookingInbox — kept for older call sites. */
