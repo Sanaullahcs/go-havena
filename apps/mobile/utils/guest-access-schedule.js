@@ -18,6 +18,10 @@ export function isGuestAccessRevokedError(error) {
   return error?.code === "GUEST_ACCESS_REVOKED";
 }
 
+export function isGuestAccessRejectedError(error) {
+  return error?.code === "GUEST_ACCESS_REJECTED";
+}
+
 export function isGuestAccessNotStartedError(error) {
   return error?.code === "ACCESS_NOT_STARTED";
 }
@@ -85,6 +89,57 @@ export function guestLoginRouteWithNotice(code) {
   };
 }
 
+function encodeGuestRejectedParams(error, email) {
+  const invitation = error?.guestInvitation ?? {};
+  const params = {
+    guest: "1",
+    rejected: "1",
+  };
+
+  if (email) params.email = email;
+  if (error?.rejectionReason ?? invitation.rejection_reason) {
+    params.rejection_reason = String(error?.rejectionReason ?? invitation.rejection_reason);
+  }
+  if (invitation.community_name) params.community_name = String(invitation.community_name);
+  if (invitation.guest_name) params.guest_name = String(invitation.guest_name);
+  if (invitation.invite_code) params.invite_code = String(invitation.invite_code);
+  if (invitation.starts_at) params.starts_at = String(invitation.starts_at);
+  if (invitation.ends_at) params.ends_at = String(invitation.ends_at);
+  if (invitation.invitation_type) params.invitation_type = String(invitation.invitation_type);
+
+  const hostName =
+    invitation.resident?.display_name ||
+    invitation.resident?.name ||
+    invitation.invited_by?.display_name ||
+    invitation.invited_by?.name;
+  if (hostName) params.host_name = String(hostName);
+  if (invitation.resident?.unit_number) {
+    params.host_unit = String(invitation.resident.unit_number);
+  }
+
+  return params;
+}
+
+/** Navigate to the guest declined status screen (works with or without a session). */
+export function guestRejectedStatusRoute(error, email) {
+  return {
+    pathname: Routes.PENDING_COMMUNITY,
+    params: encodeGuestRejectedParams(error, email),
+  };
+}
+
+export async function navigateToGuestRejectedStatus(router, error, { email, clearSession = false } = {}) {
+  if (clearSession) {
+    try {
+      await logout({ revokeServer: false });
+    } catch {
+      await clearSession();
+    }
+  }
+
+  router.replace(guestRejectedStatusRoute(error, email));
+}
+
 export function guestAccessNoticeMessage(code) {
   if (code === "GUEST_ACCESS_EXPIRED") return GUEST_ACCESS_EXPIRED_MESSAGE;
   if (code === "GUEST_ACCESS_REVOKED" || code === "GUEST_ACCESS_REJECTED") {
@@ -95,6 +150,11 @@ export function guestAccessNoticeMessage(code) {
 }
 
 export async function handleGuestAccessTerminationError(error, router) {
+  if (isGuestAccessRejectedError(error)) {
+    await navigateToGuestRejectedStatus(router, error);
+    return true;
+  }
+
   if (isGuestAccessRevokedError(error)) {
     await revokeGuestSessionAndRedirect(router, { notice: "GUEST_ACCESS_REVOKED" });
     return true;
@@ -132,6 +192,14 @@ export async function handleGuestUnauthorized(error, router) {
 export async function enforceGuestAccessFromUser(user, router) {
   const status = user?.guest_access?.status;
   if (!isGuestAccessTerminatedStatus(status)) return false;
+
+  if (status === "rejected") {
+    router.replace({
+      pathname: Routes.PENDING_COMMUNITY,
+      params: { guest: "1", rejected: "1" },
+    });
+    return true;
+  }
 
   const notice = status === "expired" ? "GUEST_ACCESS_EXPIRED" : "GUEST_ACCESS_REVOKED";
   await revokeGuestSessionAndRedirect(router, { notice });

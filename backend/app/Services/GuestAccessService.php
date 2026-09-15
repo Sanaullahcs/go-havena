@@ -291,7 +291,7 @@ class GuestAccessService
         return null;
     }
 
-    /** @return array{message: string, code: string}|null */
+    /** @return array{message: string, code: string, rejection_reason?: string|null, invitation?: array<string, mixed>}|null */
     public static function loginTerminationBlock(GuestInvitation $invitation): ?array
     {
         if ($invitation->status === 'revoked' || $invitation->status === 'cancelled') {
@@ -302,9 +302,13 @@ class GuestAccessService
         }
 
         if ($invitation->status === 'rejected') {
+            $invitation->loadMissing(['community', 'invitedBy.profile']);
+
             return [
-                'message' => 'Your guest access request was rejected.',
-                'code'    => 'GUEST_ACCESS_REJECTED',
+                'message'          => 'Your guest access request was rejected.',
+                'code'             => 'GUEST_ACCESS_REJECTED',
+                'rejection_reason' => $invitation->rejection_reason,
+                'invitation'       => self::loginStatusInvitationSnapshot($invitation),
             ];
         }
 
@@ -316,6 +320,40 @@ class GuestAccessService
         }
 
         return null;
+    }
+
+    /** Compact invitation payload for login/status screens (no auth required). */
+    public static function loginStatusInvitationSnapshot(GuestInvitation $invitation): array
+    {
+        $invitation->loadMissing(['community', 'invitedBy.profile']);
+
+        $resident = null;
+        if ($invitation->invitation_type === 'resident' && $invitation->invitedBy) {
+            $resident = [
+                'name'         => $invitation->invitedBy->name,
+                'display_name' => $invitation->invitedBy->profile?->display_name,
+                'unit_number'  => $invitation->invitedBy->profile?->unit_number,
+            ];
+        }
+
+        $invitedBy = $invitation->invitedBy ? [
+            'name'         => $invitation->invitedBy->name,
+            'display_name' => $invitation->invitedBy->profile?->display_name,
+        ] : null;
+
+        return [
+            'status'          => $invitation->status,
+            'community_name'  => $invitation->community?->name,
+            'guest_name'      => $invitation->guest_name,
+            'guest_email'     => $invitation->guest_email,
+            'invite_code'     => $invitation->invite_code,
+            'invitation_type' => $invitation->invitation_type,
+            'starts_at'       => $invitation->starts_at?->toIso8601String(),
+            'ends_at'         => $invitation->ends_at?->toIso8601String(),
+            'rejection_reason'=> $invitation->rejection_reason,
+            'resident'        => $resident,
+            'invited_by'      => $invitedBy,
+        ];
     }
 
     /** @return array{message: string, code: string}|null */
@@ -517,6 +555,50 @@ class GuestAccessService
             ->where('community_id', $invitation->community_id)
             ->where('role', 'guest')
             ->delete();
+    }
+
+    /** Re-attach community guest membership after access is extended or a returning guest logs in. */
+    public static function restoreGuestMembership(GuestInvitation $invitation): bool
+    {
+        if (! $invitation->guest_user_id || ! $invitation->approved_at || $invitation->status !== 'active') {
+            return false;
+        }
+
+        CommunityMembership::query()->updateOrCreate(
+            [
+                'user_id'      => $invitation->guest_user_id,
+                'community_id' => $invitation->community_id,
+            ],
+            [
+                'role'   => 'guest',
+                'status' => 'approved',
+            ],
+        );
+
+        return true;
+    }
+
+    public static function canRestoreReturningGuest(GuestInvitation $invitation): bool
+    {
+        return $invitation->status === 'active'
+            && $invitation->guest_user_id
+            && $invitation->approved_at;
+    }
+
+    public static function restoreReturningGuestIfEligible(GuestInvitation $invitation): ?User
+    {
+        if (! self::canRestoreReturningGuest($invitation)) {
+            return null;
+        }
+
+        self::restoreGuestMembership($invitation);
+
+        $guestUser = User::query()->find($invitation->guest_user_id);
+        if ($guestUser && self::canGuestAccessDashboard($guestUser->fresh(['memberships']))) {
+            return $guestUser->fresh(['profile', 'memberships.community']);
+        }
+
+        return null;
     }
 
     public static function revokeTokensForUser(int $userId): void

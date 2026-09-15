@@ -63,6 +63,7 @@ const emptyForm: GuestForm = {
 type GuestFilter = GuestStatus | "all" | "pending";
 
 const ACTIVITY_PAGE_SIZE = 5;
+const GUEST_LIST_POLL_MS = 15_000;
 
 const INVITE_DURATION_PRESETS = [
   { label: "1 hour", hours: 1 },
@@ -71,6 +72,20 @@ const INVITE_DURATION_PRESETS = [
   { label: "3 days", hours: 72 },
   { label: "1 week", hours: 168 },
 ];
+
+function resolveInviteDurationPresetHours(startsAt: string, endsAt: string): number | null {
+  const start = parseDatetimeLocalValue(startsAt);
+  const end = parseDatetimeLocalValue(endsAt);
+  if (!start || !end) return null;
+
+  const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60_000);
+  if (durationMinutes <= 0) return null;
+
+  const match = INVITE_DURATION_PRESETS.find(
+    (preset) => Math.abs(durationMinutes - preset.hours * 60) <= 1,
+  );
+  return match?.hours ?? null;
+}
 
 function defaultInviteWindow() {
   const start = new Date();
@@ -226,6 +241,10 @@ export default function GuestsPage() {
   const [filterStatus, setFilterStatus] = useState<GuestFilter>("all");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<GuestForm>(emptyForm);
+  const activeInvitePresetHours = useMemo(
+    () => resolveInviteDurationPresetHours(form.starts_at, form.ends_at),
+    [form.starts_at, form.ends_at],
+  );
   const [submitting, setSubmitting] = useState(false);
   const [actionId, setActionId] = useState<number | null>(null);
   const [viewing, setViewing] = useState<GuestInvitation | null>(null);
@@ -248,11 +267,13 @@ export default function GuestsPage() {
     return () => window.removeEventListener("nbr-session-updated", onSessionUpdate);
   }, []);
 
-  const load = useCallback(async () => {
-    if (!hasLoadedOnce.current) {
-      setInitialLoading(true);
-    } else {
-      setRefreshing(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) {
+      if (!hasLoadedOnce.current) {
+        setInitialLoading(true);
+      } else {
+        setRefreshing(true);
+      }
     }
     try {
       const res = await fetchGuests({
@@ -262,6 +283,10 @@ export default function GuestsPage() {
         per_page: ADMIN_TABLE_PAGE_SIZE,
       });
       setGuests(res.data);
+      setViewing((current) => {
+        if (!current) return current;
+        return res.data.find((guest) => guest.id === current.id) ?? current;
+      });
       setTotal(res.meta.total);
       setLastPage(res.meta.last_page ?? 1);
       setStats({
@@ -271,13 +296,15 @@ export default function GuestsPage() {
         pending_approval: res.meta.stats?.pending_approval ?? 0,
         expired: res.meta.stats?.expired ?? 0,
       });
-      setPageError(null);
+      if (!silent) setPageError(null);
     } catch (err) {
-      setPageError(apiError(err));
+      if (!silent) setPageError(apiError(err));
     } finally {
       hasLoadedOnce.current = true;
-      setInitialLoading(false);
-      setRefreshing(false);
+      if (!silent) {
+        setInitialLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [filterStatus, debouncedSearch, page]);
 
@@ -286,6 +313,14 @@ export default function GuestsPage() {
     if (shouldSkipStalePageFetch(filterKey, page, setPage, prevFilterKey)) return;
     void load();
   }, [filterStatus, debouncedSearch, page, load]);
+
+  useEffect(() => {
+    if (actionId !== null || submitting) return undefined;
+    const timer = window.setInterval(() => {
+      void load(true);
+    }, GUEST_LIST_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [load, actionId, submitting]);
 
   const statusFilters = useMemo(() => [
     { key: "all", label: "All", count: stats.total },
@@ -422,9 +457,10 @@ export default function GuestsPage() {
 
     setActionId(guest.id);
     try {
-      await rejectGuest(guest.id, String(r.value ?? "").trim() || undefined);
+      const updated = await rejectGuest(guest.id, String(r.value ?? "").trim() || undefined);
       toastSuccess(`${guest.guest_name}'s guest access was rejected`);
       if (opts?.closeModal) setViewing(null);
+      else if (viewing?.id === guest.id) setViewing(updated);
       await load();
     } catch (err) {
       toastError(apiError(err));
@@ -702,30 +738,40 @@ export default function GuestsPage() {
                   <Calendar className="h-4 w-4 text-slate-400" />
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {INVITE_DURATION_PRESETS.map((preset) => (
-                    <button
-                      key={preset.label}
-                      type="button"
-                      onClick={() => {
-                        const now = new Date();
-                        now.setSeconds(0, 0);
-                        const parsedStart =
-                          parseDatetimeLocalValue(form.starts_at) ??
-                          parseDatetimeLocalValue(defaultInviteWindow().starts_at) ??
-                          now;
-                        const start = parsedStart.getTime() < now.getTime() ? now : parsedStart;
-                        const end = new Date(start.getTime() + preset.hours * 60 * 60 * 1000);
-                        setForm((f) => ({
-                          ...f,
-                          starts_at: toDatetimeLocalValue(start),
-                          ends_at: toDatetimeLocalValue(end),
-                        }));
-                      }}
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
+                  {INVITE_DURATION_PRESETS.map((preset) => {
+                    const isActive = activeInvitePresetHours === preset.hours;
+
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        aria-pressed={isActive}
+                        onClick={() => {
+                          const now = new Date();
+                          now.setSeconds(0, 0);
+                          const parsedStart =
+                            parseDatetimeLocalValue(form.starts_at) ??
+                            parseDatetimeLocalValue(defaultInviteWindow().starts_at) ??
+                            now;
+                          const start = parsedStart.getTime() < now.getTime() ? now : parsedStart;
+                          const end = new Date(start.getTime() + preset.hours * 60 * 60 * 1000);
+                          setForm((f) => ({
+                            ...f,
+                            starts_at: toDatetimeLocalValue(start),
+                            ends_at: toDatetimeLocalValue(end),
+                          }));
+                        }}
+                        className={[
+                          "nl-schedule-chip px-3 py-1.5 text-xs",
+                          isActive ? "nl-schedule-chip--active" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div>
@@ -842,6 +888,14 @@ export default function GuestsPage() {
             </div>
 
             <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
+              {viewing.status === "rejected" && viewing.rejection_reason ? (
+                <div className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-rose-500">
+                    Rejection reason
+                  </p>
+                  <p className="mt-1 text-sm leading-relaxed text-rose-800">{viewing.rejection_reason}</p>
+                </div>
+              ) : null}
               <div className="grid gap-3 sm:grid-cols-2">
                 {[
                   ["Invite code", viewing.invite_code],

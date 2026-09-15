@@ -22,10 +22,11 @@ import { UserAvatar } from "@/components/admin/user-avatar";
 import { PhoneDisplay } from "@/components/admin/phone-display";
 import { DataTable, DtCell, DtHead, DtPagination, DtRow, DtTable, StatTile } from "@/components/admin/ui";
 import { ProvisionUserModal } from "@/components/admin/provision-user-modal";
+import { EditCommunityAdminModal } from "@/components/admin/edit-community-admin-modal";
 import { PageLoader } from "@/components/shared/page-states";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { adminTableBusy, isAdminSearchPending, shouldSkipStalePageFetch } from "@/lib/admin/table-loading";
-import { confirmAction, toastError, toastSuccess } from "@/lib/alert";
+import { confirmAction, confirmRejectWithReason, toastError, toastSuccess } from "@/lib/alert";
 import { apiError } from "@/lib/api/client";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { UtilityBillPreview } from "@/components/admin/utility-bill-preview";
@@ -90,6 +91,7 @@ export default function CommunityAdminsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [assignTarget, setAssignTarget] = useState<AssignAdminTarget | null>(null);
   const [viewing, setViewing] = useState<CommunityAdminApplicant | null>(null);
+  const [editing, setEditing] = useState<CommunityAdminApplicant | null>(null);
 
   const load = useCallback(
     async (_silent = false) => {
@@ -204,21 +206,29 @@ export default function CommunityAdminsPage() {
   };
 
   const handleReject = async (id: number, revokeActive = false) => {
-    if (revokeActive) {
-      const ok = await confirmAction({
-        title: "Revoke this community admin?",
-        text: "This cancels their Havena subscription immediately — including an active paid plan months later. They will not be charged again.",
-        confirmText: "Revoke and cancel billing",
-        color: "red",
-      });
-      if (!ok.isConfirmed) return;
-    }
+    const r = await confirmRejectWithReason({
+      title: revokeActive ? "Revoke this community admin?" : "Reject this application?",
+      text: revokeActive
+        ? "Their subscription will be canceled immediately. A reason is required and will be shown to the admin."
+        : "A reason is required. The applicant will see it in their account.",
+      confirmText: revokeActive ? "Revoke" : "Reject",
+    });
+    if (!r.isConfirmed) return;
 
     setBusyId(id);
     try {
-      await rejectCommunityAdmin(id);
+      const reason = String(r.value ?? "").trim();
+      await rejectCommunityAdmin(id, reason);
       toastSuccess(revokeActive ? "Admin revoked. Billing canceled." : "Application rejected");
-      setViewing((current) => (current?.id === id ? null : current));
+      setViewing((current) =>
+        current?.id === id
+          ? {
+              ...current,
+              community_admin_status: "rejected",
+              community_admin_rejection_reason: reason,
+            }
+          : current,
+      );
       await load(true);
     } catch (err) {
       toastError(apiError(err));
@@ -250,6 +260,17 @@ export default function CommunityAdminsPage() {
     } finally {
       setBusyId(null);
     }
+  };
+
+  const openEdit = (item: CommunityAdminApplicant) => {
+    if (!item.id) return;
+    setEditing(item);
+    setViewing((current) => (current?.id === item.id ? null : current));
+  };
+
+  const handleAdminSaved = (updated: CommunityAdminApplicant) => {
+    setItems((prev) => prev.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)));
+    setViewing((current) => (current?.id === updated.id ? updated : current));
   };
 
   const openAssign = (item: CommunityAdminApplicant, mode: "assign" | "reassign" = "assign") => {
@@ -458,6 +479,11 @@ export default function CommunityAdminsPage() {
                         actions={[
                           { label: "View details", icon: "view", onClick: () => setViewing(item) },
                           {
+                            label: "Edit",
+                            icon: "edit",
+                            onClick: () => openEdit(item),
+                          },
+                          {
                             label: "Approve",
                             icon: "approve",
                             tone: "primary",
@@ -465,7 +491,7 @@ export default function CommunityAdminsPage() {
                             onClick: () => handleApprove(item.id),
                           },
                           {
-                            label: "Reject",
+                            label: status === "approved" ? "Revoke access" : "Reject",
                             icon: "reject",
                             tone: "danger",
                             hidden: status !== "pending" && status !== "approved",
@@ -527,10 +553,22 @@ export default function CommunityAdminsPage() {
         }}
       />
 
+      <EditCommunityAdminModal
+        item={editing}
+        open={Boolean(editing)}
+        onClose={() => setEditing(null)}
+        onSaved={handleAdminSaved}
+      />
+
       {viewing ? (
         <CommunityAdminDetailModal
           item={viewing}
           onClose={() => setViewing(null)}
+          onEdit={
+            viewing.id && !viewing.reassign_row_id
+              ? () => openEdit(viewing)
+              : undefined
+          }
           onApprove={
             viewing.community_admin_status === "pending" && viewing.id
               ? () => handleApprove(viewing.id)
@@ -545,6 +583,9 @@ export default function CommunityAdminsPage() {
               : undefined
           }
           approveLabel={viewing.community_admin_status === "rejected" ? "Re-approve" : "Approve"}
+          rejectLabel={
+            viewing.community_admin_status === "approved" ? "Revoke access" : "Reject"
+          }
           busy={busyId === viewing.id}
         />
       ) : null}
@@ -575,16 +616,20 @@ function capitalize(value?: string | null) {
 function CommunityAdminDetailModal({
   item,
   onClose,
+  onEdit,
   onApprove,
   onReject,
   approveLabel = "Approve",
+  rejectLabel = "Reject",
   busy,
 }: {
   item: CommunityAdminApplicant;
   onClose: () => void;
+  onEdit?: () => void;
   onApprove?: () => void;
   onReject?: () => void;
   approveLabel?: string;
+  rejectLabel?: string;
   busy?: boolean;
 }) {
   const community = communityFor(item);
@@ -652,8 +697,15 @@ function CommunityAdminDetailModal({
             />
           ) : null}
 
-          {!isReassignRow && item.community_admin_status === "rejected" && item.community_admin_rejection_reason ? (
-            <ProfileRow label="Rejection reason" value={item.community_admin_rejection_reason} />
+          {!isReassignRow && item.community_admin_rejection_reason ? (
+            <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-500">
+                Rejection reason
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-rose-800">
+                {item.community_admin_rejection_reason}
+              </p>
+            </div>
           ) : null}
 
           {!isReassignRow && item.status === "suspended" && item.suspension_reason ? (
@@ -681,16 +733,26 @@ function CommunityAdminDetailModal({
           {!isReassignRow && item.id ? <ProfileRow label="Admin ID" value={String(item.id)} /> : null}
         </div>
 
-        {(onApprove || onReject) ? (
-          <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
+        {(onEdit || onApprove || onReject) ? (
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
+            {onEdit ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={onEdit}
+                className="nl-btn-secondary"
+              >
+                Edit
+              </button>
+            ) : null}
             {onReject ? (
               <button
                 type="button"
                 disabled={busy}
                 onClick={onReject}
-                className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                className="nl-btn-danger"
               >
-                Reject
+                {rejectLabel}
               </button>
             ) : null}
             {onApprove ? (

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -85,13 +85,84 @@ function guestHostLabel(invitation) {
   if (invitation.invited_by) {
     return invitation.invited_by.display_name || invitation.invited_by.name;
   }
+  if (invitation.host_name) {
+    return invitation.host_unit
+      ? `${invitation.host_name} · ${i18n.t("guests.unitLabel", { unit: invitation.host_unit })}`
+      : invitation.host_name;
+  }
   return null;
+}
+
+function readParam(value) {
+  if (Array.isArray(value)) return value[0] ?? "";
+  return value ?? "";
+}
+
+function guestRejectedSnapshotKeyFromParams(params) {
+  if (readParam(params.rejected) !== "1" || readParam(params.guest) !== "1") {
+    return null;
+  }
+
+  return [
+    readParam(params.rejection_reason),
+    readParam(params.community_name),
+    readParam(params.guest_name),
+    readParam(params.invite_code),
+    readParam(params.starts_at),
+    readParam(params.ends_at),
+    readParam(params.host_name),
+    readParam(params.host_unit),
+    readParam(params.email),
+    readParam(params.invitation_type),
+  ].join("\u0001");
+}
+
+function guestRejectedSnapshotFromParams(params) {
+  if (readParam(params.rejected) !== "1" || readParam(params.guest) !== "1") {
+    return null;
+  }
+
+  const communityName = readParam(params.community_name).trim();
+  const rejectionReason = readParam(params.rejection_reason).trim();
+  const hostName = readParam(params.host_name).trim();
+  const hostUnit = readParam(params.host_unit).trim();
+
+  return {
+    status: "rejected",
+    community_name: communityName || null,
+    guest_name: readParam(params.guest_name).trim() || null,
+    guest_email: readParam(params.email).trim() || null,
+    invite_code: readParam(params.invite_code).trim() || null,
+    starts_at: readParam(params.starts_at).trim() || null,
+    ends_at: readParam(params.ends_at).trim() || null,
+    invitation_type: readParam(params.invitation_type).trim() || null,
+    rejection_reason: rejectionReason || null,
+    host_name: hostName || null,
+    host_unit: hostUnit || null,
+    invited_by: hostName ? { name: hostName, display_name: hostName } : null,
+    resident: hostName
+      ? { name: hostName, display_name: hostName, unit_number: hostUnit || null }
+      : null,
+  };
+}
+
+function applyGuestRejectedSnapshot(setters, snapshot) {
+  setters.setIsGuestMode(true);
+  setters.setReviewState("rejected");
+  setters.setGuestStatusNote(null);
+  setters.setRejectionReason(snapshot.rejection_reason ?? null);
+  setters.setGuestInvitation(snapshot);
+  setters.setCommunity(
+    snapshot.community_name
+      ? { name: snapshot.community_name, title: snapshot.community_name }
+      : null,
+  );
 }
 
 function buildGuestTimeline(reviewState, t) {
   if (reviewState === "rejected") {
     return [
-      { id: "phone", label: t("guests.phoneVerified"), status: "done" },
+      { id: "email", label: t("guests.emailVerified"), status: "done" },
       { id: "invite", label: t("guests.inviteCodeVerified"), status: "done" },
       { id: "approval", label: t("guests.hostApproval"), status: "failed" },
       { id: "access", label: t("guests.communityAccess"), status: "upcoming" },
@@ -99,7 +170,7 @@ function buildGuestTimeline(reviewState, t) {
   }
 
   return [
-    { id: "phone", label: t("guests.phoneVerified"), status: "done" },
+    { id: "email", label: t("guests.emailVerified"), status: "done" },
     { id: "invite", label: t("guests.inviteCodeVerified"), status: "done" },
     { id: "approval", label: t("guests.hostApproval"), status: "current" },
     { id: "access", label: t("guests.communityAccess"), status: "upcoming" },
@@ -276,19 +347,51 @@ export default function PendingCommunityScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const dialog = useAppDialog();
-  const { role = "resident", guest: guestParam } = useLocalSearchParams();
-  const [loading, setLoading] = useState(true);
+  const routeParams = useLocalSearchParams();
+  const { role = "resident", guest: guestParam } = routeParams;
+  const guestRejectedSnapshotKey = useMemo(
+    () => guestRejectedSnapshotKeyFromParams(routeParams),
+    [
+      routeParams.rejected,
+      routeParams.guest,
+      routeParams.rejection_reason,
+      routeParams.community_name,
+      routeParams.guest_name,
+      routeParams.invite_code,
+      routeParams.starts_at,
+      routeParams.ends_at,
+      routeParams.host_name,
+      routeParams.host_unit,
+      routeParams.email,
+      routeParams.invitation_type,
+    ],
+  );
+  const guestRejectedSnapshot = useMemo(
+    () => (guestRejectedSnapshotKey ? guestRejectedSnapshotFromParams(routeParams) : null),
+    [guestRejectedSnapshotKey, routeParams],
+  );
+  const isStaticGuestRejectedView = guestRejectedSnapshotKey !== null;
+  const staticGuestRejectedReady = useRef(isStaticGuestRejectedView);
+  const [loading, setLoading] = useState(() => !guestRejectedSnapshotKey);
   const [refreshing, setRefreshing] = useState(false);
-  const [community, setCommunity] = useState(null);
+  const [community, setCommunity] = useState(() =>
+    guestRejectedSnapshot?.community_name
+      ? { name: guestRejectedSnapshot.community_name, title: guestRejectedSnapshot.community_name }
+      : null,
+  );
   const [approvalKind, setApprovalKind] = useState(null);
-  const [rejectionReason, setRejectionReason] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState(
+    () => guestRejectedSnapshot?.rejection_reason ?? null,
+  );
   const [rejectedBy, setRejectedBy] = useState(null);
-  const [reviewState, setReviewState] = useState("pending");
+  const [reviewState, setReviewState] = useState(() =>
+    guestRejectedSnapshotKey ? "rejected" : "pending",
+  );
   const [currentUser, setCurrentUser] = useState(null);
   const [isAdminApplicant, setIsAdminApplicant] = useState(false);
   const [adminApprovedAwaitingCommunity, setAdminApprovedAwaitingCommunity] = useState(false);
-  const [isGuestMode, setIsGuestMode] = useState(guestParam === "1");
-  const [guestInvitation, setGuestInvitation] = useState(null);
+  const [isGuestMode, setIsGuestMode] = useState(() => guestParam === "1" || Boolean(guestRejectedSnapshotKey));
+  const [guestInvitation, setGuestInvitation] = useState(() => guestRejectedSnapshot);
   const [guestStatusNote, setGuestStatusNote] = useState(null);
 
   const syncGuestInvitation = useCallback(
@@ -474,9 +577,33 @@ export default function PendingCommunityScreen() {
 
   const refresh = useCallback(
     async (silent = false) => {
+      const token = await getToken();
+      const useStaticRejectedSnapshot = isStaticGuestRejectedView && !token;
+
+      if (useStaticRejectedSnapshot) {
+        if (!staticGuestRejectedReady.current) {
+          applyGuestRejectedSnapshot(
+            {
+              setIsGuestMode,
+              setReviewState,
+              setGuestStatusNote,
+              setRejectionReason,
+              setGuestInvitation,
+              setCommunity,
+            },
+            guestRejectedSnapshot,
+          );
+          staticGuestRejectedReady.current = true;
+        }
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
       if (!silent) setLoading(true);
       else setRefreshing(true);
       try {
+
         let user = null;
         try {
           user = await fetchMe();
@@ -534,19 +661,24 @@ export default function PendingCommunityScreen() {
         setRefreshing(false);
       }
     },
-    [role, router, syncFromUser, guestParam, syncGuestInvitation],
+    [role, router, syncFromUser, guestParam, syncGuestInvitation, guestRejectedSnapshot, isStaticGuestRejectedView],
   );
 
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    refreshRef.current();
+  }, [guestRejectedSnapshotKey, guestParam, role]);
 
   useFocusEffect(
     useCallback(() => {
-      if (isGuestMode) return undefined;
+      if (isGuestMode || isStaticGuestRejectedView || reviewState === "rejected") {
+        return undefined;
+      }
       refresh(true);
       return undefined;
-    }, [isGuestMode, refresh]),
+    }, [isGuestMode, isStaticGuestRejectedView, reviewState, refresh]),
   );
 
   useEffect(() => {
@@ -572,7 +704,7 @@ export default function PendingCommunityScreen() {
   }, [isGuestMode, refresh]);
 
   useEffect(() => {
-    if (!isGuestMode) return undefined;
+    if (!isGuestMode || reviewState === "rejected" || isStaticGuestRejectedView) return undefined;
 
     let pollTimer;
     let expiryTimer;
@@ -616,9 +748,15 @@ export default function PendingCommunityScreen() {
       if (pollTimer) clearTimeout(pollTimer);
       if (expiryTimer) clearTimeout(expiryTimer);
     };
-  }, [currentUser, guestInvitation, isGuestMode, refresh, router]);
+  }, [currentUser, guestInvitation, isGuestMode, isStaticGuestRejectedView, reviewState, refresh, router]);
 
   const handleSignOut = () => confirmSignOut(dialog);
+
+  const handleBackToGuestSignIn = () => {
+    router.replace("/screens/guest-login");
+  };
+
+  const showGuestRejectedSignIn = Boolean(isStaticGuestRejectedView && !currentUser);
 
   const handleEnterCommunity = useCallback(() => {
     if (currentUser) {
@@ -853,14 +991,20 @@ export default function PendingCommunityScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
+        bounces={!isStaticGuestRejectedView}
+        overScrollMode={isStaticGuestRejectedView ? "never" : "auto"}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => refresh(true)}
-            tintColor={Colors.brandPrimaryDeep}
-          />
+          isStaticGuestRejectedView ? undefined : (
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => refresh(true)}
+              tintColor={Colors.brandPrimaryDeep}
+            />
+          )
         }
       >
         <View
@@ -1064,8 +1208,21 @@ export default function PendingCommunityScreen() {
             </View>
           ))}
         </View>
+
+        {showGuestRejectedSignIn ? (
+          <View style={styles.scrollFooter}>
+            <AuthSubmitButton
+              label={t("guest.backToGuestSignIn")}
+              enabled
+              variant="solid"
+              style={styles.footerButton}
+              onPress={handleBackToGuestSignIn}
+            />
+          </View>
+        ) : null}
       </ScrollView>
 
+      {!showGuestRejectedSignIn ? (
       <View style={styles.footer}>
         {reviewState === "approved" ? (
           <AuthSubmitButton
@@ -1104,6 +1261,7 @@ export default function PendingCommunityScreen() {
           <Text style={styles.linkBtnText}>{t("guests.signOut")}</Text>
         </TouchableOpacity>
       </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -1124,7 +1282,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#667085",
   },
+  scrollView: {
+    flex: 1,
+  },
   scroll: {
+    flexGrow: 1,
+    paddingBottom: 16,
+  },
+  scrollFooter: {
+    paddingHorizontal: 24,
+    paddingTop: 8,
     paddingBottom: 24,
   },
   hero: {

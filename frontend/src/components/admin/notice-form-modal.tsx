@@ -17,13 +17,14 @@ import { hasFieldErrors, inputClass, type FieldErrors } from "@/lib/admin/form-v
 import {
   addMinutesToTime,
   buildSchedulePreview,
+  parseScheduledAtForForm,
   toScheduleApiDateTime,
   type SchedulePreview,
 } from "@/lib/admin/notice-schedule-utils";
 import { ThemedDatePicker } from "@/components/ui/themed-date-picker";
 import { ThemedTimePicker } from "@/components/ui/themed-time-picker";
-import { ThemedSelect } from "@/components/ui/themed-select";
 import { NoticeAudienceField } from "@/components/admin/notice-audience-field";
+import { AdminBadge } from "@/components/admin/ui";
 
 export type NoticeFormValues = {
   title: string;
@@ -43,6 +44,15 @@ export type NoticeFormValues = {
   scheduled_at_time: string;
   audience_type: "all" | "selected";
   recipient_user_ids: number[];
+};
+
+const NOTICE_STATUS_META: Record<
+  NoticeFormValues["status"],
+  { tone: "green" | "amber" | "slate"; label: string }
+> = {
+  draft: { tone: "amber", label: "Draft" },
+  published: { tone: "green", label: "Published" },
+  archived: { tone: "slate", label: "Archived" },
 };
 
 const EMPTY_FORM: NoticeFormValues = {
@@ -75,9 +85,7 @@ const CAT_COLORS: Record<string, string> = {
 };
 
 function noticeToForm(notice: Notice): NoticeFormValues {
-  const scheduledAt = notice.scheduled_at ? notice.scheduled_at.slice(0, 19) : "";
-  const scheduledDate = scheduledAt ? scheduledAt.slice(0, 10) : "";
-  const scheduledTime = scheduledAt.includes("T") ? normalizeTimeValue(scheduledAt.slice(11, 16)) : "";
+  const { date: scheduledDate, time: scheduledTime } = parseScheduledAtForForm(notice.scheduled_at);
 
   return {
     title: notice.title ?? "",
@@ -482,8 +490,16 @@ export default function NoticeFormModal({
                   <p className="nl-notice-schedule-hint">{scheduleHint}</p>
                 </div>
                 <div className="nl-notice-schedule-shortcuts">
-                  <ScheduleShortcut label="Today" onClick={() => set("event_date", todayIso())} />
-                  <ScheduleShortcut label="Tomorrow" onClick={() => set("event_date", tomorrowIso())} />
+                  <ScheduleShortcut
+                    label="Today"
+                    active={form.event_date === todayIso()}
+                    onClick={() => set("event_date", todayIso())}
+                  />
+                  <ScheduleShortcut
+                    label="Tomorrow"
+                    active={form.event_date === tomorrowIso()}
+                    onClick={() => set("event_date", tomorrowIso())}
+                  />
                   <ScheduleShortcut
                     label="Clear"
                     muted
@@ -750,16 +766,14 @@ export default function NoticeFormModal({
             </div>
 
             {mode === "edit" ? (
-              <ThemedSelect
-                label="Status"
-                value={form.status}
-                onChange={(v) => set("status", v as NoticeFormValues["status"])}
-                options={[
-                  { value: "draft", label: "Draft" },
-                  { value: "published", label: "Published" },
-                  { value: "archived", label: "Archived" },
-                ]}
-              />
+              <div>
+                <label className="nl-label">Status</label>
+                <div className="mt-1.5">
+                  <AdminBadge tone={NOTICE_STATUS_META[form.status]?.tone ?? "slate"}>
+                    {NOTICE_STATUS_META[form.status]?.label ?? form.status}
+                  </AdminBadge>
+                </div>
+              </div>
             ) : null}
 
             {localError ? (
@@ -846,17 +860,26 @@ function FormToggle({ value, onChange }: { value: boolean; onChange: (v: boolean
 function ScheduleShortcut({
   label,
   onClick,
+  active = false,
   muted = false,
 }: {
   label: string;
   onClick: () => void;
+  active?: boolean;
   muted?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={["nl-schedule-chip", muted ? "nl-schedule-chip--muted" : ""].join(" ")}
+      aria-pressed={active}
+      className={[
+        "nl-schedule-chip",
+        active ? "nl-schedule-chip--active" : "",
+        muted ? "nl-schedule-chip--muted" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       {label}
     </button>

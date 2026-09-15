@@ -9,6 +9,19 @@ export function formatOtpCountdown(totalSeconds) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+export function formatOtpLockCountdown(totalSeconds) {
+  const safe = Math.max(0, totalSeconds);
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const seconds = safe % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  return formatOtpCountdown(safe);
+}
+
 export function useOtpCountdown(initialSeconds = OTP_RESEND_SECONDS) {
   const [secondsLeft, setSecondsLeft] = useState(initialSeconds);
 

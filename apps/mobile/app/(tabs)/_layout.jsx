@@ -1,250 +1,214 @@
-import { Tabs, useRouter } from "expo-router";
-
-import React, { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
-
-import { View, StyleSheet, ActivityIndicator, Platform } from "react-native";
-
-import FloatingNavMenu from "../../components/layout/floating-nav-menu";
-
-import CreateNewModal from "../../components/ui/CreateNewModal";
-
-import { getUser, getToken, clearSession } from "../../services/auth-session";
-
-import { fetchMe } from "../../services/auth-api";
-
-import { canAccessDashboard, isCommunityAdmin, isGuestUser } from "../../services/community-access";
-
-import { getPostAuthRoute, needsCompleteProfile, Routes } from "../../constants/onboarding-routes";
-import { syncRoleFromUser } from "../../constants/role-session";
-
-import { isAccountSuspendedError, loginRouteWithSuspendedNotice, persistBlockedAccountNotice } from "../../utils/auth-errors";
-import {
-  handleGuestAccessScheduleError,
-  handleGuestAccessTerminationError,
-  handleGuestUnauthorized,
-  msUntil,
-  revokeGuestSessionAndRedirect,
-} from "../../utils/guest-access-schedule";
-import ScreenStatusBar from "../../components/layout/screen-status-bar";
-
-function withTimeout(promise, ms) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => {
-      setTimeout(() => reject(new Error("timeout")), ms);
-    }),
-  ]);
-}
-
-export default function TabLayout() {
-  const router = useRouter();
-  const { t } = useTranslation();
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [accessChecked, setAccessChecked] = useState(false);
-  const [communityAdminUser, setCommunityAdminUser] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const goLogin = (suspended = false) => {
-      if (!cancelled) {
-        if (suspended) {
-          router.replace(loginRouteWithSuspendedNotice());
-        } else {
-          router.replace(Routes.LOGIN);
-        }
-      }
-    };
-
-    (async () => {
-      const token = await getToken();
-      if (!token) {
-        goLogin();
-        return;
-      }
-
-      let user = await getUser();
-
-      // Show tabs immediately when cached profile already grants access.
-      if (user && canAccessDashboard(user) && !needsCompleteProfile(user)) {
-        syncRoleFromUser(user);
-        setCommunityAdminUser(isCommunityAdmin(user));
-        setAccessChecked(true);
-
-        withTimeout(fetchMe(), 8000)
-          .then((fresh) => {
-            if (cancelled) return;
-            if (!canAccessDashboard(fresh) || needsCompleteProfile(fresh)) {
-              const route = getPostAuthRoute(fresh);
-              router.replace({ pathname: route.pathname, params: route.params });
-              return;
-            }
-            syncRoleFromUser(fresh);
-            setCommunityAdminUser(isCommunityAdmin(fresh));
-          })
-          .catch(async (err) => {
-            if (cancelled) return;
-            if (await handleGuestAccessTerminationError(err, router)) return;
-            if (await handleGuestAccessScheduleError(err, router)) return;
-            if (await handleGuestUnauthorized(err, router)) return;
-
-            if (err?.status === 401) {
-              await clearSession();
-              goLogin();
-              return;
-            }
-
-            if (isAccountSuspendedError(err)) {
-              await persistBlockedAccountNotice(err);
-              await clearSession();
-              goLogin(true);
-            }
-          });
-        return;
-      }
-
-      try {
-        user = await withTimeout(fetchMe(), 8000);
-      } catch (err) {
-        if (await handleGuestAccessTerminationError(err, router)) return;
-        if (await handleGuestAccessScheduleError(err, router)) return;
-        if (await handleGuestUnauthorized(err, router)) return;
-
-        if (err?.status === 401) {
-          await clearSession();
-          goLogin();
-          return;
-        }
-
-        if (isAccountSuspendedError(err)) {
-          await persistBlockedAccountNotice(err);
-          await clearSession();
-          goLogin(true);
-          return;
-        }
-
-        user = user ?? (await getUser());
-        if (!user) {
-          goLogin();
-          return;
-        }
-      }
-
-      if (cancelled) return;
-
-      if (canAccessDashboard(user) && !needsCompleteProfile(user)) {
-        syncRoleFromUser(user);
-        setCommunityAdminUser(isCommunityAdmin(user));
-        setAccessChecked(true);
-        return;
-      }
-
-      const route = getPostAuthRoute(user);
-      router.replace({ pathname: route.pathname, params: route.params });
-    })();
-
-    return () => { cancelled = true; };
-  }, [router]);
-
-  useEffect(() => {
-    let expiryTimer;
-    let cancelled = false;
-
-    (async () => {
-      const user = await getUser();
-      if (!user || !isGuestUser(user)) return;
-
-      const endsAt = user?.guest_access?.ends_at;
-      const delay = msUntil(endsAt);
-      if (delay == null) return;
-
-      if (delay <= 0) {
-        if (!cancelled) await revokeGuestSessionAndRedirect(router);
-        return;
-      }
-
-      expiryTimer = setTimeout(async () => {
-        if (!cancelled) await revokeGuestSessionAndRedirect(router);
-      }, delay);
-    })();
-
-    return () => {
-      cancelled = true;
-      if (expiryTimer) clearTimeout(expiryTimer);
-    };
-  }, [router]);
-
-  const renderTabBar = (props) => {
-    if (!accessChecked) {
-      return (
-        <View style={styles.guardOverlay} pointerEvents="auto">
-          <ScreenStatusBar style="dark" />
-          <ActivityIndicator size="large" color="#14B8A6" />
-        </View>
-      );
-    }
-
-    const hideNav = props?.style?.display === "none";
-
-    return (
-      <>
-        <ScreenStatusBar style="dark" />
-        {!hideNav ? (
-          <View
-            style={Platform.OS === "ios" ? styles.iosTabDock : undefined}
-            collapsable={false}
-          >
-            <FloatingNavMenu
-              onCreatePress={() => setShowCreateModal(true)}
-              isCommunityAdmin={communityAdminUser}
-            />
-          </View>
-        ) : null}
-        <CreateNewModal
-          visible={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
-          onOpen={() => setShowCreateModal(true)}
-        />
-      </>
-    );
-  };
-
-  return (
-    <Tabs
-      tabBar={renderTabBar}
-      screenOptions={{
-        headerShown: false,
-        tabBarHideOnKeyboard: true,
-      }}
-    >
-      <Tabs.Screen name="home" options={{ title: t("nav.home") }} />
-      <Tabs.Screen name="community" options={{ title: t("nav.community") }} />
-      <Tabs.Screen name="marketplace" options={{ href: null, title: t("nav.marketplace") }} />
-      <Tabs.Screen name="services" options={{ title: t("nav.services") }} />
-      <Tabs.Screen name="profile" options={{ title: t("nav.profile") }} />
-      <Tabs.Screen name="create-post" options={{ href: null }} />
-      <Tabs.Screen name="wellness" options={{ href: null }} />
-      <Tabs.Screen name="notices" options={{ href: null, title: t("nav.updates") }} />
-    </Tabs>
-  );
-}
-
-const styles = StyleSheet.create({
-  guardOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#fff",
-    zIndex: 20,
-  },
-  iosTabDock: {
-    width: "100%",
-    alignSelf: "stretch",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 0,
-    marginHorizontal: 0,
-    paddingHorizontal: 0,
-    overflow: "visible",
-  },
-});
+import { Tabs, useRouter } from "expo-router";
+
+import React, { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+
+import { View, StyleSheet, Platform } from "react-native";
+
+import FloatingNavMenu from "../../components/layout/floating-nav-menu";
+
+import CreateNewModal from "../../components/ui/CreateNewModal";
+
+import { getUser, getToken, clearSession } from "../../services/auth-session";
+
+import { fetchMe } from "../../services/auth-api";
+
+import { canAccessDashboard, isCommunityAdmin, isGuestUser } from "../../services/community-access";
+
+import { getPostAuthRoute, needsCompleteProfile, Routes } from "../../constants/onboarding-routes";
+import { syncRoleFromUser } from "../../constants/role-session";
+
+import { isAccountSuspendedError, loginRouteWithSuspendedNotice, persistBlockedAccountNotice } from "../../utils/auth-errors";
+import {
+  handleGuestAccessScheduleError,
+  handleGuestAccessTerminationError,
+  handleGuestUnauthorized,
+  msUntil,
+  revokeGuestSessionAndRedirect,
+} from "../../utils/guest-access-schedule";
+import ScreenStatusBar from "../../components/layout/screen-status-bar";
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("timeout")), ms);
+    }),
+  ]);
+}
+
+export default function TabLayout() {
+  const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
+  const { t } = useTranslation();
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [communityAdminUser, setCommunityAdminUser] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const goLogin = (suspended = false) => {
+      if (cancelled) return;
+      const nav = routerRef.current;
+      if (suspended) {
+        nav.replace(loginRouteWithSuspendedNotice());
+      } else {
+        nav.replace(Routes.LOGIN);
+      }
+    };
+
+    const applyUser = (user) => {
+      if (!user || cancelled) return;
+      syncRoleFromUser(user);
+      setCommunityAdminUser(isCommunityAdmin(user));
+    };
+
+    const redirectIfBlocked = (user) => {
+      if (!user || cancelled) return false;
+      if (canAccessDashboard(user) && !needsCompleteProfile(user)) {
+        return false;
+      }
+      const route = getPostAuthRoute(user);
+      routerRef.current.replace({ pathname: route.pathname, params: route.params });
+      return true;
+    };
+
+    (async () => {
+      const token = await getToken();
+      if (!token) {
+        goLogin();
+        return;
+      }
+
+      let user = await getUser();
+      applyUser(user);
+
+      try {
+        user = await withTimeout(fetchMe(), 8000);
+        applyUser(user);
+      } catch (err) {
+        const nav = routerRef.current;
+        if (await handleGuestAccessTerminationError(err, nav)) return;
+        if (await handleGuestAccessScheduleError(err, nav)) return;
+        if (await handleGuestUnauthorized(err, nav)) return;
+
+        if (err?.status === 401) {
+          await clearSession();
+          goLogin();
+          return;
+        }
+
+        if (isAccountSuspendedError(err)) {
+          await persistBlockedAccountNotice(err);
+          await clearSession();
+          goLogin(true);
+          return;
+        }
+
+        user = user ?? (await getUser());
+        if (!user) {
+          goLogin();
+          return;
+        }
+      }
+
+      if (cancelled) return;
+
+      if (!user) {
+        goLogin();
+        return;
+      }
+
+      redirectIfBlocked(user);
+    })();
+
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let expiryTimer;
+    let cancelled = false;
+
+    (async () => {
+      const user = await getUser();
+      if (!user || !isGuestUser(user)) return;
+
+      const endsAt = user?.guest_access?.ends_at;
+      const delay = msUntil(endsAt);
+      if (delay == null) return;
+
+      if (delay <= 0) {
+        if (!cancelled) await revokeGuestSessionAndRedirect(routerRef.current);
+        return;
+      }
+
+      expiryTimer = setTimeout(async () => {
+        if (!cancelled) await revokeGuestSessionAndRedirect(routerRef.current);
+      }, delay);
+    })();
+
+    return () => {
+      cancelled = true;
+      if (expiryTimer) clearTimeout(expiryTimer);
+    };
+  }, []);
+
+  const renderTabBar = (props) => {
+    const hideNav = props?.style?.display === "none";
+
+    return (
+      <>
+        <ScreenStatusBar style="dark" />
+        {!hideNav ? (
+          <View
+            style={Platform.OS === "ios" ? styles.iosTabDock : undefined}
+            collapsable={false}
+          >
+            <FloatingNavMenu
+              onCreatePress={() => setShowCreateModal(true)}
+              isCommunityAdmin={communityAdminUser}
+            />
+          </View>
+        ) : null}
+        <CreateNewModal
+          visible={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onOpen={() => setShowCreateModal(true)}
+        />
+      </>
+    );
+  };
+
+  return (
+    <Tabs
+      tabBar={renderTabBar}
+      screenOptions={{
+        headerShown: false,
+        tabBarHideOnKeyboard: true,
+      }}
+    >
+      <Tabs.Screen name="home" options={{ title: t("nav.home") }} />
+      <Tabs.Screen name="community" options={{ title: t("nav.community") }} />
+      <Tabs.Screen name="marketplace" options={{ href: null, title: t("nav.marketplace") }} />
+      <Tabs.Screen name="services" options={{ title: t("nav.services") }} />
+      <Tabs.Screen name="profile" options={{ title: t("nav.profile") }} />
+      <Tabs.Screen name="create-post" options={{ href: null }} />
+      <Tabs.Screen name="wellness" options={{ href: null }} />
+      <Tabs.Screen name="notices" options={{ href: null, title: t("nav.updates") }} />
+    </Tabs>
+  );
+}
+
+const styles = StyleSheet.create({
+  iosTabDock: {
+    width: "100%",
+    alignSelf: "stretch",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 0,
+    marginHorizontal: 0,
+    paddingHorizontal: 0,
+    overflow: "visible",
+  },
+});
+

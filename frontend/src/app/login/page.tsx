@@ -16,6 +16,7 @@ import {
   isCommunityAdminUser,
 } from "@/lib/auth/session";
 import { handleLoginError } from "@/lib/auth/login-error";
+import { ApiError } from "@/lib/api/client";
 import {
   AuthBackLink,
   AuthErrorBanner,
@@ -59,6 +60,7 @@ function LoginPageInner() {
   const [loading, setLoading] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [otpRateLimit, setOtpRateLimit] = useState<unknown>(null);
   const verifyLock = useRef(false);
 
   const emailFieldError = validateEmailField(email);
@@ -124,8 +126,9 @@ function LoginPageInner() {
     setOtp("");
     setOtpSending(true);
     try {
-      const { intent } = await requestCommunityAdminOtp(email.trim(), "login");
+      const { intent, rate_limit } = await requestCommunityAdminOtp(email.trim(), "login");
       setOtpIntent(intent);
+      setOtpRateLimit(rate_limit);
       setOtpStep("code");
     } catch (err) {
       await handleLoginError(err, setError);
@@ -151,7 +154,12 @@ function LoginPageInner() {
       router.replace(next);
     } catch (err) {
       verifyLock.current = false;
-      await handleLoginError(err, setError);
+      if (err instanceof ApiError && err.rateLimit) {
+        setOtpRateLimit(err.rateLimit);
+        setError(err.message);
+      } else {
+        await handleLoginError(err, setError);
+      }
     } finally {
       setLoading(false);
     }
@@ -162,9 +170,15 @@ function LoginPageInner() {
     setError(null);
     setOtpSending(true);
     try {
-      const { intent } = await requestCommunityAdminOtp(email.trim(), "login");
+      const { intent, rate_limit } = await requestCommunityAdminOtp(email.trim(), "login");
       setOtpIntent(intent);
+      return { rate_limit };
     } catch (err) {
+      if (err instanceof ApiError && (err.code?.startsWith("OTP_") ?? false)) {
+        if (err.rateLimit) setOtpRateLimit(err.rateLimit);
+        setError(err.message);
+        return;
+      }
       await handleLoginError(err, setError);
     } finally {
       setOtpSending(false);
@@ -292,6 +306,7 @@ function LoginPageInner() {
                 sending={otpSending}
                 verifying={loading && !redirecting}
                 error={Boolean(error)}
+                initialRateLimit={otpRateLimit}
               />
             )}
 

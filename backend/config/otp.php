@@ -49,4 +49,16 @@ return [
 
     'expire_minutes' => (int) env('OTP_EXPIRE_MINUTES', 5),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Resend / verify rate limits (all OTP verification screens)
+    |--------------------------------------------------------------------------
+    */
+    'resend_cooldown_seconds' => (int) env('OTP_RESEND_COOLDOWN_SECONDS', 60),
+    'max_resends' => (int) env('OTP_MAX_RESENDS', 3),
+    'resend_lock_seconds' => (int) env('OTP_RESEND_LOCK_SECONDS', 900),
+    'wrong_verify_lock_seconds' => (int) env('OTP_WRONG_VERIFY_LOCK_SECONDS', 3600),
+
+    'rate_limit_enabled' => filter_var(env('OTP_RATE_LIMIT_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+
 ];

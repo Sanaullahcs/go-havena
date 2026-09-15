@@ -130,8 +130,12 @@ export default function AdminBookingsPage() {
 
     setBusyId(booking.id);
     try {
-      await rejectBooking(booking.id, result.value || undefined);
+      const reason = String(result.value ?? "").trim() || undefined;
+      await rejectBooking(booking.id, reason);
       toastSuccess("Booking declined.");
+      if (viewing?.id === booking.id) {
+        setViewing({ ...viewing, status: "rejected", rejection_reason: reason ?? null });
+      }
       await load(true);
     } catch (err) {
       toastError(apiError(err));

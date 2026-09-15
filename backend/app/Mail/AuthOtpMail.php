@@ -31,12 +31,12 @@ class AuthOtpMail extends Mailable
             html: 'emails.transactional-html',
             text: 'emails.transactional-text',
             with: array_merge(EmailBrand::viewData(), [
-                'preheader' => 'Your Havena verification code expires in 5 minutes.',
+                'preheader' => 'Your verification code expires in 5 minutes. Use it to sign in to Havena.',
                 'eyebrow' => 'Verification',
                 'heading' => 'Your verification code',
-                'intro' => 'Use this code to continue in Havena.',
+                'intro' => 'Use the verification code below to continue signing in to Havena.',
                 'paragraphs' => [
-                    'This code expires in 5 minutes. If you did not request it, you can ignore this email.',
+                    'This code will expire in 5 minutes. If you did not request this code, please ignore this email.',
                 ],
                 'details' => [],
                 'highlightCode' => $this->code,

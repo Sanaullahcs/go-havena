@@ -142,10 +142,15 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
     };
   }, [pathname]);
 
+  const isGuest = Boolean(guestUser && isGuestUser(guestUser));
+
   const filterTabs = useCallback(
     (tabs) => {
-      if (!guestUser || !isGuestUser(guestUser)) return tabs;
+      if (!isGuest) return tabs;
       return tabs.filter((item) => {
+        if (item.name === "home") {
+          return true;
+        }
         if (item.name === "community") {
           return (
             guestCanAccessFeature(guestUser, "feed") ||
@@ -157,7 +162,7 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
         return guestCanAccessFeature(guestUser, permissionKey);
       });
     },
-    [guestUser],
+    [guestUser, isGuest],
   );
 
   const leftTabs = useMemo(
@@ -244,10 +249,16 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
     );
   };
 
+  const leftSpacerCount = Math.max(0, 2 - leftTabs.length);
+  const rightSpacerCount = Math.max(0, 2 - rightTabs.length);
+
   return (
     <View style={[styles.bar, { paddingBottom: bottomPad }]}>
       <View style={styles.barContent}>
         {leftTabs.map(renderTab)}
+        {Array.from({ length: leftSpacerCount }).map((_, index) => (
+          <View key={`left-spacer-${index}`} style={styles.tabSpacer} />
+        ))}
 
         <Pressable
           style={[styles.fabTab, Platform.OS === "ios" && styles.fabTabIos]}
@@ -266,6 +277,9 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
           <Text style={styles.fabLabel}>{t("nav.create")}</Text>
         </Pressable>
 
+        {Array.from({ length: rightSpacerCount }).map((_, index) => (
+          <View key={`right-spacer-${index}`} style={styles.tabSpacer} />
+        ))}
         {rightTabs.map(renderTab)}
       </View>
     </View>
@@ -299,6 +313,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: sw(5),
+  },
+  tabSpacer: {
+    flex: 1,
   },
   label: {
     marginTop: sw(2),

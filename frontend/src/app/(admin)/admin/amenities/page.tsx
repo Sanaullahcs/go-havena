@@ -301,9 +301,14 @@ export default function AdminAmenitiesPage() {
 
     setSubmitting(true);
     try {
-      await rejectAmenity(amenity.id, result.value || undefined);
+      const reason = String(result.value ?? "").trim() || undefined;
+      await rejectAmenity(amenity.id, reason);
       toastSuccess("Amenity rejected.");
-      setViewing(null);
+      if (viewing?.id === amenity.id) {
+        setViewing({ ...viewing, review_status: "rejected", rejection_reason: reason ?? null });
+      } else {
+        setViewing(null);
+      }
       await load(true);
     } catch (err) {
       toastError(apiError(err));
@@ -356,8 +361,12 @@ export default function AdminAmenitiesPage() {
 
     setBusyBookingId(booking.id);
     try {
-      await rejectBooking(booking.id, result.value || undefined);
+      const reason = String(result.value ?? "").trim() || undefined;
+      await rejectBooking(booking.id, reason);
       toastSuccess("Booking rejected.");
+      if (viewingBooking?.id === booking.id) {
+        setViewingBooking({ ...viewingBooking, status: "rejected", rejection_reason: reason ?? null });
+      }
       await load(true);
     } catch (err) {
       toastError(apiError(err));
@@ -596,13 +605,17 @@ export default function AdminAmenitiesPage() {
                   </DtCell>
                   <DtCell>
                     <div className="flex flex-wrap gap-1.5">
-                      {amenity.user_has_upcoming_booking ? (
+                      {statusFilter === "my_bookings" && amenity.user_has_upcoming_booking ? (
                         <AdminBadge tone={bookingStatusBadge(amenity.user_next_booking_status).tone}>
                           {bookingStatusBadge(amenity.user_next_booking_status).label}
                         </AdminBadge>
                       ) : null}
-                      {review ? <AdminBadge tone={review.tone}>{review.label}</AdminBadge> : null}
-                      <AdminBadge tone={status.tone}>{status.label}</AdminBadge>
+                      {statusFilter !== "my_bookings" && review ? (
+                        <AdminBadge tone={review.tone}>{review.label}</AdminBadge>
+                      ) : null}
+                      {statusFilter !== "my_bookings" ? (
+                        <AdminBadge tone={status.tone}>{status.label}</AdminBadge>
+                      ) : null}
                     </div>
                   </DtCell>
                   <DtCell>{amenity.creator_name || "—"}</DtCell>

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Community;
 use App\Models\CommunityMembership;
 use App\Models\CommunitySubscription;
+use App\Models\Profile;
 use App\Models\ReferralAttribution;
 use App\Models\Region;
 use App\Models\SubscriptionCoupon;
@@ -99,16 +100,34 @@ class CommunityAdminBillingLifecycleTest extends TestCase
         ], $overrides));
     }
 
+    private function completeAdminProfile(User $user): void
+    {
+        $profile = Profile::query()->firstOrNew(['user_id' => $user->id]);
+        $profile->fill([
+            'display_name' => $user->name ?: 'Replacement Admin',
+            'unit_number' => 'B1',
+            'utility_bill_url' => 'https://example.com/utility-bill.pdf',
+            'utility_bill_review_status' => 'approved',
+        ]);
+        $profile->created_at = now()->subDay();
+        $profile->updated_at = now();
+        $profile->save();
+    }
+
     private function assignReplacement(Community $community, array $payload = []): User
     {
         $this->asSystem();
-        $this->postJson("/api/v1/admin/communities/{$community->id}/assign-admin", array_merge([
+        $merged = array_merge([
             'name' => 'Replacement Admin',
             'email' => 'replacement.admin@example.com',
             'phone' => '+201555000888',
-        ], $payload))->assertOk();
+        ], $payload);
+        $this->postJson("/api/v1/admin/communities/{$community->id}/assign-admin", $merged)->assertOk();
 
-        return User::query()->where('email', $payload['email'] ?? 'replacement.admin@example.com')->firstOrFail();
+        $replacement = User::query()->where('email', $merged['email'])->firstOrFail();
+        $this->completeAdminProfile($replacement);
+
+        return $replacement;
     }
 
     public function test_active_admin_has_full_dashboard_and_billing_access(): void

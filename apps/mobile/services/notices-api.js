@@ -9,7 +9,7 @@ import {
   isNoticeExpiredForHome,
   isCarouselNotice,
 } from "../utils/notice-home-expiry";
-import i18n from "../i18n";
+import i18n, { localizedField } from "../i18n";
 import { getLocaleForLang } from "../hooks/use-app-locale";
 
 export { isNoticeExpiredForHome, isCarouselNotice };
@@ -143,6 +143,32 @@ export function formatEventSchedule(notice) {
   const timeRange = formatEventTimeRange(notice);
   if (timeRange) parts.push(timeRange);
   return parts.join(" · ");
+}
+
+/** Plain-text preview used when sharing an event to a neighbor in Messages. */
+export function formatEventShareMessage(event, t) {
+  if (!event) return "";
+
+  const title = localizedField(event, "title") || event.title || "";
+  const body = localizedField(event, "body") || event.body || "";
+  const schedule = formatEventSchedule({
+    event_date: event.eventDate ?? event.event_date,
+    event_time: event.eventTime ?? event.event_time,
+    event_time_end: event.eventTimeEnd ?? event.event_time_end,
+  });
+  const location = event.location?.trim();
+  const bodyPreview = body.trim()
+    ? (body.trim().length > 280 ? `${body.trim().slice(0, 280)}…` : body.trim())
+    : "";
+
+  const lines = [
+    title ? t("events.shareMessageHeader", { title }) : t("events.shareMessageFallback"),
+    schedule || null,
+    location ? `${t("events.location")}: ${location}` : null,
+    bodyPreview || null,
+  ].filter(Boolean);
+
+  return lines.join("\n\n");
 }
 
 /** True when admin set an event/notice schedule (not publish time). */

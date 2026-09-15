@@ -12,6 +12,7 @@ use App\Services\ActivityLogService;
 use App\Services\CommunityLifecycleService;
 use App\Services\LoginStreakService;
 use App\Services\ContactIdentityService;
+use App\Services\OtpRateLimitService;
 use App\Services\OtpService;
 use App\Services\PointsRewardService;
 use App\Services\LifecycleMailService;
@@ -20,7 +21,6 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 
 class OtpController extends Controller
@@ -63,21 +63,16 @@ class OtpController extends Controller
             $this->assertEmailAvailableForSignup($user);
         }
 
-        $key = 'otp-request:'.($request->ip() ?? 'unknown');
-        if (RateLimiter::tooManyAttempts($key, 5)) {
-            return response()->json([
-                'message' => 'Too many OTP requests. Please try again later.',
-                'code' => 'RATE_LIMITED',
-            ], 429);
-        }
-        RateLimiter::hit($key, 60);
-
+        $rateLimit = app(OtpRateLimitService::class);
+        $rateLimit->assertCanRequest($email);
         $otp->send($email);
+        $limits = $rateLimit->recordRequest($email);
 
         return response()->json([
             'data' => [
                 'message' => 'OTP dispatched',
                 'email' => $email,
+                'rate_limit' => $limits,
             ],
         ], 202);
     }
@@ -119,9 +114,15 @@ class OtpController extends Controller
             $this->assertEmailAvailableForSignup($user);
         }
 
+        $rateLimit = app(OtpRateLimitService::class);
+        $rateLimit->assertCanVerify($email);
+
         if (! $otp->verify($email, $validated['code'])) {
+            $rateLimit->recordFailedVerify($email);
             $this->failValidation('code', 'Invalid or expired verification code.', 'INVALID_OTP');
         }
+
+        $rateLimit->clear($email);
 
         if ($intent === 'login') {
             $user->update([

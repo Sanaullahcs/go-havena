@@ -62,11 +62,16 @@ export async function rejectGuestInvitation(id, reason) {
 }
 
 export async function requestGuestOtp(email) {
-  return apiRequest("/auth/guest/otp/request", {
+  const response = await apiRequest("/auth/guest/otp/request", {
     method: "POST",
     body: { email: String(email ?? "").trim().toLowerCase() },
     auth: false,
   });
+
+  return {
+    ...(response?.data ?? {}),
+    rate_limit: response?.data?.rate_limit ?? null,
+  };
 }
 
 export async function verifyGuestOtp(email, code) {

@@ -103,6 +103,51 @@ export function buildSchedulePreview(
   return { headline, timeRange, duration, overnight };
 }
 
+/**
+ * Parse API scheduled_at into local date/time strings for form pickers.
+ * Handles ISO-8601, MySQL "YYYY-MM-DD HH:mm:ss", and UTC offsets.
+ */
+export function parseScheduledAtForForm(scheduledAt?: string | null): { date: string; time: string } {
+  if (!scheduledAt) return { date: "", time: "" };
+
+  const str = String(scheduledAt).trim();
+  if (!str) return { date: "", time: "" };
+
+  let date: Date | null = null;
+
+  if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(str)) {
+    const withZone = new Date(str);
+    if (!Number.isNaN(withZone.getTime())) date = withZone;
+  }
+
+  if (!date) {
+    const mysqlMatch = str.match(
+      /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?$/,
+    );
+    if (mysqlMatch) {
+      const [, y, mo, d, h, mi, s = "0"] = mysqlMatch;
+      date = new Date(
+        Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s)),
+      );
+    }
+  }
+
+  if (!date) {
+    const iso = str.includes("T") ? str : str.replace(" ", "T");
+    const parsed = new Date(
+      iso.endsWith("Z") || /[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`,
+    );
+    if (!Number.isNaN(parsed.getTime())) date = parsed;
+  }
+
+  if (!date) return { date: "", time: "" };
+
+  return {
+    date: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`,
+    time: `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`,
+  };
+}
+
 /** Convert local publish date/time pickers to ISO UTC for the API. */
 export function toScheduleApiDateTime(date: string, time: string): string | undefined {
   if (!date.trim() || !time.trim()) return undefined;

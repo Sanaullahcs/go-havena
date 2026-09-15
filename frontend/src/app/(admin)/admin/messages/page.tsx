@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChatShell, type ChatConversation, type ChatMessage } from "@/components/shared/chat";
 import { AdminNewChatSheet } from "@/components/admin/admin-new-chat-sheet";
 import {
@@ -53,6 +53,7 @@ function toChatMessage(msg: { id: number; sender_id: number; sender_name: string
 }
 
 export default function AdminMessagesPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const conversationParam = searchParams.get("conversation");
   const requestedConversationId = conversationParam ? Number(conversationParam) : null;
@@ -184,6 +185,14 @@ export default function AdminMessagesPage() {
     }
   };
 
+  const handleCloseChat = () => {
+    setActiveId(null);
+    setListingContext(null);
+    if (conversationParam) {
+      router.replace("/admin/messages");
+    }
+  };
+
   const handleStartChat = async (member: CommunityMember) => {
     setNewChatOpen(false);
     try {
@@ -248,6 +257,7 @@ export default function AdminMessagesPage() {
         sending={sending}
         threadSubtitle={listingContext}
         hideHeaderActions
+        onClose={handleCloseChat}
         emptyListText={
           conversations.length === 0 && !loadingList && !listError
             ? "No conversations yet."

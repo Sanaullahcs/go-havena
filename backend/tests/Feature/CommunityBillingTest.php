@@ -9,6 +9,7 @@ use App\Models\Region;
 use App\Models\User;
 use App\Services\CommunityBillingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class CommunityBillingTest extends TestCase
@@ -491,6 +492,83 @@ class CommunityBillingTest extends TestCase
             'community_id' => $community->id,
             'status' => CommunitySubscription::STATUS_CANCELED,
         ]);
+    }
+
+    public function test_reject_before_trial_starts_does_not_mark_trial_consumed(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true]);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedAdmin($community);
+
+        CommunitySubscription::query()->create([
+            'community_id' => $community->id,
+            'plan_slug' => 'growth',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_PENDING_TRIAL,
+            'seat_limit' => 150,
+            'stripe_customer_id' => 'cus_pending_before_revoke',
+            'meta' => ['card_on_file' => true],
+        ]);
+
+        $system = User::factory()->create([
+            'role' => 'system_admin',
+            'email' => fake()->unique()->safeEmail(),
+            'phone' => '+1'.fake()->unique()->numerify('##########'),
+        ]);
+
+        $this->actingAs($system, 'sanctum')
+            ->patchJson("/api/v1/admin/community-admins/{$admin->id}/reject")
+            ->assertOk();
+
+        $subscription = CommunitySubscription::query()->where('community_id', $community->id)->first();
+        $this->assertFalse($subscription?->hasConsumedTrial());
+        $this->assertSame(CommunitySubscription::STATUS_CANCELED, $subscription?->status);
+    }
+
+    public function test_reject_before_trial_starts_then_reapprove_grants_trial(): void
+    {
+        config([
+            'billing.enabled' => true,
+            'billing.enforce' => true,
+            'billing.driver' => 'manual',
+            'billing.trial_period_days' => 30,
+        ]);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedAdmin($community);
+
+        CommunitySubscription::query()->create([
+            'community_id' => $community->id,
+            'plan_slug' => 'growth',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_PENDING_TRIAL,
+            'seat_limit' => 150,
+            'stripe_customer_id' => 'cus_reapprove_trial',
+            'meta' => ['card_on_file' => true, 'payment_method_id' => 'pm_reapprove_trial'],
+        ]);
+
+        $system = User::factory()->create([
+            'role' => 'system_admin',
+            'email' => fake()->unique()->safeEmail(),
+            'phone' => '+1'.fake()->unique()->numerify('##########'),
+        ]);
+
+        $this->actingAs($system, 'sanctum')
+            ->patchJson("/api/v1/admin/community-admins/{$admin->id}/reject")
+            ->assertOk();
+
+        $this->actingAs($system, 'sanctum')
+            ->patchJson("/api/v1/admin/community-admins/{$admin->id}/approve")
+            ->assertOk()
+            ->assertJsonPath('message', 'Community admin re-approved');
+
+        Sanctum::actingAs($admin);
+        $this->getJson('/api/v1/admin/billing')
+            ->assertOk()
+            ->assertJsonPath('data.trial_period_days', 30)
+            ->assertJsonPath('data.subscription.trial_consumed', false)
+            ->assertJsonPath('data.subscription.status', CommunitySubscription::STATUS_UNPAID);
     }
 
     public function test_reject_after_trial_marks_trial_consumed(): void

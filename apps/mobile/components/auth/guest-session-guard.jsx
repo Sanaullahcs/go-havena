@@ -6,6 +6,7 @@ import { getUser, setGuestSessionTerminatedHandler } from "../../services/auth-s
 import { isGuestUser } from "../../services/community-access";
 import {
   enforceGuestAccessFromUser,
+  guestRejectedStatusRoute,
   handleGuestAccessTerminationError,
   handleGuestUnauthorized,
 } from "../../utils/guest-access-schedule";
@@ -23,6 +24,11 @@ export default function GuestSessionGuard() {
     if (!navigationReady) return undefined;
 
     setGuestSessionTerminatedHandler((notice) => {
+      if (notice === "GUEST_ACCESS_REJECTED") {
+        router.replace(guestRejectedStatusRoute({ code: "GUEST_ACCESS_REJECTED" }));
+        return;
+      }
+
       router.replace({
         pathname: "/screens/guest-login",
         params: notice ? { notice } : {},

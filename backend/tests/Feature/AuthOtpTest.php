@@ -316,7 +316,7 @@ class AuthOtpTest extends TestCase
             ->assertJsonPath('code', 'INVALID_OTP');
     }
 
-    public function test_configured_master_otp_works_only_for_allowlisted_email_after_expiry(): void
+    public function test_configured_master_otp_respects_expiry_for_allowlisted_email(): void
     {
         $reviewer = 'test.resident@havena.app';
 
@@ -331,8 +331,6 @@ class AuthOtpTest extends TestCase
             'intent' => 'login',
         ])->assertStatus(202);
 
-        $this->travel(30)->minutes();
-
         $this->postJson('/api/v1/auth/otp/verify', [
             'email' => $reviewer,
             'code' => '123456',
@@ -340,17 +338,44 @@ class AuthOtpTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('user.email', $reviewer);
 
-        $other = 'real.user@example.com';
-
         $this->postJson('/api/v1/auth/otp/request', [
-            'email' => $other,
-            'intent' => 'signup',
+            'email' => $reviewer,
+            'intent' => 'login',
         ])->assertStatus(202);
 
         $this->travel(30)->minutes();
 
         $this->postJson('/api/v1/auth/otp/verify', [
+            'email' => $reviewer,
+            'code' => '123456',
+            'intent' => 'login',
+        ])->assertStatus(422)
+            ->assertJsonPath('code', 'INVALID_OTP');
+
+        $other = 'real.user@example.com';
+
+        $this->postJson('/api/v1/auth/otp/verify', [
             'email' => $other,
+            'code' => '123456',
+            'intent' => 'signup',
+            'role' => 'resident',
+        ])->assertStatus(422)
+            ->assertJsonPath('code', 'INVALID_OTP');
+    }
+
+    public function test_issued_otp_rejected_after_five_minutes(): void
+    {
+        $email = 'fresh.otp@example.com';
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email' => $email,
+            'intent' => 'signup',
+        ])->assertStatus(202);
+
+        $this->travel(6)->minutes();
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'email' => $email,
             'code' => '123456',
             'intent' => 'signup',
             'role' => 'resident',
@@ -405,8 +430,8 @@ class AuthOtpTest extends TestCase
             'email' => $admin,
             'code' => '221322',
             'intent' => 'login',
-        ])->assertOk()
-            ->assertJsonPath('user.email', $admin);
+        ])->assertStatus(422)
+            ->assertJsonPath('code', 'INVALID_OTP');
 
         $this->postJson('/api/v1/auth/otp/verify', [
             'email' => $resident,
@@ -464,7 +489,7 @@ class AuthOtpTest extends TestCase
             'email' => $email,
             'code' => '221322',
             'intent' => 'login',
-        ])->assertOk()
-            ->assertJsonPath('user.email', $email);
+        ])->assertStatus(422)
+            ->assertJsonPath('code', 'INVALID_OTP');
     }
 }

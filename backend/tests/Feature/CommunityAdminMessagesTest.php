@@ -127,4 +127,49 @@ class CommunityAdminMessagesTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.unread_count', 1);
     }
+
+    public function test_message_timestamps_are_returned_as_utc_iso8601(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityAdminInbox();
+
+        Sanctum::actingAs($admin);
+
+        $create = $this->withHeader('X-Community-Id', (string) $community->id)
+            ->postJson('/api/v1/conversations', [
+                'recipient_id' => $resident->id,
+                'message'      => 'Hello from admin',
+            ])
+            ->assertCreated();
+
+        $conversationId = (int) $create->json('data.conversation_id');
+        $createdAt = $create->json('data.message.created_at');
+
+        $this->assertIsString($createdAt);
+        $this->assertMatchesRegularExpression(
+            '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/',
+            $createdAt,
+        );
+
+        $list = $this->withHeader('X-Community-Id', (string) $community->id)
+            ->getJson('/api/v1/conversations')
+            ->assertOk();
+
+        $conversation = collect($list->json('data'))->firstWhere('id', $conversationId);
+        $this->assertIsArray($conversation);
+        $this->assertMatchesRegularExpression(
+            '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/',
+            $conversation['last_message_at'],
+        );
+
+        $thread = $this->withHeader('X-Community-Id', (string) $community->id)
+            ->getJson("/api/v1/conversations/{$conversationId}/messages")
+            ->assertOk();
+
+        $messageCreatedAt = $thread->json('data.0.created_at');
+        $this->assertIsString($messageCreatedAt);
+        $this->assertMatchesRegularExpression(
+            '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/',
+            $messageCreatedAt,
+        );
+    }
 }

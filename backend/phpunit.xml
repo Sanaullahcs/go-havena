@@ -33,5 +33,6 @@
         <env name="BILLING_ENFORCE_SEATS" value="false"/>
         <env name="BILLING_DRIVER" value="manual"/>
         <env name="OTP_FIXED_CODE" value="123456"/>
+        <env name="OTP_RATE_LIMIT_ENABLED" value="false"/>
     </php>
 </phpunit>

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Community;
 use App\Models\CommunityMembership;
 use App\Models\CommunitySubscription;
+use App\Models\Profile;
 use App\Models\Region;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
@@ -92,6 +93,20 @@ class CommunityAdminBillingReassignTest extends TestCase
         return $system;
     }
 
+    private function completeAdminProfile(User $user): void
+    {
+        $profile = Profile::query()->firstOrNew(['user_id' => $user->id]);
+        $profile->fill([
+            'display_name' => $user->name ?: 'New Admin',
+            'unit_number' => 'B1',
+            'utility_bill_url' => 'https://example.com/utility-bill.pdf',
+            'utility_bill_review_status' => 'approved',
+        ]);
+        $profile->created_at = now()->subDay();
+        $profile->updated_at = now();
+        $profile->save();
+    }
+
     private function assignReplacement(Community $community): User
     {
         $this->asSystem();
@@ -101,7 +116,10 @@ class CommunityAdminBillingReassignTest extends TestCase
             'phone' => '+201555000999',
         ])->assertOk();
 
-        return User::query()->where('email', 'new.admin@example.com')->firstOrFail();
+        $replacement = User::query()->where('email', 'new.admin@example.com')->firstOrFail();
+        $this->completeAdminProfile($replacement);
+
+        return $replacement;
     }
 
     public function test_suspend_pauses_billing_for_leftover_subscription_days(): void
@@ -156,9 +174,14 @@ class CommunityAdminBillingReassignTest extends TestCase
         ])->assertCreated();
     }
 
-    public function test_pending_trial_suspend_requires_card_immediately(): void
+    public function test_pending_trial_suspend_grants_full_trial_leftover_to_replacement(): void
     {
-        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+        config([
+            'billing.enabled' => true,
+            'billing.enforce' => true,
+            'billing.driver' => 'manual',
+            'billing.trial_period_days' => 30,
+        ]);
 
         $community = $this->seedCommunity();
         $admin = $this->seedAdmin($community);
@@ -176,17 +199,21 @@ class CommunityAdminBillingReassignTest extends TestCase
 
         $subscription = CommunitySubscription::query()->where('community_id', $community->id)->firstOrFail();
         $this->assertTrue($subscription->isAdminTransition());
-        $this->assertFalse($subscription->hasLeftoverService());
-        $this->assertSame(CommunitySubscription::STATUS_UNPAID, $subscription->status);
+        $this->assertTrue($subscription->hasLeftoverService());
+        $this->assertSame(CommunitySubscription::STATUS_GRACE, $subscription->status);
+        $this->assertTrue($subscription->hasConsumedTrial());
+        $this->assertTrue($subscription->grace_ends_at?->isSameDay(now()->addDays(30)));
 
         $replacement = $this->assignReplacement($community);
         Sanctum::actingAs($replacement);
         $this->getJson('/api/v1/me')
             ->assertOk()
-            ->assertJsonPath('data.access.billing_complete', false)
-            ->assertJsonPath('data.access.can_use_dashboard', false)
-            ->assertJsonPath('data.access.requires_replacement_card', true)
-            ->assertJsonPath('data.access.next_step', 'complete_billing_web');
+            ->assertJsonPath('data.access.billing_complete', true)
+            ->assertJsonPath('data.access.can_use_dashboard', true)
+            ->assertJsonPath('data.access.has_leftover_service', true)
+            ->assertJsonPath('data.access.card_on_file', false)
+            ->assertJsonPath('data.access.requires_replacement_card', false)
+            ->assertJsonPath('data.access.next_step', 'ready');
     }
 
     public function test_leftover_expiry_requires_replacement_card_and_allows_plan_choice(): void

@@ -48,6 +48,7 @@ export function ChatShell({
   sending = false,
   threadSubtitle,
   hideHeaderActions = false,
+  onClose,
 }: {
   myId: number;
   myName: string;
@@ -65,6 +66,7 @@ export function ChatShell({
   sending?: boolean;
   threadSubtitle?: string | null;
   hideHeaderActions?: boolean;
+  onClose?: () => void;
 }) {
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState("");
@@ -184,10 +186,19 @@ export function ChatShell({
                 {threadSubtitle || active.participant.role}
               </p>
             </div>
-            {!hideHeaderActions ? (
+            {onClose || !hideHeaderActions ? (
               <div className="flex items-center gap-1">
-                <HeaderBtn title="Call"><IcoPhone /></HeaderBtn>
-                <HeaderBtn title="Info"><IcoInfo /></HeaderBtn>
+                {!hideHeaderActions ? (
+                  <>
+                    <HeaderBtn title="Call"><IcoPhone /></HeaderBtn>
+                    <HeaderBtn title="Info"><IcoInfo /></HeaderBtn>
+                  </>
+                ) : null}
+                {onClose ? (
+                  <HeaderBtn title="Close conversation" onClick={onClose}>
+                    <IcoClose />
+                  </HeaderBtn>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -298,10 +309,23 @@ function Avatar({
   return <UserAvatar name={name} src={src} size={size} color={color} />;
 }
 
-function HeaderBtn({ children, title }: { children: React.ReactNode; title: string }) {
+function HeaderBtn({
+  children,
+  title,
+  onClick,
+}: {
+  children: React.ReactNode;
+  title: string;
+  onClick?: () => void;
+}) {
   return (
-    <button type="button" title={title}
-      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-600 [&_svg]:h-4 [&_svg]:w-4">
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-600 [&_svg]:h-4 [&_svg]:w-4"
+    >
       {children}
     </button>
   );
@@ -314,3 +338,4 @@ function IcoSend()   { return <svg viewBox="0 0 24 24" fill="none"><path d="M22 
 function IcoMsg()    { return <svg viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg>; }
 function IcoPhone()  { return <svg viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 01-2.18 2A19.79 19.79 0 012 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/></svg>; }
 function IcoInfo()   { return <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.7"/><path d="M12 11v5M12 8h.01" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>; }
+function IcoClose()  { return <svg viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>; }

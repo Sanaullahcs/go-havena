@@ -22,11 +22,13 @@ const nl = Swal.mixin({
     denyButton:        "nl-swal-deny",
     actions:           "nl-swal-actions",
     icon:              "nl-swal-icon",
+    container:         "nl-swal-container",
   },
   buttonsStyling: false,
   reverseButtons: true,
-  showClass: { popup: "nl-swal-show" },
-  hideClass: { popup: "nl-swal-hide" },
+  backdrop: "rgba(15, 23, 42, 0.42)",
+  showClass: { popup: "nl-swal-show", backdrop: "nl-swal-backdrop-show" },
+  hideClass: { popup: "nl-swal-hide", backdrop: "nl-swal-backdrop-hide" },
 });
 
 /* ─── Confirm (destructive) ─── */
@@ -109,16 +111,31 @@ export async function confirmRejectWithReason(opts: {
         <p class="nl-swal-reject-intro">${intro}</p>
         <div class="nl-swal-reject-field">
           <label class="nl-swal-reject-label" for="nl-swal-reject-reason">
-            Rejection reason <span class="nl-swal-required">Required</span>
+            Rejection reason <span class="nl-swal-required-asterisk" aria-hidden="true">*</span>
           </label>
-          <textarea
-            id="nl-swal-reject-reason"
-            class="nl-swal-textarea"
-            maxlength="${maxLength}"
-            rows="4"
-            placeholder="Explain why this request was declined…"
-            aria-label="Rejection reason"
-          ></textarea>
+          <div class="nl-swal-textarea-wrap">
+            <textarea
+              id="nl-swal-reject-reason"
+              class="nl-swal-textarea"
+              maxlength="${maxLength}"
+              rows="4"
+              placeholder="Explain why this request was declined…"
+              aria-label="Rejection reason"
+              aria-required="true"
+            ></textarea>
+            <button
+              type="button"
+              id="nl-swal-reject-clear"
+              class="nl-swal-textarea-clear"
+              aria-label="Clear rejection reason"
+              title="Clear"
+              hidden
+            >
+              <svg viewBox="0 0 24 24" fill="none" width="14" height="14" aria-hidden="true">
+                <path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
           <div class="nl-swal-input-footer">
             <span class="nl-swal-input-hint">Shown to the applicant in the mobile app</span>
             <span class="nl-swal-char-count" aria-live="polite">
@@ -144,6 +161,7 @@ export async function confirmRejectWithReason(opts: {
     reverseButtons: true,
     didOpen: () => {
       const textarea = document.getElementById("nl-swal-reject-reason") as HTMLTextAreaElement | null;
+      const clearBtn = document.getElementById("nl-swal-reject-clear") as HTMLButtonElement | null;
       const counter = document.getElementById("nl-swal-char-current");
       const confirmBtn = Swal.getConfirmButton();
 
@@ -151,11 +169,19 @@ export async function confirmRejectWithReason(opts: {
         const raw = textarea?.value ?? "";
         const trimmed = raw.trim();
         if (counter) counter.textContent = String(raw.length);
+        if (clearBtn) clearBtn.hidden = raw.length === 0;
         if (confirmBtn) {
           confirmBtn.disabled = trimmed.length < 3;
           confirmBtn.classList.toggle("nl-swal-confirm--disabled", trimmed.length < 3);
         }
       };
+
+      clearBtn?.addEventListener("click", () => {
+        if (!textarea) return;
+        textarea.value = "";
+        sync();
+        textarea.focus();
+      });
 
       textarea?.addEventListener("input", sync);
       sync();
@@ -189,15 +215,22 @@ function escapeAlertHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
+const TOAST_ICONS = {
+  success: `<span class="nl-toast-badge nl-toast-badge--success" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`,
+  error: `<span class="nl-toast-badge nl-toast-badge--error" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span>`,
+  warning: `<span class="nl-toast-badge nl-toast-badge--warning" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`,
+  info: `<span class="nl-toast-badge nl-toast-badge--info" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M12 16v-4m0-4h.01M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`,
+} as const;
+
 const Toast = Swal.mixin({
   toast: true,
   position: "top-end",
   showConfirmButton: false,
-  timer: 3800,
+  timer: 4200,
   timerProgressBar: true,
   buttonsStyling: false,
-  showClass:  { popup: "nl-toast-show"  },
-  hideClass:  { popup: "nl-toast-hide"  },
+  showClass: { popup: "nl-toast-show" },
+  hideClass: { popup: "nl-toast-hide" },
 });
 
 function fireToast(
@@ -207,13 +240,14 @@ function fireToast(
 ) {
   return Toast.fire({
     icon: kind,
+    iconHtml: TOAST_ICONS[kind],
     title: msg,
     text: detail,
     customClass: {
       popup: `nl-swal-toast nl-swal-toast--${kind}`,
       title: "nl-toast-title",
       htmlContainer: "nl-toast-detail",
-      icon: `nl-toast-icon nl-toast-icon--${kind}`,
+      icon: "nl-toast-icon",
       timerProgressBar: "nl-toast-bar",
     },
   });

@@ -34,6 +34,7 @@ export type GuestInvitation = {
   starts_at: string;
   ends_at: string;
   status: GuestStatus;
+  rejection_reason?: string | null;
   permissions?: GuestPermissions;
   guest_user_id?: number | null;
   last_activity_at?: string | null;

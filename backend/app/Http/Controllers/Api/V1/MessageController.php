@@ -10,6 +10,7 @@ use App\Services\UserBlockService;
 use App\Support\MediaUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class MessageController extends Controller
@@ -497,7 +498,7 @@ class MessageController extends Controller
             'unread_count'      => (int) ($row->unread_count ?? 0),
             'last_message'      => $row->last_message,
             'last_message_type' => $row->last_message_type,
-            'last_message_at'   => $row->last_message_at,
+            'last_message_at'   => $this->formatUtcTimestamp($row->last_message_at),
             'listing'           => $listing,
         ];
     }
@@ -574,10 +575,20 @@ class MessageController extends Controller
             'content'     => $row->body,
             'type'        => $row->type,
             'metadata'    => is_array($metadata) ? $metadata : null,
-            'created_at'  => $row->created_at,
+            'created_at'  => $this->formatUtcTimestamp($row->created_at),
             'sender_id'   => (int) $row->sender_id,
             'sender_name' => $row->sender_name,
         ];
+    }
+
+    /** Serialize DB datetimes as UTC ISO-8601 for correct client-side local display. */
+    private function formatUtcTimestamp(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return Carbon::parse($value)->utc()->toIso8601String();
     }
 
     private function formatListingContext(object $row): ?array

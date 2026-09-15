@@ -24,7 +24,9 @@ import { normalizeInviteCode } from "../../../utils/guest-invite";
 import { requestGuestOtp, verifyGuestOtp, verifyGuestInvite } from "../../../services/guests-api";
 import { setSession } from "../../../services/auth-session";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
-import { useOtpCountdown } from "../../../hooks/use-otp-countdown";
+import { useOtpResendLimit } from "../../../hooks/use-otp-resend-limit";
+import OtpResendFooter from "../../../components/auth/otp-resend-footer";
+import { extractOtpRateLimitFromResponse } from "../../../utils/otp-rate-limit";
 import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { handleAuthApiError } from "../../../utils/auth-errors";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
@@ -86,7 +88,13 @@ export default function GuestLoginScreen() {
   const otpDigits = otp.replace(/[^0-9]/g, "");
   const STEP_META = getStepMeta(t);
   const meta = STEP_META[step] ?? STEP_META.email;
-  const { canResend, countdownLabel, resetCountdown } = useOtpCountdown();
+  const {
+    canResend,
+    countdownLabel,
+    lockType,
+    applyRateLimit,
+    applyRateLimitFromError,
+  } = useOtpResendLimit();
   const verifyLockRef = useRef(false);
 
   const emailFormatError = validateUserEmail(email);
@@ -103,9 +111,9 @@ export default function GuestLoginScreen() {
 
   const canSubmit = useMemo(() => {
     if (step === "email") return emailValid;
-    if (step === "otp") return otpDigits.length === 6;
+    if (step === "otp") return otpDigits.length === 6 && lockType !== "security";
     return inviteValid;
-  }, [step, emailValid, otpDigits, inviteValid]);
+  }, [step, emailValid, otpDigits, inviteValid, lockType]);
 
   const busy = submitting || otpSending;
 
@@ -186,8 +194,8 @@ export default function GuestLoginScreen() {
     run(async () => {
       setOtpSending(true);
       try {
-        await requestGuestOtp(normalizedEmail);
-        resetCountdown();
+        const result = await requestGuestOtp(normalizedEmail);
+        applyRateLimit(result?.rate_limit ?? extractOtpRateLimitFromResponse({ data: result }));
         setOtp("");
         setShowOtpError(false);
         setOtpInputKey((key) => key + 1);
@@ -195,13 +203,17 @@ export default function GuestLoginScreen() {
       } finally {
         setOtpSending(false);
       }
-    }).catch((err) => handleAuthApiError(err, dialog, router, { email: normalizedEmail }));
+    }).catch((err) => {
+      if (!applyRateLimitFromError(err)) {
+        handleAuthApiError(err, dialog, router, { email: normalizedEmail });
+      }
+    });
   };
 
   const verifyOtpStep = useCallback(
     (code) => {
       const digits = String(code ?? otpDigits).replace(/[^0-9]/g, "");
-      if (digits.length !== 6 || submitting || otpSending || verifyLockRef.current) {
+      if (digits.length !== 6 || submitting || otpSending || verifyLockRef.current || lockType === "security") {
         if (digits.length !== 6) setShowOtpError(true);
         return;
       }
@@ -221,12 +233,14 @@ export default function GuestLoginScreen() {
         } catch (err) {
           verifyLockRef.current = false;
           setShowOtpError(true);
-          await handleAuthApiError(err, dialog, router, { email: normalizedEmail });
+          if (!applyRateLimitFromError(err)) {
+            await handleAuthApiError(err, dialog, router, { email: normalizedEmail });
+          }
           setOtpRefocusToken((token) => token + 1);
         }
       });
     },
-    [otpDigits, submitting, otpSending, run, normalizedEmail, finishLogin, dialog, router, resetTouched],
+    [otpDigits, submitting, otpSending, run, normalizedEmail, finishLogin, dialog, router, resetTouched, lockType, applyRateLimitFromError],
   );
 
   const handleResend = async () => {
@@ -234,15 +248,17 @@ export default function GuestLoginScreen() {
 
     setResending(true);
     try {
-      await requestGuestOtp(normalizedEmail);
-      resetCountdown();
+      const result = await requestGuestOtp(normalizedEmail);
+      applyRateLimit(result?.rate_limit ?? extractOtpRateLimitFromResponse({ data: result }));
       setOtp("");
       setShowOtpError(false);
       setOtpInputKey((key) => key + 1);
       setResendNotice(true);
       setTimeout(() => setResendNotice(false), 2500);
     } catch (err) {
-      await handleAuthApiError(err, dialog, router, { email: normalizedEmail });
+      if (!applyRateLimitFromError(err)) {
+        await handleAuthApiError(err, dialog, router, { email: normalizedEmail });
+      }
     } finally {
       setResending(false);
     }
@@ -292,19 +308,17 @@ export default function GuestLoginScreen() {
     </>
   );
 
-  const resendFooter = resendNotice ? (
-    <Text style={[layout.footerNote, layout.resendSuccess]}>{t("auth.newCodeSent")}</Text>
-  ) : canResend ? (
-    <TouchableOpacity onPress={handleResend} disabled={busy || resending}>
-      <Text style={[layout.footerNote, layout.resendHighlight, (busy || resending) && styles.resendMuted]}>
-        {resending ? t("auth.resending") : t("auth.resendCode")}
-      </Text>
-    </TouchableOpacity>
-  ) : (
-    <Text style={layout.footerNote}>
-      {t("auth.resendAvailableIn") + " "}
-      <Text style={layout.resendHighlight}>{countdownLabel}</Text>
-    </Text>
+  const resendFooter = (
+    <OtpResendFooter
+      canResend={canResend}
+      countdownLabel={countdownLabel}
+      lockType={lockType}
+      resending={resending}
+      resendNotice={resendNotice}
+      busy={busy}
+      onResend={handleResend}
+      mutedStyle={styles.resendMuted}
+    />
   );
 
   const footerNote =

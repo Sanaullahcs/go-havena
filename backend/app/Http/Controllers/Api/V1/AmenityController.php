@@ -717,8 +717,9 @@ class AmenityController extends Controller
         }
 
         DB::table('amenities')->where('id', $id)->update([
-            'review_status' => 'approved',
-            'updated_at' => now(),
+            'review_status'    => 'approved',
+            'rejection_reason' => null,
+            'updated_at'       => now(),
         ]);
 
         if ($amenity->created_by) {
@@ -752,9 +753,12 @@ class AmenityController extends Controller
             ], 422);
         }
 
+        $reason = $request->filled('reason') ? trim((string) $request->reason) : null;
+
         DB::table('amenities')->where('id', $id)->update([
-            'review_status' => 'rejected',
-            'updated_at' => now(),
+            'review_status'     => 'rejected',
+            'rejection_reason'  => $reason,
+            'updated_at'        => now(),
         ]);
 
         if ($amenity->created_by) {
@@ -763,7 +767,7 @@ class AmenityController extends Controller
                 'warning',
                 'Amenity not approved',
                 "\"{$amenity->name}\" was not approved."
-                    .($request->reason ? " Reason: {$request->reason}" : ''),
+                    .($reason ? " Reason: {$reason}" : ''),
                 '/screens/property-management/amenity',
             );
         }
@@ -972,6 +976,7 @@ class AmenityController extends Controller
             'description_ar' => $row->description_ar ?? null,
             'status' => $row->status,
             'review_status' => $row->review_status ?? 'approved',
+            'rejection_reason' => $row->rejection_reason ?? null,
             'capacity' => (int) ($row->capacity ?? 0),
             'floor' => $row->floor,
             'hours' => AmenitySlots::formatHoursDisplay($start, $end, $row->hours ?? null),

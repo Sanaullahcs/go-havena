@@ -3,22 +3,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OtpInput } from "@/components/auth/otp-input";
 import { LoadingButton, InlineLoader } from "@/components/shared/loaders";
-import {
-  formatOtpCountdown,
-  OTP_EXPIRE_MINUTES,
-  OTP_RESEND_SECONDS,
-} from "@/lib/auth/otp-config";
+import { OTP_EXPIRE_MINUTES } from "@/lib/auth/otp-config";
+import { useOtpResendLimit } from "@/hooks/use-otp-resend-limit";
 
 type OtpVerifyStepProps = {
   destination: string;
   otp: string;
   onOtpChange: (value: string) => void;
   onVerify: (code: string) => void | Promise<void>;
-  onResend: () => void | Promise<void>;
+  onResend: () => void | Promise<{ rate_limit?: unknown } | void>;
   sending?: boolean;
   verifying?: boolean;
   error?: boolean;
   verifyLabel?: string;
+  initialRateLimit?: unknown;
 };
 
 const RESEND_NOTICE_MS = 2500;
@@ -33,26 +31,32 @@ export function OtpVerifyStep({
   verifying = false,
   error = false,
   verifyLabel = "Continue",
+  initialRateLimit = null,
 }: OtpVerifyStepProps) {
-  const [resendIn, setResendIn] = useState(OTP_RESEND_SECONDS);
+  const {
+    canResend,
+    countdownLabel,
+    lockType,
+    applyRateLimit,
+    applyRateLimitFromError,
+  } = useOtpResendLimit(initialRateLimit);
   const [resending, setResending] = useState(false);
   const [resendNotice, setResendNotice] = useState(false);
   const verifyOnce = useRef(false);
   const noticeTimer = useRef<number | null>(null);
   const busy = verifying || resending;
-  const canResend = resendIn <= 0 && !resending && !sending;
+  const verifyDisabled = lockType === "security";
+
+  useEffect(() => {
+    if (initialRateLimit) {
+      applyRateLimit(initialRateLimit);
+    }
+  }, [applyRateLimit, initialRateLimit]);
 
   useEffect(() => {
     if (sending) return;
-    setResendIn(OTP_RESEND_SECONDS);
     setResendNotice(false);
   }, [sending, destination]);
-
-  useEffect(() => {
-    if (sending || resendIn <= 0) return;
-    const t = window.setTimeout(() => setResendIn((s) => s - 1), 1000);
-    return () => window.clearTimeout(t);
-  }, [resendIn, sending]);
 
   useEffect(() => {
     if (!verifying) verifyOnce.current = false;
@@ -69,11 +73,11 @@ export function OtpVerifyStep({
 
   const runVerify = useCallback(
     (code: string) => {
-      if (sending || busy || verifyOnce.current || code.length !== 6) return;
+      if (sending || busy || verifyOnce.current || verifyDisabled || code.length !== 6) return;
       verifyOnce.current = true;
       onVerify(code);
     },
-    [busy, onVerify, sending],
+    [busy, onVerify, sending, verifyDisabled],
   );
 
   const handleComplete = useCallback(
@@ -88,8 +92,10 @@ export function OtpVerifyStep({
     setResending(true);
     setResendNotice(false);
     try {
-      await onResend();
-      setResendIn(OTP_RESEND_SECONDS);
+      const result = await onResend();
+      if (result?.rate_limit) {
+        applyRateLimit(result.rate_limit);
+      }
       setResendNotice(true);
       if (noticeTimer.current !== null) {
         window.clearTimeout(noticeTimer.current);
@@ -98,10 +104,61 @@ export function OtpVerifyStep({
         setResendNotice(false);
         noticeTimer.current = null;
       }, RESEND_NOTICE_MS);
+    } catch (err) {
+      if (!applyRateLimitFromError(err)) {
+        throw err;
+      }
     } finally {
       setResending(false);
     }
   };
+
+  const resendFooter = (() => {
+    if (lockType === "security") {
+      return (
+        <p className="text-[12px] text-slate-500">
+          Too many failed attempts. Try again in{" "}
+          <span className="font-semibold text-teal-700">{countdownLabel}</span>
+        </p>
+      );
+    }
+
+    if (lockType === "resend_limit") {
+      return (
+        <p className="text-[12px] text-slate-500">
+          Too many code requests. Try again in{" "}
+          <span className="font-semibold text-teal-700">{countdownLabel}</span>
+        </p>
+      );
+    }
+
+    if (resendNotice) {
+      return <p className="text-[12px] font-medium text-emerald-600">New code sent</p>;
+    }
+
+    if (resending) {
+      return <p className="text-[12px] text-slate-400">Sending…</p>;
+    }
+
+    if (canResend) {
+      return (
+        <button
+          type="button"
+          onClick={handleResend}
+          className="text-[12px] font-semibold text-teal-700 hover:text-teal-800"
+        >
+          Resend code
+        </button>
+      );
+    }
+
+    return (
+      <p className="text-[12px] text-slate-400">
+        Resend available in{" "}
+        <span className="font-semibold text-teal-700">{countdownLabel}</span>
+      </p>
+    );
+  })();
 
   return (
     <div className="auth-step-enter mt-5 space-y-5">
@@ -116,7 +173,7 @@ export function OtpVerifyStep({
           <OtpInput
             value={otp}
             onChange={onOtpChange}
-            disabled={busy}
+            disabled={busy || verifyDisabled}
             error={error}
             autoFocus
             onComplete={handleComplete}
@@ -132,7 +189,7 @@ export function OtpVerifyStep({
       <LoadingButton
         type="button"
         onClick={() => runVerify(otp)}
-        disabled={otp.length !== 6 || sending || busy}
+        disabled={otp.length !== 6 || sending || busy || verifyDisabled}
         loading={verifying}
         loadingText="Verifying…"
         className="nl-auth-btn nl-auth-btn--arrow w-full py-3"
@@ -147,24 +204,7 @@ export function OtpVerifyStep({
         <p className="text-[12px] text-slate-500">
           This code will expire in {OTP_EXPIRE_MINUTES} minutes
         </p>
-        {resendNotice ? (
-          <p className="text-[12px] font-medium text-emerald-600">New code sent</p>
-        ) : resending ? (
-          <p className="text-[12px] text-slate-400">Sending…</p>
-        ) : canResend ? (
-          <button
-            type="button"
-            onClick={handleResend}
-            className="text-[12px] font-semibold text-teal-700 hover:text-teal-800"
-          >
-            Resend code
-          </button>
-        ) : (
-          <p className="text-[12px] text-slate-400">
-            Resend available in{" "}
-            <span className="font-semibold text-teal-700">{formatOtpCountdown(resendIn)}</span>
-          </p>
-        )}
+        {resendFooter}
       </div>
     </div>
   );

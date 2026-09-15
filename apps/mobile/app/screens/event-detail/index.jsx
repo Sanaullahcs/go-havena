@@ -39,6 +39,7 @@ import { useTranslation } from 'react-i18next';
 import i18n, { localizedField } from "../../../i18n";
 import { getLocaleForLang } from "../../../hooks/use-app-locale";
 import FeedPostReportSheet, { completeReportAndNotify } from "../../../components/feed/feed-post-report-sheet";
+import ShareEventSheet from "../../../components/events/share-event-sheet";
 import { fileReport } from "../../../services/reports-api";
 import { useApiAction } from "../../../hooks/use-api-action";
 
@@ -210,6 +211,7 @@ export default function EventDetailScreen() {
   const [heroImageFailed, setHeroImageFailed] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const [shareSheetVisible, setShareSheetVisible] = useState(false);
 
   const load = useCallback(async () => {
     if (!noticeId) {
@@ -389,7 +391,7 @@ export default function EventDetailScreen() {
     }
   };
 
-  const handleShare = useCallback(async () => {
+  const handleNativeShare = useCallback(async () => {
     if (!event) return;
 
     const dateLabel = formatEventDateLabel(event.eventDate, t);
@@ -412,7 +414,16 @@ export default function EventDetailScreen() {
     } catch {
       // user dismissed
     }
-  }, [event]);
+  }, [event, t]);
+
+  const handleShare = useCallback(() => {
+    if (!event) return;
+    if (isOrganizer) {
+      setShareSheetVisible(true);
+      return;
+    }
+    void handleNativeShare();
+  }, [event, handleNativeShare, isOrganizer]);
 
   const handleReportSubmit = async (payload) => {
     if (!event?.id) return;
@@ -823,6 +834,14 @@ export default function EventDetailScreen() {
         </View>
         ) : null}
       </ScrollView>
+
+      {isOrganizer ? (
+        <ShareEventSheet
+          visible={shareSheetVisible}
+          event={event}
+          onClose={() => setShareSheetVisible(false)}
+        />
+      ) : null}
 
       {canReport ? (
         <FeedPostReportSheet

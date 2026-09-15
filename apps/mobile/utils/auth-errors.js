@@ -7,6 +7,7 @@ import {
   buildBlockedAccountDialogOptions,
 } from "./blocked-account-dialog";
 import { guestPermissionDialogTitle, resolveGuestFeatureError } from "./guest-permission-errors";
+import { isGuestAccessRejectedError, navigateToGuestRejectedStatus } from "./guest-access-schedule";
 
 export { getApiErrorCode, getApiErrorMessage } from "./api-error-core";
 export {
@@ -104,6 +105,10 @@ export async function handleAuthApiError(error, dialog, router, { phone, email }
     return;
   }
 
+  if (code === "OTP_COOLDOWN" || code === "OTP_RESEND_LOCKED" || code === "OTP_VERIFY_LOCKED") {
+    return;
+  }
+
   if (code === "INVALID_OTP") {
     await dialog.showError(i18n.t("auth.invalidCode"), message);
     return;
@@ -127,7 +132,16 @@ export async function handleAuthApiError(error, dialog, router, { phone, email }
     return;
   }
 
-  if (code === "GUEST_ACCESS_REVOKED" || code === "GUEST_ACCESS_REJECTED") {
+  if (code === "GUEST_ACCESS_REJECTED" || isGuestAccessRejectedError(error)) {
+    if (router?.replace) {
+      await navigateToGuestRejectedStatus(router, error, { email });
+      return;
+    }
+    await dialog.showError(i18n.t("guests.guestAccessDeclined"), message);
+    return;
+  }
+
+  if (code === "GUEST_ACCESS_REVOKED") {
     await dialog.showError(i18n.t("guest.guestAccessRevoked"), message);
     return;
   }

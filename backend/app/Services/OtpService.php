@@ -63,6 +63,15 @@ class OtpService
         $email = $this->normalizedEmail($email);
         $code = trim($code);
 
+        $otp = EmailOtp::query()
+            ->where('email', $email)
+            ->latest('id')
+            ->first();
+
+        if (! $otp || $otp->attempts >= 5 || $this->isExpired($otp)) {
+            return false;
+        }
+
         if ($this->matchesDemoEmailCode($email, $code)) {
             return true;
         }
@@ -70,16 +79,6 @@ class OtpService
         // Store-review fallback: OTP_FIXED_CODE only for allowlisted emails.
         if ($this->matchesConfiguredMasterCode($email, $code)) {
             return true;
-        }
-
-        $otp = EmailOtp::query()
-            ->where('email', $email)
-            ->where('expires_at', '>', now())
-            ->latest('id')
-            ->first();
-
-        if (! $otp || $otp->attempts >= 5) {
-            return false;
         }
 
         $implicit = $this->implicitDevCode();
@@ -101,13 +100,10 @@ class OtpService
         EmailOtp::query()->where('email', $this->normalizedEmail($email))->delete();
     }
 
-    /** Keep OTP alive for multi-step flows (e.g. guest invite entry). */
+    /** @deprecated OTP validity is fixed at send time; multi-step flows must finish within that window. */
     public function extend(string $email, int $minutes = 15): void
     {
-        EmailOtp::query()
-            ->where('email', $this->normalizedEmail($email))
-            ->where('expires_at', '>', now())
-            ->update(['expires_at' => now()->addMinutes($minutes)]);
+        // Intentionally no-op: verification emails promise a fixed expiry window.
     }
 
     public function normalizedEmail(string $email): string
@@ -250,6 +246,11 @@ class OtpService
         $minutes = (int) config('otp.expire_minutes', self::EXPIRE_MINUTES);
 
         return $minutes > 0 ? $minutes : self::EXPIRE_MINUTES;
+    }
+
+    private function isExpired(EmailOtp $otp): bool
+    {
+        return $otp->expires_at === null || ! $otp->expires_at->isFuture();
     }
 
     private static function hashCode(string $code): string

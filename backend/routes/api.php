@@ -265,6 +265,7 @@ Route::prefix('v1')->group(function () {
             /* System admin — approve community admins & community requests (for now) */
             Route::middleware('system.admin')->group(function () {
                 Route::get('/community-admins', [AdminCommunityAdminController::class, 'index']);
+                Route::patch('/community-admins/{id}', [AdminCommunityAdminController::class, 'update']);
                 Route::match(['patch', 'post'], '/community-admins/{id}/approve', [AdminCommunityAdminController::class, 'approve']);
                 Route::match(['patch', 'post'], '/community-admins/{id}/reapprove', [AdminCommunityAdminController::class, 'approve']);
                 Route::match(['patch', 'post'], '/community-admins/{id}/reject', [AdminCommunityAdminController::class, 'reject']);

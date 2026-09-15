@@ -68,6 +68,7 @@ function RegisterPageInner() {
   const [loading, setLoading] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [otpRateLimit, setOtpRateLimit] = useState<unknown>(null);
   const verifyLock = useRef(false);
 
   const isBusy = loading || redirecting;
@@ -153,7 +154,8 @@ function RegisterPageInner() {
     setOtp("");
     setOtpSending(true);
     try {
-      await requestCommunityAdminOtp(email.trim(), "signup");
+      const { rate_limit } = await requestCommunityAdminOtp(email.trim(), "signup");
+      setOtpRateLimit(rate_limit);
       setOtpStep("code");
     } catch (err) {
       if (err instanceof ApiError && err.code === "ACCOUNT_EXISTS_USE_LOGIN") {
@@ -214,7 +216,12 @@ function RegisterPageInner() {
         return;
       }
       verifyLock.current = false;
-      await handleLoginError(err, setError);
+      if (err instanceof ApiError && err.rateLimit) {
+        setOtpRateLimit(err.rateLimit);
+        setError(err.message);
+      } else {
+        await handleLoginError(err, setError);
+      }
     } finally {
       setLoading(false);
     }
@@ -225,8 +232,14 @@ function RegisterPageInner() {
     setError(null);
     setOtpSending(true);
     try {
-      await requestCommunityAdminOtp(email.trim(), "signup");
+      const { rate_limit } = await requestCommunityAdminOtp(email.trim(), "signup");
+      return { rate_limit };
     } catch (err) {
+      if (err instanceof ApiError && (err.code?.startsWith("OTP_") ?? false)) {
+        if (err.rateLimit) setOtpRateLimit(err.rateLimit);
+        setError(err.message);
+        return;
+      }
       await handleLoginError(err, setError);
     } finally {
       setOtpSending(false);
@@ -348,6 +361,7 @@ function RegisterPageInner() {
                 sending={otpSending}
                 verifying={loading && !redirecting}
                 error={Boolean(error)}
+                initialRateLimit={otpRateLimit}
               />
             )}
             <AuthLegalLinks className="mt-4" />

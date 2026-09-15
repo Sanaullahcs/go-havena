@@ -82,17 +82,26 @@ export class ApiError extends Error {
   status: number;
   code?: string;
   block?: import("@/lib/auth/account-block").AccountBlockDetails;
+  retryAfterSeconds?: number;
+  rateLimit?: unknown;
 
   constructor(
     message: string,
     status = 500,
-    extras?: { code?: string; block?: import("@/lib/auth/account-block").AccountBlockDetails },
+    extras?: {
+      code?: string;
+      block?: import("@/lib/auth/account-block").AccountBlockDetails;
+      retryAfterSeconds?: number;
+      rateLimit?: unknown;
+    },
   ) {
     super(message);
     this.status = status;
     this.name = "ApiError";
     this.code = extras?.code;
     this.block = extras?.block;
+    this.retryAfterSeconds = extras?.retryAfterSeconds;
+    this.rateLimit = extras?.rateLimit;
   }
 }
 

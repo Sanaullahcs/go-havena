@@ -59,6 +59,9 @@ function throwAuthError(err: unknown): never {
     throw new ApiError(msg, err.response?.status ?? 500, {
       code: typeof data?.code === "string" ? data.code : undefined,
       block: block ?? undefined,
+      retryAfterSeconds:
+        typeof data?.retry_after_seconds === "number" ? data.retry_after_seconds : undefined,
+      rateLimit: data?.rate_limit,
     });
   }
   throw err;
@@ -86,30 +89,36 @@ export type CommunityAdminOtpIntent = "login" | "signup";
  * - mode "signup": force signup (register page)
  * - mode "login": login only
  */
+function otpRequestRateLimit(data: unknown): unknown {
+  if (!data || typeof data !== "object") return null;
+  const record = data as { data?: { rate_limit?: unknown } };
+  return record.data?.rate_limit ?? null;
+}
+
 export async function requestCommunityAdminOtp(
   email: string,
   mode: "auto" | "login" | "signup" = "auto",
-): Promise<{ intent: CommunityAdminOtpIntent }> {
+): Promise<{ intent: CommunityAdminOtpIntent; rate_limit: unknown }> {
   if (mode === "signup") {
     try {
-      await api.post("/v1/auth/otp/request", {
+      const res = await api.post("/v1/auth/otp/request", {
         email,
         intent: "signup",
         portal: "community_admin_dashboard",
       });
-      return { intent: "signup" };
+      return { intent: "signup", rate_limit: otpRequestRateLimit(res.data) };
     } catch (err) {
       throwAuthError(err);
     }
   }
 
   try {
-    await api.post("/v1/auth/otp/request", {
+    const res = await api.post("/v1/auth/otp/request", {
       email,
       intent: "login",
       portal: "community_admin_dashboard",
     });
-    return { intent: "login" };
+    return { intent: "login", rate_limit: otpRequestRateLimit(res.data) };
   } catch (err) {
     if (
       mode === "auto" &&
@@ -117,12 +126,12 @@ export async function requestCommunityAdminOtp(
       err.response?.data?.code === "ACCOUNT_NOT_FOUND_USE_SIGNUP"
     ) {
       try {
-        await api.post("/v1/auth/otp/request", {
+        const res = await api.post("/v1/auth/otp/request", {
           email,
           intent: "signup",
           portal: "community_admin_dashboard",
         });
-        return { intent: "signup" };
+        return { intent: "signup", rate_limit: otpRequestRateLimit(res.data) };
       } catch (signupErr) {
         throwAuthError(signupErr);
       }
@@ -158,12 +167,13 @@ export async function verifyCommunityAdminOtp(
   }
 }
 
-export async function requestSignupOtp(email: string): Promise<void> {
+export async function requestSignupOtp(email: string): Promise<{ rate_limit: unknown }> {
   try {
-    await api.post("/v1/auth/otp/request", {
+    const res = await api.post("/v1/auth/otp/request", {
       email,
       intent: "signup",
     });
+    return { rate_limit: otpRequestRateLimit(res.data) };
   } catch (err) {
     if (axios.isAxiosError(err)) {
       const data = err.response?.data as {

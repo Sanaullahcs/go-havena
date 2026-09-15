@@ -93,12 +93,17 @@ export async function requestOtp(email, { intent = "login" } = {}) {
   const normalized = String(email ?? "").trim().toLowerCase();
   const body = { email: normalized, intent };
 
-  return apiRequest("/auth/otp/request", {
+  const response = await apiRequest("/auth/otp/request", {
     method: "POST",
     body,
     auth: false,
     community: false,
   });
+
+  return {
+    ...(response?.data ?? {}),
+    rate_limit: response?.data?.rate_limit ?? null,
+  };
 }
 
 export async function verifyOtp(email, code, { intent = "login", role = "resident" } = {}) {

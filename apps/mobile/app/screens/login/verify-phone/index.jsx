@@ -21,7 +21,9 @@ import {
 } from "../../../../services/auth-api";
 import { handleAuthApiError } from "../../../../utils/auth-errors";
 import { useAppDialog } from "../../../../providers/app-dialog-provider";
-import { useOtpCountdown } from "../../../../hooks/use-otp-countdown";
+import { useOtpResendLimit } from "../../../../hooks/use-otp-resend-limit";
+import OtpResendFooter from "../../../../components/auth/otp-resend-footer";
+import { extractOtpRateLimitFromResponse } from "../../../../utils/otp-rate-limit";
 import { useSubmitLock } from "../../../../hooks/use-submit-lock";
 import AuthSuccessOverlay from "../../../../components/ui/auth-success-overlay";
 import { navigateAfterAuth } from "../../../../constants/onboarding-routes";
@@ -50,7 +52,13 @@ export default function VerifyPhoneScreen() {
   const { submitting, run } = useSubmitLock();
   const [showSuccess, setShowSuccess] = useState(false);
   const [verifiedUser, setVerifiedUser] = useState(null);
-  const { canResend, countdownLabel, resetCountdown } = useOtpCountdown();
+  const {
+    canResend,
+    countdownLabel,
+    lockType,
+    applyRateLimit,
+    applyRateLimitFromError,
+  } = useOtpResendLimit();
   const otpDigits = otp.replace(/[^0-9]/g, "");
   const isValid = otpDigits.length === 6;
   const emailDisplay = email || t("auth.yourEmail");
@@ -66,11 +74,15 @@ export default function VerifyPhoneScreen() {
     (async () => {
       setOtpSending(true);
       try {
-        await requestOtp(email, { intent: "login" });
-        if (!cancelled) resetCountdown();
+        const result = await requestOtp(email, { intent: "login" });
+        if (!cancelled) {
+          applyRateLimit(result?.rate_limit ?? extractOtpRateLimitFromResponse({ data: result }));
+        }
       } catch (err) {
         if (!cancelled) {
-          await handleAuthApiError(err, dialog, router, { email });
+          if (!applyRateLimitFromError(err)) {
+            await handleAuthApiError(err, dialog, router, { email });
+          }
         }
       } finally {
         if (!cancelled) setOtpSending(false);
@@ -80,12 +92,12 @@ export default function VerifyPhoneScreen() {
     return () => {
       cancelled = true;
     };
-  }, [shouldSendOnMount, email, dialog, router, resetCountdown]);
+  }, [shouldSendOnMount, email, dialog, router, applyRateLimit, applyRateLimitFromError]);
 
   const submitVerification = useCallback(
     (code) => {
       const digits = String(code).replace(/[^0-9]/g, "");
-      if (digits.length !== 6 || submitting || otpSending || verifyLockRef.current) {
+      if (digits.length !== 6 || submitting || otpSending || verifyLockRef.current || lockType === "security") {
         if (digits.length !== 6) setShowOtpError(true);
         return;
       }
@@ -107,12 +119,14 @@ export default function VerifyPhoneScreen() {
         } catch (err) {
           verifyLockRef.current = false;
           setShowOtpError(true);
-          await handleAuthApiError(err, dialog, router, { email });
+          if (!applyRateLimitFromError(err)) {
+            await handleAuthApiError(err, dialog, router, { email });
+          }
           setOtpRefocusToken((token) => token + 1);
         }
       });
     },
-    [submitting, otpSending, run, email, dialog, router],
+    [submitting, otpSending, run, email, dialog, router, lockType, applyRateLimitFromError],
   );
 
   const handleVerify = () => {
@@ -124,12 +138,14 @@ export default function VerifyPhoneScreen() {
 
     setResending(true);
     try {
-      await requestOtp(email, { intent: "login" });
-      resetCountdown();
+      const result = await requestOtp(email, { intent: "login" });
+      applyRateLimit(result?.rate_limit ?? extractOtpRateLimitFromResponse({ data: result }));
       setResendNotice(true);
       setTimeout(() => setResendNotice(false), 2500);
     } catch (err) {
-      await handleAuthApiError(err, dialog, router, { email });
+      if (!applyRateLimitFromError(err)) {
+        await handleAuthApiError(err, dialog, router, { email });
+      }
     } finally {
       setResending(false);
     }
@@ -156,19 +172,17 @@ export default function VerifyPhoneScreen() {
       ? t("auth.openingAdminDashboard")
       : t("auth.signedInToHavena");
 
-  const resendFooter = resendNotice ? (
-    <Text style={[layout.footerNote, layout.resendSuccess]}>{t("auth.newCodeSent")}</Text>
-  ) : canResend ? (
-    <TouchableOpacity onPress={handleResend} disabled={busy || resending}>
-      <Text style={[layout.footerNote, layout.resendHighlight, (busy || resending) && styles.resendMuted]}>
-        {resending ? t("auth.resending") : t("auth.resendCode")}
-      </Text>
-    </TouchableOpacity>
-  ) : (
-    <Text style={layout.footerNote}>
-      {t("auth.resendAvailableIn") + " "}
-      <Text style={layout.resendHighlight}>{countdownLabel}</Text>
-    </Text>
+  const resendFooter = (
+    <OtpResendFooter
+      canResend={canResend}
+      countdownLabel={countdownLabel}
+      lockType={lockType}
+      resending={resending}
+      resendNotice={resendNotice}
+      busy={busy}
+      onResend={handleResend}
+      mutedStyle={styles.resendMuted}
+    />
   );
 
   return (
@@ -198,7 +212,7 @@ export default function VerifyPhoneScreen() {
               <AuthSubmitButton
                 label={t("auth.verifySignIn")}
                 loadingLabel={t("auth.verifying")}
-                enabled={isValid && !otpSending}
+                enabled={isValid && !otpSending && lockType !== "security"}
                 loading={submitting}
                 onPress={handleVerify}
                 solidColor={B.cta}

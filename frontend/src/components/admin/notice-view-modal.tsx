@@ -6,7 +6,7 @@ import { categoryLabel, fetchNotice, type EventWaitlistEntry, type Notice } from
 
 const STATUS_META: Record<string, { tone: "green" | "amber" | "blue" | "slate"; label: string }> = {
   published: { tone: "green", label: "Published" },
-  draft: { tone: "amber", label: "Scheduled for later" },
+  draft: { tone: "amber", label: "Draft" },
   archived: { tone: "slate", label: "Archived" },
 };
 
@@ -181,6 +181,11 @@ export default function NoticeViewModal({ notice, onClose, onEdit }: Props) {
                   {categoryLabel(detail.category)}
                 </span>
                 <AdminBadge tone={st.tone}>{st.label}</AdminBadge>
+                {detail.review_status === "rejected" ? (
+                  <AdminBadge tone="red">Rejected</AdminBadge>
+                ) : detail.review_status === "pending" ? (
+                  <AdminBadge tone="amber">Pending review</AdminBadge>
+                ) : null}
               </div>
               <h3 className="mt-2 text-xl font-bold text-slate-900">{detail.title}</h3>
               <p className="mt-1 text-[13px] text-slate-500">
@@ -201,6 +206,15 @@ export default function NoticeViewModal({ notice, onClose, onEdit }: Props) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
+          {detail.review_status === "rejected" && detail.rejection_reason ? (
+            <div className="mb-5 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-500">
+                Rejection reason
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-rose-800">{detail.rejection_reason}</p>
+            </div>
+          ) : null}
+
           {detail.image_url ? (
             <div className="mb-5 flex max-h-80 items-center justify-center overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200">
               <img

@@ -22,6 +22,8 @@ import { arrowForward } from "../../../utils/rtl";
 import { rnShadow } from "../../../utils/shadow";
 
 
+const GUEST_LIST_POLL_MS = 15_000;
+
 function formatDurationLabel(start, end, t) {
   if (!start || !end) return null;
   const ms = end.getTime() - start.getTime();
@@ -258,12 +260,14 @@ export default function GuestApprovalsScreen() {
   const [rejectTarget, setRejectTarget] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     try {
       const pending = await fetchPendingGuestApprovals();
       setItems(pending);
     } catch (err) {
-      await showFailure(t("guests.couldNotLoadApprovals"), err);
+      if (!silent) {
+        await showFailure(t("guests.couldNotLoadApprovals"), err);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -273,6 +277,8 @@ export default function GuestApprovalsScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
+      const intervalId = setInterval(() => load(true), GUEST_LIST_POLL_MS);
+      return () => clearInterval(intervalId);
     }, [load]),
   );
 

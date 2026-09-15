@@ -1,0 +1,80 @@
+import { formatOtpCountdown, formatOtpLockCountdown } from "@/lib/auth/otp-config";
+
+export type OtpRateLimitState = {
+  locked: boolean;
+  lockType: "security" | "resend_limit" | null;
+  retryAfterSeconds: number;
+  resendsRemaining: number | null;
+  resendLimit: number | null;
+};
+
+export function normalizeOtpRateLimit(raw: unknown): OtpRateLimitState {
+  if (!raw || typeof raw !== "object") {
+    return {
+      locked: false,
+      lockType: null,
+      retryAfterSeconds: 0,
+      resendsRemaining: null,
+      resendLimit: null,
+    };
+  }
+
+  const record = raw as Record<string, unknown>;
+
+  return {
+    locked: Boolean(record.locked),
+    lockType:
+      record.lock_type === "security" || record.lock_type === "resend_limit"
+        ? record.lock_type
+        : null,
+    retryAfterSeconds: Math.max(
+      0,
+      Number(record.retry_after_seconds ?? record.resend_cooldown_seconds ?? 0),
+    ),
+    resendsRemaining:
+      record.resends_remaining === undefined || record.resends_remaining === null
+        ? null
+        : Number(record.resends_remaining),
+    resendLimit: record.resend_limit === undefined ? null : Number(record.resend_limit),
+  };
+}
+
+export function extractOtpRateLimitFromError(err: unknown): OtpRateLimitState | null {
+  if (!(err instanceof Error)) return null;
+
+  const apiErr = err as {
+    code?: string;
+    retryAfterSeconds?: number;
+    rateLimit?: unknown;
+  };
+
+  if (apiErr.rateLimit) {
+    return normalizeOtpRateLimit(apiErr.rateLimit);
+  }
+
+  const retryAfter = Number(apiErr.retryAfterSeconds ?? 0);
+  if (!retryAfter && !apiErr.code?.startsWith("OTP_")) {
+    return null;
+  }
+
+  const lockType =
+    apiErr.code === "OTP_VERIFY_LOCKED"
+      ? "security"
+      : apiErr.code === "OTP_RESEND_LOCKED"
+        ? "resend_limit"
+        : null;
+
+  return normalizeOtpRateLimit({
+    locked: Boolean(lockType),
+    lock_type: lockType,
+    retry_after_seconds: retryAfter,
+  });
+}
+
+export function otpRateLimitCountdownLabel(seconds: number, locked = false): string {
+  if (seconds >= 3600 || (locked && seconds >= 600)) {
+    return formatOtpLockCountdown(seconds);
+  }
+
+  return formatOtpCountdown(seconds);
+}

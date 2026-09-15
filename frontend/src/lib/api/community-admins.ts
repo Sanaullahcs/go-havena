@@ -117,3 +117,17 @@ export async function suspendCommunityAdmin(id: number) {
   const res = await api.post(`/v1/admin/community-admins/${id}/suspend`);
   return res.data as { data: CommunityAdminApplicant; message: string };
 }
+
+export type UpdateCommunityAdminPayload = {
+  name?: string;
+  email?: string;
+  phone?: string | null;
+  display_name?: string;
+  unit_number?: string;
+  residence_type?: "" | "homeowner" | "tenant";
+};
+
+export async function updateCommunityAdmin(id: number, payload: UpdateCommunityAdminPayload) {
+  const res = await api.patch(`/v1/admin/community-admins/${id}`, payload);
+  return res.data as { data: CommunityAdminApplicant; message: string };
+}

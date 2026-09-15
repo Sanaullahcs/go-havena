@@ -6,7 +6,7 @@ import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { AdminBadge, StatTile, DataTable, DtTable, DtHead, DtRow, DtCell, DtPagination } from "@/components/admin/ui";
 import NoticeFormModal from "@/components/admin/notice-form-modal";
 import NoticeViewModal from "@/components/admin/notice-view-modal";
-import { confirmAction, confirmDelete, toastSuccess, toastError } from "@/lib/alert";
+import { confirmAction, confirmDelete, confirmRejectWithReason, toastSuccess, toastError } from "@/lib/alert";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { adminTableBusy, isAdminSearchPending } from "@/lib/admin/table-loading";
 import {
@@ -32,12 +32,13 @@ import { PageLoader, PageError } from "@/components/shared/page-states";
 
 export type ContentBoardKind = "notices" | "events" | "alerts";
 
-type BoardFilter = "all" | "draft" | "published" | "pending";
+type BoardFilter = "all" | "draft" | "scheduled" | "published" | "pending";
 
 const EMPTY_STATS: NoticeStats = {
   total: 0,
   published: 0,
   draft: 0,
+  scheduled: 0,
   archived: 0,
   pending: 0,
   approved: 0,
@@ -46,7 +47,7 @@ const EMPTY_STATS: NoticeStats = {
 
 const STATUS_META: Record<string, { tone: "green" | "amber" | "blue" | "slate"; label: string }> = {
   published: { tone: "green", label: "Published" },
-  draft:     { tone: "amber", label: "Scheduled for later" },
+  draft:     { tone: "amber", label: "Draft" },
   archived:  { tone: "slate", label: "Archived" },
 };
 
@@ -189,7 +190,7 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
   const initialFilter: BoardFilter =
     reviewParam === "pending" && showPendingReview
       ? "pending"
-      : statusParam === "draft" || statusParam === "published"
+      : statusParam === "draft" || statusParam === "scheduled" || statusParam === "published"
         ? statusParam
         : reviewParam === "approved"
           ? "published"
@@ -197,7 +198,7 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
   const highlightNoticeId = searchParams.get("notice");
 
   const [boardFilter, setBoardFilter] = useState<BoardFilter>(
-    (["all", "draft", "published", "pending"] as BoardFilter[]).includes(initialFilter)
+    (["all", "draft", "scheduled", "published", "pending"] as BoardFilter[]).includes(initialFilter)
       ? initialFilter
       : "all",
   );
@@ -234,6 +235,8 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
       };
       if (boardFilter === "pending") {
         params.review_status = "pending";
+      } else if (boardFilter === "scheduled") {
+        params.status = "scheduled";
       } else if (boardFilter !== "all") {
         params.status = boardFilter;
       }
@@ -303,15 +306,16 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
     }
     tiles.push(
       { label: "Published", value: String(stats.published), hint: "Live to residents", tone: "green" as const, icon: <IcoCheck /> },
-      { label: "Scheduled for later", value: String(stats.draft), hint: "Queued to publish", tone: "blue" as const, icon: <IcoClock /> },
+      { label: "Draft", value: String(stats.draft), hint: "Saved, not published", tone: "amber" as const, icon: <IcoDoc /> },
+      { label: "Scheduled for later", value: String(stats.scheduled ?? 0), hint: "Queued to publish", tone: "blue" as const, icon: <IcoClock /> },
     );
     return tiles;
   }, [stats, showPendingReview]);
 
   const boardFilters = useMemo(() => {
     const keys: BoardFilter[] = showPendingReview
-      ? ["all", "pending", "draft", "published"]
-      : ["all", "draft", "published"];
+      ? ["all", "pending", "draft", "scheduled", "published"]
+      : ["all", "draft", "scheduled", "published"];
     return keys.map((s) => ({
       key: s,
       label:
@@ -320,14 +324,18 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
           : s === "pending"
             ? "Pending"
             : s === "draft"
-              ? "Scheduled for later"
-              : "Published",
+              ? "Draft"
+              : s === "scheduled"
+                ? "Scheduled for later"
+                : "Published",
       count:
         s === "all"
           ? stats.total
           : s === "pending"
             ? (stats.pending ?? 0)
-            : stats[s],
+            : s === "scheduled"
+              ? (stats.scheduled ?? 0)
+              : stats[s],
     }));
   }, [stats, showPendingReview]);
 
@@ -420,7 +428,7 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
         </button>
       </div>
 
-      <div className={`grid gap-3 sm:grid-cols-2 ${showPendingReview ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
+      <div className={`grid gap-3 sm:grid-cols-2 ${showPendingReview ? "lg:grid-cols-3 xl:grid-cols-5" : "lg:grid-cols-4"}`}>
         {statTiles.map((s) => <StatTile key={s.label} {...s} />)}
       </div>
 
@@ -487,6 +495,25 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
                     <AdminActionsMenu
                       disabled={busy}
                       actions={[
+                        {
+                          label: "Publish",
+                          icon: "approve",
+                          tone: "primary",
+                          hidden: n.status !== "draft" || n.review_status !== "approved",
+                          onClick: () => runAction(n.id, async () => {
+                            const label = itemTypeLabel(kind);
+                            const r = await confirmAction({
+                              title: `Publish this ${label} now?`,
+                              text: "It will go live to residents immediately.",
+                              confirmText: "Publish",
+                              color: "blue",
+                            });
+                            if (r.isConfirmed) {
+                              await updateNotice(n.id, { status: "published", scheduled_at: null });
+                              toastSuccess("Published!");
+                            }
+                          }),
+                        },
                         { label: "View", icon: "view", onClick: () => setViewing(n) },
                         { label: "Edit", icon: "edit", onClick: () => { setEditing(n); setModalMode("edit"); } },
                         {
@@ -508,10 +535,18 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
                           tone: "danger",
                           hidden: n.review_status !== "pending",
                           onClick: () => runAction(n.id, async () => {
-                            const r = await confirmAction({ title: "Reject this item?", text: "The author will be notified.", confirmText: "Reject", color: "red" });
+                            const r = await confirmRejectWithReason({
+                              title: "Reject this item?",
+                              text: "A reason is required. The author will be notified.",
+                              confirmText: "Reject",
+                            });
                             if (r.isConfirmed) {
-                              await rejectNotice(n.id);
+                              await rejectNotice(n.id, String(r.value ?? "").trim());
                               toastSuccess("Rejected.");
+                              if (viewing?.id === n.id) {
+                                const updated = await fetchNotice(n.id);
+                                setViewing(updated);
+                              }
                             }
                           }),
                         },

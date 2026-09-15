@@ -10,6 +10,7 @@ export interface Amenity {
   description: string | null;
   status: "open" | "bookable" | "closed" | string;
   review_status?: "pending" | "approved" | "rejected" | string;
+  rejection_reason?: string | null;
   capacity: number;
   floor: string | null;
   image_url: string | null;

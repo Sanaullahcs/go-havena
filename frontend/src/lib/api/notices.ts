@@ -57,6 +57,7 @@ export interface NoticeStats {
   total: number;
   published: number;
   draft: number;
+  scheduled?: number;
   archived: number;
   pending?: number;
   approved?: number;

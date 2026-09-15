@@ -1,10 +1,12 @@
 import { getPhoneValidationError, type PhoneFieldState } from "@/lib/phone/format";
+import { COMPLETE_PROFILE_LIMITS } from "@/lib/admin/complete-profile-validation";
 import {
   type FieldErrors,
   fieldInputClass,
   hasFieldErrors,
   validateEmailField,
   validateOptionalName,
+  validateRequiredName,
 } from "@/lib/admin/form-validation-utils";
 
 export type CommunityAssignmentMode = "" | "existing" | "new";
@@ -33,7 +35,7 @@ export type ProvisionResidentForm = {
 
 export type ProvisionFieldErrors = FieldErrors;
 
-function validatePhone(phone: PhoneFieldState): string | null {
+export function validateProvisionPhone(phone: PhoneFieldState): string | null {
   if (!phone.digits.trim()) return "Phone number is required.";
   if (!phone.valid) {
     return getPhoneValidationError(phone.digits, phone.country) ?? "Enter a valid phone number.";
@@ -58,7 +60,7 @@ export function validateCommunityAdminForm(
   const emailError = validateEmailField(form.email);
   if (emailError) errors.email = emailError;
 
-  const phoneError = validatePhone(phone);
+  const phoneError = validateProvisionPhone(phone);
   if (phoneError) errors.phone = phoneError;
 
   const regionError = validateRegion(form.region_id);
@@ -110,7 +112,7 @@ export function validateResidentForm(
   const emailError = validateEmailField(form.email);
   if (emailError) errors.email = emailError;
 
-  const phoneError = validatePhone(phone);
+  const phoneError = validateProvisionPhone(phone);
   if (phoneError) errors.phone = phoneError;
 
   const regionError = validateRegion(form.region_id);
@@ -118,6 +120,40 @@ export function validateResidentForm(
 
   if (!form.community_id) {
     errors.community_id = "Select a community.";
+  }
+
+  return errors;
+}
+
+export function validateCommunityAdminEditForm(
+  name: string,
+  email: string,
+  phone: PhoneFieldState,
+  unitNumber: string,
+  residenceType: string,
+): ProvisionFieldErrors {
+  const errors: ProvisionFieldErrors = {};
+
+  const nameError = validateRequiredName(name, "Full name");
+  if (nameError) errors.name = nameError;
+
+  const emailError = validateEmailField(email);
+  if (emailError) errors.email = emailError;
+
+  const phoneError = validateProvisionPhone(phone);
+  if (phoneError) errors.phone = phoneError;
+
+  const unit = unitNumber.trim();
+  if (!unit) {
+    errors.unitNumber = "Unit number is required.";
+  } else if (unit.length > COMPLETE_PROFILE_LIMITS.profileUnit) {
+    errors.unitNumber = `Unit number must be ${COMPLETE_PROFILE_LIMITS.profileUnit} characters or less.`;
+  }
+
+  if (!residenceType) {
+    errors.residenceType = "Residence type is required.";
+  } else if (!["homeowner", "tenant"].includes(residenceType)) {
+    errors.residenceType = "Select homeowner or tenant.";
   }
 
   return errors;

@@ -272,12 +272,13 @@ class GuestInvitationService
 
         if ($invitation->guest_user_id) {
             GuestAccessService::removeGuestMembership($invitation);
-            GuestAccessService::revokeTokensForUser($invitation->guest_user_id);
             NotificationService::send(
                 $invitation->guest_user_id,
                 'warning',
                 'Guest access rejected',
-                'Your guest access request was rejected.',
+                $reason
+                    ? "Your guest access request was rejected. Reason: {$reason}"
+                    : 'Your guest access request was rejected.',
             );
         }
 
@@ -372,6 +373,19 @@ class GuestInvitationService
             'ends_at' => $endsAt,
             'status'  => 'active',
         ]);
+
+        $invitation = $invitation->fresh();
+
+        if (GuestAccessService::canRestoreReturningGuest($invitation)) {
+            GuestAccessService::restoreGuestMembership($invitation);
+
+            NotificationService::send(
+                (int) $invitation->guest_user_id,
+                'success',
+                'Guest access extended',
+                'Your guest access has been extended. You can sign in with your email — no invite code needed.',
+            );
+        }
 
         GuestActivityService::log($invitation, 'access_extended', 'Guest access extended', [
             'ends_at' => $endsAt->toIso8601String(),

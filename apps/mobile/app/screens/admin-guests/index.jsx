@@ -26,6 +26,8 @@ const FILTERS = [
   { key: "revoked", labelKey: "admin.revoked" },
 ];
 
+const GUEST_LIST_POLL_MS = 15_000;
+
 const STATUS_META = {
   active: {
     label: "admin.active",
@@ -267,7 +269,7 @@ export default function AdminGuestsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [revokingId, setRevokingId] = useState(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     try {
       const res = await fetchAdminGuests({
         status: filter,
@@ -278,7 +280,9 @@ export default function AdminGuestsScreen() {
         setStats(res.meta.stats);
       }
     } catch (err) {
-      await showFailure(t("admin.couldNotLoadGuests"), err);
+      if (!silent) {
+        await showFailure(t("admin.couldNotLoadGuests"), err);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -287,7 +291,9 @@ export default function AdminGuestsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      load(true);
+      const intervalId = setInterval(() => load(true), GUEST_LIST_POLL_MS);
+      return () => clearInterval(intervalId);
     }, [load]),
   );
 

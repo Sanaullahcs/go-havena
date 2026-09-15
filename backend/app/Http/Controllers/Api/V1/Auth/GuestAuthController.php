@@ -10,10 +10,10 @@ use App\Services\ContactIdentityService;
 use App\Services\GuestAccessService;
 use App\Services\GuestActivityService;
 use App\Services\GuestInvitationService;
+use App\Services\OtpRateLimitService;
 use App\Services\OtpService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\RateLimiter;
 
 class GuestAuthController extends Controller
 {
@@ -64,15 +64,18 @@ class GuestAuthController extends Controller
             ], 422);
         }
 
-        $key = 'guest-otp-request:'.($request->ip() ?? 'unknown');
-        if (RateLimiter::tooManyAttempts($key, 5)) {
-            return response()->json(['message' => 'Too many OTP requests.', 'code' => 'RATE_LIMITED'], 429);
-        }
-        RateLimiter::hit($key, 60);
-
+        $rateLimit = app(OtpRateLimitService::class);
+        $rateLimit->assertCanRequest($email);
         $otp->send($email);
+        $limits = $rateLimit->recordRequest($email);
 
-        return response()->json(['data' => ['message' => 'OTP dispatched', 'email' => $email]], 202);
+        return response()->json([
+            'data' => [
+                'message' => 'OTP dispatched',
+                'email' => $email,
+                'rate_limit' => $limits,
+            ],
+        ], 202);
     }
 
     /** POST /v1/auth/guest/otp/verify */
@@ -84,9 +87,20 @@ class GuestAuthController extends Controller
         ]);
 
         $email = ContactIdentityService::normalizeEmail($validated['email']);
+        $rateLimit = app(OtpRateLimitService::class);
+        $rateLimit->assertCanVerify($email);
+
         if (! $email || ! $otp->check($email, $validated['code'])) {
+            try {
+                $rateLimit->recordFailedVerify($email ?? '');
+            } catch (\Illuminate\Http\Exceptions\HttpResponseException $e) {
+                throw $e;
+            }
+
             return response()->json(['message' => 'Invalid or expired verification code.', 'code' => 'INVALID_OTP'], 422);
         }
+
+        $rateLimit->clear($email);
 
         $user = ContactIdentityService::findActiveUserByEmail($email);
         $validInvitation = GuestAccessService::findLoginInvitationForEmail($email);
@@ -101,6 +115,13 @@ class GuestAuthController extends Controller
         }
 
         if ($user && $user->role === 'guest') {
+            if (! GuestAccessService::canGuestAccessDashboard($user) && $validInvitation) {
+                $restoredGuest = GuestAccessService::restoreReturningGuestIfEligible($validInvitation);
+                if ($restoredGuest) {
+                    $user = $restoredGuest;
+                }
+            }
+
             if (GuestAccessService::canGuestAccessDashboard($user)) {
                 $otp->consume($email);
                 $token = $user->createToken('mobile')->plainTextToken;
@@ -144,7 +165,9 @@ class GuestAuthController extends Controller
         }
 
         if ($invitation->status === 'active' && $invitation->guest_user_id) {
-            $guestUser = User::query()->find($invitation->guest_user_id);
+            $guestUser = GuestAccessService::restoreReturningGuestIfEligible($invitation)
+                ?? User::query()->find($invitation->guest_user_id);
+
             if ($guestUser && GuestAccessService::canGuestAccessDashboard($guestUser)) {
                 $otp->consume($email);
                 $token = $guestUser->createToken('mobile')->plainTextToken;
@@ -208,6 +231,10 @@ class GuestAuthController extends Controller
             }
 
             $guestUser = GuestInvitationService::findOrCreateGuestUser($invitation);
+
+            if ($invitation->status === 'active') {
+                $guestUser = GuestAccessService::restoreReturningGuestIfEligible($invitation) ?? $guestUser;
+            }
 
             if ($invitation->status === 'active' && GuestAccessService::canGuestAccessDashboard($guestUser)) {
                 $otp->consume($email);

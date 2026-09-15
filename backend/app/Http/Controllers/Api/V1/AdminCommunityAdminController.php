@@ -6,14 +6,18 @@ use App\Http\Controllers\Controller;
 use App\Models\Community;
 use App\Models\CommunityMembership;
 use App\Models\User;
+use App\Models\User as UserModel;
 use App\Services\ActivityLogService;
 use App\Services\AdminRoleService;
 use App\Services\CommunityLifecycleService;
+use App\Services\ContactIdentityService;
 use App\Services\NotificationService;
 use App\Services\ReferralService;
+use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class AdminCommunityAdminController extends Controller
 {
@@ -70,6 +74,91 @@ class AdminCommunityAdminController extends Controller
                 'per_page'     => $items->perPage(),
                 'stats'        => $stats,
             ],
+        ]);
+    }
+
+    /** PATCH /v1/admin/community-admins/{id} */
+    public function update(Request $request, int $id): JsonResponse
+    {
+        $user = User::query()
+            ->with(['profile', 'memberships.community'])
+            ->where('id', $id)
+            ->where('role', 'community_admin')
+            ->first();
+
+        if (! $user) {
+            return response()->json(['message' => 'Community admin not found.'], 404);
+        }
+
+        $request->validate([
+            'name' => 'sometimes|required|string|min:2|max:100',
+            'phone' => 'sometimes|required|string|max:30',
+            'email' => [
+                'sometimes',
+                'required',
+                'string',
+                'email',
+                'max:255',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (UserModel::isPhonePlaceholderEmail(is_string($value) ? $value : null)) {
+                        $fail('Enter a personal email address.');
+                    }
+                },
+            ],
+            'display_name' => 'sometimes|nullable|string|max:50',
+            'unit_number' => 'sometimes|required|string|max:50',
+            'residence_type' => 'sometimes|required|string|in:homeowner,tenant',
+        ]);
+
+        if ($request->filled('name')) {
+            $user->update(['name' => trim((string) $request->input('name'))]);
+        }
+
+        if ($request->has('phone')) {
+            $phone = PhoneNormalizer::normalize($request->phone);
+            if (! $phone) {
+                throw ValidationException::withMessages([
+                    'phone' => ['Enter a valid phone number in international format (e.g. +2017777777).'],
+                ]);
+            }
+
+            ContactIdentityService::assertAvailableForRegistration(null, $phone, $user->id, 'phone');
+            $user->update(['phone' => $phone]);
+        }
+
+        if ($request->filled('email')) {
+            $email = strtolower(trim((string) $request->email));
+            ContactIdentityService::assertAvailableForRegistration($email, null, $user->id, 'email');
+            $user->update(['email' => $email]);
+        }
+
+        $profileData = [];
+        if ($request->has('display_name')) {
+            $profileData['display_name'] = trim((string) $request->input('display_name'));
+        }
+        if ($request->has('unit_number')) {
+            $profileData['unit_number'] = trim((string) $request->input('unit_number'));
+        }
+        if ($request->has('residence_type')) {
+            $profileData['residence_type'] = $request->input('residence_type');
+        }
+
+        if ($profileData !== []) {
+            $user->profile()->updateOrCreate(['user_id' => $user->id], $profileData);
+        }
+
+        ActivityLogService::user(
+            'community_admin_updated',
+            "Updated community admin profile: {$user->name}",
+            'User',
+            $user->id,
+        );
+
+        $fresh = $user->fresh(['profile', 'memberships.community']);
+
+        return response()->json([
+            'data' => $this->transform($fresh),
+            'message' => 'Community admin updated',
         ]);
     }
 

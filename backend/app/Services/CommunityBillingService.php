@@ -136,22 +136,14 @@ class CommunityBillingService
             return false;
         }
 
-        if (in_array($subscription->status, [
+        // Only consume the one-time trial after it actually started (trialing/paid/grace),
+        // not when a card was saved but the trial had not begun yet (pending_trial).
+        return in_array($subscription->status, [
             CommunitySubscription::STATUS_TRIALING,
             CommunitySubscription::STATUS_ACTIVE,
             CommunitySubscription::STATUS_GRACE,
             CommunitySubscription::STATUS_PAST_DUE,
-            CommunitySubscription::STATUS_PENDING_TRIAL,
-        ], true)) {
-            return true;
-        }
-
-        if ((bool) data_get($subscription->meta, 'card_on_file', false)
-            && $subscription->status !== CommunitySubscription::STATUS_INCOMPLETE) {
-            return true;
-        }
-
-        return false;
+        ], true);
     }
 
     public function assertPlanAvailable(?array $plan, ?CommunitySubscription $existing = null): array
@@ -1683,6 +1675,8 @@ class CommunityBillingService
 
         $previousStatus = (string) $subscription->status;
         $periodEnd = $subscription->current_period_end;
+        $plan = $this->plan($subscription->plan_slug) ?? [];
+        $eligibleTrialDays = $this->eligibleTrialDays($subscription, $plan);
         $hadStartedService = in_array($previousStatus, [
             CommunitySubscription::STATUS_TRIALING,
             CommunitySubscription::STATUS_ACTIVE,
@@ -1693,6 +1687,14 @@ class CommunityBillingService
         $leftoverEnd = now();
         if ($hadStartedService && $periodEnd && $periodEnd->isFuture()) {
             $leftoverEnd = $periodEnd;
+        } elseif (
+            $previousStatus === CommunitySubscription::STATUS_PENDING_TRIAL
+            && $eligibleTrialDays > 0
+            && ! $subscription->hasConsumedTrial()
+        ) {
+            // Card was saved but the trial had not started — grant the full trial window to the replacement.
+            $leftoverEnd = now()->addDays($eligibleTrialDays);
+            $hadStartedService = true;
         }
 
         $this->detachCustomerPaymentMethods($subscription);
@@ -1707,6 +1709,16 @@ class CommunityBillingService
         $meta['previous_status'] = $previousStatus;
         $meta['inherited_plan_slug'] = $subscription->plan_slug;
         $meta['leftover_ends_at'] = $leftoverEnd->toIso8601String();
+
+        $grantingPendingTrialLeftover = $previousStatus === CommunitySubscription::STATUS_PENDING_TRIAL
+            && $eligibleTrialDays > 0
+            && $leftoverEnd->isFuture()
+            && ! $subscription->hasConsumedTrial();
+
+        if ($grantingPendingTrialLeftover && ! filled(data_get($meta, 'trial_started_on_approval'))) {
+            $meta['trial_started_on_approval'] = now()->toIso8601String();
+        }
+
         $meta['trial_consumed'] = $subscription->hasConsumedTrial()
             || in_array($previousStatus, [
                 CommunitySubscription::STATUS_TRIALING,
@@ -1714,7 +1726,13 @@ class CommunityBillingService
                 CommunitySubscription::STATUS_GRACE,
                 CommunitySubscription::STATUS_PAST_DUE,
             ], true)
-            || (bool) data_get($meta, 'trial_started_on_approval');
+            || (bool) data_get($meta, 'trial_started_on_approval')
+            || $grantingPendingTrialLeftover;
+
+        if ($grantingPendingTrialLeftover && ! filled(data_get($meta, 'trial_consumed_at'))) {
+            $meta['trial_consumed_at'] = now()->toIso8601String();
+            $meta['trial_consumed_reason'] = 'admin_transition_leftover_trial';
+        }
 
         $subscription->update([
             'status' => $leftoverEnd->isFuture()

@@ -29,7 +29,9 @@ import {
   showApiSuccess,
 } from "../../../utils/auth-errors";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
-import { useOtpCountdown } from "../../../hooks/use-otp-countdown";
+import { useOtpResendLimit } from "../../../hooks/use-otp-resend-limit";
+import OtpResendFooter from "../../../components/auth/otp-resend-footer";
+import { extractOtpRateLimitFromResponse } from "../../../utils/otp-rate-limit";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import AuthSuccessOverlay from "../../../components/ui/auth-success-overlay";
 import { navigateAfterAuth } from "../../../constants/onboarding-routes";
@@ -50,12 +52,18 @@ export default function VerifyRegistrationScreen() {
   const [resending, setResending] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [verifiedUser, setVerifiedUser] = useState(null);
-  const { canResend, countdownLabel, resetCountdown } = useOtpCountdown();
+  const {
+    canResend,
+    countdownLabel,
+    lockType,
+    applyRateLimit,
+    applyRateLimitFromError,
+  } = useOtpResendLimit();
   const isValid = otp.length === 6;
   const emailDisplay = email || t("auth.yourEmail");
 
   const handleVerify = () => {
-    if (!isValid || submitting) {
+    if (!isValid || submitting || lockType === "security") {
       if (!isValid) setShowOtpError(true);
       return;
     }
@@ -78,7 +86,9 @@ export default function VerifyRegistrationScreen() {
         setShowSuccess(true);
       } catch (err) {
         setShowOtpError(true);
-        await handleAuthApiError(err, dialog, router, { email });
+        if (!applyRateLimitFromError(err)) {
+          await handleAuthApiError(err, dialog, router, { email });
+        }
         setOtpRefocusToken((token) => token + 1);
       }
     });
@@ -89,11 +99,13 @@ export default function VerifyRegistrationScreen() {
 
     setResending(true);
     try {
-      await requestOtp(email, { intent: "signup" });
-      resetCountdown();
+      const result = await requestOtp(email, { intent: "signup" });
+      applyRateLimit(result?.rate_limit ?? extractOtpRateLimitFromResponse({ data: result }));
       await showApiSuccess(dialog, t("auth.codeSent"), t("auth.newVerificationCodeSent"));
     } catch (err) {
-      await handleAuthApiError(err, dialog, router, { email });
+      if (!applyRateLimitFromError(err)) {
+        await handleAuthApiError(err, dialog, router, { email });
+      }
     } finally {
       setResending(false);
     }
@@ -106,23 +118,17 @@ export default function VerifyRegistrationScreen() {
     }
   };
 
-  const resendFooter = canResend ? (
-    <TouchableOpacity onPress={handleResend} disabled={submitting || resending}>
-      <Text
-        style={[
-          styles.resendText,
-          styles.resendHighlight,
-          (submitting || resending) && styles.resendMuted,
-        ]}
-      >
-        {resending ? t("auth.resending") : t("auth.resendCode")}
-      </Text>
-    </TouchableOpacity>
-  ) : (
-    <Text style={styles.resendText}>
-      {t("auth.resendCodeIn") + " "}
-      <Text style={styles.resendHighlight}>{countdownLabel}</Text>
-    </Text>
+  const resendFooter = (
+    <OtpResendFooter
+      canResend={canResend}
+      countdownLabel={countdownLabel}
+      lockType={lockType}
+      resending={resending}
+      busy={submitting}
+      onResend={handleResend}
+      mutedStyle={styles.resendMuted}
+      textStyle={styles.resendText}
+    />
   );
 
   return (
@@ -176,7 +182,7 @@ export default function VerifyRegistrationScreen() {
               <AuthSubmitButton
                 label={t("auth.verifyContinue")}
                 loadingLabel={t("auth.verifying")}
-                enabled={isValid}
+                enabled={isValid && lockType !== "security"}
                 loading={submitting}
                 onPress={handleVerify}
                 solidColor={B.cta}

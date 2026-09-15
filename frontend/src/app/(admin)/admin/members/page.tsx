@@ -919,8 +919,13 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                       }
                     />
                   ) : null}
-                  {viewing.rejection_reason ? (
-                    <ProfileRow label="Rejection reason" value={viewing.rejection_reason} />
+                  {viewing.status === "rejected" && viewing.rejection_reason ? (
+                    <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2.5">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-500">
+                        Rejection reason
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-rose-800">{viewing.rejection_reason}</p>
+                    </div>
                   ) : null}
                   {viewing.rejected_by ? (
                     <ProfileRow

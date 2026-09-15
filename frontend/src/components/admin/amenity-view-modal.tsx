@@ -88,6 +88,15 @@ export function AmenityViewModal({
             <p className="italic text-slate-400">No description provided.</p>
           )}
 
+          {amenity.review_status === "rejected" && amenity.rejection_reason ? (
+            <div className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-500">
+                Rejection reason
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-rose-800">{amenity.rejection_reason}</p>
+            </div>
+          ) : null}
+
           <dl className="grid grid-cols-2 gap-3">
             <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
               <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Capacity</dt>

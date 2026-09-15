@@ -153,7 +153,7 @@ class NoticeController extends Controller
         $this->applyCategoryGroupFilter($query, $request->input('category_group'), $request->input('category'));
 
         if ($request->filled('status') && $request->status !== 'all') {
-            $query->where('notices.status', $request->status);
+            $this->applyAdminStatusFilter($query, (string) $request->status);
         }
         if ($request->filled('review_status') && $request->review_status !== 'all') {
             $query->where('notices.review_status', $request->review_status);
@@ -185,7 +185,18 @@ class NoticeController extends Controller
             'approved' => (clone $statsQuery)->where('review_status', 'approved')->count(),
             'rejected' => (clone $statsQuery)->where('review_status', 'rejected')->count(),
             'published'=> (clone $statsQuery)->where('status', 'published')->count(),
-            'draft'    => (clone $statsQuery)->where('status', 'draft')->count(),
+            'scheduled'=> (clone $statsQuery)
+                ->where('status', 'draft')
+                ->whereNotNull('scheduled_at')
+                ->where('scheduled_at', '>', now())
+                ->count(),
+            'draft'    => (clone $statsQuery)
+                ->where('status', 'draft')
+                ->where(function ($q) {
+                    $q->whereNull('scheduled_at')
+                        ->orWhere('scheduled_at', '<=', now());
+                })
+                ->count(),
             'archived' => (clone $statsQuery)->where('status', 'archived')->count(),
         ];
 
@@ -1450,6 +1461,39 @@ class NoticeController extends Controller
     private function normalizeCategory(string $category): string
     {
         return strtolower(trim($category));
+    }
+
+    private function applyAdminStatusFilter($query, string $status): void
+    {
+        if ($status === 'scheduled') {
+            $this->applyScheduledDraftScope($query);
+
+            return;
+        }
+
+        if ($status === 'draft') {
+            $this->applyPlainDraftScope($query);
+
+            return;
+        }
+
+        $query->where('notices.status', $status);
+    }
+
+    private function applyScheduledDraftScope($query): void
+    {
+        $query->where('notices.status', 'draft')
+            ->whereNotNull('notices.scheduled_at')
+            ->where('notices.scheduled_at', '>', now());
+    }
+
+    private function applyPlainDraftScope($query): void
+    {
+        $query->where('notices.status', 'draft')
+            ->where(function ($q) {
+                $q->whereNull('notices.scheduled_at')
+                    ->orWhere('notices.scheduled_at', '<=', now());
+            });
     }
 
     /** Notices, events, and alerts support pin + scheduled publish. */

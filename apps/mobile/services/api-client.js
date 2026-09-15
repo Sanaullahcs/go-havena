@@ -34,10 +34,13 @@ function isNetworkFailure(err) {
 }
 
 async function invalidateGuestSessionIfNeeded(status, code) {
+  if (code === "GUEST_ACCESS_REJECTED") {
+    return;
+  }
+
   const shouldInvalidateGuest =
     status === 401 ||
     code === "GUEST_ACCESS_REVOKED" ||
-    code === "GUEST_ACCESS_REJECTED" ||
     code === "GUEST_ACCESS_EXPIRED";
 
   if (!shouldInvalidateGuest) return;
@@ -105,6 +108,10 @@ async function parseResponse(response) {
       rejectedBy: body?.rejected_by,
       feature: body?.feature,
       suspendedAt: body?.suspended_at ?? null,
+      retryAfterSeconds: body?.retry_after_seconds ?? body?.rate_limit?.retry_after_seconds ?? null,
+      rateLimit: body?.rate_limit ?? null,
+      rejectionReason: body?.rejection_reason ?? null,
+      guestInvitation: body?.invitation ?? null,
     });
 
     if (response.status === 403 && isAccountRestrictedError(apiError)) {
