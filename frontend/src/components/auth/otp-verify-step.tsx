@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OtpInput } from "@/components/auth/otp-input";
 import { LoadingButton, InlineLoader } from "@/components/shared/loaders";
+import {
+  formatOtpCountdown,
+  OTP_EXPIRE_MINUTES,
+  OTP_RESEND_SECONDS,
+} from "@/lib/auth/otp-config";
+
 type OtpVerifyStepProps = {
   destination: string;
   otp: string;
@@ -15,7 +21,7 @@ type OtpVerifyStepProps = {
   verifyLabel?: string;
 };
 
-const RESEND_SECONDS = 30;
+const RESEND_NOTICE_MS = 2500;
 
 export function OtpVerifyStep({
   destination,
@@ -28,14 +34,18 @@ export function OtpVerifyStep({
   error = false,
   verifyLabel = "Continue",
 }: OtpVerifyStepProps) {
-  const [resendIn, setResendIn] = useState(RESEND_SECONDS);
+  const [resendIn, setResendIn] = useState(OTP_RESEND_SECONDS);
   const [resending, setResending] = useState(false);
+  const [resendNotice, setResendNotice] = useState(false);
   const verifyOnce = useRef(false);
+  const noticeTimer = useRef<number | null>(null);
   const busy = verifying || resending;
+  const canResend = resendIn <= 0 && !resending && !sending;
 
   useEffect(() => {
     if (sending) return;
-    setResendIn(RESEND_SECONDS);
+    setResendIn(OTP_RESEND_SECONDS);
+    setResendNotice(false);
   }, [sending, destination]);
 
   useEffect(() => {
@@ -47,6 +57,15 @@ export function OtpVerifyStep({
   useEffect(() => {
     if (!verifying) verifyOnce.current = false;
   }, [verifying]);
+
+  useEffect(
+    () => () => {
+      if (noticeTimer.current !== null) {
+        window.clearTimeout(noticeTimer.current);
+      }
+    },
+    [],
+  );
 
   const runVerify = useCallback(
     (code: string) => {
@@ -65,11 +84,20 @@ export function OtpVerifyStep({
   );
 
   const handleResend = async () => {
-    if (resendIn > 0 || resending || sending) return;
+    if (!canResend) return;
     setResending(true);
+    setResendNotice(false);
     try {
       await onResend();
-      setResendIn(RESEND_SECONDS);
+      setResendIn(OTP_RESEND_SECONDS);
+      setResendNotice(true);
+      if (noticeTimer.current !== null) {
+        window.clearTimeout(noticeTimer.current);
+      }
+      noticeTimer.current = window.setTimeout(() => {
+        setResendNotice(false);
+        noticeTimer.current = null;
+      }, RESEND_NOTICE_MS);
     } finally {
       setResending(false);
     }
@@ -115,17 +143,29 @@ export function OtpVerifyStep({
         </svg>
       </LoadingButton>
 
-      <p className="text-center text-[12px] text-slate-400">
-        {resending ? (
-          "Sending…"
-        ) : resendIn > 0 ? (
-          `Resend available in ${resendIn}s`
-        ) : (
-          <button type="button" onClick={handleResend} className="font-semibold text-teal-700 hover:text-teal-800">
+      <div className="space-y-2 text-center">
+        <p className="text-[12px] text-slate-500">
+          This code will expire in {OTP_EXPIRE_MINUTES} minutes
+        </p>
+        {resendNotice ? (
+          <p className="text-[12px] font-medium text-emerald-600">New code sent</p>
+        ) : resending ? (
+          <p className="text-[12px] text-slate-400">Sending…</p>
+        ) : canResend ? (
+          <button
+            type="button"
+            onClick={handleResend}
+            className="text-[12px] font-semibold text-teal-700 hover:text-teal-800"
+          >
             Resend code
           </button>
+        ) : (
+          <p className="text-[12px] text-slate-400">
+            Resend available in{" "}
+            <span className="font-semibold text-teal-700">{formatOtpCountdown(resendIn)}</span>
+          </p>
         )}
-      </p>
+      </div>
     </div>
   );
 }

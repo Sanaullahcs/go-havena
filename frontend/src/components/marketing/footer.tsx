@@ -16,7 +16,6 @@ export function MarketingFooter() {
               <span>{marketingSite.name}</span>
             </Link>
             <p>{footerCopy.blurb}</p>
-            <StoreBadges />
           </div>
 
           {footerColumns.map((column) => (
@@ -64,6 +63,11 @@ export function MarketingFooter() {
               </li>
             </ul>
           </div>
+
+        </div>
+
+        <div className="lp-footer__stores">
+          <StoreBadges />
         </div>
 
         <div className="lp-footer__bottom">

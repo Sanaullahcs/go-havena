@@ -767,8 +767,29 @@
   opacity: 0.92;
 }
 
-.marketing-landing .lp-store-badge svg {
+.marketing-landing .lp-store-badge__icon {
+  display: inline-flex;
   flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.marketing-landing .lp-store-badge__icon svg,
+.marketing-landing .lp-store-badge__icon-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.marketing-landing .lp-store-badge__icon--apple {
+  width: 1.35rem;
+  height: 1.65rem;
+}
+
+.marketing-landing .lp-store-badge__icon--play {
+  width: 1.15rem;
+  height: 1.25rem;
 }
 
 .marketing-landing .lp-store-badge span {
@@ -1283,17 +1304,20 @@
   color: #667085;
 }
 
-.marketing-landing .lp-footer__brand .lp-store-badges {
-  margin-top: 1rem;
+.marketing-landing .lp-footer__stores {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: clamp(2rem, 5vw, 3.25rem);
+  margin-bottom: 1.15rem;
 }
 
-.marketing-landing .lp-footer__brand .lp-store-badge {
+.marketing-landing .lp-footer__stores .lp-store-badge {
   min-height: 2.45rem;
   padding: 0.3rem 0.75rem 0.3rem 0.6rem;
   border-radius: 0.65rem;
 }
 
-.marketing-landing .lp-footer__brand .lp-store-badge span {
+.marketing-landing .lp-footer__stores .lp-store-badge span {
   font-size: 0.82rem;
 }
 
@@ -1371,7 +1395,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-top: clamp(2.5rem, 5vw, 4rem);
+  margin-top: 0;
   padding-top: 1.25rem;
   border-top: 1px solid rgba(15, 23, 42, 0.06);
 }
@@ -1776,6 +1800,15 @@
 
   .marketing-landing .lp-footer__brand p {
     max-width: none;
+  }
+
+  .marketing-landing .lp-footer__stores {
+    justify-content: center;
+    margin-top: clamp(1.5rem, 4vw, 2rem);
+  }
+
+  .marketing-landing .lp-footer__stores .lp-store-badges {
+    justify-content: center;
   }
 
   .marketing-landing .lp-footer__bottom {

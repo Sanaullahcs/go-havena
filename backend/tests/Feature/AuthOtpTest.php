@@ -243,12 +243,15 @@ class AuthOtpTest extends TestCase
             'role' => 'resident',
         ]);
 
+        $message = 'Account not found. Please verify your email address and try again.';
+
         $this->postJson('/api/v1/auth/otp/request', [
             'email' => $email,
             'intent' => 'login',
             'portal' => 'community_admin_dashboard',
         ])->assertStatus(422)
-            ->assertJsonPath('code', 'NOT_AUTHORIZED_COMMUNITY_ADMIN');
+            ->assertJsonPath('code', 'ACCOUNT_NOT_FOUND')
+            ->assertJsonPath('message', $message);
 
         $this->postJson('/api/v1/auth/otp/request', [
             'email' => $email,
@@ -261,7 +264,8 @@ class AuthOtpTest extends TestCase
             'intent' => 'login',
             'portal' => 'community_admin_dashboard',
         ])->assertStatus(422)
-            ->assertJsonPath('code', 'NOT_AUTHORIZED_COMMUNITY_ADMIN');
+            ->assertJsonPath('code', 'ACCOUNT_NOT_FOUND')
+            ->assertJsonPath('message', $message);
     }
 
     public function test_wrong_code_does_not_expire_a_valid_otp(): void

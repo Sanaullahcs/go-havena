@@ -317,18 +317,10 @@ class OtpController extends Controller
             return;
         }
 
-        if (($user->role ?? '') === 'resident') {
-            $this->failValidation(
-                'email',
-                'This account is not authorized to access the Community Admin Dashboard. Please use the resident app instead.',
-                'NOT_AUTHORIZED_COMMUNITY_ADMIN',
-            );
-        }
-
         $this->failValidation(
             'email',
-            'This account is not authorized to access the Community Admin Dashboard.',
-            'NOT_AUTHORIZED_COMMUNITY_ADMIN',
+            'Account not found. Please verify your email address and try again.',
+            'ACCOUNT_NOT_FOUND',
         );
     }
 
