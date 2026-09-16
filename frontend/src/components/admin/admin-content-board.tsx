@@ -32,7 +32,7 @@ import { PageLoader, PageError } from "@/components/shared/page-states";
 
 export type ContentBoardKind = "notices" | "events" | "alerts";
 
-type BoardFilter = "all" | "draft" | "scheduled" | "published" | "pending";
+type BoardFilter = "all" | "draft" | "scheduled" | "published" | "pending" | "rejected";
 
 const EMPTY_STATS: NoticeStats = {
   total: 0,
@@ -56,7 +56,7 @@ function publishStatusMeta(notice: Notice) {
     return { tone: "amber" as const, label: "Pending" };
   }
   if (notice.review_status === "rejected") {
-    return { tone: "slate" as const, label: "Rejected" };
+    return { tone: "red" as const, label: "Rejected" };
   }
   if (notice.status === "draft" && notice.scheduled_at) {
     const scheduled = new Date(notice.scheduled_at.includes("T") ? notice.scheduled_at : notice.scheduled_at.replace(" ", "T"));
@@ -190,15 +190,17 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
   const initialFilter: BoardFilter =
     reviewParam === "pending" && showPendingReview
       ? "pending"
-      : statusParam === "draft" || statusParam === "scheduled" || statusParam === "published"
-        ? statusParam
-        : reviewParam === "approved"
-          ? "published"
-          : "all";
+      : reviewParam === "rejected" && showPendingReview
+        ? "rejected"
+        : statusParam === "draft" || statusParam === "scheduled" || statusParam === "published"
+          ? statusParam
+          : reviewParam === "approved"
+            ? "published"
+            : "all";
   const highlightNoticeId = searchParams.get("notice");
 
   const [boardFilter, setBoardFilter] = useState<BoardFilter>(
-    (["all", "draft", "scheduled", "published", "pending"] as BoardFilter[]).includes(initialFilter)
+    (["all", "draft", "scheduled", "published", "pending", "rejected"] as BoardFilter[]).includes(initialFilter)
       ? initialFilter
       : "all",
   );
@@ -235,6 +237,8 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
       };
       if (boardFilter === "pending") {
         params.review_status = "pending";
+      } else if (boardFilter === "rejected") {
+        params.review_status = "rejected";
       } else if (boardFilter === "scheduled") {
         params.status = "scheduled";
       } else if (boardFilter !== "all") {
@@ -306,15 +310,37 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
     }
     tiles.push(
       { label: "Published", value: String(stats.published), hint: "Live to residents", tone: "green" as const, icon: <IcoCheck /> },
-      { label: "Draft", value: String(stats.draft), hint: "Saved, not published", tone: "amber" as const, icon: <IcoDoc /> },
-      { label: "Scheduled for later", value: String(stats.scheduled ?? 0), hint: "Queued to publish", tone: "blue" as const, icon: <IcoClock /> },
     );
+    if (showPendingReview) {
+      tiles.push({
+        label: "Rejected",
+        value: String(stats.rejected ?? 0),
+        hint: "Declined submissions",
+        tone: "red" as const,
+        icon: <IcoBan />,
+      });
+    } else {
+      tiles.push({
+        label: "Draft",
+        value: String(stats.draft),
+        hint: "Saved, not published",
+        tone: "amber" as const,
+        icon: <IcoDoc />,
+      });
+    }
+    tiles.push({
+      label: "Scheduled for later",
+      value: String(stats.scheduled ?? 0),
+      hint: "Queued to publish",
+      tone: "blue" as const,
+      icon: <IcoClock />,
+    });
     return tiles;
   }, [stats, showPendingReview]);
 
   const boardFilters = useMemo(() => {
     const keys: BoardFilter[] = showPendingReview
-      ? ["all", "pending", "draft", "scheduled", "published"]
+      ? ["all", "pending", "rejected", "draft", "scheduled", "published"]
       : ["all", "draft", "scheduled", "published"];
     return keys.map((s) => ({
       key: s,
@@ -323,19 +349,23 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
           ? "All"
           : s === "pending"
             ? "Pending"
-            : s === "draft"
-              ? "Draft"
-              : s === "scheduled"
-                ? "Scheduled for later"
-                : "Published",
+            : s === "rejected"
+              ? "Rejected"
+              : s === "draft"
+                ? "Draft"
+                : s === "scheduled"
+                  ? "Scheduled for later"
+                  : "Published",
       count:
         s === "all"
           ? stats.total
           : s === "pending"
             ? (stats.pending ?? 0)
-            : s === "scheduled"
-              ? (stats.scheduled ?? 0)
-              : stats[s],
+            : s === "rejected"
+              ? (stats.rejected ?? 0)
+              : s === "scheduled"
+                ? (stats.scheduled ?? 0)
+                : stats[s],
     }));
   }, [stats, showPendingReview]);
 
@@ -627,3 +657,4 @@ function IcoDoc()   { return <svg viewBox="0 0 24 24" fill="none"><rect x="3" y=
 function IcoCheck() { return <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8"/><path d="M8 12l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>; }
 function IcoClock() { return <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8"/><path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>; }
 function IcoPlus()  { return <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>; }
+function IcoBan()   { return <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8"/><path d="M7 7l10 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>; }

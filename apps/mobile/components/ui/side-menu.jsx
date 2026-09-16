@@ -35,7 +35,6 @@ import { getProfileFields } from "../../utils/profile-display";
 import ProfilePhotoAvatar from "../profile/profile-photo-avatar";
 import HavenaLogo from "./havena-logo";
 import HavenaWordmark from "./havena-wordmark";
-import { useProfilePhoto } from "../../hooks/use-profile-photo";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
 import { wellnessDetailRouteParams } from "../../constants/wellness-categories";
 import { getWellnessCategoryMeta } from "../../constants/wellness-theme";
@@ -198,23 +197,6 @@ function SideMenuPanel({ visible, onClose }) {
     !profile.avatarUrl ||
     profile.displayName === "My Profile" ||
     profile.displayName === "Neighbor";
-  const { changePhoto, uploading } = useProfilePhoto({
-    onUpdated: (data) => setUser(data),
-  });
-
-  const handleAvatarPress = () => {
-    slideAnim.stopAnimation();
-    slideAnim.setValue(-MENU_WIDTH);
-    dismissImageSourcePicker();
-    onClose();
-
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        void changePhoto();
-      }, 280);
-    });
-  };
-
   const handleClose = () => {
     dismissImageSourcePicker();
     Animated.timing(slideAnim, {
@@ -347,6 +329,7 @@ function SideMenuPanel({ visible, onClose }) {
   };
 
   return (
+    <>
       <View style={styles.overlay}>
         <Pressable
           style={styles.backdrop}
@@ -393,25 +376,20 @@ function SideMenuPanel({ visible, onClose }) {
             <View
               style={styles.profileGradient}
             >
-              <View style={styles.profileCard}>
-                <TouchableOpacity
-                  style={styles.profileAvatarWrapper}
-                  activeOpacity={0.85}
-                  onPress={handleAvatarPress}
-                  disabled={uploading}
-                >
+              <TouchableOpacity
+                style={styles.profileCard}
+                activeOpacity={0.8}
+                onPress={openProfile}
+              >
+                <View style={styles.profileAvatarWrapper}>
                   <ProfilePhotoAvatar
                     avatarUrl={profile.avatarUrl}
                     size={48}
-                    uploading={uploading}
+                    showEditBadge={false}
                   />
-                </TouchableOpacity>
+                </View>
 
-                <TouchableOpacity
-                  style={styles.profileInfo}
-                  activeOpacity={0.8}
-                  onPress={openProfile}
-                >
+                <View style={styles.profileInfo}>
                   <Text style={styles.profileName} numberOfLines={2}>
                     {profile.displayName || profile.displayPhone || t("nav.welcome")}
                   </Text>
@@ -425,17 +403,10 @@ function SideMenuPanel({ visible, onClose }) {
                       {t(roleLabelKey)}
                     </Text>
                   ) : null}
-                  {isNewProfile ? (
-                    <Text style={styles.addPhotoHint}>{t("nav.completeProfile")}</Text>
-                  ) : !profile.avatarUrl ? (
-                    <Text style={styles.addPhotoHint}>{t("nav.addProfilePhoto")}</Text>
-                  ) : null}
-                </TouchableOpacity>
+                </View>
 
-                <TouchableOpacity onPress={openProfile} activeOpacity={0.8} hitSlop={8}>
-                  <Feather name={chevronForward()} size={20} color="#94A3B8" />
-                </TouchableOpacity>
-              </View>
+                <Feather name={chevronForward()} size={20} color="#94A3B8" />
+              </TouchableOpacity>
             </View>
 
             <Text style={styles.sectionTitle}>{t("nav.mainMenu")}</Text>
@@ -530,6 +501,7 @@ function SideMenuPanel({ visible, onClose }) {
           </View>
         </Animated.View>
       </View>
+    </>
   );
 }
 
@@ -659,6 +631,7 @@ const styles = StyleSheet.create({
   profileInfo: {
     flex: 1,
     minWidth: 0,
+    alignItems: "flex-start",
   },
   profileName: {
     fontFamily: Fonts.bold,
@@ -691,15 +664,6 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     includeFontPadding: true,
   },
-  addPhotoHint: {
-    marginTop: 4,
-    fontFamily: Fonts.semiBold,
-    fontSize: 11,
-    lineHeight: 14,
-    color: "#1B4F8A",
-    fontWeight: "600",
-  },
-
   sectionTitle: {
     fontFamily: Fonts.bold,
     fontSize: 11,

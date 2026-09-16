@@ -16,6 +16,11 @@ import { rnShadow } from "../utils/shadow";
 
 
 const SOURCE_OPTIONS = {
+  view: {
+    id: "view",
+    labelKey: "profile.viewProfilePicture",
+    icon: "eye-outline",
+  },
   camera: {
     id: "camera",
     labelKey: "imagePicker.camera",
@@ -37,14 +42,16 @@ function ImageSourcePickerDialog({
   visible,
   title,
   message,
+  allowView,
   allowCamera,
   allowFile,
   onSelect,
   onDismiss,
 }) {
   const options = [
-    allowCamera ? SOURCE_OPTIONS.camera : null,
+    allowView ? SOURCE_OPTIONS.view : null,
     SOURCE_OPTIONS.library,
+    allowCamera ? SOURCE_OPTIONS.camera : null,
     allowFile ? SOURCE_OPTIONS.file : null,
   ].filter(Boolean);
 
@@ -101,11 +108,12 @@ export function dismissImageSourcePicker() {
 
 /**
  * Show themed camera / gallery / file picker.
- * @returns {Promise<"camera"|"library"|"file"|null>}
+ * @returns {Promise<"view"|"camera"|"library"|"file"|null>}
  */
 export function promptImageSourceAsync({
   title = i18n.t("imagePicker.uploadPhoto"),
   message = i18n.t("imagePicker.chooseHowToAdd"),
+  allowView = false,
   allowCamera = true,
   allowFile = false,
 } = {}) {
@@ -117,6 +125,7 @@ export function promptImageSourceAsync({
     showPickerRef.current({
       title,
       message,
+      allowView,
       allowCamera,
       allowFile,
       resolve,
@@ -147,6 +156,7 @@ export function ImageSourcePickerProvider({ children }) {
       setConfig({
         title: next.title,
         message: next.message,
+        allowView: next.allowView,
         allowCamera: next.allowCamera,
         allowFile: next.allowFile,
       });
@@ -166,6 +176,7 @@ export function ImageSourcePickerProvider({ children }) {
           visible
           title={config.title}
           message={config.message}
+          allowView={config.allowView ?? false}
           allowCamera={config.allowCamera ?? true}
           allowFile={config.allowFile ?? false}
           onSelect={(source) => close(source)}

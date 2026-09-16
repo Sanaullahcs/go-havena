@@ -73,7 +73,7 @@ async function finalizeDocumentAsset(asset, defaultBaseName, showError) {
 
 /**
  * Native chooser: Camera / Gallery / optional File / Cancel.
- * @returns {Promise<"camera"|"library"|"file"|null>}
+ * @returns {Promise<"view"|"camera"|"library"|"file"|null>}
  */
 export function promptImageSource(options = {}) {
   return promptImageSourceAsync(options);

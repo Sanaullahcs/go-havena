@@ -10,6 +10,7 @@ export default function ProfilePhotoAvatar({
   avatarUrl,
   size = 44,
   uploading = false,
+  showEditBadge = true,
   style,
 }) {
   const hasPhoto = Boolean(avatarUrl);
@@ -45,24 +46,26 @@ export default function ProfilePhotoAvatar({
         )}
       </View>
 
-      <View
-        style={[
-          styles.badge,
-          {
-            width: badgeSize,
-            height: badgeSize,
-            borderRadius: badgeSize / 2,
-            end: -1,
-            bottom: -1,
-          },
-        ]}
-      >
-        <Feather
-          name={hasPhoto ? "edit-2" : "camera"}
-          size={Math.max(10, badgeSize * 0.55)}
-          color="#FFFFFF"
-        />
-      </View>
+      {showEditBadge ? (
+        <View
+          style={[
+            styles.badge,
+            {
+              width: badgeSize,
+              height: badgeSize,
+              borderRadius: badgeSize / 2,
+              end: -1,
+              bottom: -1,
+            },
+          ]}
+        >
+          <Feather
+            name={hasPhoto ? "edit-2" : "camera"}
+            size={Math.max(10, badgeSize * 0.55)}
+            color="#FFFFFF"
+          />
+        </View>
+      ) : null}
 
       {uploading ? (
         <View style={[styles.loading, { borderRadius: radius }]}>

@@ -58,11 +58,11 @@ export default function Profile() {
     }, [load]),
   );
 
-  const { changePhoto, uploading } = useProfilePhoto({
-    onUpdated: (data) => setProfile(data),
-  });
-
   const fields = getProfileFields(profile);
+  const { changePhoto, uploading, ProfilePhotoViewerModal } = useProfilePhoto({
+    onUpdated: (data) => setProfile(data),
+    avatarUrl: fields.avatarUrl,
+  });
   const unitLine = fields.unitNumber ? t("profile.unit", { number: fields.unitNumber }) : null;
   const regionLine = fields.regionTitle || null;
   const roleKey = fields.role === "guest" ? "guest" : fields.role === "community_admin" || fields.role === "admin" ? "admin" : "resident";
@@ -178,10 +178,6 @@ export default function Profile() {
                 </Pressable>
               </View>
 
-              <Text style={styles.photoHint}>
-                {fields.avatarUrl ? t("profile.tapPhotoUpdate") : t("profile.addPhoto")}
-              </Text>
-
               <View style={styles.divider} />
 
               <View style={styles.placeRow}>
@@ -209,6 +205,7 @@ export default function Profile() {
         <QuickAccess />
       </ScrollView>
       )}
+      <ProfilePhotoViewerModal />
     </SafeAreaView>
   );
 }
@@ -370,13 +367,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: sf(11),
     color: Colors.brandPrimaryDeep,
-  },
-  photoHint: {
-    marginTop: sw(8),
-    fontFamily: Fonts.medium,
-    fontWeight: "500",
-    fontSize: sf(11),
-    color: Colors.textSecondary,
   },
   divider: {
     alignSelf: "stretch",

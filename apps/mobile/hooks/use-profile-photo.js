@@ -1,22 +1,42 @@
 import { useCallback, useState } from "react";
 import i18n from "../i18n";
-import { pickImage } from "../utils/pickImage";
+import { pickImage, takePhoto } from "../utils/pickImage";
+import { promptImageSourceAsync } from "../providers/image-source-picker-provider";
 import { fetchMe, uploadAvatar } from "../services/profile-api";
 import { useAppDialog } from "../providers/app-dialog-provider";
+import ProfilePhotoViewer from "../components/profile/profile-photo-viewer";
 
-export function useProfilePhoto({ onUpdated } = {}) {
+export function useProfilePhoto({ onUpdated, avatarUrl } = {}) {
   const dialog = useAppDialog();
   const [uploading, setUploading] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
+
+  const showError = useCallback(
+    (title, message) => dialog.showError(title, message),
+    [dialog],
+  );
 
   const changePhoto = useCallback(async () => {
     try {
-      const picked = await pickImage(undefined, {
+      const source = await promptImageSourceAsync({
+        title: i18n.t("profile.profilePhoto"),
+        message: i18n.t("profile.takeOrChoose"),
+        allowView: Boolean(avatarUrl),
         allowCamera: true,
-        promptTitle: i18n.t("profile.profilePhoto"),
-        promptMessage: i18n.t("profile.takeOrChoose"),
-        showError: (title, message) =>
-          dialog.showError(title, message),
       });
+
+      if (!source) return null;
+
+      if (source === "view") {
+        setViewerOpen(true);
+        return null;
+      }
+
+      const picked =
+        source === "camera"
+          ? await takePhoto(undefined, { showError })
+          : await pickImage(undefined, { showError, allowCamera: false });
+
       if (!picked?.uri) return null;
 
       setUploading(true);
@@ -43,7 +63,18 @@ export function useProfilePhoto({ onUpdated } = {}) {
     } finally {
       setUploading(false);
     }
-  }, [dialog, onUpdated]);
+  }, [avatarUrl, dialog, onUpdated, showError]);
 
-  return { changePhoto, uploading };
+  const ProfilePhotoViewerModal = useCallback(
+    () => (
+      <ProfilePhotoViewer
+        visible={viewerOpen}
+        uri={avatarUrl}
+        onClose={() => setViewerOpen(false)}
+      />
+    ),
+    [avatarUrl, viewerOpen],
+  );
+
+  return { changePhoto, uploading, ProfilePhotoViewerModal };
 }

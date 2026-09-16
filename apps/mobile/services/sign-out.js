@@ -46,9 +46,13 @@ export async function confirmLeaveOnboarding(dialog) {
 /** Interactive logout confirmation using app dialog. */
 export async function confirmSignOut(dialog) {
   const result = await dialog.showConfirm(
-    "Log out?",
-    "You can unlock again with fingerprint or Face ID, or sign in with your phone.",
-    { confirmLabel: "Log Out", cancelLabel: "Stay signed in", destructive: true },
+    i18n.t("auth.logOutConfirmTitle"),
+    i18n.t("auth.logOutConfirmMsg"),
+    {
+      confirmLabel: i18n.t("settings.logOut"),
+      cancelLabel: i18n.t("auth.staySignedIn"),
+      destructive: true,
+    },
   );
 
   if (result === "confirm") {
