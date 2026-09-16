@@ -128,7 +128,7 @@ class AuthOtpTest extends TestCase
             'intent' => 'signup',
         ])->assertStatus(422)
             ->assertJsonPath('code', 'ACCOUNT_EXISTS_USE_LOGIN')
-            ->assertJsonPath('errors.email.0', \App\Services\ContactIdentityService::DUPLICATE_EMAIL_MESSAGE);
+            ->assertJsonPath('errors.email.0', \App\Services\ContactIdentityService::SIGNUP_EMAIL_EXISTS_MESSAGE);
     }
 
     public function test_login_rejects_unknown_email_on_request(): void

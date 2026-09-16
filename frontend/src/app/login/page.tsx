@@ -16,6 +16,7 @@ import {
   isCommunityAdminUser,
 } from "@/lib/auth/session";
 import { handleLoginError } from "@/lib/auth/login-error";
+import { otpResendLockUserMessage } from "@/lib/auth/otp-config";
 import { ApiError } from "@/lib/api/client";
 import {
   AuthBackLink,
@@ -156,7 +157,7 @@ function LoginPageInner() {
       verifyLock.current = false;
       if (err instanceof ApiError && err.rateLimit) {
         setOtpRateLimit(err.rateLimit);
-        setError(err.message);
+        setError(err.code === "OTP_RESEND_LOCKED" ? otpResendLockUserMessage() : err.message);
       } else {
         await handleLoginError(err, setError);
       }
@@ -176,7 +177,7 @@ function LoginPageInner() {
     } catch (err) {
       if (err instanceof ApiError && (err.code?.startsWith("OTP_") ?? false)) {
         if (err.rateLimit) setOtpRateLimit(err.rateLimit);
-        setError(err.message);
+        setError(err.code === "OTP_RESEND_LOCKED" ? otpResendLockUserMessage() : err.message);
         return;
       }
       await handleLoginError(err, setError);

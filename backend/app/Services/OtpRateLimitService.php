@@ -208,7 +208,7 @@ class OtpRateLimitService
         $code = $lockType === 'security' ? 'OTP_VERIFY_LOCKED' : 'OTP_RESEND_LOCKED';
         $message = $lockType === 'security'
             ? 'Too many failed verification attempts. Try again in '.$this->formatDuration($seconds).'.'
-            : 'Too many code requests. Try again in '.$this->formatDuration($seconds).'.';
+            : 'Too many code requests. Please try again in '.intdiv($this->resendLockSeconds(), 60).' minutes.';
 
         throw new HttpResponseException(response()->json([
             'message' => $message,

@@ -89,9 +89,12 @@ export async function syncUserFromApi(data) {
   return syncSessionFromMe(data);
 }
 
-export async function requestOtp(email, { intent = "login" } = {}) {
+export async function requestOtp(email, { intent = "login", portal } = {}) {
   const normalized = String(email ?? "").trim().toLowerCase();
   const body = { email: normalized, intent };
+  if (portal) {
+    body.portal = portal;
+  }
 
   const response = await apiRequest("/auth/otp/request", {
     method: "POST",
@@ -106,7 +109,7 @@ export async function requestOtp(email, { intent = "login" } = {}) {
   };
 }
 
-export async function verifyOtp(email, code, { intent = "login", role = "resident" } = {}) {
+export async function verifyOtp(email, code, { intent = "login", role = "resident", portal } = {}) {
   const normalized = String(email ?? "").trim().toLowerCase();
   const payload = {
     email: normalized,
@@ -116,6 +119,9 @@ export async function verifyOtp(email, code, { intent = "login", role = "residen
 
   if (intent === "signup") {
     payload.role = role;
+  }
+  if (portal) {
+    payload.portal = portal;
   }
 
   const result = await apiRequest("/auth/otp/verify", {

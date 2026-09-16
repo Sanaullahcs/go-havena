@@ -16,6 +16,7 @@ import {
   isCommunityAdminUser,
 } from "@/lib/auth/session";
 import { handleLoginError } from "@/lib/auth/login-error";
+import { otpResendLockUserMessage } from "@/lib/auth/otp-config";
 import {
   AuthBackLink,
   AuthErrorBanner,
@@ -37,11 +38,32 @@ import {
 } from "@/lib/auth/referral-storage";
 import { ApiError } from "@/lib/api/client";
 import { confirmAction } from "@/lib/alert";
+import { isExistingAccountSignupError } from "@/lib/auth/signup-errors";
 
 type OtpStep = "email" | "code";
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+const SIGNUP_ACCOUNT_EXISTS_TITLE = "Account already exists";
+const SIGNUP_ACCOUNT_EXISTS_TEXT =
+  "An account already exists with this email address. Please log in to continue.";
+
+async function promptExistingAccountLogin(
+  router: ReturnType<typeof useRouter>,
+  planQuery: string,
+) {
+  const result = await confirmAction({
+    title: SIGNUP_ACCOUNT_EXISTS_TITLE,
+    text: SIGNUP_ACCOUNT_EXISTS_TEXT,
+    confirmText: "Go to login",
+    icon: "warning",
+    color: "blue",
+  });
+  if (result.isConfirmed) {
+    router.push(`/login${planQuery}`);
+  }
 }
 
 function RegisterPageInner() {
@@ -158,17 +180,8 @@ function RegisterPageInner() {
       setOtpRateLimit(rate_limit);
       setOtpStep("code");
     } catch (err) {
-      if (err instanceof ApiError && err.code === "ACCOUNT_EXISTS_USE_LOGIN") {
-        const result = await confirmAction({
-          title: "Already registered",
-          text: "This email belongs to an existing account. Please log in instead of signing up.",
-          confirmText: "Go to login",
-          icon: "warning",
-          color: "blue",
-        });
-        if (result.isConfirmed) {
-          router.push(`/login${planQuery}`);
-        }
+      if (isExistingAccountSignupError(err)) {
+        await promptExistingAccountLogin(router, planQuery);
         return;
       }
       await handleLoginError(err, setError);
@@ -216,9 +229,14 @@ function RegisterPageInner() {
         return;
       }
       verifyLock.current = false;
+      if (isExistingAccountSignupError(err)) {
+        await promptExistingAccountLogin(router, planQuery);
+        setLoading(false);
+        return;
+      }
       if (err instanceof ApiError && err.rateLimit) {
         setOtpRateLimit(err.rateLimit);
-        setError(err.message);
+        setError(err.code === "OTP_RESEND_LOCKED" ? otpResendLockUserMessage() : err.message);
       } else {
         await handleLoginError(err, setError);
       }
@@ -235,9 +253,13 @@ function RegisterPageInner() {
       const { rate_limit } = await requestCommunityAdminOtp(email.trim(), "signup");
       return { rate_limit };
     } catch (err) {
+      if (isExistingAccountSignupError(err)) {
+        await promptExistingAccountLogin(router, planQuery);
+        return;
+      }
       if (err instanceof ApiError && (err.code?.startsWith("OTP_") ?? false)) {
         if (err.rateLimit) setOtpRateLimit(err.rateLimit);
-        setError(err.message);
+        setError(err.code === "OTP_RESEND_LOCKED" ? otpResendLockUserMessage() : err.message);
         return;
       }
       await handleLoginError(err, setError);

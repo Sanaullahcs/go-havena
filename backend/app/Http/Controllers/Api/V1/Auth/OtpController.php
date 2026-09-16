@@ -60,7 +60,9 @@ class OtpController extends Controller
         }
 
         if ($intent === 'signup') {
-            $this->assertEmailAvailableForSignup($user);
+            $this->assertEmailAvailableForSignup(
+                ContactIdentityService::findActiveUserByEmail($email) ?? $user,
+            );
         }
 
         $rateLimit = app(OtpRateLimitService::class);
@@ -111,7 +113,9 @@ class OtpController extends Controller
 
             $this->assertAuthenticationAllowed($user, $validated['portal'] ?? null);
         } else {
-            $this->assertEmailAvailableForSignup($user);
+            $this->assertEmailAvailableForSignup(
+                ContactIdentityService::findActiveUserByEmail($email) ?? $user,
+            );
         }
 
         $rateLimit = app(OtpRateLimitService::class);
@@ -263,7 +267,7 @@ class OtpController extends Controller
 
             $this->failValidation(
                 'email',
-                ContactIdentityService::DUPLICATE_EMAIL_MESSAGE,
+                ContactIdentityService::SIGNUP_EMAIL_EXISTS_MESSAGE,
                 'ACCOUNT_EXISTS_USE_LOGIN',
             );
         }
@@ -274,7 +278,7 @@ class OtpController extends Controller
         if ($user && ! $user->trashed()) {
             $this->failValidation(
                 'email',
-                ContactIdentityService::DUPLICATE_EMAIL_MESSAGE,
+                ContactIdentityService::SIGNUP_EMAIL_EXISTS_MESSAGE,
                 'ACCOUNT_EXISTS_USE_LOGIN',
             );
         }

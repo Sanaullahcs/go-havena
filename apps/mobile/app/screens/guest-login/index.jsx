@@ -94,7 +94,7 @@ export default function GuestLoginScreen() {
     lockType,
     applyRateLimit,
     applyRateLimitFromError,
-  } = useOtpResendLimit();
+  } = useOtpResendLimit(null, { dialog });
   const verifyLockRef = useRef(false);
 
   const emailFormatError = validateUserEmail(email);
@@ -249,12 +249,15 @@ export default function GuestLoginScreen() {
     setResending(true);
     try {
       const result = await requestGuestOtp(normalizedEmail);
-      applyRateLimit(result?.rate_limit ?? extractOtpRateLimitFromResponse({ data: result }));
-      setOtp("");
-      setShowOtpError(false);
-      setOtpInputKey((key) => key + 1);
-      setResendNotice(true);
-      setTimeout(() => setResendNotice(false), 2500);
+      const rateLimit = result?.rate_limit ?? extractOtpRateLimitFromResponse({ data: result });
+      const limits = applyRateLimit(rateLimit);
+      if (!limits.locked) {
+        setOtp("");
+        setShowOtpError(false);
+        setOtpInputKey((key) => key + 1);
+        setResendNotice(true);
+        setTimeout(() => setResendNotice(false), 2500);
+      }
     } catch (err) {
       if (!applyRateLimitFromError(err)) {
         await handleAuthApiError(err, dialog, router, { email: normalizedEmail });

@@ -66,5 +66,8 @@ export function getApiErrorMessage(error, field) {
 }
 
 export function getApiErrorCode(error) {
-  return error?.code || null;
+  if (!error) return null;
+  if (typeof error.code === "string" && error.code) return error.code;
+  if (typeof error?.response?.data?.code === "string") return error.response.data.code;
+  return null;
 }

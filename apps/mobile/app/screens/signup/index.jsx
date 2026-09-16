@@ -80,17 +80,23 @@ export default function SignupScreen() {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    const signupOptions = {
+      intent: "signup",
+      ...(role === "admin" ? { portal: "community_admin_dashboard" } : {}),
+    };
     run(async () => {
       try {
-        await requestOtp(normalizedEmail, { intent: "signup" });
-        await showApiSuccess(dialog, t("auth.codeSent"), t("auth.codeSentMsg"));
-        router.push({
-          pathname: "/screens/verifyregistration",
-          params: { role, email: encodeRouteEmail(normalizedEmail) },
-        });
+        await requestOtp(normalizedEmail, signupOptions);
       } catch (err) {
         await handleAuthApiError(err, dialog, router, { email: normalizedEmail });
+        return;
       }
+
+      await showApiSuccess(dialog, t("auth.codeSent"), t("auth.codeSentMsg"));
+      router.push({
+        pathname: "/screens/verifyregistration",
+        params: { role, email: encodeRouteEmail(normalizedEmail) },
+      });
     });
   };
 

@@ -2,6 +2,7 @@ import i18n from "../i18n";
 import { describeApiConnectionHint, isDevTestEmail, isDevTestPhone } from "../constants/api-config";
 import { setBlockedAccountNotice } from "../services/auth-session";
 import { getApiErrorCode, getApiErrorMessage } from "./api-error-core";
+import { isExistingAccountSignupError } from "./signup-errors";
 import {
   blockedAccountNoticeFromError,
   buildBlockedAccountDialogOptions,
@@ -49,7 +50,7 @@ export async function handleAuthApiError(error, dialog, router, { phone, email }
   const code = getApiErrorCode(error);
   const message = getApiErrorMessage(error);
 
-  if (code === "ACCOUNT_EXISTS_USE_LOGIN") {
+  if (isExistingAccountSignupError(error)) {
     await dialog.showDialog({
       type: "warning",
       title: i18n.t("auth.alreadyRegistered"),

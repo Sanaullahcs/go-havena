@@ -58,9 +58,13 @@ export default function VerifyRegistrationScreen() {
     lockType,
     applyRateLimit,
     applyRateLimitFromError,
-  } = useOtpResendLimit();
+  } = useOtpResendLimit(null, { dialog });
   const isValid = otp.length === 6;
   const emailDisplay = email || t("auth.yourEmail");
+  const signupOptions = {
+    intent: "signup",
+    ...(role === "admin" ? { portal: "community_admin_dashboard" } : {}),
+  };
 
   const handleVerify = () => {
     if (!isValid || submitting || lockType === "security") {
@@ -72,7 +76,7 @@ export default function VerifyRegistrationScreen() {
     run(async () => {
       try {
         const result = await verifyOtp(email, otp, {
-          intent: "signup",
+          ...signupOptions,
           role,
         });
         setCurrentRole(role);
@@ -99,9 +103,12 @@ export default function VerifyRegistrationScreen() {
 
     setResending(true);
     try {
-      const result = await requestOtp(email, { intent: "signup" });
-      applyRateLimit(result?.rate_limit ?? extractOtpRateLimitFromResponse({ data: result }));
-      await showApiSuccess(dialog, t("auth.codeSent"), t("auth.newVerificationCodeSent"));
+      const result = await requestOtp(email, signupOptions);
+      const rateLimit = result?.rate_limit ?? extractOtpRateLimitFromResponse({ data: result });
+      const limits = applyRateLimit(rateLimit);
+      if (!limits.locked) {
+        await showApiSuccess(dialog, t("auth.codeSent"), t("auth.newVerificationCodeSent"));
+      }
     } catch (err) {
       if (!applyRateLimitFromError(err)) {
         await handleAuthApiError(err, dialog, router, { email });

@@ -32,25 +32,41 @@ export function useOtpResendLimit(initialRateLimit: unknown = null) {
     }
   }, []);
 
-  const applyRateLimitFromError = useCallback((error: unknown) => {
-    const extracted = extractOtpRateLimitFromError(error);
-    if (!extracted) return false;
-    applyRateLimit(extracted);
-    return true;
-  }, [applyRateLimit]);
+  const applyRateLimitFromError = useCallback(
+    (error: unknown) => {
+      const extracted = extractOtpRateLimitFromError(error);
+      if (!extracted) return false;
+      applyRateLimit(extracted);
+      return true;
+    },
+    [applyRateLimit],
+  );
 
   useEffect(() => {
-    if (secondsLeft <= 0) return undefined;
+    if (secondsLeft <= 0) {
+      if (limits.locked && limits.lockType === "resend_limit") {
+        setLimits((current) => ({
+          ...current,
+          locked: false,
+          lockType: null,
+          retryAfterSeconds: 0,
+        }));
+      }
+      return undefined;
+    }
 
     const timer = window.setTimeout(() => {
       setSecondsLeft((current) => (current > 0 ? current - 1 : 0));
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [secondsLeft]);
+  }, [secondsLeft, limits.locked, limits.lockType]);
 
   const canResend = !limits.locked && secondsLeft <= 0;
-  const countdownLabel = otpRateLimitCountdownLabel(secondsLeft, limits.locked);
+  const countdownLabel = otpRateLimitCountdownLabel(secondsLeft, {
+    locked: limits.locked,
+    lockType: limits.lockType,
+  });
 
   return {
     limits,

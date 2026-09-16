@@ -11,9 +11,12 @@ export function normalizeOtpRateLimit(raw) {
     };
   }
 
+  const lockType =
+    raw.lock_type === "security" || raw.lock_type === "resend_limit" ? raw.lock_type : null;
+
   return {
     locked: Boolean(raw.locked),
-    lockType: raw.lock_type ?? null,
+    lockType,
     retryAfterSeconds: Math.max(0, Number(raw.retry_after_seconds ?? raw.resend_cooldown_seconds ?? 0)),
     resendsRemaining:
       raw.resends_remaining === undefined || raw.resends_remaining === null
@@ -30,7 +33,14 @@ export function extractOtpRateLimitFromResponse(body) {
 
 export function extractOtpRateLimitFromError(error) {
   if (error?.rateLimit) {
-    return normalizeOtpRateLimit(error.rateLimit);
+    const normalized = normalizeOtpRateLimit(error.rateLimit);
+    if (!normalized.lockType && error?.code === "OTP_RESEND_LOCKED") {
+      return { ...normalized, locked: true, lockType: "resend_limit" };
+    }
+    if (!normalized.lockType && error?.code === "OTP_VERIFY_LOCKED") {
+      return { ...normalized, locked: true, lockType: "security" };
+    }
+    return normalized;
   }
 
   const retryAfter = Number(error?.retryAfterSeconds ?? 0);
@@ -58,7 +68,11 @@ export function isOtpRateLimitError(code) {
   return code === "OTP_COOLDOWN" || code === "OTP_RESEND_LOCKED" || code === "OTP_VERIFY_LOCKED";
 }
 
-export function otpRateLimitCountdownLabel(seconds, { locked = false } = {}) {
+export function otpRateLimitCountdownLabel(seconds, { locked = false, lockType = null } = {}) {
+  if (lockType === "resend_limit") {
+    return formatOtpCountdown(seconds);
+  }
+
   if (seconds >= 3600 || (locked && seconds >= 600)) {
     return formatOtpLockCountdown(seconds);
   }

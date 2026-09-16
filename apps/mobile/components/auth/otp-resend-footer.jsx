@@ -28,7 +28,7 @@ export default function OtpResendFooter({
   if (lockType === "resend_limit") {
     return (
       <Text style={[layout.footerNote, textStyle]}>
-        {t("auth.otpResendLockedIn")}{" "}
+        {t("auth.resendAvailableIn")}{" "}
         <Text style={layout.resendHighlight}>{countdownLabel}</Text>
       </Text>
     );

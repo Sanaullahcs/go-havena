@@ -56,8 +56,15 @@ function throwAuthError(err: unknown): never {
     const fieldMsg = errors?.email?.[0] ?? errors?.phone?.[0] ?? errors?.code?.[0] ?? errors?.referral_code?.[0];
     const msg = fieldMsg ?? (typeof data?.message === "string" ? data.message : "Request failed.");
     const block = parseAccountBlockFromResponse(data);
+    const nested = data?.data as Record<string, unknown> | undefined;
+    const code =
+      typeof data?.code === "string"
+        ? data.code
+        : typeof nested?.code === "string"
+          ? nested.code
+          : undefined;
     throw new ApiError(msg, err.response?.status ?? 500, {
-      code: typeof data?.code === "string" ? data.code : undefined,
+      code,
       block: block ?? undefined,
       retryAfterSeconds:
         typeof data?.retry_after_seconds === "number" ? data.retry_after_seconds : undefined,

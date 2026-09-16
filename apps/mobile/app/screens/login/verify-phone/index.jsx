@@ -58,7 +58,7 @@ export default function VerifyPhoneScreen() {
     lockType,
     applyRateLimit,
     applyRateLimitFromError,
-  } = useOtpResendLimit();
+  } = useOtpResendLimit(null, { dialog });
   const otpDigits = otp.replace(/[^0-9]/g, "");
   const isValid = otpDigits.length === 6;
   const emailDisplay = email || t("auth.yourEmail");
@@ -139,9 +139,12 @@ export default function VerifyPhoneScreen() {
     setResending(true);
     try {
       const result = await requestOtp(email, { intent: "login" });
-      applyRateLimit(result?.rate_limit ?? extractOtpRateLimitFromResponse({ data: result }));
-      setResendNotice(true);
-      setTimeout(() => setResendNotice(false), 2500);
+      const rateLimit = result?.rate_limit ?? extractOtpRateLimitFromResponse({ data: result });
+      const limits = applyRateLimit(rateLimit);
+      if (!limits.locked) {
+        setResendNotice(true);
+        setTimeout(() => setResendNotice(false), 2500);
+      }
     } catch (err) {
       if (!applyRateLimitFromError(err)) {
         await handleAuthApiError(err, dialog, router, { email });

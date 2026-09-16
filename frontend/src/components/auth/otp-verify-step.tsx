@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { OtpInput } from "@/components/auth/otp-input";
 import { LoadingButton, InlineLoader } from "@/components/shared/loaders";
 import { OTP_EXPIRE_MINUTES } from "@/lib/auth/otp-config";
+import { normalizeOtpRateLimit } from "@/lib/auth/otp-rate-limit";
 import { useOtpResendLimit } from "@/hooks/use-otp-resend-limit";
 
 type OtpVerifyStepProps = {
@@ -93,17 +94,20 @@ export function OtpVerifyStep({
     setResendNotice(false);
     try {
       const result = await onResend();
-      if (result?.rate_limit) {
-        applyRateLimit(result.rate_limit);
+      const rateLimit = result?.rate_limit ? normalizeOtpRateLimit(result.rate_limit) : null;
+      if (rateLimit) {
+        applyRateLimit(rateLimit);
       }
-      setResendNotice(true);
-      if (noticeTimer.current !== null) {
-        window.clearTimeout(noticeTimer.current);
+      if (!rateLimit?.locked) {
+        setResendNotice(true);
+        if (noticeTimer.current !== null) {
+          window.clearTimeout(noticeTimer.current);
+        }
+        noticeTimer.current = window.setTimeout(() => {
+          setResendNotice(false);
+          noticeTimer.current = null;
+        }, RESEND_NOTICE_MS);
       }
-      noticeTimer.current = window.setTimeout(() => {
-        setResendNotice(false);
-        noticeTimer.current = null;
-      }, RESEND_NOTICE_MS);
     } catch (err) {
       if (!applyRateLimitFromError(err)) {
         throw err;
@@ -125,8 +129,8 @@ export function OtpVerifyStep({
 
     if (lockType === "resend_limit") {
       return (
-        <p className="text-[12px] text-slate-500">
-          Too many code requests. Try again in{" "}
+        <p className="text-[12px] text-slate-400">
+          Resend available in{" "}
           <span className="font-semibold text-teal-700">{countdownLabel}</span>
         </p>
       );

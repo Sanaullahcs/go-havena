@@ -13,6 +13,8 @@ class ContactIdentityService
 
     public const DUPLICATE_EMAIL_MESSAGE = 'This email already exists. Please use a different email.';
 
+    public const SIGNUP_EMAIL_EXISTS_MESSAGE = 'An account already exists with this email address. Please log in to continue.';
+
     public const DUPLICATE_PHONE_MESSAGE = 'This phone number already exists. Please use a different phone number.';
 
     /** @var list<string> */
