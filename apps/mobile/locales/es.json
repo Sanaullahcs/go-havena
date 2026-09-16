@@ -3915,6 +3915,7 @@
     "startTimeRequired": "La hora de inicio es obligatoria.",
     "endTimeRequired": "La hora de fin es obligatoria.",
     "endAfterStart": "La hora de fin debe ser posterior a la hora de inicio.",
+    "guestAccessMaxDuration": "El acceso de invitado no puede superar 1 año desde la fecha de inicio.",
     "endAfterNow": "La hora de fin debe ser posterior a la hora actual para la fecha de hoy.",
     "selectResident": "Selecciona al menos un residente.",
     "residenceTypeRequired": "El tipo de residencia es obligatorio.",

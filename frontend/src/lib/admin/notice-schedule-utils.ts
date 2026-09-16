@@ -11,13 +11,48 @@ export function parseTimeMinutes(time: string): number | null {
   return h * 60 + m;
 }
 
+/** Normalize a stored or typed time to `HH:MM` (24-hour). Accepts `14:20`, `2:20 PM`, or `2 PM`. */
+export function parseFlexibleTime(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  const h24 = trimmed.match(/^(\d{1,2}):(\d{1,2})(?::\d{1,2})?$/);
+  if (h24) {
+    const h = Number(h24[1]);
+    const m = Number(h24[2]);
+    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    }
+    return null;
+  }
+
+  const mer = trimmed.match(/^(\d{1,2})(?::(\d{1,2}))?\s*([AaPp][Mm])$/);
+  if (mer) {
+    let h = Number(mer[1]);
+    const m = mer[2] != null ? Number(mer[2]) : 0;
+    const period = mer[3].toUpperCase();
+    if (h < 1 || h > 12 || m < 0 || m > 59) return null;
+    if (period === "AM") {
+      if (h === 12) h = 0;
+    } else if (h !== 12) {
+      h += 12;
+    }
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  }
+
+  return null;
+}
+
 export function formatTimeDisplay(time: string): string {
   if (!time) return "";
-  const [h, m] = time.split(":");
+  const normalized = parseFlexibleTime(time) ?? time;
+  const [h, m] = normalized.split(":");
   const hour = Number(h);
+  const minute = Number(m);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return time;
   const suffix = hour >= 12 ? "PM" : "AM";
   const display = hour % 12 || 12;
-  return `${display}:${m} ${suffix}`;
+  return `${display}:${String(minute).padStart(2, "0")} ${suffix}`;
 }
 
 export function addMinutesToTime(time: string, minutes: number): string {

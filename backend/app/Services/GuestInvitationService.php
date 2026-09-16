@@ -14,9 +14,25 @@ class GuestInvitationService
 {
     public const MIN_ACCESS_MINUTES = 30;
 
+    public const MAX_ACCESS_YEARS = 1;
+
     public const MIN_ACCESS_DURATION_MESSAGE = 'Guest access duration must be at least 30 minutes.';
 
+    public const MAX_ACCESS_DURATION_MESSAGE = 'Guest access cannot exceed 1 year from the start date.';
+
     public const START_IN_PAST_MESSAGE = 'Start date cannot be earlier than the current date and time.';
+
+    public static function latestAllowedEnd(\Illuminate\Support\Carbon $startsAt): \Illuminate\Support\Carbon
+    {
+        return $startsAt->copy()->addYearsNoOverflow(self::MAX_ACCESS_YEARS);
+    }
+
+    public static function accessWindowExceedsMax(
+        \Illuminate\Support\Carbon $startsAt,
+        \Illuminate\Support\Carbon $endsAt,
+    ): bool {
+        return $endsAt->gt(self::latestAllowedEnd($startsAt));
+    }
 
     public static function earliestAllowedStart(): \Illuminate\Support\Carbon
     {
@@ -65,6 +81,10 @@ class GuestInvitationService
 
                 if ($end->lt($start->copy()->addMinutes(self::MIN_ACCESS_MINUTES))) {
                     $fail(self::MIN_ACCESS_DURATION_MESSAGE);
+                }
+
+                if (self::accessWindowExceedsMax($start, $end)) {
+                    $fail(self::MAX_ACCESS_DURATION_MESSAGE);
                 }
             }],
         ];
@@ -367,6 +387,12 @@ class GuestInvitationService
 
         if ($endsAt->lte($invitation->starts_at)) {
             abort(422, 'Extended end date must be after start date.');
+        }
+
+        if (self::accessWindowExceedsMax($invitation->starts_at, $endsAt)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'ends_at' => [self::MAX_ACCESS_DURATION_MESSAGE],
+            ]);
         }
 
         $invitation->update([

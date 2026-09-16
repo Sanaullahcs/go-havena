@@ -41,6 +41,8 @@ export default function SchedulePickerField({
   placeholder,
   inputStyle,
   placeholderTextColor = "#98A2B3",
+  minimumDate,
+  maximumDate,
 }) {
   const { t } = useTranslation();
   const [showAndroid, setShowAndroid] = useState(false);
@@ -69,6 +71,8 @@ export default function SchedulePickerField({
         value: current,
         mode,
         is24Hour: false,
+        minimumDate: toDate(minimumDate) ?? undefined,
+        maximumDate: toDate(maximumDate) ?? undefined,
         onChange: (event, selected) => {
           if (event?.type === "dismissed" || event?.type === "neutralButtonPressed") return;
           const next = resolveSelected(event, selected);
@@ -81,7 +85,7 @@ export default function SchedulePickerField({
       setDraft(current);
       setShowAndroid(true);
     }
-  }, [commit, mode, selectedDate]);
+  }, [commit, maximumDate, minimumDate, mode, selectedDate]);
 
   const openPicker = () => {
     if (Platform.OS === "android") {
@@ -134,6 +138,8 @@ export default function SchedulePickerField({
           mode={mode}
           display="default"
           themeVariant="light"
+          minimumDate={toDate(minimumDate) ?? undefined}
+          maximumDate={toDate(maximumDate) ?? undefined}
           onValueChange={handleAndroidValueChange}
           onChange={handleAndroidValueChange}
           onDismiss={closeAndroidPicker}
@@ -179,6 +185,8 @@ export default function SchedulePickerField({
                   themeVariant="light"
                   textColor="#111827"
                   accentColor="#1B4F8A"
+                  minimumDate={toDate(minimumDate) ?? undefined}
+                  maximumDate={toDate(maximumDate) ?? undefined}
                   onValueChange={handleIosValueChange}
                   onChange={handleIosValueChange}
                   style={styles.iosPicker}

@@ -1,30 +1,45 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Clock3 } from "lucide-react";
 import { useAnchoredPopover } from "@/components/ui/use-anchored-popover";
+import {
+  formatTimeDisplay,
+  parseFlexibleTime,
+  parseTimeMinutes,
+} from "@/lib/admin/notice-schedule-utils";
 
-function formatTimeDisplay(time: string): string {
-  if (!time) return "";
-  const [h, m] = time.split(":");
-  const hour = Number(h);
-  const suffix = hour >= 12 ? "PM" : "AM";
-  const display = hour % 12 || 12;
-  return `${display}:${m} ${suffix}`;
+const HOURS_12 = Array.from({ length: 12 }, (_, i) => i + 1);
+const MINUTES = Array.from({ length: 60 }, (_, i) => i);
+const PERIODS = ["AM", "PM"] as const;
+
+type Period = (typeof PERIODS)[number];
+
+type TimeParts = {
+  hour12: number;
+  minute: number;
+  period: Period;
+};
+
+const DEFAULT_PARTS: TimeParts = { hour12: 9, minute: 0, period: "AM" };
+
+function partsFromValue(value: string): TimeParts {
+  const mins = parseTimeMinutes(parseFlexibleTime(value) ?? value);
+  if (mins == null) return DEFAULT_PARTS;
+  const h24 = Math.floor(mins / 60);
+  return {
+    hour12: h24 % 12 || 12,
+    minute: mins % 60,
+    period: h24 >= 12 ? "PM" : "AM",
+  };
 }
 
-function buildTimeSlots(stepMinutes = 15) {
-  const slots: string[] = [];
-  for (let hour = 0; hour < 24; hour += 1) {
-    for (let minute = 0; minute < 60; minute += stepMinutes) {
-      slots.push(`${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`);
-    }
-  }
-  return slots;
+function partsToValue(parts: TimeParts): string {
+  let hour = parts.hour12 % 12;
+  if (parts.period === "PM") hour += 12;
+  return `${String(hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
 }
-
-const TIME_SLOTS = buildTimeSlots(15);
 
 function usePopoverDismiss(
   open: boolean,
@@ -76,58 +91,85 @@ export function ThemedTimePicker({
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
+  const hourListRef = useRef<HTMLDivElement>(null);
+  const minuteListRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [parts, setParts] = useState<TimeParts>(DEFAULT_PARTS);
+  const [manual, setManual] = useState("");
+  const [manualError, setManualError] = useState<string | null>(null);
   const { style: popoverStyle } = useAnchoredPopover(open, triggerRef, {
     popoverRef,
-    width: 256,
+    width: 288,
     align: "right",
   });
   const hasValue = Boolean(value);
 
-  usePopoverDismiss(open, () => {
+  const close = () => {
     setOpen(false);
+    setManualError(null);
     onBlur?.();
-  }, wrapRef, popoverRef);
+  };
+
+  usePopoverDismiss(open, close, wrapRef, popoverRef);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (!open || !value || !listRef.current) return;
-    const active = listRef.current.querySelector<HTMLElement>(`[data-time="${value}"]`);
-    active?.scrollIntoView({ block: "center" });
+    if (!open) return;
+    const next = partsFromValue(value);
+    setParts(next);
+    setManual(value ? formatTimeDisplay(value) : "");
+    setManualError(null);
   }, [open, value]);
 
-  const grouped = useMemo(() => {
-    const morning: string[] = [];
-    const afternoon: string[] = [];
-    const evening: string[] = [];
-    for (const slot of TIME_SLOTS) {
-      const hour = Number(slot.split(":")[0]);
-      if (hour < 12) morning.push(slot);
-      else if (hour < 17) afternoon.push(slot);
-      else evening.push(slot);
-    }
-    return [
-      { label: "Morning", slots: morning },
-      { label: "Afternoon", slots: afternoon },
-      { label: "Evening", slots: evening },
-    ];
-  }, []);
+  useEffect(() => {
+    if (!open) return;
+    const scrollSelected = (container: HTMLDivElement | null, selector: string) => {
+      if (!container) return;
+      const active = container.querySelector<HTMLElement>(selector);
+      if (!active) return;
+      container.scrollTop = active.offsetTop - container.clientHeight / 2 + active.clientHeight / 2;
+    };
+    scrollSelected(hourListRef.current, `[data-hour="${parts.hour12}"]`);
+    scrollSelected(minuteListRef.current, `[data-minute="${parts.minute}"]`);
+  }, [open, parts.hour12, parts.minute]);
 
-  const pick = (slot: string) => {
-    onChange(slot);
-    setOpen(false);
-    onBlur?.();
+  const applyParts = (next: TimeParts) => {
+    setParts(next);
+    const nextValue = partsToValue(next);
+    onChange(nextValue);
+    setManual(formatTimeDisplay(nextValue));
+    setManualError(null);
+  };
+
+  const applyManual = (raw = manual) => {
+    const parsed = parseFlexibleTime(raw);
+    if (!parsed) {
+      if (raw.trim()) setManualError("Enter a valid time, like 2:20 PM.");
+      return false;
+    }
+    applyParts(partsFromValue(parsed));
+    return true;
   };
 
   const clear = () => {
     onChange("");
-    setOpen(false);
-    onBlur?.();
+    setParts(DEFAULT_PARTS);
+    setManual("");
+    setManualError(null);
+    close();
+  };
+
+  const done = () => {
+    if (manual.trim() && parseFlexibleTime(manual) !== partsToValue(parts)) {
+      if (!applyManual()) return;
+    } else if (!value) {
+      applyParts(parts);
+    }
+    close();
   };
 
   return (
@@ -139,7 +181,7 @@ export function ThemedTimePicker({
           type="button"
           data-field={fieldKey}
           aria-expanded={open}
-          aria-haspopup="listbox"
+          aria-haspopup="dialog"
           onClick={() => setOpen((v) => !v)}
           className={[
             "nl-picker-trigger",
@@ -157,37 +199,110 @@ export function ThemedTimePicker({
 
         {open && mounted
           ? createPortal(
-              <div ref={popoverRef} className="nl-themed-popover nl-time-popover" style={popoverStyle} role="listbox" aria-label="Choose time">
-                <div ref={listRef} className="nl-time-list">
-                  {grouped.map((group) =>
-                    group.slots.length ? (
-                      <div key={group.label} className="nl-time-group">
-                        <p className="nl-time-group-label">{group.label}</p>
-                        <div className="nl-time-grid">
-                          {group.slots.map((slot) => (
-                            <button
-                              key={slot}
-                              type="button"
-                              data-time={slot}
-                              role="option"
-                              aria-selected={value === slot}
-                              onClick={() => pick(slot)}
-                              className={[
-                                "nl-time-option",
-                                value === slot ? "nl-time-option-selected" : "",
-                              ].join(" ")}
-                            >
-                              {formatTimeDisplay(slot)}
-                            </button>
-                          ))}
-                        </div>
+              <div
+                ref={popoverRef}
+                className="nl-themed-popover nl-time-popover"
+                style={popoverStyle}
+                role="dialog"
+                aria-label="Choose time"
+              >
+                <div className="nl-time-picker-body">
+                  <input
+                    type="text"
+                    inputMode="text"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className={["nl-time-manual", manualError ? "nl-time-manual-invalid" : ""].join(" ")}
+                    placeholder="Type 2:20 PM or 14:20"
+                    value={manual}
+                    aria-label="Type a time"
+                    onChange={(event) => {
+                      setManual(event.target.value);
+                      if (manualError) setManualError(null);
+                    }}
+                    onBlur={() => {
+                      if (manual.trim()) applyManual();
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        if (applyManual()) close();
+                      }
+                    }}
+                  />
+                  {manualError ? <p className="nl-time-manual-error">{manualError}</p> : null}
+
+                  <div className="nl-time-wheels">
+                    <div>
+                      <p className="nl-time-group-label">Hour</p>
+                      <div ref={hourListRef} className="nl-time-column" role="listbox" aria-label="Hour">
+                        {HOURS_12.map((hour) => (
+                          <button
+                            key={hour}
+                            type="button"
+                            data-hour={hour}
+                            role="option"
+                            aria-selected={parts.hour12 === hour}
+                            onClick={() => applyParts({ ...parts, hour12: hour })}
+                            className={[
+                              "nl-time-option nl-time-wheel-option",
+                              parts.hour12 === hour ? "nl-time-option-selected" : "",
+                            ].join(" ")}
+                          >
+                            {hour}
+                          </button>
+                        ))}
                       </div>
-                    ) : null,
-                  )}
+                    </div>
+                    <div>
+                      <p className="nl-time-group-label">Minute</p>
+                      <div ref={minuteListRef} className="nl-time-column" role="listbox" aria-label="Minute">
+                        {MINUTES.map((minute) => (
+                          <button
+                            key={minute}
+                            type="button"
+                            data-minute={minute}
+                            role="option"
+                            aria-selected={parts.minute === minute}
+                            onClick={() => applyParts({ ...parts, minute })}
+                            className={[
+                              "nl-time-option nl-time-wheel-option",
+                              parts.minute === minute ? "nl-time-option-selected" : "",
+                            ].join(" ")}
+                          >
+                            {String(minute).padStart(2, "0")}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="nl-time-group-label">Period</p>
+                      <div className="nl-time-column nl-time-column-period" role="listbox" aria-label="AM or PM">
+                        {PERIODS.map((period) => (
+                          <button
+                            key={period}
+                            type="button"
+                            role="option"
+                            aria-selected={parts.period === period}
+                            onClick={() => applyParts({ ...parts, period })}
+                            className={[
+                              "nl-time-option nl-time-wheel-option",
+                              parts.period === period ? "nl-time-option-selected" : "",
+                            ].join(" ")}
+                          >
+                            {period}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div className="nl-calendar-foot">
                   <button type="button" className="nl-calendar-foot-btn" onClick={clear}>
                     Clear
+                  </button>
+                  <button type="button" className="nl-calendar-foot-btn nl-calendar-foot-btn-primary" onClick={done}>
+                    Done
                   </button>
                 </div>
               </div>,

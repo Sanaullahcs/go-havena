@@ -81,6 +81,35 @@ class GuestInvitationTest extends TestCase
         return $resident;
     }
 
+    /**
+     * @param  array{
+     *   guest_name?: string,
+     *   guest_email?: string,
+     *   starts_at?: \Illuminate\Support\Carbon,
+     *   ends_at?: \Illuminate\Support\Carbon,
+     *   status?: string
+     * }  $overrides
+     */
+    private function createActiveInvitation(Community $community, User $admin, array $overrides = []): GuestInvitation
+    {
+        $startsAt = $overrides['starts_at'] ?? now()->addHour();
+        $endsAt = $overrides['ends_at'] ?? $startsAt->copy()->addWeek();
+
+        return GuestInvitation::query()->create([
+            'community_id' => $community->id,
+            'invited_by_user_id' => $admin->id,
+            'invitation_type' => 'admin',
+            'guest_name' => $overrides['guest_name'] ?? 'Active Extend Guest',
+            'guest_email' => $overrides['guest_email'] ?? 'extend-guest@example.com',
+            'guest_phone' => '+15550009999',
+            'invite_code' => GuestInvitationService::generateInviteCode(),
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
+            'status' => $overrides['status'] ?? 'active',
+            'permissions' => ['feed' => true],
+        ]);
+    }
+
     public function test_admin_can_invite_guest(): void
     {
         [$community, $admin] = $this->seedCommunityAdmin();
@@ -277,6 +306,148 @@ class GuestInvitationTest extends TestCase
             'starts_at'   => $startsAt->toIso8601String(),
             'ends_at'     => $startsAt->copy()->addMinutes(30)->toIso8601String(),
         ])->assertCreated();
+    }
+
+    public function test_admin_invite_accepts_access_window_within_one_year(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->addHour();
+        $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Six Month Guest',
+            'guest_email' => 'sixmonth@example.com',
+            'starts_at'   => $startsAt->toIso8601String(),
+            'ends_at'     => $startsAt->copy()->addMonthsNoOverflow(6)->toIso8601String(),
+        ])->assertCreated();
+    }
+
+    public function test_admin_invite_accepts_access_window_exactly_one_year(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->addHour();
+        $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'One Year Guest',
+            'guest_email' => 'oneyear@example.com',
+            'starts_at'   => $startsAt->toIso8601String(),
+            'ends_at'     => GuestInvitationService::latestAllowedEnd($startsAt)->toIso8601String(),
+        ])->assertCreated();
+    }
+
+    public function test_admin_invite_rejects_access_window_longer_than_one_year(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->addHour();
+        $response = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Too Long Guest',
+            'guest_email' => 'toolong@example.com',
+            'starts_at'   => $startsAt->toIso8601String(),
+            'ends_at'     => $startsAt->copy()->addYearsNoOverflow(1)->addMinute()->toIso8601String(),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['ends_at']);
+        $this->assertSame(
+            GuestInvitationService::MAX_ACCESS_DURATION_MESSAGE,
+            $response->json('errors.ends_at.0'),
+        );
+        $this->assertDatabaseMissing('guest_invitations', [
+            'guest_email' => 'toolong@example.com',
+        ]);
+    }
+
+    public function test_admin_invite_rejects_end_before_start(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->addDay();
+        $response = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Backwards Guest',
+            'guest_email' => 'backwards@example.com',
+            'starts_at'   => $startsAt->toIso8601String(),
+            'ends_at'     => $startsAt->copy()->subHour()->toIso8601String(),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['ends_at']);
+        $this->assertDatabaseMissing('guest_invitations', [
+            'guest_email' => 'backwards@example.com',
+        ]);
+    }
+
+    public function test_admin_extend_rejects_access_window_longer_than_one_year(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->addHour();
+        $invitation = $this->createActiveInvitation($community, $admin, [
+            'guest_email' => 'extend-too-long@example.com',
+            'starts_at'   => $startsAt,
+            'ends_at'     => $startsAt->copy()->addMonthsNoOverflow(11),
+        ]);
+
+        $response = $this->patchJson("/api/v1/admin/guests/{$invitation->id}/extend", [
+            'ends_at' => $startsAt->copy()->addYearsNoOverflow(1)->addDay()->toIso8601String(),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['ends_at']);
+        $this->assertSame(
+            GuestInvitationService::MAX_ACCESS_DURATION_MESSAGE,
+            $response->json('errors.ends_at.0'),
+        );
+        $this->assertSame(
+            $startsAt->copy()->addMonthsNoOverflow(11)->format('Y-m-d H:i:s'),
+            $invitation->fresh()->ends_at->format('Y-m-d H:i:s'),
+        );
+    }
+
+    public function test_admin_extend_accepts_new_end_within_one_year(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->addHour();
+        $invitation = $this->createActiveInvitation($community, $admin, [
+            'guest_email' => 'extend-ok@example.com',
+            'starts_at'   => $startsAt,
+            'ends_at'     => $startsAt->copy()->addWeek(),
+        ]);
+
+        $nextEnd = $startsAt->copy()->addMonthsNoOverflow(2);
+        $this->patchJson("/api/v1/admin/guests/{$invitation->id}/extend", [
+            'ends_at' => $nextEnd->toIso8601String(),
+        ])->assertOk()
+            ->assertJsonPath('data.status', 'active');
+
+        $this->assertSame(
+            $nextEnd->format('Y-m-d H:i:s'),
+            $invitation->fresh()->ends_at->format('Y-m-d H:i:s'),
+        );
+    }
+
+    public function test_existing_guest_longer_than_one_year_remains_readable(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $startsAt = now()->subMonthsNoOverflow(6);
+        $invitation = $this->createActiveInvitation($community, $admin, [
+            'guest_email' => 'legacy-long@example.com',
+            'starts_at'   => $startsAt,
+            'ends_at'     => $startsAt->copy()->addYearsNoOverflow(2),
+        ]);
+
+        $this->getJson("/api/v1/admin/guests/{$invitation->id}")
+            ->assertOk()
+            ->assertJsonPath('data.guest_email', 'legacy-long@example.com')
+            ->assertJsonPath('data.status', 'active');
     }
 
     public function test_admin_invite_rejects_start_in_the_past(): void

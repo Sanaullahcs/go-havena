@@ -188,7 +188,29 @@ class GuestController extends Controller
         $invitation = $this->findInCommunity($id, $communityId);
 
         $data = $request->validate([
-            'ends_at' => 'sometimes|date|after:starts_at',
+            'ends_at' => [
+                'sometimes',
+                'date',
+                function (string $attribute, mixed $value, \Closure $fail) use ($invitation): void {
+                    if (! is_string($value) || $value === '') {
+                        return;
+                    }
+
+                    try {
+                        $end = \Illuminate\Support\Carbon::parse($value);
+                    } catch (\Throwable) {
+                        return;
+                    }
+
+                    if ($end->lte($invitation->starts_at)) {
+                        $fail('Extended end date must be after start date.');
+                    }
+
+                    if (GuestInvitationService::accessWindowExceedsMax($invitation->starts_at, $end)) {
+                        $fail(GuestInvitationService::MAX_ACCESS_DURATION_MESSAGE);
+                    }
+                },
+            ],
         ]);
 
         $invitation = GuestInvitationService::extend($invitation, $data, $request->user());
