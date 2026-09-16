@@ -184,6 +184,17 @@ export async function fetchCommunityAdminInfo(id: number) {
   };
 }
 
+export async function releaseCommunityAdmin(communityId: number) {
+  const res = await api.post(`/v1/admin/communities/${communityId}/release-admin`);
+  return res.data as {
+    data: {
+      community: AdminCommunity;
+      released_admin: { id: number; name: string; email: string } | null;
+    };
+    message: string;
+  };
+}
+
 export async function assignCommunityAdmin(
   communityId: number,
   payload: {

@@ -298,6 +298,84 @@ class CommunityLifecycleService
         return $newAdmin->fresh(['profile', 'memberships.community']);
     }
 
+    /**
+     * Remove the assigned Community Admin from a community without deleting
+     * the community or deactivating the admin user account.
+     */
+    public function releaseCommunityAdmin(Community $community): User
+    {
+        $admin = $this->getCommunityAdmin($community);
+        if (! $admin) {
+            abort(422, 'This community does not have an assigned Community Admin.');
+        }
+
+        DB::transaction(function () use ($community, $admin) {
+            CommunityMembership::query()
+                ->where('community_id', $community->id)
+                ->where('user_id', $admin->id)
+                ->where('role', 'admin')
+                ->whereIn('status', ['approved', 'pending'])
+                ->update(['status' => 'banned']);
+        });
+
+        return $admin->fresh(['profile', 'memberships.community']);
+    }
+
+    /**
+     * Permanently remove a Community Admin account without deleting communities
+     * or other community-owned data. Admin memberships are released first so
+     * the community stays active and becomes unassigned.
+     *
+     * Soft-deletes only: hard-deleting users would cascade into notices,
+     * documents, bookings, and other community records authored by the admin.
+     *
+     * @return array{deleted_admin: array{id:int,name:?string,email:?string,phone:?string}, communities: list<array{id:int,name:?string,status:?string,assignment_status:?string}>}
+     */
+    public function deleteCommunityAdminAccount(User $admin): array
+    {
+        if (($admin->role ?? '') !== 'community_admin') {
+            abort(422, 'Only Community Admin accounts can be deleted with this action.');
+        }
+
+        $admin->loadMissing('memberships.community');
+
+        $communities = $admin->memberships
+            ->filter(fn (CommunityMembership $membership) => $membership->role === 'admin')
+            ->map(fn (CommunityMembership $membership) => [
+                'id' => (int) $membership->community_id,
+                'name' => $membership->community?->name,
+                'status' => $membership->community?->status,
+                'assignment_status' => $membership->status,
+            ])
+            ->unique('id')
+            ->values()
+            ->all();
+
+        $snapshot = [
+            'deleted_admin' => [
+                'id' => (int) $admin->id,
+                'name' => $admin->name,
+                'email' => $admin->email,
+                'phone' => $admin->phone,
+            ],
+            'communities' => $communities,
+        ];
+
+        DB::transaction(function () use ($admin) {
+            CommunityMembership::query()
+                ->where('user_id', $admin->id)
+                ->where('role', 'admin')
+                ->whereIn('status', ['approved', 'pending'])
+                ->update(['status' => 'banned']);
+
+            $admin->tokens()->delete();
+            $admin->forceFill(['status' => 'deleted'])->save();
+            $admin->delete();
+        });
+
+        return $snapshot;
+    }
+
     public function userBlockedByInactiveCommunity(User $user): bool
     {
         return $this->inactiveCommunityForUser($user) !== null;

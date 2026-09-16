@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
 import {
   approveCommunityAdmin,
+  deleteCommunityAdmin,
   fetchCommunityAdmins,
   rejectCommunityAdmin,
   reapproveCommunityAdmin,
@@ -26,7 +27,7 @@ import { EditCommunityAdminModal } from "@/components/admin/edit-community-admin
 import { PageLoader } from "@/components/shared/page-states";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { adminTableBusy, isAdminSearchPending, shouldSkipStalePageFetch } from "@/lib/admin/table-loading";
-import { confirmAction, confirmRejectWithReason, toastError, toastSuccess } from "@/lib/alert";
+import { confirmAction, confirmDeleteCommunityAdmin, confirmRejectWithReason, toastError, toastSuccess } from "@/lib/alert";
 import { apiError } from "@/lib/api/client";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { UtilityBillPreview } from "@/components/admin/utility-bill-preview";
@@ -254,6 +255,29 @@ export default function CommunityAdminsPage() {
       await suspendCommunityAdmin(item.id);
       toastSuccess("Community admin suspended. Assign a replacement from the Suspended or Reassign tab.");
       setStatus("suspended");
+      await load(true);
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleDelete = async (item: CommunityAdminApplicant) => {
+    if (!item.id || item.reassign_row_id) return;
+
+    const confirmed = await confirmDeleteCommunityAdmin({
+      adminName: item.name,
+      assignedCommunities: item.community_request ? [item.community_request] : [],
+    });
+    if (!confirmed.isConfirmed) return;
+
+    setBusyId(item.id);
+    try {
+      await deleteCommunityAdmin(item.id);
+      setItems((prev) => prev.filter((row) => row.id !== item.id));
+      setViewing((current) => (current?.id === item.id ? null : current));
+      toastSuccess("Community Admin deleted successfully.");
       await load(true);
     } catch (err) {
       toastError(apiError(err));
@@ -519,6 +543,13 @@ export default function CommunityAdminsPage() {
                             hidden: status !== "rejected",
                             onClick: () => handleApprove(item.id, true),
                           },
+                          {
+                            label: "Delete Admin",
+                            icon: "delete",
+                            tone: "danger",
+                            hidden: !item.id || Boolean(item.reassign_row_id),
+                            onClick: () => handleDelete(item),
+                          },
                         ]}
                       />
                     </DtCell>
@@ -586,6 +617,9 @@ export default function CommunityAdminsPage() {
           rejectLabel={
             viewing.community_admin_status === "approved" ? "Revoke access" : "Reject"
           }
+          onDelete={
+            viewing.id && !viewing.reassign_row_id ? () => handleDelete(viewing) : undefined
+          }
           busy={busyId === viewing.id}
         />
       ) : null}
@@ -619,6 +653,7 @@ function CommunityAdminDetailModal({
   onEdit,
   onApprove,
   onReject,
+  onDelete,
   approveLabel = "Approve",
   rejectLabel = "Reject",
   busy,
@@ -628,6 +663,7 @@ function CommunityAdminDetailModal({
   onEdit?: () => void;
   onApprove?: () => void;
   onReject?: () => void;
+  onDelete?: () => void;
   approveLabel?: string;
   rejectLabel?: string;
   busy?: boolean;
@@ -733,7 +769,7 @@ function CommunityAdminDetailModal({
           {!isReassignRow && item.id ? <ProfileRow label="Admin ID" value={String(item.id)} /> : null}
         </div>
 
-        {(onEdit || onApprove || onReject) ? (
+        {(onEdit || onApprove || onReject || onDelete) ? (
           <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
             {onEdit ? (
               <button
@@ -753,6 +789,16 @@ function CommunityAdminDetailModal({
                 className="nl-btn-danger"
               >
                 {rejectLabel}
+              </button>
+            ) : null}
+            {onDelete ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={onDelete}
+                className="nl-btn-danger"
+              >
+                Delete Admin
               </button>
             ) : null}
             {onApprove ? (

@@ -17,8 +17,8 @@ import {
   approveCommunityRequest,
   createAdminCommunity,
   deleteAdminCommunity,
-  communityHasAssignedAdmin,
   fetchAdminCommunitiesList,
+  releaseCommunityAdmin,
   fetchCommunityRequests,
   rejectCommunityRequest,
   updateAdminCommunity,
@@ -337,13 +337,35 @@ export default function CommunitiesPage() {
   };
 
   const openUnassignedAssign = (item: AdminCommunity) => {
-    if (communityHasAssignedAdmin(item)) return;
+    if (item.admin_user) return;
     setAssignPreset({
       id: item.id,
       name: item.name,
       regionId: item.region_id,
       regionTitle: item.region_title ?? item.region,
     });
+  };
+
+  const handleReleaseAdmin = async (community: AdminCommunity) => {
+    if (!community.admin_user) return;
+    const ok = await confirmAction({
+      title: "Release Community Admin?",
+      text: "This admin will be removed from the community. The community will remain active and can be assigned to another admin later.",
+      confirmText: "Release Admin",
+      color: "red",
+    });
+    if (!ok.isConfirmed) return;
+
+    setStatusSubmitting(true);
+    try {
+      const res = await releaseCommunityAdmin(community.id);
+      toastSuccess(res.message || "Community Admin released successfully.");
+      await load(true);
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setStatusSubmitting(false);
+    }
   };
 
   if (initialLoading) return <PageLoader text="Loading communities…" skeleton />;
@@ -461,7 +483,7 @@ export default function CommunitiesPage() {
                           aria-label={`Assign a community admin to ${item.name}`}
                           className="rounded-md text-left text-sm font-semibold text-blue-700 underline-offset-2 transition hover:text-blue-800 hover:underline"
                         >
-                          Unassigned
+                          No Admin Assigned
                         </button>
                       )}
                     </DtCell>
@@ -477,6 +499,20 @@ export default function CommunitiesPage() {
                         actions={[
                           { label: "Edit", icon: "edit", onClick: () => openEdit(item) },
                           { label: "Delete", icon: "delete", tone: "danger", onClick: () => handleDelete(item) },
+                          {
+                            label: "Release Admin",
+                            icon: "ban",
+                            tone: "danger",
+                            hidden: !item.admin_user,
+                            onClick: () => handleReleaseAdmin(item),
+                          },
+                          {
+                            label: "Assign Admin",
+                            icon: "plus",
+                            tone: "primary",
+                            hidden: Boolean(item.admin_user),
+                            onClick: () => openUnassignedAssign(item),
+                          },
                           {
                             label: "Manage",
                             icon: "view",

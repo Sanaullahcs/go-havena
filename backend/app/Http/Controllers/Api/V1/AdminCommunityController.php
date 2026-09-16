@@ -515,6 +515,7 @@ class AdminCommunityController extends Controller
         }
 
         $community = Community::query()->findOrFail($id);
+        $previousAdmin = $lifecycle->getCommunityAdmin($community);
 
         if ($hasNewUser) {
             $phone = null;
@@ -594,11 +595,22 @@ class AdminCommunityController extends Controller
             ], 422);
         }
 
+        $actor = $request->user();
         ActivityLogService::user(
             'community_admin_assigned',
             "Assigned {$assigned->name} as admin for {$community->name}",
             'Community',
             $community->id,
+            'info',
+            $actor?->id,
+            [
+                'community_id' => $community->id,
+                'community_name' => $community->name,
+                'previous_admin' => $this->adminLogSnapshot($previousAdmin),
+                'new_admin' => $this->adminLogSnapshot($assigned),
+                'performed_by' => $this->adminLogSnapshot($actor),
+                'performed_at' => now()->toIso8601String(),
+            ],
         );
 
         NotificationService::send(
@@ -631,6 +643,55 @@ class AdminCommunityController extends Controller
                 ? 'Community admin assigned successfully. A welcome email was sent.'
                 : 'Community admin assigned successfully. The welcome email could not be sent — share sign-in instructions manually.',
         ]);
+    }
+
+    /** POST /v1/admin/communities/{id}/release-admin */
+    public function releaseAdmin(int $id, Request $request, CommunityLifecycleService $lifecycle): JsonResponse
+    {
+        $community = Community::query()->findOrFail($id);
+        $previousAdmin = $lifecycle->getCommunityAdmin($community);
+        $released = $lifecycle->releaseCommunityAdmin($community);
+        $community = $community->fresh(['regionRecord']);
+
+        $actor = $request->user();
+        ActivityLogService::user(
+            'community_admin_released',
+            "Released {$released->name} as admin for {$community->name}",
+            'Community',
+            $community->id,
+            'info',
+            $actor?->id,
+            [
+                'community_id' => $community->id,
+                'community_name' => $community->name,
+                'previous_admin' => $this->adminLogSnapshot($previousAdmin ?? $released),
+                'new_admin' => null,
+                'performed_by' => $this->adminLogSnapshot($actor),
+                'performed_at' => now()->toIso8601String(),
+            ],
+        );
+
+        return response()->json([
+            'data' => [
+                'community' => $this->transformListItem($community),
+                'released_admin' => $this->adminLogSnapshot($released),
+            ],
+            'message' => 'Community Admin released successfully.',
+        ]);
+    }
+
+    /** @return array{id:int,name:?string,email:?string}|null */
+    private function adminLogSnapshot(?User $admin): ?array
+    {
+        if (! $admin) {
+            return null;
+        }
+
+        return [
+            'id' => $admin->id,
+            'name' => $admin->name,
+            'email' => $admin->email,
+        ];
     }
 
     private function transform(Community $community, bool $detailed = false): array

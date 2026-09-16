@@ -56,6 +56,91 @@ export async function confirmDelete(opts: {
   });
 }
 
+export async function confirmDeleteCommunityAdmin(opts: {
+  adminName: string;
+  assignedCommunities?: Array<{ name?: string | null } | null>;
+}) {
+  const assignedNames = (opts.assignedCommunities ?? [])
+    .map((community) => community?.name?.trim())
+    .filter((name): name is string => Boolean(name));
+  const assignedList = assignedNames.length
+    ? assignedNames.map((name) => escapeAlertHtml(name)).join(", ")
+    : "";
+
+  return nl.fire({
+    icon: "warning",
+    title: "Delete Community Admin?",
+    html: `
+      <div class="nl-swal-delete-admin">
+        <p>This will permanently delete this admin account. If you only want to remove the admin from a community, use <strong>Release Admin</strong> instead.</p>
+        <p>This action cannot be undone.</p>
+        <div class="nl-swal-delete-admin-compare">
+          <p><strong>Release Admin</strong> removes the admin from a community and keeps the account.</p>
+          <p><strong>Delete Admin</strong> permanently deletes the admin account.</p>
+        </div>
+        ${
+          assignedList
+            ? `<div class="nl-swal-delete-admin-assign">
+                <p><strong>Currently assigned to:</strong> ${assignedList}</p>
+                <p>The community will stay active and become unassigned. Residents, events, amenities, payments, and documents will not be deleted.</p>
+              </div>`
+            : `<p class="nl-swal-delete-admin-unassigned">This admin is not currently assigned to a community.</p>`
+        }
+        <label class="nl-swal-reject-label" for="nl-swal-delete-confirm">
+          Type DELETE to confirm <span class="nl-swal-required-asterisk" aria-hidden="true">*</span>
+        </label>
+      </div>
+    `,
+    input: "text",
+    inputPlaceholder: "DELETE",
+    inputAttributes: {
+      id: "nl-swal-delete-confirm",
+      autocapitalize: "characters",
+      autocomplete: "off",
+      spellcheck: "false",
+      "aria-label": "Type DELETE to confirm",
+    },
+    confirmButtonText: labeledButton(ICO_ALERT, "Delete Admin"),
+    showCancelButton: true,
+    cancelButtonText: labeledButton(ICO_X, "Cancel"),
+    focusConfirm: false,
+    customClass: {
+      popup: "nl-swal-popup nl-swal-popup--reject",
+      title: "nl-swal-title nl-swal-title--reject",
+      htmlContainer: "nl-swal-body nl-swal-body--reject",
+      confirmButton: "nl-swal-confirm nl-swal-confirm--red",
+      cancelButton: "nl-swal-cancel",
+      actions: "nl-swal-actions",
+      icon: "nl-swal-icon",
+      input: "nl-swal-delete-input",
+    },
+    buttonsStyling: false,
+    reverseButtons: true,
+    didOpen: () => {
+      const input = Swal.getInput();
+      const confirmBtn = Swal.getConfirmButton();
+      const sync = () => {
+        const ready = (input?.value ?? "").trim() === "DELETE";
+        if (confirmBtn) {
+          confirmBtn.disabled = !ready;
+          confirmBtn.classList.toggle("nl-swal-confirm--disabled", !ready);
+        }
+      };
+      input?.addEventListener("input", sync);
+      sync();
+      input?.focus();
+    },
+    preConfirm: () => {
+      const value = String(Swal.getInput()?.value ?? "").trim();
+      if (value !== "DELETE") {
+        Swal.showValidationMessage("Type DELETE to confirm permanent deletion.");
+        return false;
+      }
+      return value;
+    },
+  });
+}
+
 /* ─── Confirm (action) ─── */
 export async function confirmAction(opts: {
   title?: string;

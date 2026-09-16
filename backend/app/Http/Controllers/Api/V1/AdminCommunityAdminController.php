@@ -331,6 +331,54 @@ class AdminCommunityAdminController extends Controller
         ]);
     }
 
+    /** DELETE /v1/admin/community-admins/{id} */
+    public function destroy(Request $request, int $id, CommunityLifecycleService $lifecycle): JsonResponse
+    {
+        $request->validate([
+            'confirmation' => ['required', 'string', 'in:DELETE'],
+        ]);
+
+        $actor = $request->user();
+        if ($actor && (int) $actor->id === (int) $id) {
+            return response()->json(['message' => 'You cannot delete your own account.'], 403);
+        }
+
+        $user = User::query()
+            ->with(['memberships.community'])
+            ->where('id', $id)
+            ->where('role', 'community_admin')
+            ->first();
+
+        if (! $user) {
+            return response()->json(['message' => 'Community admin not found.'], 404);
+        }
+
+        $snapshot = $lifecycle->deleteCommunityAdminAccount($user);
+
+        ActivityLogService::user(
+            'community_admin_deleted',
+            "Deleted community admin: {$snapshot['deleted_admin']['name']}",
+            'User',
+            $snapshot['deleted_admin']['id'],
+            'warning',
+            $actor?->id,
+            [
+                'deleted_admin' => $snapshot['deleted_admin'],
+                'communities' => $snapshot['communities'],
+                'performed_by' => [
+                    'id' => $actor?->id,
+                    'name' => $actor?->name,
+                    'email' => $actor?->email,
+                ],
+                'performed_at' => now()->toIso8601String(),
+            ],
+        );
+
+        return response()->json([
+            'message' => 'Community Admin deleted successfully.',
+        ]);
+    }
+
     /** GET /v1/admin/community-admins?status=reassign — communities needing an active admin. */
     private function reassignIndex(Request $request): JsonResponse
     {
@@ -536,7 +584,9 @@ class AdminCommunityAdminController extends Controller
 
     private function transform(User $user, array $reassignCommunityIds = []): array
     {
-        $membership = $user->memberships->firstWhere('role', 'admin') ?? $user->memberships->first();
+        $membership = $user->memberships->first(
+            fn ($item) => $item->role === 'admin' && in_array($item->status, ['approved', 'pending'], true),
+        );
         $community  = $membership?->community;
         $needsReassign = $user->status === 'suspended'
             && $membership?->role === 'admin'

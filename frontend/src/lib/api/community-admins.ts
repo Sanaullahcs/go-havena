@@ -118,6 +118,13 @@ export async function suspendCommunityAdmin(id: number) {
   return res.data as { data: CommunityAdminApplicant; message: string };
 }
 
+export async function deleteCommunityAdmin(id: number) {
+  const res = await api.delete(`/v1/admin/community-admins/${id}`, {
+    data: { confirmation: "DELETE" },
+  });
+  return res.data as { message: string };
+}
+
 export type UpdateCommunityAdminPayload = {
   name?: string;
   email?: string;

@@ -270,6 +270,7 @@ Route::prefix('v1')->group(function () {
                 Route::match(['patch', 'post'], '/community-admins/{id}/reapprove', [AdminCommunityAdminController::class, 'approve']);
                 Route::match(['patch', 'post'], '/community-admins/{id}/reject', [AdminCommunityAdminController::class, 'reject']);
                 Route::match(['patch', 'post'], '/community-admins/{id}/suspend', [AdminCommunityAdminController::class, 'suspend']);
+                Route::delete('/community-admins/{id}', [AdminCommunityAdminController::class, 'destroy']);
 
                 Route::post('/users', [AdminUserController::class, 'store']);
 
@@ -283,6 +284,7 @@ Route::prefix('v1')->group(function () {
                 Route::patch('/communities/{id}/status', [AdminCommunityController::class, 'updateStatus']);
                 Route::get('/communities/{id}/admin', [AdminCommunityController::class, 'showAdmin']);
                 Route::post('/communities/{id}/assign-admin', [AdminCommunityController::class, 'assignAdmin']);
+                Route::post('/communities/{id}/release-admin', [AdminCommunityController::class, 'releaseAdmin']);
 
                 Route::get('/contact-submissions', [ContactController::class, 'adminIndex']);
                 Route::get('/contact-submissions/{id}', [ContactController::class, 'adminShow']);

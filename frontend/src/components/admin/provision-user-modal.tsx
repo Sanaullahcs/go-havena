@@ -24,7 +24,7 @@ import {
   type ProvisionUserType,
   type ProvisionedUser,
 } from "@/lib/api/users";
-import { alertError, toastError, toastSuccess } from "@/lib/alert";
+import { alertError, confirmAction, toastError, toastSuccess } from "@/lib/alert";
 import { CommunityAddressPicker } from "@/components/admin/community-address-picker";
 
 const emptyAdminForm = {
@@ -279,8 +279,19 @@ export function ProvisionUserModal({
     try {
       if (isPresetAssign && presetCommunity) {
         if (assignmentSource === "existing" && selectedExistingId) {
+          const selectedAdmin = existingAdmins.find((admin) => admin.id === selectedExistingId);
+          const confirmed = await confirmAction({
+            title: "Assign Community Admin?",
+            text: `${selectedAdmin?.name ?? "This admin"} will be assigned to manage ${presetCommunity.name}.`,
+            confirmText: "Assign Admin",
+            color: "green",
+          });
+          if (!confirmed.isConfirmed) {
+            setSubmitting(false);
+            return;
+          }
           const res = await assignCommunityAdmin(presetCommunity.id, { user_id: selectedExistingId });
-          toastSuccess(res.message);
+          toastSuccess("Community Admin assigned successfully.");
           onCreated?.({
             id: res.data.admin.id,
             name: res.data.admin.name,
@@ -311,7 +322,7 @@ export function ProvisionUserModal({
           email: adminForm.email.trim(),
           phone: adminPhone.e164,
         });
-        toastSuccess(res.message);
+        toastSuccess("Community Admin assigned successfully.");
         onCreated?.({
           id: res.data.admin.id,
           name: res.data.admin.name,
@@ -859,8 +870,16 @@ function ExistingAdminPicker({
   error?: string;
   onSelect: (id: number) => void;
 }) {
-  const available = admins.filter((admin) => !admin.community_request);
-  const assigned = admins.filter((admin) => Boolean(admin.community_request));
+  const [query, setQuery] = useState("");
+  const needle = query.trim().toLowerCase();
+  const matchesQuery = (admin: CommunityAdminApplicant) => {
+    if (!needle) return true;
+    return [admin.name, admin.email, admin.phone, admin.community_request?.name]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(needle));
+  };
+  const available = admins.filter((admin) => !admin.community_request).filter(matchesQuery);
+  const assigned = admins.filter((admin) => Boolean(admin.community_request)).filter(matchesQuery);
 
   return (
     <div className="space-y-3">
@@ -868,6 +887,15 @@ function ExistingAdminPicker({
         Unassigned accounts can be attached to this community even if they were created in another region.
         Admins already managing a community stay unavailable.
       </p>
+      {admins.length > 0 ? (
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search by name, email, or phone…"
+          className="nl-input w-full"
+        />
+      ) : null}
       {loading ? (
         <p className="rounded-xl border border-slate-200 px-4 py-6 text-center text-sm text-slate-500">
           Loading community admins…
