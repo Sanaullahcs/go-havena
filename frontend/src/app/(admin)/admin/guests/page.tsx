@@ -38,8 +38,12 @@ import { inputClass } from "@/lib/admin/form-validation-utils";
 import { toDatetimeLocalValue } from "@/lib/admin/datetime-local";
 import {
   canSubmitGuestInvite,
+  guestAccessEarliestEndLocalValue,
+  guestAccessLatestEnd,
+  guestAccessLatestEndLocalValue,
   guestDurationFieldError,
   guestEmailFieldError,
+  GUEST_DURATION_MAX_MESSAGE,
   guestNameFieldError,
   guestPermissionsFieldError,
   guestStartFieldError,
@@ -362,6 +366,8 @@ export default function GuestsPage() {
   const emailError = guestEmailFieldError(form.guest_email);
   const startError = guestStartFieldError(form.starts_at, startValidationNow);
   const durationError = guestDurationFieldError(form.starts_at, form.ends_at);
+  const minEndAt = guestAccessEarliestEndLocalValue(form.starts_at);
+  const maxEndAt = guestAccessLatestEndLocalValue(form.starts_at);
   const canCreateInvitation =
     canSubmitGuestInvite(form, phoneField, startValidationNow) && !submitting;
 
@@ -394,6 +400,8 @@ export default function GuestsPage() {
         setPhoneShowError(true);
         toastError("Enter a valid phone number, or leave phone blank.");
       }
+      const windowError = guestDurationFieldError(submitForm.starts_at, submitForm.ends_at);
+      if (windowError) toastError(windowError);
       return;
     }
     setSubmitting(true);
@@ -510,6 +518,11 @@ export default function GuestsPage() {
   const handleExtend = async (guest: GuestInvitation) => {
     const nextWeek = new Date(guest.ends_at);
     nextWeek.setDate(nextWeek.getDate() + 7);
+    const start = new Date(guest.starts_at);
+    if (!Number.isNaN(start.getTime()) && nextWeek.getTime() > guestAccessLatestEnd(start).getTime()) {
+      toastError(GUEST_DURATION_MAX_MESSAGE);
+      return;
+    }
     try {
       await extendGuest(guest.id, nextWeek.toISOString());
       toastSuccess("Guest access extended by 7 days");
@@ -787,7 +800,14 @@ export default function GuestsPage() {
                   </div>
                   <div>
                     <label className="mb-1.5 block text-[13px] font-medium text-slate-700">End *</label>
-                    <input type="datetime-local" className={inputClass(Boolean(durationError), "nl-input")} value={form.ends_at} onChange={(e) => setForm((f) => ({ ...f, ends_at: e.target.value }))} />
+                    <input
+                      type="datetime-local"
+                      min={minEndAt || undefined}
+                      max={maxEndAt || undefined}
+                      className={inputClass(Boolean(durationError), "nl-input")}
+                      value={form.ends_at}
+                      onChange={(e) => setForm((f) => ({ ...f, ends_at: e.target.value }))}
+                    />
                     {durationError ? <p className="mt-1 text-xs text-red-600">{durationError}</p> : null}
                   </div>
                 </div>

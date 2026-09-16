@@ -548,6 +548,7 @@ export default function NoticeFormModal({
                         ...prev,
                         event_time_end: next.event_time_end,
                       }));
+                      if (next.event_time_end) touch("event_time_end");
                     }
                   }}
                   onBlur={() => {

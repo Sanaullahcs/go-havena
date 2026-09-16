@@ -11,7 +11,7 @@ import { Colors, Layout, Shadows } from "../../constants/tokens";
 import { DEFAULT_PHONE_COUNTRY } from "../../constants/phone-countries";
 import { sw, sf } from "../../utils/responsive";
 import { formatDisplayDate, formatDisplayTime, formatAccessDay, toApiScheduleDateTime, mergeDateAndTime, buildAccessWindowFromDuration, roundToNextHour } from "../../utils/form-datetime";
-import { validateGuestInviteForm, hasFieldErrors } from "../../utils/form-validation";
+import { addCalendarYears, GUEST_ACCESS_MAX_YEARS, validateGuestInviteForm, hasFieldErrors } from "../../utils/form-validation";
 import GuestPermissionsSection from "./guest-permissions-section";
 import { DEFAULT_GUEST_PERMISSIONS, normalizeGuestPermissions } from "../../constants/guest-permissions";
 import KeyboardSafeScreen from "../layout/keyboard-safe-screen";
@@ -389,6 +389,10 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
 
   const accessStart = useMemo(() => mergeDateAndTime(startDate, startTime), [startDate, startTime]);
   const accessEnd = useMemo(() => mergeDateAndTime(endDate, endTime), [endDate, endTime]);
+  const latestEnd = useMemo(
+    () => (accessStart ? addCalendarYears(accessStart, GUEST_ACCESS_MAX_YEARS) : undefined),
+    [accessStart],
+  );
 
   const accessWindow = useMemo(() => {
     if (!accessStart || !accessEnd) return "";
@@ -672,6 +676,8 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
               <SchedulePickerField
                 mode="date"
                 value={endDate}
+                minimumDate={accessStart}
+                maximumDate={latestEnd}
                 onChange={(v) => {
                   setEndDate(v);
                   setActivePreset(null);
@@ -689,6 +695,8 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
               <SchedulePickerField
                 mode="time"
                 value={endTime}
+                minimumDate={accessStart}
+                maximumDate={latestEnd}
                 onChange={(v) => {
                   setEndTime(v);
                   setActivePreset(null);

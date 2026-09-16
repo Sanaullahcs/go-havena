@@ -18,7 +18,38 @@ export const MIN_GUEST_ACCESS_MINUTES = 30;
 
 export const GUEST_DURATION_MIN_MESSAGE = "Guest access duration must be at least 30 minutes.";
 
+export const MAX_GUEST_ACCESS_YEARS = 1;
+
+export const GUEST_DURATION_MAX_MESSAGE =
+  "Guest access cannot exceed 1 year from the start date.";
+
 export const GUEST_START_PAST_MESSAGE = "Start date cannot be earlier than the current date and time.";
+
+export function addCalendarYears(date: Date, years: number): Date {
+  const next = new Date(date.getTime());
+  const month = next.getMonth();
+  next.setFullYear(next.getFullYear() + years);
+  if (next.getMonth() !== month) {
+    next.setDate(0);
+  }
+  return next;
+}
+
+export function guestAccessLatestEnd(start: Date): Date {
+  return addCalendarYears(start, MAX_GUEST_ACCESS_YEARS);
+}
+
+export function guestAccessLatestEndLocalValue(startsAt: string): string {
+  const start = parseDatetimeLocalValue(startsAt);
+  if (!start) return "";
+  return toDatetimeLocalValue(guestAccessLatestEnd(start));
+}
+
+export function guestAccessEarliestEndLocalValue(startsAt: string): string {
+  const start = parseDatetimeLocalValue(startsAt);
+  if (!start) return "";
+  return toDatetimeLocalValue(new Date(start.getTime() + MIN_GUEST_ACCESS_MINUTES * 60 * 1000));
+}
 
 function startOfLocalMinute(value: Date): Date {
   const next = new Date(value);
@@ -49,6 +80,10 @@ export function guestDurationFieldError(startsAt: string, endsAt: string): strin
   const durationMs = end.getTime() - start.getTime();
   if (durationMs < MIN_GUEST_ACCESS_MINUTES * 60 * 1000) {
     return GUEST_DURATION_MIN_MESSAGE;
+  }
+
+  if (end.getTime() > guestAccessLatestEnd(start).getTime()) {
+    return GUEST_DURATION_MAX_MESSAGE;
   }
 
   return null;

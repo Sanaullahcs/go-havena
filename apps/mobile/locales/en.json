@@ -3911,6 +3911,7 @@
     "startTimeRequired": "Start time is required.",
     "endTimeRequired": "End time is required.",
     "endAfterStart": "End time must be after start time.",
+    "guestAccessMaxDuration": "Guest access cannot exceed 1 year from the start date.",
     "endAfterNow": "End time must be later than now for today's date.",
     "selectResident": "Select at least one resident.",
     "residenceTypeRequired": "Residence type is required.",

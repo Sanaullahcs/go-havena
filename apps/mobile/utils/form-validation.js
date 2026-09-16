@@ -542,6 +542,18 @@ export function validateDocumentForm(form, { hasFile }) {
   return errors;
 }
 
+export const GUEST_ACCESS_MAX_YEARS = 1;
+
+export function addCalendarYears(date, years) {
+  const next = new Date(date.getTime());
+  const month = next.getMonth();
+  next.setFullYear(next.getFullYear() + years);
+  if (next.getMonth() !== month) {
+    next.setDate(0);
+  }
+  return next;
+}
+
 export function validateGuestInviteForm(form, { phoneCountry } = {}) {
   const errors = {};
 
@@ -564,8 +576,16 @@ export function validateGuestInviteForm(form, { phoneCountry } = {}) {
   if (!form.ends_at) {
     errors.ends_at = i18n.t("validation.endDateRequired");
   }
-  if (form.starts_at && form.ends_at && new Date(form.ends_at).getTime() <= new Date(form.starts_at).getTime()) {
-    errors.ends_at = i18n.t("validation.endAfterStart");
+  if (form.starts_at && form.ends_at) {
+    const start = new Date(form.starts_at);
+    const end = new Date(form.ends_at);
+    if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+      if (end.getTime() <= start.getTime()) {
+        errors.ends_at = i18n.t("validation.endAfterStart");
+      } else if (end.getTime() > addCalendarYears(start, GUEST_ACCESS_MAX_YEARS).getTime()) {
+        errors.ends_at = i18n.t("validation.guestAccessMaxDuration");
+      }
+    }
   }
 
   if (form.permissions) {

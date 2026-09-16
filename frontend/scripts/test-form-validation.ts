@@ -10,6 +10,7 @@ import {
   validateInviteMemberForm,
 } from "../src/lib/admin/invite-member-validation";
 import { validateNoticeForm } from "../src/lib/admin/notice-form-validation";
+import { parseFlexibleTime } from "../src/lib/admin/notice-schedule-utils";
 import { validatePasswordForm, validateProfileForm } from "../src/lib/admin/profile-validation";
 import {
   validateCommunityAdminForm,
@@ -27,8 +28,12 @@ import {
   GUEST_EMAIL_FORMAT_MESSAGE,
   GUEST_NAME_FORMAT_MESSAGE,
   GUEST_DURATION_MIN_MESSAGE,
+  GUEST_DURATION_MAX_MESSAGE,
   GUEST_START_PAST_MESSAGE,
+  addCalendarYears,
   canSubmitGuestInvite,
+  guestAccessLatestEnd,
+  guestAccessLatestEndLocalValue,
   guestDurationFieldError,
   guestEmailFieldError,
   guestNameFieldError,
@@ -206,6 +211,54 @@ console.log("\nGuest invite validation");
     "rejects an end time before start time",
   );
   assert(
+    guestDurationFieldError("2026-09-11T10:00", "2027-09-11T10:00") === null,
+    "accepts an end date exactly 1 year from start",
+  );
+  assert(
+    guestDurationFieldError("2026-09-11T10:00", "2027-03-11T10:00") === null,
+    "accepts an access period within 1 year",
+  );
+  assert(
+    guestDurationFieldError("2026-09-11T10:00", "2027-09-11T10:01") === GUEST_DURATION_MAX_MESSAGE,
+    "rejects an end one minute past 1 year",
+  );
+  assert(
+    guestDurationFieldError("2026-09-11T10:00", "2028-09-11T10:00") === GUEST_DURATION_MAX_MESSAGE,
+    "rejects an end date more than 1 year from start",
+  );
+  assert(
+    guestAccessLatestEndLocalValue("2026-09-11T10:00") === "2027-09-11T10:00",
+    "date picker max is 1 calendar year after start",
+  );
+  const leapStart = new Date(2024, 1, 29, 10, 0, 0, 0);
+  const leapLatest = addCalendarYears(leapStart, 1);
+  assert(
+    leapLatest.getFullYear() === 2025 && leapLatest.getMonth() === 1 && leapLatest.getDate() === 28,
+    "clamps Feb 29 start to Feb 28 the following year",
+  );
+  assert(
+    guestAccessLatestEnd(leapStart).getTime() === leapLatest.getTime(),
+    "latest allowed end matches calendar-year clamp",
+  );
+  assert(
+    !canSubmitGuestInvite({
+      guest_name: "Alex Johnson",
+      guest_email: "guest@email.com",
+      starts_at: "2026-09-11T10:00",
+      ends_at: "2028-09-11T10:00",
+    }, emptyPhone, now),
+    "button blocked when access exceeds 1 year",
+  );
+  assert(
+    canSubmitGuestInvite({
+      guest_name: "Alex Johnson",
+      guest_email: "guest@email.com",
+      starts_at: "2026-09-11T10:00",
+      ends_at: "2027-09-11T10:00",
+    }, emptyPhone, now),
+    "button enabled when access is exactly 1 year",
+  );
+  assert(
     !canSubmitGuestInvite({
       guest_name: "Alex Johnson",
       guest_email: "guest@email.com",
@@ -359,6 +412,41 @@ console.log("\nNotice form validation");
     { kind: "event" },
   );
   assertHasError(badTimes, "event_time_end", "end time after start");
+
+  assert(parseFlexibleTime("10:15 AM") === "10:15", "parses 10:15 AM");
+  assert(parseFlexibleTime("11:45 AM") === "11:45", "parses 11:45 AM");
+  assert(parseFlexibleTime("2:20 PM") === "14:20", "parses 2:20 PM");
+  assert(parseFlexibleTime("14:20") === "14:20", "parses 24-hour 14:20");
+  assert(parseFlexibleTime("2 PM") === "14:00", "parses hour-only 2 PM");
+  assert(parseFlexibleTime("25:00") === null, "rejects invalid hour");
+
+  const customTimes = validateNoticeForm(
+    {
+      title: "Community meeting",
+      body: "Monthly residents meeting in the hall.",
+      category: "event",
+      location: "Clubhouse",
+      event_date: "2026-07-15",
+      event_time: "10:15",
+      event_time_end: "11:45",
+    },
+    { kind: "event" },
+  );
+  assertNoErrors(customTimes, "accepts custom start and end minutes");
+
+  const customEndBeforeStart = validateNoticeForm(
+    {
+      title: "Community meeting",
+      body: "Monthly residents meeting in the hall.",
+      category: "event",
+      location: "Clubhouse",
+      event_date: "2026-07-15",
+      event_time: "14:20",
+      event_time_end: "14:10",
+    },
+    { kind: "event" },
+  );
+  assertHasError(customEndBeforeStart, "event_time_end", "custom end time after start");
 
   const ok = validateNoticeForm(
     {

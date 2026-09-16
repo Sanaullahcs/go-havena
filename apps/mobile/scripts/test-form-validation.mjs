@@ -16,6 +16,7 @@ import {
   validateInviteMemberForm,
   validateCommunityRuleForm,
   validateDocumentForm,
+  validateGuestInviteForm,
 } from "../utils/form-validation.js";
 
 let passed = 0;
@@ -434,6 +435,30 @@ console.log("\nDeal validation");
     { businessStatus: "approved" },
   );
   assertNoErrors(ok, "valid deal");
+}
+
+console.log("\nGuest invite validation");
+{
+  const base = {
+    guest_name: "Alex Johnson",
+    guest_email: "guest@email.com",
+    phone_digits: "",
+    starts_at: "2026-09-11T10:00:00",
+    ends_at: "2026-09-12T10:00:00",
+    permissions: { wellness: true },
+  };
+  assertNoErrors(validateGuestInviteForm(base), "accepts a valid window within 1 year");
+  assertNoErrors(
+    validateGuestInviteForm({ ...base, ends_at: "2027-09-11T10:00:00" }),
+    "accepts an end date exactly 1 year from start",
+  );
+  const tooLong = validateGuestInviteForm({ ...base, ends_at: "2027-09-11T10:01:00" });
+  assert(
+    tooLong.ends_at === "Guest access cannot exceed 1 year from the start date.",
+    "rejects an end more than 1 year from start",
+  );
+  const beforeStart = validateGuestInviteForm({ ...base, ends_at: "2026-09-11T09:00:00" });
+  assert(Boolean(beforeStart.ends_at), "rejects an end date before start date");
 }
 
 console.log(`\nResults: ${passed} passed, ${failed} failed\n`);

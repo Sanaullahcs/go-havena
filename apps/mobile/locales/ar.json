@@ -3909,6 +3909,7 @@
     "startTimeRequired": "وقت البدء مطلوب.",
     "endTimeRequired": "وقت الانتهاء مطلوب.",
     "endAfterStart": "وقت الانتهاء يجب أن يكون بعد وقت البدء.",
+    "guestAccessMaxDuration": "لا يمكن أن يتجاوز وصول الضيف سنة واحدة من تاريخ البدء.",
     "endAfterNow": "وقت الانتهاء يجب أن يكون بعد الوقت الحالي لتاريخ اليوم.",
     "selectResident": "اختر مقيماً واحداً على الأقل.",
     "residenceTypeRequired": "نوع الإقامة مطلوب.",
