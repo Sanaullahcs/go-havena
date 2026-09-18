@@ -1,0 +1,86 @@
+hit activity_logs.description count=9
+  id=363 description=Approved community admin: Mahnoor Ayaz Khan
+  id=366 description=Invited new member: mk (mahnoorayazkhan5@gmail.com)
+  id=383 description=Invited new member: mk (mahnoorayazkhan6@gmail.com)
+  id=384 description=Invited new member: mk (mahnoorayazkhan7@gmail.com)
+  id=394 description=Invited new member: Mahnoor Resident (mahnoorayaz8181@gmail.com)
+  id=404 description=Invited new member: noor (mahnoorayaz4@gmail.com)
+  id=406 description=Invited guest guest (mahnoorayaz2819@gmail.com)
+  id=407 description=Invited guest safrcare (mahnoorkhan192002@gmail.com)
+  id=439 description=Invited new member: Mahnoor Ayaz (mahnoor.ayaz@tabsusa.com)
+hit app_notifications.body count=12
+  id=217 body=Mahnoor Resident shared a new post: "Hi gyz Im your new neighbour ? feeling excited ? ? Valensia Residence"
+  id=218 body=Mahnoor Resident shared a new post: "Hi gyz Im your new neighbour ? feeling excited ? ? Valensia Residence"
+  id=219 body=Mahnoor Resident shared a new post: "Show me your presence???? ? feeling tired ?"
+  id=220 body=Mahnoor Resident shared a new post: "Show me your presence???? ? feeling tired ?"
+  id=224 body=Mahnoor Ayaz Khan sent you a message.
+  id=225 body=Mahnoor Ayaz Khan sent you a message.
+  id=226 body=Mahnoor Ayaz Khan sent you a message.
+  id=227 body=Mahnoor Ayaz Khan sent you a message.
+  id=228 body=Mahnoor Ayaz Khan sent you a message.
+  id=229 body=Mahnoor Ayaz Khan sent you a message.
+  id=266 body=Mahnoor Resident requested Swimming pool for 2026-09-15 (12:00 AM - 12:30 AM).
+  id=278 body=Mahnoor Resident sent you a message.
+hit app_notifications.action_url count=7
+  id=224 action_url=/screens/messages/chat?conversationId=21&recipientName=Mahnoor%20Ayaz%20Khan
+  id=225 action_url=/screens/messages/chat?conversationId=21&recipientName=Mahnoor%20Ayaz%20Khan
+  id=226 action_url=/screens/messages/chat?conversationId=21&recipientName=Mahnoor%20Ayaz%20Khan
+  id=227 action_url=/screens/messages/chat?conversationId=21&recipientName=Mahnoor%20Ayaz%20Khan
+  id=228 action_url=/screens/messages/chat?conversationId=22&recipientName=Mahnoor%20Ayaz%20Khan
+  id=229 action_url=/screens/messages/chat?conversationId=22&recipientName=Mahnoor%20Ayaz%20Khan
+  id=278 action_url=/screens/messages/chat?conversationId=21&recipientName=Mahnoor%20Resident
+hit email_otps.email count=2
+  id=93 email=mahnoorayaz4@gmail.com
+  id=174 email=mahnoorkhan19202@gmail.com
+hit guest_invitations.guest_email count=2
+  id=7 guest_email=mahnoorayaz2819@gmail.com
+  id=8 guest_email=mahnoorkhan192002@gmail.com
+hit messages.body count=1
+  id=44 body=Post by Mahnoor Resident
+
+Thank you to the security team for managing guest traffic during the weekend. Residents, please register visitors in the app before they reach the gate so clearance stays quick.
+hit profiles.display_name count=3
+  id=73 display_name=Mahnoor Ayaz Khan
+  id=86 display_name=Mahnoor Resident
+  id=96 display_name=Mahnoor Ayaz
+hit transactional_email_sends.recipient_email count=12
+  id=53 recipient_email=mahnoor.ayaz@tabsusa.com
+  id=44 recipient_email=mahnoorayaz2819@gmail.com
+  id=43 recipient_email=mahnoorayaz4@gmail.com
+  id=42 recipient_email=mahnoorayaz8181@gmail.com
+  id=24 recipient_email=mahnoorayazkhan5@gmail.com
+  id=27 recipient_email=mahnoorayazkhan5@gmail.com
+  id=37 recipient_email=mahnoorayazkhan6@gmail.com
+  id=38 recipient_email=mahnoorayazkhan7@gmail.com
+  id=20 recipient_email=mahnoorayaztabusu@gmail.com
+  id=21 recipient_email=mahnoorayaztabusu@gmail.com
+  id=22 recipient_email=mahnoorayaztabusu@gmail.com
+  id=45 recipient_email=mahnoorkhan192002@gmail.com
+hit users.name count=3
+  id=74 name=Mahnoor Ayaz Khan
+  id=87 name=Mahnoor Resident
+  id=97 name=Mahnoor Ayaz
+hit users.email count=8
+  id=97 email=mahnoor.ayaz@tabsusa.com
+  id=89 email=mahnoorayaz2819@gmail.com
+  id=87 email=mahnoorayaz8181@gmail.com
+  id=76 email=mahnoorayazkhan5@gmail.com
+  id=85 email=mahnoorayazkhan6@gmail.com
+  id=86 email=mahnoorayazkhan7@gmail.com
+  id=74 email=mahnoorayaztabusu@gmail.com
+  id=90 email=mahnoorkhan192002@gmail.com
+valensia id=51 name=Valensia Residence status=active review=approved requested_by=74
+valensia_memberships=4
+  mem 81 user=74 mahnoorayaztabusu@gmail.com role=admin status=approved
+  mem 82 user=76 mahnoorayazkhan5@gmail.com role=member status=banned
+  mem 83 user=87 mahnoorayaz8181@gmail.com role=member status=approved
+  mem 84 user=88 deleted-88-260914110551@deleted.havena.local role=member status=approved
+user 74 tokens=5 invites=14
+user 76 tokens=1 invites=1
+user 85 tokens=0 invites=1
+user 86 tokens=0 invites=1
+user 87 tokens=4 invites=1
+user 89 tokens=1 invites=0
+user 90 tokens=1 invites=0
+user 97 tokens=0 invites=1
+user_soft_deletes=yes

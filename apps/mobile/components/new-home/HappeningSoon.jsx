@@ -2,6 +2,7 @@ import { Text, View, StyleSheet, Pressable, useWindowDimensions, FlatList, Platf
 import React, { useCallback, useMemo } from "react";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { Home, homeStyles } from "../../constants/home-styles";
@@ -9,70 +10,80 @@ import { HomeTheme as T } from "../../constants/home-theme";
 import { NoticeCoverMedia } from "../notices/notice-cover-thumbnail";
 import HomeSectionHeader from "./section-header";
 import HomeSectionEmpty from "./home-section-empty";
-import { formatEventTimeRange, formatLongDate, getNoticeDetailRoute } from "../../services/notices-api";
+import { formatEventTimeRange, getNoticeDetailRoute } from "../../services/notices-api";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
 import { navigateAppRoute } from "../../utils/app-navigation";
 import { rnShadow } from "../../utils/shadow";
 import { sw, sf } from "../../utils/responsive";
 import { localizedField } from "../../i18n";
+import { getLocaleForLang } from "../../hooks/use-app-locale";
+import { arrowForward } from "../../utils/rtl";
 
 const CARD_GAP = sw(12);
-const PEEK = sw(32);
-const CARD_RADIUS = sw(16);
-const BODY_MIN_H = sw(110);
+const PEEK = sw(28);
+const CARD_RADIUS = sw(20);
 
-function mapEventToCard(notice) {
+function eventDateParts(dateStr, lang) {
+  if (!dateStr) return null;
+  try {
+    const date = new Date(`${String(dateStr).slice(0, 10)}T12:00:00`);
+    if (Number.isNaN(date.getTime())) return null;
+    const locale = getLocaleForLang(lang);
+    return {
+      month: date.toLocaleDateString(locale, { month: "short" }).replace(".", "").toUpperCase(),
+      day: String(date.getDate()),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function mapEventToCard(notice, lang) {
   return {
     id: String(notice.id),
-    title: notice.title ?? "",
-    date: notice.eventDate
-      ? formatLongDate(notice.eventDate)
-      : notice.eventSchedule ?? notice.timeLabel ?? "",
+    title: localizedField(notice, "title") || notice.title || "",
     time: formatEventTimeRange(notice),
     location: notice.location ?? "",
     imageUrl: notice.imageUrl,
+    dateParts: eventDateParts(notice.eventDate ?? notice.event_date, lang),
     notice,
   };
 }
 
-function EventCard({ item, width, imageH, cardHeight, onPress }) {
-  const { i18n } = useTranslation();
-  const displayTitle = localizedField(item.notice, "title") || item.title;
+function EventCard({ item, width, height, onPress, t }) {
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
-        { width, minHeight: cardHeight },
+        { width, height },
         pressed && styles.cardPressed,
       ]}
     >
-      <View style={[styles.cardInner, { minHeight: cardHeight }]}>
-        <View style={[styles.imageWrap, { height: imageH }]}>
-          <NoticeCoverMedia
-            fill
-            imageUrl={item.imageUrl}
-            notice={item.notice}
-            kind="event"
-          />
-          {item.date ? (
-            <View style={styles.dateBadge}>
-              <Feather name="calendar" size={sf(10)} color={T.navy} />
-              <Text style={styles.dateBadgeText} numberOfLines={1}>
-                {item.date}
-              </Text>
-            </View>
-          ) : null}
-        </View>
-
-        <View style={styles.body}>
-          <Text style={styles.title} numberOfLines={3}>
-            {displayTitle}
-          </Text>
-          <View style={styles.metaBlock}>
+      <View style={[styles.cardInner, { height }]}>
+        <NoticeCoverMedia
+          fill
+          imageUrl={item.imageUrl}
+          notice={item.notice}
+          kind="event"
+        />
+        <LinearGradient
+          colors={["transparent", "rgba(10,28,48,0.28)", "rgba(10,28,48,0.92)"]}
+          locations={[0.28, 0.55, 1]}
+          style={styles.overlay}
+        >
+          <View style={styles.badge}>
+            <Text style={styles.badgeText} numberOfLines={1}>
+              {t("categories.event").toUpperCase()}
+            </Text>
+          </View>
+          <View style={styles.copy}>
+            <Text style={styles.title} numberOfLines={2}>
+              {item.title}
+            </Text>
             {item.time ? (
               <View style={styles.metaRow}>
-                <Feather name="clock" size={sf(11)} color={T.teal} />
+                <Feather name="clock" size={sf(12)} color="rgba(255,255,255,0.86)" />
                 <Text style={styles.metaText} numberOfLines={1}>
                   {item.time}
                 </Text>
@@ -80,14 +91,24 @@ function EventCard({ item, width, imageH, cardHeight, onPress }) {
             ) : null}
             {item.location ? (
               <View style={styles.metaRow}>
-                <Feather name="map-pin" size={sf(11)} color={T.teal} />
+                <Feather name="map-pin" size={sf(12)} color="rgba(255,255,255,0.86)" />
                 <Text style={styles.metaText} numberOfLines={1}>
                   {item.location}
                 </Text>
               </View>
             ) : null}
+            <View style={styles.ctaBtn}>
+              <Text style={styles.ctaBtnText}>{t("events.joinEvent")}</Text>
+              <Feather name={arrowForward()} size={sf(12)} color={T.navy} />
+            </View>
           </View>
-        </View>
+        </LinearGradient>
+        {item.dateParts ? (
+          <View style={styles.dateStack}>
+            <Text style={styles.dateMonth}>{item.dateParts.month}</Text>
+            <Text style={styles.dateDay}>{item.dateParts.day}</Text>
+          </View>
+        ) : null}
       </View>
     </Pressable>
   );
@@ -98,16 +119,29 @@ export default function HappeningSoon({ items = [] }) {
   const { t, i18n } = useTranslation();
   const { width: screenWidth } = useWindowDimensions();
 
-  const events = useMemo(() => items.map(mapEventToCard), [items, i18n.language]);
+  const events = useMemo(
+    () => items.map((notice) => mapEventToCard(notice, i18n.language)),
+    [items, i18n.language],
+  );
 
   const layout = useMemo(() => {
     const contentWidth = screenWidth - Home.gutter * 2;
-    const cardWidth = Math.floor((contentWidth - CARD_GAP - PEEK) / 2);
-    const imageH = Math.round(cardWidth * 0.65);
-    const cardHeight = imageH + BODY_MIN_H;
-    const snap = cardWidth + CARD_GAP;
-    return { cardWidth, imageH, cardHeight, snap };
-  }, [screenWidth]);
+    if (events.length <= 1) {
+      return {
+        featured: true,
+        cardWidth: contentWidth,
+        cardHeight: Math.round(contentWidth * 0.68),
+        snap: contentWidth,
+      };
+    }
+    const cardWidth = Math.floor(contentWidth * 0.84);
+    return {
+      featured: false,
+      cardWidth,
+      cardHeight: Math.round(cardWidth * 0.68),
+      snap: cardWidth + CARD_GAP,
+    };
+  }, [screenWidth, events.length]);
 
   const openEvent = useCallback(
     (item) => {
@@ -118,17 +152,15 @@ export default function HappeningSoon({ items = [] }) {
 
   const renderItem = useCallback(
     ({ item }) => (
-      <View style={{ width: layout.cardWidth, minHeight: layout.cardHeight, flexShrink: 0 }}>
-        <EventCard
-          item={item}
-          width={layout.cardWidth}
-          imageH={layout.imageH}
-          cardHeight={layout.cardHeight}
-          onPress={() => openEvent(item)}
-        />
-      </View>
+      <EventCard
+        item={item}
+        width={layout.cardWidth}
+        height={layout.cardHeight}
+        onPress={() => openEvent(item)}
+        t={t}
+      />
     ),
-    [layout.cardWidth, layout.imageH, layout.cardHeight, openEvent],
+    [layout.cardWidth, layout.cardHeight, openEvent, t],
   );
 
   if (!events.length) {
@@ -149,22 +181,32 @@ export default function HappeningSoon({ items = [] }) {
         label={t("home.happeningSoon")}
         onPress={() => navigateAppRoute(router, PropertyManagementRoutes.NOTICES)}
       />
-      <FlatList
-        data={events}
-        horizontal
-        style={[styles.carousel, { minHeight: layout.cardHeight }]}
-        showsHorizontalScrollIndicator={false}
-        decelerationRate="fast"
-        snapToInterval={layout.snap}
-        snapToAlignment="start"
-        disableIntervalMomentum
-        nestedScrollEnabled
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        getItemLayout={(_, index) => ({ length: layout.snap, offset: layout.snap * index, index })}
-        ItemSeparatorComponent={() => <View style={{ width: CARD_GAP }} />}
-        contentContainerStyle={styles.listContent}
-      />
+      {layout.featured ? (
+        <EventCard
+          item={events[0]}
+          width={layout.cardWidth}
+          height={layout.cardHeight}
+          onPress={() => openEvent(events[0])}
+          t={t}
+        />
+      ) : (
+        <FlatList
+          data={events}
+          horizontal
+          style={[styles.carousel, { minHeight: layout.cardHeight }]}
+          showsHorizontalScrollIndicator={false}
+          decelerationRate="fast"
+          snapToInterval={layout.snap}
+          snapToAlignment="start"
+          disableIntervalMomentum
+          nestedScrollEnabled
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          getItemLayout={(_, index) => ({ length: layout.snap, offset: layout.snap * index, index })}
+          ItemSeparatorComponent={() => <View style={{ width: CARD_GAP }} />}
+          contentContainerStyle={styles.listContent}
+        />
+      )}
     </View>
   );
 }
@@ -179,79 +221,111 @@ const styles = StyleSheet.create({
     borderRadius: CARD_RADIUS,
     ...(Platform.OS === "ios"
       ? {
-          backgroundColor: T.white,
-          ...rnShadow({ color: T.navy, offset: { width: 0, height: 3 }, opacity: 0.08, radius: 10 }),
+          backgroundColor: T.navy,
+          ...rnShadow({ color: T.navy, offset: { width: 0, height: 6 }, opacity: 0.16, radius: 16 }),
           borderCurve: "continuous",
         }
-      : { elevation: 2 }),
+      : { elevation: 4 }),
   },
-  cardPressed: { opacity: 0.93, transform: [{ scale: 0.98 }] },
+  cardPressed: { opacity: 0.94, transform: [{ scale: 0.985 }] },
   cardInner: {
     borderRadius: CARD_RADIUS,
     overflow: "hidden",
-    backgroundColor: T.white,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: T.border,
+    backgroundColor: T.navy,
     ...(Platform.OS === "ios" ? { borderCurve: "continuous" } : null),
   },
-  imageWrap: {
-    width: "100%",
-    backgroundColor: T.white,
-    position: "relative",
-    overflow: "hidden",
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "flex-end",
+    paddingHorizontal: sw(16),
+    paddingBottom: sw(14),
+    paddingTop: sw(16),
   },
-  dateBadge: {
+  badge: {
     position: "absolute",
-    bottom: sw(8),
-    start: sw(8),
-    flexDirection: "row",
-    alignItems: "center",
-    gap: sw(4),
-    backgroundColor: "rgba(255,255,255,0.92)",
-    paddingHorizontal: sw(8),
-    paddingVertical: sw(4),
+    top: sw(12),
+    start: sw(12),
+    paddingHorizontal: sw(10),
+    paddingVertical: sw(5),
     borderRadius: 999,
-    maxWidth: "85%",
+    backgroundColor: T.teal,
   },
-  dateBadgeText: {
-    fontFamily: Fonts.semiBold,
+  badgeText: {
+    fontFamily: Fonts.bold,
     fontSize: sf(9),
+    fontWeight: "700",
+    letterSpacing: 0.6,
     color: T.navy,
-    fontWeight: "600",
-    flexShrink: 1,
+    textTransform: "uppercase",
     writingDirection: "auto",
   },
-  body: {
-    flex: 1,
-    paddingHorizontal: sw(10),
-    paddingTop: sw(10),
-    paddingBottom: sw(10),
-    justifyContent: "space-between",
+  dateStack: {
+    position: "absolute",
+    top: sw(12),
+    end: sw(12),
+    minWidth: sw(48),
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.96)",
+    borderRadius: sw(12),
+    paddingHorizontal: sw(8),
+    paddingTop: sw(6),
+    paddingBottom: sw(5),
+  },
+  dateMonth: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(9),
+    lineHeight: sf(11),
+    letterSpacing: 0.7,
+    color: T.teal,
+    fontWeight: "700",
+  },
+  dateDay: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(20),
+    lineHeight: sf(22),
+    color: T.navy,
+    fontWeight: "700",
+  },
+  copy: {
+    gap: sw(5),
   },
   title: {
     fontFamily: Fonts.bold,
-    fontSize: sf(12.5),
-    lineHeight: sf(17),
-    color: T.navy,
+    fontSize: sf(20),
+    lineHeight: sf(25),
+    color: "#FFFFFF",
     fontWeight: "700",
-    flexShrink: 1,
     writingDirection: "auto",
-  },
-  metaBlock: {
-    gap: sw(3),
   },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: sw(5),
+    gap: sw(6),
   },
   metaText: {
-    fontFamily: Fonts.regular,
-    fontSize: sf(10.5),
-    lineHeight: sf(14),
-    color: T.gray,
+    fontFamily: Fonts.medium,
+    fontSize: sf(12),
+    lineHeight: sf(16),
+    color: "rgba(255,255,255,0.86)",
     flex: 1,
-    flexShrink: 1,
+    writingDirection: "auto",
+  },
+  ctaBtn: {
+    marginTop: sw(6),
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(4),
+    backgroundColor: T.teal,
+    paddingHorizontal: sw(14),
+    paddingVertical: sw(7),
+    borderRadius: 999,
+  },
+  ctaBtnText: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(11.5),
+    color: T.navy,
+    fontWeight: "700",
     writingDirection: "auto",
   },
 });

@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Linking,
   Platform,
 } from "react-native";
 import { Image } from "expo-image";
@@ -35,6 +34,8 @@ import { sw, sf } from "../../../utils/responsive";
 import { chevronForward } from "../../../utils/rtl";
 import { localizedField } from "../../../i18n";
 import { rnShadow } from "../../../utils/shadow";
+import MenuList from "../../../components/marketplace/menu-list";
+import { mapsUrl, openExternalUrl, telUrl } from "../../../utils/open-contact";
 
 
 const IMAGE_MAP = {
@@ -124,6 +125,9 @@ export default function DealDetails() {
   const offerTag = localizedField(deal, "offerTag") || deal?.offerTag || offerTagParam;
   const businessId = deal?.businessId ?? (businessIdParam ? String(businessIdParam) : null);
   const phone = business?.phone?.trim() || "";
+  const website = business?.website?.trim() || "";
+  const hours = business?.hours?.trim() || "";
+  const menuItems = business?.menuItems ?? [];
   const recipientId = business?.ownerId ?? deal?.createdBy ?? null;
   const recipientName = business?.ownerName || vendor || t("marketplace.business");
 
@@ -137,20 +141,23 @@ export default function DealDetails() {
     deal?.imageUrl || imageUrlParam || IMAGE_MAP[imageKey] || IMAGE_MAP["food-bowl"];
 
   const canContact = Boolean(recipientId) && !isOwner;
-  const canCall = Boolean(phone) && !isOwner;
-  const showResidentActions = canContact || canCall || MARKETPLACE_FEATURES.coupons;
+  const canCall = Boolean(phone);
+  const canOpenMenu = Boolean(website);
+  const showResidentActions = canContact || canCall || canOpenMenu || MARKETPLACE_FEATURES.coupons;
 
-  const TERMS = useMemo(
-    () => [
+  const TERMS = useMemo(() => {
+    const items = [
       t("deals.termAvailability"),
       t("deals.termNoCombine"),
       MARKETPLACE_FEATURES.coupons
         ? t("deals.termOneCoupon")
         : t("deals.termOneOffer"),
-      t("deals.termValidUntil", { date: validUntil || "—" }),
-    ],
-    [validUntil, t],
-  );
+    ];
+    if (validUntil) {
+      items.push(t("deals.termValidUntil", { date: validUntil }));
+    }
+    return items;
+  }, [validUntil, t]);
 
   const openChat = (conversationId, extra = {}) => {
     router.push({
@@ -164,18 +171,28 @@ export default function DealDetails() {
   };
 
   const handleCall = async () => {
-    if (!phone) return;
-    const url = `tel:${phone.replace(/[^\d+]/g, "")}`;
-    try {
-      const supported = await Linking.canOpenURL(url);
-      if (!supported) {
-        await showError(t("deals.unableToCall"), t("deals.callingNotSupported"));
-        return;
-      }
-      await Linking.openURL(url);
-    } catch (err) {
-      await showError(t("deals.unableToCall"), err?.message ?? t("common.tryAgain"));
-    }
+    await openExternalUrl(telUrl(phone), {
+      showError,
+      title: t("deals.unableToCall"),
+      unsupported: t("deals.callingNotSupported"),
+    });
+  };
+
+  const handleMenu = async () => {
+    await openExternalUrl(website, {
+      showError,
+      title: t("deals.unableToOpenMenu"),
+      unsupported: t("deals.menuNotSupported"),
+    });
+  };
+
+  const handleAddress = async () => {
+    if (!distance) return;
+    await openExternalUrl(mapsUrl(distance), {
+      showError,
+      title: t("deals.unableToOpenMenu"),
+      unsupported: t("common.tryAgain"),
+    });
   };
 
   const handleMessage = async () => {
@@ -278,22 +295,65 @@ export default function DealDetails() {
                   {businessId ? t("deals.viewBusinessProfile") : t("deals.localBusinessOffer")}
                 </Text>
                 {distance ? (
-                  <View style={styles.vendorDistRow}>
-                    <Feather name="map-pin" size={13} color="#6A7282" />
-                    <Text style={styles.vendorDist}>{distance}</Text>
-                  </View>
+                  <TouchableOpacity
+                    style={styles.vendorDistRow}
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      handleAddress();
+                    }}
+                    accessibilityRole="link"
+                  >
+                    <Feather name="map-pin" size={13} color="#1B4F8A" />
+                    <Text style={styles.vendorLink}>{distance}</Text>
+                  </TouchableOpacity>
                 ) : null}
                 {phone ? (
+                  <TouchableOpacity
+                    style={styles.vendorDistRow}
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      handleCall();
+                    }}
+                    accessibilityRole="link"
+                  >
+                    <Feather name="phone" size={13} color="#1B4F8A" />
+                    <Text style={styles.vendorLink}>{phone}</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {hours ? (
                   <View style={styles.vendorDistRow}>
-                    <Feather name="phone" size={13} color="#6A7282" />
-                    <Text style={styles.vendorDist}>{phone}</Text>
+                    <Feather name="clock" size={13} color="#6A7282" />
+                    <Text style={styles.vendorDist}>{hours}</Text>
                   </View>
+                ) : null}
+                {website ? (
+                  <TouchableOpacity
+                    style={styles.vendorDistRow}
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      handleMenu();
+                    }}
+                    accessibilityRole="link"
+                  >
+                    <Feather name="external-link" size={13} color="#1B4F8A" />
+                    <Text style={styles.vendorLink}>{t("deals.viewMenu")}</Text>
+                  </TouchableOpacity>
                 ) : null}
               </View>
               {businessId ? <Feather name={chevronForward()} size={18} color="#CBD5E1" /> : null}
             </TouchableOpacity>
           ) : null}
         </View>
+
+        {menuItems.length > 0 ? (
+          <View style={styles.section}>
+            <MenuList
+              items={menuItems}
+              title={t("deals.popularMenu")}
+              note={t("deals.pricesMayVary")}
+            />
+          </View>
+        ) : null}
 
         {validUntil ? (
           <View style={styles.validBox}>
@@ -381,11 +441,11 @@ export default function DealDetails() {
           style={[styles.buttonWrap, { paddingBottom: footerPad }]}
           onLayout={onFooterLayout}
         >
-          {loadingMeta && !canContact && !canCall ? (
+          {loadingMeta && !canContact && !canCall && !canOpenMenu ? (
             <ActivityIndicator color={MarketplaceTheme.accent} />
           ) : (
             <>
-              {(canCall || canContact) ? (
+              {(canCall || canOpenMenu || canContact) ? (
                 <View style={styles.secondaryRow}>
                   {canCall ? (
                     <TouchableOpacity
@@ -396,6 +456,17 @@ export default function DealDetails() {
                     >
                       <Ionicons name="call-outline" size={18} color={MarketplaceTheme.accent} />
                       <Text style={styles.callBtnText}>{t("deals.call")}</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {canOpenMenu ? (
+                    <TouchableOpacity
+                      style={styles.menuBtn}
+                      activeOpacity={0.85}
+                      onPress={handleMenu}
+                      accessibilityLabel={t("deals.viewMenu")}
+                    >
+                      <Ionicons name="restaurant-outline" size={18} color="#FFFFFF" />
+                      <Text style={styles.menuBtnText}>{t("deals.menu")}</Text>
                     </TouchableOpacity>
                   ) : null}
                   {canContact ? (
@@ -451,7 +522,7 @@ export default function DealDetails() {
                 </TouchableOpacity>
               ) : null}
 
-              {!canContact && !canCall && !MARKETPLACE_FEATURES.coupons ? (
+              {!canContact && !canCall && !canOpenMenu && !MARKETPLACE_FEATURES.coupons ? (
                 <Text style={styles.unavailableText}>
                   {t("deals.contactUnavailable")}
                 </Text>
@@ -557,6 +628,33 @@ const styles = StyleSheet.create({
     color: "#6A7282",
     lineHeight: MarketplaceType.headingLine,
     fontWeight: "500",
+  },
+  vendorLink: {
+    flex: 1,
+    fontFamily: Fonts.medium,
+    fontSize: MarketplaceType.body,
+    color: "#1B4F8A",
+    lineHeight: MarketplaceType.headingLine,
+    fontWeight: "600",
+    textDecorationLine: "underline",
+  },
+  menuBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minWidth: sw(96),
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderRadius: 12,
+    backgroundColor: MarketplaceTheme.accent,
+  },
+  menuBtnText: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(14),
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   validBox: {
     marginHorizontal: 20,

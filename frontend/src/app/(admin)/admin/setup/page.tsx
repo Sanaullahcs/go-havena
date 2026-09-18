@@ -2,11 +2,14 @@
 
 import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Building2, ChevronLeft, ChevronRight, ListFilter, Lock, MapPin, Plus, Search, X } from "lucide-react";
+import { Building2, ChevronLeft, ChevronRight, Lock, MapPin, Plus, Search, X } from "lucide-react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   fetchPublicCountries,
   fetchPublicCountryStates,
+  fetchPublicStateCities,
+  resolvePublicLocation,
+  type City,
   type Country,
   type State,
 } from "@/lib/api/geography";
@@ -21,7 +24,6 @@ import {
 import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
 import { confirmAdminSignOutAndRedirect } from "@/lib/auth/sign-out";
 import {
-  fetchPublicRegions,
   joinCommunity,
   searchPublicCommunities,
   selfServeCreateCommunity,
@@ -49,10 +51,10 @@ function SetupInner() {
   const [view, setView] = useState<SetupView>("regions");
   const [regions, setRegions] = useState<PublicRegion[]>([]);
   const [regionsLoaded, setRegionsLoaded] = useState(false);
-  const [regionQuery, setRegionQuery] = useState("");
-  const [debouncedRegionQuery, setDebouncedRegionQuery] = useState("");
   const [countryFilter, setCountryFilter] = useState<Country | null>(null);
   const [stateFilter, setStateFilter] = useState<State | null>(null);
+  const [cityFilter, setCityFilter] = useState<City | null>(null);
+  const [createCity, setCreateCity] = useState("");
   const [selectedRegion, setSelectedRegion] = useState<PublicRegion | null>(null);
 
   const [communities, setCommunities] = useState<PublicCommunity[]>([]);
@@ -83,11 +85,6 @@ function SetupInner() {
   );
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedRegionQuery(regionQuery.trim()), 350);
-    return () => clearTimeout(timer);
-  }, [regionQuery]);
-
-  useEffect(() => {
     const timer = setTimeout(() => setDebouncedCommunityQuery(communityQuery.trim()), 350);
     return () => clearTimeout(timer);
   }, [communityQuery]);
@@ -112,19 +109,34 @@ function SetupInner() {
   }, [router, planHint, planQuery]);
 
   useEffect(() => {
+    if (!stateFilter?.id || !cityFilter?.name) {
+      setRegions([]);
+      setRegionsLoaded(true);
+      return;
+    }
+
     let cancelled = false;
     setRegionsLoaded(false);
-    void fetchPublicRegions({
-      ...(debouncedRegionQuery ? { q: debouncedRegionQuery } : {}),
+    void resolvePublicLocation({
       ...(countryFilter?.id ? { country_id: countryFilter.id } : {}),
-      ...(stateFilter?.id ? { state_id: stateFilter.id } : {}),
+      state_id: stateFilter.id,
+      ...(cityFilter?.name ? { city: cityFilter.name } : {}),
     })
-      .then((rows) => {
-        if (cancelled) return;
-        setRegions(rows.filter((r) => !r.status || r.status === "active"));
+      .then((res) => {
+        if (cancelled || !res.data) return;
+        setRegions([{
+          id: res.data.id,
+          title: res.data.title,
+          area: res.data.area,
+          state_id: res.data.state_id,
+          state_name: res.data.state_name,
+          country_id: res.data.country_id,
+          country_name: res.data.country_name,
+          status: res.data.status,
+        }]);
       })
       .catch(() => {
-        if (!cancelled) setFormError("Could not load regions. Refresh and try again.");
+        if (!cancelled) setFormError("Could not open that location. Try again.");
       })
       .finally(() => {
         if (!cancelled) setRegionsLoaded(true);
@@ -132,7 +144,7 @@ function SetupInner() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedRegionQuery, countryFilter?.id, stateFilter?.id]);
+  }, [countryFilter?.id, stateFilter?.id, cityFilter?.name]);
 
   useEffect(() => {
     if (!selectedRegion) return;
@@ -206,6 +218,7 @@ function SetupInner() {
         address: address.trim(),
         description: description.trim() || undefined,
         region_id: selectedRegion.id,
+        city: createCity.trim() || cityFilter?.name || undefined,
         latitude,
         longitude,
       });
@@ -221,26 +234,64 @@ function SetupInner() {
   const addressErr = showError("address", liveErrors);
   const regionLabel = selectedRegion?.title ?? "your region";
 
+  if (view === "regions") {
+    return (
+      <div className="w-full min-w-0">
+        <section className="mx-auto w-full max-w-[26rem] overflow-hidden rounded-[1.4rem] border border-slate-200 bg-white">
+          <header className="px-6 pb-1 pt-6">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Find your area
+            </p>
+            <h1 className="mt-2 font-[family-name:var(--font-brand)] text-[1.55rem] font-bold leading-[1.15] tracking-tight text-[#1B4F8A]">
+              Where do you operate?
+            </h1>
+            <p className="mt-2 text-[13px] leading-relaxed text-slate-500">
+              Country, then state, then city. Residents use this same path.
+            </p>
+          </header>
+          <div className="px-6 pb-6 pt-5">
+            {formError ? (
+              <div
+                className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700"
+                role="alert"
+              >
+                {formError}
+              </div>
+            ) : null}
+            <RegionList
+              loading={!regionsLoaded}
+              regions={regions}
+              country={countryFilter}
+              state={stateFilter}
+              city={cityFilter}
+              onApplyFilter={({ country, state, city }) => {
+                setCountryFilter(country);
+                setStateFilter(state);
+                setCityFilter(city);
+                setSelectedRegion(null);
+              }}
+              onSelect={selectRegion}
+            />
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full min-w-0">
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)] lg:gap-10 xl:grid-cols-[minmax(18rem,26rem)_minmax(0,1fr)]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)] lg:gap-10">
         <aside className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#1B4F8A]">
-            {view === "regions" ? "Choose region" : view === "communities" ? "Select community" : "Add community"}
+            {view === "communities" ? "Select community" : "Add community"}
           </p>
           <h1 className="mt-2 font-[family-name:var(--font-brand)] text-[1.75rem] font-bold tracking-tight text-slate-900 sm:text-[2.1rem]">
-            {view === "regions"
-              ? "Where do you operate?"
-              : view === "communities"
-                ? "Select your community"
-                : "Request to add a community"}
+            {view === "communities" ? "Select your community" : "Request to add a community"}
           </h1>
           <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-600 sm:text-[15px]">
-            {view === "regions"
-              ? "Search or filter by country and state, then pick your region. Next you’ll see communities already listed there — or add a new one."
-              : view === "communities"
-                ? `Communities in ${regionLabel}. Choose one without an admin, or request to add a new community.`
-                : `Tell us the community name and address for ${regionLabel}. We’ll submit it for review.`}
+            {view === "communities"
+              ? `Communities in ${regionLabel}. Choose one without an admin, or request to add a new one.`
+              : `Tell us the community name and address for ${regionLabel}. We’ll submit it for review.`}
           </p>
           {selectedRegion ? (
             <button
@@ -258,31 +309,15 @@ function SetupInner() {
           ) : null}
         </aside>
 
-        <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 lg:p-8">
+        <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_12px_36px_-22px_rgba(27,79,138,0.4)]">
+          <div className="p-4 sm:p-5 lg:p-6">
           {formError ? (
             <div
-              className="mb-5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700"
+              className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700"
               role="alert"
             >
               {formError}
             </div>
-          ) : null}
-
-          {view === "regions" ? (
-            <RegionList
-              query={regionQuery}
-              onQueryChange={setRegionQuery}
-              loading={!regionsLoaded}
-              regions={regions}
-              searching={regionQuery.trim() !== debouncedRegionQuery}
-              country={countryFilter}
-              state={stateFilter}
-              onApplyFilter={({ country, state }) => {
-                setCountryFilter(country);
-                setStateFilter(state);
-              }}
-              onSelect={selectRegion}
-            />
           ) : null}
 
           {view === "communities" && selectedRegion ? (
@@ -342,6 +377,12 @@ function SetupInner() {
                   aria-invalid={Boolean(nameErr)}
                 />
               </OnboardingField>
+
+              <CityField
+                stateId={selectedRegion.state_id ?? stateFilter?.id ?? null}
+                value={createCity}
+                onChange={setCreateCity}
+              />
 
               <OnboardingField
                 id="community-address"
@@ -408,6 +449,7 @@ function SetupInner() {
               </div>
             </form>
           ) : null}
+          </div>
         </div>
       </div>
     </div>
@@ -455,44 +497,30 @@ function SearchField({
 }
 
 function RegionList({
-  query,
-  onQueryChange,
   loading,
   regions,
-  searching,
   country,
   state,
+  city,
   onApplyFilter,
   onSelect,
 }: {
-  query: string;
-  onQueryChange: (value: string) => void;
   loading: boolean;
   regions: PublicRegion[];
-  searching: boolean;
   country: Country | null;
   state: State | null;
-  onApplyFilter: (next: { country: Country | null; state: State | null }) => void;
+  city: City | null;
+  onApplyFilter: (next: { country: Country | null; state: State | null; city: City | null }) => void;
   onSelect: (region: PublicRegion) => void;
 }) {
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [draftCountryId, setDraftCountryId] = useState("");
-  const [draftStateId, setDraftStateId] = useState("");
   const [countries, setCountries] = useState<Country[]>([]);
   const [states, setStates] = useState<State[]>([]);
-  const [loadingCountries, setLoadingCountries] = useState(false);
+  const [cities, setCities] = useState<City[]>([]);
+  const [loadingCountries, setLoadingCountries] = useState(true);
   const [loadingStates, setLoadingStates] = useState(false);
-
-  const activeFilterCount = (country ? 1 : 0) + (state ? 1 : 0);
-
-  useEffect(() => {
-    if (!filterOpen) return;
-    setDraftCountryId(country ? String(country.id) : "");
-    setDraftStateId(state ? String(state.id) : "");
-  }, [filterOpen, country, state]);
+  const [loadingCities, setLoadingCities] = useState(false);
 
   useEffect(() => {
-    if (!filterOpen) return;
     let cancelled = false;
     setLoadingCountries(true);
     void fetchPublicCountries()
@@ -508,16 +536,16 @@ function RegionList({
     return () => {
       cancelled = true;
     };
-  }, [filterOpen]);
+  }, []);
 
   useEffect(() => {
-    if (!filterOpen || !draftCountryId) {
+    if (!country?.id) {
       setStates([]);
       return;
     }
     let cancelled = false;
     setLoadingStates(true);
-    void fetchPublicCountryStates(Number(draftCountryId))
+    void fetchPublicCountryStates(country.id)
       .then((res) => {
         if (!cancelled) setStates(res.data ?? []);
       })
@@ -530,7 +558,29 @@ function RegionList({
     return () => {
       cancelled = true;
     };
-  }, [filterOpen, draftCountryId]);
+  }, [country?.id]);
+
+  useEffect(() => {
+    if (!state?.id) {
+      setCities([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingCities(true);
+    void fetchPublicStateCities(state.id)
+      .then((res) => {
+        if (!cancelled) setCities(res.data ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setCities([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingCities(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [state?.id]);
 
   const countryOptions = useMemo(
     () => countries.map((item) => ({ value: String(item.id), label: item.name })),
@@ -540,160 +590,149 @@ function RegionList({
     () => states.map((item) => ({ value: String(item.id), label: item.name })),
     [states],
   );
+  const cityOptions = useMemo(
+    () => cities.map((item) => ({ value: item.name, label: item.name })),
+    [cities],
+  );
 
-  const applyDraft = (nextCountryId: string, nextStateId: string) => {
+  const applyLocation = (nextCountryId: string, nextStateId: string, nextCity: string) => {
     const nextCountry =
       countries.find((item) => String(item.id) === nextCountryId)
       ?? (country && String(country.id) === nextCountryId ? country : null);
     const nextState =
       states.find((item) => String(item.id) === nextStateId)
       ?? (state && String(state.id) === nextStateId ? state : null);
-    onApplyFilter({ country: nextCountry, state: nextState });
-    setFilterOpen(false);
+    const nextCityRow =
+      cities.find((item) => item.name === nextCity)
+      ?? (city && city.name === nextCity ? city : nextCity ? { id: 0, state_id: Number(nextStateId) || 0, name: nextCity } : null);
+    onApplyFilter({ country: nextCountry, state: nextState, city: nextCityRow });
   };
+
+  const readyRegion = city && !loading ? regions[0] : null;
+  const hint = !country
+    ? "Start with a country."
+    : !state
+      ? `Now choose a state in ${country.name}.`
+      : loadingCities
+        ? `Loading cities in ${state.name}…`
+        : !city
+          ? `Now choose a city in ${state.name}.`
+          : loading
+            ? "Pinning this city…"
+            : "";
+
+  const fields = [
+    {
+      key: "country",
+      label: "Country",
+      value: country ? String(country.id) : "",
+      options: countryOptions,
+      placeholder: loadingCountries ? "Loading…" : "Where in the world?",
+      searchPlaceholder: "Search countries…",
+      emptyMessage: "No countries match.",
+      disabled: loadingCountries,
+      allowCustom: false,
+      onChange: (value: string) => applyLocation(value, "", ""),
+      done: Boolean(country),
+      open: true,
+    },
+    {
+      key: "state",
+      label: "State",
+      value: state ? String(state.id) : "",
+      options: stateOptions,
+      placeholder: !country ? "Pick a country first" : loadingStates ? "Loading…" : "Which state?",
+      searchPlaceholder: "Search states…",
+      emptyMessage: "No states match.",
+      disabled: !country || loadingStates,
+      allowCustom: false,
+      onChange: (value: string) => applyLocation(country ? String(country.id) : "", value, ""),
+      done: Boolean(state),
+      open: Boolean(country),
+    },
+    {
+      key: "city",
+      label: "City",
+      value: city?.name ?? "",
+      options: cityOptions,
+      placeholder: !state ? "Pick a state first" : loadingCities ? "Loading…" : "Which city?",
+      searchPlaceholder: "Search cities…",
+      emptyMessage: "No cities match.",
+      disabled: !state || loadingCities,
+      allowCustom: true,
+      onChange: (value: string) => applyLocation(country ? String(country.id) : "", state ? String(state.id) : "", value),
+      done: Boolean(city),
+      open: Boolean(state),
+    },
+  ] as const;
 
   return (
     <div className="flex min-h-0 flex-col">
-      <div className="shrink-0 space-y-3">
-        <div className="flex items-center gap-2.5">
+      {hint ? <p className="mb-4 text-[12px] text-slate-400">{hint}</p> : null}
+      <ol className="space-y-0">
+        {fields.map((field, index) => (
+          <li key={field.key} className={`relative flex gap-3 ${field.open ? "" : "opacity-40"}`}>
+            <span className="flex w-5 shrink-0 flex-col items-center">
+              <span
+                className={`mt-2 h-2.5 w-2.5 rounded-full ${
+                  field.done
+                    ? "bg-[#1B4F8A]"
+                    : field.open
+                      ? "border border-[#1B4F8A] bg-white"
+                      : "border border-slate-300 bg-white"
+                }`}
+              />
+              {index < fields.length - 1 ? <span className="w-px flex-1 bg-slate-200" /> : null}
+            </span>
+            <label className={`min-w-0 flex-1 ${index < fields.length - 1 ? "pb-4" : ""}`}>
+              <span className="mb-1.5 block text-[11px] font-semibold text-slate-500">{field.label}</span>
+              <SearchableSelect
+                className="nl-picker-compact"
+                value={field.value}
+                onChange={field.onChange}
+                options={field.options}
+                placeholder={field.placeholder}
+                searchPlaceholder={field.searchPlaceholder}
+                emptyMessage={field.emptyMessage}
+                searchable
+                allowCustom={field.allowCustom}
+                disabled={field.disabled}
+              />
+            </label>
+          </li>
+        ))}
+      </ol>
+
+      {readyRegion ? (
+        <div className="mt-5 flex items-center gap-3 border-t border-slate-100 pt-4">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#E8F0F7] text-[#1B4F8A]">
+            <MapPin className="h-4 w-4" aria-hidden />
+          </span>
           <div className="min-w-0 flex-1">
-            <SearchField
-              value={query}
-              onChange={onQueryChange}
-              placeholder="Search regions…"
-              searching={searching}
-            />
+            <p className="truncate text-[14px] font-semibold text-slate-900">
+              {readyRegion.area || readyRegion.title}
+            </p>
+            <p className="truncate text-[12px] text-slate-400">
+              {[readyRegion.state_name, readyRegion.country_name].filter(Boolean).join(" · ")}
+            </p>
           </div>
           <button
             type="button"
-            onClick={() => setFilterOpen((open) => !open)}
-            aria-expanded={filterOpen}
-            aria-label="Filter regions"
-            className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border transition ${
-              activeFilterCount > 0 || filterOpen
-                ? "border-teal-400 bg-teal-50 text-teal-700"
-                : "border-slate-200 bg-white text-[#1B4F8A] hover:border-[#1B4F8A]/35"
-            }`}
+            onClick={() => onApplyFilter({ country: null, state: null, city: null })}
+            className="text-[12px] font-medium text-slate-400 hover:text-slate-700"
           >
-            <ListFilter className="h-5 w-5" aria-hidden />
-            {activeFilterCount > 0 ? (
-              <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-teal-500 px-1 text-[9px] font-bold text-white">
-                {activeFilterCount}
-              </span>
-            ) : null}
+            Reset
+          </button>
+          <button
+            type="button"
+            onClick={() => onSelect(readyRegion)}
+            className="inline-flex h-9 items-center gap-1 rounded-full bg-[#1B4F8A] px-3.5 text-[12px] font-semibold text-white"
+          >
+            Continue
+            <ChevronRight className="h-3.5 w-3.5" />
           </button>
         </div>
-
-        {filterOpen ? (
-          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
-            <p className="text-[12px] leading-relaxed text-slate-500">
-              Search by country and state. Leave empty to see all regions.
-            </p>
-            <SearchableSelect
-              value={draftCountryId}
-              onChange={(value) => {
-                setDraftCountryId(value);
-                setDraftStateId("");
-              }}
-              options={countryOptions}
-              placeholder={loadingCountries ? "Loading countries…" : "Select country"}
-              searchPlaceholder="Search countries…"
-              emptyMessage="No countries match your search."
-              searchable
-              disabled={loadingCountries}
-            />
-            <SearchableSelect
-              value={draftStateId}
-              onChange={setDraftStateId}
-              options={stateOptions}
-              placeholder={
-                !draftCountryId
-                  ? "Select a country first"
-                  : loadingStates
-                    ? "Loading states…"
-                    : "Select state"
-              }
-              searchPlaceholder="Search states…"
-              emptyMessage="No states match your search."
-              searchable
-              disabled={!draftCountryId || loadingStates}
-            />
-            <div className="flex items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setDraftCountryId("");
-                  setDraftStateId("");
-                  onApplyFilter({ country: null, state: null });
-                  setFilterOpen(false);
-                }}
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3.5 text-[13px] font-semibold text-slate-700"
-              >
-                Clear
-              </button>
-              <button
-                type="button"
-                onClick={() => applyDraft(draftCountryId, draftStateId)}
-                className="inline-flex h-10 flex-1 items-center justify-center rounded-xl bg-[#1B4F8A] px-4 text-[13px] font-semibold text-white"
-              >
-                Apply
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        {!loading && regions.length > 0 ? (
-          <p className="text-[12px] font-medium text-slate-500">
-            {regions.length} {regions.length === 1 ? "region" : "regions"}
-            {country ? ` in ${state?.name ?? country.name}` : ""}
-            {query.trim() ? " matched" : ""}
-          </p>
-        ) : null}
-      </div>
-
-      {loading ? (
-        <p className="mt-8 text-center text-sm text-slate-500">Loading regions…</p>
-      ) : regions.length === 0 ? (
-        <p className="mt-8 text-center text-sm text-slate-500">
-          {query || country
-            ? "No regions match that search. Try a different country or state, or clear the filter."
-            : "No regions available yet."}
-        </p>
-      ) : (
-        <div
-          className="mt-3 max-h-[min(28rem,55vh)] overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-white [scrollbar-width:thin]"
-          role="listbox"
-          aria-label="Regions"
-        >
-          <ul className="divide-y divide-slate-100">
-            {regions.map((region) => (
-              <li key={region.id}>
-                <button
-                  type="button"
-                  role="option"
-                  onClick={() => onSelect(region)}
-                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-[#F4F8FC] focus:bg-[#F4F8FC] focus:outline-none"
-                >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#E8F0F7] text-[#1B4F8A]">
-                    <MapPin className="h-3.5 w-3.5" aria-hidden />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-slate-900">
-                      {region.title}
-                    </span>
-                    {region.area ? (
-                      <span className="mt-0.5 block truncate text-[12px] text-slate-500">
-                        {region.area}
-                      </span>
-                    ) : null}
-                  </span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" aria-hidden />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -819,6 +858,67 @@ function CommunityList({
         </>
       )}
     </div>
+  );
+}
+
+function CityField({
+  stateId,
+  value,
+  onChange,
+}: {
+  stateId: number | null;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const [cities, setCities] = useState<City[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!stateId) {
+      setCities([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    void fetchPublicStateCities(stateId)
+      .then((res) => {
+        if (!cancelled) setCities(res.data ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setCities([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [stateId]);
+
+  return (
+    <OnboardingField
+      id="community-city"
+      label="City"
+      hint="Choose the city residents will search for"
+    >
+      <SearchableSelect
+        value={value}
+        onChange={onChange}
+        options={cities.map((item) => ({ value: item.name, label: item.name }))}
+        placeholder={
+          !stateId
+            ? "Select a region first"
+            : loading
+              ? "Loading cities…"
+              : "Select city"
+        }
+        searchPlaceholder="Search cities…"
+        emptyMessage="No cities match your search."
+        searchable
+        allowCustom
+        disabled={!stateId || loading}
+      />
+    </OnboardingField>
   );
 }
 

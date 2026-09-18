@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 import LocaleTextInput from "./locale-text-input";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
-import { fetchCountries, fetchCountryStates } from "../../services/geography-api";
+import { fetchCountries, fetchCountryStates, fetchStateCities } from "../../services/geography-api";
 import { getApiErrorMessage } from "../../utils/auth-errors";
 
 function matchesQuery(item, query) {
@@ -36,6 +36,7 @@ function SearchableField({
   disabled,
   disabledHint,
   emptyText,
+  allowCustom = false,
   onSelect,
 }) {
   const { t } = useTranslation();
@@ -46,6 +47,11 @@ function SearchableField({
     () => options.filter((item) => matchesQuery(item, query)),
     [options, query],
   );
+  const customName = query.trim();
+  const showCustom =
+    allowCustom &&
+    customName.length >= 2 &&
+    !filtered.some((item) => String(item.name).toLowerCase() === customName.toLowerCase());
 
   const close = () => {
     setQuery("");
@@ -109,7 +115,21 @@ function SearchableField({
               style={styles.dropdownList}
               nestedScrollEnabled
               ListEmptyComponent={
-                <Text style={styles.dropdownEmpty}>{emptyText}</Text>
+                showCustom ? null : <Text style={styles.dropdownEmpty}>{emptyText}</Text>
+              }
+              ListHeaderComponent={
+                showCustom ? (
+                  <TouchableOpacity
+                    style={styles.option}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      onSelect({ id: `custom:${customName}`, name: customName });
+                      close();
+                    }}
+                  >
+                    <Text style={styles.optionText}>{t("region.useTypedCity", { city: customName })}</Text>
+                  </TouchableOpacity>
+                ) : null
               }
               renderItem={({ item }) => {
                 const selected = value?.id === item.id;
@@ -139,31 +159,38 @@ function SearchableField({
 }
 
 export default function RegionFilterSheet({
-  visible,
+  visible = true,
+  embedded = false,
   country,
   state,
+  city,
   onApply,
   onClose,
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const active = embedded || visible;
   const [draftCountry, setDraftCountry] = useState(country);
   const [draftState, setDraftState] = useState(state);
+  const [draftCity, setDraftCity] = useState(city);
   const [countries, setCountries] = useState([]);
   const [states, setStates] = useState([]);
+  const [cities, setCities] = useState([]);
   const [loadingCountries, setLoadingCountries] = useState(false);
   const [loadingStates, setLoadingStates] = useState(false);
+  const [loadingCities, setLoadingCities] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!visible) return;
+    if (!active) return;
     setDraftCountry(country);
     setDraftState(state);
+    setDraftCity(city);
     setError(null);
-  }, [visible, country, state]);
+  }, [active, country, state, city]);
 
   useEffect(() => {
-    if (!visible) return undefined;
+    if (!active) return undefined;
     let cancelled = false;
 
     (async () => {
@@ -181,10 +208,10 @@ export default function RegionFilterSheet({
     return () => {
       cancelled = true;
     };
-  }, [visible]);
+  }, [active]);
 
   useEffect(() => {
-    if (!visible || !draftCountry?.id) {
+    if (!active || !draftCountry?.id) {
       setStates([]);
       return undefined;
     }
@@ -208,19 +235,108 @@ export default function RegionFilterSheet({
     return () => {
       cancelled = true;
     };
-  }, [visible, draftCountry?.id]);
+  }, [active, draftCountry?.id]);
+
+  useEffect(() => {
+    if (!active || !draftState?.id) {
+      setCities([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+    (async () => {
+      setLoadingCities(true);
+      try {
+        const list = await fetchStateCities(draftState.id);
+        if (!cancelled) setCities(list);
+      } catch (err) {
+        if (!cancelled) {
+          setCities([]);
+          setError(getApiErrorMessage(err));
+        }
+      } finally {
+        if (!cancelled) setLoadingCities(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [active, draftState?.id]);
+
+  const emit = (nextCountry, nextState, nextCity) => {
+    onApply({ country: nextCountry, state: nextState, city: nextCity });
+  };
 
   const handleCountrySelect = (next) => {
     setDraftCountry(next);
     setDraftState(null);
+    setDraftCity(null);
     setError(null);
+    if (embedded) emit(next, null, null);
+  };
+
+  const handleStateSelect = (next) => {
+    setDraftState(next);
+    setDraftCity(null);
+    setError(null);
+    if (embedded) emit(draftCountry, next, null);
   };
 
   const handleClear = () => {
     setDraftCountry(null);
     setDraftState(null);
-    onApply({ country: null, state: null });
+    setDraftCity(null);
+    onApply({ country: null, state: null, city: null });
   };
+
+  const fields = (
+    <>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      <SearchableField
+        label={t("region.country")}
+        placeholder={t("region.selectCountry")}
+        searchPlaceholder={t("region.searchCountries")}
+        value={draftCountry}
+        options={countries}
+        loading={loadingCountries}
+        emptyText={t("region.noCountriesMatch")}
+        onSelect={handleCountrySelect}
+      />
+      <SearchableField
+        label={t("region.state")}
+        placeholder={t("region.selectState")}
+        searchPlaceholder={t("region.searchStates")}
+        value={draftState}
+        options={states}
+        loading={loadingStates}
+        disabled={!draftCountry}
+        disabledHint={t("region.pickCountryFirst")}
+        emptyText={t("region.noStatesMatch")}
+        onSelect={handleStateSelect}
+      />
+      <SearchableField
+        label={t("region.city")}
+        placeholder={t("region.selectCity")}
+        searchPlaceholder={t("region.searchCities")}
+        value={draftCity}
+        options={cities}
+        loading={loadingCities}
+        disabled={!draftState}
+        disabledHint={t("region.pickStateFirst")}
+        emptyText={t("region.noCitiesMatch")}
+        allowCustom
+        onSelect={(next) => {
+          setDraftCity(next);
+          if (embedded) emit(draftCountry, draftState, next);
+        }}
+      />
+    </>
+  );
+
+  if (embedded) {
+    return <View>{fields}</View>;
+  }
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -229,40 +345,14 @@ export default function RegionFilterSheet({
           <View style={styles.handle} />
           <Text style={styles.title}>{t("region.filterRegions")}</Text>
           <Text style={styles.subtitle}>{t("region.filterHint")}</Text>
-
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-          <SearchableField
-            label={t("region.country")}
-            placeholder={t("region.selectCountry")}
-            searchPlaceholder={t("region.searchCountries")}
-            value={draftCountry}
-            options={countries}
-            loading={loadingCountries}
-            emptyText={t("region.noCountriesMatch")}
-            onSelect={handleCountrySelect}
-          />
-
-          <SearchableField
-            label={t("region.state")}
-            placeholder={t("region.selectState")}
-            searchPlaceholder={t("region.searchStates")}
-            value={draftState}
-            options={states}
-            loading={loadingStates}
-            disabled={!draftCountry}
-            disabledHint={t("region.pickCountryFirst")}
-            emptyText={t("region.noStatesMatch")}
-            onSelect={setDraftState}
-          />
-
+          {fields}
           <View style={styles.actions}>
             <TouchableOpacity style={styles.clearBtn} onPress={handleClear} activeOpacity={0.85}>
               <Text style={styles.clearText}>{t("region.clearFilter")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.applyBtn}
-              onPress={() => onApply({ country: draftCountry, state: draftState })}
+              onPress={() => onApply({ country: draftCountry, state: draftState, city: draftCity })}
               activeOpacity={0.88}
             >
               <Text style={styles.applyText}>{t("region.applyFilter")}</Text>

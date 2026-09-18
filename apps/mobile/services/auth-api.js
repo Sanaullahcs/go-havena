@@ -398,7 +398,7 @@ export async function joinByInviteCode(inviteCode) {
   }
 }
 
-export async function requestCommunity({ communityName, address, description, regionId, latitude, longitude }) {
+export async function requestCommunity({ communityName, address, description, regionId, city, latitude, longitude }) {
   try {
     const token = await getToken();
     if (!token) {
@@ -415,6 +415,7 @@ export async function requestCommunity({ communityName, address, description, re
         address,
         description: description || undefined,
         region_id: regionId,
+        city: city || undefined,
         latitude: latitude ?? null,
         longitude: longitude ?? null,
       },
@@ -474,11 +475,12 @@ export async function searchCommunities({ q, region, regionId, unassignedOnly } 
   return result.data;
 }
 
-export async function fetchRegions({ q, countryId, stateId } = {}) {
+export async function fetchRegions({ q, countryId, stateId, city } = {}) {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (countryId) params.set("country_id", String(countryId));
   if (stateId) params.set("state_id", String(stateId));
+  if (city) params.set("city", String(city));
   const qs = params.toString();
   const result = await apiRequest(`/regions${qs ? `?${qs}` : ""}`, {
     auth: false,

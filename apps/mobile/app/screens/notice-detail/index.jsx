@@ -6,6 +6,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Pressable,
+  Linking,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -54,17 +55,33 @@ function formatNoticeDateLabel(dateStr) {
   }
 }
 
-function InfoTile({ icon, label, value, accent, bg }) {
+function InfoTile({ icon, label, value, accent, bg, onPress }) {
   if (!value) return null;
-  return (
-    <View style={[styles.infoTile, { backgroundColor: bg }]}>
+  const content = (
+    <>
       <View style={[styles.infoTileIcon, { backgroundColor: `${accent}20` }]}>
         <Feather name={icon} size={sf(15)} color={accent} />
       </View>
       <Text style={styles.infoTileLabel}>{label}</Text>
-      <Text style={styles.infoTileValue} numberOfLines={2}>
+      <Text style={[styles.infoTileValue, onPress && styles.infoTileLink]} numberOfLines={4}>
         {value}
       </Text>
+    </>
+  );
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={[styles.infoTile, { backgroundColor: bg }]}
+        accessibilityRole="link"
+      >
+        {content}
+      </Pressable>
+    );
+  }
+  return (
+    <View style={[styles.infoTile, { backgroundColor: bg }]}>
+      {content}
     </View>
   );
 }
@@ -146,6 +163,26 @@ export default function NoticeDetailScreen() {
     () => (notice?.eventTimeEnd ? formatDisplayTime12h(notice.eventTimeEnd) : ""),
     [notice],
   );
+
+  const showScheduleDate = Boolean(
+    noticeDateLabel &&
+      (notice?.isEvent || notice?.isAlert || startTimeLabel || endTimeLabel),
+  );
+
+  const bodyParagraphs = useMemo(() => {
+    const raw = localizedField(notice, "body") || notice?.body || "";
+    return String(raw)
+      .split(/\n{2,}/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+  }, [notice, i18n.language]);
+
+  const openLocation = useCallback(() => {
+    const query = String(notice?.location ?? "").trim();
+    if (!query) return;
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+    Linking.openURL(url).catch(() => {});
+  }, [notice?.location]);
 
   const heroBg = useMemo(() => {
     if (notice?.isAlert) return "#B91C1C";
@@ -246,9 +283,9 @@ export default function NoticeDetailScreen() {
                 ) : null}
               </View>
 
-              {(noticeDateLabel || startTimeLabel || endTimeLabel || notice.location) && (
+              {(showScheduleDate || startTimeLabel || endTimeLabel || notice.location) && (
                 <View style={styles.infoGrid}>
-                  {noticeDateLabel ? (
+                  {showScheduleDate ? (
                     <InfoTile
                       icon="calendar"
                       label={scheduleDateLabel}
@@ -281,6 +318,7 @@ export default function NoticeDetailScreen() {
                     value={notice.location}
                     accent={theme.accent}
                     bg={theme.bg}
+                    onPress={notice.location ? openLocation : undefined}
                   />
                 </View>
               )}
@@ -288,7 +326,13 @@ export default function NoticeDetailScreen() {
               <View style={styles.divider} />
 
               <SectionHeader icon="file-text" title={t('notices.noticeDetails')} accent={theme.accent} />
-              <Text style={styles.body}>{localizedField(notice, "body") || notice.body}</Text>
+              <View style={styles.bodyWrap}>
+                {bodyParagraphs.map((paragraph, index) => (
+                  <Text key={`p-${index}`} style={styles.body}>
+                    {paragraph}
+                  </Text>
+                ))}
+              </View>
 
               <View style={styles.divider} />
 
@@ -617,11 +661,18 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     fontWeight: "700",
   },
+  bodyWrap: {
+    gap: sw(14),
+  },
   body: {
     fontFamily: Fonts.regular,
     fontSize: sf(15),
     lineHeight: sf(24),
     color: Colors.textBody,
+  },
+  infoTileLink: {
+    color: Colors.brandPrimaryDeep,
+    textDecorationLine: "underline",
   },
   authorCard: {
     flexDirection: "row",

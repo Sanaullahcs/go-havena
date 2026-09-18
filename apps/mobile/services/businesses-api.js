@@ -6,6 +6,8 @@ import { guessImageMeta, uploadMultipartFile } from "../utils/upload-form-data";
 import i18n from "../i18n";
 import { getActiveRadiusMiles } from "./location-scope";
 import { formatMilesLabel } from "../constants/location-radius";
+import { extractHttpUrl } from "../utils/open-contact";
+import { normalizeMenuItems } from "../components/marketplace/menu-list";
 
 export async function fetchBusinesses({ scope = "browse", status, search, page = 1, perPage = 20, radiusMiles } = {}) {
   const params = new URLSearchParams({
@@ -111,7 +113,9 @@ export function normalizeBusiness(b) {
     address: b.address ?? "",
     phone: b.phone ?? "",
     hours: b.hours ?? "",
-    amenities: b.amenities ?? "",
+    amenities: stripHttpUrls(b.amenities ?? ""),
+    website: b.website || extractHttpUrl(b.amenities) || extractHttpUrl(b.website) || "",
+    menuItems: normalizeMenuItems(b.menu_items ?? b.menuItems),
     status: b.status,
     statusLabel: businessStatusLabel(b.status),
     ownerId: b.owner_id,
@@ -127,6 +131,14 @@ export function normalizeBusiness(b) {
     imageUrl: b.image_url ?? null,
     createdAt: b.created_at,
   };
+}
+
+function stripHttpUrls(value) {
+  return String(value ?? "")
+    .replace(/https?:\/\/[^\s,]+/gi, "")
+    .replace(/\s*,\s*,/g, ",")
+    .replace(/^[\s,]+|[\s,]+$/g, "")
+    .trim();
 }
 
 function businessStatusLabel(status) {

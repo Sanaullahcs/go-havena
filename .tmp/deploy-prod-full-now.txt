@@ -1,0 +1,179 @@
+==> extract
+==> API rsync
+cannot delete non-empty directory: storage
+==> composer
+Installing dependencies from lock file
+Verifying lock file contents can be installed on current platform.
+Nothing to install, update or remove
+Generating optimized autoload files
+> Illuminate\Foundation\ComposerScripts::postAutoloadDump
+> @php artisan package:discover --ansi
+
+  [37;44m INFO [39;49m Discovering packages.  
+
+  laravel/sanctum [90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m [32;1mDONE[39;22m
+  laravel/tinker [90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m [32;1mDONE[39;22m
+  nesbot/carbon [90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m53 packages you are using are looking for funding.
+Use the `composer fund` command to find out more!
+ [32;1mDONE[39;22m
+  nunomaduro/termwind [90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m[90m.[39m [32;1mDONE[39;22m
+
+==> migrate --force
+
+   INFO  Running migrations.  
+
+  2026_09_15_150000_add_rejection_reason_to_amenities_table ...... 8.62ms DONE
+
+==> migrate status
+  2026_09_04_120000_add_image_url_to_wellness_categories ............ [26] Ran  
+  2026_09_04_123000_add_image_url_to_wellness_lessons ............... [26] Ran  
+  2026_09_04_140000_drop_image_url_from_wellness_lessons ............ [26] Ran  
+  2026_09_08_000001_create_countries_and_states_tables .............. [27] Ran  
+  2026_09_08_000002_add_state_id_to_regions_table ................... [27] Ran  
+  2026_09_08_120000_seed_all_countries .............................. [27] Ran  
+  2026_09_08_190000_seed_all_country_states ......................... [27] Ran  
+  2026_09_09_120000_create_user_blocks_table ........................ [28] Ran  
+  2026_09_09_130000_add_comment_id_to_post_reports_table ............ [28] Ran  
+  2026_09_09_140000_add_listing_id_to_reports_table ................. [28] Ran  
+  2026_09_09_150000_create_transactional_email_sends_table .......... [28] Ran  
+  2026_09_09_160000_add_notice_id_to_reports_table .................. [28] Ran  
+  2026_09_10_160000_add_deleted_at_to_invite_codes_table ............ [29] Ran  
+  2026_09_10_164700_add_utility_bill_review_status_to_profiles_table  [29] Ran  
+  2026_09_11_100000_add_cancelled_status_to_guest_invitations ....... [30] Ran  
+  2026_09_11_173000_add_shared_billing_to_amenities_table ........... [30] Ran  
+  2026_09_11_180000_create_amenity_shared_bills_tables .............. [30] Ran  
+  2026_09_11_190000_add_payment_proof_to_amenity_resident_bills ..... [30] Ran  
+  2026_09_11_190800_widen_amenity_floor_column ...................... [30] Ran  
+  2026_09_11_200000_add_payment_review_to_amenity_resident_bills .... [30] Ran  
+  2026_09_11_210000_create_amenity_resident_bill_notifications_table  [30] Ran  
+  2026_09_14_120000_add_booking_fee_to_amenities_table .............. [30] Ran  
+  2026_09_14_120100_add_booking_payment_proof_to_bookings_table ..... [30] Ran  
+  2026_09_15_150000_add_rejection_reason_to_amenities_table ......... [31] Ran  
+
+==> laravel cache
+
+   INFO  The [public/storage] link has been connected to [storage/app/public].  
+
+
+   INFO  Clearing cached bootstrap files.  
+
+  cache .......................................................... 2.50ms DONE
+  compiled ....................................................... 0.48ms DONE
+  config ......................................................... 0.41ms DONE
+  events ......................................................... 0.53ms DONE
+  routes ......................................................... 0.39ms DONE
+  views .......................................................... 2.36ms DONE
+
+
+   INFO  Configuration cached successfully.  
+
+
+   INFO  Routes cached successfully.  
+
+==> frontend rsync
+==> npm install + build
+
+up to date in 980ms
+
+> havena-frontend@0.1.0 build
+> next build
+
+? Next.js 16.2.9 (Turbopack)
+- Environments: .env.production.local
+
+  Creating an optimized production build ...
+? Compiled successfully in 11.5s
+  Skipping validation of types
+  Finished TypeScript config validation in 15ms ...
+  Collecting page data using 3 workers ...
+  Generating static pages using 3 workers (0/62) ...
+  Generating static pages using 3 workers (15/62) 
+  Generating static pages using 3 workers (30/62) 
+  Generating static pages using 3 workers (46/62) 
+? Generating static pages using 3 workers (62/62) in 842ms
+  Finalizing page optimization ...
+
+Route (app)
+? ? /
+? ? /_not-found
+? ? /admin
+? ? /admin/activity
+? ? /admin/alerts
+? ? /admin/amenities
+? ? /admin/analytics
+? ? /admin/billing
+? ? /admin/billing-coupons
+? ? /admin/billing-plans
+? ? /admin/billing/done
+? ? /admin/billing/pay
+? ? /admin/bookings
+? ? /admin/businesses
+? ? /admin/communities
+? ? /admin/community-admins
+? ? /admin/community-requests
+? ? /admin/community-rules
+? ? /admin/complete-profile
+? ? /admin/contact-messages
+? ? /admin/documents
+? ? /admin/events
+? ? /admin/feed
+? ? /admin/guests
+? ? /admin/marketplace
+? ? /admin/members
+? ? /admin/messages
+? ? /admin/moderation
+? ? /admin/notices
+? ? /admin/notifications
+? ? /admin/pending-approval
+? ? /admin/plaid
+? ? /admin/profile
+? ? /admin/refer-and-earn
+? ? /admin/referrals
+? ? /admin/regions
+? ? /admin/request-demo
+? ? /admin/residents
+? ? /admin/setup
+? ? /admin/support
+? ? /admin/users
+? ? /admin/wellness
+? ? /apple-icon.png
+? ? /feed
+? ? /home
+? ? /icon.png
+? ? /login
+? ? /marketplace
+? ? /messages
+? ? /notices
+? ? /privacy-policy
+? ? /profile
+? ? /property
+? ? /register
+? ? /request-demo
+? ? /resident-login
+? ? /support
+? ? /system-login
+? ? /terms-and-conditions
+? ? /wellness
+
+
+? Proxy (Middleware)
+
+?  (Static)  prerendered as static content
+
+==> pm2 restart
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [havena-prod](ids: [ 0 ])
+[PM2] [havena-prod](0) ?
+????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+? id ? name           ? namespace   ? version ? mode    ? pid      ? uptime ? ?    ? status    ? cpu      ? mem      ? user     ? watching ?
+????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+? 0  ? havena-prod    ? default     ? 16.2.9  ? fork    ? 1602616  ? 0s     ? 3    ? online    ? 0%       ? 17.9mb   ? root     ? disabled ?
+? 1  ? havena-uat     ? default     ? 16.2.9  ? fork    ? 2537     ? 4D     ? 0    ? online    ? 0%       ? 188.3mb  ? root     ? disabled ?
+????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+[PM2] Saving current process list...
+[PM2] Successfully saved in /root/.pm2/dump.pm2
+==> health
+api:200
+web:200
+feed:200
+DONE

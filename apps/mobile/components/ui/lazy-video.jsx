@@ -16,9 +16,9 @@ function extractYouTubeId(url) {
   return m ? m[1] : null;
 }
 
-function YouTubePlayer({ videoId, url, style }) {
+function YouTubePlayer({ videoId, url, style, poster }) {
   const { t } = useTranslation();
-  const thumb = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+  const thumb = poster || `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
 
   const open = async () => {
     await WebBrowser.openBrowserAsync(url, {
@@ -96,7 +96,7 @@ export default function LazyVideoPlayer({ source, style, poster, onPlayStateChan
   }
 
   if (ytId) {
-    return <YouTubePlayer videoId={ytId} url={uri} style={style} />;
+    return <YouTubePlayer videoId={ytId} url={uri} style={style} poster={poster} />;
   }
 
   return <DirectVideoPlayer uri={uri} style={style} onPlayStateChange={onPlayStateChange} />;

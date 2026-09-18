@@ -31,6 +31,39 @@ export async function fetchPublicCountryStates(countryId: number) {
   return res.data as { data: State[] };
 }
 
+export interface City {
+  id: number;
+  state_id: number;
+  name: string;
+}
+
+export async function fetchPublicStateCities(stateId: number, q?: string) {
+  const res = await api.get(`/v1/states/${stateId}/cities`, {
+    params: q ? { q } : undefined,
+  });
+  return res.data as { data: City[] };
+}
+
+export async function resolvePublicLocation(payload: {
+  country_id?: number;
+  state_id: number;
+  city?: string;
+}) {
+  const res = await api.post("/v1/locations/resolve", payload);
+  return res.data as {
+    data: {
+      id: number;
+      title: string;
+      area: string;
+      state_id: number | null;
+      state_name: string | null;
+      country_id: number | null;
+      country_name: string | null;
+      status: string;
+    };
+  };
+}
+
 export async function fetchCountries(params?: { q?: string }) {
   const res = await api.get("/v1/admin/countries", { params });
   return res.data as { data: Country[] };

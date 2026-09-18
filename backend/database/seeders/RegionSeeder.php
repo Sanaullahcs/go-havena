@@ -81,26 +81,13 @@ class RegionSeeder extends Seeder
             );
         }
 
+        $curatedTitles = array_column($regions, 'title');
         Region::query()
-            ->where(function ($query) {
-                $query->where('title', 'like', 'Florida%')
-                    ->orWhereIn('title', [
-                        'Arizona - Phoenix',
-                        'Massachusetts - Boston',
-                        'Pakistan - Lahore',
-                        'Pakistan - Islamabad',
-                    ]);
-            })
+            ->whereIn('title', $liveTitles)
             ->update(['status' => 'active']);
-
         Region::query()
-            ->where('title', 'not like', 'Florida%')
-            ->whereNotIn('title', [
-                'Arizona - Phoenix',
-                'Massachusetts - Boston',
-                'Pakistan - Lahore',
-                'Pakistan - Islamabad',
-            ])
+            ->whereIn('title', $curatedTitles)
+            ->whereNotIn('title', $liveTitles)
             ->update(['status' => 'inactive']);
 
         State::query()

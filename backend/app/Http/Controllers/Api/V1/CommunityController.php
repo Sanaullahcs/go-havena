@@ -309,6 +309,7 @@ class CommunityController extends Controller
             'address' => ['required', 'string', 'min:5', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'region_id' => ['required', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
+            'city' => ['nullable', 'string', 'min:2', 'max:150'],
             'estimated_residents' => ['nullable', 'integer', 'min:1', 'max:100000'],
             ...CommunityLocation::coordinateRules(),
         ]);
@@ -344,6 +345,12 @@ class CommunityController extends Controller
         $lifecycle->assertCanRequestCommunityAdmin($user);
 
         $region = Region::query()->where('status', 'active')->findOrFail($validated['region_id']);
+        if (filled($validated['city'] ?? null) && $region->state_id) {
+            $region = app(\App\Services\LocationCatalog::class)->ensureCityRegion(
+                $region->stateRecord ?? \App\Models\State::query()->findOrFail($region->state_id),
+                (string) $validated['city'],
+            );
+        }
 
         CommunityNameUniqueness::assertUniqueInRegion(
             $validated['community_name'],
@@ -405,6 +412,7 @@ class CommunityController extends Controller
             'address' => ['required', 'string', 'min:5', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'region_id' => ['required', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
+            'city' => ['nullable', 'string', 'min:2', 'max:150'],
             'estimated_residents' => ['nullable', 'integer', 'min:1', 'max:100000'],
             ...CommunityLocation::coordinateRules(),
         ]);
@@ -421,6 +429,12 @@ class CommunityController extends Controller
         app(CommunityLifecycleService::class)->assertCanRequestCommunityAdmin($user);
 
         $region = Region::query()->where('status', 'active')->findOrFail($validated['region_id']);
+        if (filled($validated['city'] ?? null) && $region->state_id) {
+            $region = app(\App\Services\LocationCatalog::class)->ensureCityRegion(
+                $region->stateRecord ?? \App\Models\State::query()->findOrFail($region->state_id),
+                (string) $validated['city'],
+            );
+        }
 
         $duplicateMessage = AdminRoleService::isCommunityAdminRole($user)
             ? 'This community already exists. Select it from your region list to apply as community admin, or choose a different name.'

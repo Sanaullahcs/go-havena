@@ -1,0 +1,6 @@
+user=131 majid@namuve.com role=community_admin admin=approved status=active
+profile display=Majid Yaseen unit=Admin Office util=yes created=2026-09-16 11:23:51 updated=2026-09-16 11:36:39
+access next=await_approval platform=no billing=yes profile=yes mobile=no community=43 sub=null exempt=yes
+blocking=membership_pending
+sub=none
+membership 95 status=pending role=admin created=2026-09-16 11:34:05 updated=2026-09-16 11:34:05

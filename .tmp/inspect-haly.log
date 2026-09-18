@@ -1,0 +1,26 @@
+communities=1
+community 52 Haly Tower status=active review=approved addr=Dha Phase 2
+businesses=0
+deals=0
+wellness_cat_cols=id,key,title,subtitle,icon_key,color,image_url,sort_order,status,created_at,updated_at
+wellness_course_cols=id,category_id,title,description,image_url,sort_order,status,created_at,updated_at,deleted_at
+wellness_lesson_cols=id,course_id,title,description,duration_min,video_url,link_url,file_path,key_takeaways,sort_order,status,created_at,updated_at,deleted_at
+courses=10
+course 122 Balanced Nutrition Basics img=/storage/seed/course-nutrition.jpg
+course 123 Meal Prep Mastery img=/storage/seed/course-meal-prep.jpg
+course 124 Exercise Fundamentals img=/storage/seed/course-exercise.jpg
+course 125 Home Workout Essentials img=/storage/seed/course-home-workout.jpg
+course 126 Breathing for Calm img=/storage/seed/course-breathing.jpg
+course 127 Mindful Moments img=/storage/seed/course-mindful.jpg
+course 128 Learning Wellness Basics img=/storage/seed/course-learning.jpg
+course 129 Goal Setting for Growth img=/storage/seed/course-goals.jpg
+course 130 Connecting with Neighbors img=/storage/seed/course-neighbors.jpg
+course 131 Healthy Communication img=/storage/seed/course-communication.jpg
+cats=5
+cat 1 weight img=/storage/seed/wellness-weight.jpg
+cat 2 exercise img=/storage/seed/wellness-exercise.jpg
+cat 3 stress img=/storage/seed/wellness-stress.jpg
+cat 4 learning img=/storage/seed/wellness-learning.jpg
+cat 5 social img=/storage/seed/wellness-social.jpg
+legacy_content=0
+admin=93 sana@gohavena.com TGI

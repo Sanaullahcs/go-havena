@@ -214,6 +214,7 @@ function normalizeLessonDetail(l) {
     videoUrl: linkUrl,
     linkUrl,
     fileUrl,
+    thumbnailUrl: resolveMediaUrl(l.thumbnail_url || l.thumbnailUrl) || null,
     keyTakeaways: takeaways,
     completed: isLessonCompleted(l),
   };

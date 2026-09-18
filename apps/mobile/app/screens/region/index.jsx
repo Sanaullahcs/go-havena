@@ -1,6 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
-import LocaleTextInput from "../../../components/ui/locale-text-input";
+import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
@@ -9,8 +8,9 @@ import { MapPin } from "lucide-react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { getCurrentRole } from "../../../constants/role-session";
 import { saveRegionSelection } from "../../../services/auth-api";
-import { ionChevronForward, arrowForward } from "../../../utils/rtl";
-import { fetchRegionsOnly } from "../../../services/regions-api";
+import { arrowForward } from "../../../utils/rtl";
+import { normalizeRegion } from "../../../services/regions-api";
+import { resolveLocation } from "../../../services/geography-api";
 import { getApiErrorMessage } from "../../../utils/auth-errors";
 import BackButton from "../../../components/ui/back-button";
 import RegionFilterSheet from "../../../components/ui/region-filter-sheet";
@@ -18,22 +18,6 @@ import { confirmLeaveOnboarding } from "../../../services/sign-out";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import { HomeTheme as T } from "../../../constants/home-theme";
-
-const SEARCH_DEBOUNCE_MS = 400;
-
-/** Plain object so the text-metrics patch cannot add lineHeight (iOS then sits the placeholder high). */
-const REGION_SEARCH_INPUT_STYLE = {
-  flex: 1,
-  margin: 0,
-  paddingTop: 0,
-  paddingBottom: 0,
-  paddingHorizontal: 0,
-  fontFamily: Fonts.regular,
-  fontSize: 13,
-  color: T.navy,
-  textAlignVertical: "center",
-  includeFontPadding: false,
-};
 
 export default function RegionScreen() {
   const { t } = useTranslation();
@@ -46,64 +30,60 @@ export default function RegionScreen() {
       ? roleParam
       : getCurrentRole();
 
-  const [searchText, setSearchText] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [filterOpen, setFilterOpen] = useState(false);
   const [countryFilter, setCountryFilter] = useState(null);
   const [stateFilter, setStateFilter] = useState(null);
-  const [regions, setRegions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [cityFilter, setCityFilter] = useState(null);
+  const [pinned, setPinned] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectingId, setSelectingId] = useState(null);
-  const hasLoadedOnce = useRef(false);
-  const activeFilterCount = (countryFilter ? 1 : 0) + (stateFilter ? 1 : 0);
+  const isResident = activeRole !== "admin";
 
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchText.trim()), SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [searchText]);
-
-  const loadRegions = useCallback(
-    async (silent = false) => {
-      if (!hasLoadedOnce.current) {
-        setLoading(true);
-      } else if (!silent) {
-        setRefreshing(true);
-      }
-      setError(null);
-
-      try {
-        const list = await fetchRegionsOnly({
-          ...(debouncedSearch ? { q: debouncedSearch } : {}),
-          ...(countryFilter?.id ? { countryId: countryFilter.id } : {}),
-          ...(stateFilter?.id ? { stateId: stateFilter.id } : {}),
-        });
-        setRegions(list);
-      } catch (err) {
-        setError(getApiErrorMessage(err));
-        setRegions([]);
-      } finally {
-        hasLoadedOnce.current = true;
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [debouncedSearch, countryFilter?.id, stateFilter?.id],
-  );
-
-  const handleApplyFilter = ({ country, state }) => {
+  const handleApplyFilter = ({ country, state, city }) => {
     setCountryFilter(country);
     setStateFilter(state);
-    setFilterOpen(false);
+    setCityFilter(city);
+    setError(null);
+    if (!city?.name || !state?.id) {
+      setPinned(null);
+    }
   };
 
   useEffect(() => {
-    loadRegions();
-  }, [loadRegions]);
+    if (!stateFilter?.id || !cityFilter?.name) {
+      setPinned(null);
+      setLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    resolveLocation({
+      countryId: countryFilter?.id,
+      stateId: stateFilter.id,
+      city: cityFilter.name,
+    })
+      .then((row) => {
+        if (!cancelled) setPinned(normalizeRegion(row));
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setPinned(null);
+          setError(getApiErrorMessage(err));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [countryFilter?.id, stateFilter?.id, cityFilter?.name]);
 
   const handleRegionSelect = async (region) => {
-    if (selectingId) return;
+    if (!region?.id || selectingId) return;
 
     setSelectingId(region.id);
     try {
@@ -124,194 +104,98 @@ export default function RegionScreen() {
     });
   };
 
-  const isSearchPending = searchText.trim() !== debouncedSearch;
-  const showEmpty = !loading && !error && regions.length === 0;
+  const cityName = pinned?.area || cityFilter?.name || "";
+  const pathLabel = [stateFilter?.name || pinned?.state, countryFilter?.name || pinned?.countryName]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+    <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <ScreenStatusBar style="dark" opaque androidBackgroundColor={T.canvas} />
-      <View style={styles.topSection}>
+      <View style={[styles.hero, { paddingTop: Math.max(insets.top, 12) }]}>
         <View style={styles.headerRow}>
           <BackButton iconOnly compact onPress={() => confirmLeaveOnboarding(dialog)} />
-          <Text style={styles.title} numberOfLines={1}>
-            {t("region.chooseRegion")}
-          </Text>
+          <Text style={styles.kicker}>{t("region.findYourArea")}</Text>
         </View>
-        <Text style={styles.subtitle}>
-          {activeRole === "admin"
-            ? t("region.adminRegionHint")
-            : t("region.residentRegionHint")}
+        <Text style={styles.heroTitle}>
+          {isResident ? t("region.liveHere") : t("region.operateHere")}
         </Text>
-
-        <View style={styles.searchRow}>
-          <View style={styles.searchWrap}>
-            <Ionicons name="search-outline" size={18} color={T.gray} />
-            <LocaleTextInput
-              value={searchText}
-              onChangeText={setSearchText}
-              placeholder={t("region.searchRegions")}
-              placeholderTextColor={T.gray}
-              style={REGION_SEARCH_INPUT_STYLE}
-              returnKeyType="search"
-              autoCorrect={false}
-              textAlignVertical="center"
-            />
-            {isSearchPending || refreshing ? (
-              <ActivityIndicator size="small" color={T.teal} />
-            ) : searchText.length > 0 ? (
-              <TouchableOpacity
-                onPress={() => setSearchText("")}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityLabel={t("region.clearSearch")}
-              >
-                <Ionicons name="close-circle" size={18} color={T.gray} />
-              </TouchableOpacity>
-            ) : null}
-          </View>
-
-          <TouchableOpacity
-            style={[styles.filterBtn, activeFilterCount > 0 && styles.filterBtnActive]}
-            onPress={() => setFilterOpen(true)}
-            activeOpacity={0.85}
-            accessibilityLabel={t("region.openFilter")}
-          >
-            <Ionicons
-              name="options-outline"
-              size={20}
-              color={activeFilterCount > 0 ? T.teal : T.navy}
-            />
-            {activeFilterCount > 0 ? (
-              <View style={styles.filterBadge}>
-                <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
-              </View>
-            ) : null}
-          </TouchableOpacity>
-        </View>
+        <Text style={styles.heroCopy}>
+          {isResident ? t("region.liveHereHint") : t("region.operateHereHint")}
+        </Text>
       </View>
 
-      {loading ? (
-        <View style={styles.centerState}>
-          <ActivityIndicator size="large" color={T.teal} />
-          <Text style={styles.stateText}>{t("region.loadingRegions")}</Text>
-        </View>
-      ) : error ? (
-        <View style={styles.centerState}>
-          <Ionicons name="cloud-offline-outline" size={40} color={T.gray} />
-          <Text style={styles.stateTitle}>{t("region.couldNotLoadRegions")}</Text>
-          <Text style={styles.stateText}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => loadRegions()}>
-            <Text style={styles.retryText}>{t("region.tryAgain")}</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={[
-            styles.scrollContent,
-            showEmpty && styles.scrollContentEmpty,
-          ]}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => loadRegions(true)}
-              tintColor={T.teal}
-            />
-          }
-        >
-          {showEmpty ? (
-            <View style={styles.emptyWrap}>
-              <View style={styles.emptyIconWrap}>
-                <MapPin size={22} color={T.teal} strokeWidth={1.75} />
-              </View>
-              <Text style={styles.stateTitle}>{t("region.noRegionsFound")}</Text>
-              <Text style={styles.stateText}>
-                {debouncedSearch
-                  ? t("region.tryDifferentSearch")
-                  : activeFilterCount > 0
-                    ? t("region.tryDifferentFilter")
-                    : activeRole === "admin"
-                      ? t("region.noRegionsAdmin")
-                      : t("region.noRegionsResident")}
-              </Text>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.card}>
+          <RegionFilterSheet
+            embedded
+            country={countryFilter}
+            state={stateFilter}
+            city={cityFilter}
+            onApply={handleApplyFilter}
+          />
+
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+          {loading ? (
+            <View style={styles.pinning}>
+              <ActivityIndicator size="small" color={T.navy} />
+              <Text style={styles.pinningText}>{t("region.pinningCity")}</Text>
             </View>
-          ) : (
-            regions.map((region) => {
-              const busy = selectingId === region.id;
-
-              return (
-                <TouchableOpacity
-                  key={region.id}
-                  style={[styles.card, busy && styles.cardBusy]}
-                  activeOpacity={0.88}
-                  disabled={Boolean(selectingId)}
-                  onPress={() => handleRegionSelect(region)}
-                >
-                  <View style={styles.iconWell}>
-                    <MapPin size={16} color={T.navy} strokeWidth={1.75} />
-                  </View>
-
-                  <View style={styles.cardTextWrap}>
-                    <Text style={styles.cardTitle}>{region.title}</Text>
-                    {region.area ? (
-                      <Text style={styles.cardArea}>{region.area}</Text>
-                    ) : null}
-                    {region.users ? (
-                      <Text style={styles.cardUsers}>{region.users}</Text>
-                    ) : null}
-                  </View>
-
-                  {busy ? (
-                    <ActivityIndicator size="small" color={T.teal} />
-                  ) : (
-                    <View style={styles.chevronWrap}>
-                      <Ionicons name={ionChevronForward()} size={16} color={T.navy} />
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })
-          )}
-        </ScrollView>
-      )}
-
-      <RegionFilterSheet
-        visible={filterOpen}
-        country={countryFilter}
-        state={stateFilter}
-        onApply={handleApplyFilter}
-        onClose={() => setFilterOpen(false)}
-      />
-
-      <View style={[styles.bottomSection, { paddingBottom: insets.bottom }]}>
-        {activeRole === "admin" ? (
-          <>
-            <Text style={styles.mutedText}>{t("region.dontSeeCommunity")}</Text>
+          ) : pinned ? (
             <TouchableOpacity
-              activeOpacity={0.8}
-              style={styles.linkRow}
-              onPress={() => router.push({
-                pathname: "/screens/request-for-community",
-                params: { role: activeRole },
-              })}
+              style={styles.ticket}
+              activeOpacity={0.88}
+              disabled={Boolean(selectingId)}
+              onPress={() => handleRegionSelect(pinned)}
             >
-              <Text style={styles.tealLink}>{t("region.requestToAdd")}</Text>
-              <Ionicons name={arrowForward()} size={14} color={T.teal} />
+              <View style={styles.ticketPin}>
+                <MapPin size={16} color={T.navy} strokeWidth={1.75} />
+              </View>
+              <View style={styles.ticketText}>
+                <Text style={styles.ticketCity}>{cityName}</Text>
+                <Text style={styles.ticketPath}>{pathLabel}</Text>
+              </View>
+              {selectingId === pinned.id ? (
+                <ActivityIndicator size="small" color={T.navy} />
+              ) : (
+                <View style={styles.ticketCta}>
+                  <Text style={styles.ticketCtaText}>{t("region.seeCommunities")}</Text>
+                  <Ionicons name={arrowForward()} size={14} color={T.white} />
+                </View>
+              )}
             </TouchableOpacity>
-          </>
-        ) : null}
+          ) : null}
+        </View>
 
-        {activeRole !== "admin" ? (
+        {isResident ? (
           <View style={styles.inviteRow}>
             <Text style={styles.mutedText}>{t("region.haveInviteCode") + " "}</Text>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => router.push("/screens/invite-code")}
-            >
+            <TouchableOpacity activeOpacity={0.8} onPress={() => router.push("/screens/invite-code")}>
               <Text style={styles.tealLink}>{t("region.enterHere")}</Text>
             </TouchableOpacity>
           </View>
-        ) : null}
-      </View>
+        ) : (
+          <View style={styles.inviteRow}>
+            <Text style={styles.mutedText}>{t("region.dontSeeCommunity") + " "}</Text>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() =>
+                router.push({
+                  pathname: "/screens/request-for-community",
+                  params: { role: activeRole },
+                })
+              }
+            >
+              <Text style={styles.tealLink}>{t("region.requestToAdd")}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -321,229 +205,137 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: T.canvas,
   },
-  topSection: {
-    paddingHorizontal: 24,
-    paddingTop: 2,
-    paddingBottom: 12,
+  hero: {
+    paddingHorizontal: 20,
+    paddingBottom: 8,
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
   },
-  title: {
+  kicker: {
     flex: 1,
-    minWidth: 0,
+    fontFamily: Fonts.semiBold,
+    fontSize: 11,
+    letterSpacing: 1.6,
+    textTransform: "uppercase",
+    color: T.gray,
+    fontWeight: "600",
+  },
+  heroTitle: {
+    marginTop: 14,
     fontFamily: Fonts.bold,
-    fontSize: 17,
-    lineHeight: 22,
+    fontSize: 26,
+    lineHeight: 30,
     color: T.navy,
     fontWeight: "700",
   },
-  subtitle: {
-    marginTop: 6,
+  heroCopy: {
+    marginTop: 8,
+    maxWidth: 300,
+    fontFamily: Fonts.regular,
+    fontSize: 13,
+    lineHeight: 19,
+    color: T.gray,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 28,
+    paddingTop: 12,
+  },
+  card: {
+    backgroundColor: T.white,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: T.border,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 14,
+  },
+  errorText: {
+    marginTop: 4,
     fontFamily: Fonts.regular,
     fontSize: 12,
-    lineHeight: 15,
+    color: "#DC2626",
+  },
+  pinning: {
+    marginTop: 8,
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  pinningText: {
+    fontFamily: Fonts.medium,
+    fontSize: 13,
     color: T.gray,
-    maxWidth: 320,
   },
-  searchRow: {
-    marginTop: 12,
+  ticket: {
+    marginTop: 8,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: T.border,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-  },
-  searchWrap: {
-    flex: 1,
-    borderRadius: 16,
-    backgroundColor: T.white,
-    borderWidth: 1,
-    borderColor: T.border,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
     gap: 12,
-    height: 52,
   },
-  filterBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: T.white,
-    borderWidth: 1,
-    borderColor: T.border,
+  ticketPin: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#E8F0F7",
     alignItems: "center",
     justifyContent: "center",
   },
-  filterBtnActive: {
-    borderColor: T.teal,
-    backgroundColor: T.mint,
-  },
-  filterBadge: {
-    position: "absolute",
-    top: 8,
-    end: 8,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    paddingHorizontal: 4,
-    backgroundColor: T.teal,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  filterBadgeText: {
-    fontFamily: Fonts.bold,
-    fontSize: 9,
-    lineHeight: 12,
-    color: T.white,
-    fontWeight: "700",
-  },
-  centerState: {
+  ticketText: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 32,
-    gap: 10,
+    minWidth: 0,
   },
-  emptyWrap: {
-    alignItems: "center",
-    paddingTop: 48,
-    paddingHorizontal: 24,
-    gap: 10,
-  },
-  emptyIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: T.mint,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 4,
-  },
-  stateTitle: {
+  ticketCity: {
     fontFamily: Fonts.bold,
     fontSize: 15,
     color: T.navy,
-    textAlign: "center",
-  },
-  stateText: {
-    fontFamily: Fonts.regular,
-    fontSize: 13,
-    lineHeight: 18,
-    color: T.gray,
-    textAlign: "center",
-  },
-  retryBtn: {
-    marginTop: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: T.navy,
-  },
-  retryText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: 13,
-    color: T.white,
-    fontWeight: "600",
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 0,
-    paddingBottom: 12,
-    gap: 12,
-  },
-  scrollContentEmpty: {
-    flexGrow: 1,
-  },
-  card: {
-    borderWidth: 1,
-    borderColor: "rgba(15, 61, 95, 0.12)",
-    borderRadius: 16,
-    padding: 18,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    backgroundColor: T.white,
-  },
-  cardBusy: {
-    opacity: 0.7,
-  },
-  iconWell: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: T.mint,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  cardTextWrap: {
-    flex: 1,
-    minWidth: 0,
-    paddingTop: 2,
-  },
-  cardTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: 14,
-    lineHeight: 20,
-    color: T.navy,
     fontWeight: "700",
   },
-  cardArea: {
-    marginTop: 4,
+  ticketPath: {
+    marginTop: 2,
     fontFamily: Fonts.regular,
-    fontSize: 11,
-    lineHeight: 17,
+    fontSize: 12,
     color: T.gray,
   },
-  cardUsers: {
-    marginTop: 4,
-    fontFamily: Fonts.medium,
-    fontSize: 11,
-    lineHeight: 15,
-    color: T.deepTeal,
-  },
-  chevronWrap: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: T.mint,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-    marginTop: 8,
-  },
-  bottomSection: {
-    borderTopWidth: 1,
-    borderTopColor: T.border,
-    paddingTop: 8,
-    paddingHorizontal: 24,
-    alignItems: "center",
-    backgroundColor: T.canvas,
-  },
-  linkRow: {
+  ticketCta: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginTop: 6,
+    backgroundColor: T.navy,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  ticketCtaText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: 12,
+    color: T.white,
+    fontWeight: "600",
+  },
+  inviteRow: {
+    marginTop: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    flexWrap: "wrap",
   },
   mutedText: {
     fontFamily: Fonts.regular,
     fontSize: 13,
-    lineHeight: 18,
     color: T.gray,
   },
   tealLink: {
     fontFamily: Fonts.semiBold,
     fontSize: 13,
-    lineHeight: 18,
     color: T.teal,
     fontWeight: "600",
-  },
-  inviteRow: {
-    marginTop: 12,
-    flexDirection: "row",
-    alignItems: "center",
   },
 });

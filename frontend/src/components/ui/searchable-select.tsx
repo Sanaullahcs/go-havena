@@ -22,6 +22,7 @@ type SearchableSelectProps = {
   searchPlaceholder?: string;
   emptyMessage?: string;
   searchable?: boolean;
+  allowCustom?: boolean;
   disabled?: boolean;
   error?: string | null;
   className?: string;
@@ -36,6 +37,7 @@ export function SearchableSelect({
   searchPlaceholder = "Search…",
   emptyMessage = "No matches found.",
   searchable = false,
+  allowCustom = false,
   disabled = false,
   error,
   className,
@@ -49,7 +51,8 @@ export function SearchableSelect({
   const [query, setQuery] = useState("");
   const { style: popoverStyle, ready } = useAnchoredPopover(open, triggerRef, { popoverRef });
 
-  const selected = options.find((opt) => opt.value === value);
+  const selected = options.find((opt) => opt.value === value)
+    ?? (value ? { value, label: value } : undefined);
 
   const filtered = useMemo(() => {
     if (!searchable) return options;
@@ -60,6 +63,13 @@ export function SearchableSelect({
       return haystack.includes(q);
     });
   }, [options, query, searchable]);
+
+  const customValue = query.trim();
+  const showCustom = Boolean(
+    allowCustom
+    && customValue.length >= 2
+    && !filtered.some((opt) => opt.label.toLowerCase() === customValue.toLowerCase()),
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -162,10 +172,29 @@ export function SearchableSelect({
                 ) : null}
 
                 <div className="max-h-56 overflow-y-auto p-1">
-                  {filtered.length === 0 ? (
+                  {filtered.length === 0 && !showCustom ? (
                     <p className="px-3 py-4 text-center text-xs text-slate-400">{emptyMessage}</p>
                   ) : (
-                    filtered.map((opt) => {
+                    <>
+                    {showCustom ? (
+                      <button
+                        type="button"
+                        role="option"
+                        onClick={() => {
+                          onChange(customValue);
+                          setOpen(false);
+                        }}
+                        className="nl-select-option w-full text-left"
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium">Use “{customValue}”</span>
+                          <span className="block truncate text-xs font-normal text-slate-500">
+                            Add this city
+                          </span>
+                        </span>
+                      </button>
+                    ) : null}
+                    {filtered.map((opt) => {
                       const active = opt.value === value;
                       return (
                         <button
@@ -204,7 +233,8 @@ export function SearchableSelect({
                           {active ? <Check size={14} strokeWidth={2.5} aria-hidden className="shrink-0" /> : null}
                         </button>
                       );
-                    })
+                    })}
+                    </>
                   )}
                 </div>
               </div>,

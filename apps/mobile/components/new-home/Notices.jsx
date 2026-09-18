@@ -22,6 +22,7 @@ import {
   getCategoryTheme,
 } from "../../services/notices-api";
 import { useTranslation } from "react-i18next";
+import { Image } from "expo-image";
 import CrispImage from "../ui/crisp-image";
 import { NoticeCoverMedia } from "../notices/notice-cover-thumbnail";
 import { mediaImageSource } from "../../utils/profile-display";
@@ -277,6 +278,11 @@ export default function Notices({ items = [] }) {
         listRef.current?.scrollToOffset({ offset: 0, animated: false });
       });
     }
+    carouselItems.forEach((item) => {
+      if (item.imageUrl) {
+        Image.prefetch(item.imageUrl).catch(() => {});
+      }
+    });
   }, [carouselItems.length, screenWidth]);
 
   useEffect(() => {

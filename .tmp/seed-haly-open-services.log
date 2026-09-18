@@ -1,0 +1,12 @@
+created 37 Valet Parking
+created 38 Prayer Area
+created 39 Meeting Room
+created 40 Loading Bay
+created 41 Food Court Tables
+haly_amenities=5
+37|open|approved|parking|Ground lobby / basement ramps|Valet Parking
+38|open|approved|building|Ask reception|Prayer Area
+39|open|approved|meeting|Ask reception|Meeting Room
+40|open|approved|building|Basement / service entrance|Loading Bay
+41|open|approved|dining|3rd floor food court|Food Court Tables
+done

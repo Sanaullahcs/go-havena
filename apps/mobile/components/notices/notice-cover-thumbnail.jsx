@@ -175,6 +175,9 @@ export function NoticeCoverMedia({
           source={source}
           style={imageStyle}
           contentFit="cover"
+          cachePolicy="memory-disk"
+          priority={fill ? "high" : "normal"}
+          recyclingKey={typeof source === "string" ? source : imageUrl || undefined}
           onError={() => {
             setFailed(true);
             onImageError?.();

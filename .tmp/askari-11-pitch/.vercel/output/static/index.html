@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Havena · Community platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --navy: #0A2A43;
+      --teal: #14B8A6;
+      --teal-deep: #0D9488;
+      --mint: #D1FAF5;
+      --canvas: #F4F8FD;
+      --muted: #5B6B7A;
+      --line: #E5E7EB;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--navy);
+      font-family: Manrope, "Segoe UI", sans-serif;
+      line-height: 1.6;
+    }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 48px 28px 80px; }
+    header {
+      background: var(--navy);
+      color: #fff;
+      padding: 44px 40px;
+      border-radius: 20px;
+      margin-bottom: 40px;
+    }
+    header .kicker {
+      color: var(--teal);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      margin: 0 0 12px;
+    }
+    header h1 { margin: 0 0 12px; font-size: 36px; letter-spacing: -0.03em; line-height: 1.15; }
+    header p { margin: 0; color: #C5D0D8; font-size: 17px; max-width: 640px; }
+    h2 {
+      margin: 44px 0 12px;
+      font-size: 24px;
+      letter-spacing: -0.02em;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+    }
+    h3 { margin: 26px 0 8px; font-size: 18px; }
+    p { margin: 0 0 12px; color: #243140; }
+    ul, ol { margin: 0 0 16px; padding-left: 20px; color: #243140; }
+    li { margin-bottom: 6px; }
+    .proof {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin: 20px 0 0;
+    }
+    .proof div {
+      background: #12344F;
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .proof small {
+      display: block;
+      color: var(--teal);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 16px 0; }
+    .box { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+    .box h4 { margin: 0 0 8px; font-size: 14px; }
+    .old { border-left: 3px solid #94A3B8; }
+    .new { border-left: 3px solid var(--teal-deep); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 14px 0 18px; background: #fff; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { background: #EAF3F8; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .live { background: var(--mint); color: var(--teal-deep); }
+    .coming { background: #E8EEF4; color: var(--navy); }
+    .steps { counter-reset: n; }
+    .steps li { margin-bottom: 10px; }
+    @media (max-width: 720px) {
+      .split, .proof { grid-template-columns: 1fr; }
+      header, .wrap { padding-left: 16px; padding-right: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <p class="kicker">Havena</p>
+      <h1>One trusted place to run a community.</h1>
+      <p>A private platform for housing societies, apartment buildings, and neighborhoods. The office gets one dashboard. Residents get one app. Guests get time-limited access.</p>
+      <div class="proof">
+        <div><small>Pakistan</small>Opus Luxury Apartments</div>
+        <div><small>Oman</small>A live community</div>
+        <div><small>United States</small>A live community in Boston</div>
+      </div>
+    </header>
+
+    <h2>What Havena is</h2>
+    <p>Havena is a community operating system. It is not a chat app and not a public social network.</p>
+    <p>A community on Havena is a closed group. People join with an invite and a unit number. Only people who belong to that community can see its notices, members, and bookings. Another society cannot see this society’s records.</p>
+    <p>Three products share the same data:</p>
+    <ul>
+      <li><strong>Office dashboard</strong> — the building office or board invites members, publishes updates, approves bookings, and manages guests.</li>
+      <li><strong>Resident app and web portal</strong> — households read official updates, book facilities, post in the feed, and invite visitors.</li>
+      <li><strong>Guest access</strong> — a visitor logs in only for the dates they were given, and only sees what the host allowed.</li>
+    </ul>
+    <p>Havena is already in use at Opus Luxury Apartments, a community in Oman, and a community in Boston.</p>
+
+    <h2>The problem</h2>
+    <p>Every housing society already does the same five jobs: decide who lives here, decide who may visit, tell residents what is official, share halls and gyms, and collect money for shared costs. Almost none of that work has one system of record. The office rebuilds the picture every week from pieces.</p>
+
+    <h3>How most offices work today</h3>
+    <p><strong>Membership sits in lists.</strong> A spreadsheet of units, a pile of forms, and a WhatsApp message that says “please add my cousin.” When someone moves out, the group is not cleaned. When someone is waiting for approval, the office and the household do not share one status. The guard’s list is not the same as the secretary’s Excel file.</p>
+    <p><strong>Official news sits in noise.</strong> Water shutdowns, security notes, and meeting dates go into the same group as birthday forwards and shop flyers. Residents miss the official line. The office cannot prove who saw it. There is no way to send a reminder only to people who have not confirmed.</p>
+    <p><strong>Guests sit in a gate book.</strong> Someone calls and says “my brother is coming at 7.” The checkpoint has a handwritten name, a screenshot, or nothing. There is no end time, no list of what the visitor may use, and no automatic expiry. Later, the office cannot show who was allowed in that night.</p>
+    <p><strong>Facilities sit on the phone.</strong> The hall or gym is booked by calling the office or messaging a caretaker. Two families can believe they have the same Saturday. There is no slot grid, no capacity rule, and no written approval.</p>
+    <p><strong>Shared costs sit in cash and memory.</strong> Hall fees or a monthly facility charge are paid at the counter or by bank transfer. The slip goes in a drawer. Next month, last month’s unpaid amount is argued from memory. There is no bill, no uploaded proof, no office check, and no receipt the resident can keep.</p>
+    <p><strong>Local deals sit on flyers.</strong> Restaurants post a photo in the group. The resident cannot open a menu inside the same place as the deal.</p>
+    <p><strong>Email does not look like the society.</strong> Codes and circulars, if they exist, come from a personal Gmail or from a platform name the resident does not know. Leadership wants mail to come from the management office.</p>
+    <p>The problem is not that communities need a new lifestyle app. The problem is that access, communication, facilities, and records are not in one trusted place — and only verified members should be in that place.</p>
+
+    <div class="split">
+      <div class="box old">
+        <h4>Today</h4>
+        <ul>
+          <li>Membership in a spreadsheet and a chat group</li>
+          <li>Notices buried next to forwards and flyers</li>
+          <li>Guests as a name in the gate book</li>
+          <li>Hall and gym booked by phone</li>
+          <li>Shared fees collected with a paper slip</li>
+          <li>No single log the office can open on Monday</li>
+        </ul>
+      </div>
+      <div class="box new">
+        <h4>What that costs</h4>
+        <ul>
+          <li>Nobody can prove who belongs and who is still pending</li>
+          <li>Residents miss water, security, and maintenance updates</li>
+          <li>The gate cannot prove who was allowed in last night</li>
+          <li>Double bookings and arguments about who said yes</li>
+          <li>Unpaid charges argued from memory next month</li>
+          <li>The office spends the week reconstructing, not deciding</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>The solution</h2>
+    <p>Havena puts the same week in one closed system.</p>
+    <p>The society is created or requested, then approved. Residents join with an invite code and their unit. If the office needs to review them, they wait in pending until someone accepts them. Then they appear in the directory. They are not “added to a group.” They are members with a clear status: pending, approved, invited, or suspended.</p>
+    <p>Official updates go out as a notice, an event, or an alert — not as a chat message. Facilities have hours, slots, and capacity. Bookings leave a written yes or no. Guests have a start time, an end time, and a permission list. Shared amenity fees stay with the office cash desk. Havena keeps the record: bill, proof, review, and acknowledgement.</p>
+    <p>Havena is not a bank. It does not take card payments for hall or gym fees. In Pakistan, the society does not need a card to run the platform. Local shops are not user accounts. They appear in the marketplace after the office approves them.</p>
+    <p>The path is simple: <strong>invite → approve → operate → record</strong>. Every step has an owner and a time.</p>
+
+    <h2>Who uses it</h2>
+    <p><strong>Community admin</strong> is the board or the building office. They invite members, publish official updates, approve memberships and bookings, manage guests, keep rules and documents, and moderate the feed and marketplace. They start the day on the dashboard: who is pending, what must be approved, what must be published.</p>
+    <p><strong>Resident</strong> is the household. They join with an invite, complete a profile, and land in a private home for their community only. They read official notices, reply to events, post in the feed, book facilities, message neighbors, follow wellness lessons, use the marketplace, and invite a guest. If they created a facility, they approve who uses it. When a shared bill is due, they pay the office the usual way and upload proof.</p>
+    <p><strong>Guest</strong> is a visitor with an end date. They log in with the invite they were sent. They see only the features the host switched on. When the window ends, or when the office removes them, they are out. They are not a second resident.</p>
+    <p><strong>Moderator</strong> is optional help for day-to-day review. Havena’s own team only approves new communities and new community admins. Businesses are approved listings, not logins.</p>
+
+    <h2>How a household joins</h2>
+    <p>The administrator signs in on the web with email and a one-time code. They open Members and invite a household: full name, email, phone, and unit. The screen gives an invite code and a QR code. The office sends that code by letter, SMS, or a printed slip. They invite only people who live or work in this community.</p>
+    <p>The resident opens the resident website or the mobile app. They enter the same email, take the one-time code from that inbox, then enter the invite code or scan the QR. They fill in name and unit. If the office requires approval, they wait. When approved, Home shows this community’s notices, events, and feed. They cannot see another community.</p>
+    <p>A simple message the office can send:</p>
+    <div class="box">
+      <p style="margin:0;">The society now uses Havena for official notices, events, and guest registration. Sign in with your email, enter the one-time code, then enter this invite code. For help, contact the management office.</p>
+    </div>
+
+    <h2>What the office uses every day</h2>
+    <p>All of the modules below are live today. In Pakistan, Billing, Plaid, and Refer &amp; Earn are not needed. Those menus are for regions that pay for the platform by card. If Billing looks empty, that is expected.</p>
+    <table>
+      <thead><tr><th>Module</th><th>What the office does</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>Dashboard</td><td>See members, pending work, and messages at a glance.</td><td><span class="tag live">Live</span></td></tr>
+        <tr><td>Members</td><td>Invite codes, units, approve or reject, suspend, family groups, directory.</td><td><span class="tag live">Live</span></td></tr>
+        <tr><td>Guests</td><td>Invite, extend, remove, set permissions, check activity, enforce the time window.</td><td><span class="tag live">Live</span></td></tr>
+        <tr><td>Notices</td><td>Routine official updates: what is happening, when, and what to do. Pin and push.</td><td><span class="tag live">Live</span></td></tr>
+        <tr><td>Events</td><td>Dated gatherings such as an AGM or festival. Place and RSVP.</td><td><span class="tag live">Live</span></td></tr>
+        <tr><td>Alerts</td><td>Urgent only: fire, gas, sudden water failure, security. Not for ordinary meetings.</td><td><span class="tag live">Live</span></td></tr>
+        <tr><td>Messages</td><td>A private thread with one resident. Not a public post.</td><td><span class="tag live">Live</span></td></tr>
+        <tr><td>Amenities</td><td>Register the hall, gym, lawn, or courts. Hours, slot length, capacity, rules, photo.</td><td><span class="tag live">Live</span></td></tr>
+        <tr><td>Booking requests</td><td>Approve a valid booking. Decline a conflict. Tell the resident.</td><td><span class="tag live">Live</span></td></tr>
+        <tr><td>Feed moderation</td><td>Remove abuse, spam, or ads that do not belong.</td><td><span class="tag live">Live</span></td></tr>
+        <tr><td>Marketplace and businesses</td><td>Approve listings and local businesses. Deals and offers. Food menus are coming.</td><td><span class="tag live">Live</span></td></tr>
+        <tr><td>Rules and documents</td><td>House rules (residents can be asked to confirm they read them). Bylaws and circulars as named files.</td><td><span class="tag live">Live</span></td></tr>
+        <tr><td>Activity log</td><td>Who invited, approved, published, booked, or removed a post — and when.</td><td><span class="tag live">Live</span></td></tr>
+      </tbody>
+    </table>
+
+    <h2>Official updates versus the neighbor feed</h2>
+    <p>This is how a water shutdown or a security note stops disappearing in a large group.</p>
+    <p>A <strong>notice</strong> is normal office communication. It should say what is happening, when, and what the resident should do. Keep it short. An <strong>event</strong> has a date, a place, and RSVP. An <strong>alert</strong> is for urgent cases only. If alerts are used for ordinary meetings, residents stop reading them.</p>
+    <p>Residents get a push and an in-app notification when the office publishes. House rules can already require a confirmation that the resident has read them. A register of who has read a single notice, and a reminder only to those who have not, is coming.</p>
+    <p>The <strong>feed</strong> is where residents post, like, and comment. The office can take a post down. Marketplace listings and deals are not notices.</p>
+    <div class="split">
+      <div class="box old">
+        <h4>Today</h4>
+        <p>One WhatsApp group for shutdowns, birthdays, and restaurant flyers. No proof of read. No follow-up list.</p>
+      </div>
+      <div class="box new">
+        <h4>On Havena</h4>
+        <p>Notice, event, and alert are office-owned. The feed is resident-owned and moderated. Rule confirmation is live. Notice confirmation and reminder are coming.</p>
+      </div>
+    </div>
+
+    <h2>Guests and the gate</h2>
+    <p>A visitor is a record, not a WhatsApp name.</p>
+    <p>A resident or the office creates an invitation: name, phone or email, start time, and end time. They can pick 1 hour, 6 hours, 1 day, 3 days, 1 week, or a custom range. The guest gets an invite code and can use a QR link. They open Havena, verify with a one-time code, and enter the invite. If a resident sent the invite, the host may still need to approve. If the office sent it, access can start inside the window. The office can extend the window, remove access, or check activity. When the window ends, the guest cannot stay signed in.</p>
+    <p>On every invite, the host turns six areas on or off: feed, notices, events, marketplace, businesses, and wellness. A dinner guest does not need the marketplace. A contractor does not need the community feed.</p>
+    <p>Connection to a smart lock (such as Yale or Schlage) is coming, after the society confirms the lock model. The guest record and the time window already exist. The lock is the next step, not a claim that Havena opens doors today.</p>
+    <div class="split">
+      <div class="box old">
+        <h4>Today</h4>
+        <p>“My brother is coming at 7.” A name in the gate book. No end time. No permissions. No way to cancel.</p>
+      </div>
+      <div class="box new">
+        <h4>On Havena</h4>
+        <p>Named invite. Time window. Six permission switches. One-time login. Extend or remove. Access ends on its own.</p>
+      </div>
+    </div>
+
+    <h2>Facilities and bookings</h2>
+    <p>The office registers bookable places: hall, gym, lawn, courts, meeting room. Each one has a name, photo, rules, opening hours, weekend hours, slot length, and capacity. The system will not accept a booking that is over capacity or outside hours. If someone cancels, the slot is free at once.</p>
+    <p>There are two different approvals. First: <strong>should this facility exist?</strong> The office creates it, or approves one a resident has submitted. Second: <strong>can this person use it tomorrow?</strong> The owner of that facility decides. If the hall is office-owned, the office decides. If a resident created a facility the office has allowed, that resident decides. Statuses are pending, confirmed, rejected, and cancelled. Residents can see their own bookings.</p>
+    <p>When shared billing is on, an unpaid earlier bill can block a new booking until the office clears it. That rule is part of the money section below.</p>
+    <div class="split">
+      <div class="box old">
+        <h4>Today</h4>
+        <p>Call the caretaker. Two families believe they have Saturday. No written no.</p>
+      </div>
+      <div class="box new">
+        <h4>On Havena</h4>
+        <p>A calendar of free slots. A request. A written approval. Capacity enforced.</p>
+      </div>
+    </div>
+
+    <h2>Daily life for the resident</h2>
+    <p>The mobile app is the daily product. Home shows official notices first, then community activity, deals, wellness, and property. The five tabs are Home, Community, Create, Services, and Profile. The website covers home, notices, feed, messages, wellness, marketplace, and property for people who prefer a browser.</p>
+    <p>Residents can post in the feed, list an item or service in the marketplace, follow wellness lessons, message neighbors, and invite a guest. Deals are live: an approved business can publish a deal or coupon with a title, vendor, description, image, and dates. Residents can save a deal. A full restaurant menu on a food deal is coming.</p>
+
+    <h2>Six items communities have asked for</h2>
+    <p>Each item is either already in the product, or it is the next build on top of what already exists.</p>
+    <table>
+      <thead><tr><th>Request</th><th>Already in the product</th><th>Coming</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Deals and food menus</td>
+          <td>Deals, offers, coupons, and approved businesses</td>
+          <td>Menu items on a food deal</td>
+        </tr>
+        <tr>
+          <td>Notice confirmation and follow-up</td>
+          <td>Publish notices, events, and alerts with push. House rules can require confirmation.</td>
+          <td>A list of who has read a notice, and a reminder only to those who have not</td>
+        </tr>
+        <tr>
+          <td>Shared amenity billing and proof</td>
+          <td>Amenities, bookings, and an activity log</td>
+          <td>Office publishes a bill. Resident pays as they do today. Uploads proof. Office checks and confirms.</td>
+        </tr>
+        <tr>
+          <td>Unpaid amounts</td>
+          <td>—</td>
+          <td>Unpaid amount moves to the next bill. Resident is told the old balance and the new total.</td>
+        </tr>
+        <tr>
+          <td>Community email</td>
+          <td>System email already sends codes and notices</td>
+          <td>Mail is sent as the management office, not as Havena</td>
+        </tr>
+        <tr>
+          <td>Smart lock</td>
+          <td>Guest time windows, permissions, remove, and expiry</td>
+          <td>Link to Yale, Schlage, or the society’s lock after the model is confirmed</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>1. Deals and food menus</h3>
+    <p>Today a restaurant posts a photo in the group. The resident cannot see the menu without leaving the chat. On Havena, approved businesses already publish deals with a title, image, and dates. Next, a food deal will also show the menu so the resident can see the dishes in the same place.</p>
+
+    <h3>2. Notice confirmation and follow-up</h3>
+    <p>Today the office writes “please confirm” in a group. Half the people reply. The office cannot filter the silent half. On Havena, the office already publishes notices and residents get a push. House rules can already require a confirmation. Next, each notice will have a list of who has read it. The office can send a reminder only to those who have not.</p>
+
+    <h3>3. Shared amenity billing and proof</h3>
+    <p>Today the office announces a hall or gym charge. People pay at the counter. Proof is a paper slip or a WhatsApp photo. There is no review list and no confirmation the resident can keep. Amenities and bookings are already live. Next, the office will publish a bill. The resident pays outside Havena, uploads the slip, and the office accepts or rejects it. Accepted proof becomes a confirmation.</p>
+
+    <h3>4. Unpaid amounts</h3>
+    <p>Today “you still owe last month” is an argument at the counter, with two different numbers. Next, an unpaid amount will move to the next bill. The resident will be told the previous unpaid amount and the new total. The office can also block a new facility booking until the earlier bill is cleared.</p>
+
+    <h3>5. Community email</h3>
+    <p>Today system email comes from Havena. Leadership wants it to look like the management office. Next, mail will use the society’s name and address, so a one-time code or a circular feels like it came from the office residents already know.</p>
+
+    <h3>6. Smart lock</h3>
+    <p>Today access is keys, staff, or a code that nobody changes. On Havena, the guest policy is already live: a named person, a time window, permissions, remove, and expiry. Next, that same window can drive a compatible lock, after the society confirms the brand and model. Havena does not open a physical lock today.</p>
+
+    <h2>How shared money works</h2>
+    <p>Havena is not the bank. The office still collects hall and gym fees the way it already does: counter, cash, or bank transfer. Pakistan communities do not need a card to run Havena.</p>
+    <p>The record will work in four steps:</p>
+    <ol class="steps">
+      <li><strong>Publish.</strong> The office creates this month’s shared bill for all residents, or for a selected group.</li>
+      <li><strong>Pay outside.</strong> The resident pays at the office or by bank. No card is charged inside Havena.</li>
+      <li><strong>Proof.</strong> The resident uploads the slip. Status: submitted, waiting for review.</li>
+      <li><strong>Confirm.</strong> The office accepts or rejects. The resident sees the confirmation. Unpaid amounts move to the next bill.</li>
+    </ol>
+    <p>The resident sees the amount due, any earlier unpaid amount, the upload, and the office confirmation. The office sees who paid, who uploaded, and who is outstanding — one list to follow.</p>
+
+    <h2>Already in use</h2>
+    <p>This is not a concept. The same product is already running community operations.</p>
+    <ul>
+      <li><strong>Opus Luxury Apartments</strong> — membership, official updates, guests, and facilities. No card is required to run the office.</li>
+      <li><strong>A community in Oman</strong> — the same closed community in a second country.</li>
+      <li><strong>A community in Boston</strong> — the same platform in the United States: notices, bookings, deals, and the resident app.</li>
+    </ul>
+
+    <h2>What we can show live</h2>
+    <ol>
+      <li><strong>Add a household.</strong> The office invites with name, email, phone, and unit. The resident enters the one-time code and the invite code. The office approves. They appear in the directory.</li>
+      <li><strong>Publish an update.</strong> The office posts a notice or an alert, for example water maintenance from 9am to 1pm. It is not a feed post.</li>
+      <li><strong>Book a facility.</strong> A resident requests a hall or gym slot. The owner approves. The booking is confirmed.</li>
+      <li><strong>Invite a guest.</strong> Create an invite with a four-hour window. Turn off marketplace and feed. The guest logs in with a one-time code. Access ends on its own.</li>
+      <li><strong>Shared bill.</strong> Walk through publish, pay outside, proof, and confirm. Havena does not charge a card for this fee.</li>
+    </ol>
+    <p>A short meeting can cover the first four live, and the shared bill as the close. The useful question is: which of these is the week this office already runs?</p>
+
+    <h2>In short</h2>
+    <p><strong>The office is already live.</strong> Members, guests, official updates, facilities, deals, rules, documents, and moderation are in the product today. Opus Luxury Apartments, a community in Oman, and a community in Boston are already on it.</p>
+    <p><strong>Access and money follow how communities already work.</strong> Verified people. Approved bookings. Amenity payments recorded with proof, not forced onto a card. Guest access that ends on time. Email and locks, where requested, can come from the society — not from a generic platform name.</p>
+    <p><strong>The next step is a live walk-through.</strong> Pick the weekly work this office actually does — invites, notices, guests, facilities, or monthly shared fees — and walk it on the product. Then agree which coming items should land first.</p>
+
+    <h2>How people sign in</h2>
+    <table>
+      <thead><tr><th>Who</th><th>Where</th></tr></thead>
+      <tbody>
+        <tr><td>Community office</td><td>https://gohavena.com/login</td></tr>
+        <tr><td>Resident (web)</td><td>https://gohavena.com/resident-login</td></tr>
+        <tr><td>Resident and guest (phone)</td><td>Havena on iOS and Android</td></tr>
+        <tr><td>Support</td><td>hello@gohavena.com</td></tr>
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>

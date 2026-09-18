@@ -221,6 +221,7 @@ export async function selfServeCreateCommunity(payload: {
   address: string;
   description?: string;
   region_id: number;
+  city?: string;
   estimated_residents?: number;
   latitude?: number | null;
   longitude?: number | null;
@@ -242,6 +243,10 @@ export type PublicRegion = {
   title: string;
   area?: string;
   state?: string | null;
+  state_id?: number | null;
+  state_name?: string | null;
+  country_id?: number | null;
+  country_name?: string | null;
   status?: string;
 };
 
@@ -259,6 +264,7 @@ export async function fetchPublicRegions(params?: {
   q?: string;
   country_id?: number;
   state_id?: number;
+  city?: string;
 }) {
   const res = await api.get("/v1/regions", { params });
   const payload = res.data;
@@ -270,6 +276,7 @@ export async function fetchPublicRegions(params?: {
       title: string;
       area?: string;
       state?: string | null;
+      state_id?: number | null;
       status?: string;
     }>
   ).filter((row) => row.type === "region" || row.type == null);

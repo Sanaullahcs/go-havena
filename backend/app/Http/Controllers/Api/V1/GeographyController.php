@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Country;
 use App\Models\State;
+use App\Services\LocationCatalog;
+use App\Services\OpenCityDirectory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -18,7 +20,8 @@ class GeographyController extends Controller
         if ($request->boolean('with_states')) {
             $query->with(['states' => fn ($q) => $q
                 ->where('status', 'active')
-                ->whereHas('regions', fn ($regions) => $regions->where('status', 'active'))]);
+                ->orderBy('sort_order')
+                ->orderBy('name')]);
         }
 
         $countries = $query->orderBy('sort_order')->orderBy('name')->get();
@@ -36,13 +39,53 @@ class GeographyController extends Controller
         $states = State::query()
             ->where('country_id', $countryId)
             ->where('status', 'active')
-            ->whereHas('regions', fn ($regions) => $regions->where('status', 'active'))
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
 
         return response()->json([
             'data' => $states->map(fn (State $state) => $this->transformState($state)),
+        ]);
+    }
+
+    /** GET /v1/states/{stateId}/cities — open city catalog for signup */
+    public function cities(Request $request, int $stateId, OpenCityDirectory $directory): JsonResponse
+    {
+        $state = State::query()->where('status', 'active')->findOrFail($stateId);
+        $query = $request->string('q')->trim()->toString() ?: null;
+
+        return response()->json([
+            'data' => $directory->citiesForState($state, $query),
+        ]);
+    }
+
+    /** POST /v1/locations/resolve — find or open a region for country/state/city */
+    public function resolveLocation(Request $request, LocationCatalog $catalog): JsonResponse
+    {
+        $validated = $request->validate([
+            'country_id' => ['nullable', 'integer', 'exists:countries,id'],
+            'state_id' => ['required', 'integer', 'exists:states,id'],
+            'city' => ['nullable', 'string', 'min:2', 'max:150'],
+        ]);
+
+        $region = $catalog->resolve(
+            isset($validated['country_id']) ? (int) $validated['country_id'] : null,
+            (int) $validated['state_id'],
+            $validated['city'] ?? null,
+        );
+        $region->load('stateRecord.country');
+
+        return response()->json([
+            'data' => [
+                'id' => $region->id,
+                'title' => $region->title,
+                'area' => $region->area,
+                'state_id' => $region->state_id,
+                'state_name' => $region->stateRecord?->name ?? $region->state,
+                'country_id' => $region->stateRecord?->country?->id,
+                'country_name' => $region->stateRecord?->country?->name,
+                'status' => $region->status,
+            ],
         ]);
     }
 

@@ -33,4 +33,9 @@ class State extends Model
     {
         return $this->hasMany(Region::class);
     }
+
+    public function cities(): HasMany
+    {
+        return $this->hasMany(City::class);
+    }
 }

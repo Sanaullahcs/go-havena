@@ -1,0 +1,21 @@
+users_to_remove=8
+removing user 74 mahnoorayaztabusu@gmail.com
+removing user 76 mahnoorayazkhan5@gmail.com
+removing user 85 mahnoorayazkhan6@gmail.com
+removing user 86 mahnoorayazkhan7@gmail.com
+removing user 87 mahnoorayaz8181@gmail.com
+removing user 89 mahnoorayaz2819@gmail.com
+removing user 90 mahnoorkhan192002@gmail.com
+removing user 97 mahnoor.ayaz@tabsusa.com
+deleted_email_otps=2
+scrubbed_guest_invitations=0
+scrubbed_transactional_sends=12
+scrubbed_activity_logs=9
+remaining users.email=0
+remaining email_otps.email=0
+remaining guest_invitations.guest_email=0
+remaining transactional_email_sends.recipient_email=0
+remaining password_reset_tokens.email=0
+remaining_users_with_mahnoor_email=0
+valensia status=active requested_by=null
+valensia_approved_admins=0

@@ -261,15 +261,6 @@ function SidebarInner({
           </>
         )}
       </nav>
-
-      {/* Bottom: version badge */}
-      <div className="mt-auto shrink-0 border-t border-slate-100 bg-white pt-3">
-        <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
-          <p className="text-[11.5px] font-semibold text-slate-700">Havena Admin</p>
-          <p className="mt-0.5 text-[11px] text-slate-400">gohavena.com</p>
-          <p className="mt-0.5 text-[11px] text-slate-400">support@gohavena.com</p>
-        </div>
-      </div>
     </div>
   );
 }

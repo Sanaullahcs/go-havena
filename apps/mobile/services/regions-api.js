@@ -90,19 +90,20 @@ export function normalizeDiscoveryItem(item) {
 }
 
 /** Fetch regions + approved communities from GET /v1/regions. */
-export async function fetchRegionsList({ q, countryId, stateId } = {}) {
+export async function fetchRegionsList({ q, countryId, stateId, city } = {}) {
   const data = await fetchRegions({
     ...(q ? { q } : {}),
     ...(countryId ? { countryId } : {}),
     ...(stateId ? { stateId } : {}),
+    ...(city ? { city } : {}),
   });
   if (!Array.isArray(data)) return [];
   return data.map(normalizeDiscoveryItem).filter(Boolean);
 }
 
 /** Active regions only — for region picker and step-one onboarding. */
-export async function fetchRegionsOnly({ q, countryId, stateId } = {}) {
-  const list = await fetchRegionsList({ q, countryId, stateId });
+export async function fetchRegionsOnly({ q, countryId, stateId, city } = {}) {
+  const list = await fetchRegionsList({ q, countryId, stateId, city });
   return list.filter((item) => item.type === "region");
 }
 

@@ -146,7 +146,7 @@ class BusinessController extends Controller
 
         $status = $isAdmin ? ($validated['status'] ?? 'approved') : 'pending';
 
-        $id = DB::table('businesses')->insertGetId([
+        $insert = [
             'community_id' => $communityId,
             'owner_id'     => $user->id,
             'name'         => $validated['name'],
@@ -162,7 +162,10 @@ class BusinessController extends Controller
             'approved_by'  => $status === 'approved' ? $user->id : null,
             'created_at'   => now(),
             'updated_at'   => now(),
-        ]);
+        ];
+        $this->applyOptionalListingFields($insert, $validated);
+
+        $id = DB::table('businesses')->insertGetId($insert);
 
         ActivityLogService::user('business_created', "Created business: \"{$validated['name']}\"", 'Business', $id);
 
@@ -196,6 +199,8 @@ class BusinessController extends Controller
             'hours'       => $validated['hours'] ?? null,
             'amenities'   => $validated['amenities'] ?? null,
         ], fn ($v) => $v !== null);
+
+        $this->applyOptionalListingFields($data, $validated);
 
         if (array_key_exists('image_url', $validated)) {
             $data['image_url'] = MediaUrl::normalize($validated['image_url']);
@@ -315,6 +320,8 @@ class BusinessController extends Controller
             'phone'        => "{$req}|string|max:40",
             'hours'        => "{$req}|string|max:120",
             'amenities'    => 'nullable|string|max:500',
+            'website'      => 'nullable|string|max:512',
+            'menu_items'   => 'nullable',
             'image_url'    => 'nullable|string|max:512',
             'status'       => 'nullable|in:pending,approved,rejected,inactive',
             'community_id' => 'nullable|integer|exists:communities,id',
@@ -341,7 +348,9 @@ class BusinessController extends Controller
             'address'        => $business->address,
             'phone'          => $business->phone,
             'hours'          => $business->hours,
-            'amenities'      => $business->amenities,
+            'amenities'      => $this->publicAmenities($business->amenities ?? null),
+            'website'        => $this->publicWebsite($business),
+            'menu_items'     => $this->publicMenuItems($business),
             'image_url'      => MediaUrl::toPublic($business->image_url ?? null, $request),
             'status'         => $business->status,
             'approved_at'    => $business->approved_at,
@@ -356,6 +365,71 @@ class BusinessController extends Controller
                 ? (float) $business->community_longitude
                 : null,
         ];
+    }
+
+    private function applyOptionalListingFields(array &$data, array $validated): void
+    {
+        if (Schema::hasColumn('businesses', 'website') && array_key_exists('website', $validated)) {
+            $website = trim((string) ($validated['website'] ?? ''));
+            $data['website'] = $website !== '' ? $website : null;
+        }
+
+        if (Schema::hasColumn('businesses', 'menu_items') && array_key_exists('menu_items', $validated)) {
+            $data['menu_items'] = $this->encodeMenuItems($validated['menu_items']);
+        }
+    }
+
+    private function encodeMenuItems(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+            return is_array($decoded) ? json_encode($decoded) : $value;
+        }
+        if (is_array($value)) {
+            return json_encode(array_values($value));
+        }
+
+        return null;
+    }
+
+    private function publicWebsite(object $business): ?string
+    {
+        $website = trim((string) ($business->website ?? ''));
+        if ($website !== '') {
+            return $website;
+        }
+        if (preg_match('/https?:\/\/[^\s,]+/i', (string) ($business->amenities ?? ''), $match)) {
+            return rtrim($match[0], ')].,;');
+        }
+
+        return null;
+    }
+
+    private function publicAmenities(?string $amenities): ?string
+    {
+        if ($amenities === null || trim($amenities) === '') {
+            return $amenities;
+        }
+        $cleaned = trim(preg_replace('/https?:\/\/[^\s,]+/i', '', $amenities) ?? '', " \t\n\r\0\x0B,");
+
+        return $cleaned !== '' ? $cleaned : null;
+    }
+
+    private function publicMenuItems(object $business): array
+    {
+        $raw = $business->menu_items ?? null;
+        if (is_array($raw)) {
+            return $raw;
+        }
+        if (! is_string($raw) || trim($raw) === '') {
+            return [];
+        }
+        $decoded = json_decode($raw, true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 
     private function businessSelect(): array

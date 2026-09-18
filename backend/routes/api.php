@@ -83,6 +83,8 @@ Route::prefix('v1')->group(function () {
     Route::get('/communities/search', [CommunityController::class, 'search']);
     Route::get('/countries', [GeographyController::class, 'countries']);
     Route::get('/countries/{countryId}/states', [GeographyController::class, 'states'])->whereNumber('countryId');
+    Route::get('/states/{stateId}/cities', [GeographyController::class, 'cities'])->whereNumber('stateId');
+    Route::post('/locations/resolve', [GeographyController::class, 'resolveLocation']);
     Route::get('/regions', [RegionController::class, 'index']);
     Route::post('/contact', [ContactController::class, 'store']);
 

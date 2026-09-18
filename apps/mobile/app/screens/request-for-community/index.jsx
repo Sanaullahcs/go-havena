@@ -12,6 +12,7 @@ import RegionPicker from "../../../components/ui/region-picker";
 import { requestCommunity } from "../../../services/auth-api";
 import CommunityAddressPicker from "../../../components/ui/community-address-picker";
 import { fetchRegionsOnly } from "../../../services/regions-api";
+import { fetchStateCities } from "../../../services/geography-api";
 import { showApiFailure } from "../../../utils/auth-errors";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { goToCompleteProfile, goToRegion } from "../../../constants/onboarding-routes";
@@ -63,6 +64,9 @@ export default function RequestForCommunityScreen() {
     regionIdParam ? Number(regionIdParam) : null,
   );
   const [pickerVisible, setPickerVisible] = useState(false);
+  const [cityPickerVisible, setCityPickerVisible] = useState(false);
+  const [cities, setCities] = useState([]);
+  const [selectedCity, setSelectedCity] = useState(null);
   const [loadingRegions, setLoadingRegions] = useState(true);
   const { touch, clearError, showError, validateOnSubmit } = useTouchedFieldErrors();
   const { submitting, run } = useSubmitLock();
@@ -102,6 +106,26 @@ export default function RequestForCommunityScreen() {
     selectedRegion?.title ||
     (regionTitleParam ? String(regionTitleParam) : "");
 
+  useEffect(() => {
+    const stateId = selectedRegion?.stateId;
+    setSelectedCity(null);
+    if (!stateId) {
+      setCities([]);
+      return undefined;
+    }
+    let cancelled = false;
+    fetchStateCities(stateId)
+      .then((list) => {
+        if (!cancelled) setCities(list);
+      })
+      .catch(() => {
+        if (!cancelled) setCities([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedRegion?.stateId]);
+
   const isAdminRequest = role === "admin";
   const isValid = !hasFieldErrors(liveErrors);
 
@@ -116,6 +140,7 @@ export default function RequestForCommunityScreen() {
           address: address.trim(),
           description: description.trim(),
           regionId: selectedRegionId,
+          city: selectedCity?.name,
           latitude,
           longitude,
         });
@@ -237,6 +262,19 @@ export default function RequestForCommunityScreen() {
           {showError("regionId", liveErrors) ? (
             <Text style={styles.errorText}>{showError("regionId", liveErrors)}</Text>
           ) : null}
+
+          <Text style={[styles.label, styles.labelSpacing]}>{t("region.city")}</Text>
+          <TouchableOpacity
+            style={[styles.selectField, !selectedCity && styles.selectFieldEmpty]}
+            activeOpacity={0.85}
+            disabled={!selectedRegion?.stateId}
+            onPress={() => setCityPickerVisible(true)}
+          >
+            <Text style={selectedCity ? styles.selectValue : styles.selectPlaceholder} numberOfLines={1}>
+              {selectedCity?.name || (selectedRegion?.stateId ? t("region.selectCity") : t("region.pickStateFirst"))}
+            </Text>
+            <Ionicons name="chevron-down" size={18} color={T.gray} />
+          </TouchableOpacity>
           {loadingRegions ? (
             <Text style={styles.fieldHint}>{t('guests.loadingRegions')}</Text>
           ) : (
@@ -376,6 +414,23 @@ export default function RequestForCommunityScreen() {
           touch("regionId");
           clearError("regionId");
           setPickerVisible(false);
+        }}
+      />
+      <RegionPicker
+        visible={cityPickerVisible}
+        regions={cities.map((item) => ({
+          id: item.id,
+          title: item.name,
+          area: selectedRegion?.stateName || "",
+          stateName: selectedRegion?.stateName || "",
+          countryName: selectedRegion?.countryName || "",
+        }))}
+        selectedId={selectedCity?.id}
+        loading={false}
+        onClose={() => setCityPickerVisible(false)}
+        onSelect={(item) => {
+          setSelectedCity({ id: item.id, name: item.title });
+          setCityPickerVisible(false);
         }}
       />
     </SafeAreaView>

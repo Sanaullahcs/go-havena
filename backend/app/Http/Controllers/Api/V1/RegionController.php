@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Community;
 use App\Models\Region;
 use App\Models\State;
+use App\Services\LocationCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -18,6 +19,18 @@ class RegionController extends Controller
         $q = $request->string('q')->trim()->toString();
         $countryId = $request->integer('country_id') ?: null;
         $stateId = $request->integer('state_id') ?: null;
+        $city = $request->string('city')->trim()->toString();
+
+        if ($stateId) {
+            $state = State::query()->where('status', 'active')->find($stateId);
+            if ($state) {
+                $catalog = app(LocationCatalog::class);
+                $catalog->ensureStateRegion($state);
+                if ($city !== '') {
+                    $catalog->ensureCityRegion($state, $city);
+                }
+            }
+        }
 
         $regionQuery = Region::query()
             ->with('stateRecord.country')
@@ -27,6 +40,10 @@ class RegionController extends Controller
             $regionQuery->where('state_id', $stateId);
         } elseif ($countryId) {
             $regionQuery->whereHas('stateRecord', fn ($builder) => $builder->where('country_id', $countryId));
+        }
+
+        if ($city !== '') {
+            $regionQuery->where('area', $city);
         }
 
         if ($q !== '') {

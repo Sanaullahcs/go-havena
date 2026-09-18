@@ -211,6 +211,7 @@ class WellnessController extends Controller
                 'video_url'          => $linkUrl,
                 'link_url'           => $linkUrl,
                 'file_url'           => MediaUrl::toPublic($lesson->file_path ?? null, $request),
+                'thumbnail_url'      => $this->lessonThumbnailUrl($linkUrl, $request),
                 'key_takeaways'      => $takeaways,
                 'completed'          => $completed,
             ],
@@ -549,5 +550,24 @@ class WellnessController extends Controller
         return is_array($decoded)
             ? array_values(array_filter(array_map(fn ($v) => trim((string) $v), $decoded)))
             : [];
+    }
+
+    private function lessonThumbnailUrl(?string $linkUrl, $request): ?string
+    {
+        if (! $linkUrl) {
+            return null;
+        }
+
+        if (! preg_match('/(?:youtube\\.com\\/(?:watch\\?(?:.*&)?v=|embed\\/|shorts\\/)|youtu\\.be\\/)([a-zA-Z0-9_-]{11})/', $linkUrl, $match)) {
+            return null;
+        }
+
+        $path = '/storage/wellness/thumbs/'.$match[1].'.jpg';
+        $absolute = public_path($path);
+        if (! is_file($absolute)) {
+            return null;
+        }
+
+        return MediaUrl::toPublic($path, $request);
     }
 }

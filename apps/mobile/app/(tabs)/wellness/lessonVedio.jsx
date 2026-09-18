@@ -202,7 +202,11 @@ export default function LessonVedio() {
         >
           <View style={styles.videoPad}>
             <View style={styles.videoCard}>
-              <LazyVideoPlayer source={videoSource} style={styles.video} />
+              <LazyVideoPlayer
+                source={videoSource}
+                poster={lesson?.thumbnailUrl || undefined}
+                style={styles.video}
+              />
             </View>
           </View>
 
