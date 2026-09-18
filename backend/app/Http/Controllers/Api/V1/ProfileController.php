@@ -144,6 +144,18 @@ class ProfileController extends Controller
 
         $this->assertUtilityBillPresentIfRequired($user, $request);
 
+        $user->loadMissing('profile.region');
+        $before = [
+            'name' => $user->name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+            'display_name' => $user->profile?->display_name,
+            'bio' => $user->profile?->bio,
+            'unit_number' => $user->profile?->unit_number,
+            'residence_type' => $user->profile?->residence_type,
+            'region' => $user->profile?->region?->title ?? $user->profile?->region_id,
+        ];
+
         if ($request->filled('name')) {
             $user->update(['name' => $request->name]);
         }
@@ -205,8 +217,28 @@ class ProfileController extends Controller
         }
 
         $user->load(['profile.region', 'memberships.community']);
+        $after = [
+            'name' => $user->name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+            'display_name' => $user->profile?->display_name,
+            'bio' => $user->profile?->bio,
+            'unit_number' => $user->profile?->unit_number,
+            'residence_type' => $user->profile?->residence_type,
+            'region' => $user->profile?->region?->title ?? $user->profile?->region_id,
+        ];
 
-        ActivityLogService::user('profile_updated', 'Updated profile information');
+        ActivityLogService::recordUpdate(
+            'profile_updated',
+            'User',
+            (int) $user->id,
+            $before,
+            $after,
+            [],
+            $user->name,
+            (int) $user->id,
+            ['related_item' => $user->name],
+        );
 
         return response()->json([
             'data' => $this->buildUserPayload($user),

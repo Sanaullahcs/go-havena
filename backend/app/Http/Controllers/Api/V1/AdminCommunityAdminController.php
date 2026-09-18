@@ -110,6 +110,16 @@ class AdminCommunityAdminController extends Controller
             'residence_type' => 'sometimes|required|string|in:homeowner,tenant',
         ]);
 
+        $user->loadMissing('profile');
+        $before = [
+            'name' => $user->name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+            'display_name' => $user->profile?->display_name,
+            'unit_number' => $user->profile?->unit_number,
+            'residence_type' => $user->profile?->residence_type,
+        ];
+
         if ($request->filled('name')) {
             $user->update(['name' => trim((string) $request->input('name'))]);
         }
@@ -147,14 +157,25 @@ class AdminCommunityAdminController extends Controller
             $user->profile()->updateOrCreate(['user_id' => $user->id], $profileData);
         }
 
-        ActivityLogService::user(
-            'community_admin_updated',
-            "Updated community admin profile: {$user->name}",
-            'User',
-            $user->id,
-        );
-
         $fresh = $user->fresh(['profile', 'memberships.community']);
+        ActivityLogService::recordUpdate(
+            'community_admin_updated',
+            'User',
+            (int) $user->id,
+            $before,
+            [
+                'name' => $fresh->name,
+                'email' => $fresh->email,
+                'phone' => $fresh->phone,
+                'display_name' => $fresh->profile?->display_name,
+                'unit_number' => $fresh->profile?->unit_number,
+                'residence_type' => $fresh->profile?->residence_type,
+            ],
+            [],
+            $fresh->name,
+            (int) $fresh->id,
+            ['related_item' => $fresh->name],
+        );
 
         return response()->json([
             'data' => $this->transform($fresh),
@@ -167,6 +188,8 @@ class AdminCommunityAdminController extends Controller
     {
         $user = $this->findApprovableAdmin($id);
         $wasRejected = ($user->community_admin_status ?? '') === 'rejected';
+        $previousAdminStatus = $user->community_admin_status;
+        $previousStatus = $user->status;
 
         $user->update([
             'community_admin_status'           => 'approved',
@@ -209,11 +232,17 @@ class AdminCommunityAdminController extends Controller
             $this->communityApprovalMessage($user),
         );
 
-        ActivityLogService::user(
+        ActivityLogService::recordChanges(
             'community_admin_approved',
-            "Approved community admin: {$user->name}",
             'User',
             $user->id,
+            [
+                ['field' => 'Admin Status', 'key' => 'community_admin_status', 'previous' => $previousAdminStatus, 'next' => 'approved'],
+                ['field' => 'Status', 'key' => 'status', 'previous' => $previousStatus, 'next' => 'active'],
+            ],
+            $user->name,
+            (int) $user->id,
+            ['related_item' => $user->name],
         );
 
         app(ReferralService::class)->ensureReferralCode($user->fresh());
@@ -239,6 +268,8 @@ class AdminCommunityAdminController extends Controller
 
         $user = $this->findRejectableAdmin($id);
         $wasApproved = ($user->community_admin_status ?? '') === 'approved';
+        $previousAdminStatus = $user->community_admin_status;
+        $previousReason = $user->community_admin_rejection_reason;
 
         $reason = $request->input('reason');
 
@@ -267,11 +298,18 @@ class AdminCommunityAdminController extends Controller
 
         NotificationService::send($user->id, 'warning', 'Community admin not approved', $body);
 
-        ActivityLogService::user(
+        ActivityLogService::recordChanges(
             'community_admin_rejected',
-            "Rejected community admin: {$user->name}",
             'User',
             $user->id,
+            [
+                ['field' => 'Admin Status', 'key' => 'community_admin_status', 'previous' => $previousAdminStatus, 'next' => 'rejected'],
+                ['field' => 'Rejection Reason', 'key' => 'community_admin_rejection_reason', 'previous' => $previousReason, 'next' => $reason ? trim((string) $reason) : null],
+            ],
+            $user->name,
+            (int) $user->id,
+            ['related_item' => $user->name],
+            'warning',
         );
 
         app(ReferralService::class)->disqualifyByRefereeUser(
@@ -308,13 +346,19 @@ class AdminCommunityAdminController extends Controller
             return response()->json(['message' => 'This community admin is already suspended.'], 422);
         }
 
+        $previousStatus = $user->status;
         $lifecycle->suspendCommunityAdmin($user);
 
-        ActivityLogService::user(
+        ActivityLogService::recordStatusChange(
             'community_admin_suspended',
-            "Suspended community admin: {$user->name}",
             'User',
             $user->id,
+            $previousStatus,
+            'suspended',
+            'Status',
+            $user->name,
+            (int) $user->id,
+            ['related_item' => $user->name],
             'warning',
         );
 

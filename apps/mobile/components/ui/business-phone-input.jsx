@@ -28,6 +28,7 @@ export default function BusinessPhoneInput({
   country = DEFAULT_PHONE_COUNTRY,
   onChangePhone,     // called with { digits, country, e164, valid }
   showError = false,
+  centerPlaceholder = false,
 }) {
   const { t } = useTranslation();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -80,6 +81,29 @@ export default function BusinessPhoneInput({
         <View style={styles.divider} />
 
         {/* Number input */}
+        {centerPlaceholder ? (
+          <View style={styles.inputWrap}>
+            {!value ? (
+              <View pointerEvents="none" style={styles.placeholderOverlay}>
+                <Text style={styles.placeholderOverlayText}>{placeholder}</Text>
+              </View>
+            ) : null}
+            <LocaleTextInput
+              style={styles.input}
+              value={display}
+              onChangeText={handleChange}
+              onBlur={() => setTouched(true)}
+              placeholder={undefined}
+              placeholderTextColor="rgba(153,161,175,1)"
+              forceLtr
+              keyboardType="phone-pad"
+              textContentType="telephoneNumber"
+              autoComplete="tel"
+              maxLength={maxLength}
+              returnKeyType="done"
+            />
+          </View>
+        ) : (
         <LocaleTextInput
           style={styles.input}
           value={display}
@@ -94,6 +118,7 @@ export default function BusinessPhoneInput({
           maxLength={maxLength}
           returnKeyType="done"
         />
+        )}
 
         {/* Status indicator */}
         {isValid ? (
@@ -162,6 +187,21 @@ const styles = StyleSheet.create({
     height: 22,
     backgroundColor: "#E5E7EB",
   },
+  inputWrap: {
+    flex: 1,
+    height: "100%",
+    justifyContent: "center",
+  },
+  placeholderOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  placeholderOverlayText: {
+    fontFamily: Fonts.regular,
+    fontSize: 13,
+    color: "rgba(153,161,175,1)",
+  },
   input: {
     flex: 1,
     margin: 0,
@@ -171,7 +211,6 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
     fontFamily: Fonts.regular,
     fontSize: 13,
-    lineHeight: 18,
     color: "#111827",
     includeFontPadding: false,
     textAlignVertical: "center",

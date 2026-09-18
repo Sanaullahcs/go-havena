@@ -23,7 +23,28 @@ import {
   validateWellnessCourseEdit,
   validateWellnessLessonEdit,
 } from "../src/lib/admin/wellness-form-validation";
-import { hasFieldErrors } from "../src/lib/admin/form-validation-utils";
+import {
+  EMAIL_FORMAT_MESSAGE,
+  EMAIL_LOCAL_PART_MAX,
+  hasFieldErrors,
+  isValidEmailAddress,
+  validateEmailField,
+} from "../src/lib/admin/form-validation-utils";
+import {
+  COMMUNITY_SETUP_NAME_MAX,
+  COMMUNITY_SETUP_NAME_MAX_MESSAGE,
+  validateCommunitySetupForm,
+} from "../src/lib/admin/community-setup-validation";
+import {
+  clearRegisterOtpChallenge,
+  isPersistedChallengeFresh,
+  parseRegisterOtpChallengeCookie,
+  persistRegisterOtpChallenge,
+  rateLimitFromPersistedChallenge,
+  readRegisterOtpChallenge,
+  REGISTER_OTP_CHALLENGE_KEY,
+  resendAvailableAtFromRateLimit,
+} from "../src/lib/auth/register-otp-challenge";
 import {
   GUEST_EMAIL_FORMAT_MESSAGE,
   GUEST_NAME_FORMAT_MESSAGE,
@@ -72,6 +93,122 @@ function assertHasError(errors: Record<string, string | undefined>, field: strin
 
 function assertNoErrors(errors: Record<string, string | undefined>, message: string) {
   assert(!hasFieldErrors(errors), message);
+}
+
+console.log("\nCommunity admin registration email validation");
+{
+  const under64 = `${"a".repeat(20)}@example.com`;
+  const exactly64 = `${"a".repeat(EMAIL_LOCAL_PART_MAX)}@example.com`;
+  const over64 = `${"a".repeat(EMAIL_LOCAL_PART_MAX + 1)}@example.com`;
+
+  assert(isValidEmailAddress(under64), "accepts local part under 64 characters");
+  assert(validateEmailField(under64) === null, "validateEmailField accepts local part under 64");
+  assert(isValidEmailAddress(exactly64), "accepts local part of exactly 64 characters");
+  assert(validateEmailField(exactly64) === null, "validateEmailField accepts local part of exactly 64");
+  assert(!isValidEmailAddress(over64), "rejects local part over 64 characters so OTP is not requested");
+  assert(
+    validateEmailField(over64) === EMAIL_FORMAT_MESSAGE,
+    "over-64 local part shows Please enter a valid email address.",
+  );
+}
+
+console.log("\nCommunity setup name length");
+{
+  const base = {
+    regionId: "1",
+    address: "100 Palm Ave, Miami, FL",
+    regionsLoaded: true,
+  };
+  const under = validateCommunitySetupForm({ ...base, name: "Palm Court HOA" });
+  assertNoErrors(under, "accepts a community name under 25 characters");
+
+  const exactly = validateCommunitySetupForm({
+    ...base,
+    name: "A".repeat(COMMUNITY_SETUP_NAME_MAX),
+  });
+  assertNoErrors(exactly, "accepts a community name of exactly 25 characters");
+
+  const over = validateCommunitySetupForm({
+    ...base,
+    name: "A".repeat(COMMUNITY_SETUP_NAME_MAX + 1),
+  });
+  assert(over.name === COMMUNITY_SETUP_NAME_MAX_MESSAGE, "rejects more than 25 characters");
+}
+
+console.log("\nCommunity admin OTP challenge persistence");
+{
+  const memory = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => memory.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      memory.set(key, value);
+    },
+    removeItem: (key: string) => {
+      memory.delete(key);
+    },
+  };
+  const now = Date.parse("2026-09-17T12:00:00.000Z");
+  const expiresAt = "2026-09-17T12:05:00.000Z";
+  const resendAvailableAt = "2026-09-17T12:01:00.000Z";
+
+  persistRegisterOtpChallenge(
+    {
+      email: "Admin.Restore@example.com",
+      intent: "signup",
+      expiresAt,
+      resendAvailableAt,
+      code: "123456",
+    } as never,
+    storage,
+  );
+  assert(storage.getItem(REGISTER_OTP_CHALLENGE_KEY) === null, "refuses to persist an OTP code");
+
+  persistRegisterOtpChallenge(
+    { email: "Admin.Restore@example.com", intent: "signup", expiresAt, resendAvailableAt },
+    storage,
+  );
+  const stored = readRegisterOtpChallenge(storage, now);
+  assert(stored?.email === "admin.restore@example.com", "restores the email being verified");
+  assert(stored?.expiresAt === expiresAt, "restores the original expiry timestamp");
+  assert(isPersistedChallengeFresh(stored!, now), "keeps a still-valid challenge");
+  assert(!JSON.stringify(stored).includes("123456"), "never stores the OTP code");
+  assert(
+    rateLimitFromPersistedChallenge(stored!, now).retry_after_seconds === 60,
+    "restores the original resend cooldown",
+  );
+
+  const later = Date.parse("2026-09-17T12:00:20.000Z");
+  assert(
+    rateLimitFromPersistedChallenge(stored!, later).retry_after_seconds === 40,
+    "refresh does not reset the resend cooldown",
+  );
+
+  persistRegisterOtpChallenge(
+    { email: "admin.restore@example.com", intent: "signup", expiresAt, resendAvailableAt },
+    storage,
+  );
+  assert(
+    readRegisterOtpChallenge(storage, Date.parse("2026-09-17T12:05:01.000Z")) === null,
+    "clears expired verification state",
+  );
+
+  persistRegisterOtpChallenge(
+    { email: "admin.restore@example.com", intent: "signup", expiresAt, resendAvailableAt },
+    storage,
+  );
+  clearRegisterOtpChallenge(storage);
+  assert(readRegisterOtpChallenge(storage, now) === null, "clears persisted state after logout/expiry");
+
+  const availableAt = resendAvailableAtFromRateLimit({ retry_after_seconds: 45 }, now);
+  assert(availableAt === "2026-09-17T12:00:45.000Z", "derives resend availability from server rate limit");
+
+  const cookieRaw = encodeURIComponent(
+    JSON.stringify({ email: "admin.restore@example.com", intent: "signup", expiresAt, resendAvailableAt }),
+  );
+  assert(
+    parseRegisterOtpChallengeCookie(cookieRaw, now)?.email === "admin.restore@example.com",
+    "SSR cookie restores verify-code state without a flicker fetch",
+  );
 }
 
 console.log("\nInvite member validation");

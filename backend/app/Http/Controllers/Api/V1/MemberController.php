@@ -435,15 +435,22 @@ class MemberController extends Controller
         }
 
         $query = DB::table('activity_logs')
-            ->where('user_id', $id)
             ->where('log_type', 'user')
+            ->where(function ($q) use ($id) {
+                $q->where('user_id', $id)
+                    ->orWhere(function ($inner) use ($id) {
+                        $inner->where('entity_type', 'User')->where('entity_id', $id);
+                    })
+                    ->orWhere('meta->affected_user_id', $id);
+            })
             ->orderByDesc('created_at');
 
         if ($search = trim((string) $request->input('search', ''))) {
             $query->where(function ($q) use ($search) {
                 $q->where('description', 'like', "%{$search}%")
                     ->orWhere('action', 'like', "%{$search}%")
-                    ->orWhere('entity_type', 'like', "%{$search}%");
+                    ->orWhere('entity_type', 'like', "%{$search}%")
+                    ->orWhere('meta', 'like', "%{$search}%");
             });
         }
 
@@ -836,7 +843,17 @@ class MemberController extends Controller
             );
         }
 
-        ActivityLogService::user('member_approved', "Approved membership for {$user->name}", 'User', $id);
+        ActivityLogService::recordStatusChange(
+            'member_approved',
+            'User',
+            $id,
+            $membership->status,
+            'approved',
+            'Status',
+            $user->name ?? null,
+            $id,
+            ['related_item' => $user->name ?? null],
+        );
         NotificationService::send($id, 'success', 'Membership Approved', 'Your membership has been approved. Welcome to the community!');
 
         if (($membership->status ?? '') !== 'approved') {
@@ -901,11 +918,17 @@ class MemberController extends Controller
 
         $communityName = Community::query()->where('id', $communityId)->value('name') ?? 'your community';
 
-        ActivityLogService::user(
+        ActivityLogService::recordChanges(
             'member_rejected',
-            "Rejected membership for {$user->name}: {$reason}",
             'User',
             $id,
+            [
+                ['field' => 'Status', 'key' => 'status', 'previous' => $membership->status, 'next' => 'rejected'],
+                ['field' => 'Rejection Reason', 'key' => 'rejection_reason', 'previous' => $membership->rejection_reason ?? null, 'next' => $reason],
+            ],
+            $user->name ?? null,
+            $id,
+            ['related_item' => $user->name ?? null],
             'warning',
         );
 
@@ -957,6 +980,7 @@ class MemberController extends Controller
         }
 
         $user = User::query()->findOrFail($id);
+        $previousStatus = $user->status;
 
         DB::transaction(function () use ($id, $communityId, $user) {
             DB::table('community_memberships')
@@ -974,7 +998,18 @@ class MemberController extends Controller
             CommunityLifecycleService::ACCOUNT_SUSPENDED_MESSAGE,
         );
 
-        ActivityLogService::user('member_suspended', "Suspended account of {$user->name}", 'User', $id, 'warning');
+        ActivityLogService::recordStatusChange(
+            'member_suspended',
+            'User',
+            $id,
+            $previousStatus,
+            'suspended',
+            'Status',
+            $user->name,
+            $id,
+            ['related_item' => $user->name],
+            'warning',
+        );
 
         return response()->json(['message' => 'Member suspended']);
     }

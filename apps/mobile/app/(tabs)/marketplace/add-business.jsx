@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { MarketplaceType } from "../../../constants/marketplace-type";
+import { MARKETPLACE_FORM_GUTTER } from "../../../constants/marketplace-theme";
+import { marketplaceTextArea } from "../../../constants/marketplace-form-fields";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from "react-native";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { Image } from "expo-image";
@@ -9,7 +11,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import KeyboardSafeScreen, {
-  useScrollFieldIntoView,
+  useScrollFieldRefIntoView,
 } from "../../../components/layout/keyboard-safe-screen";
 import { pickImage } from "../../../utils/pickImage";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
@@ -32,7 +34,50 @@ import { validateBusinessForm, LIMITS, hasFieldErrors } from "../../../utils/for
 
 const INPUT_HEIGHT = 40;
 const INPUT_FONT = MarketplaceType.caption;
-const INPUT_LINE = MarketplaceType.captionLine;
+const PLACEHOLDER_COLOR = "rgba(153, 161, 175, 1)";
+
+function CenteredFieldPlaceholder({ visible, text, multiline = false }) {
+  if (!visible || !text) return null;
+  return (
+    <View
+      pointerEvents="none"
+      style={[styles.placeholderOverlay, multiline && styles.placeholderOverlayMultiline]}
+    >
+      <Text style={styles.placeholderOverlayText} numberOfLines={multiline ? 3 : 1}>
+        {text}
+      </Text>
+    </View>
+  );
+}
+
+function EditSingleLineField({
+  value,
+  onChangeText,
+  placeholder,
+  error = false,
+  ...inputProps
+}) {
+  const empty = !String(value ?? "").length;
+  return (
+    <View style={[styles.inputBox, error && styles.inputError]}>
+      <LocaleTextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder=""
+        placeholderTextColor={PLACEHOLDER_COLOR}
+        style={[styles.inputText, styles.editSingleLineInput]}
+        {...inputProps}
+      />
+      {empty ? (
+        <View pointerEvents="none" style={styles.editPlaceholderWrap}>
+          <Text style={styles.editPlaceholderText} numberOfLines={1}>
+            {placeholder}
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 export default function AddBusinessScreen() {
   const { t } = useTranslation();
@@ -55,8 +100,16 @@ export default function AddBusinessScreen() {
   const [loading, setLoading] = useState(isEdit);
   const [editForbidden, setEditForbidden] = useState(false);
   const scrollRef = useRef(null);
-  const descriptionOffsetY = useRef(0);
-  const scrollFieldIntoView = useScrollFieldIntoView(scrollRef);
+  const descriptionBlockRef = useRef(null);
+  const descriptionFocusedRef = useRef(false);
+  const { scrollIntoView, onScroll, clearPending } = useScrollFieldRefIntoView(scrollRef, {
+    footerHeight: 96,
+    topPad: 20,
+  });
+  const keepDescriptionVisible = useCallback(() => {
+    if (!descriptionFocusedRef.current) return;
+    scrollIntoView(descriptionBlockRef);
+  }, [scrollIntoView]);
   const { submitting, run } = useSubmitLock();
   const { runAction, showFailure } = useApiAction();
 
@@ -214,6 +267,7 @@ export default function AddBusinessScreen() {
         footerBorderless
         footerStyle={styles.bottomWrap}
         keyboardFieldGap={24}
+        scrollProps={{ onScroll, scrollEventThrottle: 16 }}
         footer={
           <TouchableOpacity
             activeOpacity={0.88}
@@ -261,29 +315,47 @@ export default function AddBusinessScreen() {
         <Text style={[styles.label, styles.sectionTop]}>
           {t("marketplace.businessName")} <Text style={styles.required}>*</Text>
         </Text>
+        {isEdit ? (
+          <EditSingleLineField
+            value={business}
+            onChangeText={(v) => { setBusiness(v); touch("business"); clearError("business"); }}
+            placeholder={t("marketplace.placeholderBusinessName")}
+            error={!!showError("business", liveErrors)}
+          />
+        ) : (
         <View style={[styles.inputBox, showError("business", liveErrors) && styles.inputError]}>
           <LocaleTextInput
             value={business}
             onChangeText={(v) => { setBusiness(v); touch("business"); clearError("business"); }}
             placeholder={t("marketplace.placeholderBusinessName")}
-            placeholderTextColor="rgba(153, 161, 175, 1)"
+            placeholderTextColor={PLACEHOLDER_COLOR}
             style={styles.inputText}
           />
         </View>
+        )}
         {showError("business", liveErrors) ? <Text style={styles.errorText}>{showError("business", liveErrors)}</Text> : null}
 
         <Text style={[styles.label, styles.sectionTop]}>
           {t("marketplace.category")} <Text style={styles.required}>*</Text>
         </Text>
+        {isEdit ? (
+          <EditSingleLineField
+            value={category}
+            onChangeText={(v) => { setCategory(v); touch("category"); clearError("category"); }}
+            placeholder={t("marketplace.placeholderCategory")}
+            error={!!showError("category", liveErrors)}
+          />
+        ) : (
         <View style={[styles.inputBox, showError("category", liveErrors) && styles.inputError]}>
           <LocaleTextInput
             value={category}
             onChangeText={(v) => { setCategory(v); touch("category"); clearError("category"); }}
             placeholder={t("marketplace.placeholderCategory")}
-            placeholderTextColor="rgba(153, 161, 175, 1)"
+            placeholderTextColor={PLACEHOLDER_COLOR}
             style={styles.inputText}
           />
         </View>
+        )}
         {showError("category", liveErrors) ? <Text style={styles.errorText}>{showError("category", liveErrors)}</Text> : null}
 
         <View
@@ -301,15 +373,24 @@ export default function AddBusinessScreen() {
             {t("marketplace.address")} <Text style={styles.required}>*</Text>
           </Text>
         </View>
+        {isEdit ? (
+          <EditSingleLineField
+            value={address}
+            onChangeText={(v) => { setAddress(v); touch("address"); clearError("address"); }}
+            placeholder={t("marketplace.placeholderAddress")}
+            error={!!showError("address", liveErrors)}
+          />
+        ) : (
         <View style={[styles.inputBox, showError("address", liveErrors) && styles.inputError]}>
           <LocaleTextInput
             value={address}
             onChangeText={(v) => { setAddress(v); touch("address"); clearError("address"); }}
             placeholder={t("marketplace.placeholderAddress")}
-            placeholderTextColor="rgba(153, 161, 175, 1)"
+            placeholderTextColor={PLACEHOLDER_COLOR}
             style={styles.inputText}
           />
         </View>
+        )}
         {showError("address", liveErrors) ? <Text style={styles.errorText}>{showError("address", liveErrors)}</Text> : null}
 
         <Text style={[styles.label, styles.sectionTop]}>
@@ -319,6 +400,7 @@ export default function AddBusinessScreen() {
           value={phoneDigits}
           country={phoneCountry}
           showError={!!showError("phone", liveErrors)}
+          centerPlaceholder={isEdit}
           onChangePhone={({ digits, country, e164 }) => {
             setPhoneDigits(digits);
             setPhoneCountry(country);
@@ -338,14 +420,16 @@ export default function AddBusinessScreen() {
         />
         {showError("hours", liveErrors) ? <Text style={styles.errorText}>{showError("hours", liveErrors)}</Text> : null}
 
-        <View
-          onLayout={(e) => {
-            descriptionOffsetY.current = e.nativeEvent.layout.y;
-          }}
-        >
+        <View ref={descriptionBlockRef} collapsable={false}>
           <Text style={[styles.label, styles.sectionTop]}>
             {t("marketplace.description")} <Text style={styles.required}>*</Text>
           </Text>
+          <View style={styles.textAreaSpacing}>
+          <CenteredFieldPlaceholder
+            visible={isEdit && !description}
+            text={t("marketplace.placeholderDescription")}
+            multiline
+          />
           <LocaleTextInput
             value={description}
             onChangeText={(v) => {
@@ -353,14 +437,24 @@ export default function AddBusinessScreen() {
               touch("description");
               clearError("description");
             }}
-            placeholder={t("marketplace.placeholderDescription")}
-            placeholderTextColor="rgba(153, 161, 175, 1)"
-            style={[styles.textArea, showError("description", liveErrors) && styles.inputError]}
+            placeholder={isEdit ? undefined : t("marketplace.placeholderDescription")}
+            placeholderTextColor={PLACEHOLDER_COLOR}
+            style={[marketplaceTextArea, showError("description", liveErrors) && styles.inputError]}
             multiline
+            scrollEnabled
             maxLength={maxDescriptionLength}
             textAlignVertical="top"
-            onFocus={() => scrollFieldIntoView(descriptionOffsetY.current)}
+            onFocus={() => {
+              descriptionFocusedRef.current = true;
+              keepDescriptionVisible();
+            }}
+            onBlur={() => {
+              descriptionFocusedRef.current = false;
+              clearPending();
+            }}
+            onContentSizeChange={keepDescriptionVisible}
           />
+          </View>
           {showError("description", liveErrors) ? (
             <Text style={styles.errorText}>{showError("description", liveErrors)}</Text>
           ) : null}
@@ -372,16 +466,23 @@ export default function AddBusinessScreen() {
         <Text style={[styles.label, styles.sectionTop]}>
           {t("marketplace.amenitiesCsv")}
         </Text>
+        {isEdit ? (
+          <EditSingleLineField
+            value={amenities}
+            onChangeText={setAmenities}
+            placeholder={t("marketplace.placeholderAmenities")}
+          />
+        ) : (
         <View style={styles.inputBox}>
           <LocaleTextInput
             value={amenities}
             onChangeText={setAmenities}
             placeholder={t("marketplace.placeholderAmenities")}
-            placeholderTextColor="rgba(153, 161, 175, 1)"
+            placeholderTextColor={PLACEHOLDER_COLOR}
             style={styles.inputText}
-            onFocus={() => scrollFieldIntoView()}
           />
         </View>
+        )}
       </KeyboardSafeScreen>
     </SafeAreaView>
   );
@@ -419,7 +520,8 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   contentContainer: {
-    padding: 24,
+    paddingHorizontal: MARKETPLACE_FORM_GUTTER,
+    paddingTop: 24,
     paddingBottom: 40,
   },
   label: {
@@ -479,6 +581,39 @@ const styles = StyleSheet.create({
     borderColor: "#EEF2F6",
     paddingHorizontal: 16,
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  editSingleLineInput: {
+    height: INPUT_FONT + 4,
+  },
+  editPlaceholderWrap: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
+  },
+  editPlaceholderText: {
+    fontFamily: Fonts.regular,
+    fontSize: INPUT_FONT,
+    lineHeight: INPUT_FONT + 2,
+    color: PLACEHOLDER_COLOR,
+    includeFontPadding: false,
+  },
+  placeholderOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  placeholderOverlayMultiline: {
+    paddingHorizontal: 16,
+    paddingVertical: 0,
+  },
+  placeholderOverlayText: {
+    fontFamily: Fonts.regular,
+    fontSize: INPUT_FONT,
+    color: PLACEHOLDER_COLOR,
   },
   inputText: {
     width: "100%",
@@ -488,7 +623,6 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
     fontFamily: Fonts.regular,
     fontSize: INPUT_FONT,
-    lineHeight: INPUT_LINE,
     color: "#111827",
     includeFontPadding: false,
     textAlignVertical: "center",
@@ -498,21 +632,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
   },
-  textArea: {
+  textAreaSpacing: {
     marginTop: 8,
-    minHeight: 100,
-    borderRadius: 10,
-    backgroundColor: "rgba(249, 250, 251, 1)",
-    borderWidth: 1,
-    borderColor: "#EEF2F6",
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    fontFamily: Fonts.regular,
-    fontSize: MarketplaceType.caption,
-    lineHeight: MarketplaceType.captionLine,
-    color: "#111827",
-    includeFontPadding: false,
-    textAlignVertical: "top",
   },
   counterText: {
     marginTop: 8,
@@ -577,7 +698,7 @@ const styles = StyleSheet.create({
     fontWeight: 700,
   },
   bottomWrap: {
-    paddingHorizontal: 6,
+    paddingHorizontal: MARKETPLACE_FORM_GUTTER,
     paddingTop: 8,
     paddingBottom: 0,
     backgroundColor: "#FFFFFF",

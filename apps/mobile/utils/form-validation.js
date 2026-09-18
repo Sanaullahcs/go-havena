@@ -32,6 +32,10 @@ export const LIMITS = {
   dealDiscount: 60,
   dealCategory: 60,
   dealDescription: 2000,
+  dealMenuItemName: 120,
+  dealMenuItemDescription: 500,
+  dealMenuItemPrice: 40,
+  dealMenuItemsMax: 50,
   communityName: 150,
   communityAddress: 255,
   communityDescription: 1000,
@@ -409,6 +413,33 @@ export function validateDealForm(form, { businessStatus, isAdmin = false } = {})
 
   if (!form.hasImage) {
     errors.image = i18n.t("validation.dealImageRequired");
+  }
+
+  return errors;
+}
+
+export function validateDealMenuItem(form = {}) {
+  const errors = {};
+
+  const nameErr = requiredText(form.name, "validation.fields.menuItemName", {
+    max: LIMITS.dealMenuItemName,
+  });
+  if (nameErr) errors.name = nameErr;
+
+  const description = String(form.description ?? "").trim();
+  if (description.length > LIMITS.dealMenuItemDescription) {
+    errors.description = i18n.t("validation.maxChars", {
+      field: i18n.t("validation.fields.description"),
+      max: LIMITS.dealMenuItemDescription,
+    });
+  }
+
+  const price = String(form.price ?? "").trim();
+  if (price.length > LIMITS.dealMenuItemPrice) {
+    errors.price = i18n.t("validation.maxChars", {
+      field: i18n.t("validation.fields.price"),
+      max: LIMITS.dealMenuItemPrice,
+    });
   }
 
   return errors;

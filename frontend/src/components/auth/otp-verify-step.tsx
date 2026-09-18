@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OtpInput } from "@/components/auth/otp-input";
 import { LoadingButton, InlineLoader } from "@/components/shared/loaders";
-import { OTP_EXPIRE_MINUTES } from "@/lib/auth/otp-config";
+import { formatOtpCountdown, OTP_EXPIRE_MINUTES } from "@/lib/auth/otp-config";
 import { normalizeOtpRateLimit } from "@/lib/auth/otp-rate-limit";
 import { useOtpResendLimit } from "@/hooks/use-otp-resend-limit";
 
@@ -12,13 +12,22 @@ type OtpVerifyStepProps = {
   otp: string;
   onOtpChange: (value: string) => void;
   onVerify: (code: string) => void | Promise<void>;
-  onResend: () => void | Promise<{ rate_limit?: unknown } | void>;
+  onResend: () => void | Promise<{ rate_limit?: unknown; expires_at?: string | null } | void>;
   sending?: boolean;
   verifying?: boolean;
   error?: boolean;
   verifyLabel?: string;
   initialRateLimit?: unknown;
+  expiresAt?: string | null;
+  onExpired?: () => void;
 };
+
+function remainingExpirySeconds(expiresAt?: string | null, now = Date.now()): number | null {
+  if (!expiresAt) return null;
+  const expires = Date.parse(expiresAt);
+  if (!Number.isFinite(expires)) return null;
+  return Math.max(0, Math.ceil((expires - now) / 1000));
+}
 
 const RESEND_NOTICE_MS = 2500;
 
@@ -33,6 +42,8 @@ export function OtpVerifyStep({
   error = false,
   verifyLabel = "Continue",
   initialRateLimit = null,
+  expiresAt = null,
+  onExpired,
 }: OtpVerifyStepProps) {
   const {
     canResend,
@@ -44,6 +55,7 @@ export function OtpVerifyStep({
   const [resending, setResending] = useState(false);
   const [resendNotice, setResendNotice] = useState(false);
   const verifyOnce = useRef(false);
+  const expiredOnce = useRef(false);
   const noticeTimer = useRef<number | null>(null);
   const busy = verifying || resending;
   const verifyDisabled = lockType === "security";
@@ -62,6 +74,27 @@ export function OtpVerifyStep({
   useEffect(() => {
     if (!verifying) verifyOnce.current = false;
   }, [verifying]);
+
+  const [expirySeconds, setExpirySeconds] = useState(() => remainingExpirySeconds(expiresAt));
+
+  useEffect(() => {
+    expiredOnce.current = false;
+    setExpirySeconds(remainingExpirySeconds(expiresAt));
+  }, [expiresAt]);
+
+  useEffect(() => {
+    if (expirySeconds === null || expirySeconds > 0 || expiredOnce.current) return;
+    expiredOnce.current = true;
+    onExpired?.();
+  }, [expirySeconds, onExpired]);
+
+  useEffect(() => {
+    if (expirySeconds === null || expirySeconds <= 0) return undefined;
+    const timer = window.setTimeout(() => {
+      setExpirySeconds((current) => (current === null ? null : Math.max(0, current - 1)));
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [expirySeconds]);
 
   useEffect(
     () => () => {
@@ -172,7 +205,7 @@ export function OtpVerifyStep({
         <>
           <p className="rounded-xl border border-slate-100 bg-slate-50/80 px-3.5 py-2.5 text-[13px] text-slate-600">
             Code sent to{" "}
-            <span className="font-semibold text-slate-900">{destination}</span>
+            <span className="font-semibold break-all text-slate-900">{destination}</span>
           </p>
           <OtpInput
             value={otp}
@@ -206,7 +239,11 @@ export function OtpVerifyStep({
 
       <div className="space-y-2 text-center">
         <p className="text-[12px] text-slate-500">
-          This code will expire in {OTP_EXPIRE_MINUTES} minutes
+          {expirySeconds === null
+            ? `This code will expire in ${OTP_EXPIRE_MINUTES} minutes`
+            : expirySeconds > 0
+              ? `This code expires in ${formatOtpCountdown(expirySeconds)}`
+              : "This code has expired"}
         </p>
         {resendFooter}
       </div>

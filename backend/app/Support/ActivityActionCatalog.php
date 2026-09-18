@@ -40,6 +40,30 @@ class ActivityActionCatalog
         'event_submitted'     => 'Submitted an event',
         'alert_created'       => 'Sent an alert',
         'profile_updated'     => 'Updated profile',
+        'community_admin_updated' => 'Updated community admin',
+        'community_admin_approved' => 'Approved community admin',
+        'community_admin_rejected' => 'Rejected community admin',
+        'community_admin_suspended' => 'Suspended community admin',
+        'community_admin_assigned' => 'Assigned community admin',
+        'community_updated'   => 'Updated a community',
+        'community_deactivated' => 'Deactivated a community',
+        'community_reactivated' => 'Reactivated a community',
+        'member_approved'     => 'Approved a member',
+        'member_rejected'     => 'Rejected a member',
+        'member_suspended'    => 'Suspended a member',
+        'amenity_updated'     => 'Updated an amenity',
+        'amenity_approved'    => 'Approved an amenity',
+        'amenity_rejected'    => 'Rejected an amenity',
+        'notice_updated'      => 'Updated a notice',
+        'post_updated'        => 'Updated a post',
+        'region_updated'      => 'Updated a region',
+        'community_rule_updated' => 'Updated a community rule',
+        'community_document_updated' => 'Updated a document',
+        'plaid_bank_connected' => 'Bank connected',
+        'plaid_bank_disconnected' => 'Bank disconnected',
+        'plaid_bank_replaced' => 'Bank replaced',
+        'plaid_connection_error' => 'Bank connection error',
+        'plaid_reconnected' => 'Bank reconnection completed',
     ];
 
     public static function label(string $action): string
@@ -101,6 +125,31 @@ class ActivityActionCatalog
             $status = $liveStatus;
         }
 
+        $changes = [];
+        if (is_array($meta) && isset($meta['changes']) && is_array($meta['changes'])) {
+            foreach ($meta['changes'] as $change) {
+                if (! is_array($change)) {
+                    continue;
+                }
+                $changes[] = [
+                    'field'    => (string) ($change['field'] ?? ''),
+                    'key'      => isset($change['key']) ? (string) $change['key'] : null,
+                    'previous' => (string) ($change['previous'] ?? ''),
+                    'next'     => (string) ($change['next'] ?? ''),
+                ];
+            }
+        }
+
+        $performedBy = self::performedByFromMeta(is_array($meta) ? $meta : null)
+            ?? self::fallbackPerformedBy($log, is_array($meta) ? $meta : null);
+
+        $affectedUser = null;
+        if (is_array($meta) && ! empty($meta['affected_user_name'])) {
+            $affectedUser = (string) $meta['affected_user_name'];
+        } elseif (is_array($meta) && ! empty($meta['affected_user']['name'])) {
+            $affectedUser = (string) $meta['affected_user']['name'];
+        }
+
         return [
             'id'            => (int) $log->id,
             'action'        => (string) $log->action,
@@ -113,7 +162,71 @@ class ActivityActionCatalog
             'severity'      => (string) ($log->severity ?? 'info'),
             'ip_address'    => $log->ip_address ?? null,
             'created_at'    => (string) $log->created_at,
+            'changes'       => $changes,
+            'performed_by'  => $performedBy,
+            'affected_user' => $affectedUser,
+            'affected_user_id' => is_array($meta) && isset($meta['affected_user_id'])
+                ? (int) $meta['affected_user_id']
+                : null,
+            'actor_role_label' => is_array($meta) && ! empty($meta['actor_role_label'])
+                ? (string) $meta['actor_role_label']
+                : null,
+            'module'        => $log->entity_type ?? (is_array($meta) ? ($meta['module'] ?? null) : null),
+            'meta'          => is_array($meta) ? $meta : null,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $meta
+     */
+    public static function performedByFromMeta(?array $meta): ?string
+    {
+        if (! $meta) {
+            return null;
+        }
+
+        if (is_string($meta['performed_by'] ?? null) && $meta['performed_by'] !== '') {
+            return $meta['performed_by'];
+        }
+
+        if (is_array($meta['performed_by'] ?? null) && ! empty($meta['performed_by']['name'])) {
+            $role = \App\Services\ActivityLogService::roleLabel($meta['performed_by']['role'] ?? null);
+            $name = (string) $meta['performed_by']['name'];
+
+            return $role.', '.$name;
+        }
+
+        if (! empty($meta['actor_name'])) {
+            $role = (string) ($meta['actor_role_label'] ?? '');
+            $name = (string) $meta['actor_name'];
+
+            return $role !== '' ? $role.', '.$name : $name;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $meta
+     */
+    public static function fallbackPerformedBy(object $log, ?array $meta): ?string
+    {
+        if (is_array($meta) && ! empty($meta['actor_name'])) {
+            $role = (string) ($meta['actor_role_label'] ?? '');
+            $name = (string) $meta['actor_name'];
+
+            return $role !== '' ? $role.', '.$name : $name;
+        }
+
+        $name = $log->user_name ?? $log->actor_name ?? null;
+        $role = $log->user_role ?? $log->actor_role ?? null;
+        if (! $name) {
+            return $log->log_type === 'system' ? 'System' : null;
+        }
+
+        $roleLabel = \App\Services\ActivityLogService::roleLabel(is_string($role) ? $role : null);
+
+        return $roleLabel.', '.$name;
     }
 
     public static function resolveLiveEntityStatus(?string $entityType, ?int $entityId): ?string

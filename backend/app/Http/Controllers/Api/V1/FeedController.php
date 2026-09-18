@@ -268,15 +268,20 @@ class FeedController extends Controller
             $data['image_url'] = MediaUrl::normalize($request->image_url);
         }
 
+        $fields = ['body', 'body_es', 'body_ar', 'category', 'image_url'];
+        $before = ActivityLogService::snapshot($post, $fields);
         DB::table('posts')->where('id', $id)->update($data);
+        $fresh = (object) array_merge((array) $post, $data);
 
-        ActivityLogService::user(
+        ActivityLogService::recordUpdate(
             'post_updated',
-            'Updated a community post',
             'Post',
             $id,
-            'info',
+            $before,
+            ActivityLogService::snapshot($fresh, $fields),
+            [],
             null,
+            (int) $user->id,
             ['related_item' => \Illuminate\Support\Str::limit((string) ($data['body'] ?? $post->body ?? ''), 80)],
         );
 

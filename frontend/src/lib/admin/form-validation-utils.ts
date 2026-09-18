@@ -1,6 +1,21 @@
 export type FieldErrors = Partial<Record<string, string>>;
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const EMAIL_LOCAL_PART_MAX = 64;
+export const EMAIL_FORMAT_MESSAGE = "Please enter a valid email address.";
+
+export function emailLocalPart(email: string): string {
+  const value = email.trim();
+  const at = value.indexOf("@");
+  return at === -1 ? "" : value.slice(0, at);
+}
+
+export function isValidEmailAddress(email: string): boolean {
+  const value = email.trim();
+  if (!EMAIL_RE.test(value)) return false;
+  const local = emailLocalPart(value);
+  return local.length > 0 && local.length <= EMAIL_LOCAL_PART_MAX;
+}
 
 export function hasFieldErrors(errors: FieldErrors): boolean {
   return Object.keys(errors).length > 0;
@@ -18,7 +33,7 @@ export function validateEmailField(email: string): string | null {
   const value = email.trim();
   if (!value) return "Email address is required.";
   if (value.length > 255) return "Email must be 255 characters or less.";
-  if (!EMAIL_RE.test(value)) return "Enter a valid email address.";
+  if (!isValidEmailAddress(value)) return EMAIL_FORMAT_MESSAGE;
   if (value.toLowerCase().endsWith("@phone.havena.local")) {
     return "Enter a personal email address.";
   }

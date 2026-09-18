@@ -11,6 +11,7 @@ import {
   validateBusinessForm,
   validateListingForm,
   validateDealForm,
+  validateDealMenuItem,
   validateCommunityRequestForm,
   validateInviteCodeForm,
   validateInviteMemberForm,
@@ -435,6 +436,26 @@ console.log("\nDeal validation");
     { businessStatus: "approved" },
   );
   assertNoErrors(ok, "valid deal");
+}
+
+console.log("\nDeal menu item validation");
+{
+  const empty = validateDealMenuItem({ name: "", description: "", price: "" });
+  assertHasError(empty, "name", "menu item name required");
+
+  const tooLong = validateDealMenuItem({
+    name: "A".repeat(121),
+    description: "B".repeat(501),
+    price: "C".repeat(41),
+  });
+  assertHasError(tooLong, "name", "menu item name max");
+  assertHasError(tooLong, "description", "menu item description max");
+  assertHasError(tooLong, "price", "menu item price max");
+
+  assertNoErrors(
+    validateDealMenuItem({ name: "Avocado Toast", description: "Sourdough", price: "$8.50" }),
+    "valid menu item",
+  );
 }
 
 console.log("\nGuest invite validation");

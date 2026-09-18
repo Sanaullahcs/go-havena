@@ -135,6 +135,13 @@ export async function fetchMember(id: number, communityId?: number) {
   return res.data.data as Member;
 }
 
+export type MemberActivityChange = {
+  field: string;
+  key?: string | null;
+  previous: string;
+  next: string;
+};
+
 export type MemberActivityLog = {
   id: number;
   action: string;
@@ -147,6 +154,9 @@ export type MemberActivityLog = {
   severity: string;
   ip_address: string | null;
   created_at: string;
+  changes?: MemberActivityChange[];
+  performed_by?: string | null;
+  affected_user?: string | null;
 };
 
 export type MemberActivityMeta = {

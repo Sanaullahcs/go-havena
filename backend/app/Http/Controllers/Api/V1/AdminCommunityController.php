@@ -34,7 +34,7 @@ class AdminCommunityController extends Controller
 
         if (! $request->has('per_page') && ! $request->has('page') && ! $request->filled('review_status')) {
             $communities = Community::query()
-                ->with('regionRecord')
+                ->with(['regionRecord', 'plaidConnection'])
                 ->where('status', 'active')
                 ->where(function ($w) {
                     $w->whereNull('review_status')
@@ -50,7 +50,7 @@ class AdminCommunityController extends Controller
         }
 
         $query = Community::query()
-            ->with(['regionRecord', 'requester.profile'])
+            ->with(['regionRecord', 'requester.profile', 'plaidConnection'])
             ->withCount($this->residentsCountRelation())
             ->where(function ($w) {
                 $w->whereNull('review_status')
@@ -167,7 +167,7 @@ class AdminCommunityController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Community::query()
-            ->with(['regionRecord', 'requester.profile'])
+            ->with(['regionRecord', 'requester.profile', 'plaidConnection'])
             ->where('review_status', 'pending');
 
         if ($q = $request->string('q')->trim()->toString()) {
@@ -200,7 +200,7 @@ class AdminCommunityController extends Controller
     public function show(int $id): JsonResponse
     {
         $community = Community::query()
-            ->with(['regionRecord', 'requester.profile'])
+            ->with(['regionRecord', 'requester.profile', 'plaidConnection'])
             ->findOrFail($id);
 
         return response()->json(['data' => $this->transform($community, detailed: true)]);
@@ -390,17 +390,22 @@ class AdminCommunityController extends Controller
             exceptCommunityId: $community->id,
         );
 
+        $before = ActivityLogService::snapshot($community, ['name', 'region', 'region_id', 'address', 'description', 'latitude', 'longitude']);
         $validated = CommunityLocation::applyOnUpdate($community, $validated, $geocoding);
         $community->update($validated);
+        $community->refresh()->load(['regionRecord', 'requester.profile']);
 
-        ActivityLogService::user(
+        ActivityLogService::recordUpdate(
             'community_updated',
-            "Updated community: {$community->name}",
             'Community',
             $community->id,
+            $before,
+            ActivityLogService::snapshot($community, ['name', 'region', 'region_id', 'address', 'description', 'latitude', 'longitude']),
+            ['region_id' => 'Region'],
+            null,
+            null,
+            ['related_item' => $community->name],
         );
-
-        $community->refresh()->load(['regionRecord', 'requester.profile']);
 
         return response()->json([
             'data'    => $this->transformListItem($community),
@@ -450,6 +455,8 @@ class AdminCommunityController extends Controller
             ], 422);
         }
 
+        $previousStatus = $community->status;
+
         if ($validated['status'] === 'inactive') {
             $lifecycle->deactivateCommunity($community);
             $message = 'Community deactivated. All admins and residents in this community can no longer sign in.';
@@ -458,11 +465,16 @@ class AdminCommunityController extends Controller
             $message = 'Community reactivated. Admins and residents restored.';
         }
 
-        ActivityLogService::user(
+        ActivityLogService::recordStatusChange(
             $validated['status'] === 'inactive' ? 'community_deactivated' : 'community_reactivated',
-            ucfirst($validated['status'])." community: {$community->name}",
             'Community',
             $community->id,
+            $previousStatus,
+            $validated['status'],
+            'Status',
+            null,
+            null,
+            ['related_item' => $community->name],
             $validated['status'] === 'inactive' ? 'warning' : 'info',
         );
 
@@ -595,20 +607,24 @@ class AdminCommunityController extends Controller
             ], 422);
         }
 
-        $actor = $request->user();
-        ActivityLogService::user(
+        ActivityLogService::recordChanges(
             'community_admin_assigned',
-            "Assigned {$assigned->name} as admin for {$community->name}",
             'Community',
             $community->id,
-            'info',
-            $actor?->id,
+            [[
+                'field' => 'Community Assignment',
+                'key' => 'community_assignment',
+                'previous' => $previousAdmin?->name,
+                'next' => $assigned->name,
+            ]],
+            $assigned->name,
+            (int) $assigned->id,
             [
                 'community_id' => $community->id,
                 'community_name' => $community->name,
                 'previous_admin' => $this->adminLogSnapshot($previousAdmin),
                 'new_admin' => $this->adminLogSnapshot($assigned),
-                'performed_by' => $this->adminLogSnapshot($actor),
+                'related_item' => $community->name,
                 'performed_at' => now()->toIso8601String(),
             ],
         );
@@ -725,6 +741,7 @@ class AdminCommunityController extends Controller
             ] : null,
             'created_at'     => $community->created_at?->toIso8601String(),
             'reviewed_at'    => $community->reviewed_at?->toIso8601String(),
+            'plaid_connection' => $this->plaidConnectionPayload($community),
         ];
 
         if ($profile && ($detailed || $community->review_status === 'pending')) {
@@ -805,6 +822,17 @@ class AdminCommunityController extends Controller
             'residents_count' => (int) ($community->residents_count ?? 0),
             'created_at'     => $community->created_at?->toIso8601String(),
             'reviewed_at'    => $community->reviewed_at?->toIso8601String(),
+            'plaid_connection' => $this->plaidConnectionPayload($community),
         ];
+    }
+
+    /** @return array<string, mixed> */
+    private function plaidConnectionPayload(Community $community): array
+    {
+        $connection = $community->relationLoaded('plaidConnection')
+            ? $community->plaidConnection
+            : $community->plaidConnection()->first();
+
+        return app(\App\Services\PlaidService::class)->publicStatusForCommunity($connection);
     }
 }

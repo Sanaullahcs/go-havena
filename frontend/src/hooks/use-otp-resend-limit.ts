@@ -14,8 +14,8 @@ export function useOtpResendLimit(initialRateLimit: unknown = null) {
     normalizeOtpRateLimit(initialRateLimit),
   );
   const [secondsLeft, setSecondsLeft] = useState(() => {
-    const normalized = normalizeOtpRateLimit(initialRateLimit);
-    return normalized.retryAfterSeconds > 0 ? normalized.retryAfterSeconds : OTP_RESEND_SECONDS;
+    if (initialRateLimit == null) return OTP_RESEND_SECONDS;
+    return normalizeOtpRateLimit(initialRateLimit).retryAfterSeconds;
   });
 
   const applyRateLimit = useCallback((raw: unknown) => {
@@ -28,7 +28,7 @@ export function useOtpResendLimit(initialRateLimit: unknown = null) {
     }
 
     if (!normalized.locked) {
-      setSecondsLeft(OTP_RESEND_SECONDS);
+      setSecondsLeft(raw == null ? OTP_RESEND_SECONDS : 0);
     }
   }, []);
 

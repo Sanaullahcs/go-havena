@@ -665,9 +665,22 @@ class AmenityController extends Controller
         $data = $this->validateAmenityPayload($request, false);
         $payload = $this->mapAmenityUpdatePayload($data);
         $payload['updated_at'] = now();
+        $fields = ['name', 'name_es', 'name_ar', 'description', 'description_es', 'description_ar', 'status', 'capacity', 'floor', 'hours', 'start_time', 'end_time', 'weekends_available', 'slot_duration_minutes', 'icon_key', 'review_status', 'shared_billing_enabled', 'shared_billing_amount', 'shared_billing_due_day', 'booking_fee'];
+        $before = ActivityLogService::snapshot($amenity, $fields);
         DB::table('amenities')->where('id', $id)->update($payload);
 
-        ActivityLogService::user('amenity_updated', "Updated amenity: \"{$amenity->name}\"", 'Amenity', $id);
+        $fresh = DB::table('amenities')->find($id);
+        ActivityLogService::recordUpdate(
+            'amenity_updated',
+            'Amenity',
+            $id,
+            $before,
+            ActivityLogService::snapshot($fresh, $fields),
+            [],
+            null,
+            $amenity->created_by ? (int) $amenity->created_by : null,
+            ['related_item' => $fresh->name ?? $amenity->name],
+        );
 
         return response()->json([
             'data' => $this->formatAmenity(DB::table('amenities')->find($id), $request->user()->id),
@@ -722,6 +735,19 @@ class AmenityController extends Controller
             'updated_at'       => now(),
         ]);
 
+        ActivityLogService::recordChanges(
+            'amenity_approved',
+            'Amenity',
+            $id,
+            [
+                ['field' => 'Review Status', 'key' => 'review_status', 'previous' => $amenity->review_status, 'next' => 'approved'],
+                ['field' => 'Rejection Reason', 'key' => 'rejection_reason', 'previous' => $amenity->rejection_reason ?? null, 'next' => null],
+            ],
+            null,
+            $amenity->created_by ? (int) $amenity->created_by : null,
+            ['related_item' => $amenity->name],
+        );
+
         if ($amenity->created_by) {
             NotificationService::send(
                 (int) $amenity->created_by,
@@ -760,6 +786,20 @@ class AmenityController extends Controller
             'rejection_reason'  => $reason,
             'updated_at'        => now(),
         ]);
+
+        ActivityLogService::recordChanges(
+            'amenity_rejected',
+            'Amenity',
+            $id,
+            [
+                ['field' => 'Review Status', 'key' => 'review_status', 'previous' => $amenity->review_status, 'next' => 'rejected'],
+                ['field' => 'Rejection Reason', 'key' => 'rejection_reason', 'previous' => $amenity->rejection_reason ?? null, 'next' => $reason],
+            ],
+            null,
+            $amenity->created_by ? (int) $amenity->created_by : null,
+            ['related_item' => $amenity->name],
+            'warning',
+        );
 
         if ($amenity->created_by) {
             NotificationService::send(

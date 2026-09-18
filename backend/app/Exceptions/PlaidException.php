@@ -72,6 +72,24 @@ class PlaidException extends Exception
         );
     }
 
+    public static function notAvailable(): self
+    {
+        return new self(
+            'Plaid bank linking is not available for this community.',
+            'PLAID_NOT_AVAILABLE',
+            403,
+        );
+    }
+
+    public static function notConnected(): self
+    {
+        return new self(
+            'This community does not have a Plaid bank connection.',
+            'PLAID_NOT_CONNECTED',
+            404,
+        );
+    }
+
     public function render(): JsonResponse
     {
         return response()->json([

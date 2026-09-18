@@ -1,5 +1,5 @@
 import React, { forwardRef, useCallback, useMemo } from "react";
-import { TextInput } from "react-native";
+import { Platform, TextInput } from "react-native";
 import { useLanguage } from "../../providers/language-provider";
 import { useInputLocale } from "../../hooks/use-input-locale";
 import { syncKeyboardForFocusedInput } from "../../utils/native-app-locale";
@@ -52,14 +52,14 @@ const LocaleTextInput = forwardRef(function LocaleTextInput(
       keyboardType={keyboardType}
       onFocus={handleFocus}
       textAlign={resolvedTextAlign}
-      textAlignVertical={rest.multiline ? rest.textAlignVertical ?? "top" : "center"}
+      textAlignVertical={
+        rest.multiline ? rest.textAlignVertical ?? "top" : "center"
+      }
       style={[
+        Platform.OS === "android" ? { includeFontPadding: false } : null,
         textInputProps.style,
         style,
-        {
-          textAlign: resolvedTextAlign,
-          textAlignVertical: rest.multiline ? rest.textAlignVertical ?? "top" : "center",
-        },
+        { textAlign: resolvedTextAlign },
       ]}
     />
   );

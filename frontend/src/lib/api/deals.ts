@@ -1,5 +1,12 @@
 import api from "./client";
 
+export interface DealMenuItem {
+  name: string;
+  description?: string | null;
+  price?: string | null;
+  image_url?: string | null;
+}
+
 export interface Deal {
   id: number;
   community_id: number;
@@ -14,6 +21,8 @@ export interface Deal {
   category: string | null;
   location: string | null;
   image_url: string | null;
+  menu_image_url: string | null;
+  menu_items: DealMenuItem[];
   is_featured: boolean;
   status: string;
   is_expired: boolean;
@@ -44,6 +53,8 @@ export interface DealFormData {
   category?: string | null;
   location?: string | null;
   image_url?: string | null;
+  menu_image_url?: string | null;
+  menu_items?: DealMenuItem[];
   is_featured?: boolean;
   status?: string;
   starts_at?: string | null;

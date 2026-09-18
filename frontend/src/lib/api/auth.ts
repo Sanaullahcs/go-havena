@@ -96,16 +96,23 @@ export type CommunityAdminOtpIntent = "login" | "signup";
  * - mode "signup": force signup (register page)
  * - mode "login": login only
  */
+function otpRequestPayload(data: unknown): { rate_limit: unknown; expires_at: string | null } {
+  if (!data || typeof data !== "object") return { rate_limit: null, expires_at: null };
+  const record = data as { data?: { rate_limit?: unknown; expires_at?: unknown } };
+  return {
+    rate_limit: record.data?.rate_limit ?? null,
+    expires_at: typeof record.data?.expires_at === "string" ? record.data.expires_at : null,
+  };
+}
+
 function otpRequestRateLimit(data: unknown): unknown {
-  if (!data || typeof data !== "object") return null;
-  const record = data as { data?: { rate_limit?: unknown } };
-  return record.data?.rate_limit ?? null;
+  return otpRequestPayload(data).rate_limit;
 }
 
 export async function requestCommunityAdminOtp(
   email: string,
   mode: "auto" | "login" | "signup" = "auto",
-): Promise<{ intent: CommunityAdminOtpIntent; rate_limit: unknown }> {
+): Promise<{ intent: CommunityAdminOtpIntent; rate_limit: unknown; expires_at: string | null }> {
   if (mode === "signup") {
     try {
       const res = await api.post("/v1/auth/otp/request", {
@@ -113,7 +120,7 @@ export async function requestCommunityAdminOtp(
         intent: "signup",
         portal: "community_admin_dashboard",
       });
-      return { intent: "signup", rate_limit: otpRequestRateLimit(res.data) };
+      return { intent: "signup", ...otpRequestPayload(res.data) };
     } catch (err) {
       throwAuthError(err);
     }
@@ -125,7 +132,7 @@ export async function requestCommunityAdminOtp(
       intent: "login",
       portal: "community_admin_dashboard",
     });
-    return { intent: "login", rate_limit: otpRequestRateLimit(res.data) };
+    return { intent: "login", ...otpRequestPayload(res.data) };
   } catch (err) {
     if (
       mode === "auto" &&
@@ -138,11 +145,43 @@ export async function requestCommunityAdminOtp(
           intent: "signup",
           portal: "community_admin_dashboard",
         });
-        return { intent: "signup", rate_limit: otpRequestRateLimit(res.data) };
+        return { intent: "signup", ...otpRequestPayload(res.data) };
       } catch (signupErr) {
         throwAuthError(signupErr);
       }
     }
+    throwAuthError(err);
+  }
+}
+
+export type CommunityAdminOtpChallenge = {
+  active: boolean;
+  email: string | null;
+  expires_at: string | null;
+  expires_in_seconds: number;
+  rate_limit: unknown;
+};
+
+export async function getCommunityAdminSignupOtpChallenge(
+  email: string,
+): Promise<CommunityAdminOtpChallenge> {
+  try {
+    const res = await api.get("/v1/auth/otp/challenge", {
+      params: {
+        email,
+        intent: "signup",
+        portal: "community_admin_dashboard",
+      },
+    });
+    const data = (res.data as { data?: Record<string, unknown> } | undefined)?.data ?? {};
+    return {
+      active: Boolean(data.active),
+      email: typeof data.email === "string" ? data.email : null,
+      expires_at: typeof data.expires_at === "string" ? data.expires_at : null,
+      expires_in_seconds: Math.max(0, Number(data.expires_in_seconds ?? 0)),
+      rate_limit: data.rate_limit ?? null,
+    };
+  } catch (err) {
     throwAuthError(err);
   }
 }

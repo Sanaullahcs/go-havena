@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getUser, isPakistanCommunityRegion, isSystemAdminUser } from "@/lib/auth/session";
+import { isPlaidAvailable } from "@/lib/plaid-eligibility";
 import { fetchMessageUnreadCount } from "@/lib/api/messages";
 import { HavenaMark } from "@/components/shared/havena-mark";
 import { NL } from "@/lib/design-tokens";
@@ -227,6 +228,7 @@ function SidebarInner({
   const hideReferAndEarn = isPakistanCommunityRegion(user);
   const communityNav = communityAdminNav
     .filter((item) => !(item.href === "/admin/billing" && user?.access?.billing_exempt))
+    .filter((item) => !(item.href === "/admin/plaid" && !isPlaidAvailable(user)))
     .filter((item) => !(hideReferAndEarn && item.href === "/admin/refer-and-earn"))
     .map((item) =>
       item.href === "/admin/messages" ? { ...item, badge: messageUnread } : item,

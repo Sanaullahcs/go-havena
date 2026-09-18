@@ -19,6 +19,7 @@ import {
   type MemberActivityMeta,
 } from "@/lib/api/members";
 import { formatLogTime, relLogTime } from "@/lib/api/activity-logs";
+import { ActivityAuditDetails } from "@/components/admin/activity/activity-audit-details";
 import { apiError } from "@/lib/api/client";
 import { NL } from "@/lib/design-tokens";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
@@ -235,6 +236,13 @@ function ActivityRow({ log }: { log: MemberActivityLog }) {
             <p className="mt-1 text-[12.5px] leading-relaxed" style={{ color: NL.textSecondary }}>
               {log.description}
             </p>
+            <ActivityAuditDetails
+              performedBy={log.performed_by}
+              affectedUser={log.affected_user}
+              entityType={log.entity_type}
+              entityId={log.entity_id}
+              changes={log.changes}
+            />
           </div>
           {badge && log.status ? (
             <span

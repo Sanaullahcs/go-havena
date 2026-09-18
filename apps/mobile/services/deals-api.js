@@ -90,6 +90,46 @@ export async function uploadDealImage(uri, assetMeta = {}, { asAdmin = false } =
   return { image_url: imageUrl };
 }
 
+/** Upload menu photo and item photos, then return API-ready menu fields. */
+export async function uploadDealMenuAssets(
+  { menuImageFile, existingMenuImageUrl, items } = {},
+  { asAdmin = false } = {},
+) {
+  let menu_image_url = existingMenuImageUrl || null;
+
+  if (menuImageFile?.uri) {
+    const prepared = menuImageFile.uploadPrepared
+      ? menuImageFile
+      : await persistUploadAsset(menuImageFile, "deal-menu");
+    const uploaded = await uploadDealImage(prepared.uri, prepared, { asAdmin });
+    menu_image_url = uploaded.image_url;
+  }
+
+  const menu_items = [];
+  for (const item of items ?? []) {
+    const name = String(item?.name ?? "").trim();
+    if (!name) continue;
+
+    let image_url = item.imageUrl ?? item.image_url ?? null;
+    if (item.imageFile?.uri) {
+      const prepared = item.imageFile.uploadPrepared
+        ? item.imageFile
+        : await persistUploadAsset(item.imageFile, "deal-menu-item");
+      const uploaded = await uploadDealImage(prepared.uri, prepared, { asAdmin });
+      image_url = uploaded.image_url;
+    }
+
+    menu_items.push({
+      name,
+      description: String(item.description ?? "").trim() || null,
+      price: String(item.price ?? "").trim() || null,
+      image_url,
+    });
+  }
+
+  return { menu_image_url, menu_items };
+}
+
 /** Upload deal image, then create the deal. */
 export async function publishDealWithImage(coverImage, payload, { asAdmin = false } = {}) {
   if (!coverImage?.uri) {
@@ -141,6 +181,15 @@ export function normalizeDeal(d) {
     status: d.status,
     statusLabel: dealStatusLabel(d.status, d.is_expired),
     imageUrl: resolveMediaUrl(d.image_url) ?? d.image_url ?? null,
+    menuImageUrl: resolveMediaUrl(d.menu_image_url) ?? d.menu_image_url ?? null,
+    menuItems: Array.isArray(d.menu_items)
+      ? d.menu_items.map((item) => ({
+          name: item?.name ?? "",
+          description: item?.description ?? "",
+          price: item?.price ?? "",
+          imageUrl: resolveMediaUrl(item?.image_url) ?? item?.image_url ?? null,
+        }))
+      : [],
     imageKey: "food-bowl",
   };
 }

@@ -24,6 +24,7 @@ import {
   updateAdminCommunity,
   updateCommunityStatus,
   type AdminCommunity,
+  type AdminCommunityPlaidConnection,
   type AdminCommunityStats,
   type CommunityRequest,
 } from "@/lib/api/communities";
@@ -63,6 +64,30 @@ const emptyForm = {
   longitude: null as number | null,
   description: "",
 };
+
+function PlaidStatusBadge({ connection }: { connection?: AdminCommunityPlaidConnection | null }) {
+  const status = connection?.status ?? "not_connected";
+  if (status === "connected") {
+    return (
+      <div className="space-y-1">
+        <AdminBadge tone="green">Connected</AdminBadge>
+        {connection?.institution_name ? (
+          <p className="max-w-[10rem] truncate text-xs text-slate-500">{connection.institution_name}</p>
+        ) : null}
+      </div>
+    );
+  }
+  if (status === "needs_attention") {
+    return <AdminBadge tone="amber">Needs attention</AdminBadge>;
+  }
+  if (status === "error") {
+    return <AdminBadge tone="red">Error</AdminBadge>;
+  }
+  if (status === "disconnected") {
+    return <AdminBadge tone="slate">Disconnected</AdminBadge>;
+  }
+  return <AdminBadge tone="slate">Not linked</AdminBadge>;
+}
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "—";
@@ -444,6 +469,7 @@ export default function CommunitiesPage() {
                   { label: "Region" },
                   { label: "Residents", center: true },
                   { label: "Community Admin" },
+                  { label: "Bank" },
                   { label: "Status" },
                   { label: "Created" },
                   { label: "", right: true },
@@ -486,6 +512,9 @@ export default function CommunitiesPage() {
                           No Admin Assigned
                         </button>
                       )}
+                    </DtCell>
+                    <DtCell nowrap>
+                      <PlaidStatusBadge connection={item.plaid_connection} />
                     </DtCell>
                     <DtCell nowrap>
                       <AdminBadge tone={item.status === "active" ? "green" : "red"}>

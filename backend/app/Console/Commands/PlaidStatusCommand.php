@@ -17,6 +17,7 @@ class PlaidStatusCommand extends Command
         $this->line('Plaid client ID: '.(filled(config('plaid.client_id')) ? 'set' : 'missing'));
         $this->line('Plaid secret: '.(filled(config('plaid.secret')) ? 'set' : 'missing'));
         $this->line('Plaid configured: '.($plaid->configured() ? 'yes' : 'no'));
+        $this->line('Supported countries: '.implode(', ', config('plaid.supported_country_codes', ['US'])));
 
         if (! $plaid->configured()) {
             $this->newLine();

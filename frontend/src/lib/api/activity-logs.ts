@@ -4,6 +4,13 @@ import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 export type ActivityLogType = "user" | "system";
 export type ActivitySeverity = "info" | "warning" | "error" | "critical";
 
+export type ActivityLogChange = {
+  field: string;
+  key?: string | null;
+  previous: string;
+  next: string;
+};
+
 export type ActivityLog = {
   id: number;
   log_type: ActivityLogType;
@@ -16,6 +23,12 @@ export type ActivityLog = {
   created_at: string;
   user_name: string | null;
   user_role: string | null;
+  changes?: ActivityLogChange[];
+  performed_by?: string | null;
+  affected_user?: string | null;
+  affected_user_id?: number | null;
+  actor_role_label?: string | null;
+  module?: string | null;
 };
 
 export type ActivityLogStats = {

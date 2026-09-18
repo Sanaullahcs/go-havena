@@ -47,11 +47,23 @@ export interface AdminCommunityOption {
   has_admin?: boolean;
 }
 
+export interface AdminCommunityPlaidConnection {
+  connected: boolean;
+  status: string;
+  needs_reconnect?: boolean;
+  institution_name?: string | null;
+  account_name?: string | null;
+  account_mask?: string | null;
+  error_code?: string | null;
+  updated_at?: string | null;
+}
+
 export interface AdminCommunity extends AdminCommunityOption {
   address: string | null;
   latitude?: number | null;
   longitude?: number | null;
   description?: string | null;
+  plaid_connection?: AdminCommunityPlaidConnection | null;
   status: string;
   review_status: CommunityReviewStatus | null;
   rejection_reason: string | null;

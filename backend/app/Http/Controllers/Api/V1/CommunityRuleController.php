@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Services\ActivityLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -325,9 +326,22 @@ class CommunityRuleController extends Controller
         }
 
         $data['updated_at'] = now();
+        $fields = ['title', 'category', 'description', 'severity', 'requires_acknowledgment', 'status'];
+        $before = ActivityLogService::snapshot($rule, $fields);
 
         DB::table('community_rules')->where('id', $id)->update($data);
         $updated = DB::table('community_rules')->find($id);
+        ActivityLogService::recordUpdate(
+            'community_rule_updated',
+            'CommunityRule',
+            $id,
+            $before,
+            ActivityLogService::snapshot($updated, $fields),
+            [],
+            null,
+            null,
+            ['related_item' => $updated->title ?? $rule->title],
+        );
 
         return response()->json([
             'data'    => $this->formatRule($updated, $user->id, true),

@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\BlocksGuestReads;
 use App\Http\Controllers\Controller;
 use App\Services\ActivityLogService;
 use App\Services\AdminRoleService;
+use App\Support\DealMenu;
 use App\Support\MediaUrl;
 use App\Support\NearbyDiscovery;
 use Illuminate\Http\Request;
@@ -267,6 +268,8 @@ class DealController extends Controller
             'category'         => $validated['category'] ?? null,
             'location'         => $validated['location'] ?? null,
             'image_url'        => MediaUrl::normalize($validated['image_url'] ?? null),
+            'menu_image_url'   => MediaUrl::normalize($validated['menu_image_url'] ?? null),
+            'menu_items'       => DealMenu::encode($validated['menu_items'] ?? []),
             'is_featured'      => $isAdmin && (bool) ($validated['is_featured'] ?? false),
             'status'           => 'active',
             'starts_at'        => $validated['starts_at'] ?? null,
@@ -317,19 +320,23 @@ class DealController extends Controller
         if (array_key_exists('image_url', $validated)) {
             $data['image_url'] = MediaUrl::normalize($validated['image_url']);
         }
+        $this->applyMenuUpdates($data, $validated);
 
         $data['updated_at'] = now();
+        $fields = ['title', 'vendor', 'description', 'type', 'discount_label', 'original_price', 'discounted_price', 'promo_code', 'category', 'location', 'status', 'starts_at', 'ends_at', 'business_id', 'image_url', 'menu_image_url', 'menu_items'];
+        $before = ActivityLogService::snapshot($deal, $fields);
 
         DB::table('deals')->where('id', $id)->update($data);
 
         $fresh = DB::table('deals')->where('id', $id)->first();
-
-        ActivityLogService::user(
+        ActivityLogService::recordUpdate(
             'deal_updated',
-            "Updated deal: \"{$deal->title}\"",
             'Deal',
             $id,
-            'info',
+            $before,
+            ActivityLogService::snapshot($fresh, $fields),
+            [],
+            null,
             null,
             [
                 'status' => $fresh->status ?? null,
@@ -458,6 +465,8 @@ class DealController extends Controller
             'category'         => $validated['category'] ?? null,
             'location'         => $validated['location'] ?? null,
             'image_url'        => MediaUrl::normalize($validated['image_url'] ?? null),
+            'menu_image_url'   => MediaUrl::normalize($validated['menu_image_url'] ?? null),
+            'menu_items'       => DealMenu::encode($validated['menu_items'] ?? []),
             'is_featured'      => (bool) ($validated['is_featured'] ?? false),
             'status'           => $validated['status'] ?? 'active',
             'starts_at'        => $validated['starts_at'] ?? null,
@@ -499,15 +508,32 @@ class DealController extends Controller
         if (array_key_exists('image_url', $validated)) {
             $data['image_url'] = MediaUrl::normalize($validated['image_url']);
         }
+        $this->applyMenuUpdates($data, $validated);
         if (array_key_exists('is_featured', $validated)) {
             $data['is_featured'] = (bool) $validated['is_featured'];
         }
 
         $data['updated_at'] = now();
+        $fields = ['title', 'vendor', 'description', 'type', 'discount_label', 'original_price', 'discounted_price', 'promo_code', 'category', 'location', 'status', 'starts_at', 'ends_at', 'image_url', 'menu_image_url', 'menu_items', 'is_featured'];
+        $before = ActivityLogService::snapshot($deal, $fields);
 
         DB::table('deals')->where('id', $id)->update($data);
 
         $fresh = DB::table('deals')->where('id', $id)->first();
+        ActivityLogService::recordUpdate(
+            'deal_updated',
+            'Deal',
+            $id,
+            $before,
+            ActivityLogService::snapshot($fresh, $fields),
+            [],
+            null,
+            null,
+            [
+                'status' => $fresh->status ?? null,
+                'related_item' => $fresh->title ?? $deal->title,
+            ],
+        );
 
         return response()->json(['data' => $this->format($fresh, $request), 'message' => 'Deal updated']);
     }
@@ -515,9 +541,19 @@ class DealController extends Controller
     /** DELETE /v1/admin/deals/{id} */
     public function destroy(int $id)
     {
-        $this->assertCanManageDeal($id);
+        $deal = $this->assertCanManageDeal($id);
 
         DB::table('deals')->where('id', $id)->update(['deleted_at' => now(), 'updated_at' => now()]);
+
+        ActivityLogService::user(
+            'deal_deleted',
+            "Deleted deal: \"{$deal->title}\"",
+            'Deal',
+            $id,
+            'warning',
+            null,
+            ['related_item' => $deal->title],
+        );
 
         return response()->json(['message' => 'Deal deleted']);
     }
@@ -561,7 +597,23 @@ class DealController extends Controller
             'ends_at'          => 'nullable|date',
             'community_id'     => 'nullable|integer|exists:communities,id',
             'business_id'      => 'nullable|integer|exists:businesses,id',
+            'menu_image_url'   => 'nullable|string|max:'.DealMenu::IMAGE_MAX,
+            'menu_items'       => 'nullable|array|max:'.DealMenu::MAX_ITEMS,
+            'menu_items.*.name' => 'required|string|max:'.DealMenu::NAME_MAX,
+            'menu_items.*.description' => 'nullable|string|max:'.DealMenu::DESCRIPTION_MAX,
+            'menu_items.*.price' => 'nullable|string|max:'.DealMenu::PRICE_MAX,
+            'menu_items.*.image_url' => 'nullable|string|max:'.DealMenu::IMAGE_MAX,
         ]);
+    }
+
+    private function applyMenuUpdates(array &$data, array $validated): void
+    {
+        if (array_key_exists('menu_image_url', $validated)) {
+            $data['menu_image_url'] = MediaUrl::normalize($validated['menu_image_url']);
+        }
+        if (array_key_exists('menu_items', $validated)) {
+            $data['menu_items'] = DealMenu::encode($validated['menu_items']);
+        }
     }
 
     private function assertCanManageDealAsOwner(int $id): object
@@ -618,6 +670,8 @@ class DealController extends Controller
             'distance_miles'   => $distanceMiles,
             'is_local'         => $originCommunityId ? $dealCommunityId === $originCommunityId : true,
             'image_url'        => MediaUrl::toPublic($deal->image_url ?? null, $request),
+            'menu_image_url'   => MediaUrl::toPublic($deal->menu_image_url ?? null, $request),
+            'menu_items'       => DealMenu::format($deal->menu_items ?? null, $request),
             'is_featured'      => (bool) $deal->is_featured,
             'is_liked'         => $isLiked,
             'is_saved'         => $isLiked,

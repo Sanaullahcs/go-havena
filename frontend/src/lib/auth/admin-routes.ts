@@ -1,3 +1,4 @@
+import { isPlaidAvailable } from "@/lib/plaid-eligibility";
 import { isCommunityAdminUser, isSystemAdminUser, type WebUser } from "@/lib/auth/session";
 
 /** Routes reserved for system administrators (platform scope). */
@@ -95,6 +96,9 @@ export function resolveAdminPortalRedirect(pathname: string, user: WebUser | nul
   }
 
   if (isCommunityAdminUser(user)) {
+    if (matchesPrefix(pathname, "/admin/plaid") && !isPlaidAvailable(user)) {
+      return "/admin";
+    }
     if (!isSystemAdminRoute(pathname)) return null;
     return "/admin";
   }

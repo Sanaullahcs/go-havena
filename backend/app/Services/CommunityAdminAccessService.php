@@ -19,6 +19,7 @@ class CommunityAdminAccessService
     public function __construct(
         private readonly CommunityBillingService $billing,
         private readonly RegionBillingPolicy $regionBilling,
+        private readonly PlaidEligibilityService $plaidEligibility,
     ) {
     }
 
@@ -186,6 +187,7 @@ class CommunityAdminAccessService
      *   billing_url: string,
      *   billing_exempt: bool,
      *   country_code: ?string,
+     *   plaid_available: bool,
      *   blocking_reasons: string[]
      * }
      */
@@ -275,6 +277,7 @@ class CommunityAdminAccessService
             'billing_complete' => $billingComplete,
             'billing_exempt' => $billingExempt,
             'country_code' => $countryCode,
+            'plaid_available' => $this->plaidEligibility->isCommunityEligible($communityId),
             'can_use_dashboard' => $canUse,
             'can_use_mobile_app' => $canUse,
             'has_linked_community' => $hasCommunity,

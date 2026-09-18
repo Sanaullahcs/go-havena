@@ -34,8 +34,12 @@ class OtpController extends Controller
         ]);
 
         $email = ContactIdentityService::normalizeEmail($validated['email']);
-        if (! $email || ContactIdentityService::isPlaceholderEmail($email)) {
-            $this->failValidation('email', 'Enter a valid email address.', 'INVALID_EMAIL');
+        if (
+            ! $email
+            || ContactIdentityService::isPlaceholderEmail($email)
+            || ! ContactIdentityService::hasValidLocalPart($email)
+        ) {
+            $this->failValidation('email', 'Please enter a valid email address.', 'INVALID_EMAIL');
         }
 
         $intent = $validated['intent'] ?? 'login';
@@ -67,16 +71,62 @@ class OtpController extends Controller
 
         $rateLimit = app(OtpRateLimitService::class);
         $rateLimit->assertCanRequest($email);
-        $otp->send($email);
+        $issued = $otp->send($email);
         $limits = $rateLimit->recordRequest($email);
+        $timing = $otp->challengeTiming($issued);
 
         return response()->json([
             'data' => [
                 'message' => 'OTP dispatched',
                 'email' => $email,
+                'expires_at' => $timing['expires_at'],
+                'expires_in_seconds' => $timing['expires_in_seconds'],
                 'rate_limit' => $limits,
             ],
         ], 202);
+    }
+
+    public function challenge(Request $request, OtpService $otp): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email', 'max:191'],
+            'intent' => ['sometimes', 'string', 'in:login,signup'],
+            'portal' => ['sometimes', 'string', 'in:community_admin_dashboard'],
+        ]);
+
+        $email = ContactIdentityService::normalizeEmail($validated['email']);
+        if (
+            ! $email
+            || ContactIdentityService::isPlaceholderEmail($email)
+            || ! ContactIdentityService::hasValidLocalPart($email)
+        ) {
+            $this->failValidation('email', 'Please enter a valid email address.', 'INVALID_EMAIL');
+        }
+
+        $pending = $otp->pending($email);
+        $rateLimit = app(OtpRateLimitService::class)->status($email);
+
+        if (! $pending) {
+            return response()->json([
+                'data' => [
+                    'active' => false,
+                    'email' => $email,
+                    'rate_limit' => $rateLimit,
+                ],
+            ]);
+        }
+
+        $timing = $otp->challengeTiming($pending);
+
+        return response()->json([
+            'data' => [
+                'active' => true,
+                'email' => $email,
+                'expires_at' => $timing['expires_at'],
+                'expires_in_seconds' => $timing['expires_in_seconds'],
+                'rate_limit' => $rateLimit,
+            ],
+        ]);
     }
 
     public function verifyOtp(Request $request, OtpService $otp): JsonResponse
@@ -91,8 +141,12 @@ class OtpController extends Controller
         ]);
 
         $email = ContactIdentityService::normalizeEmail($validated['email']);
-        if (! $email || ContactIdentityService::isPlaceholderEmail($email)) {
-            $this->failValidation('email', 'Enter a valid email address.', 'INVALID_EMAIL');
+        if (
+            ! $email
+            || ContactIdentityService::isPlaceholderEmail($email)
+            || ! ContactIdentityService::hasValidLocalPart($email)
+        ) {
+            $this->failValidation('email', 'Please enter a valid email address.', 'INVALID_EMAIL');
         }
 
         $intent = $validated['intent'] ?? 'login';

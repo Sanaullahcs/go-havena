@@ -33,7 +33,11 @@ import {
 import { fetchMe, meToSessionUser, updateMe } from "@/lib/api/profile";
 import { apiError } from "@/lib/api/client";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
-import { validateCommunitySetupForm } from "@/lib/admin/community-setup-validation";
+import {
+  COMMUNITY_SETUP_NAME_MAX,
+  COMMUNITY_SETUP_NAME_MAX_MESSAGE,
+  validateCommunitySetupForm,
+} from "@/lib/admin/community-setup-validation";
 import { inputClass } from "@/lib/admin/form-validation-utils";
 import { CommunityAddressPicker } from "@/components/admin/community-address-picker";
 
@@ -230,7 +234,10 @@ function SetupInner() {
     }
   };
 
-  const nameErr = showError("name", liveErrors);
+  const nameErr =
+    name.length >= COMMUNITY_SETUP_NAME_MAX
+      ? COMMUNITY_SETUP_NAME_MAX_MESSAGE
+      : showError("name", liveErrors);
   const addressErr = showError("address", liveErrors);
   const regionLabel = selectedRegion?.title ?? "your region";
 
@@ -356,7 +363,7 @@ function SetupInner() {
                 label="Community name"
                 required
                 error={nameErr}
-                hint="The name residents will recognize"
+                hint="Enter the community name your residents will recognize."
               >
                 <input
                   id="community-name"
@@ -367,8 +374,9 @@ function SetupInner() {
                     "h-12 w-full rounded-xl border border-slate-200 px-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1B4F8A] focus:ring-2 focus:ring-[#1B4F8A]/20",
                   )}
                   value={name}
+                  maxLength={COMMUNITY_SETUP_NAME_MAX}
                   onChange={(e) => {
-                    setName(e.target.value);
+                    setName(e.target.value.slice(0, COMMUNITY_SETUP_NAME_MAX));
                     clearError("name");
                     setFormError(null);
                   }}

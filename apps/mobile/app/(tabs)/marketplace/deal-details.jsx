@@ -36,6 +36,7 @@ import { localizedField } from "../../../i18n";
 import { rnShadow } from "../../../utils/shadow";
 import MenuList from "../../../components/marketplace/menu-list";
 import { mapsUrl, openExternalUrl, telUrl } from "../../../utils/open-contact";
+import DealMenuSection from "../../../components/marketplace/deal-menu-section";
 
 
 const IMAGE_MAP = {
@@ -369,6 +370,11 @@ export default function DealDetails() {
             <Text style={styles.validDate}>{validUntil}</Text>
           </View>
         ) : null}
+
+        <DealMenuSection
+          menuImageUrl={deal?.menuImageUrl}
+          menuItems={deal?.menuItems}
+        />
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t("deals.howToUse")}</Text>

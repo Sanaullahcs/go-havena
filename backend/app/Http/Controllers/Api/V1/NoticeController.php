@@ -749,6 +749,18 @@ class NoticeController extends Controller
         }
 
         $fresh = $this->baseQuery()->where('notices.id', $id)->first();
+        $noticeFields = ['title', 'body', 'category', 'location', 'image_url', 'event_date', 'event_time', 'event_time_end', 'event_capacity', 'status', 'is_global', 'is_pinned', 'scheduled_at', 'requires_rsvp', 'audience_type'];
+        ActivityLogService::recordUpdate(
+            'notice_updated',
+            'Notice',
+            $id,
+            ActivityLogService::snapshot($notice, $noticeFields),
+            ActivityLogService::snapshot($fresh ?? $notice, $noticeFields),
+            [],
+            null,
+            null,
+            ['related_item' => $fresh->title ?? $notice->title, 'status' => $fresh->status ?? $notice->status],
+        );
 
         if ($fresh && $fresh->status === 'published' && $wasPublished && $contentChanged) {
             $this->syncNoticeNotifications($fresh);

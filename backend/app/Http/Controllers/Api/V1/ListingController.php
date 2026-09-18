@@ -322,17 +322,23 @@ class ListingController extends Controller
             $payload['approved_at'] = null;
         }
 
+        $fields = ['title', 'price', 'description', 'category', 'condition', 'location', 'images', 'status'];
+        $before = ActivityLogService::snapshot($listing, $fields);
+
         DB::table('listings')->where('id', $id)->update($payload);
 
         $status = $autoApprove ? 'approved' : 'pending';
+        $fresh = DB::table('listings')->where('id', $id)->first();
 
-        ActivityLogService::user(
+        ActivityLogService::recordUpdate(
             'listing_updated',
-            "Updated marketplace listing: \"{$listing->title}\"",
             'Listing',
             $id,
-            'info',
+            $before,
+            ActivityLogService::snapshot($fresh, $fields),
+            [],
             null,
+            (int) $listing->user_id,
             [
                 'status' => $status,
                 'related_item' => $request->input('title', $listing->title),
@@ -369,14 +375,16 @@ class ListingController extends Controller
             'updated_at' => now(),
         ]);
 
-        ActivityLogService::user(
+        ActivityLogService::recordStatusChange(
             'listing_sold',
-            "Marked listing as sold: \"{$listing->title}\"",
             'Listing',
             $id,
-            'info',
+            $listing->status,
+            'sold',
+            'Status',
             null,
-            ['status' => 'sold', 'related_item' => $listing->title],
+            (int) $listing->user_id,
+            ['related_item' => $listing->title],
         );
 
         return response()->json([
@@ -433,20 +441,16 @@ class ListingController extends Controller
         ]);
 
         $listing = DB::table('listings')->find($id);
-        ActivityLogService::user(
+        ActivityLogService::recordStatusChange(
             $wasRejected ? 'listing_reapproved' : 'listing_approved',
-            ($wasRejected ? 'Re-approved' : 'Approved')." listing: \"{$listing->title}\"",
             'Listing',
             $id,
-        );
-        ActivityLogService::user(
-            $wasRejected ? 'listing_reapproved' : 'listing_approved',
-            ($wasRejected ? 'Your listing was re-approved' : 'Your listing was approved').": \"{$listing->title}\"",
-            'Listing',
-            $id,
-            'info',
+            $wasRejected ? 'rejected' : 'pending',
+            'approved',
+            'Status',
+            null,
             (int) $listing->user_id,
-            ['status' => 'approved', 'related_item' => $listing->title],
+            ['related_item' => $listing->title],
         );
         NotificationService::send(
             $listing->user_id,
@@ -472,6 +476,7 @@ class ListingController extends Controller
         }
 
         $wasLive = ($listing->status ?? '') === 'approved';
+        $previousStatus = $listing->status ?? 'pending';
 
         DB::table('listings')->where('id', $id)->update([
             'status'      => 'rejected',
@@ -481,21 +486,17 @@ class ListingController extends Controller
         ]);
 
         $listing = DB::table('listings')->find($id);
-        ActivityLogService::user(
+        ActivityLogService::recordStatusChange(
             'listing_rejected',
-            ($wasLive ? 'Unpublished' : 'Rejected')." listing: \"{$listing->title}\"",
             'Listing',
             $id,
-            'warning',
-        );
-        ActivityLogService::user(
-            'listing_rejected',
-            ($wasLive ? 'Your listing was removed' : 'Your listing was rejected').": \"{$listing->title}\"",
-            'Listing',
-            $id,
-            'warning',
+            $previousStatus,
+            'rejected',
+            'Status',
+            null,
             (int) $listing->user_id,
-            ['status' => 'rejected', 'related_item' => $listing->title],
+            ['related_item' => $listing->title],
+            'warning',
         );
         NotificationService::send(
             $listing->user_id,

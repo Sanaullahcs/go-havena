@@ -17,6 +17,8 @@ class ContactIdentityService
 
     public const DUPLICATE_PHONE_MESSAGE = 'This phone number already exists. Please use a different phone number.';
 
+    public const EMAIL_LOCAL_PART_MAX = 64;
+
     /** @var list<string> */
     private const PLACEHOLDER_EMAIL_SUFFIXES = [
         '@phone.havena.local',
@@ -53,6 +55,21 @@ class ContactIdentityService
         $normalized = strtolower(trim((string) $email));
 
         return $normalized !== '' ? $normalized : null;
+    }
+
+    public static function hasValidLocalPart(?string $email): bool
+    {
+        $normalized = self::normalizeEmail($email);
+        if (! $normalized) {
+            return false;
+        }
+
+        $at = strpos($normalized, '@');
+        if ($at === false || $at === 0) {
+            return false;
+        }
+
+        return $at <= self::EMAIL_LOCAL_PART_MAX;
     }
 
     public static function findUserByEmail(string $email, bool $withTrashed = false): ?User

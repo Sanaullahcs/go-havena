@@ -13,14 +13,14 @@ class OtpService
 
     public const EXPIRE_MINUTES = 5;
 
-    public function send(string $email): void
+    public function send(string $email): EmailOtp
     {
         $email = $this->normalizedEmail($email);
         $code = $this->issueCode($email);
 
         EmailOtp::query()->where('email', $email)->delete();
 
-        EmailOtp::query()->create([
+        $otp = EmailOtp::query()->create([
             'email' => $email,
             'code_hash' => self::hashCode($code),
             'attempts' => 0,
@@ -44,6 +44,35 @@ class OtpService
                 ], 503));
             }
         }
+
+        return $otp;
+    }
+
+    public function pending(string $email): ?EmailOtp
+    {
+        $email = $this->normalizedEmail($email);
+
+        $otp = EmailOtp::query()
+            ->where('email', $email)
+            ->latest('id')
+            ->first();
+
+        if (! $otp || $this->isExpired($otp)) {
+            return null;
+        }
+
+        return $otp;
+    }
+
+    /** @return array{expires_at: string, expires_in_seconds: int} */
+    public function challengeTiming(EmailOtp $otp): array
+    {
+        $expiresAt = $otp->expires_at;
+
+        return [
+            'expires_at' => $expiresAt?->toIso8601String() ?? now()->toIso8601String(),
+            'expires_in_seconds' => max(0, ($expiresAt?->getTimestamp() ?? now()->timestamp) - now()->timestamp),
+        ];
     }
 
     public function verify(string $email, string $code): bool

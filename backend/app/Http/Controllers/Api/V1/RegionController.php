@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Community;
 use App\Models\Region;
 use App\Models\State;
+use App\Services\ActivityLogService;
 use App\Services\LocationCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -187,9 +188,23 @@ class RegionController extends Controller
             $validated['state'] = $validated['state'] ?? $state->name;
         }
 
+        $fields = ['title', 'area', 'state', 'state_id', 'users_label', 'sort_order', 'status'];
+        $before = ActivityLogService::snapshot($region, $fields);
         $region->update($validated);
+        $fresh = $region->fresh(['stateRecord.country']);
+        ActivityLogService::recordUpdate(
+            'region_updated',
+            'Region',
+            $region->id,
+            $before,
+            ActivityLogService::snapshot($fresh, $fields),
+            [],
+            null,
+            null,
+            ['related_item' => $fresh->title],
+        );
 
-        return response()->json(['data' => $this->transform($region->fresh(['stateRecord.country'])), 'message' => 'Region updated']);
+        return response()->json(['data' => $this->transform($fresh), 'message' => 'Region updated']);
     }
 
     /** DELETE /v1/admin/regions/{id} */

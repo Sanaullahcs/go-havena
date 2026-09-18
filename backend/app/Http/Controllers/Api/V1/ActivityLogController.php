@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Support\ActivityActionCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,7 +23,9 @@ class ActivityLogController extends Controller
                 'a.entity_type',
                 'a.entity_id',
                 'a.ip_address',
+                'a.user_agent',
                 'a.severity',
+                'a.meta',
                 'a.created_at',
                 'u.name as user_name',
                 'u.email as user_email',
@@ -42,6 +45,8 @@ class ActivityLogController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('a.description', 'like', "%{$search}%")
                   ->orWhere('a.action', 'like', "%{$search}%")
+                  ->orWhere('a.entity_type', 'like', "%{$search}%")
+                  ->orWhere('a.meta', 'like', "%{$search}%")
                   ->orWhere('u.name', 'like', "%{$search}%");
             });
         }
@@ -52,8 +57,25 @@ class ActivityLogController extends Controller
 
         $perPage = min((int) $request->get('per_page', 25), 100);
         $result  = $query->paginate($perPage);
+        $items = collect($result->items())->map(function ($row) {
+            $formatted = ActivityActionCatalog::formatLogRow($row);
 
-        return response()->json($result);
+            return array_merge($formatted, [
+                'log_type'   => $row->log_type ?? 'user',
+                'user_name'  => $row->user_name ?? null,
+                'user_email' => $row->user_email ?? null,
+                'user_role'  => $row->user_role ?? null,
+                'user_agent' => $row->user_agent ?? null,
+            ]);
+        })->values();
+
+        return response()->json([
+            'data'         => $items,
+            'current_page' => $result->currentPage(),
+            'last_page'    => $result->lastPage(),
+            'per_page'     => $result->perPage(),
+            'total'        => $result->total(),
+        ]);
     }
 
     /** POST /activity-logs — record a log entry */

@@ -1,5 +1,8 @@
 import type { FieldErrors } from "@/lib/admin/form-validation-utils";
 
+export const COMMUNITY_SETUP_NAME_MAX = 25;
+export const COMMUNITY_SETUP_NAME_MAX_MESSAGE = "Community name must be 25 characters or less.";
+
 export type CommunitySetupForm = {
   regionId: string;
   name: string;
@@ -21,8 +24,8 @@ export function validateCommunitySetupForm(form: CommunitySetupForm): FieldError
     errors.name = "Community name is required.";
   } else if (name.length < 2) {
     errors.name = "Community name must be at least 2 characters.";
-  } else if (name.length > 150) {
-    errors.name = "Community name must be 150 characters or less.";
+  } else if (name.length > COMMUNITY_SETUP_NAME_MAX) {
+    errors.name = COMMUNITY_SETUP_NAME_MAX_MESSAGE;
   }
 
   const address = form.address.trim();

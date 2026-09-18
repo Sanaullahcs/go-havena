@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\V1\SubscriptionCouponController;
 use App\Http\Controllers\Api\V1\ReferralController;
 use App\Http\Controllers\Api\V1\ReferralProgramController;
 use App\Http\Controllers\Api\V1\PlaidController;
+use App\Http\Controllers\Api\V1\PlaidWebhookController;
 use App\Http\Controllers\Api\V1\GeoController;
 use App\Http\Controllers\Api\V1\NearbyPlaceController;
 use App\Http\Controllers\Api\V1\InviteQrImageController;
@@ -57,6 +58,7 @@ Route::prefix('v1')->group(function () {
 
     /* ── Stripe webhooks (no auth; verified by signature) ── */
     Route::post('/billing/stripe/webhook', StripeWebhookController::class);
+    Route::post('/plaid/webhook', PlaidWebhookController::class);
     Route::get('/billing/plans', [SubscriptionPlanController::class, 'publicIndex']);
     Route::get('/public/invite-qr.png', [InviteQrImageController::class, 'show'])
         ->name('public.invite-qr');
@@ -68,6 +70,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/login',  [LoginController::class, 'login']);
         Route::post('/logout', [LoginController::class, 'logout'])->middleware('auth:sanctum');
         Route::post('/otp/request', [OtpController::class, 'requestOtp']);
+        Route::get('/otp/challenge', [OtpController::class, 'challenge']);
         Route::post('/otp/verify',  [OtpController::class, 'verifyOtp']);
         Route::post('/web-handoff', [WebHandoffController::class, 'store'])->middleware('auth:sanctum');
         Route::post('/web-handoff/consume', [WebHandoffController::class, 'consume'])->middleware('throttle:30,1');
@@ -254,6 +257,8 @@ Route::prefix('v1')->group(function () {
             Route::get('/connection', [PlaidController::class, 'showConnection']);
             Route::post('/link-token', [PlaidController::class, 'createLinkToken']);
             Route::post('/exchange-token', [PlaidController::class, 'exchangeToken']);
+            Route::post('/reconnect', [PlaidController::class, 'reconnect']);
+            Route::post('/disconnect', [PlaidController::class, 'disconnect']);
         });
 
         /* ── Activity Logs ── */

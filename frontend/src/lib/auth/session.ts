@@ -172,6 +172,7 @@ export type CommunityAdminAccess = {
   card_on_file?: boolean;
   billing_exempt?: boolean;
   country_code?: string | null;
+  plaid_available?: boolean;
   trial_ends_at?: string | null;
   admin_transition?: boolean;
   leftover_ends_at?: string | null;

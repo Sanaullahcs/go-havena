@@ -26,4 +26,21 @@ return [
         'products' => ['auth'],
     ],
 
+    /*
+    | Countries where Community Admins may use Plaid bank linking.
+    | Pakistan (PK) is never included. Comma-separated in .env.
+    */
+    'supported_country_codes' => array_values(array_filter(array_map(
+        static fn (string $code) => strtoupper(trim($code)),
+        explode(',', (string) env('PLAID_SUPPORTED_COUNTRY_CODES', 'US')),
+    ))),
+
+    /** Public HTTPS URL Plaid should call. Leave empty in local sandbox if unused. */
+    'webhook_url' => env('PLAID_WEBHOOK_URL'),
+
+    /**
+     * When true, Plaid-Verification JWT must validate. Default false keeps Sandbox usable locally.
+     */
+    'verify_webhooks' => (bool) env('PLAID_VERIFY_WEBHOOKS', false),
+
 ];

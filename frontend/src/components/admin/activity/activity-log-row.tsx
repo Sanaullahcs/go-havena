@@ -2,6 +2,7 @@ import type { ActivityLog, ActivitySeverity } from "@/lib/api/activity-logs";
 import { formatLogTime, relLogTime } from "@/lib/api/activity-logs";
 import { NL } from "@/lib/design-tokens";
 import { AdminBadge } from "@/components/admin/ui";
+import { ActivityAuditDetails } from "@/components/admin/activity/activity-audit-details";
 
 export const SEV_CONFIG: Record<
   ActivitySeverity,
@@ -111,6 +112,14 @@ export function ActivityLogRow({ log }: { log: ActivityLog }) {
           <p className="mt-1 text-[13px] leading-relaxed" style={{ color: NL.textSecondary }}>
             {log.description}
           </p>
+
+          <ActivityAuditDetails
+            performedBy={log.performed_by}
+            affectedUser={log.affected_user}
+            entityType={log.entity_type}
+            entityId={log.entity_id}
+            changes={log.changes}
+          />
 
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11.5px]" style={{ color: NL.textMuted }}>
             {log.user_name ? (

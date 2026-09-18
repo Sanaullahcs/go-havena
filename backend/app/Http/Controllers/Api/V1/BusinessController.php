@@ -207,17 +207,22 @@ class BusinessController extends Controller
         }
 
         $data['updated_at'] = now();
+        $fields = ['name', 'category', 'description', 'address', 'phone', 'hours', 'amenities', 'image_url'];
+        $before = ActivityLogService::snapshot($business, $fields);
 
         DB::table('businesses')->where('id', $id)->update($data);
 
-        ActivityLogService::user(
+        $fresh = DB::table('businesses')->where('id', $id)->first();
+        ActivityLogService::recordUpdate(
             'business_updated',
-            "Updated business: \"{$business->name}\"",
             'Business',
             $id,
-            'info',
+            $before,
+            ActivityLogService::snapshot($fresh, $fields),
+            [],
             null,
-            ['status' => $business->status ?? null, 'related_item' => $business->name],
+            null,
+            ['status' => $fresh->status ?? $business->status ?? null, 'related_item' => $fresh->name ?? $business->name],
         );
 
         return response()->json([
@@ -263,7 +268,17 @@ class BusinessController extends Controller
 
         $dealsReactivated = $this->reactivateDealsForBusiness($business);
 
-        ActivityLogService::user('business_approved', "Approved business: \"{$business->name}\"", 'Business', $id);
+        ActivityLogService::recordStatusChange(
+            'business_approved',
+            'Business',
+            $id,
+            $business->status ?? 'pending',
+            'approved',
+            'Status',
+            null,
+            null,
+            ['related_item' => $business->name],
+        );
 
         return response()->json([
             'data'    => $this->format($this->findBusiness($id), $request),
@@ -284,7 +299,18 @@ class BusinessController extends Controller
 
         $dealsDisabled = $this->disableDealsForBusiness($business);
 
-        ActivityLogService::user('business_rejected', "Rejected business: \"{$business->name}\"", 'Business', $id);
+        ActivityLogService::recordStatusChange(
+            'business_rejected',
+            'Business',
+            $id,
+            $business->status ?? 'pending',
+            'rejected',
+            'Status',
+            null,
+            null,
+            ['related_item' => $business->name],
+            'warning',
+        );
 
         return response()->json([
             'data'    => $this->format($this->findBusiness($id), $request),

@@ -305,7 +305,7 @@ class CommunityController extends Controller
     public function selfServeCreate(Request $request, OsmGeocodingService $geocoding): JsonResponse
     {
         $validated = $request->validate([
-            'community_name' => ['required', 'string', 'min:2', 'max:150'],
+            'community_name' => ['required', 'string', 'min:2', 'max:25'],
             'address' => ['required', 'string', 'min:5', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'region_id' => ['required', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
@@ -408,7 +408,7 @@ class CommunityController extends Controller
     public function requestCommunity(Request $request, OsmGeocodingService $geocoding): JsonResponse
     {
         $validated = $request->validate([
-            'community_name' => ['required', 'string', 'min:2', 'max:150'],
+            'community_name' => ['required', 'string', 'min:2', 'max:25'],
             'address' => ['required', 'string', 'min:5', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'region_id' => ['required', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],

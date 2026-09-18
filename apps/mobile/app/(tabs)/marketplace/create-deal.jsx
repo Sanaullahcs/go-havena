@@ -1,27 +1,36 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useCallback, useState, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { MarketplaceType } from "../../../constants/marketplace-type";
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Platform, Modal, Pressable } from "react-native";
+import { MARKETPLACE_FORM_GUTTER } from "../../../constants/marketplace-theme";
+import {
+  marketplaceFieldInput,
+  marketplaceTextArea,
+} from "../../../constants/marketplace-form-fields";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Platform } from "react-native";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { Image } from "expo-image";
 import CrispImage from "../../../components/ui/crisp-image";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { Fonts } from "../../../constants/font";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Ionicons } from "@expo/vector-icons";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
-import KeyboardSafeScreen from "../../../components/layout/keyboard-safe-screen";
+import KeyboardSafeScreen, {
+  useScrollFieldRefIntoView,
+} from "../../../components/layout/keyboard-safe-screen";
 import { getCurrentRole } from "../../../constants/role-session";
 import { pickImage } from "../../../utils/pickImage";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { useApiAction } from "../../../hooks/use-api-action";
-import { publishDealWithImage, updateDeal, fetchDeal } from "../../../services/deals-api";
+import { publishDealWithImage, updateDeal, fetchDeal, uploadDealMenuAssets } from "../../../services/deals-api";
 import { fetchMyBusiness } from "../../../services/businesses-api";
-import { formatDisplayDate, toApiDate } from "../../../utils/form-datetime";
+import { dateOnly, formatDisplayDate, toApiDate } from "../../../utils/form-datetime";
+import FormDatePickerSheet from "../../../components/forms/form-date-picker-sheet";
 import { validateDealForm, LIMITS, hasFieldErrors } from "../../../utils/form-validation";
+import { menuItemsFromApi } from "../../../utils/deal-menu";
+import DealMenuEditor from "../../../components/marketplace/deal-menu-editor";
 
 export default function CreateDeal() {
   const router = useRouter();
@@ -45,12 +54,33 @@ export default function CreateDeal() {
   const [description, setDescription] = useState("");
   const [validUntilDate, setValidUntilDate] = useState(null);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const [tempPickerDate, setTempPickerDate] = useState(new Date());
   const [selectedFile, setSelectedFile] = useState(null);
   const [existingImageUrl, setExistingImageUrl] = useState(null);
+  const [step, setStep] = useState("details");
+  const [menuImageFile, setMenuImageFile] = useState(null);
+  const [menuImageUrl, setMenuImageUrl] = useState(null);
+  const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const { touch, clearError, showError, validateOnSubmit } = useTouchedFieldErrors();
   const scrollRef = useRef(null);
+  const menuEditorRef = useRef(null);
+  const dealTitleRef = useRef(null);
+  const discountRef = useRef(null);
+  const categoryRef = useRef(null);
+  const locationRef = useRef(null);
+  const descriptionBlockRef = useRef(null);
+  const [footerHeight, setFooterHeight] = useState(88);
+  const { scrollIntoView, onScroll, clearPending } = useScrollFieldRefIntoView(scrollRef, {
+    footerHeight,
+    topPad: 24,
+  });
+  const keepFieldVisible = useCallback(
+    (fieldRef) => {
+      scrollIntoView(fieldRef);
+    },
+    [scrollIntoView],
+  );
+  const descriptionFocusedRef = useRef(false);
   const maxDescriptionLength = LIMITS.dealDescription;
 
   React.useEffect(() => {
@@ -75,14 +105,14 @@ export default function CreateDeal() {
             setLocation(data.location ?? "");
             setDescription(data.description ?? "");
             if (data.endsAt) {
-              const d = new Date(String(data.endsAt).replace(" ", "T"));
-              if (!Number.isNaN(d.getTime())) {
-                setValidUntilDate(d);
-              }
+              const d = dateOnly(String(data.endsAt).replace(" ", "T"));
+              if (d) setValidUntilDate(d);
             }
             if (data.imageUrl) {
               setExistingImageUrl(data.imageUrl);
             }
+            setMenuImageUrl(data.menuImageUrl ?? null);
+            setMenuItems(menuItemsFromApi(data.menuItems));
           }
         }
       } catch (err) {
@@ -117,44 +147,80 @@ export default function CreateDeal() {
 
   const canSubmit = useMemo(() => !hasFieldErrors(liveErrors), [liveErrors]);
 
-  const handleCreate = () => {
-    if (submitting) return;
-    if (!validateOnSubmit(liveErrors)) return;
+  const blockIfBusinessNotReady = () => {
     if (!isAdmin && ownBusiness?.status === "rejected") {
       Alert.alert(
         t("deals.businessRejectedTitle"),
         t("deals.businessRejectedMsg"),
       );
-      return;
+      return true;
     }
     if (!isAdmin && ownBusiness?.status === "pending") {
       Alert.alert(
         t("deals.businessPendingTitle"),
         t("deals.businessPendingMsg"),
       );
-      return;
+      return true;
     }
+    return false;
+  };
+
+  const goToMenuStep = () => {
+    if (submitting) return;
+    if (!validateOnSubmit(liveErrors)) return;
+    if (blockIfBusinessNotReady()) return;
+    setDatePickerOpen(false);
+    setStep("menu");
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: false }));
+  };
+
+  const goToDetailsStep = () => {
+    if (submitting) return;
+    setStep("details");
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: false }));
+  };
+
+  const handleCreate = () => {
+    if (submitting) return;
+    if (!validateOnSubmit(liveErrors)) return;
+    if (blockIfBusinessNotReady()) return;
+
+    const pendingMenu = menuEditorRef.current?.flushPending?.() ?? { ok: true, items: menuItems };
+    if (!pendingMenu.ok) return;
 
     const endsAt = toApiDate(validUntilDate);
+    const itemsToPublish = pendingMenu.items ?? menuItems;
 
     run(async () => {
-      const payload = {
-        title: dealTitle.trim(),
-        vendor: business.trim() || undefined,
-        business_id: ownBusiness?.id ?? undefined,
-        description: description.trim(),
-        discount_label: discountLabel.trim(),
-        category: category.trim() || undefined,
-        location: location.trim() || undefined,
-        ends_at: endsAt,
-        type: "deal",
-      };
-
       await runAction({
-        action: () =>
-          isEdit
+        action: async () => {
+          const menu = await uploadDealMenuAssets(
+            {
+              menuImageFile,
+              existingMenuImageUrl: menuImageUrl,
+              items: itemsToPublish,
+            },
+            { asAdmin: isAdmin },
+          );
+
+          const payload = {
+            title: dealTitle.trim(),
+            vendor: business.trim() || undefined,
+            business_id: ownBusiness?.id ?? undefined,
+            description: description.trim(),
+            discount_label: discountLabel.trim(),
+            category: category.trim() || undefined,
+            location: location.trim() || undefined,
+            ends_at: endsAt,
+            type: "deal",
+            menu_image_url: menu.menu_image_url,
+            menu_items: menu.menu_items,
+          };
+
+          return isEdit
             ? updateDeal(dealId, payload, { asAdmin: isAdmin })
-            : publishDealWithImage(selectedFile, payload, { asAdmin: isAdmin }),
+            : publishDealWithImage(selectedFile, payload, { asAdmin: isAdmin });
+        },
         successTitle: isEdit ? t("deals.dealUpdated") : t("deals.dealPublished"),
         successMessage: isEdit ? t("deals.dealSaved") : t("deals.dealLive"),
         errorTitle: isEdit ? t("deals.updateFailed") : t("deals.couldNotCreateDeal"),
@@ -177,28 +243,82 @@ export default function CreateDeal() {
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <InternalScreenHeader
-        title={isEdit ? t("deals.editDeal") : t("deals.createDeal")}
-        subtitle={isEdit ? t("deals.updateDealSubtitle") : t("deals.addDealSubtitle")}
+        title={step === "menu" ? t("deals.addMenu") : isEdit ? t("deals.editDeal") : t("deals.createDeal")}
+        subtitle={
+          step === "menu"
+            ? t("deals.addMenuSubtitle")
+            : isEdit
+              ? t("deals.updateDealSubtitle")
+              : t("deals.addDealSubtitle")
+        }
       />
 
       <KeyboardSafeScreen
         scrollRef={scrollRef}
+        keyboardAvoiding={Platform.OS === "ios"}
         contentContainerStyle={styles.contentContainer}
         footerBorderless
         footerStyle={styles.bottomWrap}
+        keyboardFieldGap={footerHeight}
+        dismissKeyboardOnPress
+        onFooterHeight={(next) => {
+          setFooterHeight((prev) => (Math.abs(prev - next) < 2 ? prev : next));
+        }}
+        scrollProps={{ onScroll, scrollEventThrottle: 16 }}
         footer={
-          <TouchableOpacity
-            activeOpacity={0.88}
-            style={[styles.createButton, (!canSubmit || submitting) && styles.createButtonDisabled]}
-            onPress={handleCreate}
-            disabled={!canSubmit || submitting}
-          >
-            <Text style={styles.createButtonText}>
-              {submitting ? t("deals.saving") : isEdit ? t("deals.saveDeal") : t("deals.createDeal")}
-            </Text>
-          </TouchableOpacity>
+          step === "menu" ? (
+            <View style={styles.footerActions}>
+              <TouchableOpacity
+                activeOpacity={0.88}
+                style={[styles.backButton, submitting && styles.createButtonDisabled]}
+                onPress={goToDetailsStep}
+                disabled={submitting}
+              >
+                <Text style={styles.backButtonText}>{t("common.back")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.88}
+                style={[styles.createButton, (!canSubmit || submitting) && styles.createButtonDisabled]}
+                onPress={handleCreate}
+                disabled={!canSubmit || submitting}
+              >
+                <Text style={styles.createButtonText}>
+                  {submitting ? t("deals.saving") : isEdit ? t("deals.saveDeal") : t("deals.createDeal")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              activeOpacity={0.88}
+              style={[styles.createButton, (!canSubmit || submitting) && styles.createButtonDisabled]}
+              onPress={goToMenuStep}
+              disabled={!canSubmit || submitting}
+            >
+              <Text style={styles.createButtonText}>{t("deals.next")}</Text>
+            </TouchableOpacity>
+          )
         }
       >
+        {step === "menu" ? (
+          <DealMenuEditor
+            ref={menuEditorRef}
+            menuImageFile={menuImageFile}
+            menuImageUrl={menuImageUrl}
+            onChangeMenuImage={(file) => {
+              setMenuImageFile(file);
+              setMenuImageUrl(null);
+            }}
+            onRemoveMenuImage={() => {
+              setMenuImageFile(null);
+              setMenuImageUrl(null);
+            }}
+            items={menuItems}
+            onChangeItems={setMenuItems}
+            onFieldFocus={keepFieldVisible}
+            onFieldBlur={clearPending}
+          />
+        ) : (
+          <>
         <Text style={styles.label}>
           {t("deals.dealImage")} <Text style={styles.required}>*</Text>
         </Text>
@@ -266,6 +386,7 @@ export default function CreateDeal() {
         </View>
         {showError("business", liveErrors) ? <Text style={styles.errorText}>{showError("business", liveErrors)}</Text> : null}
 
+        <View ref={dealTitleRef} collapsable={false}>
         <Text style={[styles.label, styles.sectionTop]}>
           {t("deals.dealTitle")} <Text style={styles.required}>*</Text>
         </Text>
@@ -274,10 +395,14 @@ export default function CreateDeal() {
           onChangeText={(v) => { setDealTitle(v); touch("dealTitle"); clearError("dealTitle"); }}
           placeholder={t("deals.placeholderTitle")}
           placeholderTextColor="rgba(153, 161, 175, 1)"
-          style={[styles.input, showError("dealTitle", liveErrors) && styles.inputError]}
+          style={[styles.field, marketplaceFieldInput, showError("dealTitle", liveErrors) && styles.inputError]}
+          onFocus={() => keepFieldVisible(dealTitleRef)}
+          onBlur={clearPending}
         />
         {showError("dealTitle", liveErrors) ? <Text style={styles.errorText}>{showError("dealTitle", liveErrors)}</Text> : null}
+        </View>
 
+        <View ref={discountRef} collapsable={false}>
         <View
           style={[
             styles.labelRow,
@@ -298,10 +423,14 @@ export default function CreateDeal() {
           onChangeText={(v) => { setDiscountLabel(v); touch("discountLabel"); clearError("discountLabel"); }}
           placeholder={t("deals.placeholderDiscount")}
           placeholderTextColor="rgba(153, 161, 175, 1)"
-          style={[styles.input, showError("discountLabel", liveErrors) && styles.inputError]}
+          style={[styles.field, marketplaceFieldInput, showError("discountLabel", liveErrors) && styles.inputError]}
+          onFocus={() => keepFieldVisible(discountRef)}
+          onBlur={clearPending}
         />
         {showError("discountLabel", liveErrors) ? <Text style={styles.errorText}>{showError("discountLabel", liveErrors)}</Text> : null}
+        </View>
 
+        <View ref={categoryRef} collapsable={false}>
         <Text style={[styles.label, styles.sectionTop]}>
           {t("deals.category")} <Text style={styles.required}>*</Text>
         </Text>
@@ -310,36 +439,61 @@ export default function CreateDeal() {
           onChangeText={(v) => { setCategory(v); touch("category"); clearError("category"); }}
           placeholder={t("deals.placeholderCategory")}
           placeholderTextColor="rgba(153, 161, 175, 1)"
-          style={[styles.input, showError("category", liveErrors) && styles.inputError]}
+          style={[styles.field, marketplaceFieldInput, showError("category", liveErrors) && styles.inputError]}
+          onFocus={() => keepFieldVisible(categoryRef)}
+          onBlur={clearPending}
         />
         {showError("category", liveErrors) ? <Text style={styles.errorText}>{showError("category", liveErrors)}</Text> : null}
+        </View>
 
+        <View ref={locationRef} collapsable={false}>
         <Text style={[styles.label, styles.sectionTop]}>{t("deals.location")}</Text>
         <LocaleTextInput
           value={location}
           onChangeText={setLocation}
           placeholder={t("deals.placeholderLocation")}
           placeholderTextColor="rgba(153, 161, 175, 1)"
-          style={styles.input}
+          style={[styles.field, marketplaceFieldInput]}
+          onFocus={() => keepFieldVisible(locationRef)}
+          onBlur={clearPending}
         />
+        </View>
 
-        <Text style={[styles.label, styles.sectionTop]}>
-          {t("deals.description")} <Text style={styles.required}>*</Text>
-        </Text>
-        <LocaleTextInput
-          value={description}
-          onChangeText={(v) => { setDescription(v); touch("description"); clearError("description"); }}
-          placeholder={t("deals.placeholderDescription")}
-          placeholderTextColor="rgba(153, 161, 175, 1)"
-          style={[styles.textArea, showError("description", liveErrors) && styles.inputError]}
-          multiline
-          maxLength={maxDescriptionLength}
-          textAlignVertical="top"
-        />
-        {showError("description", liveErrors) ? <Text style={styles.errorText}>{showError("description", liveErrors)}</Text> : null}
-        <Text style={styles.counterText}>
-          {description.length}/{maxDescriptionLength}
-        </Text>
+        <View ref={descriptionBlockRef} collapsable={false}>
+          <Text style={[styles.label, styles.sectionTop]}>
+            {t("deals.description")} <Text style={styles.required}>*</Text>
+          </Text>
+          <LocaleTextInput
+            value={description}
+            onChangeText={(v) => { setDescription(v); touch("description"); clearError("description"); }}
+            placeholder={t("deals.placeholderDescription")}
+            placeholderTextColor="rgba(153, 161, 175, 1)"
+            style={[
+              styles.field,
+              marketplaceTextArea,
+              showError("description", liveErrors) && styles.inputError,
+            ]}
+            multiline
+            scrollEnabled
+            maxLength={maxDescriptionLength}
+            textAlignVertical="top"
+            onFocus={() => {
+              descriptionFocusedRef.current = true;
+              keepFieldVisible(descriptionBlockRef);
+            }}
+            onBlur={() => {
+              descriptionFocusedRef.current = false;
+              clearPending();
+            }}
+            onContentSizeChange={() => {
+              if (descriptionFocusedRef.current) keepFieldVisible(descriptionBlockRef);
+            }}
+          />
+          {showError("description", liveErrors) ? <Text style={styles.errorText}>{showError("description", liveErrors)}</Text> : null}
+          <Text style={styles.counterText}>
+            {description.length}/{maxDescriptionLength}
+          </Text>
+        </View>
 
         <Text style={[styles.label, styles.sectionTop]}>
           {t("deals.validUntil")}
@@ -347,10 +501,7 @@ export default function CreateDeal() {
         <TouchableOpacity
           activeOpacity={0.75}
           style={[styles.datePicker, validUntilDate && styles.datePickerFilled]}
-          onPress={() => {
-            setTempPickerDate(validUntilDate ?? new Date());
-            setDatePickerOpen(true);
-          }}
+          onPress={() => setDatePickerOpen(true)}
         >
           <Ionicons
             name="calendar-outline"
@@ -375,51 +526,17 @@ export default function CreateDeal() {
           )}
         </TouchableOpacity>
 
-        {/* Android inline picker */}
-        {Platform.OS === "android" && datePickerOpen ? (
-          <DateTimePicker
-            value={tempPickerDate}
-            mode="date"
-            minimumDate={new Date()}
-            display="default"
-            onValueChange={(_event, selected) => {
-              setDatePickerOpen(false);
-              if (selected) setValidUntilDate(selected);
-            }}
-            onDismiss={() => setDatePickerOpen(false)}
-          />
-        ) : null}
-
-        {/* iOS modal sheet */}
-        {Platform.OS === "ios" && datePickerOpen ? (
-          <Modal transparent animationType="slide" onRequestClose={() => setDatePickerOpen(false)}>
-            <Pressable style={styles.dateModalOverlay} onPress={() => setDatePickerOpen(false)} />
-            <View style={styles.dateModalSheet}>
-              <View style={styles.dateModalToolbar}>
-                <TouchableOpacity onPress={() => setDatePickerOpen(false)}>
-                  <Text style={styles.dateModalCancel}>{t("common.cancel")}</Text>
-                </TouchableOpacity>
-                <Text style={styles.dateModalTitle}>{t("deals.expiryDate")}</Text>
-                <TouchableOpacity onPress={() => {
-                  setValidUntilDate(tempPickerDate);
-                  setDatePickerOpen(false);
-                }}>
-                  <Text style={styles.dateModalDone}>{t("common.done")}</Text>
-                </TouchableOpacity>
-              </View>
-              <DateTimePicker
-                value={tempPickerDate}
-                mode="date"
-                minimumDate={new Date()}
-                display="spinner"
-                onValueChange={(_event, selected) => {
-                  if (selected) setTempPickerDate(selected);
-                }}
-                style={{ height: 200 }}
-              />
-            </View>
-          </Modal>
-        ) : null}
+        <FormDatePickerSheet
+          visible={datePickerOpen}
+          value={validUntilDate}
+          title={t("deals.expiryDate")}
+          minimumDate={dateOnly(new Date())}
+          onCancel={() => setDatePickerOpen(false)}
+          onConfirm={(next) => {
+            setValidUntilDate(next);
+            setDatePickerOpen(false);
+          }}
+        />
 
         <View style={styles.previewCard}>
           <Text style={styles.previewLabel}>{t("deals.preview")}</Text>
@@ -433,6 +550,8 @@ export default function CreateDeal() {
             </View>
           </View>
         </View>
+          </>
+        )}
       </KeyboardSafeScreen>
     </SafeAreaView>
   );
@@ -470,7 +589,8 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   contentContainer: {
-    padding: 24,
+    paddingHorizontal: MARKETPLACE_FORM_GUTTER,
+    paddingTop: 24,
     paddingBottom: 40,
   },
   label: {
@@ -508,37 +628,13 @@ const styles = StyleSheet.create({
     color: "rgba(106, 114, 130, 1)",
     fontWeight: 500,
   },
-  input: {
+  field: {
     marginTop: 8,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: "rgba(249, 250, 251, 1)",
-    borderWidth: 1,
-    borderColor: "#EEF2F6",
-    paddingHorizontal: 16,
-    fontFamily: Fonts.regular,
-    fontSize: MarketplaceType.caption,
-    lineHeight: MarketplaceType.captionLine,
-    color: "#111827",
   },
   labelRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-  },
-  textArea: {
-    marginTop: 8,
-    minHeight: 100,
-    borderRadius: 10,
-    backgroundColor: "rgba(249, 250, 251, 1)",
-    borderWidth: 1,
-    borderColor: "#EEF2F6",
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    fontFamily: Fonts.regular,
-    fontSize: MarketplaceType.caption,
-    lineHeight: MarketplaceType.captionLine,
-    color: "#111827",
   },
   counterText: {
     marginTop: 8,
@@ -603,10 +699,29 @@ const styles = StyleSheet.create({
     fontWeight: 700,
   },
   bottomWrap: {
-    paddingHorizontal: 6,
+    paddingHorizontal: MARKETPLACE_FORM_GUTTER,
     paddingTop: 12,
     paddingBottom: 4,
     backgroundColor: "#FFFFFF",
+  },
+  footerActions: {
+    gap: 10,
+  },
+  backButton: {
+    height: 56,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#D1D5DB",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backButtonText: {
+    fontFamily: Fonts.bold,
+    fontSize: MarketplaceType.heading,
+    lineHeight: MarketplaceType.stat,
+    color: "#111827",
+    fontWeight: 700,
   },
   createButton: {
     height: 56,
@@ -661,40 +776,6 @@ const styles = StyleSheet.create({
   datePickerTextFilled: {
     color: "#111827",
     fontFamily: Fonts.medium,
-  },
-  dateModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
-  },
-  dateModalSheet: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 40,
-  },
-  dateModalToolbar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
-  dateModalTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: 15,
-    color: "#111827",
-  },
-  dateModalCancel: {
-    fontFamily: Fonts.regular,
-    fontSize: 15,
-    color: "#6B7280",
-  },
-  dateModalDone: {
-    fontFamily: Fonts.bold,
-    fontSize: 15,
-    color: "#1B4F8A",
   },
   businessPill: {
     marginTop: 8,

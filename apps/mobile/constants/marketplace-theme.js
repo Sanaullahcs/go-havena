@@ -4,6 +4,9 @@ import { Layout } from "./tokens";
 import { Fonts } from "./font";
 import { sf, sw } from "../utils/responsive";
 
+/** Horizontal inset shared by marketplace form fields and sticky action buttons. */
+export const MARKETPLACE_FORM_GUTTER = sw(24);
+
 /** Community / marketplace hub — Ocean Breeze aligned. */
 export const MarketplaceTheme = {
   screenBg: T.canvas,

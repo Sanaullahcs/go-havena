@@ -92,6 +92,7 @@ class PlaidConnectionTest extends TestCase
         $this->getJson('/api/v1/plaid/connection')
             ->assertOk()
             ->assertJsonPath('data.connected', true)
+            ->assertJsonPath('data.status', 'connected')
             ->assertJsonPath('data.item_id', 'item-sandbox-existing')
             ->assertJsonPath('data.institution_name', 'Tartan Bank')
             ->assertJsonPath('data.institution_id', 'ins_tartan')

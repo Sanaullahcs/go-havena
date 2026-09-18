@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Services\ActivityLogService;
 use App\Support\MediaUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -420,8 +421,21 @@ class CommunityDocumentController extends Controller
             $updates = array_merge($updates, $fileMeta);
         }
 
+        $fields = ['title', 'category', 'description', 'status', 'file_path'];
+        $before = ActivityLogService::snapshot($doc, $fields);
         DB::table('community_documents')->where('id', $id)->update($updates);
         $updated = DB::table('community_documents')->find($id);
+        ActivityLogService::recordUpdate(
+            'community_document_updated',
+            'CommunityDocument',
+            $id,
+            $before,
+            ActivityLogService::snapshot($updated, $fields),
+            [],
+            null,
+            null,
+            ['related_item' => $updated->title ?? $doc->title],
+        );
 
         return response()->json([
             'data'    => $this->formatDocument($updated, $request),

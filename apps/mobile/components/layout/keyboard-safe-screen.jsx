@@ -4,6 +4,7 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   View,
@@ -225,6 +226,44 @@ export function useScrollFieldRefIntoView(
 ) {
   const keyboardTopRef = useRef(null);
   const scrollOffsetRef = useRef(0);
+  const pendingFieldRef = useRef(null);
+
+  const measureAndScroll = useCallback(
+    (fieldRef) => {
+      if (!scrollRef?.current || !fieldRef?.current) return;
+
+      // Wait for the keyboard. Measuring against the full window minus the
+      // footer would scroll lower fields on mount / first-field focus.
+      const keyboardTop = keyboardTopRef.current;
+      if (keyboardTop == null) return;
+
+      fieldRef.current?.measureInWindow((_x, fieldY, _w, fieldHeight) => {
+        const visibleBottom = keyboardTop - footerHeight - topPad;
+        const fieldBottom = fieldY + fieldHeight;
+
+        if (fieldBottom <= visibleBottom) return;
+
+        scrollRef.current?.scrollTo({
+          y: Math.max(0, scrollOffsetRef.current + (fieldBottom - visibleBottom)),
+          animated: true,
+        });
+      });
+    },
+    [scrollRef, footerHeight, topPad],
+  );
+
+  const scheduleScroll = useCallback(
+    (fieldRef) => {
+      pendingFieldRef.current = fieldRef;
+      requestAnimationFrame(() => {
+        setTimeout(() => measureAndScroll(fieldRef), delayMs);
+        if (Platform.OS === "android") {
+          setTimeout(() => measureAndScroll(fieldRef), delayMs + RESIZE_RETRY_MS);
+        }
+      });
+    },
+    [measureAndScroll, delayMs],
+  );
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -232,6 +271,7 @@ export function useScrollFieldRefIntoView(
 
     const onShow = (event) => {
       keyboardTopRef.current = resolveKeyboardTop(event);
+      if (pendingFieldRef.current) scheduleScroll(pendingFieldRef.current);
     };
     const onHide = () => {
       keyboardTopRef.current = null;
@@ -239,12 +279,19 @@ export function useScrollFieldRefIntoView(
 
     const showSub = Keyboard.addListener(showEvent, onShow);
     const hideSub = Keyboard.addListener(hideEvent, onHide);
+    const didShowSub =
+      Platform.OS === "ios" ? Keyboard.addListener("keyboardDidShow", onShow) : null;
 
     return () => {
       showSub.remove();
       hideSub.remove();
+      didShowSub?.remove();
     };
-  }, []);
+  }, [scheduleScroll]);
+
+  useEffect(() => {
+    if (pendingFieldRef.current) scheduleScroll(pendingFieldRef.current);
+  }, [footerHeight, scheduleScroll]);
 
   const onScroll = useCallback((event) => {
     scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
@@ -252,35 +299,16 @@ export function useScrollFieldRefIntoView(
 
   const scrollIntoView = useCallback(
     (fieldRef) => {
-      if (!scrollRef?.current || !fieldRef?.current) return;
-
-      const run = () => {
-        fieldRef.current?.measureInWindow((_x, fieldY, _w, fieldHeight) => {
-          const windowHeight = Dimensions.get("window").height;
-          const keyboardTop = keyboardTopRef.current ?? windowHeight;
-          const visibleBottom = keyboardTop - footerHeight - topPad;
-          const fieldBottom = fieldY + fieldHeight;
-
-          if (fieldBottom <= visibleBottom) return;
-
-          scrollRef.current?.scrollTo({
-            y: scrollOffsetRef.current + (fieldBottom - visibleBottom),
-            animated: true,
-          });
-        });
-      };
-
-      requestAnimationFrame(() => {
-        setTimeout(run, delayMs);
-        if (Platform.OS === "android") {
-          setTimeout(run, delayMs + RESIZE_RETRY_MS);
-        }
-      });
+      scheduleScroll(fieldRef);
     },
-    [scrollRef, delayMs, topPad, footerHeight],
+    [scheduleScroll],
   );
 
-  return { scrollIntoView, onScroll };
+  const clearPending = useCallback(() => {
+    pendingFieldRef.current = null;
+  }, []);
+
+  return { scrollIntoView, onScroll, clearPending };
 }
 
 /**
@@ -350,6 +378,8 @@ export default function KeyboardSafeScreen({
   footerStyle,
   scrollProps,
   keyboardVerticalOffset = 0,
+  onFooterHeight,
+  dismissKeyboardOnPress = false,
   /** When false, iOS uses ScrollView keyboard insets instead of KeyboardAvoidingView (better for long forms). */
   keyboardAvoiding = true,
   /** When false, sticky footer stays at the layout bottom (no translateY lift above keyboard). */
@@ -373,6 +403,9 @@ export default function KeyboardSafeScreen({
     : dockFooter
       ? 6
       : Math.max(insets.bottom, 12);
+  const flattenedContent = StyleSheet.flatten(contentContainerStyle) || {};
+  const baseContentPad =
+    typeof flattenedContent.paddingBottom === "number" ? flattenedContent.paddingBottom : 0;
 
   const body = (
     <View style={styles.flex}>
@@ -382,22 +415,31 @@ export default function KeyboardSafeScreen({
         contentContainerStyle={[
           styles.scrollContent,
           contentContainerStyle,
-          fieldFooterGap > 0 && { paddingBottom: fieldFooterGap },
+          fieldFooterGap > 0 && { paddingBottom: baseContentPad + fieldFooterGap },
         ]}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
         showsVerticalScrollIndicator={false}
         automaticallyAdjustKeyboardInsets={
           keyboardAvoiding ? !IOS_KEYBOARD_AVOID : true
         }
         {...scrollProps}
       >
-        {children}
+        {dismissKeyboardOnPress ? (
+          <Pressable onPress={Keyboard.dismiss} accessible={false} style={styles.scrollPressable}>
+            {children}
+          </Pressable>
+        ) : (
+          children
+        )}
       </ScrollView>
       {footer ? (
         <View
           ref={footerMeasureRef}
           collapsable={false}
+          onLayout={(event) => {
+            onFooterHeight?.(Math.ceil(event.nativeEvent.layout.height));
+          }}
           style={[
             styles.footerMeasure,
             footerBorderless && !dockFooter && styles.footerMeasureBorderless,
@@ -442,6 +484,9 @@ export default function KeyboardSafeScreen({
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   scrollContent: {
+    flexGrow: 1,
+  },
+  scrollPressable: {
     flexGrow: 1,
   },
   footerMeasure: {

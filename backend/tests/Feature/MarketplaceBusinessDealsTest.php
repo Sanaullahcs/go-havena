@@ -643,4 +643,83 @@ class MarketplaceBusinessDealsTest extends TestCase
         $this->assertContains('Seaport Provisions', $tenNames);
         $this->assertContains('Highlands Market', $tenNames);
     }
+
+    public function test_resident_can_create_deal_with_menu_without_changing_status(): void
+    {
+        ['community' => $community, 'residentA' => $resident] = $this->seedCommunityWithUsers();
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/businesses', $this->businessPayload(), [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated();
+
+        $response = $this->postJson('/api/v1/deals', $this->dealPayload([
+            'title'          => 'Lunch Special',
+            'menu_image_url' => 'https://example.com/storage/deals/menu.jpg',
+            'menu_items'     => [
+                [
+                    'name'        => 'Avocado Toast',
+                    'description' => 'Sourdough with lime',
+                    'price'       => '$8.50',
+                    'image_url'   => 'https://example.com/storage/deals/toast.jpg',
+                ],
+                [
+                    'name'  => 'Iced Coffee',
+                    'price' => '$4',
+                ],
+            ],
+        ]), ['X-Community-Id' => (string) $community->id]);
+
+        $response->assertCreated();
+        $response->assertJsonPath('data.status', 'active');
+        $response->assertJsonPath('data.menu_items.0.name', 'Avocado Toast');
+        $response->assertJsonPath('data.menu_items.0.price', '$8.50');
+        $response->assertJsonPath('data.menu_items.1.name', 'Iced Coffee');
+        $this->assertNotEmpty($response->json('data.menu_image_url'));
+    }
+
+    public function test_community_admin_can_create_and_clear_deal_menu(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunityWithUsers();
+
+        Sanctum::actingAs($admin);
+
+        $created = $this->postJson('/api/v1/deals', $this->dealPayload([
+            'title'          => 'Admin Special',
+            'menu_image_url' => 'https://example.com/storage/deals/admin-menu.jpg',
+            'menu_items'     => [
+                ['name' => 'Soup of the Day', 'price' => '$6'],
+            ],
+        ]), ['X-Community-Id' => (string) $community->id]);
+
+        $created->assertCreated();
+        $created->assertJsonPath('data.status', 'active');
+        $created->assertJsonPath('data.menu_items.0.name', 'Soup of the Day');
+        $dealId = $created->json('data.id');
+
+        $updated = $this->patchJson("/api/v1/deals/{$dealId}", [
+            'menu_image_url' => null,
+            'menu_items'     => [],
+        ], ['X-Community-Id' => (string) $community->id]);
+
+        $updated->assertOk();
+        $updated->assertJsonPath('data.menu_image_url', null);
+        $this->assertSame([], $updated->json('data.menu_items'));
+    }
+
+    public function test_deal_menu_item_requires_a_name(): void
+    {
+        ['community' => $community, 'residentA' => $resident] = $this->seedCommunityWithUsers();
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/businesses', $this->businessPayload(), [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated();
+
+        $this->postJson('/api/v1/deals', $this->dealPayload([
+            'menu_items' => [
+                ['description' => 'Missing name', 'price' => '$3'],
+            ],
+        ]), ['X-Community-Id' => (string) $community->id])->assertUnprocessable();
+    }
 }
