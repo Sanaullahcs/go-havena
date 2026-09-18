@@ -8,7 +8,7 @@ import { MapPin } from "lucide-react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { getCurrentRole } from "../../../constants/role-session";
 import { saveRegionSelection } from "../../../services/auth-api";
-import { arrowForward } from "../../../utils/rtl";
+import { ionChevronForward } from "../../../utils/rtl";
 import { normalizeRegion } from "../../../services/regions-api";
 import { resolveLocation } from "../../../services/geography-api";
 import { getApiErrorMessage } from "../../../utils/auth-errors";
@@ -165,7 +165,7 @@ export default function RegionScreen() {
               ) : (
                 <View style={styles.ticketCta}>
                   <Text style={styles.ticketCtaText}>{t("region.seeCommunities")}</Text>
-                  <Ionicons name={arrowForward()} size={14} color={T.white} />
+                  <Ionicons name={ionChevronForward()} size={14} color={T.white} />
                 </View>
               )}
             </TouchableOpacity>

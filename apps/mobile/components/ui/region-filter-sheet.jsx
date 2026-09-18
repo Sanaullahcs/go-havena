@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -44,7 +44,7 @@ function SearchableField({
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(
-    () => options.filter((item) => matchesQuery(item, query)),
+    () => options.filter((item) => item?.name && matchesQuery(item, query)),
     [options, query],
   );
   const customName = query.trim();
@@ -105,36 +105,31 @@ function SearchableField({
 
           {loading ? (
             <View style={styles.dropdownState}>
-              <ActivityIndicator size="small" color={T.teal} />
+              <ActivityIndicator size="small" color={T.navy} />
             </View>
           ) : (
-            <FlatList
-              data={filtered}
-              keyExtractor={(item) => String(item.id)}
+            <ScrollView
               keyboardShouldPersistTaps="handled"
               style={styles.dropdownList}
               nestedScrollEnabled
-              ListEmptyComponent={
-                showCustom ? null : <Text style={styles.dropdownEmpty}>{emptyText}</Text>
-              }
-              ListHeaderComponent={
-                showCustom ? (
-                  <TouchableOpacity
-                    style={styles.option}
-                    activeOpacity={0.85}
-                    onPress={() => {
-                      onSelect({ id: `custom:${customName}`, name: customName });
-                      close();
-                    }}
-                  >
-                    <Text style={styles.optionText}>{t("region.useTypedCity", { city: customName })}</Text>
-                  </TouchableOpacity>
-                ) : null
-              }
-              renderItem={({ item }) => {
-                const selected = value?.id === item.id;
+            >
+              {showCustom ? (
+                <TouchableOpacity
+                  style={styles.option}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    onSelect({ id: `custom:${customName}`, name: customName });
+                    close();
+                  }}
+                >
+                  <Text style={styles.optionText}>{t("region.useTypedCity", { city: customName })}</Text>
+                </TouchableOpacity>
+              ) : null}
+              {filtered.map((item, index) => {
+                const selected = value?.id != null && String(value.id) === String(item.id);
                 return (
                   <TouchableOpacity
+                    key={`${item.id ?? item.name}-${index}`}
                     style={[styles.option, selected && styles.optionSelected]}
                     activeOpacity={0.85}
                     onPress={() => {
@@ -146,11 +141,14 @@ function SearchableField({
                       {item.name}
                     </Text>
                     {item.code ? <Text style={styles.optionMeta}>{item.code}</Text> : null}
-                    {selected ? <Ionicons name="checkmark" size={16} color={T.teal} /> : null}
+                    {selected ? <Ionicons name="checkmark" size={16} color={T.navy} /> : null}
                   </TouchableOpacity>
                 );
-              }}
-            />
+              })}
+              {!showCustom && filtered.length === 0 ? (
+                <Text style={styles.dropdownEmpty}>{emptyText}</Text>
+              ) : null}
+            </ScrollView>
           )}
         </View>
       ) : null}

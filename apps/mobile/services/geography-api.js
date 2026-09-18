@@ -1,45 +1,62 @@
 import { apiRequest } from "./api-client";
 
+function asPlaces(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((item) => item && item.id != null && item.name)
+    .map((item) => ({
+      id: item.id,
+      name: String(item.name).trim(),
+      code: item.code ? String(item.code) : "",
+      state_id: item.state_id ?? null,
+    }));
+}
+
 export async function fetchCountries() {
   const result = await apiRequest("/countries", {
     auth: false,
     community: false,
   });
-  return Array.isArray(result.data) ? result.data : [];
+  return asPlaces(result.data);
 }
 
 export async function fetchCountryStates(countryId) {
-  if (!countryId) return [];
-  const result = await apiRequest(`/countries/${countryId}/states`, {
+  const id = Number(countryId);
+  if (!Number.isFinite(id) || id <= 0) return [];
+  const result = await apiRequest(`/countries/${id}/states`, {
     auth: false,
     community: false,
   });
-  return Array.isArray(result.data) ? result.data : [];
+  return asPlaces(result.data);
 }
 
 export async function resolveLocation({ countryId, stateId, city }) {
-  if (!stateId) return null;
+  const resolvedStateId = Number(stateId);
+  if (!Number.isFinite(resolvedStateId) || resolvedStateId <= 0) return null;
+  const cityName = String(city ?? "").trim();
   const result = await apiRequest("/locations/resolve", {
     method: "POST",
     auth: false,
     community: false,
     body: {
-      ...(countryId ? { country_id: countryId } : {}),
-      state_id: stateId,
-      ...(city ? { city } : {}),
+      ...(Number(countryId) > 0 ? { country_id: Number(countryId) } : {}),
+      state_id: resolvedStateId,
+      ...(cityName ? { city: cityName } : {}),
     },
   });
   return result.data ?? null;
 }
 
 export async function fetchStateCities(stateId, query) {
-  if (!stateId) return [];
+  const id = Number(stateId);
+  if (!Number.isFinite(id) || id <= 0) return [];
   const params = new URLSearchParams();
   if (query?.trim()) params.set("q", query.trim());
   const qs = params.toString();
-  const result = await apiRequest(`/states/${stateId}/cities${qs ? `?${qs}` : ""}`, {
+  const result = await apiRequest(`/states/${id}/cities${qs ? `?${qs}` : ""}`, {
     auth: false,
     community: false,
+    timeoutMs: 45000,
   });
-  return Array.isArray(result.data) ? result.data : [];
+  return asPlaces(result.data);
 }
