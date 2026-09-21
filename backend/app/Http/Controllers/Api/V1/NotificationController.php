@@ -1,0 +1,158 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+
+class NotificationController extends Controller
+{
+    /** GET /notifications */
+    public function index(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $base = DB::table('app_notifications')->where('user_id', $user->id);
+
+        $unread = (clone $base)->whereNull('read_at')->count();
+        $totalAll = (clone $base)->count();
+
+        $query = clone $base;
+
+        if ($request->boolean('unread_only')) {
+            $query->whereNull('read_at');
+        }
+
+        if ($request->filled('type')) {
+            $query->where('type', $request->string('type')->toString());
+        }
+
+        $perPage = min(max((int) $request->get('per_page', 10), 1), 50);
+        $page = max((int) $request->get('page', 1), 1);
+
+        $paginator = $query
+            ->orderByRaw('CASE WHEN read_at IS NULL THEN 0 ELSE 1 END')
+            ->orderByDesc('created_at')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        $items = $this->enrichNoticeNotifications(collect($paginator->items()));
+
+        return response()->json([
+            'data'   => $items->values(),
+            'unread' => $unread,
+            'meta'   => [
+                'total'        => $paginator->total(),
+                'last_page'    => $paginator->lastPage(),
+                'per_page'     => $paginator->perPage(),
+                'current_page' => $paginator->currentPage(),
+                'total_all'    => $totalAll,
+                'warning'      => (clone $base)->where('type', 'warning')->count(),
+                'message'      => (clone $base)->where('type', 'message')->count(),
+            ],
+        ]);
+    }
+
+    /** POST /notifications/{id}/read */
+    public function markRead(Request $request, int $id): JsonResponse
+    {
+        DB::table('app_notifications')
+            ->where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->update(['read_at' => now()]);
+
+        return response()->json(['success' => true]);
+    }
+
+    /** POST /notifications/read-all */
+    public function markAllRead(Request $request): JsonResponse
+    {
+        DB::table('app_notifications')
+            ->where('user_id', $request->user()->id)
+            ->whereNull('read_at')
+            ->update(['read_at' => now()]);
+
+        return response()->json(['success' => true]);
+    }
+
+    private function enrichNoticeNotifications(Collection $notifications): Collection
+    {
+        $noticeIds = $notifications
+            ->map(fn ($row) => $this->extractNoticeId($row->action_url ?? null))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($noticeIds === []) {
+            return $notifications;
+        }
+
+        $notices = DB::table('notices')
+            ->whereIn('id', $noticeIds)
+            ->whereNull('deleted_at')
+            ->get(['id', 'title', 'body', 'category', 'status'])
+            ->keyBy('id');
+
+        return $notifications->map(function ($row) use ($notices) {
+            $noticeId = $this->extractNoticeId($row->action_url ?? null);
+            if (! $noticeId) {
+                return $row;
+            }
+
+            $notice = $notices->get($noticeId);
+            if (! $notice) {
+                return $row;
+            }
+
+            $row->notice_category = $notice->category ?? null;
+            $row->notice_id = (int) $notice->id;
+
+            // Only sync live notice content for standard notice broadcasts.
+            // Custom alerts (e.g. event join/leave) keep their stored title/body.
+            if (($notice->status ?? '') !== 'published') {
+                return $row;
+            }
+
+            $expectedLabel = $this->noticeNotificationLabel($notice->category ?? 'general');
+            if (($row->title ?? '') !== $expectedLabel) {
+                return $row;
+            }
+
+            $row->title = $expectedLabel;
+            $row->body  = $this->noticeNotificationSummary($notice);
+            $row->type  = ($notice->category ?? '') === 'emergency' ? 'warning' : 'info';
+
+            return $row;
+        });
+    }
+
+    private function extractNoticeId(?string $actionUrl): ?int
+    {
+        if (! $actionUrl || ! preg_match('#/notices/(\d+)#', $actionUrl, $matches)) {
+            return null;
+        }
+
+        return (int) $matches[1];
+    }
+
+    private function noticeNotificationLabel(string $category): string
+    {
+        return match ($category) {
+            'event'     => 'New Event',
+            'emergency' => 'New Alert',
+            default     => 'New Notice',
+        };
+    }
+
+    private function noticeNotificationSummary(object $notice): string
+    {
+        $summary = trim((string) ($notice->body ?: $notice->title));
+        if ($summary === '') {
+            $summary = (string) $notice->title;
+        }
+
+        return $summary;
+    }
+}

@@ -1,0 +1,10 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["AppLocaleModule"],
+    "appDelegateSubscribers": ["AppLocaleAppDelegateSubscriber"]
+  },
+  "android": {
+    "modules": ["expo.modules.applocale.AppLocaleModule"]
+  }
+}

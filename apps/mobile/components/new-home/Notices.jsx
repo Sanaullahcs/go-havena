@@ -1,0 +1,639 @@
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  useWindowDimensions,
+  FlatList,
+  Modal,
+  Platform,
+  StatusBar,
+} from "react-native";
+import React, { useCallback, useMemo, useState, useEffect, useRef } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { Feather } from "@expo/vector-icons";
+import { Fonts } from "../../constants/font";
+import { Home, homeStyles } from "../../constants/home-styles";
+import { HomeTheme as T } from "../../constants/home-theme";
+import {
+  formatDisplayTime12h,
+  formatShortDate,
+  getCategoryTheme,
+} from "../../services/notices-api";
+import { useTranslation } from "react-i18next";
+import CrispImage from "../ui/crisp-image";
+import { NoticeCoverMedia } from "../notices/notice-cover-thumbnail";
+import { mediaImageSource } from "../../utils/profile-display";
+import { sw, sf } from "../../utils/responsive";
+import HomeSectionEmpty from "./home-section-empty";
+import { PropertyManagementRoutes } from "../../constants/property-management-routes";
+import { MarketplaceRoutes } from "../../constants/marketplace-routes";
+import { navigateAppRoute } from "../../utils/app-navigation";
+import { arrowForward } from "../../utils/rtl";
+import { localizedField } from "../../i18n";
+
+const QUICK_ACTIONS = [
+  { id: "post", titleKey: "home.qa.post", icon: "edit-3", route: "/screens/create-post" },
+  { id: "book", titleKey: "home.qa.book", icon: "calendar", route: PropertyManagementRoutes.AMENITY },
+  { id: "sell", titleKey: "home.qa.sell", icon: "shopping-bag", route: MarketplaceRoutes.CREATE_LISTING },
+  { id: "notices", titleKey: "home.qa.notices", icon: "bell", route: PropertyManagementRoutes.NOTICES },
+  { id: "feed", titleKey: "home.qa.feed", icon: "message-circle", route: "/screens/community-feed" },
+  { id: "deals", titleKey: "home.qa.deals", icon: "percent", route: MarketplaceRoutes.DEALS },
+  { id: "wellness", titleKey: "home.qa.wellness", icon: "heart", route: "/(tabs)/wellness" },
+  { id: "docs", titleKey: "home.qa.docs", icon: "file-text", route: PropertyManagementRoutes.DOCUMENTS },
+  { id: "bookings", titleKey: "home.qa.bookings", icon: "clipboard", route: PropertyManagementRoutes.MY_BOOKING },
+  { id: "chat", titleKey: "home.qa.chat", icon: "mail", route: "/screens/messages" },
+];
+
+const QA_TILE_W = sw(64);
+const QA_GAP = sw(20);
+
+const HERO_HEIGHT = sw(175);
+/** Auto-advance interval for the home notices carousel. */
+const AUTO_SCROLL_INTERVAL_MS = 5 * 60 * 1000;
+
+function mapNoticeToHero(notice, t) {
+  const theme = notice.theme ?? getCategoryTheme(notice.category);
+  const cat = notice.category ?? "general";
+  return {
+    id: String(notice.id),
+    badge: t(`categories.${cat}`, { defaultValue: theme.label }).toUpperCase(),
+    badgeIcon: theme.icon ?? "bell",
+    title: localizedField(notice, "title") || notice.title || "",
+    dateLabel: notice.eventDate
+      ? formatShortDate(notice.eventDate)
+      : notice.timeLabel ?? "",
+    timeStart: notice.eventTime ? formatDisplayTime12h(notice.eventTime) : "",
+    timeEnd: notice.eventTimeEnd ? formatDisplayTime12h(notice.eventTimeEnd) : "",
+    imageUrl: notice.imageUrl,
+    notice,
+  };
+}
+
+function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
+  const { t, i18n } = useTranslation();
+  const [imageFailed, setImageFailed] = useState(false);
+  const hasRemoteImage = Boolean(item.imageUrl);
+  const hasSchedule = item.dateLabel || item.timeStart;
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [item.imageUrl]);
+
+  const circleD = cardWidth * 1.5;
+  const curveRight = cardWidth * 0.40;
+
+  return (
+    <View style={[styles.heroShell, { width: cardWidth, height: HERO_HEIGHT }]}>
+      {/* Layer 1 — image positioned on the right side only */}
+      <View style={styles.imageArea}>
+        <NoticeCoverMedia
+          fill
+          imageUrl={item.imageUrl}
+          onImageError={() => setImageFailed(true)}
+        />
+      </View>
+
+      {/* Layer 2 — curved navy panel (oversized circle, clipped) */}
+      <View
+        style={[
+          styles.curveShape,
+          {
+            width: circleD,
+            height: circleD,
+            borderRadius: circleD / 2,
+            end: curveRight,
+            top: (HERO_HEIGHT - circleD) / 2,
+          },
+        ]}
+        pointerEvents="none"
+      />
+
+      {/* Layer 3 — teal arc border between navy curve and image */}
+      <View
+        style={[
+          styles.curveAccent,
+          {
+            width: circleD + sw(5),
+            height: circleD + sw(5),
+            borderRadius: (circleD + sw(5)) / 2,
+            end: curveRight - sw(2.5),
+            top: (HERO_HEIGHT - circleD - sw(5)) / 2,
+          },
+        ]}
+        pointerEvents="none"
+      />
+
+      {/* Layer 4 — text content (rendered last = always on top) */}
+      <View style={styles.heroCopy} pointerEvents="box-none">
+        <Pressable
+          onPress={onPress}
+          style={({ pressed }) => [styles.heroCopyInner, pressed && { opacity: 0.85 }]}
+        >
+          <View style={styles.badge}>
+            <Feather name={item.badgeIcon} size={sf(10)} color={T.teal} />
+            <Text style={styles.badgeText}>{item.badge}</Text>
+          </View>
+
+          <Text style={styles.heroTitle} numberOfLines={2}>
+            {item.title}
+          </Text>
+{hasSchedule ? (
+            <View style={styles.dateLine}>
+              <Feather name="calendar" size={sf(12)} color="rgba(209,250,245,0.6)" />
+              <Text style={styles.dateText}>
+                {item.dateLabel}
+                {item.dateLabel && item.timeStart ? "  ·  " : ""}
+                {item.timeStart}
+                {item.timeEnd ? ` – ${item.timeEnd}` : ""}
+              </Text>
+            </View>
+          ) : null}
+
+          <View style={styles.ctaBtn}>
+            <Text style={styles.ctaText}>{t("notices.viewDetails")}</Text>
+            <Feather name={arrowForward()} size={sf(12)} color="#fff" />
+          </View>
+        </Pressable>
+      </View>
+
+      {/* Layer 5 — image tap zone */}
+      {hasRemoteImage && !imageFailed ? (
+        <Pressable
+          onPress={() => onImagePress?.()}
+          style={styles.imageTap}
+          accessibilityRole="imagebutton"
+          accessibilityLabel={t("notices.viewFullImage")}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+function QuickActionsRow() {
+  const router = useRouter();
+  const { t } = useTranslation();
+
+  const openAction = useCallback(
+    (route) => {
+      navigateAppRoute(router, route);
+    },
+    [router],
+  );
+
+  return (
+    <View style={styles.qaWrap}>
+      <Text style={[homeStyles.sectionLabel, styles.qaHeader]}>
+        {t("home.quickActions", { defaultValue: "Quick Actions" })}
+      </Text>
+      <FlatList
+        data={QUICK_ACTIONS}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(item) => item.id}
+        nestedScrollEnabled
+        decelerationRate="fast"
+        snapToInterval={QA_TILE_W + QA_GAP}
+        snapToAlignment="start"
+        disableIntervalMomentum
+        ItemSeparatorComponent={() => <View style={{ width: QA_GAP }} />}
+        contentContainerStyle={styles.qaListContent}
+        getItemLayout={(_, index) => ({
+          length: QA_TILE_W + QA_GAP,
+          offset: (QA_TILE_W + QA_GAP) * index,
+          index,
+        })}
+        renderItem={({ item }) => (
+          <Pressable
+            onPress={() => openAction(item.route)}
+            style={({ pressed }) => [
+              styles.qaTile,
+              pressed && styles.qaTilePressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={t(item.titleKey)}
+          >
+            <View style={styles.qaIcon}>
+              <Feather name={item.icon} size={sf(18)} color={T.navy} />
+            </View>
+            <Text style={styles.qaLabel} numberOfLines={2}>
+              {t(item.titleKey)}
+            </Text>
+          </Pressable>
+        )}
+      />
+    </View>
+  );
+}
+
+export default function Notices({ items = [] }) {
+  const { t, i18n } = useTranslation();
+  const router = useRouter();
+  const { width: screenWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [previewImage, setPreviewImage] = useState(null);
+  const cardWidth = useMemo(() => screenWidth - Home.gutter * 2, [screenWidth]);
+  const listRef = useRef(null);
+  const activeIndexRef = useRef(0);
+  const userScrollingRef = useRef(false);
+
+  const carouselItems = useMemo(
+    () =>
+      items
+        .filter((n) => n && n.id)
+        .slice(0, 6)
+        .map((n) => mapNoticeToHero(n, t)),
+    [items, t, i18n.language],
+  );
+
+  useEffect(() => {
+    activeIndexRef.current = activeIndex;
+  }, [activeIndex]);
+
+  useEffect(() => {
+    setActiveIndex(0);
+    activeIndexRef.current = 0;
+    if (carouselItems.length > 0) {
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToOffset({ offset: 0, animated: false });
+      });
+    }
+  }, [carouselItems.length, screenWidth]);
+
+  useEffect(() => {
+    if (carouselItems.length < 2 || previewImage) return undefined;
+
+    const timer = setInterval(() => {
+      if (userScrollingRef.current) return;
+      const next = (activeIndexRef.current + 1) % carouselItems.length;
+      activeIndexRef.current = next;
+      setActiveIndex(next);
+      listRef.current?.scrollToIndex({
+        index: next,
+        animated: true,
+        viewPosition: 0,
+      });
+    }, AUTO_SCROLL_INTERVAL_MS);
+
+    return () => clearInterval(timer);
+  }, [carouselItems.length, previewImage, screenWidth]);
+
+  const onHeroScroll = useCallback(
+    (event) => {
+      if (!carouselItems.length) return;
+      const index = Math.round(
+        event.nativeEvent.contentOffset.x / screenWidth,
+      );
+      const next = Math.min(Math.max(index, 0), carouselItems.length - 1);
+      activeIndexRef.current = next;
+      setActiveIndex(next);
+    },
+    [screenWidth, carouselItems.length],
+  );
+
+  const onScrollBeginDrag = useCallback(() => {
+    userScrollingRef.current = true;
+  }, []);
+
+  const onScrollEndDrag = useCallback(() => {
+    userScrollingRef.current = false;
+  }, []);
+
+  const openNotice = useCallback(
+    (item) => {
+      if (item.notice) {
+        router.push({
+          pathname: "/screens/notice-detail",
+          params: { id: String(item.notice.id) },
+        });
+      } else {
+        navigateAppRoute(router, PropertyManagementRoutes.NOTICES);
+      }
+    },
+    [router],
+  );
+
+  const openImage = useCallback((item) => {
+    const uri = item.imageUrl;
+    if (uri) setPreviewImage(uri);
+  }, []);
+
+  const renderHero = useCallback(
+    ({ item }) => (
+      <View style={{ width: screenWidth, paddingHorizontal: Home.gutter }}>
+        <NoticeHeroCard
+          item={item}
+          cardWidth={cardWidth}
+          onPress={() => openNotice(item)}
+          onImagePress={() => openImage(item)}
+        />
+      </View>
+    ),
+    [screenWidth, cardWidth, openNotice, openImage],
+  );
+
+  return (
+    <>
+      {carouselItems.length > 0 ? (
+        <View style={styles.heroWrap}>
+          <FlatList
+            ref={listRef}
+            data={carouselItems}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            decelerationRate="fast"
+            snapToInterval={screenWidth}
+            snapToAlignment="start"
+            disableIntervalMomentum
+            nestedScrollEnabled
+            pagingEnabled
+            scrollEventThrottle={16}
+            onScroll={onHeroScroll}
+            onScrollBeginDrag={onScrollBeginDrag}
+            onScrollEndDrag={onScrollEndDrag}
+            onMomentumScrollEnd={onScrollEndDrag}
+            onScrollToIndexFailed={({ index }) => {
+              requestAnimationFrame(() => {
+                listRef.current?.scrollToOffset({
+                  offset: Math.max(0, index) * screenWidth,
+                  animated: true,
+                });
+              });
+            }}
+            keyExtractor={(item) => item.id}
+            renderItem={renderHero}
+            style={styles.heroFlatList}
+            contentContainerStyle={styles.heroFlatListContent}
+            getItemLayout={(_, index) => ({
+              length: screenWidth,
+              offset: screenWidth * index,
+              index,
+            })}
+          />
+          {carouselItems.length > 1 ? (
+            <View style={styles.dots}>
+              {carouselItems.map((_, i) => (
+                <View
+                  key={i}
+                  style={[styles.dot, i === activeIndex && styles.dotActive]}
+                />
+              ))}
+            </View>
+          ) : null}
+        </View>
+      ) : (
+        <View style={styles.heroEmptyWrap}>
+          <View style={{ paddingHorizontal: Home.gutter }}>
+            <HomeSectionEmpty
+              message={t("home.noNotices")}
+            />
+          </View>
+        </View>
+      )}
+
+      <QuickActionsRow />
+
+      {/* Full-screen image preview */}
+      <Modal
+        visible={!!previewImage}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setPreviewImage(null)}
+      >
+        <StatusBar barStyle="light-content" />
+        <View style={styles.previewRoot}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setPreviewImage(null)}
+          />
+          <CrispImage
+            source={mediaImageSource(previewImage) ?? { uri: previewImage }}
+            style={styles.previewImage}
+            contentFit="contain"
+          />
+          <Pressable
+            onPress={() => setPreviewImage(null)}
+            style={[styles.previewClose, { top: Math.max(insets.top, 12) + 8 }]}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={t("common.close")}
+          >
+            <Feather name="x" size={sf(22)} color="#fff" />
+          </Pressable>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  heroWrap: {
+    paddingTop: sw(4),
+  },
+  heroEmptyWrap: {
+    paddingTop: sw(4),
+    paddingBottom: sw(4),
+  },
+  heroFlatList: {
+    height: HERO_HEIGHT,
+    flexGrow: 0,
+  },
+  heroFlatListContent: {
+    height: HERO_HEIGHT,
+    alignItems: "stretch",
+  },
+  heroShell: {
+    borderRadius: sw(16),
+    overflow: "hidden",
+    backgroundColor: T.navy,
+    ...(Platform.OS === "ios"
+      ? {
+          shadowColor: T.navy,
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.2,
+          shadowRadius: 16,
+          borderCurve: "continuous",
+        }
+      : { elevation: 6 }),
+  },
+  imageArea: {
+    position: "absolute",
+    end: 0,
+    top: 0,
+    bottom: 0,
+    width: "48%",
+  },
+  curveShape: {
+    position: "absolute",
+    backgroundColor: T.navy,
+  },
+  curveAccent: {
+    position: "absolute",
+    backgroundColor: "transparent",
+    borderWidth: sw(2.5),
+    borderColor: T.teal,
+  },
+  heroCopy: {
+    position: "absolute",
+    start: 0,
+    top: 0,
+    bottom: 0,
+    width: "55%",
+    paddingStart: sw(18),
+    paddingTop: sw(14),
+    paddingBottom: sw(16),
+    justifyContent: "center",
+  },
+  heroCopyInner: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  imageTap: {
+    position: "absolute",
+    end: 0,
+    top: 0,
+    bottom: 0,
+    width: "45%",
+  },
+
+  badge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: sw(4),
+    paddingHorizontal: sw(8),
+    paddingVertical: sw(3),
+    borderRadius: 999,
+    backgroundColor: "rgba(20,184,166,0.18)",
+    marginBottom: sw(8),
+  },
+  badgeText: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(8.5),
+    color: T.teal,
+    letterSpacing: 0.8,
+    fontWeight: "700",
+    writingDirection: "auto",
+  },
+  heroTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(14.5),
+    lineHeight: sf(20),
+    color: "#FFFFFF",
+    fontWeight: "700",
+    marginBottom: sw(6),
+    flexShrink: 1,
+    writingDirection: "auto",
+  },
+  dateLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(5),
+    marginBottom: sw(10),
+  },
+  dateText: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(10.5),
+    color: "rgba(209,250,245,0.7)",
+    flexShrink: 1,
+    writingDirection: "auto",
+  },
+  ctaBtn: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(6),
+    backgroundColor: T.teal,
+    paddingHorizontal: sw(14),
+    paddingVertical: sw(7),
+    borderRadius: 999,
+  },
+  ctaText: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(10.5),
+    color: "#fff",
+    fontWeight: "700",
+    writingDirection: "auto",
+  },
+
+  dots: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: sw(6),
+    marginTop: sw(10),
+  },
+  dot: {
+    width: sw(7),
+    height: sw(7),
+    borderRadius: sw(4),
+    backgroundColor: T.mint,
+  },
+  dotActive: {
+    width: sw(22),
+    height: sw(7),
+    backgroundColor: T.teal,
+    borderRadius: sw(4),
+  },
+
+  qaWrap: {
+    marginTop: sw(12),
+    paddingBottom: sw(2),
+  },
+  qaHeader: {
+    paddingHorizontal: Home.gutter,
+    marginBottom: sw(10),
+  },
+  qaListContent: {
+    paddingHorizontal: Home.gutter,
+    paddingEnd: Home.gutter + sw(8),
+  },
+  qaTile: {
+    width: QA_TILE_W,
+    alignItems: "center",
+  },
+  qaTilePressed: {
+    opacity: 0.7,
+  },
+  qaIcon: {
+    width: sw(44),
+    height: sw(44),
+    borderRadius: sw(22),
+    backgroundColor: T.mint,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: sw(6),
+  },
+  qaLabel: {
+    fontFamily: Fonts.medium,
+    fontSize: sf(10.5),
+    lineHeight: sf(13),
+    color: T.navy,
+    fontWeight: "500",
+    textAlign: "center",
+    flexShrink: 1,
+  },
+  previewRoot: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.92)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  previewImage: {
+    width: "92%",
+    height: "70%",
+  },
+  previewClose: {
+    position: "absolute",
+    end: sw(16),
+    width: sw(36),
+    height: sw(36),
+    borderRadius: sw(18),
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});

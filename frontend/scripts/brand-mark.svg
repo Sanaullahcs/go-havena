@@ -1,0 +1,29 @@
+<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bm-grad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0179FF" />
+      <stop offset="50%" stop-color="#0052DF" />
+      <stop offset="100%" stop-color="#113D6F" />
+    </linearGradient>
+  </defs>
+  <rect width="48" height="48" rx="12" fill="url(#bm-grad)" />
+  <path
+    d="M14 28 V20 L24 13 L34 20 V28"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="2.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <rect
+    x="14"
+    y="28"
+    width="20"
+    height="8"
+    rx="1.5"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="2.2"
+  />
+  <path d="M22 36 V31.5 a2 2 0 0 1 4 0 V36" fill="#FFFFFF" />
+</svg>

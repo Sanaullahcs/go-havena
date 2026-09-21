@@ -1,0 +1,104 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# --- Monorepo JS (per-app installs; root has no dependencies) ---
+node_modules/
+apps/mobile/node_modules/
+frontend/node_modules/
+/node_modules/              # block accidental root install
+/package-lock.json          # root is scripts-only — lockfiles live in each app
+
+# dependencies (npm/yarn/pnpm)
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Expo (apps/mobile)
+.expo/
+apps/mobile/.expo-*/
+apps/mobile/.expo-tmp-*/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native / Apple signing secrets (never commit)
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+apps/mobile/apple-secrets/
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env
+.env*.local
+.deploy/
+
+# typescript
+*.tsbuildinfo
+
+app-example
+
+# generated native folders (mobile)
+**/ios/
+**/android/
+
+# Next.js (frontend)
+.next/
+out/
+next-env.d.ts
+frontend/.next/
+frontend/out/
+
+# Laravel (backend)
+/backend/vendor/
+/backend/node_modules/
+/backend/public/storage
+/backend/storage/*.key
+/backend/storage/logs/*.log
+/backend/.env
+/backend/.env.backup
+/backend/.phpunit.result.cache
+/backend/public/hot
+
+# misc
+.tmp-export/
+/expo-qr.png
+apps/mobile/expo-qr.png
+apps/mobile/.tmp-bundle-check/
+apps/mobile/.tmp-notify-check*/
+apps/mobile/.tmp-push-check/
+apps/mobile/.tmp-push-fix/
+apps/mobile/.expo-test-bundle/
+apps/mobile/google-services.json
+apps/mobile/GoogleService-Info.plist
+frontend/public/firebase-messaging-sw.js
+Thumbs.db
+
+# IDE (local only)
+.claude/
+.cursor/
+.vscode/
+*.tgz
+*.ps1
+
+# Local research / bulk data exports
+arizona-*.csv
+*.csv
