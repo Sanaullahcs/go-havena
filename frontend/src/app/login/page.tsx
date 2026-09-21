@@ -49,7 +49,7 @@ function LoginPageInner() {
   const registerHref =
     audience === "resident"
       ? "/register?audience=resident"
-      : `/register${planQuery}`;}
+      : `/register${planQuery}`;
   const billingReturnPath = planHint
     ? `/admin/billing?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
     : "/admin/billing";
