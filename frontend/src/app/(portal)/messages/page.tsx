@@ -106,8 +106,8 @@ export default function ResidentMessagesPage() {
           <p className="mt-0.5 text-sm text-slate-500">Chat with admin, moderators, and neighbors.</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="flex h-8 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+          <span className="flex h-8 items-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-3 text-xs font-medium text-[#0D9488]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#14B8A6]"></span>
             {conversations.filter((c) => c.participant.online).length} online
           </span>
         </div>
@@ -116,7 +116,7 @@ export default function ResidentMessagesPage() {
       <ChatShell
         myId={ME.id}
         myName={ME.name}
-        accentColor="#059669"
+        accentColor="#14B8A6"
         conversations={conversations}
         messages={activeMessages}
         activeId={activeId}

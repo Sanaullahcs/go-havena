@@ -1,7 +1,7 @@
 import { NL } from "@/lib/design-tokens";
 
 /** Shared admin/dashboard tone palette — soft washes, muted accents, not flat gray */
-export type AdminTone = "blue" | "green" | "amber" | "red" | "slate" | "violet" | "cyan" | "emerald";
+export type AdminTone = "blue" | "green" | "amber" | "red" | "slate" | "violet" | "cyan" | "emerald" | "teal";
 
 export type AdminToneStyle = {
   accent: string;
@@ -16,29 +16,38 @@ export type AdminToneStyle = {
 export const ADMIN_TONE: Record<AdminTone, AdminToneStyle> = {
   blue: {
     accent: NL.brandPrimary,
-    iconBg: "#E8F0F7",
+    iconBg: NL.mint,
     iconColor: NL.brandPrimaryDeep,
     wash: "#FFFFFF",
-    border: "rgba(27, 79, 138, 0.3)",
+    border: "rgba(10, 42, 67, 0.12)",
     soft: NL.chipBg,
     value: NL.textPrimary,
   },
   green: {
-    accent: "#10B981",
-    iconBg: "#ECFDF5",
-    iconColor: "#047857",
+    accent: NL.deepTeal,
+    iconBg: NL.mint,
+    iconColor: NL.deepTeal,
     wash: "#FFFFFF",
-    border: "rgba(167, 243, 208, 0.45)",
-    soft: "#ECFDF5",
+    border: "rgba(13, 148, 136, 0.22)",
+    soft: NL.mint,
     value: NL.textPrimary,
   },
   emerald: {
-    accent: "#10B981",
-    iconBg: "#ECFDF5",
-    iconColor: "#047857",
+    accent: NL.teal,
+    iconBg: NL.mint,
+    iconColor: NL.deepTeal,
     wash: "#FFFFFF",
-    border: "rgba(167, 243, 208, 0.45)",
-    soft: "#ECFDF5",
+    border: "rgba(20, 184, 166, 0.28)",
+    soft: NL.mint,
+    value: NL.textPrimary,
+  },
+  teal: {
+    accent: NL.teal,
+    iconBg: NL.mint,
+    iconColor: NL.deepTeal,
+    wash: "#FFFFFF",
+    border: "rgba(20, 184, 166, 0.28)",
+    soft: NL.mint,
     value: NL.textPrimary,
   },
   amber: {
@@ -90,8 +99,9 @@ export const ADMIN_TONE: Record<AdminTone, AdminToneStyle> = {
 
 export const ADMIN_BADGE_CLASS: Record<AdminTone, string> = {
   blue: "bg-blue-50 text-blue-700 border-blue-100",
-  green: "bg-emerald-50 text-emerald-700 border-emerald-100",
-  emerald: "bg-emerald-50 text-emerald-700 border-emerald-100",
+  green: "bg-[#D1FAF5] text-[#0D9488] border-[#D1FAF5]",
+  emerald: "bg-[#D1FAF5] text-[#0D9488] border-[#D1FAF5]",
+  teal: "bg-[#D1FAF5] text-[#0D9488] border-[#D1FAF5]",
   amber: "bg-amber-50 text-amber-800 border-amber-100",
   red: "bg-rose-50 text-rose-700 border-rose-100",
   slate: "bg-slate-100 text-slate-600 border-slate-200",

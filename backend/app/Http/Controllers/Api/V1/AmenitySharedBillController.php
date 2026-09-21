@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\AdminRoleService;
 use App\Services\AmenitySharedBillService;
 use App\Services\GuestAccessService;
+use App\Services\PlaidAchService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -188,6 +189,26 @@ class AmenitySharedBillController extends Controller
             'data' => $bill,
             'message' => AmenitySharedBillService::PROOF_SUBMITTED_MESSAGE,
         ]);
+    }
+
+    /** POST /v1/amenities/{id}/bills/{residentBillId}/pay-bank */
+    public function residentPayBank(Request $request, int $id, int $residentBillId): JsonResponse
+    {
+        $user = $request->user();
+        abort_if(GuestAccessService::isGuest($user), 403, 'Guests cannot send bank payments.');
+
+        $transfer = app(PlaidAchService::class)->paySharedBill($user, $id, $residentBillId);
+        $owned = $this->bills->findOwnedResidentBill($id, $residentBillId, (int) $user->id);
+
+        return response()->json([
+            'data' => [
+                'bill' => $owned ? $this->bills->formatResidentBill($owned, $request) : null,
+                'transfer' => $transfer->toPublicPayload(),
+            ],
+            'message' => $transfer->isSuccessful()
+                ? 'Paid from your bank to the community account.'
+                : 'Bank payment submitted.',
+        ], 201);
     }
 
     private function findAdminReviewableBill(Request $request, int $amenityId, int $residentBillId): object

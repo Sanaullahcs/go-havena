@@ -97,7 +97,7 @@ function PaymentHistory({ amenityId, residentBillId }: { amenityId: number; resi
 
   return (
     <div className="mt-2">
-      <button type="button" onClick={toggle} className="text-xs font-semibold text-[#1B4F8A]">
+      <button type="button" onClick={toggle} className="text-xs font-semibold text-[#0D9488]">
         {open ? "Hide payment history" : "Payment history"}
       </button>
       {open ? (
@@ -123,7 +123,7 @@ function PaymentHistory({ amenityId, residentBillId }: { amenityId: number; resi
                   href={row.proof.file_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-1 inline-block font-semibold text-[#1B4F8A]"
+                  className="mt-1 inline-block font-semibold text-[#0D9488]"
                 >
                   {row.proof.file_name || "View submitted proof"}
                 </a>
@@ -209,7 +209,7 @@ function PaymentRow({
               href={proof.file_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1B4F8A]"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0D9488]"
             >
               <FileText className="h-3.5 w-3.5" />
               {proof.file_name || "View receipt"}
@@ -234,7 +234,7 @@ function PaymentRow({
             type="button"
             disabled={busy}
             onClick={onApprove}
-            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+            className="rounded-lg bg-[#14B8A6] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
           >
             Approve Payment
           </button>
@@ -381,7 +381,7 @@ export function AmenitySharedBillsSection({
           <button
             type="button"
             onClick={onCreate}
-            className="shrink-0 rounded-lg bg-[#1B4F8A] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#163e6c]"
+            className="shrink-0 rounded-lg bg-[#14B8A6] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#0D9488]"
           >
             Create bill
           </button>
@@ -415,7 +415,7 @@ export function AmenitySharedBillsSection({
                   href={bill.file_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[#1B4F8A]"
+                  className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[#0D9488]"
                 >
                   <FileText className="h-3.5 w-3.5" />
                   {bill.file_name || "View bill"}
@@ -427,7 +427,7 @@ export function AmenitySharedBillsSection({
               <button
                 type="button"
                 onClick={() => toggleReview(bill.id)}
-                className="mt-2 block text-xs font-semibold text-[#1B4F8A]"
+                className="mt-2 block text-xs font-semibold text-[#0D9488]"
               >
                 {expanded ? "Hide residents" : "View residents"}
               </button>
@@ -442,7 +442,7 @@ export function AmenitySharedBillsSection({
                         onClick={() => setStatusFilter(filter.id)}
                         className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
                           statusFilter === filter.id
-                            ? "bg-[#1B4F8A] text-white"
+                            ? "bg-[#0A2A43] text-white"
                             : "bg-slate-100 text-slate-600"
                         }`}
                       >

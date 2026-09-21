@@ -42,6 +42,7 @@ const RESIDENT_PATH_PREFIXES = [
   "/wellness",
   "/marketplace",
   "/property",
+  "/payments",
   "/profile",
   "/support",
 ];

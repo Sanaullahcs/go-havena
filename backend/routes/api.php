@@ -43,7 +43,9 @@ use App\Http\Controllers\Api\V1\SubscriptionCouponController;
 use App\Http\Controllers\Api\V1\ReferralController;
 use App\Http\Controllers\Api\V1\ReferralProgramController;
 use App\Http\Controllers\Api\V1\PlaidController;
+use App\Http\Controllers\Api\V1\PlaidPaymentController;
 use App\Http\Controllers\Api\V1\PlaidWebhookController;
+use App\Http\Controllers\Api\V1\ResidentPlaidController;
 use App\Http\Controllers\Api\V1\GeoController;
 use App\Http\Controllers\Api\V1\NearbyPlaceController;
 use App\Http\Controllers\Api\V1\InviteQrImageController;
@@ -226,6 +228,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/amenities/{id}/slots',             [AmenityController::class, 'slots']);
             Route::get('/amenities/{id}/bills',             [AmenitySharedBillController::class, 'residentIndex']);
             Route::post('/amenities/{id}/bills/{residentBillId}/proof', [AmenitySharedBillController::class, 'residentSubmitProof']);
+            Route::post('/amenities/{id}/bills/{residentBillId}/pay-bank', [AmenitySharedBillController::class, 'residentPayBank']);
         });
         Route::middleware('resident.feature:bookings')->group(function () {
             Route::get('/bookings',                         [AmenityController::class, 'myBookings']);
@@ -276,13 +279,27 @@ Route::prefix('v1')->group(function () {
         Route::delete('/devices', [DeviceController::class, 'destroy']);
         Route::post('/devices/test-push', [DeviceController::class, 'testPush']);
 
-        /* Plaid (community admin bank linking) */
+        /* Plaid — resident bank + ACH payments */
+        Route::prefix('plaid/resident')->group(function () {
+            Route::get('/capability', [ResidentPlaidController::class, 'capability']);
+            Route::get('/connection', [ResidentPlaidController::class, 'showConnection']);
+            Route::post('/link-token', [ResidentPlaidController::class, 'createLinkToken']);
+            Route::post('/exchange-token', [ResidentPlaidController::class, 'exchangeToken']);
+            Route::post('/reconnect', [ResidentPlaidController::class, 'reconnect']);
+            Route::post('/disconnect', [ResidentPlaidController::class, 'disconnect']);
+        });
+        Route::get('/plaid/resident/payments', [PlaidPaymentController::class, 'index']);
+        Route::post('/plaid/payments/booking', [PlaidPaymentController::class, 'payBooking']);
+        Route::post('/plaid/payments/shared-bill', [PlaidPaymentController::class, 'paySharedBill']);
+
+        /* Plaid (community admin bank linking + ACH ledger) */
         Route::middleware('community.admin')->prefix('plaid')->group(function () {
             Route::get('/connection', [PlaidController::class, 'showConnection']);
             Route::post('/link-token', [PlaidController::class, 'createLinkToken']);
             Route::post('/exchange-token', [PlaidController::class, 'exchangeToken']);
             Route::post('/reconnect', [PlaidController::class, 'reconnect']);
             Route::post('/disconnect', [PlaidController::class, 'disconnect']);
+            Route::get('/payments', [PlaidPaymentController::class, 'adminIndex']);
         });
 
         /* ── Activity Logs ── */

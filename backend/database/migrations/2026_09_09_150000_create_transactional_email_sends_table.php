@@ -10,13 +10,13 @@ return new class extends Migration
     {
         Schema::create('transactional_email_sends', function (Blueprint $table) {
             $table->id();
-            $table->string('mail_type', 80);
-            $table->string('context_key', 191);
+            $table->string('mail_type', 64);
+            $table->string('context_key', 120);
             $table->string('recipient_email', 191);
             $table->timestamp('sent_at')->nullable();
             $table->timestamps();
 
-            $table->unique(['mail_type', 'context_key']);
+            $table->unique(['mail_type', 'context_key'], 'tes_mail_type_context_unique');
             $table->index('recipient_email');
         });
     }

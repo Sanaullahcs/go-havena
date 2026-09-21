@@ -20,6 +20,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/wellness":    "Wellness",
   "/marketplace": "Marketplace",
   "/property":    "Property",
+  "/payments":    "Payments",
   "/profile":     "My Profile",
   "/support":     "Help & Support",
 };
@@ -81,7 +82,7 @@ export default function ResidentPortalLayout({ children }: { children: React.Rea
 
   return (
     <ForegroundNotificationProvider>
-      <div className="min-h-screen bg-[#f4f6fb]">
+      <div className="min-h-screen bg-[#F4F8FD]">
         <WebPushProvider />
         <PortalSidebar open={drawerOpen} onClose={() => setDrawerOpen(false)} />
 

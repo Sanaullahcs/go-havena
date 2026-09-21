@@ -17,7 +17,7 @@ import { formatAccountContact, formatAccountDisplayName, formatDisplayEmail } fr
 const ACHIEVEMENTS = [
   { id: 1, label: "Early Adopter",    color: "#7c3aed", desc: "One of the first 50 residents to join" },
   { id: 2, label: "Community Voice",  color: "#1B4F8A", desc: "Made 10+ community feed posts" },
-  { id: 3, label: "Wellness Starter", color: "#059669", desc: "Completed your first wellness course" },
+  { id: 3, label: "Wellness Starter", color: "#0D9488", desc: "Completed your first wellness course" },
   { id: 4, label: "Marketplace Fan",  color: "#d97706", desc: "Saved 5+ marketplace listings" },
 ];
 
@@ -138,7 +138,7 @@ export default function ProfilePage() {
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={avatarUrl} alt={name} className="h-24 w-24 rounded-2xl border-4 border-white object-cover shadow-lg" />
               ) : (
-                <div className="flex h-24 w-24 items-center justify-center rounded-2xl border-4 border-white bg-gradient-to-br from-emerald-500 to-emerald-700 text-3xl font-bold text-white shadow-lg">
+                <div className="flex h-24 w-24 items-center justify-center rounded-2xl border-4 border-white text-3xl font-bold text-white shadow-lg" style={{ background: "linear-gradient(to bottom right, #14B8A6, #0A2A43)" }}>
                   {initials}
                 </div>
               )}
@@ -171,7 +171,7 @@ export default function ProfilePage() {
           {/* Stats */}
           <div className="mt-5 grid grid-cols-3 gap-3">
             {[
-              { label: "Community Points", value: "482", color: "text-emerald-700" },
+              { label: "Community Points", value: "482", color: "text-[#0D9488]" },
               { label: "Feed Posts",       value: "18",  color: "text-slate-900"   },
               { label: "Badges",           value: "4",   color: "text-slate-900"   },
             ].map((s) => (
@@ -332,7 +332,7 @@ function PasswordSection() {
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex items-center justify-between">
         <h2 className="text-[14px] font-bold text-slate-900">Password &amp; Security</h2>
-        <button type="button" onClick={() => setOpen((v) => !v)} className="text-[12px] font-semibold text-emerald-600 hover:text-emerald-800">
+        <button type="button" onClick={() => setOpen((v) => !v)} className="text-[12px] font-semibold text-[#0D9488] hover:text-[#0A2A43]">
           {open ? "Cancel" : "Change password"}
         </button>
       </div>
@@ -368,7 +368,7 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
       onClick={() => onChange(!value)}
       role="switch"
       aria-checked={value}
-      className={`flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-200 ${value ? "border-emerald-600 bg-emerald-600" : "border-slate-300 bg-slate-200"}`}
+      className={`flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-200 ${value ? "border-[#14B8A6] bg-[#14B8A6]" : "border-slate-300 bg-slate-200"}`}
     >
       <span className={`h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${value ? "translate-x-5" : "translate-x-0.5"}`} />
     </button>

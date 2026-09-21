@@ -38,7 +38,7 @@ const CONTACTS = [
     value: "hello@gohavena.com",
     note: "Response within 24 hours",
     icon: <IcoMail />,
-    color: "emerald",
+    color: "teal",
   },
   {
     label: "Maintenance Line",
@@ -57,7 +57,7 @@ const CONTACTS = [
 ];
 
 const colorMap: Record<string, { bg: string; text: string; border: string }> = {
-  emerald: { bg: "bg-emerald-50", text: "text-emerald-600", border: "border-emerald-100" },
+  teal: { bg: "bg-teal-50", text: "text-[#0D9488]", border: "border-teal-100" },
   amber: { bg: "bg-amber-50", text: "text-amber-600", border: "border-amber-100" },
   rose: { bg: "bg-rose-50", text: "text-rose-600", border: "border-rose-100" },
 };
@@ -82,14 +82,14 @@ export default function PortalSupportPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-8 p-6 lg:p-8">
       {/* Hero */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-800 px-8 py-10 text-white shadow-lg">
+      <div className="relative overflow-hidden rounded-2xl px-8 py-10 text-white shadow-lg" style={{ background: "linear-gradient(to bottom right, #0D9488, #0A2A43)" }}>
         <div className="relative z-10">
           <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[12px] font-semibold tracking-wide">
             <IcoSupport />
             Help Center
           </div>
           <h1 className="text-2xl font-bold sm:text-3xl">How can we help you?</h1>
-          <p className="mt-2 max-w-lg text-[14px] text-emerald-100">
+          <p className="mt-2 max-w-lg text-[14px] text-teal-100">
             Browse answers to common questions or reach out to our resident support team. We're here to make your living experience seamless.
           </p>
         </div>
@@ -222,12 +222,12 @@ export default function PortalSupportPage() {
       </div>
 
       {/* Status banner */}
-      <div className="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4">
+      <div className="flex items-center gap-3 rounded-2xl border border-teal-100 bg-teal-50 px-5 py-4">
         <span className="relative flex h-2.5 w-2.5 shrink-0">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#14B8A6] opacity-75" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#14B8A6]" />
         </span>
-        <p className="text-[13px] font-medium text-emerald-800">
+        <p className="text-[13px] font-medium text-[#0A2A43]">
           Community portal is online — Sunflower Heights Estate services are running normally.
         </p>
       </div>

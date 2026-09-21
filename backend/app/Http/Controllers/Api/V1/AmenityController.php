@@ -9,6 +9,8 @@ use App\Services\AmenityBillReminderService;
 use App\Services\GuestAccessService;
 use App\Services\GuestActivityService;
 use App\Services\NotificationService;
+use App\Services\PlaidAchService;
+use App\Models\PlaidTransfer;
 use App\Support\AmenitySlots;
 use App\Support\MediaUrl;
 use Illuminate\Http\JsonResponse;
@@ -397,14 +399,18 @@ class AmenityController extends Controller
         }
 
         $bookingFee = $this->amenityBookingFee($amenity);
-        $requiresProof = $bookingFee > 0;
-        $paymentStatus = $requiresProof ? self::PAYMENT_PENDING : self::PAYMENT_NOT_REQUIRED;
+        $requiresPayment = $bookingFee > 0;
+        $paymentMethod = $request->string('payment_method')->toString();
+        if (! in_array($paymentMethod, ['bank_ach', 'proof'], true)) {
+            $paymentMethod = $requiresPayment ? 'proof' : 'none';
+        }
+        $paymentStatus = $requiresPayment ? self::PAYMENT_PENDING : self::PAYMENT_NOT_REQUIRED;
         $proofFile = $request->file('payment_proof');
 
-        if ($requiresProof) {
+        if ($requiresPayment && $paymentMethod !== 'bank_ach') {
             if (! $proofFile instanceof UploadedFile) {
                 throw ValidationException::withMessages([
-                    'payment_proof' => 'Upload a payment screenshot or receipt for this booking fee.',
+                    'payment_proof' => 'Upload a payment screenshot or receipt, or pay with your linked bank.',
                 ]);
             }
             if (! $request->filled('payment_date')) {
@@ -424,12 +430,20 @@ class AmenityController extends Controller
             'booking_fee' => $bookingFee,
             'status' => 'pending',
             'payment_verification_status' => $paymentStatus,
+            'payment_method' => $requiresPayment ? $paymentMethod : null,
             'notes' => $request->notes,
             'created_at' => $now,
             'updated_at' => $now,
         ]);
 
-        if ($requiresProof && $proofFile instanceof UploadedFile) {
+        if ($requiresPayment && $paymentMethod === 'bank_ach') {
+            try {
+                app(PlaidAchService::class)->payBooking($user, $id);
+            } catch (\Throwable $e) {
+                DB::table('bookings')->where('id', $id)->delete();
+                throw $e;
+            }
+        } elseif ($requiresPayment && $proofFile instanceof UploadedFile) {
             try {
                 $fileMeta = $this->storeBookingProofFile(
                     $proofFile,
@@ -500,6 +514,8 @@ class AmenityController extends Controller
             ], 422);
         }
 
+        $this->refundBookingAchIfNeeded($booking, auth()->user());
+
         DB::table('bookings')->where('id', $id)->update(['status' => 'cancelled', 'updated_at' => now()]);
 
         return response()->json(['message' => 'Booking cancelled']);
@@ -518,6 +534,13 @@ class AmenityController extends Controller
         if ($booking->status !== 'pending') {
             return response()->json([
                 'message' => 'Only pending booking requests can be approved.',
+            ], 422);
+        }
+
+        if (($booking->payment_method ?? null) === 'bank_ach'
+            && ($booking->payment_verification_status ?? '') === self::PAYMENT_PENDING) {
+            return response()->json([
+                'message' => 'Wait for the bank payment to post before approving this reservation.',
             ], 422);
         }
 
@@ -563,6 +586,7 @@ class AmenityController extends Controller
         }
 
         $reason = $request->filled('reason') ? trim((string) $request->reason) : null;
+        $this->refundBookingAchIfNeeded($booking, $request->user());
         $paymentStatus = ($booking->payment_verification_status ?? self::PAYMENT_NOT_REQUIRED) === self::PAYMENT_PENDING
             ? self::PAYMENT_REJECTED
             : ($booking->payment_verification_status ?? self::PAYMENT_NOT_REQUIRED);
@@ -1124,6 +1148,9 @@ class AmenityController extends Controller
             'booking_fee' => (float) ($row->booking_fee ?? 0),
             'status' => $row->status,
             'payment_verification_status' => $row->payment_verification_status ?? self::PAYMENT_NOT_REQUIRED,
+            'payment_method' => $row->payment_method ?? null,
+            'ach_status' => $row->ach_status ?? null,
+            'bank_payment' => $this->formatBookingBankPayment($row),
             'notes' => $row->notes,
             'rejection_reason' => $row->rejection_reason ?? null,
             'created_at' => $row->created_at,
@@ -1156,6 +1183,41 @@ class AmenityController extends Controller
             'payment_note' => $row->payment_note ?? null,
             'submitted_at' => $row->proof_submitted_at ?? null,
         ];
+    }
+
+    private function formatBookingBankPayment(object $row): ?array
+    {
+        if (($row->payment_method ?? null) !== 'bank_ach' && empty($row->plaid_transfer_id)) {
+            return null;
+        }
+
+        $transfer = null;
+        if (! empty($row->plaid_transfer_id)) {
+            $transfer = PlaidTransfer::query()->find($row->plaid_transfer_id);
+        }
+
+        return $transfer?->toPublicPayload() ?? [
+            'status' => $row->ach_status ?? 'processing',
+            'status_label' => ucfirst(str_replace('_', ' ', (string) ($row->ach_status ?? 'processing'))),
+        ];
+    }
+
+    private function refundBookingAchIfNeeded(object $booking, $actor): void
+    {
+        if (($booking->payment_method ?? null) !== 'bank_ach' || empty($booking->plaid_transfer_id) || ! $actor) {
+            return;
+        }
+
+        $transfer = PlaidTransfer::query()->find($booking->plaid_transfer_id);
+        if (! $transfer || ! $transfer->canRefund()) {
+            return;
+        }
+
+        try {
+            app(PlaidAchService::class)->refund($transfer, $actor);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     private function amenityBookingFee(object $amenity): float

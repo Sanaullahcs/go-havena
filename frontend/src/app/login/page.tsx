@@ -26,9 +26,8 @@ import {
 } from "@/components/auth/auth-form-shell";
 import { OtpVerifyStep } from "@/components/auth/otp-verify-step";
 import { EmailSignInStep } from "@/components/auth/email-sign-in-step";
-import { AuthRedirectOverlay } from "@/components/shared/loaders";
 import { CommunityAuthHero } from "@/components/auth/community-auth-hero";
-import { HavenaMark } from "@/components/shared/havena-mark";
+import { HavenaLockup } from "@/components/shared/havena-lockup";
 import { AuthLegalLinks } from "@/components/auth/auth-legal-links";
 import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
 import { consumeWebHandoffIfPresent } from "@/lib/auth/web-handoff";
@@ -59,7 +58,6 @@ function LoginPageInner() {
   const [otpIntent, setOtpIntent] = useState<CommunityAdminOtpIntent>("login");
   const [otpSending, setOtpSending] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [otpRateLimit, setOtpRateLimit] = useState<unknown>(null);
   const verifyLock = useRef(false);
@@ -68,7 +66,7 @@ function LoginPageInner() {
   const emailValid = !emailFieldError;
   const inlineEmailError =
     emailFocused && email.trim().length > 0 ? emailFieldError : null;
-  const isBusy = loading || redirecting;
+  const isBusy = loading;
   const otpSendingLocked = isBusy || otpSending;
   const communityStep = otpStep === "email" ? 1 : 2;
 
@@ -139,14 +137,13 @@ function LoginPageInner() {
   };
 
   const verifyOtp = async (code: string) => {
-    if (code.length !== 6 || otpSending || loading || redirecting || verifyLock.current) return;
+    if (code.length !== 6 || otpSending || loading || verifyLock.current) return;
     verifyLock.current = true;
     setError(null);
     setLoading(true);
     try {
       const res = await verifyCommunityAdminOtp(email.trim(), code, otpIntent);
       setSession(res.token, res.user);
-      setRedirecting(true);
       const step = getCommunityAdminNextStep(res.user);
       const next =
         canAccessCommunityDashboard(res.user) || step === "ready"
@@ -155,14 +152,13 @@ function LoginPageInner() {
       router.replace(next);
     } catch (err) {
       verifyLock.current = false;
+      setLoading(false);
       if (err instanceof ApiError && err.rateLimit) {
         setOtpRateLimit(err.rateLimit);
         setError(err.code === "OTP_RESEND_LOCKED" ? otpResendLockUserMessage() : err.message);
       } else {
         await handleLoginError(err, setError);
       }
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -212,26 +208,6 @@ function LoginPageInner() {
 
   return (
     <>
-      {redirecting ? (
-        <AuthRedirectOverlay
-          variant={
-            otpIntent === "signup" || !canAccessCommunityDashboard(getUser())
-              ? "community-setup"
-              : "community"
-          }
-          title={
-            otpIntent === "signup" ? "Creating your account" : "Signing you in"
-          }
-          subtitle={
-            otpIntent === "signup"
-              ? "Opening community setup…"
-              : canAccessCommunityDashboard(getUser())
-                ? "Loading your dashboard…"
-                : "Continuing setup…"
-          }
-        />
-      ) : null}
-
       <div className="nl-login-split">
         <CommunityAuthHero
           eyebrow="Community admin"
@@ -251,8 +227,7 @@ function LoginPageInner() {
 
           <div className="nl-login-form-wrap">
             <div className="nl-login-brand nl-login-brand--form mb-6">
-              <HavenaMark size={52} tight />
-              <span className="nl-login-brand__name">Havena</span>
+              <HavenaLockup size={52} nameClassName="nl-login-brand__name" />
             </div>
 
             {otpStep === "email" ? (
@@ -305,7 +280,7 @@ function LoginPageInner() {
                 onVerify={verifyOtp}
                 onResend={resendOtp}
                 sending={otpSending}
-                verifying={loading && !redirecting}
+                verifying={loading}
                 error={Boolean(error)}
                 initialRateLimit={otpRateLimit}
               />

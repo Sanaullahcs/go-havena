@@ -28,13 +28,14 @@ export function formatDashboardGeneratedAt(value?: string) {
 
 const TONE_ICON_BG: Record<DashboardTone, string> = {
   blue: "bg-blue-50 text-blue-600",
-  green: "bg-emerald-50 text-emerald-600",
+  green: "bg-[#D1FAF5] text-[#0D9488]",
   amber: "bg-amber-50 text-amber-700",
   red: "bg-rose-50 text-rose-600",
   slate: "bg-slate-100 text-slate-600",
   violet: "bg-violet-50 text-violet-600",
   cyan: "bg-cyan-50 text-cyan-700",
-  emerald: "bg-emerald-50 text-emerald-600",
+  emerald: "bg-[#D1FAF5] text-[#0D9488]",
+  teal: "bg-[#D1FAF5] text-[#0D9488]",
 };
 
 export function DashboardHero({
@@ -231,7 +232,7 @@ export function actionTypeStyle(type: AdminDashboardPendingAction["type"]) {
     case "post":
       return "bg-blue-50 text-blue-800 ring-blue-100";
     case "listing":
-      return "bg-emerald-50 text-emerald-800 ring-emerald-100";
+      return "bg-[#D1FAF5] text-[#0D9488] ring-[#D1FAF5]";
     case "notice":
     case "event":
     case "alert":
@@ -292,7 +293,7 @@ export function ManageLinkCard({
         <span
           className={[
             "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
-            TONE_ICON_BG[tone],
+            TONE_ICON_BG[tone] ?? TONE_ICON_BG.green,
           ].join(" ")}
         >
           {icon}
@@ -307,7 +308,7 @@ export function ManageLinkCard({
       {badge ? (
         <span
           className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold text-white shadow-sm"
-          style={{ background: ADMIN_TONE[tone].accent }}
+          style={{ background: (ADMIN_TONE[tone] ?? ADMIN_TONE.green).accent }}
         >
           {badge}
         </span>
@@ -395,7 +396,7 @@ export function ActivityLogItem({
 export function LiveBadge({ label = "Live" }: { label?: string }) {
   return (
     <AdminBadge tone="green">
-      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
+      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[#14B8A6]" aria-hidden />
       {label}
     </AdminBadge>
   );

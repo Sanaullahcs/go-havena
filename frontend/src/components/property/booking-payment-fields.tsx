@@ -12,6 +12,7 @@ export type BookingPaymentForm = {
   payment_date: string;
   payment_reference: string;
   payment_note: string;
+  method: "bank_ach" | "proof";
 };
 
 export function bookingFeeAmount(value?: number | null): number {
@@ -59,6 +60,9 @@ export function BookingPaymentFields({
   showError,
   onChange,
   onBlur,
+  bankAvailable,
+  bankLabel,
+  communityBankReady,
 }: {
   fee: number;
   form: BookingPaymentForm;
@@ -66,15 +70,58 @@ export function BookingPaymentFields({
   showError: (field: string, liveErrors?: FieldErrors) => string | undefined;
   onChange: <K extends keyof BookingPaymentForm>(key: K, value: BookingPaymentForm[K]) => void;
   onBlur?: (field: keyof BookingPaymentForm) => void;
+  bankAvailable?: boolean;
+  bankLabel?: string | null;
+  communityBankReady?: boolean;
 }) {
   if (fee <= 0) return null;
 
   return (
-    <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/70 p-4">
-      <p className="text-sm font-medium text-amber-950">
-        Please pay {formatUsdAmount(fee)} using the community&apos;s accepted payment method and
-        upload your payment proof.
+    <div className="space-y-3 rounded-xl border border-teal-200 bg-[#D1FAF5]/70 p-4">
+      <p className="text-sm font-medium text-[#0A2A43]">
+        Pay {formatUsdAmount(fee)} to the community
+        {communityBankReady ? " — from your bank or with a screenshot." : " and upload your payment proof."}
       </p>
+      {bankAvailable ? (
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => onChange("method", "bank_ach")}
+            className={[
+              "rounded-xl border px-3 py-2 text-left text-xs font-semibold",
+              form.method === "bank_ach"
+                ? "border-teal-500 bg-white text-[#0A2A43]"
+                : "border-slate-200 bg-white/70 text-slate-600",
+            ].join(" ")}
+          >
+            Pay with bank
+            {bankLabel ? <span className="mt-0.5 block font-medium text-slate-500">{bankLabel}</span> : null}
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange("method", "proof")}
+            className={[
+              "rounded-xl border px-3 py-2 text-left text-xs font-semibold",
+              form.method === "proof"
+                ? "border-[#0A2A43] bg-white text-[#0A2A43]"
+                : "border-slate-200 bg-white/70 text-slate-600",
+            ].join(" ")}
+          >
+            Upload proof
+          </button>
+        </div>
+      ) : communityBankReady ? (
+        <p className="rounded-lg bg-white/80 px-3 py-2 text-xs text-slate-600">
+          Connect a bank on Payments to pay this fee by ACH. Screenshot upload is still available.
+        </p>
+      ) : null}
+      {form.method === "bank_ach" && bankAvailable ? (
+        <p className="rounded-lg border border-teal-200 bg-white px-3 py-2 text-xs text-[#0A2A43]">
+          We will debit {bankLabel || "your linked bank"} and credit the community account.
+        </p>
+      ) : null}
+      {form.method !== "bank_ach" || !bankAvailable ? (
+      <>
       <div>
         <label className="mb-1.5 block text-xs font-semibold text-slate-600">
           Payment Proof Screenshot / Receipt *
@@ -125,6 +172,8 @@ export function BookingPaymentFields({
           placeholder="Optional"
         />
       </div>
+      </>
+      ) : null}
     </div>
   );
 }

@@ -3,26 +3,26 @@
 
 /* ─── Ocean Breeze · brand tokens ─── */
 :root {
-  --navy: #1B4F8A;
-  --deep-teal: #0d9488;
-  --teal: #14b8a6;
-  --mint: #d1fae5;
-  --soft-mint: #d1fae5;
-  --canvas: #f4f8fd;
+  --navy: #0A2A43;
+  --deep-teal: #0D9488;
+  --teal: #14B8A6;
+  --mint: #D1FAF5;
+  --soft-mint: #D1FAF5;
+  --canvas: #F4F8FD;
 
   --brand-primary: var(--teal);
   --brand-primary-deep: var(--navy);
   --brand-dark-teal: var(--deep-teal);
-  --brand-primary-light: #ccfbf1;
+  --brand-primary-light: var(--soft-mint);
   --brand-primary-lighter: var(--canvas);
   --brand-secondary: var(--navy);
-  --brand-secondary-muted: #6b7280;
+  --brand-secondary-muted: color-mix(in srgb, var(--navy) 55%, white);
   --brand-accent: var(--teal);
   --brand-accent-light: var(--soft-mint);
   --brand-canvas: var(--canvas);
   --brand-surface: #ffffff;
-  --brand-border: #e5e7eb;
-  --brand-success: #059669;
+  --brand-border: color-mix(in srgb, var(--navy) 10%, white);
+  --brand-success: #0D9488;
   --brand-warning: #d97706;
   --brand-danger: #e7000b;
   --background: var(--canvas);

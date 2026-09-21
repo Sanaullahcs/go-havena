@@ -10,7 +10,7 @@ export const DASHBOARD_TONE = ADMIN_TONE as Record<
 
 /** Soft Lucide icon chip — tinted, minimal border */
 export function toneIcon(Icon: LucideIcon, tone: DashboardTone, size: "sm" | "md" | "lg" = "md") {
-  const t = DASHBOARD_TONE[tone];
+  const t = DASHBOARD_TONE[tone] ?? DASHBOARD_TONE.green;
   const dim =
     size === "lg"
       ? "h-10 w-10 rounded-xl [&_svg]:h-[18px] [&_svg]:w-[18px]"

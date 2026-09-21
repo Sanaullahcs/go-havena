@@ -27,12 +27,11 @@ import {
   type BookingPaymentForm,
 } from "@/components/property/booking-payment-fields";
 import { formatUsdAmount, todayIsoDate, validatePaymentProofForm } from "@/lib/admin/amenity-bill-validation";
+import { bankAccountLabel, fetchAchCapability, type AchCapability } from "@/lib/api/resident-plaid";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
-import { getUser } from "@/lib/auth/session";
-import { isResidentFeatureEnabled } from "@/lib/resident-features";
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; label: string; dot: string }> = {
-  open:     { bg: "#ecfdf5", text: "#059669", label: "Open availability", dot: "#10b981" },
+  open:     { bg: "#ecfdf5", text: "#0D9488", label: "Open availability", dot: "#10b981" },
   closed:   { bg: "#fef2f2", text: "#dc2626", label: "Closed", dot: "#ef4444" },
   bookable: { bg: "#E8F0F7", text: "#1B4F8A", label: "Timed slots", dot: "#1B4F8A" },
 };
@@ -46,7 +45,7 @@ const RULES = [
   { title: "Report Maintenance Issues", desc: "Submit any maintenance requests within 24 hours via the app or by visiting the management office.", icon: <IcoWrench /> },
 ];
 
-const AMENITY_COLOR = ["#1B4F8A", "#dc2626", "#d97706", "#059669", "#7c3aed", "#0891b2"];
+const AMENITY_COLOR = ["#1B4F8A", "#dc2626", "#d97706", "#0D9488", "#7c3aed", "#0891b2"];
 
 function tomorrowIso() {
   const d = new Date();
@@ -55,12 +54,7 @@ function tomorrowIso() {
 }
 
 export default function PropertyPage() {
-  const features = getUser()?.resident_features;
-  const showAmenities = isResidentFeatureEnabled(features, "amenities");
-  const showRules = isResidentFeatureEnabled(features, "community_rules");
-  const showBookings = isResidentFeatureEnabled(features, "bookings");
-  const firstTab = showAmenities ? "amenities" : showRules ? "rules" : "bookings";
-  const [tab, setTab] = useState<"amenities" | "rules" | "bookings" | "inbox">(firstTab);
+  const [tab, setTab] = useState<"amenities" | "rules" | "bookings" | "inbox">("amenities");
   const [bookModal, setBookModal] = useState<Amenity | null>(null);
   const [bookForm, setBookForm] = useState({ date: tomorrowIso(), slot: "", guests: "1" });
   const [payment, setPayment] = useState<BookingPaymentForm>({
@@ -68,7 +62,9 @@ export default function PropertyPage() {
     payment_date: todayIsoDate(),
     payment_reference: "",
     payment_note: "",
+    method: "proof",
   });
+  const [achCapability, setAchCapability] = useState<AchCapability | null>(null);
   const { showError, touch, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
   const paymentErrors = useMemo(() => validatePaymentProofForm(payment), [payment]);
   const [slots, setSlots] = useState<Array<AmenitySlot & { available?: boolean }>>([]);
@@ -86,20 +82,22 @@ export default function PropertyPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [ams, bks, inboxRows] = await Promise.all([
-        showAmenities ? fetchAmenities() : Promise.resolve([] as Amenity[]),
-        showBookings ? fetchMyBookings() : Promise.resolve([] as Booking[]),
-        showBookings ? fetchBookingInbox().catch(() => [] as Booking[]) : Promise.resolve([] as Booking[]),
+      const [ams, bks, inboxRows, capability] = await Promise.all([
+        fetchAmenities(),
+        fetchMyBookings(),
+        fetchBookingInbox().catch(() => [] as Booking[]),
+        fetchAchCapability().catch(() => null),
       ]);
       setAmenities(ams);
       setBookings(bks);
       setInbox(inboxRows);
+      setAchCapability(capability);
     } catch (err) {
       toastError(apiError(err));
     } finally {
       setLoading(false);
     }
-  }, [showAmenities, showBookings]);
+  }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -157,6 +155,7 @@ export default function PropertyPage() {
       payment_date: todayIsoDate(),
       payment_reference: "",
       payment_note: "",
+      method: achCapability?.can_pay_with_bank ? "bank_ach" : "proof",
     });
     resetTouched();
     setBookModal(amenity);
@@ -187,7 +186,8 @@ export default function PropertyPage() {
     }
 
     const fee = bookingFeeAmount(amenity.booking_fee);
-    if (fee > 0 && !validateOnSubmit(paymentErrors)) {
+    const payWithBank = fee > 0 && payment.method === "bank_ach" && Boolean(achCapability?.can_pay_with_bank);
+    if (fee > 0 && !payWithBank && !validateOnSubmit(paymentErrors)) {
       toastError(paymentErrors.file || paymentErrors.payment_date || "Add payment proof to continue.");
       return;
     }
@@ -209,12 +209,15 @@ export default function PropertyPage() {
         ...(amenity.status === "bookable" ? { time_slot: bookForm.slot } : {}),
         guests: guestCount,
         ...(fee > 0
-          ? {
-              payment_proof: payment.file,
-              payment_date: payment.payment_date,
-              payment_reference: payment.payment_reference.trim() || undefined,
-              payment_note: payment.payment_note.trim() || undefined,
-            }
+          ? payWithBank
+            ? { payment_method: "bank_ach" as const }
+            : {
+                payment_method: "proof" as const,
+                payment_proof: payment.file,
+                payment_date: payment.payment_date,
+                payment_reference: payment.payment_reference.trim() || undefined,
+                payment_note: payment.payment_note.trim() || undefined,
+              }
           : {}),
       });
       setBookModal(null);
@@ -248,13 +251,12 @@ export default function PropertyPage() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="nl-eyebrow" style={{ color: "#059669" }}>Your Home</p>
+          <p className="nl-eyebrow" style={{ color: "#0D9488" }}>Your Home</p>
           <h2 className="mt-0.5 text-xl font-bold text-slate-900">Property &amp; Amenities</h2>
           <p className="mt-0.5 text-sm text-slate-500">
             Book facilities, request open access, and approve bookings for amenities you created.
           </p>
         </div>
-        {showAmenities ? (
         <button
           type="button"
           onClick={() => setCreateOpen(true)}
@@ -262,24 +264,24 @@ export default function PropertyPage() {
         >
           <IcoPlus /> Add Amenity
         </button>
-        ) : null}
       </div>
 
       {/* Tabs */}
       <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm w-fit">
         {([
-          { id: "amenities" as const, label: "Amenities", visible: showAmenities },
-          { id: "rules" as const, label: "Rules", visible: showRules },
-          { id: "bookings" as const, label: `My Reservations (${bookings.length})`, visible: showBookings },
-          { id: "inbox" as const, label: `Approve Requests (${inbox.filter((b) => b.status === "pending").length})`, visible: showBookings },
-        ]).filter((t) => t.visible).map((t) => (
+          { id: "amenities" as const, label: "Amenities" },
+          { id: "rules" as const, label: "Rules" },
+          { id: "bookings" as const, label: `My Reservations (${bookings.length})` },
+          { id: "inbox" as const, label: `Approve Requests (${inbox.filter((b) => b.status === "pending").length})` },
+        ]).map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             className={[
               "rounded-lg px-4 py-1.5 text-[13px] font-semibold transition",
-              tab === t.id ? "bg-emerald-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
+              tab === t.id ? "text-white shadow-sm" : "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
             ].join(" ")}
+            style={tab === t.id ? { background: "#14B8A6" } : undefined}
           >
             {t.label}
           </button>
@@ -425,7 +427,7 @@ export default function PropertyPage() {
         <div className="grid gap-3 sm:grid-cols-2">
           {RULES.map((r, i) => (
             <div key={i} className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 [&_svg]:h-4 [&_svg]:w-4">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-[#0D9488] [&_svg]:h-4 [&_svg]:w-4">
                 {r.icon}
               </div>
               <div>
@@ -448,7 +450,7 @@ export default function PropertyPage() {
             </div>
           ) : bookings.map((b, idx) => {
             const color = AMENITY_COLOR[idx % AMENITY_COLOR.length];
-            const statusColor = b.status === "confirmed" ? "#059669" : b.status === "cancelled" ? "#dc2626" : "#d97706";
+            const statusColor = b.status === "confirmed" ? "#0D9488" : b.status === "cancelled" ? "#dc2626" : "#d97706";
             return (
               <div key={b.id} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-white [&_svg]:h-5 [&_svg]:w-5"
@@ -481,7 +483,7 @@ export default function PropertyPage() {
             );
           })}
           <button onClick={() => setTab("amenities")}
-            className="flex items-center gap-1.5 text-[13px] font-semibold text-emerald-600 hover:text-emerald-700 transition">
+            className="flex items-center gap-1.5 text-[13px] font-semibold text-[#0D9488] hover:text-[#0A2A43] transition">
             <IcoPlus /> Book another amenity
           </button>
         </div>
@@ -497,7 +499,7 @@ export default function PropertyPage() {
           ) : (
             inbox.map((b) => {
               const statusColor =
-                b.status === "confirmed" ? "#059669" : b.status === "rejected" || b.status === "cancelled" ? "#dc2626" : "#d97706";
+                b.status === "confirmed" ? "#0D9488" : b.status === "rejected" || b.status === "cancelled" ? "#dc2626" : "#d97706";
               return (
                 <div key={b.id} className="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex-1 min-w-0">
@@ -534,7 +536,7 @@ export default function PropertyPage() {
                       </button>
                       <button
                         type="button"
-                        className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"
+                        className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-[#0D9488]"
                         onClick={async () => {
                           try {
                             await approveBooking(b.id);
@@ -632,7 +634,7 @@ export default function PropertyPage() {
                               taken
                                 ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-400"
                                 : active
-                                  ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                                  ? "border-teal-500 bg-teal-50 text-[#0A2A43]"
                                   : "border-slate-200 text-slate-700 hover:border-slate-300",
                             ].join(" ")}
                           >
@@ -673,6 +675,9 @@ export default function PropertyPage() {
                 showError={showError}
                 onChange={(key, value) => setPayment((prev) => ({ ...prev, [key]: value }))}
                 onBlur={(field) => touch(field)}
+                bankAvailable={Boolean(achCapability?.can_pay_with_bank)}
+                communityBankReady={Boolean(achCapability?.community.bank_connected)}
+                bankLabel={bankAccountLabel(achCapability?.resident.account, achCapability?.resident.institution_name)}
               />
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">

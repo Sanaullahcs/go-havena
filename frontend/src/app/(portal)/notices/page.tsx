@@ -52,7 +52,7 @@ export default function NoticesPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="nl-eyebrow" style={{ color: "#059669" }}>Community</p>
+          <p className="nl-eyebrow" style={{ color: "#0D9488" }}>Community</p>
           <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Notices</h2>
           <p className="mt-1 text-sm text-slate-500">Community announcements, alerts, and updates.</p>
         </div>
@@ -68,7 +68,7 @@ export default function NoticesPage() {
             className={[
               "rounded-lg px-3 py-1.5 text-xs font-semibold transition",
               filter === f
-                ? "bg-white shadow-sm ring-1 ring-slate-200/80 text-emerald-700"
+                ? "bg-white shadow-sm ring-1 ring-slate-200/80 text-[#0D9488]"
                 : "text-slate-500 hover:text-slate-700",
             ].join(" ")}
           >

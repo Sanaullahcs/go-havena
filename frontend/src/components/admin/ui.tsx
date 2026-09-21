@@ -57,8 +57,8 @@ export function StatTile({
   icon: ReactNode;
   href?: string;
 }) {
-  const accent = TONE_ACCENT[tone];
-  const tile = TONE_TILE[tone];
+  const tile = TONE_TILE[tone] ?? TONE_TILE.green;
+  const accent = TONE_ACCENT[tone] ?? tile.accent;
   const percent = parsePercent(value);
 
   const inner = (

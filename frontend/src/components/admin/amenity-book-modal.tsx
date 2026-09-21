@@ -47,6 +47,7 @@ export function AmenityBookModal({
     payment_date: todayIsoDate(),
     payment_reference: "",
     payment_note: "",
+    method: "proof",
   });
   const { showError, touch, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
   const paymentErrors = useMemo(() => validatePaymentProofForm(payment), [payment]);
@@ -61,6 +62,7 @@ export function AmenityBookModal({
       payment_date: todayIsoDate(),
       payment_reference: "",
       payment_note: "",
+      method: "proof",
     });
     resetTouched();
   }, [amenity, resetTouched]);

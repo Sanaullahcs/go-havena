@@ -143,7 +143,7 @@ export function ChatShell({
               <div className="relative shrink-0">
                 <Avatar name={c.participant.name} src={c.participant.avatar} color={accentColor} size={36} />
                 {c.participant.online && (
-                  <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
+                  <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#14B8A6]" />
                 )}
               </div>
               <div className="min-w-0 flex-1">
@@ -177,7 +177,7 @@ export function ChatShell({
             <div className="relative">
               <Avatar name={active.participant.name} src={active.participant.avatar} color={accentColor} size={36} />
               {active.participant.online && (
-                <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
+                <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#14B8A6]" />
               )}
             </div>
             <div className="min-w-0 flex-1">
