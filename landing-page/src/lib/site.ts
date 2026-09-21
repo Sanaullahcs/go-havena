@@ -81,12 +81,13 @@ const DASHBOARD_URL =
     process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "http://localhost:3000";
 
 export const actionLinks = {
-    /** Signup page (used by "Get Started") — dashboard home with signup tab. */
-    signUp: `${DASHBOARD_URL}/`,
-    /** Login page (used by "Login") — admin login portal. */
+    /** Signup page — audience picker for resident or community admin. */
+    signUp: `${DASHBOARD_URL}/register`,
+    /** Login page — audience picker for resident or community admin. */
     login: `${DASHBOARD_URL}/login`,
-    /** Resident login (alternate portal). */
-    residentLogin: `${DASHBOARD_URL}/resident-login`,
+    /** Resident login (same page, resident selected). */
+    residentLogin: `${DASHBOARD_URL}/login?audience=resident`,
+    residentSignUp: `${DASHBOARD_URL}/register?audience=resident`,
     /** Authenticated home (post-login destination). */
     home: `${DASHBOARD_URL}/home`,
     /** Profile page (logged-in user). */

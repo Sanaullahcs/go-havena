@@ -206,6 +206,25 @@ export async function selfServeCreateCommunity(payload: {
   };
 }
 
+export async function joinByInviteCode(inviteCode: string) {
+  const res = await api.post("/v1/communities/join-by-invite", {
+    invite_code: inviteCode.trim(),
+  });
+  return res.data as {
+    data: {
+      membership?: {
+        id: number;
+        community_id: number;
+        role: string;
+        status: string;
+      };
+      community?: { id: number; name: string };
+      user?: Record<string, unknown>;
+    };
+    message?: string;
+  };
+}
+
 export async function fetchPublicRegions() {
   const res = await api.get("/v1/regions");
   const payload = res.data;

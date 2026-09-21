@@ -87,6 +87,14 @@ export function Header() {
 
                     <div className="flex items-center gap-2">
                         <Button
+                            href={actionLinks.residentLogin}
+                            variant={scrolled ? "ghost" : "white"}
+                            size="sm"
+                            className="hidden sm:inline-flex"
+                        >
+                            Resident
+                        </Button>
+                        <Button
                             href={actionLinks.login}
                             variant={scrolled ? "primary" : "white"}
                             size="sm"
@@ -101,7 +109,7 @@ export function Header() {
                             className="hidden sm:inline-flex"
                             iconTrailing="arrow-right"
                         >
-                            Get Started
+                            Sign up
                         </Button>
 
                         <button
@@ -141,6 +149,14 @@ export function Header() {
                         ))}
                         <div className="mt-2 flex flex-col gap-2 border-t border-border-subtle pt-3">
                             <Button
+                                href={actionLinks.residentLogin}
+                                variant="secondary"
+                                size="md"
+                                fullWidth
+                            >
+                                Resident login
+                            </Button>
+                            <Button
                                 href={actionLinks.login}
                                 variant="primary"
                                 size="md"
@@ -155,7 +171,7 @@ export function Header() {
                                 iconTrailing="arrow-right"
                                 fullWidth
                             >
-                                Get Started
+                                Sign up
                             </Button>
                         </div>
                     </div>

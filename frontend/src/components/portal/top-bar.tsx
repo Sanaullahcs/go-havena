@@ -4,18 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { clearSession, getUser } from "@/lib/auth/session";
-import { NotificationBell, type AppNotification } from "@/components/shared/notification-bell";
+import { NotificationBell } from "@/components/shared/notification-bell";
 import { resolvePortalNotificationHref } from "@/lib/notifications/resolve-portal-notification-href";
 import { confirmAction } from "@/lib/alert";
 import { logout } from "@/lib/api/auth";
-
-const RESIDENT_NOTIFICATIONS: AppNotification[] = [
-  { id: 1, type: "info", title: "Maintenance scheduled", body: "Your kitchen faucet repair is scheduled for today, 2–5 PM.", time: "5m ago", read: false },
-  { id: 2, type: "message", title: "New message from Admin", body: "Your maintenance request has been assigned to technician David.", time: "10m ago", read: false },
-  { id: 3, type: "success", title: "Community notice posted", body: "June BBQ Meetup — Saturday 4 PM at the courtyard!", time: "1h ago", read: false },
-  { id: 4, type: "warning", title: "Lease renewal reminder", body: "Your lease expires in 45 days. Please contact the office to renew.", time: "Yesterday", read: true },
-  { id: 5, type: "info", title: "Marketplace listing sold", body: "Your dining table listing received a new inquiry.", time: "2d ago", read: true },
-];
 
 export function PortalTopBar({
   title,
@@ -48,7 +40,7 @@ export function PortalTopBar({
 
   const displayName =
     user?.name || user?.profile?.display_name || user?.email?.split("@")[0] || "Resident";
-  const email = user?.email || "resident@havena.app";
+  const email = user?.phone || user?.email || "Resident account";
 
   const initials = displayName
     .split(" ")
@@ -69,7 +61,7 @@ export function PortalTopBar({
     if (r.isConfirmed) {
       await logout();
       clearSession();
-      router.replace("/resident-login");
+      router.replace("/login?audience=resident");
     }
   };
 
@@ -105,7 +97,6 @@ export function PortalTopBar({
 
             {/* Notification bell */}
             <NotificationBell
-              notifications={RESIDENT_NOTIFICATIONS}
               accentColor="#059669"
               resolveHref={resolvePortalNotificationHref}
             />

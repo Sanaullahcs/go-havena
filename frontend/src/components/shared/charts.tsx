@@ -344,11 +344,16 @@ const RESIDENT_ENGAGEMENT = [
   { week: "W8",  points: 198 },
 ];
 
-export function ResidentEngagementChart() {
+export function ResidentEngagementChart({
+  data,
+}: {
+  data?: { week: string; points: number }[];
+}) {
+  const chartData = data && data.length > 0 ? data : RESIDENT_ENGAGEMENT;
   return (
     <div className="h-[200px] w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={RESIDENT_ENGAGEMENT} margin={{ top: 4, right: 8, left: -24, bottom: 0 }}>
+        <LineChart data={chartData} margin={{ top: 4, right: 8, left: -24, bottom: 0 }}>
           <defs>
             <linearGradient id="gEng" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#059669" stopOpacity={0.15} />

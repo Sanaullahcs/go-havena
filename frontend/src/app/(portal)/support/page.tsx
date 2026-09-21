@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { toastSuccess } from "@/lib/alert";
+import { toastError, toastSuccess } from "@/lib/alert";
+import { submitContact } from "@/lib/api/contact";
+import { apiError } from "@/lib/api/client";
+import { getResidentCommunityName, getUser } from "@/lib/auth/session";
 
 /* ─── Data ─── */
 
@@ -72,11 +75,23 @@ export default function PortalSupportPage() {
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.subject.trim() || !form.message.trim()) return;
+    const user = getUser();
     setSending(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setSending(false);
-    setForm({ subject: "", category: "general", message: "" });
-    toastSuccess("Message sent — we'll get back to you within 24 hours.");
+    try {
+      await submitContact({
+        role: "resident",
+        name: user?.name || user?.profile?.display_name || "Resident",
+        email: user?.email || user?.phone || "resident@havena.local",
+        community: getResidentCommunityName(user) ?? undefined,
+        message: `[${form.category}] ${form.subject.trim()}\n\n${form.message.trim()}`,
+      });
+      setForm({ subject: "", category: "general", message: "" });
+      toastSuccess("Message sent — the Havena team will follow up.");
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setSending(false);
+    }
   };
 
   return (

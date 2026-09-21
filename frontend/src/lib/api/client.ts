@@ -36,8 +36,9 @@ api.interceptors.response.use(
         pathname.startsWith("/marketplace") ||
         pathname.startsWith("/property") ||
         pathname.startsWith("/profile") ||
-        pathname.startsWith("/support")
-          ? "/resident-login"
+        pathname.startsWith("/support") ||
+        pathname.startsWith("/join")
+          ? "/login?audience=resident"
           : resolveAdminLoginPath({ pathname });
       clearSession();
       window.location.href = loginPath;

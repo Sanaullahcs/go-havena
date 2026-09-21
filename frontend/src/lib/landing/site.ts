@@ -41,7 +41,8 @@ export const footerColumns: { title: string; links: NavItem[] }[] = [
     links: [
       { label: "Admin sign in", href: "/login" },
       { label: "Admin sign up", href: "/register" },
-      { label: "Resident portal", href: "/resident-login" },
+      { label: "Resident sign in", href: "/login?audience=resident" },
+      { label: "Resident sign up", href: "/register?audience=resident" },
       { label: "Contact", sectionId: "contact" },
     ],
   },
@@ -65,7 +66,8 @@ export const socialLinks = [
 export const actionLinks = {
   signUp: "/register",
   login: "/login",
-  residentLogin: "/resident-login",
+  residentLogin: "/login?audience=resident",
+  residentSignUp: "/register?audience=resident",
   home: "/home",
   profile: "/profile",
   pricing: "/#pricing",

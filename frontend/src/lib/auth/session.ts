@@ -144,3 +144,46 @@ export function getManagedCommunityId(user?: WebUser | null): number | undefined
 
   return pending?.community_id ?? u.community_id;
 }
+
+export function isResidentUser(user?: WebUser | null): boolean {
+  const u = user ?? getUser();
+  if (!u) return false;
+  if (isSystemAdminUser(u) || isCommunityAdminUser(u)) return false;
+  return (u.role ?? "resident") === "resident";
+}
+
+export function getApprovedMembership(user?: WebUser | null) {
+  const u = user ?? getUser();
+  return (u?.memberships ?? []).find((m) => m.status === "approved") ?? null;
+}
+
+export function hasApprovedCommunityMembership(user?: WebUser | null): boolean {
+  return Boolean(getApprovedMembership(user));
+}
+
+export function getPendingResidentMembership(user?: WebUser | null) {
+  const u = user ?? getUser();
+  return (
+    (u?.memberships ?? []).find(
+      (m) => m.status === "pending" && (m.role === "member" || m.role === "resident"),
+    ) ?? null
+  );
+}
+
+export function getResidentCommunityId(user?: WebUser | null): number | undefined {
+  const u = user ?? getUser();
+  const approved = getApprovedMembership(u);
+  if (approved?.community_id) return Number(approved.community_id);
+  if (u?.community_id) return Number(u.community_id);
+  return undefined;
+}
+
+export function getResidentCommunityName(user?: WebUser | null): string | null {
+  const approved = getApprovedMembership(user);
+  return approved?.community?.name ?? null;
+}
+
+/** After resident OTP, send them home or to the invite-code screen. */
+export function resolveResidentDestination(user?: WebUser | null): "/home" | "/join" {
+  return hasApprovedCommunityMembership(user) ? "/home" : "/join";
+}

@@ -19,21 +19,17 @@ import {
 import { apiError } from "@/lib/api/client";
 import { PageLoader } from "@/components/shared/page-states";
 import { AmenityFormModal } from "@/components/admin/amenity-form-modal";
+import {
+  acknowledgeResidentRule,
+  fetchResidentRules,
+  type CommunityRule,
+} from "@/lib/api/community-rules";
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; label: string; dot: string }> = {
   open:     { bg: "#ecfdf5", text: "#059669", label: "Open availability", dot: "#10b981" },
   closed:   { bg: "#fef2f2", text: "#dc2626", label: "Closed", dot: "#ef4444" },
   bookable: { bg: "#E8F0F7", text: "#1B4F8A", label: "Timed slots", dot: "#1B4F8A" },
 };
-
-const RULES = [
-  { title: "Quiet Hours", desc: "Noise must be kept to a minimum between 10pm and 7am daily. Violations may result in formal notices.", icon: <IcoMoon /> },
-  { title: "No Pets in Shared Areas", desc: "Pets are not permitted in the pool, gym, play area, or community hall at any time.", icon: <IcoPet /> },
-  { title: "Guest Registration", desc: "All guests must be signed in at the security desk before entry to the building or amenities.", icon: <IcoUser /> },
-  { title: "Keep Common Areas Clean", desc: "Dispose of waste responsibly. Littering or leaving items in communal spaces is subject to penalties.", icon: <IcoClean /> },
-  { title: "Assigned Parking Only", desc: "Use your designated parking bay only. Visitor parking bays are clearly marked near the entrance.", icon: <IcoCar /> },
-  { title: "Report Maintenance Issues", desc: "Submit any maintenance requests within 24 hours via the app or by visiting the management office.", icon: <IcoWrench /> },
-];
 
 const AMENITY_COLOR = ["#1B4F8A", "#dc2626", "#d97706", "#059669", "#7c3aed", "#0891b2"];
 
@@ -58,6 +54,8 @@ export default function PropertyPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [rules, setRules] = useState<CommunityRule[]>([]);
+  const [rulesLoading, setRulesLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -78,6 +76,39 @@ export default function PropertyPage() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    if (tab !== "rules") return;
+    let cancelled = false;
+    setRulesLoading(true);
+    fetchResidentRules()
+      .then((payload) => {
+        if (!cancelled) setRules(payload.data ?? []);
+      })
+      .catch((err) => {
+        if (!cancelled) toastError(apiError(err));
+      })
+      .finally(() => {
+        if (!cancelled) setRulesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab]);
+
+  const handleAcknowledgeRule = async (rule: CommunityRule) => {
+    try {
+      await acknowledgeResidentRule(rule.id);
+      setRules((prev) =>
+        prev.map((row) =>
+          row.id === rule.id ? { ...row, acknowledged: true, needs_action: false } : row,
+        ),
+      );
+      toastSuccess("Rule acknowledged.");
+    } catch (err) {
+      toastError(apiError(err));
+    }
+  };
 
   useEffect(() => {
     if (!bookModal || bookModal.status !== "bookable" || !bookForm.date) {
@@ -370,17 +401,41 @@ export default function PropertyPage() {
       {/* ── Community Rules ── */}
       {tab === "rules" && (
         <div className="grid gap-3 sm:grid-cols-2">
-          {RULES.map((r, i) => (
-            <div key={i} className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 [&_svg]:h-4 [&_svg]:w-4">
-                {r.icon}
-              </div>
-              <div>
-                <p className="text-[13.5px] font-bold text-slate-900">{r.title}</p>
-                <p className="mt-0.5 text-[12.5px] text-slate-500 leading-relaxed">{r.desc}</p>
-              </div>
+          {rulesLoading ? (
+            <div className="col-span-full py-10 text-center text-sm text-slate-400">Loading community rules…</div>
+          ) : rules.length === 0 ? (
+            <div className="col-span-full rounded-2xl border border-slate-200 bg-white py-12 text-center text-sm text-slate-500 shadow-sm">
+              Your community has not published rules yet.
             </div>
-          ))}
+          ) : (
+            rules.map((r) => (
+              <div key={r.id} className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 [&_svg]:h-4 [&_svg]:w-4">
+                  <IcoMoon />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-[13.5px] font-bold text-slate-900">{r.title}</p>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-500">
+                      {r.category}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-[12.5px] leading-relaxed text-slate-500">{r.description}</p>
+                  {r.needs_action ? (
+                    <button
+                      type="button"
+                      onClick={() => handleAcknowledgeRule(r)}
+                      className="mt-2 text-[12px] font-semibold text-emerald-700 hover:underline"
+                    >
+                      I acknowledge this rule
+                    </button>
+                  ) : r.acknowledged ? (
+                    <p className="mt-2 text-[11px] font-medium text-emerald-600">Acknowledged</p>
+                  ) : null}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
 

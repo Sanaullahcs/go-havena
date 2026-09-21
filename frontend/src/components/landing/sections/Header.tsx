@@ -92,10 +92,10 @@ export function Header() {
         <div className="lp-header__actions">
           <div className="lp-header__cta-group hidden items-center gap-3 sm:flex">
             <Button href={actionLinks.login} variant="ghost" size="sm" className="lp-header__login">
-              Admin login
+              Log in
             </Button>
-            <Button href={actionLinks.residentLogin} variant="primary" size="sm" className="lp-header__start">
-              Get the app
+            <Button href={actionLinks.signUp} variant="primary" size="sm" className="lp-header__start">
+              Sign up
             </Button>
           </div>
 
@@ -145,10 +145,13 @@ export function Header() {
             </nav>
             <div className="flex flex-col gap-2 border-t border-border-subtle px-4 py-4">
               <Button href={actionLinks.login} variant="secondary" size="md" fullWidth>
-                Admin login
+                Log in
               </Button>
-              <Button href={actionLinks.residentLogin} variant="primary" size="md" fullWidth>
-                Get the app
+              <Button href={actionLinks.signUp} variant="primary" size="md" fullWidth>
+                Sign up
+              </Button>
+              <Button href={actionLinks.residentLogin} variant="ghost" size="md" fullWidth>
+                Resident portal
               </Button>
             </div>
           </div>

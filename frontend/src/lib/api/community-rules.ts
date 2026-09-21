@@ -37,6 +37,18 @@ export type RuleForm = {
   status: "active" | "inactive";
 };
 
+export async function fetchResidentRules(params?: {
+  category?: string;
+  severity?: string;
+}): Promise<{ data: CommunityRule[]; categories: RuleCategory[]; unacknowledged: number }> {
+  const res = await api.get("/v1/community-rules", { params });
+  return res.data as { data: CommunityRule[]; categories: RuleCategory[]; unacknowledged: number };
+}
+
+export async function acknowledgeResidentRule(id: number): Promise<void> {
+  await api.post(`/v1/community-rules/${id}/acknowledge`);
+}
+
 export async function fetchAdminRules(params?: {
   status?: string;
   category?: string;

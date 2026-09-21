@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { HavenaMark } from "@/components/shared/havena-mark";
+import { getResidentCommunityName } from "@/lib/auth/session";
 
 type NavItem = {
   href: string;
@@ -110,6 +112,15 @@ function SidebarInner({
   onNavigate?: () => void;
   hideBrand?: boolean;
 }) {
+  const [communityName, setCommunityName] = useState("Your community");
+
+  useEffect(() => {
+    const refresh = () => setCommunityName(getResidentCommunityName() || "Your community");
+    refresh();
+    window.addEventListener("nbr-session-updated", refresh);
+    return () => window.removeEventListener("nbr-session-updated", refresh);
+  }, []);
+
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
       {!hideBrand && (
@@ -125,8 +136,8 @@ function SidebarInner({
 
       <div className="mt-auto shrink-0 border-t border-slate-100 bg-white pt-3">
         <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
-          <p className="text-[11.5px] font-semibold text-slate-700">Sunflower Heights Estate</p>
-          <p className="mt-0.5 text-[11px] text-slate-400">Havena Community v2.1.4</p>
+          <p className="truncate text-[11.5px] font-semibold text-slate-700">{communityName}</p>
+          <p className="mt-0.5 text-[11px] text-slate-400">Havena resident portal</p>
         </div>
       </div>
     </div>

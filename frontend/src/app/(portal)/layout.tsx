@@ -3,7 +3,15 @@
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AuthShellSkeleton } from "@/components/shared/loaders";
-import { getToken } from "@/lib/auth/session";
+import {
+  getToken,
+  getUser,
+  hasApprovedCommunityMembership,
+  isCommunityAdminUser,
+  isSystemAdminUser,
+  updateUser,
+} from "@/lib/auth/session";
+import { fetchMe, meToSessionUser } from "@/lib/api/profile";
 import { PortalSidebar } from "@/components/portal/sidebar";
 import { PortalTopBar } from "@/components/portal/top-bar";
 import { WebPushProvider } from "@/components/push/web-push-provider";
@@ -32,11 +40,47 @@ export default function ResidentPortalLayout({ children }: { children: React.Rea
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    if (!getToken()) {
-      router.replace("/resident-login");
-    } else {
-      setChecked(true);
+    let cancelled = false;
+
+    async function gate() {
+      if (!getToken()) {
+        router.replace("/login?audience=resident");
+        return;
+      }
+
+      const cached = getUser();
+      if (isSystemAdminUser(cached) || isCommunityAdminUser(cached)) {
+        router.replace("/admin");
+        return;
+      }
+
+      try {
+        const me = await fetchMe();
+        if (cancelled) return;
+        updateUser(meToSessionUser(me));
+        const next = getUser();
+        if (isSystemAdminUser(next) || isCommunityAdminUser(next)) {
+          router.replace("/admin");
+          return;
+        }
+        if (!hasApprovedCommunityMembership(next)) {
+          router.replace("/join");
+          return;
+        }
+      } catch {
+        if (!hasApprovedCommunityMembership(cached)) {
+          router.replace("/join");
+          return;
+        }
+      }
+
+      if (!cancelled) setChecked(true);
     }
+
+    gate();
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   useEffect(() => {

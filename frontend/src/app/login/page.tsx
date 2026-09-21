@@ -21,12 +21,15 @@ import {
   AuthErrorBanner,
   AuthStepDots,
 } from "@/components/auth/auth-form-shell";
+import { AuthAudiencePicker } from "@/components/auth/auth-audience-picker";
+import { ResidentAuthForm } from "@/components/auth/resident-auth-form";
 import { OtpVerifyStep } from "@/components/auth/otp-verify-step";
 import { PhoneSignInStep } from "@/components/auth/phone-sign-in-step";
 import { AuthRedirectOverlay } from "@/components/shared/loaders";
 import { emptyPhoneField, phoneFieldFromE164, type PhoneFieldState } from "@/lib/phone/format";
 import { HavenaAppScreenPreview } from "@/components/landing/ui/HavenaAppScreenPreview";
 import { communityAdminOnboardingPath } from "@/lib/admin/community-admin-onboarding";
+import { resolvePostAuthPath, type AuthAudience } from "@/lib/auth/resolve-destination";
 import { Suspense } from "react";
 
 type OtpStep = "phone" | "code";
@@ -38,9 +41,15 @@ function LoginPageInner() {
   const searchParams = useSearchParams();
   const planHint = searchParams.get("plan");
   const intervalHint = searchParams.get("interval") === "year" ? "year" : "month";
+  const audienceParam = searchParams.get("audience");
+  const audience: AuthAudience = audienceParam === "resident" ? "resident" : "admin";
   const planQuery = planHint
     ? `?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
     : "";
+  const registerHref =
+    audience === "resident"
+      ? "/register?audience=resident"
+      : `/register${planQuery}`;}
   const billingReturnPath = planHint
     ? `/admin/billing?plan=${encodeURIComponent(planHint)}&interval=${intervalHint}`
     : "/admin/billing";
@@ -78,9 +87,7 @@ function LoginPageInner() {
       return;
     }
 
-    if (user?.role === "resident") {
-      router.replace("/home");
-    }
+    router.replace(resolvePostAuthPath(user, { planQuery, billingReturnPath }));
   }, [router, planHint, billingReturnPath, planQuery]);
 
   const handleSendOtp = async (e: React.FormEvent) => {
@@ -203,22 +210,35 @@ function LoginPageInner() {
 
             <div>
               <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-teal-200/90">
-                Community admin
+                {audience === "resident" ? "Resident portal" : "Community admin"}
               </p>
               <h2 className="mt-3 font-[family-name:var(--font-brand)] text-[2.35rem] font-bold leading-[1.08] tracking-tight text-white xl:text-[2.9rem]">
                 Havena
                 <span className="mt-2 block font-[family-name:var(--font-display)] text-[1.35rem] font-semibold text-teal-200 xl:text-[1.55rem]">
-                  One subscription. Invite every resident.
+                  {audience === "resident"
+                    ? "Notices, feed, bills, and neighbors — on the web."
+                    : "One subscription. Invite every resident."}
                 </span>
               </h2>
               <p className="mt-5 max-w-md text-[15px] leading-relaxed text-white/70">
-                Create your community account, choose a seat plan, and onboard neighbors — residents
-                never pay Havena.
+                {audience === "resident"
+                  ? "Sign in with the phone number on your Havena account. Residents never pay Havena — your community admin invites you."
+                  : "Create your community account, choose a seat plan, and onboard neighbors — residents never pay Havena."}
               </p>
               <ul className="mt-6 space-y-2 text-[13px] text-white/65">
-                <li>• Phone OTP — no password to manage</li>
-                <li>• Plans from 50 to 500 resident seats</li>
-                <li>• Billing unlocks invites after signup</li>
+                {audience === "resident" ? (
+                  <>
+                    <li>• Phone OTP — same login as the mobile app</li>
+                    <li>• Join with your community invite code</li>
+                    <li>• Notices, feed, amenities, and messages</li>
+                  </>
+                ) : (
+                  <>
+                    <li>• Phone OTP — no password to manage</li>
+                    <li>• Plans from 50 to 500 resident seats</li>
+                    <li>• Billing unlocks invites after signup</li>
+                  </>
+                )}
               </ul>
             </div>
 
@@ -233,8 +253,8 @@ function LoginPageInner() {
             <AuthBackLink href="/" variant="button">
               Back
             </AuthBackLink>
-            <a href="/resident-login" className="nl-login-resident-link ml-auto">
-              Resident portal →
+            <a href={registerHref} className="nl-login-resident-link ml-auto">
+              Create an account →
             </a>
           </div>
 
@@ -246,6 +266,29 @@ function LoginPageInner() {
               <span className="nl-login-brand__name">Havena</span>
             </div>
 
+            <div className="mb-5">
+              <AuthAudiencePicker
+                value={audience}
+                disabled={otpSendingLocked && audience === "admin"}
+                onChange={(next) => {
+                  const params = new URLSearchParams(searchParams.toString());
+                  if (next === "resident") params.set("audience", "resident");
+                  else params.delete("audience");
+                  const qs = params.toString();
+                  router.replace(qs ? `/login?${qs}` : "/login");
+                }}
+              />
+            </div>
+
+            {audience === "resident" ? (
+              <ResidentAuthForm
+                mode="login"
+                onSwitchMode={(next) => {
+                  router.replace(next === "signup" ? "/register?audience=resident" : "/login?audience=resident");
+                }}
+              />
+            ) : (
+              <>
             {otpStep === "code" ? (
               <AuthBackLink onClick={goBackToPhone}>Back to phone</AuthBackLink>
             ) : null}
@@ -313,6 +356,8 @@ function LoginPageInner() {
                 View plans
               </a>
             </p>
+              </>
+            )}
           </div>
         </div>
       </div>

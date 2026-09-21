@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { getUser } from "@/lib/auth/session";
+import { getResidentCommunityName, getUser } from "@/lib/auth/session";
 import { toastSuccess, toastError, confirmAction } from "@/lib/alert";
 import { useRouter } from "next/navigation";
 import { clearSession } from "@/lib/auth/session";
@@ -11,13 +11,6 @@ import { AdminPhoneInput } from "@/components/admin/phone-input";
 import { PhoneDisplay } from "@/components/admin/phone-display";
 import { emptyPhoneField, phoneFieldFromE164, type PhoneFieldState } from "@/lib/phone/format";
 import { disableWebPush, enableWebPush, isWebPushEnabledLocally } from "@/lib/firebase/web-push";
-
-const ACHIEVEMENTS = [
-  { id: 1, label: "Early Adopter",    color: "#7c3aed", desc: "One of the first 50 residents to join" },
-  { id: 2, label: "Community Voice",  color: "#1B4F8A", desc: "Made 10+ community feed posts" },
-  { id: 3, label: "Wellness Starter", color: "#059669", desc: "Completed your first wellness course" },
-  { id: 4, label: "Marketplace Fan",  color: "#d97706", desc: "Saved 5+ marketplace listings" },
-];
 
 const NOTIFICATION_PREFS = [
   { key: "emailNotifications", label: "Email notifications",  desc: "Receive email summaries of new notices" },
@@ -112,7 +105,7 @@ export default function ProfilePage() {
 
   const handleLogout = async () => {
     const r = await confirmAction({ title: "Sign out?", text: "You will be returned to the resident login screen.", confirmText: "Sign out", icon: "question", color: "red" });
-    if (r.isConfirmed) { clearSession(); router.replace("/resident-login"); }
+    if (r.isConfirmed) { clearSession(); router.replace("/login?audience=resident"); }
   };
 
   return (
@@ -161,12 +154,12 @@ export default function ProfilePage() {
           {/* Stats */}
           <div className="mt-5 grid grid-cols-3 gap-3">
             {[
-              { label: "Community Points", value: "482", color: "text-emerald-700" },
-              { label: "Feed Posts",       value: "18",  color: "text-slate-900"   },
-              { label: "Badges",           value: "4",   color: "text-slate-900"   },
+              { label: "Community", value: getResidentCommunityName(user) || "—", color: "text-emerald-700" },
+              { label: "Unit", value: form.unit || "—", color: "text-slate-900" },
+              { label: "Role", value: "Resident", color: "text-slate-900" },
             ].map((s) => (
               <div key={s.label} className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-center">
-                <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
+                <p className={`truncate text-[15px] font-bold ${s.color}`}>{s.value}</p>
                 <p className="mt-0.5 text-[11px] text-slate-500">{s.label}</p>
               </div>
             ))}
@@ -250,24 +243,15 @@ export default function ProfilePage() {
 
         {/* Right column */}
         <div className="lg:col-span-2 space-y-5">
-          {/* Achievements */}
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-5 py-3.5">
-              <h2 className="text-[14px] font-bold text-slate-900">Achievements</h2>
-              <p className="text-[11px] text-slate-400">Earned through community participation</p>
+              <h2 className="text-[14px] font-bold text-slate-900">Your community</h2>
+              <p className="text-[11px] text-slate-400">Membership on this resident account</p>
             </div>
-            <div className="p-4 space-y-2">
-              {ACHIEVEMENTS.map((a) => (
-                <div key={a.id} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/50 px-4 py-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-bold text-white text-[13px]" style={{ background: a.color }}>
-                    {a.label.slice(0, 2)}
-                  </span>
-                  <div>
-                    <p className="text-[13px] font-semibold text-slate-900">{a.label}</p>
-                    <p className="text-[11px] text-slate-500">{a.desc}</p>
-                  </div>
-                </div>
-              ))}
+            <div className="space-y-1 p-5 text-[13px] text-slate-600">
+              <p><span className="font-semibold text-slate-800">Community:</span> {getResidentCommunityName(user) || "Not linked"}</p>
+              <p><span className="font-semibold text-slate-800">Unit:</span> {form.unit || "Not set"}</p>
+              <p><span className="font-semibold text-slate-800">Phone:</span> {form.phone || user?.phone || "Not set"}</p>
             </div>
           </div>
 

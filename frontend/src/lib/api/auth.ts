@@ -206,6 +206,44 @@ export async function verifySignupOtp(
   }
 }
 
+export type ResidentOtpIntent = "login" | "signup";
+
+/** Resident phone OTP — same endpoints as mobile, no community-admin portal flag. */
+export async function requestResidentOtp(
+  phone: string,
+  intent: ResidentOtpIntent,
+): Promise<{ intent: ResidentOtpIntent }> {
+  try {
+    await api.post("/v1/auth/otp/request", { phone, intent });
+    return { intent };
+  } catch (err) {
+    throwAuthError(err);
+  }
+}
+
+export async function verifyResidentOtp(
+  phone: string,
+  code: string,
+  intent: ResidentOtpIntent,
+): Promise<{ token: string; user: AuthUser; intent: ResidentOtpIntent }> {
+  try {
+    const res = await api.post("/v1/auth/otp/verify", {
+      phone,
+      code,
+      intent,
+      ...(intent === "signup" ? { role: "resident" as const } : {}),
+    });
+    const data = res.data;
+    const token = data.token;
+    const raw = data.user ?? data.data;
+    const user = mapAuthUser(raw ?? {}, { phone, role: intent === "signup" ? "resident" : undefined });
+    if (!token) throw new ApiError("Login failed — no token returned.");
+    return { token, user, intent };
+  } catch (err) {
+    throwAuthError(err);
+  }
+}
+
 export async function logout() {
   try {
     await api.post("/v1/auth/logout");

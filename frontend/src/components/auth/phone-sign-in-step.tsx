@@ -8,6 +8,7 @@ import type { PhoneFieldState } from "@/lib/phone/format";
 type PhoneSignInStepProps = {
   phoneValue?: string;
   phoneResetKey?: string | number;
+  inputId?: string;
   onPhoneChange: (state: PhoneFieldState) => void;
   onSubmit: (e: React.FormEvent) => void;
   onDemoFill?: () => void;
@@ -20,6 +21,7 @@ type PhoneSignInStepProps = {
 export function PhoneSignInStep({
   phoneValue = "",
   phoneResetKey,
+  inputId = "community-admin-phone",
   onPhoneChange,
   onSubmit,
   onDemoFill,
@@ -31,9 +33,9 @@ export function PhoneSignInStep({
   return (
     <form onSubmit={onSubmit} className="auth-step-enter mt-5 space-y-5" noValidate>
       <div>
-        <AuthFieldLabel htmlFor="community-admin-phone">Phone number</AuthFieldLabel>
+        <AuthFieldLabel htmlFor={inputId}>Phone number</AuthFieldLabel>
         <AdminPhoneInput
-          id="community-admin-phone"
+          id={inputId}
           value={phoneValue}
           resetKey={phoneResetKey}
           required
