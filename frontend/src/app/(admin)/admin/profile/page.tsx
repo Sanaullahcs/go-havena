@@ -39,6 +39,7 @@ import {
   type AdminNotificationPrefs,
 } from "@/lib/admin/profile-utils";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
+import { AdjustFeatureSetModal } from "@/components/admin/adjust-feature-set-modal";
 import { DashboardHero } from "@/components/admin/dashboard/dashboard-shared";
 import { DashboardPanel } from "@/components/admin/dashboard/dashboard-panel";
 import { AdminBadge } from "@/components/admin/ui";
@@ -95,6 +96,7 @@ export default function AdminProfilePage() {
   const [profileSubmitAttempted, setProfileSubmitAttempted] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const profileFormRef = useRef<HTMLFormElement>(null);
+  const [featureTarget, setFeatureTarget] = useState<{ id: number; name: string } | null>(null);
 
   const applyMe = useCallback((data: MeProfile) => {
     const next = profileFormFromMe(data);
@@ -497,9 +499,20 @@ export default function AdminProfilePage() {
                       <span className="min-w-0 truncate font-medium" style={{ color: NL.textBody }}>
                         {c.name}
                       </span>
-                      <AdminBadge tone={c.status === "approved" ? "green" : "amber"}>
-                        {statusLabel(c.status as MembershipStatus)}
-                      </AdminBadge>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <AdminBadge tone={c.status === "approved" ? "green" : "amber"}>
+                          {statusLabel(c.status as MembershipStatus)}
+                        </AdminBadge>
+                        {c.status === "approved" ? (
+                          <button
+                            type="button"
+                            onClick={() => setFeatureTarget({ id: c.id, name: c.name })}
+                            className="font-semibold text-blue-700 underline-offset-2 transition hover:text-blue-800 hover:underline"
+                          >
+                            Adjust Feature Set
+                          </button>
+                        ) : null}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -543,6 +556,14 @@ export default function AdminProfilePage() {
           </DashboardPanel>
         </div>
       </div>
+
+      {featureTarget ? (
+        <AdjustFeatureSetModal
+          communityId={featureTarget.id}
+          communityName={featureTarget.name}
+          onClose={() => setFeatureTarget(null)}
+        />
+      ) : null}
     </div>
   );
 }

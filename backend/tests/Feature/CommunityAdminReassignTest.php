@@ -61,15 +61,16 @@ class CommunityAdminReassignTest extends TestCase
         return User::query()->where('email', 'admin@havena.app')->firstOrFail();
     }
 
-    public function test_suspend_shows_admin_in_suspended_and_community_in_reassign(): void
+    public function test_suspend_shows_admin_in_suspended_not_reassign(): void
     {
         $region = $this->seedRegion();
-        ['community' => $community, 'admin' => $admin] = $this->seedCommunityWithAdmin($region);
+        ['admin' => $admin] = $this->seedCommunityWithAdmin($region);
         Sanctum::actingAs($this->systemAdmin());
 
         $this->patchJson("/api/v1/admin/community-admins/{$admin->id}/suspend")
             ->assertOk()
-            ->assertJsonPath('data.status', 'suspended');
+            ->assertJsonPath('data.status', 'suspended')
+            ->assertJsonPath('data.lifecycle_status', 'suspended');
 
         $suspended = $this->getJson('/api/v1/admin/community-admins?status=suspended')
             ->assertOk()
@@ -77,39 +78,37 @@ class CommunityAdminReassignTest extends TestCase
             ->json('data');
 
         $this->assertSame($admin->id, $suspended[0]['id']);
-        $this->assertTrue($suspended[0]['needs_reassign']);
+        $this->assertFalse($suspended[0]['needs_reassign']);
+
+        $this->getJson('/api/v1/admin/community-admins?status=reassign')
+            ->assertOk()
+            ->assertJsonPath('meta.stats.needs_reassign', 0)
+            ->assertJsonCount(0, 'data');
+    }
+
+    public function test_released_admin_appears_in_reassign_not_active(): void
+    {
+        $region = $this->seedRegion();
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunityWithAdmin($region);
+        Sanctum::actingAs($this->systemAdmin());
+
+        $this->postJson("/api/v1/admin/community-admins/{$admin->id}/release")->assertOk();
+
+        $this->getJson('/api/v1/admin/community-admins?status=approved')
+            ->assertOk()
+            ->assertJsonPath('meta.stats.active', 0)
+            ->assertJsonCount(0, 'data');
 
         $reassign = $this->getJson('/api/v1/admin/community-admins?status=reassign')
             ->assertOk()
             ->assertJsonPath('meta.stats.needs_reassign', 1)
             ->json('data');
 
-        $row = collect($reassign)->firstWhere('community_request.id', $community->id);
-        $this->assertNotNull($row);
-        $this->assertSame(0, $row['id']);
-        $this->assertTrue($row['needs_reassign']);
-        $this->assertSame('previous_admin_suspended', $row['reassign_reason']);
-        $this->assertSame($community->name, $row['name']);
-        $this->assertSame($admin->id, $row['previous_admin']['id']);
-    }
-
-    public function test_inactive_community_without_admin_appears_in_reassign_list(): void
-    {
-        $region = $this->seedRegion();
-        ['community' => $community, 'admin' => $admin] = $this->seedCommunityWithAdmin($region);
-        Sanctum::actingAs($this->systemAdmin());
-
-        app(\App\Services\CommunityLifecycleService::class)->deactivateCommunity($community->fresh());
-
-        $response = $this->getJson('/api/v1/admin/community-admins?status=reassign')
-            ->assertOk()
-            ->assertJsonPath('meta.stats.needs_reassign', 1);
-
-        $row = collect($response->json('data'))->firstWhere('community_request.id', $community->id);
-        $this->assertNotNull($row);
-        $this->assertSame('community_inactive', $row['reassign_reason']);
-        $this->assertSame($community->name, $row['name']);
-        $this->assertSame($admin->id, $row['previous_admin']['id']);
+        $this->assertSame($admin->id, $reassign[0]['id']);
+        $this->assertTrue($reassign[0]['needs_reassign']);
+        $this->assertSame('reassign', $reassign[0]['lifecycle_status']);
+        $this->assertNull($reassign[0]['community_request']);
+        $this->assertSame($community->status, 'active');
     }
 
     public function test_assign_admin_to_inactive_community_reactivates_community(): void
@@ -127,15 +126,13 @@ class CommunityAdminReassignTest extends TestCase
         ])->assertOk();
 
         $this->assertSame('active', $community->fresh()->status);
-        $this->getJson('/api/v1/admin/community-admins?status=reassign')
-            ->assertOk()
-            ->assertJsonPath('meta.stats.needs_reassign', 0);
+        $this->assertDatabaseHas('users', ['id' => $admin->id]);
     }
 
-    public function test_unassigned_community_appears_in_reassign_list(): void
+    public function test_unassigned_community_does_not_appear_as_reassign_admin(): void
     {
         $region = $this->seedRegion();
-        $community = Community::query()->create([
+        Community::query()->create([
             'name'          => 'Open Ridge',
             'region_id'     => $region->id,
             'region'        => $region->title,
@@ -145,14 +142,10 @@ class CommunityAdminReassignTest extends TestCase
 
         Sanctum::actingAs($this->systemAdmin());
 
-        $response = $this->getJson('/api/v1/admin/community-admins?status=reassign')
+        $this->getJson('/api/v1/admin/community-admins?status=reassign')
             ->assertOk()
-            ->assertJsonPath('meta.stats.needs_reassign', 1);
-
-        $row = collect($response->json('data'))->firstWhere('community_request.id', $community->id);
-        $this->assertNotNull($row);
-        $this->assertSame('missing_admin', $row['reassign_reason']);
-        $this->assertSame($community->name, $row['name']);
+            ->assertJsonPath('meta.stats.needs_reassign', 0)
+            ->assertJsonCount(0, 'data');
     }
 
     public function test_system_admin_cannot_assign_themselves(): void
@@ -173,13 +166,9 @@ class CommunityAdminReassignTest extends TestCase
             'user_id' => $systemAdmin->id,
         ])->assertStatus(422)
             ->assertJsonPath('message', 'A system administrator cannot be assigned as a community admin. Invite a community admin instead.');
-
-        $this->getJson('/api/v1/admin/community-admins?status=reassign')
-            ->assertOk()
-            ->assertJsonPath('meta.stats.needs_reassign', 1);
     }
 
-    public function test_assign_new_admin_removes_community_from_reassign_but_keeps_suspended_admin(): void
+    public function test_assign_new_admin_keeps_suspended_admin_on_suspended_tab(): void
     {
         $region = $this->seedRegion();
         ['community' => $community, 'admin' => $admin] = $this->seedCommunityWithAdmin($region);
@@ -194,11 +183,6 @@ class CommunityAdminReassignTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('data.admin.email', 'new.admin@example.com');
 
-        $this->getJson('/api/v1/admin/community-admins?status=reassign')
-            ->assertOk()
-            ->assertJsonPath('meta.stats.needs_reassign', 0)
-            ->assertJsonCount(0, 'data');
-
         $suspended = $this->getJson('/api/v1/admin/community-admins?status=suspended')
             ->assertOk()
             ->assertJsonPath('meta.stats.suspended', 1)
@@ -206,9 +190,10 @@ class CommunityAdminReassignTest extends TestCase
 
         $this->assertSame($admin->id, $suspended[0]['id']);
         $this->assertFalse($suspended[0]['needs_reassign']);
+        $this->assertSame('suspended', $suspended[0]['lifecycle_status']);
     }
 
-    public function test_pending_community_admin_does_not_appear_in_reassign_after_community_approval(): void
+    public function test_pending_community_admin_does_not_appear_in_reassign(): void
     {
         $region = $this->seedRegion();
 
@@ -251,5 +236,6 @@ class CommunityAdminReassignTest extends TestCase
 
         $this->assertSame($applicant->id, $pending[0]['id']);
         $this->assertSame('pending', $pending[0]['community_admin_status']);
+        $this->assertSame('pending', $pending[0]['lifecycle_status']);
     }
 }

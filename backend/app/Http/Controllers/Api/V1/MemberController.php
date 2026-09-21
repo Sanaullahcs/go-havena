@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Community;
 use App\Models\InviteCode;
 use App\Models\User;
+use App\Services\ActivityLogQueryService;
 use App\Services\ActivityLogService;
 use App\Services\AdminRoleService;
 use App\Services\CommunityBillingService;
@@ -43,6 +44,19 @@ class MemberController extends Controller
         });
     }
 
+    /**
+     * Members/residents module: Community Admin-only accounts stay out of the
+     * list and analytics. Include users with an explicit resident role, or a
+     * resident membership/profile (cm.role = member).
+     */
+    private function applyResidentRecordsScope($query, string $usersAlias = 'users', string $cmAlias = 'cm'): void
+    {
+        $query->where(function ($q) use ($usersAlias, $cmAlias) {
+            $q->where("{$usersAlias}.role", 'resident')
+                ->orWhere("{$cmAlias}.role", 'member');
+        });
+    }
+
     /** Residents tab: only membership rows for residents, not community admins. */
     private function applyResidentsOnlyScope($query, bool $residentsOnly, string $usersAlias = 'users'): void
     {
@@ -50,8 +64,7 @@ class MemberController extends Controller
             return;
         }
 
-        $query->where("{$usersAlias}.role", 'resident')
-            ->where('cm.role', 'member');
+        $this->applyResidentRecordsScope($query, $usersAlias);
     }
 
     /** GET /v1/admin/members */
@@ -110,6 +123,7 @@ class MemberController extends Controller
 
         $this->excludePlatformAdminsScope($query);
         $this->excludeGuestMembershipsScope($query);
+        $this->applyResidentRecordsScope($query);
 
         if ($request->filled('status') && $request->status !== 'all') {
             if ($request->status === MemberLifecycleStatus::INVITATION_SENT) {
@@ -132,16 +146,7 @@ class MemberController extends Controller
             });
         }
 
-        if ($request->filled('search')) {
-            $s = $request->search;
-            $query->where(function ($q) use ($s) {
-                $q->where('users.name', 'like', "%{$s}%")
-                    ->orWhere('users.email', 'like', "%{$s}%")
-                    ->orWhere('users.phone', 'like', "%{$s}%")
-                    ->orWhere('profiles.unit_number', 'like', "%{$s}%")
-                    ->orWhere('profiles.display_name', 'like', "%{$s}%");
-            });
-        }
+        $this->applyMemberSearch($query, $request, includeCommunityName: false);
 
         $members = $query->orderByDesc('users.created_at')
             ->paginate(min((int) ($request->per_page ?? 15), 100));
@@ -155,7 +160,7 @@ class MemberController extends Controller
                 'per_page'     => $members->perPage(),
                 'community_id' => $communityId,
                 'scope'        => 'community',
-                'stats'        => $this->memberStats($communityId, $request->input('role') === 'member'),
+                'stats'        => $this->memberStats($communityId, $request->input('role') === 'member', $request),
             ],
         ]);
     }
@@ -191,7 +196,7 @@ class MemberController extends Controller
                 'per_page'     => $members->perPage(),
                 'community_id' => null,
                 'scope'        => 'all',
-                'stats'        => $this->memberStatsAll($residentsOnly),
+                'stats'        => $this->memberStatsAll($residentsOnly, $request),
             ],
         ]);
     }
@@ -329,22 +334,17 @@ class MemberController extends Controller
 
     private function applyMemberSearch($query, Request $request, bool $includeCommunityName): void
     {
-        if (! $request->filled('search')) {
-            return;
-        }
+        MemberLifecycleStatus::applySearch(
+            $query,
+            $request->filled('search') ? (string) $request->search : null,
+            'users',
+            $includeCommunityName,
+        );
+    }
 
-        $s = $request->search;
-        $query->where(function ($q) use ($s, $includeCommunityName) {
-            $q->where('users.name', 'like', "%{$s}%")
-                ->orWhere('users.email', 'like', "%{$s}%")
-                ->orWhere('users.phone', 'like', "%{$s}%")
-                ->orWhere('profiles.unit_number', 'like', "%{$s}%")
-                ->orWhere('profiles.display_name', 'like', "%{$s}%");
-
-            if ($includeCommunityName) {
-                $q->orWhere('communities.name', 'like', "%{$s}%");
-            }
-        });
+    private function memberSearchTerm(Request $request): ?string
+    {
+        return $request->filled('search') ? (string) $request->search : null;
     }
 
     /** GET /v1/admin/members/{id} */
@@ -434,52 +434,26 @@ class MemberController extends Controller
             return response()->json(['message' => 'Member not found'], 404);
         }
 
-        $query = DB::table('activity_logs')
-            ->where('log_type', 'user')
-            ->where(function ($q) use ($id) {
-                $q->where('user_id', $id)
-                    ->orWhere(function ($inner) use ($id) {
-                        $inner->where('entity_type', 'User')->where('entity_id', $id);
-                    })
-                    ->orWhere('meta->affected_user_id', $id);
-            })
-            ->orderByDesc('created_at');
-
-        if ($search = trim((string) $request->input('search', ''))) {
-            $query->where(function ($q) use ($search) {
-                $q->where('description', 'like', "%{$search}%")
-                    ->orWhere('action', 'like', "%{$search}%")
-                    ->orWhere('entity_type', 'like', "%{$search}%")
-                    ->orWhere('meta', 'like', "%{$search}%");
-            });
-        }
-
-        if ($request->filled('date')) {
-            $query->whereDate('created_at', $request->input('date'));
-        }
-
-        if ($request->filled('date_from')) {
-            $query->whereDate('created_at', '>=', $request->input('date_from'));
-        }
-
-        if ($request->filled('date_to')) {
-            $query->whereDate('created_at', '<=', $request->input('date_to'));
-        }
-
+        $logs = app(ActivityLogQueryService::class);
+        $query = $logs->baseQuery()->where('a.log_type', 'user');
+        $logs->constrainToPerson($query, $id);
+        $query->where(function ($scope) use ($communityId) {
+            $scope->where('a.community_id', $communityId)
+                ->orWhereNull('a.community_id');
+        });
+        $request->attributes->set('activity_community_locked', true);
+        $logs->applyFilters($query, $request);
         $perPage = min((int) $request->input('per_page', 25), 100);
-        $result  = $query->paginate($perPage);
-
-        $items = collect($result->items())->map(
-            fn ($row) => ActivityActionCatalog::formatLogRow($row),
-        )->values();
+        $result = $query->paginate($perPage);
+        $payload = $logs->present($result);
 
         return response()->json([
-            'data' => $items,
+            'data' => $payload['data'],
             'meta' => [
-                'current_page' => $result->currentPage(),
-                'last_page'    => $result->lastPage(),
-                'per_page'     => $result->perPage(),
-                'total'        => $result->total(),
+                'current_page' => $payload['current_page'],
+                'last_page'    => $payload['last_page'],
+                'per_page'     => $payload['per_page'],
+                'total'        => $payload['total'],
                 'member'       => [
                     'id'           => (int) $member->id,
                     'name'         => $member->display_name ?: $member->name,
@@ -1122,29 +1096,35 @@ class MemberController extends Controller
         return $payload;
     }
 
-    private function memberStatsAll(bool $residentsOnly = false): array
+    private function memberStatsAll(bool $residentsOnly = false, ?Request $request = null): array
     {
         $query = DB::table('community_memberships as cm')
             ->join('users', 'users.id', '=', 'cm.user_id')
+            ->leftJoin('communities', 'communities.id', '=', 'cm.community_id')
             ->select('cm.status', DB::raw('count(*) as total'))
             ->whereNotIn('users.role', ['system_admin', 'admin', 'guest'])
             ->where('cm.role', '!=', 'guest')
             ->where('users.status', '!=', 'deleted');
 
         if ($residentsOnly) {
-            $query->where('cm.role', 'member')->where('users.role', 'resident');
+            $this->applyResidentRecordsScope($query);
+        }
+
+        if ($request) {
+            $this->applyMemberSearch($query, $request, includeCommunityName: true);
         }
 
         $rows = $query->groupBy('cm.status')->pluck('total', 'status');
+        $search = $request ? $this->memberSearchTerm($request) : null;
 
         return $this->composeMemberStats(
             $rows,
-            MemberLifecycleStatus::countOnboarding(null),
-            MemberLifecycleStatus::countInvitationSent(null),
+            MemberLifecycleStatus::countOnboarding(null, $search),
+            MemberLifecycleStatus::countInvitationSent(null, $search),
         );
     }
 
-    private function memberStats(int $communityId, bool $residentsOnly = false): array
+    private function memberStats(int $communityId, bool $residentsOnly = false, ?Request $request = null): array
     {
         $query = DB::table('community_memberships as cm')
             ->join('users', 'users.id', '=', 'cm.user_id')
@@ -1154,16 +1134,19 @@ class MemberController extends Controller
             ->where('cm.role', '!=', 'guest')
             ->where('users.status', '!=', 'deleted');
 
-        if ($residentsOnly) {
-            $query->where('cm.role', 'member')->where('users.role', 'resident');
+        $this->applyResidentRecordsScope($query);
+
+        if ($request) {
+            $this->applyMemberSearch($query, $request, includeCommunityName: false);
         }
 
         $rows = $query->groupBy('cm.status')->pluck('total', 'status');
+        $search = $request ? $this->memberSearchTerm($request) : null;
 
         return $this->composeMemberStats(
             $rows,
-            MemberLifecycleStatus::countOnboarding($communityId),
-            MemberLifecycleStatus::countInvitationSent($communityId),
+            MemberLifecycleStatus::countOnboarding($communityId, $search),
+            MemberLifecycleStatus::countInvitationSent($communityId, $search),
         );
     }
 

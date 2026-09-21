@@ -12,9 +12,10 @@ import {
   relLogTime,
   type ActivityLog,
   type ActivityLogStats,
-  type ActivityLogType,
+  type ActivityLogTab,
   type ActivitySeverity,
 } from "@/lib/api/activity-logs";
+import { fetchAdminCommunities, type AdminCommunityOption } from "@/lib/api/communities";
 import { NL } from "@/lib/design-tokens";
 import { toastInfo, toastSuccess } from "@/lib/alert";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
@@ -22,12 +23,28 @@ import { isAdminSearchPending, shouldSkipStalePageFetch } from "@/lib/admin/tabl
 
 type SeverityFilter = ActivitySeverity | "all";
 
+const TABS: { key: ActivityLogTab; label: string }[] = [
+  { key: "all", label: "All Activity" },
+  { key: "residents", label: "Residents" },
+  { key: "community_admins", label: "Community Admins" },
+  { key: "guests", label: "Guests" },
+  { key: "system", label: "System Activity" },
+];
+
 export default function ActivityLogsPage() {
-  const [tab, setTab] = useState<ActivityLogType>("user");
+  const [tab, setTab] = useState<ActivityLogTab>("all");
   const [severity, setSeverity] = useState<SeverityFilter>("all");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [communityId, setCommunityId] = useState("");
+  const [role, setRole] = useState("");
+  const [moduleFilter, setModuleFilter] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [communities, setCommunities] = useState<AdminCommunityOption[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [stats, setStats] = useState<ActivityLogStats | null>(null);
   const [total, setTotal] = useState(0);
@@ -35,7 +52,7 @@ export default function ActivityLogsPage() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const hasLoadedOnce = useRef(false);
-  const prevFilterKey = useRef("user|all|");
+  const prevFilterKey = useRef("all|all|");
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -52,11 +69,18 @@ export default function ActivityLogsPage() {
     try {
       const [logsRes, statsRes] = await Promise.all([
         fetchActivityLogs({
-          type: tab,
+          tab,
           severity,
           search: debouncedSearch,
           page,
           perPage: ADMIN_TABLE_PAGE_SIZE,
+          communityId: communityId ? Number(communityId) : undefined,
+          role: role || undefined,
+          module: moduleFilter || undefined,
+          action: actionFilter || undefined,
+          status: statusFilter || undefined,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
         }),
         fetchActivityLogStats().catch(() => null),
       ]);
@@ -74,13 +98,19 @@ export default function ActivityLogsPage() {
       setRefreshing(false);
       hasLoadedOnce.current = true;
     }
-  }, [tab, severity, debouncedSearch, page]);
+  }, [tab, severity, debouncedSearch, page, communityId, role, moduleFilter, actionFilter, statusFilter, dateFrom, dateTo]);
 
   useEffect(() => {
-    const filterKey = `${tab}|${severity}|${debouncedSearch}`;
+    const filterKey = `${tab}|${severity}|${debouncedSearch}|${communityId}|${role}|${moduleFilter}|${actionFilter}|${statusFilter}|${dateFrom}|${dateTo}`;
     if (shouldSkipStalePageFetch(filterKey, page, setPage, prevFilterKey)) return;
     void load();
-  }, [tab, severity, debouncedSearch, page, load]);
+  }, [tab, severity, debouncedSearch, page, communityId, role, moduleFilter, actionFilter, statusFilter, dateFrom, dateTo, load]);
+
+  useEffect(() => {
+    fetchAdminCommunities()
+      .then((res) => setCommunities(res.data ?? []))
+      .catch(() => setCommunities([]));
+  }, []);
 
   const statCards = useMemo(
     () => [
@@ -154,15 +184,14 @@ export default function ActivityLogsPage() {
         }
       >
         <div className="mb-4 flex flex-wrap gap-2">
-          {(["user", "system"] as ActivityLogType[]).map((type) => {
-            const count = type === "user" ? stats?.user_total ?? 0 : stats?.system_total ?? 0;
-            const active = tab === type;
+          {TABS.map((item) => {
+            const active = tab === item.key;
             return (
               <button
-                key={type}
+                key={item.key}
                 type="button"
                 onClick={() => {
-                  setTab(type);
+                  setTab(item.key);
                   setPage(1);
                   setSeverity("all");
                 }}
@@ -176,17 +205,7 @@ export default function ActivityLogsPage() {
                     : { borderColor: NL.borderCard, color: NL.textSecondary }
                 }
               >
-                {type === "user" ? <IcoUser /> : <IcoServer />}
-                {type === "user" ? "User Activity" : "System Activity"}
-                <span
-                  className="rounded-full px-2 py-0.5 text-[10px] font-bold"
-                  style={{
-                    background: active ? "rgba(255,255,255,0.18)" : NL.chipBg,
-                    color: active ? "#fff" : NL.brandPrimaryDeep,
-                  }}
-                >
-                  {count}
-                </span>
+                {item.label}
               </button>
             );
           })}
@@ -199,7 +218,7 @@ export default function ActivityLogsPage() {
             </span>
             <input
               type="search"
-              placeholder={`Search ${tab} activity…`}
+              placeholder="Search actor, community, action, or description…"
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -208,6 +227,83 @@ export default function ActivityLogsPage() {
               className="nl-input h-10 rounded-xl text-[13px]"
             />
           </div>
+          <select
+            value={communityId}
+            onChange={(e) => {
+              setCommunityId(e.target.value);
+              setPage(1);
+            }}
+            className="nl-input h-10 w-[11rem] rounded-xl text-[13px]"
+          >
+            <option value="">All communities</option>
+            {communities.map((community) => (
+              <option key={community.id} value={community.id}>
+                {community.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={role}
+            onChange={(e) => {
+              setRole(e.target.value);
+              setPage(1);
+            }}
+            className="nl-input h-10 w-[10rem] rounded-xl text-[13px]"
+          >
+            <option value="">All roles</option>
+            <option value="resident">Resident</option>
+            <option value="community_admin">Community Admin</option>
+            <option value="guest">Guest</option>
+            <option value="system_admin">System Admin</option>
+          </select>
+          <input
+            type="text"
+            placeholder="Module"
+            value={moduleFilter}
+            onChange={(e) => {
+              setModuleFilter(e.target.value);
+              setPage(1);
+            }}
+            className="nl-input h-10 w-[8rem] rounded-xl text-[13px]"
+          />
+          <input
+            type="text"
+            placeholder="Action"
+            value={actionFilter}
+            onChange={(e) => {
+              setActionFilter(e.target.value);
+              setPage(1);
+            }}
+            className="nl-input h-10 w-[8rem] rounded-xl text-[13px]"
+          />
+          <input
+            type="text"
+            placeholder="Status"
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
+            className="nl-input h-10 w-[8rem] rounded-xl text-[13px]"
+          />
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              setPage(1);
+            }}
+            className="nl-input h-10 rounded-xl text-[13px]"
+          />
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => {
+              setDateTo(e.target.value);
+              setPage(1);
+            }}
+            className="nl-input h-10 rounded-xl text-[13px]"
+          />
 
           <div className="flex flex-wrap items-center gap-1.5">
             {severityOptions.map((option) => {

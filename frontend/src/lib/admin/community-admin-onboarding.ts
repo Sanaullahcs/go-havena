@@ -4,6 +4,7 @@ export const COMMUNITY_ADMIN_ONBOARDING_STEPS = [
   { id: 2, label: "Community" },
   { id: 3, label: "Profile" },
   { id: 4, label: "Billing" },
+  { id: 5, label: "Resident Features" },
 ] as const;
 
 export function communityAdminOnboardingPath(nextStep: string): string {
@@ -14,6 +15,8 @@ export function communityAdminOnboardingPath(nextStep: string): string {
       return "/admin/setup";
     case "complete_billing_web":
       return "/admin/billing";
+    case "configure_resident_features":
+      return "/admin/resident-features";
     case "await_approval":
     case "rejected":
       return "/admin/pending-approval";
@@ -27,6 +30,7 @@ export const COMMUNITY_ADMIN_ONBOARDING_PATHS = [
   "/admin/setup",
   "/admin/complete-profile",
   "/admin/billing",
+  "/admin/resident-features",
   "/admin/pending-approval",
 ] as const;
 
@@ -36,10 +40,11 @@ export function isCommunityAdminOnboardingPath(pathname: string): boolean {
   );
 }
 
-/** Map onboarding routes to step index (Account = 1 … Billing = 4). */
+/** Map onboarding routes to step index (Account = 1 … Resident Features = 5). */
 export function onboardingStepFromPath(pathname: string): number | null {
   if (pathname.startsWith("/admin/setup")) return 2;
   if (pathname.startsWith("/admin/complete-profile")) return 3;
   if (pathname === "/admin/billing" || pathname.startsWith("/admin/billing/")) return 4;
+  if (pathname.startsWith("/admin/resident-features")) return 5;
   return null;
 }

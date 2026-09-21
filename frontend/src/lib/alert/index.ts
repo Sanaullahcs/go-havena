@@ -59,7 +59,9 @@ export async function confirmDelete(opts: {
 export async function confirmDeleteCommunityAdmin(opts: {
   adminName: string;
   assignedCommunities?: Array<{ name?: string | null } | null>;
+  variant?: "admin" | "record";
 }) {
+  const isRecord = opts.variant === "record";
   const assignedNames = (opts.assignedCommunities ?? [])
     .map((community) => community?.name?.trim())
     .filter((name): name is string => Boolean(name));
@@ -69,15 +71,20 @@ export async function confirmDeleteCommunityAdmin(opts: {
 
   return nl.fire({
     icon: "warning",
-    title: "Delete Community Admin?",
+    title: isRecord ? "Delete Record?" : "Delete Community Admin?",
     html: `
       <div class="nl-swal-delete-admin">
-        <p>This will permanently delete this admin account. If you only want to remove the admin from a community, use <strong>Release Admin</strong> instead.</p>
+        ${
+          isRecord
+            ? `<p>This will permanently remove this rejected application/record. It does not delete any community or unrelated user data.</p>
+        <p>This action cannot be undone.</p>`
+            : `<p>This will permanently delete this admin account. If you only want to remove the admin from a community, use <strong>Release from Community</strong> instead.</p>
         <p>This action cannot be undone.</p>
         <div class="nl-swal-delete-admin-compare">
-          <p><strong>Release Admin</strong> removes the admin from a community and keeps the account.</p>
+          <p><strong>Release from Community</strong> removes the admin from a community and keeps the account.</p>
           <p><strong>Delete Admin</strong> permanently deletes the admin account.</p>
-        </div>
+        </div>`
+        }
         ${
           assignedList
             ? `<div class="nl-swal-delete-admin-assign">
@@ -100,7 +107,7 @@ export async function confirmDeleteCommunityAdmin(opts: {
       spellcheck: "false",
       "aria-label": "Type DELETE to confirm",
     },
-    confirmButtonText: labeledButton(ICO_ALERT, "Delete Admin"),
+    confirmButtonText: labeledButton(ICO_ALERT, isRecord ? "Delete Record" : "Delete Admin"),
     showCancelButton: true,
     cancelButtonText: labeledButton(ICO_X, "Cancel"),
     focusConfirm: false,
@@ -358,8 +365,18 @@ export async function alertError(title: string, message: string) {
   return nl.fire({
     icon: "error",
     title,
-    html: message,
+    text: message,
     confirmButtonText: labeledButton(ICO_CHECK, "OK"),
+    showCancelButton: false,
+    showDenyButton: false,
+    customClass: {
+      popup: "nl-swal-popup",
+      title: "nl-swal-title",
+      htmlContainer: "nl-swal-body",
+      confirmButton: "nl-swal-confirm nl-swal-confirm--blue",
+      actions: "nl-swal-actions",
+      icon: "nl-swal-icon",
+    },
   });
 }
 

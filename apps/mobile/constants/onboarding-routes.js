@@ -33,9 +33,11 @@ export const Routes = {
   PENDING_COMMUNITY: "/screens/pending-community",
   PENDING_COMMUNITY_ADMIN: "/screens/pending-community-admin",
   COMPLETE_BILLING: "/screens/complete-billing",
+  CONFIGURE_RESIDENT_FEATURES: "/screens/resident-features",
   PENDING_FAMILY: "/screens/pending-family",
   MY_FAMILY: "/screens/my-family",
   TABS_HOME: "/(tabs)/home",
+  ADMIN_DASHBOARD: "/screens/admin-dashboard",
 };
 
 function resetTo(router, pathname, params = {}) {
@@ -50,6 +52,11 @@ function resetTo(router, pathname, params = {}) {
     // cold start — nothing to dismiss
   }
   router.replace({ pathname, params });
+}
+
+/** Same landing as Community Admin OTP login — do not add a separate mode route. */
+export function resetToActiveModeHome(router, user) {
+  navigateAfterAuth(router, user, { mode: "login" });
 }
 
 /** Resume complete-profile before any approval/waiting screen once a community is linked. */
@@ -177,6 +184,9 @@ export function getPostAuthRoute(user, { role, mode } = {}) {
     }
     if (nextStep === "complete_billing_web") {
       return { pathname: Routes.COMPLETE_BILLING, params: { role: "admin" } };
+    }
+    if (nextStep === "configure_resident_features") {
+      return { pathname: Routes.CONFIGURE_RESIDENT_FEATURES, params: { role: "admin" } };
     }
     if (nextStep === "await_approval") {
       return { pathname: Routes.COMPLETE_BILLING, params: { role: "admin" } };

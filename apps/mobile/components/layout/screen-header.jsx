@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { useRouter } from "expo-router";
+import { useNavigation, useRouter } from "expo-router";
+import { safeGoBack } from "../../utils/app-navigation";
 import { useTranslation } from "react-i18next";
 import BackButton from "../ui/back-button";
 import { Fonts } from "../../constants/font";
@@ -31,8 +32,9 @@ export default function ScreenHeader({
   titleAlign = "left",
 }) {
   const router = useRouter();
+  const navigation = useNavigation();
   const { t } = useTranslation();
-  const handleBack = onBack ?? (() => router.back());
+  const handleBack = onBack ?? (() => safeGoBack(router, navigation));
   const resolvedBackLabel = backLabel ?? t("common.back");
 
   const titleStyle = [styles.title, compact && styles.titleCompact];

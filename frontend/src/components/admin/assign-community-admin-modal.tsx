@@ -227,7 +227,7 @@ export function AdminAccountStatusBadge({
   if (reassignReason === "previous_admin_removed") {
     return <AdminBadge tone="amber">Admin removed</AdminBadge>;
   }
-  if (needsReassign) {
+  if (needsReassign || accountStatus === "unassigned") {
     return <AdminBadge tone="amber">Needs reassignment</AdminBadge>;
   }
   if (accountStatus === "suspended") {

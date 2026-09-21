@@ -2986,7 +2986,6 @@ input[type="password"] {
 .nl-swal-confirm,
 .nl-swal-cancel,
 .nl-swal-deny {
-  display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
   box-sizing: border-box !important;
@@ -2995,6 +2994,15 @@ input[type="password"] {
   line-height: 1.25 !important;
   text-align: center !important;
   vertical-align: middle !important;
+}
+.nl-swal-popup .swal2-confirm,
+.nl-swal-popup .swal2-cancel:not([style*="display: none"]),
+.nl-swal-popup .swal2-deny:not([style*="display: none"]) {
+  display: inline-flex !important;
+}
+.nl-swal-popup .swal2-cancel[style*="display: none"],
+.nl-swal-popup .swal2-deny[style*="display: none"] {
+  display: none !important;
 }
 .nl-swal-confirm {
   border: none !important;

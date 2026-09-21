@@ -109,25 +109,47 @@ class ActivityLogService
     ): void {
         try {
             $authUser = auth()->user();
-            $actor = self::actorSnapshot($authUser instanceof User ? $authUser : null);
-            $mergedMeta = array_filter(
+            $actorUser = $authUser instanceof User ? $authUser : null;
+            $actor = self::actorSnapshot($actorUser);
+            $mergedMeta = self::redactSensitive(array_filter(
                 array_merge($actor, $meta ?? []),
                 fn ($value) => $value !== null,
-            );
+            ));
+
+            $actorUserId = isset($mergedMeta['actor_id']) ? (int) $mergedMeta['actor_id'] : ($actorUser?->id);
+            $actorRole = $userRole ?: ($mergedMeta['actor_role'] ?? $actorUser?->role);
+            $actorType = self::actorTypeFromRole($actorRole, $logType, $actorUserId);
+            $communityId = self::resolveCommunityId($mergedMeta, $entityType, $entityId, $actorUser, $userId ?? $actorUserId);
+            $subjectUserId = isset($mergedMeta['affected_user_id'])
+                ? (int) $mergedMeta['affected_user_id']
+                : (($entityType === 'User' && $entityId) ? (int) $entityId : null);
+            $module = $mergedMeta['module'] ?? $entityType;
+            $status = $mergedMeta['status'] ?? null;
+            $requestId = $mergedMeta['request_id']
+                ?? Request::header('X-Request-Id')
+                ?? Request::header('X-Correlation-Id');
 
             DB::table('activity_logs')->insert([
-                'log_type'    => $logType,
-                'user_id'     => $userId ?? $authUser?->id,
-                'action'      => $action,
-                'description' => Str::limit($description, 500, ''),
-                'entity_type' => $entityType,
-                'entity_id'   => $entityId,
-                'ip_address'  => Request::ip(),
-                'user_agent'  => Str::limit((string) Request::userAgent(), 300, ''),
-                'severity'    => $severity,
-                'meta'        => $mergedMeta !== [] ? json_encode($mergedMeta) : null,
-                'created_at'  => now(),
-                'updated_at'  => now(),
+                'log_type'         => $logType,
+                'user_id'          => $userId ?? $actorUser?->id,
+                'actor_user_id'    => $actorUserId,
+                'actor_role'       => $actorRole ? Str::limit((string) $actorRole, 40, '') : null,
+                'actor_type'       => $actorType,
+                'subject_user_id'  => $subjectUserId,
+                'community_id'     => $communityId,
+                'module'           => $module ? Str::limit((string) $module, 80, '') : null,
+                'status'           => $status ? Str::limit((string) $status, 40, '') : null,
+                'request_id'       => $requestId ? Str::limit((string) $requestId, 64, '') : null,
+                'action'           => $action,
+                'description'      => Str::limit($description, 500, ''),
+                'entity_type'      => $entityType,
+                'entity_id'        => $entityId,
+                'ip_address'       => Request::ip(),
+                'user_agent'       => Str::limit((string) Request::userAgent(), 300, ''),
+                'severity'         => $severity,
+                'meta'             => $mergedMeta !== [] ? json_encode($mergedMeta) : null,
+                'created_at'       => now(),
+                'updated_at'       => now(),
             ]);
         } catch (\Throwable $e) {
             // Logging must never break the main flow
@@ -149,9 +171,18 @@ class ActivityLogService
         static::log('user', $action, $description, $entityType, $entityId, $severity, $userId, null, $meta);
     }
 
-    public static function system(string $action, string $description, string $severity = 'info'): void
-    {
-        static::log('system', $action, $description, null, null, $severity, null, null, null);
+    /**
+     * @param  array<string, mixed>|null  $meta
+     */
+    public static function system(
+        string $action,
+        string $description,
+        string $severity = 'info',
+        ?string $entityType = null,
+        ?int $entityId = null,
+        ?array $meta = null,
+    ): void {
+        static::log('system', $action, $description, $entityType, $entityId, $severity, null, null, $meta);
     }
 
     /**
@@ -325,7 +356,7 @@ class ActivityLogService
         $keys = array_values(array_unique([...array_keys($before), ...array_keys($after)]));
 
         foreach ($keys as $key) {
-            if (in_array($key, ['updated_at', 'created_at', 'password', 'remember_token'], true)) {
+            if (in_array($key, ['updated_at', 'created_at', 'password', 'remember_token'], true) || self::isSensitiveKey((string) $key)) {
                 continue;
             }
 
@@ -362,14 +393,22 @@ class ActivityLogService
             ];
         }
 
-        $roleLabel = self::roleLabel($actor->role);
+        $activeMode = UserActingContextService::effectiveMode($actor)
+            ?? (string) ($actor->role ?? '');
+        $roleLabel = self::roleLabel($activeMode);
 
         return [
             'actor_id' => (int) $actor->id,
             'actor_name' => (string) $actor->name,
-            'actor_role' => (string) ($actor->role ?? ''),
+            'actor_role' => $activeMode,
             'actor_role_label' => $roleLabel,
             'performed_by' => $roleLabel.', '.$actor->name,
+            'account_role' => (string) ($actor->role ?? ''),
+            'active_context' => $activeMode,
+            'active_mode' => $activeMode,
+            'active_context_community_id' => $actor->active_context_community_id
+                ? (int) $actor->active_context_community_id
+                : null,
         ];
     }
 
@@ -380,6 +419,7 @@ class ActivityLogService
             'community_admin' => 'Community Admin',
             'moderator' => 'Moderator',
             'resident' => 'Resident',
+            'guest' => 'Guest',
             default => $role ? Str::headline($role) : 'User',
         };
     }
@@ -459,5 +499,116 @@ class ActivityLogService
     private static function truncateDisplay(string $value): string
     {
         return Str::limit($value, 180, '…');
+    }
+
+    public static function actorTypeFromRole(?string $role, string $logType = 'user', ?int $actorUserId = null): string
+    {
+        if ($logType === 'system' && ! $actorUserId) {
+            return 'system';
+        }
+
+        return match ($role) {
+            'system_admin', 'admin' => 'system_admin',
+            'community_admin' => 'community_admin',
+            'guest' => 'guest',
+            'resident' => 'resident',
+            default => $logType === 'system' ? 'system' : 'user',
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $meta
+     */
+    public static function resolveCommunityId(
+        array $meta,
+        ?string $entityType,
+        ?int $entityId,
+        ?User $actor,
+        ?int $fallbackUserId = null,
+    ): ?int {
+        if (! empty($meta['community_id'])) {
+            return (int) $meta['community_id'];
+        }
+
+        if ($entityType === 'Community' && $entityId) {
+            return $entityId;
+        }
+
+        if ($actor) {
+            $scoped = AdminRoleService::resolveCommunityId($actor);
+            if ($scoped) {
+                return $scoped;
+            }
+        }
+
+        $userId = $fallbackUserId ?: $actor?->id;
+        if (! $userId) {
+            return null;
+        }
+
+        $membership = DB::table('community_memberships')
+            ->where('user_id', $userId)
+            ->where('status', 'approved')
+            ->orderBy('id')
+            ->first();
+
+        return $membership ? (int) $membership->community_id : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    public static function redactSensitive(array $payload): array
+    {
+        $clean = [];
+        foreach ($payload as $key => $value) {
+            if (self::isSensitiveKey((string) $key)) {
+                $clean[$key] = '[redacted]';
+                continue;
+            }
+
+            if (is_array($value)) {
+                $clean[$key] = self::redactSensitive($value);
+                continue;
+            }
+
+            $clean[$key] = $value;
+        }
+
+        return $clean;
+    }
+
+    public static function isSensitiveKey(string $key): bool
+    {
+        $normalized = strtolower($key);
+
+        foreach ([
+            'password',
+            'otp',
+            'otp_code',
+            'access_token',
+            'refresh_token',
+            'remember_token',
+            'plain_text_token',
+            'authorization',
+            'private_key',
+            'api_key',
+            'client_secret',
+            'stripe_secret',
+            'plaid_secret',
+            'plaid_access_token',
+            'public_token',
+            'routing_number',
+            'account_number',
+            'secret',
+            'token',
+        ] as $needle) {
+            if ($normalized === $needle || str_ends_with($normalized, '_'.$needle)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -20,13 +20,17 @@ function lanDevOrigins(): string[] {
     origins.add(`172.${octet}.*`);
   }
 
-  for (const addrs of Object.values(os.networkInterfaces())) {
-    for (const addr of addrs ?? []) {
-      const ipv4 = addr.family === "IPv4" || addr.family === 4;
-      if (ipv4 && !addr.internal) {
-        origins.add(addr.address);
+  try {
+    for (const addrs of Object.values(os.networkInterfaces())) {
+      for (const addr of addrs ?? []) {
+        const ipv4 = addr.family === "IPv4" || addr.family === 4;
+        if (ipv4 && !addr.internal) {
+          origins.add(addr.address);
+        }
       }
     }
+  } catch {
+    // Sandbox / restricted environments cannot enumerate interfaces.
   }
 
   return [...origins];

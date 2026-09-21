@@ -87,12 +87,15 @@ export function AdminPhoneInput({
   }, [countryOpen]);
 
   const display = formatNationalDisplay(field.digits, field.country);
-  const validationError = getPhoneValidationError(field.digits, field.country);
+  const formatError = getPhoneValidationError(field.digits, field.country);
+  const requiredError =
+    required && !field.digits.trim() ? "Phone number is required." : null;
+  const validationError = formatError ?? requiredError;
   const progressHint = getPhoneProgressHint(field.digits, field.country);
   const selected = getCountryByCode(field.country);
   const dial = formatDialLabel(field.country);
   const placeholder = getPhonePlaceholder(field.country);
-  const showValidation = (showError || touched) && validationError;
+  const showValidation = Boolean((showError || touched) && validationError);
 
   const updateField = (nextCountry: string, nextDigits: string) => {
     const next = buildPhoneField(nextCountry, nextDigits);

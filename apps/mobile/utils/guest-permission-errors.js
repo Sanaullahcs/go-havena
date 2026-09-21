@@ -92,6 +92,18 @@ export function resolveGuestFeatureError(error, fallbackFeature, defaultTitle) {
   const feature = error?.feature ?? fallbackFeature ?? null;
   const label = permissionLabel(feature);
 
+  if (code === "COMMUNITY_FEATURE_DISABLED") {
+    return {
+      isPermissionDenied: true,
+      isAccountRestricted: false,
+      feature,
+      title: getApiErrorMessage(error) || i18n.t("guestPermissions.featureNotAllowed", { feature: label }),
+      message: getApiErrorMessage(error) || i18n.t("guestPermissions.featureDeniedMsg", { feature: label.toLowerCase() }),
+      icon: "lock",
+      hideRetry: true,
+    };
+  }
+
   if (code === "GUEST_FEATURE_DENIED") {
     return {
       isPermissionDenied: true,
@@ -146,6 +158,14 @@ export function guestPermissionDialogTitle(error, fallbackFeature) {
   return null;
 }
 
+export function isCommunityFeatureDisabledError(error) {
+  return getApiErrorCode(error) === "COMMUNITY_FEATURE_DISABLED";
+}
+
 export function isFeatureAccessBlockedError(error) {
-  return isGuestPermissionDeniedError(error) || isAccountRestrictedError(error);
+  return (
+    isGuestPermissionDeniedError(error) ||
+    isAccountRestrictedError(error) ||
+    isCommunityFeatureDisabledError(error)
+  );
 }

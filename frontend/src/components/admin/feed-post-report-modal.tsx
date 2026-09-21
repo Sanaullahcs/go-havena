@@ -57,7 +57,7 @@ export function FeedPostReportModal({
       <div className="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
         <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-slate-200 sm:hidden" />
 
-        <div className="flex items-start gap-3 px-5 pb-3 pt-4">
+        <div className="flex shrink-0 items-start gap-3 px-5 pb-3 pt-4">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-red-600">
             <Flag className="h-5 w-5" />
           </div>
@@ -78,7 +78,7 @@ export function FeedPostReportModal({
           </button>
         </div>
 
-        <div className="space-y-4 overflow-y-auto px-5 pb-2">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pb-2">
           <div>
             <p className="mb-2 text-xs font-semibold text-slate-600">Reason</p>
             <div className="flex flex-wrap gap-2">
@@ -117,7 +117,7 @@ export function FeedPostReportModal({
               maxLength={500}
               disabled={busy}
               placeholder="Describe what happened or why this post is inappropriate..."
-              className="min-h-[96px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100 disabled:opacity-60"
+              className="min-h-[96px] max-h-[min(10.5rem,28vh)] w-full resize-none overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100 disabled:opacity-60"
             />
             <p className="mt-1.5 text-[11px] text-slate-400">
               {trimmed.length}/500 · minimum 8 characters
@@ -125,7 +125,7 @@ export function FeedPostReportModal({
           </div>
         </div>
 
-        <div className="flex gap-2.5 px-5 pb-5 pt-3">
+        <div className="flex shrink-0 gap-2.5 px-5 pb-5 pt-3">
           <button
             type="button"
             onClick={onClose}

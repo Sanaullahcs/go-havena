@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { clearSession, getUser } from "@/lib/auth/session";
+import { canSwitchToAdminMode, clearSession, getUser } from "@/lib/auth/session";
+import { ResidentModeBar } from "@/components/portal/resident-mode-bar";
 import { NotificationBell, type AppNotification } from "@/components/shared/notification-bell";
 import { resolvePortalNotificationHref } from "@/lib/notifications/resolve-portal-notification-href";
 import { confirmAction } from "@/lib/alert";
@@ -144,6 +145,12 @@ export function PortalTopBar({
                       ) : null}
                     </div>
                   </div>
+
+                  {canSwitchToAdminMode(user) ? (
+                    <div className="border-b border-slate-100 px-3 py-2">
+                      <ResidentModeBar />
+                    </div>
+                  ) : null}
 
                   {/* Menu items */}
                   <div className="p-1.5 space-y-0.5">

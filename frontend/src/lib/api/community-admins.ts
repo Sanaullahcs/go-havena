@@ -7,11 +7,32 @@ export type ReassignReason =
   | "previous_admin_removed"
   | "community_inactive";
 
+export type CommunityAdminLifecycleStatus =
+  | "pending"
+  | "active"
+  | "suspended"
+  | "reassign"
+  | "rejected";
+
+export type CommunityAdminAction =
+  | "view"
+  | "approve"
+  | "reject"
+  | "edit"
+  | "release"
+  | "suspend"
+  | "reactivate"
+  | "assign_community"
+  | "delete"
+  | "delete_record";
+
 export type CommunityAdminApplicant = {
   id: number;
   reassign_row_id?: string;
   reassign_reason?: ReassignReason;
   reassign_summary?: string | null;
+  lifecycle_status?: CommunityAdminLifecycleStatus;
+  allowed_actions?: CommunityAdminAction[];
   previous_admin?: {
     id: number;
     name: string;
@@ -115,6 +136,23 @@ export async function rejectCommunityAdmin(id: number, reason?: string) {
 
 export async function suspendCommunityAdmin(id: number) {
   const res = await api.post(`/v1/admin/community-admins/${id}/suspend`);
+  return res.data as { data: CommunityAdminApplicant; message: string };
+}
+
+export async function reactivateCommunityAdmin(id: number) {
+  const res = await api.post(`/v1/admin/community-admins/${id}/reactivate`);
+  return res.data as { data: CommunityAdminApplicant; message: string };
+}
+
+export async function releaseCommunityAdminAccount(id: number) {
+  const res = await api.post(`/v1/admin/community-admins/${id}/release`);
+  return res.data as { data: CommunityAdminApplicant; message: string };
+}
+
+export async function assignCommunityToAdmin(id: number, communityId: number) {
+  const res = await api.post(`/v1/admin/community-admins/${id}/assign-community`, {
+    community_id: communityId,
+  });
   return res.data as { data: CommunityAdminApplicant; message: string };
 }
 

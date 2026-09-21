@@ -86,7 +86,7 @@ export function buildBlockedAccountDialogOptions(error, fallbackMessage) {
     },
   ];
 
-  if (rejectedBy) {
+  if (rejected && rejectedBy) {
     meta.push({ label: i18n.t("blockedAccount.reviewedBy"), value: rejectedBy });
   }
 

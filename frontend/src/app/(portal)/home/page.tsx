@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getUser } from "@/lib/auth/session";
 import { formatAccountDisplayName } from "@/lib/user/email-display";
 import { ResidentEngagementChart, ResidentWellnessChart } from "@/components/shared/charts";
+import { anyResidentFeatureEnabled, isResidentFeatureEnabled } from "@/lib/resident-features";
 
 const QUICK_LINKS = [
   { title: "Community Notices",   sub: "3 new announcements",         href: "/notices",     color: "#7c3aed", Icon: IcoNotice  },
@@ -30,6 +31,30 @@ const STATS = [
 export default function ResidentHomePage() {
   const user = getUser();
   const name = formatAccountDisplayName(user, "Neighbor");
+  const features = user?.resident_features;
+  const showNotices = anyResidentFeatureEnabled(features, ["notices", "events", "alerts"]);
+  const showFeed = isResidentFeatureEnabled(features, "feed");
+  const showWellness = isResidentFeatureEnabled(features, "wellness");
+  const showMarketplace = isResidentFeatureEnabled(features, "marketplace");
+  const showProperty = anyResidentFeatureEnabled(features, ["amenities", "bookings", "documents", "community_rules"]);
+  const showPoints = isResidentFeatureEnabled(features, "points");
+
+  const quickLinks = QUICK_LINKS.filter((link) => {
+    if (link.href === "/notices") return showNotices;
+    if (link.href === "/feed") return showFeed;
+    if (link.href === "/wellness") return showWellness;
+    if (link.href === "/marketplace") return showMarketplace;
+    if (link.href === "/property") return showProperty;
+    return true;
+  });
+
+  const stats = STATS.filter((stat) => {
+    if (stat.label === "Points") return showPoints;
+    if (stat.label === "Feed Posts") return showFeed;
+    if (stat.label === "Wellness Streak") return showWellness;
+    if (stat.label === "Marketplace Saved") return showMarketplace;
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -52,7 +77,7 @@ export default function ResidentHomePage() {
             </div>
             <div>
               <p className="text-[13px] font-semibold text-slate-900">{name}</p>
-              <p className="text-[12px] text-emerald-600">482 community points</p>
+              {showPoints ? <p className="text-[12px] text-emerald-600">482 community points</p> : null}
             </div>
           </div>
         </div>
@@ -60,7 +85,7 @@ export default function ResidentHomePage() {
 
       {/* Stats row */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {STATS.map((s) => (
+        {stats.map((s) => (
           <div
             key={s.label}
             className="group relative flex h-[4.5rem] items-center gap-3 overflow-hidden rounded-xl border border-slate-200/70 bg-white p-3 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
@@ -82,7 +107,7 @@ export default function ResidentHomePage() {
 
       {/* ── Charts ── */}
       <div className="grid gap-5 lg:grid-cols-2">
-        <div className="nl-panel overflow-hidden">
+        {showPoints ? <div className="nl-panel overflow-hidden">
           <div className="border-b border-slate-100 px-5 py-4">
             <div className="flex items-center justify-between">
               <div>
@@ -97,9 +122,9 @@ export default function ResidentHomePage() {
           <div className="px-5 py-4">
             <ResidentEngagementChart />
           </div>
-        </div>
+        </div> : null}
 
-        <div className="nl-panel overflow-hidden">
+        {showWellness ? <div className="nl-panel overflow-hidden">
           <div className="border-b border-slate-100 px-5 py-4">
             <div className="flex items-center justify-between">
               <div>
@@ -114,7 +139,7 @@ export default function ResidentHomePage() {
           <div className="px-5 py-4">
             <ResidentWellnessChart />
           </div>
-        </div>
+        </div> : null}
       </div>
 
       {/* Main grid */}
@@ -126,7 +151,7 @@ export default function ResidentHomePage() {
             <p className="mt-0.5 text-[13px] text-slate-500">Jump to any section of the portal.</p>
           </div>
           <div className="grid gap-3 p-5 sm:grid-cols-2">
-            {QUICK_LINKS.map(({ title, sub, href, color, Icon }) => (
+            {quickLinks.map(({ title, sub, href, color, Icon }) => (
               <Link
                 key={href}
                 href={href}
@@ -153,7 +178,7 @@ export default function ResidentHomePage() {
         </div>
 
         {/* Recent notices */}
-        <div className="nl-panel overflow-hidden">
+        {showNotices ? <div className="nl-panel overflow-hidden">
           <div className="border-b border-slate-100 px-5 py-4">
             <h3 className="text-[15px] font-semibold text-slate-900">Recent Notices</h3>
             <p className="mt-0.5 text-[13px] text-slate-500">Latest from your community.</p>
@@ -188,7 +213,7 @@ export default function ResidentHomePage() {
               </Link>
             </div>
           </div>
-        </div>
+        </div> : null}
       </div>
     </div>
   );

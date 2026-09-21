@@ -1,5 +1,6 @@
 import api from "./client";
 import type { CommunityAdminAccess, WebUser } from "@/lib/auth/session";
+import type { ResidentFeaturesPayload } from "@/lib/resident-features";
 
 export type MeProfileRegion = {
   id: number;
@@ -47,6 +48,14 @@ export type MeProfile = {
   } | null;
   memberships?: MeProfileMembership[];
   access?: CommunityAdminAccess | null;
+  resident_features?: ResidentFeaturesPayload | null;
+  active_context?: "community_admin" | "resident" | string | null;
+  active_mode?: "community_admin" | "resident" | string | null;
+  active_context_community_id?: number | null;
+  can_switch_modes?: boolean;
+  can_use_admin_mode?: boolean;
+  can_use_resident_mode?: boolean;
+  resident_mode_communities?: Array<{ id: number; name: string }>;
 };
 
 export function meToSessionUser(me: MeProfile): Partial<WebUser> {
@@ -85,7 +94,27 @@ export function meToSessionUser(me: MeProfile): Partial<WebUser> {
       avatar_url: me.profile?.avatar_url ?? undefined,
     },
     access: me.access ?? null,
+    resident_features: me.resident_features ?? null,
+    active_context: me.active_context ?? me.active_mode ?? null,
+    active_mode: me.active_mode ?? me.active_context ?? null,
+    active_context_community_id: me.active_context_community_id ?? null,
+    can_switch_modes: Boolean(me.can_switch_modes ?? me.can_use_admin_mode ?? me.can_use_resident_mode),
+    can_use_admin_mode: Boolean(me.can_use_admin_mode ?? me.can_switch_modes ?? me.can_use_resident_mode),
+    can_use_resident_mode: Boolean(me.can_use_resident_mode ?? me.can_switch_modes ?? me.can_use_admin_mode),
+    resident_mode_communities: me.resident_mode_communities ?? [],
   };
+}
+
+export async function switchActiveContext(
+  context: "resident" | "community_admin",
+  communityId?: number,
+): Promise<MeProfile> {
+  const res = await api.put("/v1/me/active-context", {
+    context,
+    active_mode: context,
+    community_id: communityId,
+  });
+  return res.data.data as MeProfile;
 }
 
 export async function fetchMe(): Promise<MeProfile> {

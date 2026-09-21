@@ -47,6 +47,7 @@ use App\Http\Controllers\Api\V1\PlaidWebhookController;
 use App\Http\Controllers\Api\V1\GeoController;
 use App\Http\Controllers\Api\V1\NearbyPlaceController;
 use App\Http\Controllers\Api\V1\InviteQrImageController;
+use App\Http\Controllers\Api\V1\CommunityFeatureController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -102,6 +103,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/users/blocked', [UserBlockController::class, 'index']);
         Route::post('/users/{id}/block', [UserBlockController::class, 'store'])->whereNumber('id');
         Route::delete('/users/{id}/block', [UserBlockController::class, 'destroy'])->whereNumber('id');
+        Route::put('/me/active-context', [ProfileController::class, 'updateActiveContext']);
         Route::put('/me',             [ProfileController::class, 'update']);
         Route::post('/me',            [ProfileController::class, 'update']);
         Route::delete('/me',          [ProfileController::class, 'destroy']);
@@ -110,11 +112,13 @@ Route::prefix('v1')->group(function () {
         Route::put('/me/password',        [ProfileController::class, 'changePassword']);
 
         /* Points & leaderboard */
-        Route::get('/me/points/stats',    [PointsController::class, 'stats']);
-        Route::get('/me/points/history',  [PointsController::class, 'history']);
-        Route::get('/me/points/rank',     [PointsController::class, 'rank']);
-        Route::get('/me/achievements',    [PointsController::class, 'achievements']);
-        Route::get('/leaderboard',        [PointsController::class, 'leaderboard']);
+        Route::middleware('resident.feature:points')->group(function () {
+            Route::get('/me/points/stats',    [PointsController::class, 'stats']);
+            Route::get('/me/points/history',  [PointsController::class, 'history']);
+            Route::get('/me/points/rank',     [PointsController::class, 'rank']);
+            Route::get('/me/achievements',    [PointsController::class, 'achievements']);
+            Route::get('/leaderboard',        [PointsController::class, 'leaderboard']);
+        });
 
         /* Communities */
         Route::post('/communities/join-by-invite', [CommunityController::class, 'joinByInvite']);
@@ -124,16 +128,19 @@ Route::prefix('v1')->group(function () {
 
         Route::get('/geo/address-suggest', [GeoController::class, 'suggest']);
         Route::get('/geo/address-reverse', [GeoController::class, 'reverse']);
-        Route::get('/nearby-places', [NearbyPlaceController::class, 'index']);
+        Route::get('/nearby-places', [NearbyPlaceController::class, 'index'])->middleware('resident.feature:nearby_places');
 
         /* Guest invitations (resident) */
-        Route::get('/guest-invitations/mine',              [ResidentGuestController::class, 'mine']);
-        Route::get('/guest-invitations/pending-approval',  [ResidentGuestController::class, 'pendingApproval']);
-        Route::post('/guest-invitations',                  [ResidentGuestController::class, 'store']);
-        Route::patch('/guest-invitations/{id}/approve',    [ResidentGuestController::class, 'approve']);
-        Route::patch('/guest-invitations/{id}/reject',     [ResidentGuestController::class, 'reject']);
+        Route::middleware('resident.feature:guest_invites')->group(function () {
+            Route::get('/guest-invitations/mine',              [ResidentGuestController::class, 'mine']);
+            Route::get('/guest-invitations/pending-approval',  [ResidentGuestController::class, 'pendingApproval']);
+            Route::post('/guest-invitations',                  [ResidentGuestController::class, 'store']);
+            Route::patch('/guest-invitations/{id}/approve',    [ResidentGuestController::class, 'approve']);
+            Route::patch('/guest-invitations/{id}/reject',     [ResidentGuestController::class, 'reject']);
+        });
 
         /* Families (resident) */
+        Route::middleware('resident.feature:family')->group(function () {
         Route::get('/families/mine',                         [FamilyController::class, 'mine']);
         Route::get('/families/suggest-number',              [FamilyController::class, 'suggestNumber']);
         Route::get('/families/check-number',                 [FamilyController::class, 'checkNumber']);
@@ -152,15 +159,21 @@ Route::prefix('v1')->group(function () {
         Route::patch('/families/members/{userId}/unsuspend', [FamilyController::class, 'unsuspendMember'])->whereNumber('userId');
         Route::patch('/families/members/{userId}/block',     [FamilyController::class, 'blockMember'])->whereNumber('userId');
         Route::delete('/families/members/{userId}',         [FamilyController::class, 'removeMember'])->whereNumber('userId');
+        });
 
         /* ── Notices ── */
-        Route::get('/notices',              [NoticeController::class, 'index']);
-        Route::get('/notices/{id}',         [NoticeController::class, 'show']);
-        Route::post('/notices/{id}/rsvp',   [NoticeController::class, 'rsvp']);
-        Route::post('/events',              [NoticeController::class, 'submitEvent']);
-        Route::post('/events/upload-image', [NoticeController::class, 'uploadEventImage']);
+        Route::middleware('resident.feature:notices,events,alerts')->group(function () {
+            Route::get('/notices',              [NoticeController::class, 'index']);
+            Route::get('/notices/{id}',         [NoticeController::class, 'show']);
+        });
+        Route::middleware('resident.feature:events')->group(function () {
+            Route::post('/notices/{id}/rsvp',   [NoticeController::class, 'rsvp']);
+            Route::post('/events',              [NoticeController::class, 'submitEvent']);
+            Route::post('/events/upload-image', [NoticeController::class, 'uploadEventImage']);
+        });
 
         /* ── Marketplace / Listings ── */
+        Route::middleware('resident.feature:marketplace')->group(function () {
         Route::get('/listings',             [ListingController::class, 'index']);
         Route::get('/listings/{id}',        [ListingController::class, 'show'])->whereNumber('id');
         Route::post('/listings/upload-image', [ListingController::class, 'uploadImage']);
@@ -186,8 +199,10 @@ Route::prefix('v1')->group(function () {
         Route::get('/businesses/{id}',           [BusinessController::class, 'show'])->whereNumber('id');
         Route::patch('/businesses/{id}',         [BusinessController::class, 'update'])->whereNumber('id');
         Route::delete('/businesses/{id}',        [BusinessController::class, 'destroy'])->whereNumber('id');
+        });
 
         /* ── Community Feed ── */
+        Route::middleware('resident.feature:feed')->group(function () {
         Route::get('/feed/topics',                               [FeedController::class, 'topics']);
         Route::get('/feed',                                      [FeedController::class, 'index']);
         Route::post('/feed',                                     [FeedController::class, 'store']);
@@ -202,23 +217,29 @@ Route::prefix('v1')->group(function () {
         Route::post('/feed/{postId}/comments/{commentId}/like', [FeedController::class, 'likeComment']);
         Route::delete('/feed/{postId}/comments/{commentId}',   [FeedController::class, 'deleteComment']);
         Route::post('/feed/{postId}/comments/{commentId}/report', [FeedController::class, 'reportComment']);
+        });
 
         /* ── Amenities & Bookings ── */
-        Route::get('/amenities',                        [AmenityController::class, 'index']);
-        Route::post('/amenities',                       [AmenityController::class, 'create']);
-        Route::get('/amenities/{id}/slots',             [AmenityController::class, 'slots']);
-        Route::get('/amenities/{id}/bills',             [AmenitySharedBillController::class, 'residentIndex']);
-        Route::post('/amenities/{id}/bills/{residentBillId}/proof', [AmenitySharedBillController::class, 'residentSubmitProof']);
-        Route::get('/bookings',                         [AmenityController::class, 'myBookings']);
-        Route::get('/bookings/inbox',                   [AmenityController::class, 'bookingInbox']);
-        Route::post('/bookings',                        [AmenityController::class, 'book']);
-        Route::delete('/bookings/{id}',                 [AmenityController::class, 'cancelBooking']);
-        // Hosting may block HTTP DELETE; POST keeps cancel available.
-        Route::post('/bookings/{id}/cancel',            [AmenityController::class, 'cancelBooking']);
-        Route::patch('/bookings/{id}/approve',          [AmenityController::class, 'approveBooking']);
-        Route::patch('/bookings/{id}/reject',           [AmenityController::class, 'rejectBooking']);
+        Route::middleware('resident.feature:amenities')->group(function () {
+            Route::get('/amenities',                        [AmenityController::class, 'index']);
+            Route::post('/amenities',                       [AmenityController::class, 'create']);
+            Route::get('/amenities/{id}/slots',             [AmenityController::class, 'slots']);
+            Route::get('/amenities/{id}/bills',             [AmenitySharedBillController::class, 'residentIndex']);
+            Route::post('/amenities/{id}/bills/{residentBillId}/proof', [AmenitySharedBillController::class, 'residentSubmitProof']);
+        });
+        Route::middleware('resident.feature:bookings')->group(function () {
+            Route::get('/bookings',                         [AmenityController::class, 'myBookings']);
+            Route::get('/bookings/inbox',                   [AmenityController::class, 'bookingInbox']);
+            Route::post('/bookings',                        [AmenityController::class, 'book']);
+            Route::delete('/bookings/{id}',                 [AmenityController::class, 'cancelBooking']);
+            // Hosting may block HTTP DELETE; POST keeps cancel available.
+            Route::post('/bookings/{id}/cancel',            [AmenityController::class, 'cancelBooking']);
+            Route::patch('/bookings/{id}/approve',          [AmenityController::class, 'approveBooking']);
+            Route::patch('/bookings/{id}/reject',           [AmenityController::class, 'rejectBooking']);
+        });
 
         /* ── Wellness ── */
+        Route::middleware('resident.feature:wellness')->group(function () {
         Route::get('/wellness',                         [WellnessController::class, 'index']);
         Route::get('/wellness/hub',                     [WellnessController::class, 'hub']);
         Route::get('/wellness/categories/{key}/courses', [WellnessController::class, 'categoryCourses']);
@@ -231,17 +252,20 @@ Route::prefix('v1')->group(function () {
         Route::post('/wellness/{id}/complete',          [WellnessController::class, 'complete']);
         Route::delete('/wellness/{id}/complete',        [WellnessController::class, 'uncomplete']);
         Route::post('/wellness/{id}/uncomplete',        [WellnessController::class, 'uncomplete']);
+        });
 
         /* ── Dashboard ── */
         Route::get('/dashboard/stats',            [DashboardController::class, 'residentStats']);
 
         /* ── Messaging ── */
-        Route::get('/conversations/unread-count',           [MessageController::class, 'unreadCount']);
-        Route::get('/conversations',                        [MessageController::class, 'conversations']);
-        Route::get('/community-members',                  [MessageController::class, 'communityMembers']);
-        Route::post('/conversations',                       [MessageController::class, 'startConversation']);
-        Route::get('/conversations/{id}/messages',          [MessageController::class, 'messages']);
-        Route::post('/conversations/{id}/messages',         [MessageController::class, 'send']);
+        Route::middleware('resident.feature:messages')->group(function () {
+            Route::get('/conversations/unread-count',           [MessageController::class, 'unreadCount']);
+            Route::get('/conversations',                        [MessageController::class, 'conversations']);
+            Route::get('/community-members',                  [MessageController::class, 'communityMembers']);
+            Route::post('/conversations',                       [MessageController::class, 'startConversation']);
+            Route::get('/conversations/{id}/messages',          [MessageController::class, 'messages']);
+            Route::post('/conversations/{id}/messages',         [MessageController::class, 'send']);
+        });
 
         /* ── Notifications ── */
         Route::get('/notifications',              [NotificationController::class, 'index']);
@@ -277,6 +301,9 @@ Route::prefix('v1')->group(function () {
                 Route::match(['patch', 'post'], '/community-admins/{id}/reapprove', [AdminCommunityAdminController::class, 'approve']);
                 Route::match(['patch', 'post'], '/community-admins/{id}/reject', [AdminCommunityAdminController::class, 'reject']);
                 Route::match(['patch', 'post'], '/community-admins/{id}/suspend', [AdminCommunityAdminController::class, 'suspend']);
+                Route::match(['patch', 'post'], '/community-admins/{id}/reactivate', [AdminCommunityAdminController::class, 'reactivate']);
+                Route::match(['patch', 'post'], '/community-admins/{id}/release', [AdminCommunityAdminController::class, 'release']);
+                Route::match(['patch', 'post'], '/community-admins/{id}/assign-community', [AdminCommunityAdminController::class, 'assignCommunity']);
                 Route::delete('/community-admins/{id}', [AdminCommunityAdminController::class, 'destroy']);
 
                 Route::post('/users', [AdminUserController::class, 'store']);
@@ -292,6 +319,10 @@ Route::prefix('v1')->group(function () {
                 Route::get('/communities/{id}/admin', [AdminCommunityController::class, 'showAdmin']);
                 Route::post('/communities/{id}/assign-admin', [AdminCommunityController::class, 'assignAdmin']);
                 Route::post('/communities/{id}/release-admin', [AdminCommunityController::class, 'releaseAdmin']);
+                Route::get('/communities/{id}/resident-features', [CommunityFeatureController::class, 'show'])->whereNumber('id');
+                Route::put('/communities/{id}/resident-features', [CommunityFeatureController::class, 'update'])->whereNumber('id');
+                Route::get('/communities/{id}/activity-logs', [ActivityLogController::class, 'community'])->whereNumber('id');
+                Route::get('/community-admins/{id}/activity-logs', [ActivityLogController::class, 'communityAdmin'])->whereNumber('id');
 
                 Route::get('/contact-submissions', [ContactController::class, 'adminIndex']);
                 Route::get('/contact-submissions/{id}', [ContactController::class, 'adminShow']);
@@ -315,6 +346,9 @@ Route::prefix('v1')->group(function () {
 
             /* Community admin (+ system admin override) */
             Route::middleware('community.admin')->group(function () {
+                Route::get('/resident-features', [CommunityFeatureController::class, 'showMine']);
+                Route::put('/resident-features', [CommunityFeatureController::class, 'updateMine']);
+
                 /* Community Rules — admin CRUD */
                 Route::get('/community-rules',              [CommunityRuleController::class, 'adminIndex']);
                 Route::post('/community-rules',             [CommunityRuleController::class, 'store']);
@@ -338,9 +372,11 @@ Route::prefix('v1')->group(function () {
                 Route::post('/guests/invite',             [GuestController::class, 'invite']);
                 Route::patch('/guests/{id}/approve',     [GuestController::class, 'approve']);
                 Route::patch('/guests/{id}/reject',      [GuestController::class, 'reject']);
-                Route::patch('/guests/{id}/revoke',       [GuestController::class, 'revoke']);
-                Route::patch('/guests/{id}/extend',       [GuestController::class, 'extend']);
-                Route::delete('/guests/{id}',             [GuestController::class, 'destroy']);
+                Route::patch('/guests/{id}/revoke',       [GuestController::class, 'revoke'])->whereNumber('id');
+                Route::patch('/guests/{id}/extend',       [GuestController::class, 'extend'])->whereNumber('id');
+                Route::delete('/guests/{id}',             [GuestController::class, 'destroy'])->whereNumber('id');
+                // Some hosts block HTTP DELETE; POST keeps Community Admin cancel working.
+                Route::post('/guests/{id}/cancel',        [GuestController::class, 'destroy'])->whereNumber('id');
 
                 Route::get('/dashboard/stats', [DashboardController::class, 'adminStats']);
 
@@ -456,13 +492,17 @@ Route::prefix('v1')->group(function () {
         });
 
         /* ── Community Rules (resident read + acknowledge) ── */
-        Route::get('/community-rules',                          [CommunityRuleController::class, 'index']);
-        Route::post('/community-rules/{id}/acknowledge',        [CommunityRuleController::class, 'acknowledge']);
+        Route::middleware('resident.feature:community_rules')->group(function () {
+            Route::get('/community-rules',                          [CommunityRuleController::class, 'index']);
+            Route::post('/community-rules/{id}/acknowledge',        [CommunityRuleController::class, 'acknowledge']);
+        });
 
         /* ── Community Documents ── */
-        Route::get('/documents',                                [CommunityDocumentController::class, 'index']);
-        Route::get('/documents/{id}',                           [CommunityDocumentController::class, 'show']);
-        Route::post('/documents/{id}/download',                 [CommunityDocumentController::class, 'recordDownload']);
+        Route::middleware('resident.feature:documents')->group(function () {
+            Route::get('/documents',                                [CommunityDocumentController::class, 'index']);
+            Route::get('/documents/{id}',                           [CommunityDocumentController::class, 'show']);
+            Route::post('/documents/{id}/download',                 [CommunityDocumentController::class, 'recordDownload']);
+        });
 
         /* Resident report filing */
         Route::post('/reports', [ReportController::class, 'store']);

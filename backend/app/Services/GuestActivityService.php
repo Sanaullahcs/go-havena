@@ -29,6 +29,33 @@ class GuestActivityService
             ]);
 
             $invitation->update(['last_activity_at' => now()]);
+
+            if (in_array($action, [
+                'login',
+                'verification_complete',
+                'access_rejected',
+                'invitation_cancelled',
+                'access_revoked',
+                'access_extended',
+                'access_activated',
+                'blocked_action',
+            ], true)) {
+                ActivityLogService::user(
+                    str_starts_with($action, 'guest_') ? $action : 'guest_'.$action,
+                    $description ?: 'Guest '.$action,
+                    'GuestInvitation',
+                    (int) $invitation->id,
+                    $action === 'blocked_action' ? 'warning' : 'info',
+                    $invitation->guest_user_id ? (int) $invitation->guest_user_id : null,
+                    [
+                        'community_id' => $invitation->community_id,
+                        'actor_type' => 'guest',
+                        'actor_role' => 'guest',
+                        'module' => 'Guest',
+                        'status' => $action,
+                    ],
+                );
+            }
         } catch (\Throwable) {
             // Never break main flow
         }

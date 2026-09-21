@@ -41,6 +41,20 @@ class LoginController extends Controller
         }
 
         if (! Auth::attempt($attempt)) {
+            ActivityLogService::system(
+                'failed_login',
+                'Failed sign-in attempt',
+                'warning',
+                'User',
+                null,
+                [
+                    'module' => 'Auth',
+                    'status' => 'denied',
+                    'channel' => isset($attempt['email']) ? 'email' : 'phone',
+                    'identifier' => isset($attempt['email']) ? $attempt['email'] : 'phone',
+                ],
+            );
+
             throw ValidationException::withMessages([
                 isset($attempt['email']) ? 'email' : 'phone' => ['Invalid credentials.'],
             ]);

@@ -125,27 +125,28 @@ export function resolveSessionPortal(): SessionPortal {
     return portal;
   };
 
-  // Login / dedicated portals must not pick up the other role's token from localStorage.
-  if (
-    pathHint &&
-    (pathname.startsWith("/login") ||
-      pathname.startsWith("/register") ||
-      pathname.startsWith("/system-login") ||
-      pathname.startsWith("/resident-login") ||
-      pathHint === "system" ||
-      pathHint === "resident")
-  ) {
-    return lock(pathHint);
+  if (pathname.startsWith("/system-login") || pathHint === "system") {
+    return lock("system");
+  }
+  if (pathname.startsWith("/resident-login")) {
+    return lock("resident");
+  }
+  if (pathname.startsWith("/login") || pathname.startsWith("/register")) {
+    return lock("community");
+  }
+
+  // Community Admin URLs must keep the CA session. A leftover System Admin or
+  // Resident tab lock must not steal /admin after the mode-switch work.
+  if (pathHint === "community") {
+    if (readPortalToken("community")) return lock("community");
+    if (pathname.startsWith("/admin") && readPortalToken("system")) return lock("system");
+  }
+
+  if (pathHint === "resident" && readPortalToken("resident")) {
+    return lock("resident");
   }
 
   if (tabPortal && readPortalToken(tabPortal)) return tabPortal;
-
-  if (pathname === "/admin" || pathname === "/admin/") {
-    if (readPortalToken("community") && !readPortalToken("system")) return lock("community");
-    if (readPortalToken("system") && !readPortalToken("community")) return lock("system");
-  }
-
-  if (pathHint && readPortalToken(pathHint)) return lock(pathHint);
 
   return lock(pathHint ?? tabPortal ?? "community");
 }
@@ -181,6 +182,7 @@ export type CommunityAdminAccess = {
   access_revoked?: boolean;
   next_step?: string;
   billing_url?: string;
+  resident_features_configured?: boolean;
   blocking_reasons?: string[];
 };
 
@@ -201,6 +203,25 @@ export type WebUser = {
   }>;
   profile?: { display_name?: string; avatar?: string; avatar_url?: string };
   access?: CommunityAdminAccess | null;
+  resident_features?: {
+    configured?: boolean;
+    features?: Record<string, boolean>;
+    catalog?: Array<{
+      key: string;
+      label: string;
+      description: string;
+      group: string;
+      group_label: string;
+      enabled: boolean;
+    }>;
+  } | null;
+  active_context?: "community_admin" | "resident" | string | null;
+  active_mode?: "community_admin" | "resident" | string | null;
+  active_context_community_id?: number | null;
+  can_switch_modes?: boolean;
+  can_use_admin_mode?: boolean;
+  can_use_resident_mode?: boolean;
+  resident_mode_communities?: Array<{ id: number; name: string }>;
 };
 
 export function getToken(): string | null {
@@ -208,7 +229,55 @@ export function getToken(): string | null {
   return readPortalToken(resolveSessionPortal());
 }
 
+export function isResidentMode(user?: WebUser | null): boolean {
+  const u = user ?? (typeof window === "undefined" ? null : getUser());
+  const mode = u?.active_mode ?? u?.active_context;
+  return u?.role === "community_admin" && mode === "resident";
+}
+
+export function canUseResidentMode(user?: WebUser | null): boolean {
+  return canSwitchModes(user);
+}
+
+/** Account is an approved Community Admin and may switch Admin ↔ Resident. */
+export function canSwitchModes(user?: WebUser | null): boolean {
+  const u = user ?? (typeof window === "undefined" ? null : getUser());
+  if (!u || u.role !== "community_admin") return false;
+  return Boolean(u.can_switch_modes ?? u.can_use_admin_mode ?? u.can_use_resident_mode);
+}
+
+export function canSwitchToResidentMode(user?: WebUser | null): boolean {
+  return canSwitchModes(user) && !isResidentMode(user);
+}
+
+export function canSwitchToAdminMode(user?: WebUser | null): boolean {
+  return canSwitchModes(user) && isResidentMode(user);
+}
+
+export function applyPortalForActiveContext(token: string, user: WebUser) {
+  const portal: SessionPortal = isResidentMode(user) ? "resident" : (portalFromUser(user) ?? "community");
+  writePortalSession(portal, token, user);
+  if (user.role === "community_admin") {
+    const other: SessionPortal = portal === "resident" ? "community" : "resident";
+    writePortalSession(other, token, user);
+  }
+  lockPortal(portal);
+  window.dispatchEvent(new CustomEvent("nbr-session-updated"));
+}
+
 export function setSession(token: string, user?: WebUser) {
+  if (user?.role === "community_admin") {
+    const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+    const onResidentPath = portalFromPath(pathname) === "resident";
+    if (isResidentMode(user) && onResidentPath) {
+      applyPortalForActiveContext(token, user);
+      return;
+    }
+    writePortalSession("community", token, user);
+    lockPortal("community");
+    window.dispatchEvent(new CustomEvent("nbr-session-updated"));
+    return;
+  }
   const portal = portalFromUser(user) ?? resolveSessionPortal();
   localStorage.setItem(SESSION_KEYS[portal].token, token);
   if (user) {
@@ -218,7 +287,12 @@ export function setSession(token: string, user?: WebUser) {
   lockPortal(portal);
 }
 
-export function updateUser(partial: Partial<WebUser>) {
+function writePortalSession(portal: SessionPortal, token: string, user: WebUser) {
+  localStorage.setItem(SESSION_KEYS[portal].token, token);
+  localStorage.setItem(SESSION_KEYS[portal].user, JSON.stringify(user));
+}
+
+export function updateUser(partial: Partial<WebUser>, options?: { silent?: boolean }) {
   if (typeof window === "undefined") return;
   const portal = resolveSessionPortal();
   const token = readPortalToken(portal);
@@ -231,9 +305,17 @@ export function updateUser(partial: Partial<WebUser>) {
   if (partial.access) {
     next.access = { ...current.access, ...partial.access };
   }
-  const writePortal = portalFromUser(next) ?? portal;
-  localStorage.setItem(SESSION_KEYS[writePortal].user, JSON.stringify(next));
-  window.dispatchEvent(new CustomEvent("nbr-session-updated"));
+  const serialized = JSON.stringify(next);
+  localStorage.setItem(SESSION_KEYS[portal].user, JSON.stringify(next));
+  if (next.role === "community_admin") {
+    const other: SessionPortal = portal === "resident" ? "community" : "resident";
+    if (readPortalToken(other)) {
+      localStorage.setItem(SESSION_KEYS[other].user, serialized);
+    }
+  }
+  if (!options?.silent) {
+    window.dispatchEvent(new CustomEvent("nbr-session-updated"));
+  }
 }
 
 export function getUser(): WebUser | null {
@@ -347,6 +429,10 @@ export function isCommunityAdminOnboarding(user?: WebUser | null): boolean {
 export function getManagedCommunityId(user?: WebUser | null): number | undefined {
   const u = user ?? getUser();
   if (!u || isSystemAdminUser(u)) return undefined;
+
+  if (u.active_context_community_id) {
+    return Number(u.active_context_community_id);
+  }
 
   if (u.access?.community_id) {
     return Number(u.access.community_id);

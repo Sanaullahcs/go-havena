@@ -10,6 +10,7 @@ import {
   Pressable,
   Platform,
   StatusBar,
+  Alert,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import AppModal from "../layout/app-modal";
@@ -21,6 +22,7 @@ import {
 } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
+import { Colors } from "../../constants/tokens";
 
 import { useRouter } from "expo-router";
 import { sw } from "../../utils/responsive";
@@ -29,8 +31,11 @@ import { navigateAppRoute } from "../../utils/app-navigation";
 import { confirmSignOut } from "../../services/sign-out";
 import { useAppDialog } from "../../providers/app-dialog-provider";
 import { getUser, getCachedUser } from "../../services/auth-session";
-import { isGuestUser } from "../../services/community-access";
-import { fetchMe } from "../../services/profile-api";
+import { isResidentFeatureEnabled } from "../../constants/resident-features";
+import { canSwitchModes, canSwitchToAdminMode, currentCommunityId, isGuestUser, isResidentMode } from "../../services/community-access";
+import { fetchMe, switchActiveContext } from "../../services/profile-api";
+import { syncRoleFromUser } from "../../constants/role-session";
+import { navigateAfterAuth } from "../../constants/onboarding-routes";
 import { getProfileFields } from "../../utils/profile-display";
 import ProfilePhotoAvatar from "../profile/profile-photo-avatar";
 import HavenaLogo from "./havena-logo";
@@ -149,6 +154,7 @@ export default function SideMenu({ visible, onClose }) {
 function getRoleLabelKey(user) {
   if (!user) return "roles.resident";
   if (isGuestUser(user)) return "roles.guest";
+  if (isResidentMode(user)) return "roles.resident";
   if (user.role === "community_admin" || user.role === "admin") return "roles.admin";
   return "roles.resident";
 }
@@ -234,52 +240,71 @@ function SideMenuPanel({ visible, onClose }) {
   const [familyPendingCount, setFamilyPendingCount] = useState(0);
 
   const menuItems = [
-    {
-      iconName: "message-circle",
-      titleKey: "nav.communityFeed",
-      route: "/screens/community-feed",
-    },
-    {
-      iconName: "bell",
-      titleKey: "nav.communityUpdates",
-      route: "/(tabs)/notices",
-    },
-    {
-      iconName: "shopping-bag",
-      titleKey: "nav.marketplace",
-      route: "/(tabs)/marketplace",
-    },
+    isResidentFeatureEnabled(user, "feed")
+      ? {
+          iconName: "message-circle",
+          titleKey: "nav.communityFeed",
+          route: "/screens/community-feed",
+        }
+      : null,
+    isResidentFeatureEnabled(user, "notices") ||
+    isResidentFeatureEnabled(user, "events") ||
+    isResidentFeatureEnabled(user, "alerts")
+      ? {
+          iconName: "bell",
+          titleKey: "nav.communityUpdates",
+          route: "/(tabs)/notices",
+        }
+      : null,
+    isResidentFeatureEnabled(user, "marketplace")
+      ? {
+          iconName: "shopping-bag",
+          titleKey: "nav.marketplace",
+          route: "/(tabs)/marketplace",
+        }
+      : null,
     ...(user && !isGuestUser(user)
       ? [
-          {
-            iconName: "users",
-            titleKey: "nav.myFamily",
-            route: "/screens/my-family",
-            badgeCount: familyPendingCount,
-          },
-          {
-            iconName: "user-plus",
-            titleKey: "nav.inviteGuest",
-            route: "/screens/invite-guest",
-          },
-          {
-            iconName: "user-check",
-            titleKey: "nav.guestApprovals",
-            route: "/screens/guest-approvals",
-          },
+          isResidentFeatureEnabled(user, "family")
+            ? {
+                iconName: "users",
+                titleKey: "nav.myFamily",
+                route: "/screens/my-family",
+                badgeCount: familyPendingCount,
+              }
+            : null,
+          isResidentFeatureEnabled(user, "guest_invites")
+            ? {
+                iconName: "user-plus",
+                titleKey: "nav.inviteGuest",
+                route: "/screens/invite-guest",
+              }
+            : null,
+          isResidentFeatureEnabled(user, "guest_invites")
+            ? {
+                iconName: "user-check",
+                titleKey: "nav.guestApprovals",
+                route: "/screens/guest-approvals",
+              }
+            : null,
         ]
       : []),
-    {
-      iconName: "home",
-      titleKey: "nav.services",
-      route: PropertyManagementRoutes.HOME,
-    },
+    isResidentFeatureEnabled(user, "amenities") ||
+    isResidentFeatureEnabled(user, "bookings") ||
+    isResidentFeatureEnabled(user, "documents") ||
+    isResidentFeatureEnabled(user, "community_rules")
+      ? {
+          iconName: "home",
+          titleKey: "nav.services",
+          route: PropertyManagementRoutes.HOME,
+        }
+      : null,
     {
       iconName: "user",
       titleKey: "nav.profile",
       route: "/(tabs)/profile",
     },
-  ];
+  ].filter(Boolean);
 
   const sidebarIconForKey = (key) => getWellnessCategoryMeta(key).icon;
 
@@ -305,13 +330,18 @@ function SideMenuPanel({ visible, onClose }) {
       return undefined;
     }
 
-    setWellnessHubLoading(true);
-    fetchWellnessHub()
-      .then((hub) => setWellnessHub(hub.categories ?? []))
-      .catch(() => setWellnessHub([]))
-      .finally(() => setWellnessHubLoading(false));
+    if (isResidentFeatureEnabled(user, "wellness")) {
+      setWellnessHubLoading(true);
+      fetchWellnessHub()
+        .then((hub) => setWellnessHub(hub.categories ?? []))
+        .catch(() => setWellnessHub([]))
+        .finally(() => setWellnessHubLoading(false));
+    } else {
+      setWellnessHub([]);
+      setWellnessHubLoading(false);
+    }
 
-    if (user && !isGuestUser(user)) {
+    if (user && !isGuestUser(user) && isResidentFeatureEnabled(user, "family")) {
       fetchMyFamily()
         .then((payload) => {
           setFamilyPendingCount(payload?.family?.pending_requests_count ?? 0);
@@ -428,8 +458,8 @@ function SideMenuPanel({ visible, onClose }) {
               ))}
             </View>
 
-            <Text style={styles.sectionTitle}>{t("nav.wellnessPrograms")}</Text>
-            <View style={styles.wellnessGroup}>
+            {isResidentFeatureEnabled(user, "wellness") ? <Text style={styles.sectionTitle}>{t("nav.wellnessPrograms")}</Text> : null}
+            {isResidentFeatureEnabled(user, "wellness") ? <View style={styles.wellnessGroup}>
               {wellnessHubLoading ? (
                 <SidebarWellnessHubSkeleton count={5} />
               ) : wellnessHub.length === 0 ? (
@@ -456,9 +486,49 @@ function SideMenuPanel({ visible, onClose }) {
                   );
                 })
               )}
-            </View>
+            </View> : null}
 
             <View style={styles.bottomActions}>
+              {canSwitchModes(user) ? (
+                <TouchableOpacity
+                  style={[styles.actionRow, styles.actionRowMode]}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    const finish = async (communityId) => {
+                      try {
+                        const next = await switchActiveContext(
+                          isResidentMode(user) ? "community_admin" : "resident",
+                          communityId,
+                        );
+                        syncRoleFromUser(next);
+                        setUser(next);
+                        slideAnim.stopAnimation();
+                        slideAnim.setValue(-MENU_WIDTH);
+                        dismissImageSourcePicker();
+                        onClose();
+                        navigateAfterAuth(router, next, { mode: "login" });
+                      } catch (err) {
+                        Alert.alert("Could not switch mode", err?.message || "Please try again.");
+                      }
+                    };
+                    void finish(currentCommunityId(user) ?? user?.resident_mode_communities?.[0]?.id);
+                  }}
+                >
+                  <View style={styles.actionLeft}>
+                    <View style={[styles.actionIcon, styles.actionIconMode]}>
+                      <Feather
+                        name={isResidentMode(user) ? "shield" : "home"}
+                        size={16}
+                        color={Colors.textPrimary}
+                      />
+                    </View>
+                    <Text style={[styles.actionText, styles.actionTextMode]}>
+                      {canSwitchToAdminMode(user) ? "Return to Admin" : "Switch to Resident Mode"}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ) : null}
+
               <TouchableOpacity
                 style={styles.actionRow}
                 activeOpacity={0.7}
@@ -816,6 +886,18 @@ const styles = StyleSheet.create({
   actionRowLast: {
     borderBottomWidth: 0,
   },
+  actionRowMode: {
+    marginBottom: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: Colors.roleAdminBg,
+    borderWidth: 1,
+    borderColor: Colors.borderInput,
+  },
+  actionIconMode: {
+    backgroundColor: Colors.surface,
+    borderColor: Colors.borderInput,
+  },
   actionLeft: {
     flexDirection: "row",
     alignItems: "center",
@@ -841,6 +923,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#334155",
     lineHeight: 18,
+  },
+  actionTextMode: {
+    color: Colors.textPrimary,
+    fontFamily: Fonts.bold,
+    fontWeight: "700",
   },
   actionTextDanger: {
     color: "#DC2626",

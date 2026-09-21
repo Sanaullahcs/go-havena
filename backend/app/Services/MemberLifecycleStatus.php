@@ -99,16 +99,42 @@ class MemberLifecycleStatus
         return $query;
     }
 
-    public static function countInvitationSent(?int $communityId): int
+    public static function applySearch($query, ?string $search, string $usersAlias = 'users', bool $includeCommunityName = false): void
+    {
+        if (! filled($search)) {
+            return;
+        }
+
+        $query->where(function ($q) use ($search, $usersAlias, $includeCommunityName) {
+            $q->where("{$usersAlias}.name", 'like', "%{$search}%")
+                ->orWhere("{$usersAlias}.email", 'like', "%{$search}%")
+                ->orWhere("{$usersAlias}.phone", 'like', "%{$search}%")
+                ->orWhereExists(function ($sub) use ($search, $usersAlias) {
+                    $sub->from('profiles')
+                        ->whereColumn('profiles.user_id', "{$usersAlias}.id")
+                        ->where(function ($p) use ($search) {
+                            $p->where('profiles.unit_number', 'like', "%{$search}%")
+                                ->orWhere('profiles.display_name', 'like', "%{$search}%");
+                        });
+                });
+
+            if ($includeCommunityName) {
+                $q->orWhere('communities.name', 'like', "%{$search}%");
+            }
+        });
+    }
+
+    public static function countInvitationSent(?int $communityId, ?string $search = null): int
     {
         $query = self::preMembershipResidentsQuery($communityId);
         self::applyNotStartedSignup($query);
         self::applyAssignedUnusedInviteExists($query, 'users', $communityId);
+        self::applySearch($query, $search);
 
         return (int) $query->count();
     }
 
-    public static function countOnboarding(?int $communityId): int
+    public static function countOnboarding(?int $communityId, ?string $search = null): int
     {
         $query = self::preMembershipResidentsQuery($communityId);
         $query->where(function ($q) use ($communityId) {
@@ -118,6 +144,7 @@ class MemberLifecycleStatus
                 self::applyNoAssignedUnusedInvite($noInvite, 'users', $communityId);
             });
         });
+        self::applySearch($query, $search);
 
         return (int) $query->count();
     }

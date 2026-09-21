@@ -29,6 +29,8 @@ import {
   type CommunityRequest,
 } from "@/lib/api/communities";
 import { AssignCommunityAdminModal, type AssignAdminTarget } from "@/components/admin/assign-community-admin-modal";
+import { AdjustFeatureSetModal } from "@/components/admin/adjust-feature-set-modal";
+import { ContextualActivityModal } from "@/components/admin/contextual-activity-modal";
 import { ProvisionUserModal, type PresetCommunityAssignment } from "@/components/admin/provision-user-modal";
 import { fetchRegions, type Region } from "@/lib/api/regions";
 import { apiError } from "@/lib/api/client";
@@ -128,6 +130,8 @@ export default function CommunitiesPage() {
   const [statusSubmitting, setStatusSubmitting] = useState(false);
   const [assignTarget, setAssignTarget] = useState<AssignAdminTarget | null>(null);
   const [assignPreset, setAssignPreset] = useState<PresetCommunityAssignment | null>(null);
+  const [featureTarget, setFeatureTarget] = useState<{ id: number; name: string } | null>(null);
+  const [activityTarget, setActivityTarget] = useState<{ id: number; name: string } | null>(null);
   const hasLoadedOnce = useRef(false);
   const prevFilterKey = useRef(`${tab}|`);
 
@@ -526,6 +530,8 @@ export default function CommunitiesPage() {
                       <AdminActionsMenu
                         disabled={statusSubmitting}
                         actions={[
+                          { label: "Activity", icon: "view", onClick: () => setActivityTarget({ id: item.id, name: item.name }) },
+                          { label: "Adjust Feature Set", icon: "view", onClick: () => setFeatureTarget({ id: item.id, name: item.name }) },
                           { label: "Edit", icon: "edit", onClick: () => openEdit(item) },
                           { label: "Delete", icon: "delete", tone: "danger", onClick: () => handleDelete(item) },
                           {
@@ -591,13 +597,12 @@ export default function CommunitiesPage() {
                       <AdminBadge tone="amber">Pending</AdminBadge>
                     </DtCell>
                     <DtCell last right>
-                      <button
-                        type="button"
-                        onClick={() => openReview(item)}
-                        className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
-                      >
-                        Review
-                      </button>
+                      <AdminActionsMenu
+                        actions={[
+                          { label: "Review", icon: "view", tone: "primary", onClick: () => openReview(item) },
+                          { label: "Adjust Feature Set", icon: "edit", onClick: () => setFeatureTarget({ id: item.id, name: item.name }) },
+                        ]}
+                      />
                     </DtCell>
                   </DtRow>
                 ))}
@@ -718,6 +723,19 @@ export default function CommunitiesPage() {
           </div>
         </div>
       )}
+
+      {featureTarget ? (
+        <AdjustFeatureSetModal
+          communityId={featureTarget.id}
+          communityName={featureTarget.name}
+          onClose={() => setFeatureTarget(null)}
+        />
+      ) : null}
+
+      <ContextualActivityModal
+        target={activityTarget ? { kind: "community", ...activityTarget } : null}
+        onClose={() => setActivityTarget(null)}
+      />
 
       <AssignCommunityAdminModal
         target={assignTarget}

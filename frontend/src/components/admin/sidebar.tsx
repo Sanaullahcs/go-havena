@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getUser, isPakistanCommunityRegion, isSystemAdminUser } from "@/lib/auth/session";
+import { isResidentFeatureEnabled } from "@/lib/resident-features";
 import { isPlaidAvailable } from "@/lib/plaid-eligibility";
 import { fetchMessageUnreadCount } from "@/lib/api/messages";
 import { HavenaMark } from "@/components/shared/havena-mark";
@@ -55,6 +56,7 @@ const systemAdminNav: NavItem[] = [
   { href: "/admin/billing-plans", label: "Billing & Plans", icon: CreditCard },
   { href: "/admin/billing-coupons", label: "Coupons", icon: Ticket },
   { href: "/admin/referrals", label: "Referrals", icon: Gift },
+  { href: "/admin/activity", label: "Activity Logs", icon: Activity },
 ];
 
 const communityAdminNav: NavItem[] = [
@@ -74,10 +76,6 @@ const communityAdminNav: NavItem[] = [
   { href: "/admin/feed", label: "Feed Moderation", icon: Newspaper },
   { href: "/admin/marketplace", label: "Marketplace", icon: Store },
   { href: "/admin/businesses", label: "Businesses", icon: Store },
-];
-
-const insightsNav: NavItem[] = [
-  { href: "/admin/activity", label: "Activity Logs", icon: Activity },
 ];
 
 /* ─── NavSection ─── */
@@ -225,7 +223,7 @@ function SidebarInner({
     };
   }, [isSystemAdmin]);
 
-  const hideReferAndEarn = isPakistanCommunityRegion(user);
+  const hideReferAndEarn = isPakistanCommunityRegion(user) || !isResidentFeatureEnabled(user?.resident_features, "refer_and_earn");
   const communityNav = communityAdminNav
     .filter((item) => !(item.href === "/admin/billing" && user?.access?.billing_exempt))
     .filter((item) => !(item.href === "/admin/plaid" && !isPlaidAvailable(user)))
@@ -256,7 +254,6 @@ function SidebarInner({
           <>
             <NavSection items={overviewNav} pathname={pathname} onNavigate={onNavigate} />
             <NavSection title="Manage" items={communityNav} pathname={pathname} onNavigate={onNavigate} />
-            <NavSection title="Logs" items={insightsNav} pathname={pathname} onNavigate={onNavigate} />
             <p className="px-2 pt-3 text-[11px] leading-relaxed text-slate-400">
               Approve residents, publish content, and moderate your community marketplace.
             </p>

@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
+import { useRequireCommunityAdmin } from "../../../hooks/use-require-community-admin";
 import { Feather } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { useTranslation } from "react-i18next";
@@ -118,6 +119,7 @@ function HistoryRow({ row, t, showDivider }) {
 }
 
 export default function AdminReferAndEarnScreen() {
+  useRequireCommunityAdmin();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { showSuccess } = useApiAction();

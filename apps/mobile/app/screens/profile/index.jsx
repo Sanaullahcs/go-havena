@@ -16,7 +16,7 @@ import { ProfileSkeleton } from "../../../components/ui/skeleton-loader";
 import { fetchMe } from "../../../services/profile-api";
 import { fetchPointsStats, formatPoints } from "../../../services/points-api";
 import { fetchAchievements } from "../../../services/achievements-api";
-import { isCommunityAdminRole } from "../../../services/community-access";
+import { isCommunityAdmin } from "../../../services/community-access";
 import { getProfileFields } from "../../../utils/profile-display";
 import { useProfilePhoto } from "../../../hooks/use-profile-photo";
 import { sw, sf, hp } from "../../../utils/responsive";
@@ -67,7 +67,7 @@ export default function Profile() {
   const regionLine = fields.regionTitle || null;
   const roleKey = fields.role === "guest" ? "guest" : fields.role === "community_admin" || fields.role === "admin" ? "admin" : "resident";
   const roleLabel = t(`profile.roles.${roleKey}`);
-  const showSubscriptionTab = isCommunityAdminRole(profile);
+  const showSubscriptionTab = isCommunityAdmin(profile);
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>

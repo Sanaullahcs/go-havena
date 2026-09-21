@@ -4006,8 +4006,8 @@
     }
   },
   "blockedAccount": {
-    "title": "Your account is suspended",
-    "message": "Your account has been suspended. Please contact your community administrator or support.",
+    "title": "Account Suspended",
+    "message": "Your account has been suspended. Please contact your community administrator or support for assistance.",
     "systemAdmin": "System administrator",
     "communityAdmin": "Community administrator",
     "membershipDeclined": "Membership declined",

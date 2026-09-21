@@ -99,6 +99,11 @@ class NoticeController extends Controller
         } elseif ($request->filled('category') && $request->category !== 'all') {
             $query->where('notices.category', $this->normalizeCategory($request->category));
         }
+        $allowedNoticeCategories = app(\App\Services\CommunityFeatureService::class)
+            ->allowedNoticeCategories($user, $communityId);
+        if (is_array($allowedNoticeCategories)) {
+            $query->whereIn('notices.category', $allowedNoticeCategories);
+        }
         if ($request->filled('search')) {
             $s = $request->search;
             $query->where(function ($q) use ($s) {
@@ -244,6 +249,11 @@ class NoticeController extends Controller
         if (! $this->isPlatformAdmin($user) && ! NoticeAudienceService::canUserViewNotice($notice, (int) $user->id)) {
             return response()->json(['message' => 'Notice not found'], 404);
         }
+
+        app(\App\Services\CommunityFeatureService::class)->assertResidentCanAccess(
+            $user,
+            \App\Services\CommunityFeatureService::featureKeyForNoticeCategory($notice->category ?? null),
+        );
 
         // Expired schedules remain readable from Community Updates (include_expired list).
 

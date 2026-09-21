@@ -65,6 +65,16 @@ class UserResource extends JsonResource
             'family' => \App\Services\FamilyService::onboardingBrief($this->resource),
             'needs_invite_code' => \App\Services\InviteCodeService::userNeedsInviteCode($this->resource),
             'invited_by_admin' => OnboardingContext::invitedByAdmin($this->resource),
+            'resident_features' => $this->residentFeaturesPayload(),
+            ...\App\Services\UserActingContextService::payload($this->resource),
         ];
+    }
+
+    /** @return array<string, mixed> */
+    private function residentFeaturesPayload(): array
+    {
+        $features = app(\App\Services\CommunityFeatureService::class);
+
+        return $features->payloadForCommunity($features->communityIdForUser($this->resource));
     }
 }

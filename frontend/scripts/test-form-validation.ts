@@ -47,6 +47,7 @@ import {
 } from "../src/lib/auth/register-otp-challenge";
 import {
   GUEST_EMAIL_FORMAT_MESSAGE,
+  GUEST_EMAIL_EXISTS_MESSAGE,
   GUEST_NAME_FORMAT_MESSAGE,
   GUEST_DURATION_MIN_MESSAGE,
   GUEST_DURATION_MAX_MESSAGE,
@@ -58,6 +59,7 @@ import {
   guestDurationFieldError,
   guestEmailFieldError,
   guestNameFieldError,
+  isDuplicateGuestEmailError,
   guestPermissionsFieldError,
   guestStartFieldError,
   normalizeGuestInviteWindow,
@@ -272,6 +274,27 @@ console.log("\nGuest invite validation");
   assert(guestEmailFieldError("") === null, "empty email has no live format error");
   assert(guestEmailFieldError("guest@email.com") === null, "accepts valid email");
   assert(guestEmailFieldError("not-an-email") === GUEST_EMAIL_FORMAT_MESSAGE, "rejects invalid email");
+  assert(
+    isDuplicateGuestEmailError({ guest_email: "This email already exists. Please use a different email." }),
+    "detects duplicate email field error",
+  );
+  assert(
+    isDuplicateGuestEmailError({}, {
+      response: { data: { code: "CONTACT_ALREADY_EXISTS", message: "This email already exists. Please use a different email." } },
+    }),
+    "detects duplicate email API code",
+  );
+  assert(
+    !isDuplicateGuestEmailError({ guest_phone: "This phone number already exists. Please use a different phone number." }, {
+      response: { data: { code: "CONTACT_ALREADY_EXISTS", message: "This phone number already exists. Please use a different phone number." } },
+    }),
+    "does not treat duplicate phone as email",
+  );
+  assert(
+    !isDuplicateGuestEmailError({ guest_email: "Please enter a valid email address." }),
+    "does not treat format error as duplicate email",
+  );
+  assert(GUEST_EMAIL_EXISTS_MESSAGE === "An account with this email address already exists.", "inline duplicate copy");
 
   const window = { starts_at: "2026-09-11T10:00", ends_at: "2026-09-12T10:00" };
   const now = new Date("2026-09-11T10:00");

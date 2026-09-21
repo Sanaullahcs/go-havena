@@ -28,6 +28,8 @@ import {
 } from "@/components/property/booking-payment-fields";
 import { formatUsdAmount, todayIsoDate, validatePaymentProofForm } from "@/lib/admin/amenity-bill-validation";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
+import { getUser } from "@/lib/auth/session";
+import { isResidentFeatureEnabled } from "@/lib/resident-features";
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; label: string; dot: string }> = {
   open:     { bg: "#ecfdf5", text: "#059669", label: "Open availability", dot: "#10b981" },
@@ -53,7 +55,12 @@ function tomorrowIso() {
 }
 
 export default function PropertyPage() {
-  const [tab, setTab] = useState<"amenities" | "rules" | "bookings" | "inbox">("amenities");
+  const features = getUser()?.resident_features;
+  const showAmenities = isResidentFeatureEnabled(features, "amenities");
+  const showRules = isResidentFeatureEnabled(features, "community_rules");
+  const showBookings = isResidentFeatureEnabled(features, "bookings");
+  const firstTab = showAmenities ? "amenities" : showRules ? "rules" : "bookings";
+  const [tab, setTab] = useState<"amenities" | "rules" | "bookings" | "inbox">(firstTab);
   const [bookModal, setBookModal] = useState<Amenity | null>(null);
   const [bookForm, setBookForm] = useState({ date: tomorrowIso(), slot: "", guests: "1" });
   const [payment, setPayment] = useState<BookingPaymentForm>({
@@ -80,9 +87,9 @@ export default function PropertyPage() {
     setLoading(true);
     try {
       const [ams, bks, inboxRows] = await Promise.all([
-        fetchAmenities(),
-        fetchMyBookings(),
-        fetchBookingInbox().catch(() => [] as Booking[]),
+        showAmenities ? fetchAmenities() : Promise.resolve([] as Amenity[]),
+        showBookings ? fetchMyBookings() : Promise.resolve([] as Booking[]),
+        showBookings ? fetchBookingInbox().catch(() => [] as Booking[]) : Promise.resolve([] as Booking[]),
       ]);
       setAmenities(ams);
       setBookings(bks);
@@ -92,7 +99,7 @@ export default function PropertyPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showAmenities, showBookings]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -247,6 +254,7 @@ export default function PropertyPage() {
             Book facilities, request open access, and approve bookings for amenities you created.
           </p>
         </div>
+        {showAmenities ? (
         <button
           type="button"
           onClick={() => setCreateOpen(true)}
@@ -254,16 +262,17 @@ export default function PropertyPage() {
         >
           <IcoPlus /> Add Amenity
         </button>
+        ) : null}
       </div>
 
       {/* Tabs */}
       <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm w-fit">
         {([
-          { id: "amenities" as const, label: "Amenities" },
-          { id: "rules" as const, label: "Rules" },
-          { id: "bookings" as const, label: `My Reservations (${bookings.length})` },
-          { id: "inbox" as const, label: `Approve Requests (${inbox.filter((b) => b.status === "pending").length})` },
-        ]).map((t) => (
+          { id: "amenities" as const, label: "Amenities", visible: showAmenities },
+          { id: "rules" as const, label: "Rules", visible: showRules },
+          { id: "bookings" as const, label: `My Reservations (${bookings.length})`, visible: showBookings },
+          { id: "inbox" as const, label: `Approve Requests (${inbox.filter((b) => b.status === "pending").length})`, visible: showBookings },
+        ]).filter((t) => t.visible).map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}

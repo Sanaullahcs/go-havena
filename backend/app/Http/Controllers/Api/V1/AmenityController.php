@@ -1072,7 +1072,7 @@ class AmenityController extends Controller
     /** Community admin inbox must use managed-community scope, not the latest resident membership. */
     private function resolveInboxCommunityId(Request $request, $user): int
     {
-        if (AdminRoleService::isSystemAdmin($user) || AdminRoleService::isCommunityAdminRole($user)) {
+        if (AdminRoleService::isSystemAdmin($user) || AdminRoleService::isActiveCommunityAdmin($user)) {
             $scope = AdminRoleService::resolveAdminCommunityScope($user, $request);
             if ($scope) {
                 return (int) $scope;

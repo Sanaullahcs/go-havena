@@ -20,12 +20,27 @@ class CommunityAdminAccessService
         private readonly CommunityBillingService $billing,
         private readonly RegionBillingPolicy $regionBilling,
         private readonly PlaidEligibilityService $plaidEligibility,
+        private readonly CommunityFeatureService $features,
     ) {
     }
 
     public function managedCommunityId(User $user): ?int
     {
         $user->loadMissing('memberships.community');
+
+        $preferred = $user->active_context_community_id
+            ? (int) $user->active_context_community_id
+            : null;
+
+        if ($preferred) {
+            $match = $user->memberships->first(
+                fn ($m) => (int) $m->community_id === $preferred
+                    && in_array($m->role, ['admin', 'moderator'], true)
+            );
+            if ($match) {
+                return $preferred;
+            }
+        }
 
         $membership = $user->memberships
             ->first(fn ($m) => $m->role === 'admin')
@@ -37,6 +52,20 @@ class CommunityAdminAccessService
     public function managedMembership(User $user): ?CommunityMembership
     {
         $user->loadMissing('memberships.community');
+
+        $preferred = $user->active_context_community_id
+            ? (int) $user->active_context_community_id
+            : null;
+
+        if ($preferred) {
+            $match = $user->memberships->first(
+                fn ($m) => (int) $m->community_id === $preferred
+                    && in_array($m->role, ['admin', 'moderator'], true)
+            );
+            if ($match) {
+                return $match;
+            }
+        }
 
         return $user->memberships->first(fn ($m) => $m->role === 'admin')
             ?? $user->memberships->first();
@@ -261,12 +290,15 @@ class CommunityAdminAccessService
             }
         }
 
+        $featuresConfigured = $this->features->isConfigured($communityId);
+
         $nextStep = $this->resolveNextStep(
             $user,
             $profileComplete,
             $hasCommunity,
             $billingComplete,
             $platformApproved,
+            $this->features->requiresOnboardingConfiguration($communityId),
             $blocking,
         );
 
@@ -297,6 +329,7 @@ class CommunityAdminAccessService
             'access_revoked' => in_array('admin_revoked', $blocking, true),
             'next_step' => $nextStep,
             'billing_url' => $adminUrl.'/admin/billing',
+            'resident_features_configured' => $featuresConfigured,
             'blocking_reasons' => $blocking,
         ];
     }
@@ -377,6 +410,7 @@ class CommunityAdminAccessService
         bool $hasCommunity,
         bool $billingComplete,
         bool $platformApproved,
+        bool $needsResidentFeatures,
         array $blocking,
     ): string {
         if (in_array('admin_revoked', $blocking, true) || in_array('admin_rejected', $blocking, true) || in_array('community_rejected', $blocking, true)) {
@@ -393,6 +427,10 @@ class CommunityAdminAccessService
 
         if (! $billingComplete) {
             return 'complete_billing_web';
+        }
+
+        if ($needsResidentFeatures) {
+            return 'configure_resident_features';
         }
 
         if (! $platformApproved) {

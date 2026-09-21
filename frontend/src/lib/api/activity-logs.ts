@@ -11,6 +11,8 @@ export type ActivityLogChange = {
   next: string;
 };
 
+export type ActivityLogTab = "all" | "residents" | "community_admins" | "guests" | "system";
+
 export type ActivityLog = {
   id: number;
   log_type: ActivityLogType;
@@ -19,6 +21,7 @@ export type ActivityLog = {
   entity_type: string | null;
   entity_id: number | null;
   ip_address: string | null;
+  user_agent?: string | null;
   severity: ActivitySeverity;
   created_at: string;
   user_name: string | null;
@@ -28,7 +31,15 @@ export type ActivityLog = {
   affected_user?: string | null;
   affected_user_id?: number | null;
   actor_role_label?: string | null;
+  actor_user_id?: number | null;
+  actor_type?: string | null;
+  subject_user_id?: number | null;
+  community_id?: number | null;
+  community_name?: string | null;
   module?: string | null;
+  status?: string | null;
+  request_id?: string | null;
+  error?: string | null;
 };
 
 export type ActivityLogStats = {
@@ -42,7 +53,7 @@ export type ActivityLogStats = {
   last_log: ActivityLog | null;
 };
 
-type PaginatedLogs = {
+export type PaginatedLogs = {
   data: ActivityLog[];
   current_page: number;
   last_page: number;
@@ -52,10 +63,20 @@ type PaginatedLogs = {
 
 export async function fetchActivityLogs(params: {
   type?: ActivityLogType;
+  tab?: ActivityLogTab;
   severity?: ActivitySeverity | "all";
   search?: string;
   page?: number;
   perPage?: number;
+  communityId?: number;
+  actorUserId?: number;
+  role?: string;
+  module?: string;
+  action?: string;
+  status?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  ip?: string;
 }): Promise<PaginatedLogs> {
   const query: Record<string, string | number> = {
     page: params.page ?? 1,
@@ -63,8 +84,18 @@ export async function fetchActivityLogs(params: {
   };
 
   if (params.type) query.type = params.type;
+  if (params.tab && params.tab !== "all") query.tab = params.tab;
   if (params.severity && params.severity !== "all") query.severity = params.severity;
   if (params.search?.trim()) query.search = params.search.trim();
+  if (params.communityId) query.community_id = params.communityId;
+  if (params.actorUserId) query.actor_user_id = params.actorUserId;
+  if (params.role) query.role = params.role;
+  if (params.module) query.module = params.module;
+  if (params.action) query.action = params.action;
+  if (params.status) query.status = params.status;
+  if (params.dateFrom) query.date_from = params.dateFrom;
+  if (params.dateTo) query.date_to = params.dateTo;
+  if (params.ip) query.ip = params.ip;
 
   const res = await api.get("/v1/activity-logs", { params: query });
   const body = res.data ?? {};
@@ -119,6 +150,52 @@ export function formatLogTime(ts: string) {
   } catch {
     return ts;
   }
+}
+
+export async function fetchCommunityAdminActivityLogs(
+  adminId: number,
+  params: { search?: string; dateFrom?: string; dateTo?: string; page?: number; perPage?: number } = {},
+): Promise<PaginatedLogs> {
+  const res = await api.get(`/v1/admin/community-admins/${adminId}/activity-logs`, {
+    params: {
+      search: params.search,
+      date_from: params.dateFrom,
+      date_to: params.dateTo,
+      page: params.page ?? 1,
+      per_page: params.perPage ?? ADMIN_TABLE_PAGE_SIZE,
+    },
+  });
+  const body = res.data ?? {};
+  return {
+    data: body.data ?? [],
+    current_page: body.current_page ?? 1,
+    last_page: body.last_page ?? 1,
+    per_page: body.per_page ?? ADMIN_TABLE_PAGE_SIZE,
+    total: body.total ?? 0,
+  };
+}
+
+export async function fetchCommunityActivityLogs(
+  communityId: number,
+  params: { search?: string; dateFrom?: string; dateTo?: string; page?: number; perPage?: number } = {},
+): Promise<PaginatedLogs> {
+  const res = await api.get(`/v1/admin/communities/${communityId}/activity-logs`, {
+    params: {
+      search: params.search,
+      date_from: params.dateFrom,
+      date_to: params.dateTo,
+      page: params.page ?? 1,
+      per_page: params.perPage ?? ADMIN_TABLE_PAGE_SIZE,
+    },
+  });
+  const body = res.data ?? {};
+  return {
+    data: body.data ?? [],
+    current_page: body.current_page ?? 1,
+    last_page: body.last_page ?? 1,
+    per_page: body.per_page ?? ADMIN_TABLE_PAGE_SIZE,
+    total: body.total ?? 0,
+  };
 }
 
 export function relLogTime(ts: string) {

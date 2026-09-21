@@ -19,7 +19,7 @@ class CommunityLifecycleService
 
     public const REASON_MEMBER_SUSPENDED = 'member_suspended';
 
-    public const ACCOUNT_SUSPENDED_MESSAGE = 'Your account has been suspended. Please contact your community administrator or support.';
+    public const ACCOUNT_SUSPENDED_MESSAGE = 'Your account has been suspended. Please contact your community administrator or support for assistance.';
 
     public const SINGLE_COMMUNITY_ADMIN_MESSAGE = 'This phone number is already linked to another community. One phone can only manage one community.';
 
@@ -246,6 +246,26 @@ class CommunityLifecycleService
                 $billing->pauseForAdminTransition((int) $membership->community_id);
             }
         }
+    }
+
+    public function reactivateCommunityAdmin(User $admin): void
+    {
+        if ($admin->role !== 'community_admin') {
+            abort(422, 'User is not a community admin.');
+        }
+
+        if (($admin->community_admin_status ?? '') !== 'approved') {
+            abort(422, 'Only an approved community admin can be reactivated.');
+        }
+
+        if (($admin->status ?? '') !== 'suspended') {
+            abort(422, 'This community admin is not suspended.');
+        }
+
+        $admin->update([
+            'status'            => 'active',
+            'suspension_reason' => null,
+        ]);
     }
 
     public function assignCommunityAdmin(Community $community, User $newAdmin, bool $keepSystemAdminRole = false): User
@@ -592,7 +612,7 @@ class CommunityLifecycleService
                     : 'ACCOUNT_SUSPENDED',
                 'status' => 'suspended',
                 'reason' => null,
-                'rejected_by' => $this->suspensionRejectedBy($user->suspension_reason),
+                'rejected_by' => null,
             ]);
         }
 
@@ -607,7 +627,7 @@ class CommunityLifecycleService
                     'code'    => 'ACCOUNT_SUSPENDED',
                     'status'  => 'suspended',
                     'reason'  => null,
-                    'rejected_by' => 'community_admin',
+                    'rejected_by' => null,
                 ]);
             }
         }
@@ -624,11 +644,11 @@ class CommunityLifecycleService
             && AdminRoleService::isCommunityAdminRole($user)
             && $user->suspension_reason === self::REASON_ADMIN_SUSPENDED) {
             return $this->withBlockDetails([
-                'message' => 'This account has been suspended. Contact support for help.',
+                'message' => self::ACCOUNT_SUSPENDED_MESSAGE,
                 'code'    => 'ACCOUNT_SUSPENDED',
                 'status'  => 'suspended',
                 'reason'  => null,
-                'rejected_by' => 'system_admin',
+                'rejected_by' => null,
             ]);
         }
 
@@ -639,7 +659,7 @@ class CommunityLifecycleService
                 'code'    => 'COMMUNITY_DEACTIVATED',
                 'status'  => 'suspended',
                 'reason'  => null,
-                'rejected_by' => 'system_admin',
+                'rejected_by' => null,
             ]);
         }
 
@@ -766,22 +786,20 @@ class CommunityLifecycleService
     /** @param array{message: string, code: string, status?: string, reason?: ?string, rejected_by?: ?string} $block */
     private function withBlockDetails(array $block): array
     {
+        $status = $block['status'] ?? 'suspended';
+        $rejectedBy = filled($block['rejected_by'] ?? null) ? (string) $block['rejected_by'] : null;
+
+        if ($status !== 'rejected') {
+            $rejectedBy = null;
+        }
+
         return [
             'message'     => $block['message'],
             'code'        => $block['code'],
-            'status'      => $block['status'] ?? 'suspended',
+            'status'      => $status,
             'reason'      => filled($block['reason'] ?? null) ? (string) $block['reason'] : null,
-            'rejected_by' => filled($block['rejected_by'] ?? null) ? (string) $block['rejected_by'] : null,
+            'rejected_by' => $rejectedBy,
         ];
-    }
-
-    private function suspensionRejectedBy(?string $suspensionReason): ?string
-    {
-        return match ($suspensionReason) {
-            self::REASON_ADMIN_SUSPENDED, self::REASON_COMMUNITY_DEACTIVATED => 'system_admin',
-            self::REASON_MEMBER_SUSPENDED => 'community_admin',
-            default => null,
-        };
     }
 
     public function getCommunityAdmin(Community $community): ?User

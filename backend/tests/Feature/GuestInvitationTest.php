@@ -1370,7 +1370,7 @@ class GuestInvitationTest extends TestCase
 
         $this->deleteJson("/api/v1/admin/guests/{$invitationId}")
             ->assertOk()
-            ->assertJsonPath('message', 'Invitation deleted successfully.');
+            ->assertJsonPath('message', 'Guest invitation deleted successfully.');
 
         $this->assertDatabaseHas('guest_invitations', [
             'id'     => $invitationId,
@@ -1456,5 +1456,185 @@ class GuestInvitationTest extends TestCase
             'guest_user_id' => $guestUserId,
         ]);
         $this->assertDatabaseHas('users', ['id' => $guestUserId]);
+    }
+
+    public function test_community_admin_can_cancel_pending_invitation_via_post(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $created = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Post Cancel Guest',
+            'guest_email' => 'post.cancel@example.com',
+            'guest_phone' => '+15550004444',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data');
+
+        $this->postJson("/api/v1/admin/guests/{$created['id']}/cancel")
+            ->assertOk()
+            ->assertJsonPath('message', 'Guest invitation deleted successfully.');
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'id'     => $created['id'],
+            'status' => 'cancelled',
+        ]);
+    }
+
+    public function test_community_admin_can_delete_resident_created_pending_invitation(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        $resident = $this->seedResident($community);
+
+        $invitation = GuestInvitationService::create($community->id, $resident, 'resident', [
+            'guest_name'  => 'Resident Hosted Guest',
+            'guest_email' => 'resident.hosted@example.com',
+            'guest_phone' => '+15550005555',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+            'permissions' => ['feed' => true],
+        ]);
+
+        Sanctum::actingAs($admin);
+        $this->deleteJson("/api/v1/admin/guests/{$invitation->id}")
+            ->assertOk()
+            ->assertJsonPath('message', 'Guest invitation deleted successfully.');
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'id'     => $invitation->id,
+            'status' => 'cancelled',
+        ]);
+    }
+
+    public function test_community_admin_cannot_delete_invitation_from_another_community(): void
+    {
+        [$communityA, $adminA] = $this->seedCommunityAdmin();
+        $communityB = Community::query()->create([
+            'name'          => 'Other Community',
+            'region_id'     => $communityA->region_id,
+            'region'        => $communityA->region,
+            'status'        => 'active',
+            'review_status' => 'approved',
+        ]);
+        $adminB = User::factory()->create([
+            'role'                   => 'community_admin',
+            'community_admin_status' => 'approved',
+            'phone'                  => '+12015555666',
+            'phone_verified_at'      => now(),
+        ]);
+        CommunityMembership::query()->create([
+            'user_id'      => $adminB->id,
+            'community_id' => $communityB->id,
+            'role'         => 'admin',
+            'status'       => 'approved',
+        ]);
+        CommunitySubscription::query()->create([
+            'community_id' => $communityB->id,
+            'plan_slug' => 'starter',
+            'billing_interval' => 'month',
+            'status' => CommunitySubscription::STATUS_ACTIVE,
+            'seat_limit' => 100,
+            'meta' => ['card_on_file' => true, 'activated_via' => 'manual'],
+        ]);
+
+        Sanctum::actingAs($adminB);
+        $created = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Other Community Guest',
+            'guest_email' => 'other.community.guest@example.com',
+            'guest_phone' => '+15550006666',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data');
+
+        Sanctum::actingAs($adminA);
+        $this->deleteJson("/api/v1/admin/guests/{$created['id']}")
+            ->assertForbidden()
+            ->assertJsonPath('message', 'You can only delete guest invitations from your own community.');
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'id'     => $created['id'],
+            'status' => 'pending_verification',
+        ]);
+    }
+
+    public function test_system_admin_can_delete_pending_guest_invitation(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+        $created = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'SA Delete Guest',
+            'guest_email' => 'sa.delete@example.com',
+            'guest_phone' => '+15550007777',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data');
+
+        $systemAdmin = User::factory()->create([
+            'role' => 'system_admin',
+            'phone' => '+12015555777',
+            'phone_verified_at' => now(),
+        ]);
+
+        Sanctum::actingAs($systemAdmin);
+        $this->withHeaders(['X-Community-Id' => (string) $community->id])
+            ->deleteJson("/api/v1/admin/guests/{$created['id']}")
+            ->assertOk()
+            ->assertJsonPath('message', 'Guest invitation deleted successfully.');
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'id'     => $created['id'],
+            'status' => 'cancelled',
+        ]);
+    }
+
+    public function test_resident_cannot_delete_guest_invitation_via_admin_endpoint(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+        $created = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Resident Blocked Delete',
+            'guest_email' => 'resident.blocked.delete@example.com',
+            'guest_phone' => '+15550008888',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data');
+
+        $resident = $this->seedResident($community);
+        Sanctum::actingAs($resident);
+        $this->deleteJson("/api/v1/admin/guests/{$created['id']}")
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'id'     => $created['id'],
+            'status' => 'pending_verification',
+        ]);
+    }
+
+    public function test_community_admin_in_resident_mode_cannot_delete_guest_invitation(): void
+    {
+        [$community, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+        $created = $this->postJson('/api/v1/admin/guests/invite', [
+            'guest_name'  => 'Resident Mode Delete',
+            'guest_email' => 'resident.mode.delete@example.com',
+            'guest_phone' => '+15550009900',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ])->assertCreated()->json('data');
+
+        $admin->update([
+            'active_context' => 'resident',
+            'active_context_community_id' => $community->id,
+        ]);
+
+        Sanctum::actingAs($admin->fresh());
+        $this->deleteJson("/api/v1/admin/guests/{$created['id']}")
+            ->assertForbidden()
+            ->assertJsonPath('code', 'RESIDENT_MODE_ACTIVE');
+
+        $this->assertDatabaseHas('guest_invitations', [
+            'id'     => $created['id'],
+            'status' => 'pending_verification',
+        ]);
     }
 }

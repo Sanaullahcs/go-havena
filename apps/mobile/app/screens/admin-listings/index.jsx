@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { useRouter, useFocusEffect } from "expo-router";
+import { useRequireCommunityAdmin } from "../../../hooks/use-require-community-admin";
 import { useTranslation } from "react-i18next";
 import ScreenHeader from "../../../components/layout/screen-header";
 import { Fonts } from "../../../constants/font";
@@ -71,6 +72,7 @@ function ListingRow({ item, busy, onApprove, onReject, t }) {
 }
 
 export default function AdminListingsScreen() {
+  useRequireCommunityAdmin();
   const { t } = useTranslation();
   const router = useRouter();
   const [listings, setListings] = useState([]);

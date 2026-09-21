@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { fetchNotices, type Notice } from "@/lib/api/notices";
 import { apiError } from "@/lib/api/client";
 import { PageLoader, EmptyState } from "@/components/shared/page-states";
+import { getUser } from "@/lib/auth/session";
+import { isResidentFeatureEnabled } from "@/lib/resident-features";
 
 type NCategory = "All" | "General" | "Emergency" | "Event" | "Maintenance";
 
@@ -14,7 +16,18 @@ const CAT_COLOR: Record<string, string> = {
   Maintenance: "#d97706",
 };
 
+function categoryAllowed(category: string, features: ReturnType<typeof getUser> | null | undefined) {
+  const payload = features?.resident_features;
+  if (category === "Event") return isResidentFeatureEnabled(payload, "events");
+  if (category === "Emergency") return isResidentFeatureEnabled(payload, "alerts");
+  return isResidentFeatureEnabled(payload, "notices");
+}
+
 export default function NoticesPage() {
+  const user = getUser();
+  const filters = (["All", "General", "Emergency", "Event", "Maintenance"] as NCategory[]).filter(
+    (item) => item === "All" || categoryAllowed(item, user),
+  );
   const [filter, setFilter]   = useState<NCategory>("All");
   const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,7 +41,10 @@ export default function NoticesPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const visible = notices.filter((n) => filter === "All" || n.category === filter);
+  const visible = notices.filter((n) => {
+    if (!categoryAllowed(n.category, user)) return false;
+    return filter === "All" || n.category === filter;
+  });
 
   if (loading) return <PageLoader variant="cards" />;
 
@@ -44,7 +60,7 @@ export default function NoticesPage() {
 
       {/* Filter tabs */}
       <div className="flex gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 w-fit">
-        {(["All", "General", "Emergency", "Event", "Maintenance"] as NCategory[]).map((f) => (
+        {filters.map((f) => (
           <button
             key={f}
             type="button"

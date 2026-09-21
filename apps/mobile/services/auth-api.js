@@ -2,6 +2,7 @@ import { apiRequest, ApiError } from "./api-client";
 import { canAccessDashboard, isCommunityAdminRole, isGuestUser } from "./community-access";
 import { getCommunityId, setCommunityId, setSession, clearSession, getToken, getUser } from "./auth-session";
 import { getPrimaryMembership } from "./community-access";
+import { mergeSessionUser } from "./acting-context.cjs";
 import { clearNearbyPlacesCache } from "./nearby-places-api";
 import { unregisterPushDeviceOnSignOut } from "./push-notifications";
 import { parsePhoneNumberFromString } from "libphonenumber-js/min";
@@ -45,11 +46,14 @@ function devMockCommunityJoin(communityName = "Oak Valley Residences") {
 async function applyCommunityFromUser(user, { preferStored = false } = {}) {
   const approved = (user?.memberships ?? []).filter((m) => m.status === "approved");
   const stored = await getCommunityId();
-  let next = getPrimaryMembership(user);
-  if (preferStored && stored) {
-    const match = approved.find((m) => String(m.community_id) === String(stored));
-    if (match) next = match;
+  const pickApproved = (id) =>
+    id != null ? approved.find((m) => String(m.community_id) === String(id)) : null;
+
+  let next = pickApproved(user?.active_context_community_id);
+  if (!next && preferStored) {
+    next = pickApproved(stored);
   }
+  if (!next) next = getPrimaryMembership(user);
   const nextId = next?.community_id ?? null;
   if (String(nextId ?? "") !== String(stored ?? "")) {
     clearNearbyPlacesCache();
@@ -62,27 +66,9 @@ async function syncSessionFromMe(data) {
   const token = await getToken();
   if (!token || !data) return;
   const existing = await getUser();
-  await setSession({
-    token,
-    user: {
-      id: data.id,
-      uuid: data.uuid,
-      name: data.name,
-      email: data.email,
-      phone: data.phone,
-      role: data.role ?? existing?.role ?? "resident",
-      community_admin_status:
-        data.community_admin_status ?? existing?.community_admin_status ?? null,
-      status: data.status ?? existing?.status ?? "active",
-      profile: data.profile ?? existing?.profile ?? null,
-      memberships: Array.isArray(data.memberships)
-        ? data.memberships
-        : (existing?.memberships ?? []),
-      access: data.access ?? existing?.access ?? null,
-      family: data.family ?? existing?.family ?? null,
-    },
-  });
-  await applyCommunityFromUser(data, { preferStored: true });
+  const user = mergeSessionUser(existing, data);
+  await setSession({ token, user });
+  await applyCommunityFromUser(user, { preferStored: true });
 }
 
 export async function syncUserFromApi(data) {

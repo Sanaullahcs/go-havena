@@ -22,6 +22,8 @@ import PropertyHubLinkCards from "../property/property-hub-link-cards";
 import PropertyHubApprovalQueue from "../property/property-hub-approval-queue";
 import { PropertyManagementRoutes, navigatePropertyHubRoute } from "../../constants/property-management-routes";
 import { getCurrentRole } from "../../constants/role-session";
+import { getCachedUser } from "../../services/auth-session";
+import { isResidentFeatureEnabled } from "../../constants/resident-features";
 import { Fonts } from "../../constants/font";
 import { Layout } from "../../constants/tokens";
 import { HOME_SCROLL_BOTTOM_PAD } from "../../constants/home-styles";
@@ -96,8 +98,23 @@ export default function PropertyManagment() {
   const contentMaxWidth = Math.min(windowWidth, isWide ? 720 : windowWidth);
 
   const [isAdmin, setIsAdmin] = useState(() => getCurrentRole() === "admin");
-  const hubServices = useMemo(() => getPropertyHubServices(isAdmin, t), [isAdmin, t]);
-  const communityServices = useMemo(() => getPropertyCommunityServices(t), [t]);
+  const hubServices = useMemo(() => {
+    const user = getCachedUser();
+    return getPropertyHubServices(isAdmin, t).filter((item) => {
+      if (isAdmin) return true;
+      if (item.id === "book" || item.id === "add-amenity") return isResidentFeatureEnabled(user, "amenities");
+      if (item.id === "booking-requests") return isResidentFeatureEnabled(user, "bookings");
+      return true;
+    });
+  }, [isAdmin, t]);
+  const communityServices = useMemo(() => {
+    const user = getCachedUser();
+    return getPropertyCommunityServices(t).filter((item) => {
+      if (item.id === "rules") return isResidentFeatureEnabled(user, "community_rules");
+      if (item.id === "documents") return isResidentFeatureEnabled(user, "documents");
+      return true;
+    });
+  }, [t]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [adminActivity, setAdminActivity] = useState({ title: t("services.approvalQueue"), items: [] });

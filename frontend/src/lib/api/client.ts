@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getToken, clearSession } from "@/lib/auth/session";
+import { getToken, clearSession, getManagedCommunityId, getUser } from "@/lib/auth/session";
 import { resolveAdminLoginPath } from "@/lib/auth/admin-routes";
 import { resolveApiRoot } from "./resolve-base-url";
 
@@ -19,6 +19,13 @@ api.interceptors.request.use((config) => {
   config.baseURL = resolveApiRoot();
   const token = getToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  const existingCommunityHeader = config.headers?.["X-Community-Id"] ?? config.headers?.["x-community-id"];
+  if (!existingCommunityHeader) {
+    const communityId = getManagedCommunityId(getUser());
+    if (communityId) {
+      config.headers["X-Community-Id"] = String(communityId);
+    }
+  }
   if (needsNgrokBrowserBypass(config.baseURL)) {
     config.headers["ngrok-skip-browser-warning"] = "true";
   }

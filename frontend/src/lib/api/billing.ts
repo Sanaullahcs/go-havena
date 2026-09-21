@@ -149,8 +149,18 @@ function communityParams(communityId?: number | null) {
 }
 
 export async function fetchBilling(communityId?: number | null): Promise<BillingPayload> {
-  const { data } = await api.get("/v1/admin/billing", { params: communityParams(communityId) });
-  return data.data as BillingPayload;
+  const request = () => api.get("/v1/admin/billing", { params: communityParams(communityId) });
+  try {
+    const { data } = await request();
+    return data.data as BillingPayload;
+  } catch (err) {
+    const status = (err as { response?: { status?: number } } | null)?.response?.status;
+    if (typeof status === "number" && status >= 500) {
+      const { data } = await request();
+      return data.data as BillingPayload;
+    }
+    throw err;
+  }
 }
 
 export async function startBillingCheckout(input: {

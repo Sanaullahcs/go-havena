@@ -841,6 +841,10 @@ function BillingPageInner() {
         router.replace(withAppReturnParams("/admin/billing/done"));
         return;
       }
+      if (step === "configure_resident_features") {
+        router.replace("/admin/resident-features");
+        return;
+      }
       if (step === "await_approval" || step === "rejected") {
         router.replace("/admin/pending-approval");
         return;

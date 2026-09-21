@@ -116,7 +116,7 @@ class PlaidController extends Controller
     {
         $user = $request->user();
 
-        if (! AdminRoleService::isCommunityAdminRole($user)) {
+        if (! AdminRoleService::isActiveCommunityAdmin($user)) {
             abort(403, 'Community admin access required');
         }
 

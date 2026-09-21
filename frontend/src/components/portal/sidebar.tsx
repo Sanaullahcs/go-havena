@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { HavenaMark } from "@/components/shared/havena-mark";
+import { canSwitchToAdminMode, getUser, isResidentMode } from "@/lib/auth/session";
+import { ResidentModeBar } from "@/components/portal/resident-mode-bar";
+import { anyResidentFeatureEnabled, isResidentFeatureEnabled } from "@/lib/resident-features";
 
 type NavItem = {
   href: string;
@@ -95,7 +98,9 @@ function Brand() {
       </span>
       <span className="nl-sidebar-brand-copy">
         <span className="nl-sidebar-brand-name">Havena</span>
-        <span className="nl-sidebar-brand-role">Resident Portal</span>
+        <span className="nl-sidebar-brand-role">
+          {isResidentMode() ? "Resident Mode" : "Resident Portal"}
+        </span>
       </span>
     </Link>
   );
@@ -110,6 +115,19 @@ function SidebarInner({
   onNavigate?: () => void;
   hideBrand?: boolean;
 }) {
+  const features = getUser()?.resident_features;
+  const filteredMain = mainNav.filter((item) => {
+    if (item.href === "/notices") return anyResidentFeatureEnabled(features, ["notices", "events", "alerts"]);
+    if (item.href === "/feed") return isResidentFeatureEnabled(features, "feed");
+    if (item.href === "/messages") return isResidentFeatureEnabled(features, "messages");
+    if (item.href === "/wellness") return isResidentFeatureEnabled(features, "wellness");
+    if (item.href === "/marketplace") return isResidentFeatureEnabled(features, "marketplace");
+    if (item.href === "/property") {
+      return anyResidentFeatureEnabled(features, ["amenities", "bookings", "documents", "community_rules"]);
+    }
+    return true;
+  });
+
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
       {!hideBrand && (
@@ -119,14 +137,25 @@ function SidebarInner({
       )}
 
       <nav className="nl-sidebar-scroll -mr-2 min-h-0 flex-1 space-y-1 overflow-y-auto pr-2">
-        <NavSection items={mainNav} pathname={pathname} onNavigate={onNavigate} />
+        <NavSection items={filteredMain} pathname={pathname} onNavigate={onNavigate} />
         <NavSection title="Account" items={accountNav} pathname={pathname} onNavigate={onNavigate} />
       </nav>
 
       <div className="mt-auto shrink-0 border-t border-slate-100 bg-white pt-3">
+        {canSwitchToAdminMode() ? (
+          <div className="mb-3">
+            <ResidentModeBar />
+          </div>
+        ) : null}
         <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
-          <p className="text-[11.5px] font-semibold text-slate-700">Sunflower Heights Estate</p>
-          <p className="mt-0.5 text-[11px] text-slate-400">Havena Community v2.1.4</p>
+          <p className="text-[11.5px] font-semibold text-slate-700">
+            {getUser()?.resident_mode_communities?.find((community) => community.id === getUser()?.active_context_community_id)?.name
+              ?? getUser()?.memberships?.find((membership) => membership.status === "approved")?.community?.name
+              ?? "Your community"}
+          </p>
+          <p className="mt-0.5 text-[11px] text-slate-400">
+            {isResidentMode() ? "Resident Mode" : "Havena Community"}
+          </p>
         </div>
       </div>
     </div>

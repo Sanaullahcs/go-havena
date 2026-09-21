@@ -125,7 +125,17 @@ export async function extendGuest(id: number, ends_at: string): Promise<GuestInv
 }
 
 export async function deleteGuestInvitation(id: number): Promise<void> {
-  await api.delete(`/v1/admin/guests/${id}`);
+  try {
+    await api.delete(`/v1/admin/guests/${id}`);
+  } catch (err: unknown) {
+    const status = (err as { response?: { status?: number } })?.response?.status;
+    // Hosts and some proxies answer DELETE with an empty 403; POST is the same authorized cancel.
+    if (status === 403 || status === 405) {
+      await api.post(`/v1/admin/guests/${id}/cancel`);
+      return;
+    }
+    throw err;
+  }
 }
 
 export type GuestActivityMeta = {

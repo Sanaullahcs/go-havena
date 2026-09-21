@@ -36,9 +36,14 @@ return Application::configure(basePath: dirname(__DIR__))
             'community.admin' => \App\Http\Middleware\EnsureCommunityAdmin::class,
             'guest.access'    => \App\Http\Middleware\EnsureGuestAccessValid::class,
             'account.access'  => \App\Http\Middleware\EnsureAccountAccessValid::class,
+            'resident.feature'=> \App\Http\Middleware\EnsureResidentFeature::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
+        $exceptions->reportable(function (\Throwable $e) {
+            \App\Services\AuditEventLogger::fromException($e);
+        });
+
         $exceptions->renderable(function (\Illuminate\Auth\AuthenticationException $e, Request $request) {
             if ($request->is('api/*') || $request->expectsJson()) {
                 return response()->json(['message' => $e->getMessage() ?: 'Unauthenticated.'], 401);

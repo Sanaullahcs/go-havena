@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\AdminRoleService;
 use App\Services\ActivityLogService;
 use App\Services\CommunityLifecycleService;
+use App\Services\UserActingContextService;
 use App\Services\ContactIdentityService;
 use App\Services\MembershipService;
 use App\Services\PointsRewardService;
@@ -45,6 +46,43 @@ class ProfileController extends Controller
 
         return response()->json([
             'data' => $this->buildUserPayload($user),
+        ]);
+    }
+
+    /** PUT /v1/me/active-context */
+    public function updateActiveContext(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'context' => ['nullable', 'in:resident,community_admin'],
+            'active_mode' => ['nullable', 'in:resident,community_admin'],
+            'community_id' => ['nullable', 'integer'],
+        ]);
+
+        $context = $validated['context'] ?? $validated['active_mode'] ?? null;
+        if (! $context) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'context' => ['Provide context or active_mode.'],
+            ]);
+        }
+
+        if (! UserActingContextService::canSwitchModes($request->user())) {
+            return response()->json([
+                'message' => 'Only a Community Admin can switch modes.',
+                'code' => 'MODE_SWITCH_NOT_ALLOWED',
+            ], 403);
+        }
+
+        $user = UserActingContextService::switch(
+            $request->user(),
+            $context,
+            isset($validated['community_id']) ? (int) $validated['community_id'] : null,
+        );
+
+        return response()->json([
+            'data' => $this->buildUserPayload($user),
+            'message' => $context === UserActingContextService::CONTEXT_RESIDENT
+                ? 'Switched to Resident Mode'
+                : 'Switched to Admin Mode',
         ]);
     }
 

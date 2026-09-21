@@ -14,6 +14,8 @@ export const GUEST_NAME_FORMAT_MESSAGE =
 
 export const GUEST_EMAIL_FORMAT_MESSAGE = "Please enter a valid email address.";
 
+export const GUEST_EMAIL_EXISTS_MESSAGE = "An account with this email address already exists.";
+
 export const MIN_GUEST_ACCESS_MINUTES = 30;
 
 export const GUEST_DURATION_MIN_MESSAGE = "Guest access duration must be at least 30 minutes.";
@@ -102,6 +104,24 @@ export function guestEmailFieldError(email: string): string | null {
   if (value.length > 200) return "Email must be 200 characters or less.";
   if (!EMAIL_RE.test(value)) return GUEST_EMAIL_FORMAT_MESSAGE;
   return null;
+}
+
+export function isDuplicateGuestEmailError(
+  fields: Record<string, string>,
+  err?: unknown,
+): boolean {
+  const fieldMessage = fields.guest_email ?? "";
+  if (/already exists/i.test(fieldMessage) && /email/i.test(fieldMessage)) {
+    return true;
+  }
+
+  const data = (err as { response?: { data?: { code?: string; message?: string } } })?.response?.data;
+  const apiMessage = data?.message ?? "";
+  if (data?.code === "CONTACT_ALREADY_EXISTS" && /email/i.test(`${fieldMessage} ${apiMessage}`)) {
+    return true;
+  }
+
+  return /email already exists/i.test(apiMessage);
 }
 
 export function guestPermissionsFieldError(

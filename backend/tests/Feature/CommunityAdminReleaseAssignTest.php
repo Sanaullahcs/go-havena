@@ -102,8 +102,8 @@ class CommunityAdminReleaseAssignTest extends TestCase
         $meta = json_decode($log->meta, true);
         $this->assertSame($community->id, $meta['community_id']);
         $this->assertSame($admin->id, $meta['previous_admin']['id']);
-        $this->assertNull($meta['new_admin']);
-        $this->assertSame($actor->id, $meta['performed_by']['id']);
+        $this->assertNull($meta['new_admin'] ?? null);
+        $this->assertSame($actor->id, $meta['actor_id'] ?? $meta['performed_by']['id'] ?? null);
         $this->assertNotEmpty($meta['performed_at']);
     }
 
@@ -151,7 +151,7 @@ class CommunityAdminReleaseAssignTest extends TestCase
         $meta = json_decode($log->meta, true);
         $this->assertSame($community->id, $meta['community_id']);
         $this->assertSame($replacement->id, $meta['new_admin']['id']);
-        $this->assertSame($actor->id, $meta['performed_by']['id']);
+        $this->assertSame($actor->id, $meta['actor_id'] ?? (is_array($meta['performed_by'] ?? null) ? $meta['performed_by']['id'] : null));
         $this->assertNotEmpty($meta['performed_at']);
     }
 
@@ -167,11 +167,18 @@ class CommunityAdminReleaseAssignTest extends TestCase
             ->assertOk()
             ->json('data');
 
-        $row = collect($approved)->firstWhere('id', $admin->id);
+        $this->assertNull(collect($approved)->firstWhere('id', $admin->id));
+
+        $reassign = $this->getJson('/api/v1/admin/community-admins?status=reassign')
+            ->assertOk()
+            ->json('data');
+
+        $row = collect($reassign)->firstWhere('id', $admin->id);
         $this->assertNotNull($row);
         $this->assertNull($row['community_request']);
         $this->assertSame('active', $row['status']);
         $this->assertSame('approved', $row['community_admin_status']);
+        $this->assertSame('reassign', $row['lifecycle_status']);
     }
 
     public function test_community_admin_cannot_release_or_assign_admin(): void

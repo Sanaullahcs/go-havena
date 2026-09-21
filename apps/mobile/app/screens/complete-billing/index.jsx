@@ -72,7 +72,7 @@ function isBillingStillRequired(user) {
   const access = user.access ?? {};
   if (isBillingExempt(user) || access.card_on_file || access.billing_complete) return false;
   const nextStep = access.next_step;
-  if (nextStep === "await_approval" || nextStep === "ready") return false;
+  if (nextStep === "await_approval" || nextStep === "ready" || nextStep === "configure_resident_features") return false;
   return nextStep === "complete_billing_web";
 }
 

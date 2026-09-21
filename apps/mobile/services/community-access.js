@@ -2,6 +2,8 @@
  * Determines whether a resident can access the main app (tabs/dashboard).
  */
 
+import actingContext from "./acting-context.cjs";
+
 function membershipRecency(membership) {
   const stamp = Date.parse(membership?.updated_at || membership?.created_at || "");
   if (Number.isFinite(stamp)) return stamp;
@@ -280,9 +282,23 @@ export function getRejectedApprovalDetails(user) {
   };
 }
 
-export function isCommunityAdminRole(user) {
-  return user?.role === "community_admin";
+export const isCommunityAdminRole = actingContext.isCommunityAdminRole;
+export const hasApprovedAdminMembership = actingContext.hasApprovedAdminMembership;
+export const hasCommunityAdminCapability = actingContext.hasCommunityAdminCapability;
+export const isResidentMode = actingContext.isResidentMode;
+
+export function currentCommunityId(user) {
+  if (user?.active_context_community_id) {
+    return Number(user.active_context_community_id);
+  }
+  const membership = getAdminMembership(user);
+  return membership?.community_id ? Number(membership.community_id) : null;
 }
+
+export const canUseResidentMode = actingContext.canSwitchModes;
+export const canSwitchModes = actingContext.canSwitchModes;
+export const canSwitchToResidentMode = actingContext.canSwitchToResidentMode;
+export const canSwitchToAdminMode = actingContext.canSwitchToAdminMode;
 
 /** Region does not require a payment method (e.g. Pakistan / free-billing). */
 export function isBillingExempt(user) {
@@ -391,27 +407,9 @@ export function isCommunityAdminRejected(user) {
   return user?.role === "community_admin" && user?.community_admin_status === "rejected";
 }
 
-/** Approved community admin with community access (incl. admin/moderator membership). */
-export function isCommunityAdmin(user) {
-  if (!user) return false;
-
-  const memberships = user.memberships ?? [];
-  const hasAdminMembership = memberships.some(
-    (m) =>
-      m.status === "approved" &&
-      ["admin", "moderator"].includes(m.role),
-  );
-
-  if (!hasAdminMembership) return false;
-
-  // Platform community-admin accounts must not be pending/rejected when status is known.
-  if (user.role === "community_admin") {
-    if (user.community_admin_status === "rejected") return false;
-    if (user.community_admin_status === "pending") return false;
-  }
-
-  return true;
-}
+/** Active Community Admin UI — false in Resident Mode even if the account can switch back. */
+export const isCommunityAdmin = actingContext.isCommunityAdmin;
+export const homePathForUser = actingContext.homePathForUser;
 
 /** Primary approved admin community membership */
 export function getAdminMembership(user, preferredCommunityId) {

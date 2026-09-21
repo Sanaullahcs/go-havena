@@ -148,11 +148,21 @@ class GuestController extends Controller
         ]);
     }
 
-    /** DELETE /v1/admin/guests/{id} */
+    /** DELETE /v1/admin/guests/{id} or POST /v1/admin/guests/{id}/cancel */
     public function destroy(Request $request, int $id): JsonResponse
     {
-        $communityId = AdminRoleService::requireManagedCommunityId($request->user(), $request);
-        $invitation = $this->findInCommunity($id, $communityId);
+        $user = $request->user();
+        $invitation = GuestInvitation::query()->find($id);
+
+        if (! $invitation) {
+            return response()->json([
+                'message' => 'Guest invitation not found.',
+            ], 404);
+        }
+
+        if (! AdminRoleService::canManageCommunity($user, (int) $invitation->community_id)) {
+            abort(403, 'You can only delete guest invitations from your own community.');
+        }
 
         if ($invitation->status !== 'pending_verification') {
             return response()->json([
@@ -161,10 +171,10 @@ class GuestController extends Controller
             ], 422);
         }
 
-        GuestInvitationService::cancelPending($invitation, $request->user());
+        GuestInvitationService::cancelPending($invitation, $user);
 
         return response()->json([
-            'message' => 'Invitation deleted successfully.',
+            'message' => 'Guest invitation deleted successfully.',
         ]);
     }
 

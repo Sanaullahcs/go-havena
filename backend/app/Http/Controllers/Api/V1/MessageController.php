@@ -696,7 +696,7 @@ class MessageController extends Controller
     /** @return list<int> */
     private function resolveConversationCommunityIds(Request $request, User $user, int $activeCommunityId): array
     {
-        if (AdminRoleService::isCommunityAdminRole($user)) {
+        if (AdminRoleService::isActiveCommunityAdmin($user)) {
             $managed = $user->memberships()
                 ->where('status', 'approved')
                 ->whereIn('role', ['admin', 'moderator'])

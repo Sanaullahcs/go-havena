@@ -25,9 +25,11 @@ import { sf, sw } from "../../../utils/responsive";
 import { chevronForward } from "../../../utils/rtl";
 import { fetchAdminStats, approveMember } from "../../../services/admin-api";
 import { getCommunityId, getUser, setCommunityId } from "../../../services/auth-session";
-import { getAdminMembership } from "../../../services/community-access";
+import { currentCommunityId, getAdminMembership, isCommunityAdmin } from "../../../services/community-access";
+import { useRequireCommunityAdmin } from "../../../hooks/use-require-community-admin";
 import { MarketplaceRoutes, withMarketplaceRole } from "../../../constants/marketplace-routes";
 import { PropertyManagementRoutes } from "../../../constants/property-management-routes";
+import { isResidentFeatureEnabled } from "../../../constants/resident-features";
 import { useApiAction } from "../../../hooks/use-api-action";
 import { AdminDashboardSkeleton } from "../../../components/ui/skeleton-loader";
 
@@ -332,6 +334,7 @@ function CreateRow({ icon, title, subtitle, accent, onPress, isLast = false }) {
 }
 
 export default function AdminDashboardScreen() {
+  useRequireCommunityAdmin();
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -353,8 +356,13 @@ export default function AdminDashboardScreen() {
     setLoadError(null);
     try {
       const user = await getUser();
+      if (!isCommunityAdmin(user)) {
+        router.replace("/(tabs)/home");
+        return;
+      }
       const storedCommunityId = await getCommunityId();
-      const adminCommunityId = getAdminMembership(user, storedCommunityId)?.community_id;
+      const preferredCommunityId = currentCommunityId(user) ?? storedCommunityId;
+      const adminCommunityId = getAdminMembership(user, preferredCommunityId)?.community_id;
       if (adminCommunityId) {
         await setCommunityId(adminCommunityId);
       }
@@ -506,7 +514,7 @@ export default function AdminDashboardScreen() {
     { icon: "briefcase", label: t("admin.businesses"), badge: stats?.pending_businesses, color: "#D97706", route: { pathname: MarketplaceRoutes.ALL_BUSINESSES, params: withMarketplaceRole("admin", { tab: "businesses" }) } },
     { icon: "tag", label: t("admin.deals"), color: "#E11D48", route: { pathname: MarketplaceRoutes.ALL_BUSINESSES, params: withMarketplaceRole("admin", { tab: "deals" }) } },
     { icon: "award", label: t("admin.referAndEarn"), color: "#0F766E", route: "/screens/admin-refer-and-earn" },
-  ];
+  ].filter((item) => item.route !== "/screens/admin-refer-and-earn" || isResidentFeatureEnabled(getUser(), "refer_and_earn"));
 
   const reviewItems = useMemo(() => {
     const seen = new Set();
@@ -711,6 +719,25 @@ const styles = StyleSheet.create({
     height: sw(36),
     alignItems: "center",
     justifyContent: "center",
+  },
+  modeSwitch: {
+    marginHorizontal: PAD,
+    marginTop: sw(8),
+    marginBottom: sw(4),
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: sw(8),
+    borderRadius: sw(14),
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    backgroundColor: "#EFF6FF",
+    paddingVertical: sw(10),
+  },
+  modeSwitchText: {
+    color: "#1B4F8A",
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(13),
   },
   statusBanner: {
     flexDirection: "row",

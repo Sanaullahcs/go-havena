@@ -44,9 +44,11 @@ import {
   guestDurationFieldError,
   guestEmailFieldError,
   GUEST_DURATION_MAX_MESSAGE,
+  GUEST_EMAIL_EXISTS_MESSAGE,
   guestNameFieldError,
   guestPermissionsFieldError,
   guestStartFieldError,
+  isDuplicateGuestEmailError,
   normalizeGuestInviteWindow,
 } from "@/lib/admin/guest-invite-validation";
 import { parseDatetimeLocalValue } from "@/lib/admin/datetime-local";
@@ -261,6 +263,8 @@ export default function GuestsPage() {
   const [phoneShowError, setPhoneShowError] = useState(false);
   const [inviteFormKey, setInviteFormKey] = useState(0);
   const [permissionsError, setPermissionsError] = useState<string | null>(null);
+  const [emailExistsError, setEmailExistsError] = useState<string | null>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
   const hasLoadedOnce = useRef(false);
   const prevFilterKey = useRef(`${filterStatus}|`);
 
@@ -363,13 +367,13 @@ export default function GuestsPage() {
   const minStartAt = useMemo(() => toDatetimeLocalValue(new Date()), [showForm]);
   const startValidationNow = useMemo(() => new Date(), [form.starts_at]);
   const nameError = guestNameFieldError(form.guest_name);
-  const emailError = guestEmailFieldError(form.guest_email);
+  const emailError = guestEmailFieldError(form.guest_email) ?? emailExistsError;
   const startError = guestStartFieldError(form.starts_at, startValidationNow);
   const durationError = guestDurationFieldError(form.starts_at, form.ends_at);
   const minEndAt = guestAccessEarliestEndLocalValue(form.starts_at);
   const maxEndAt = guestAccessLatestEndLocalValue(form.starts_at);
   const canCreateInvitation =
-    canSubmitGuestInvite(form, phoneField, startValidationNow) && !submitting;
+    canSubmitGuestInvite(form, phoneField, startValidationNow) && !submitting && !emailExistsError;
 
   const handlePermissionToggle = (key: keyof GuestPermissions, checked: boolean) => {
     setForm((f) => {
@@ -421,12 +425,18 @@ export default function GuestsPage() {
       setPhoneField(emptyPhoneField());
       setPhoneShowError(false);
       setPermissionsError(null);
+      setEmailExistsError(null);
       await load();
     } catch (err) {
       const fields = apiFieldErrors(err);
       if (fields.permissions) setPermissionsError(fields.permissions);
       if (fields.starts_at) toastError(fields.starts_at);
       if (fields.ends_at) toastError(fields.ends_at);
+      if (isDuplicateGuestEmailError(fields, err)) {
+        setEmailExistsError(GUEST_EMAIL_EXISTS_MESSAGE);
+        requestAnimationFrame(() => emailInputRef.current?.focus());
+        return;
+      }
       await alertError("Could not create invitation", apiError(err));
     } finally {
       setSubmitting(false);
@@ -505,8 +515,15 @@ export default function GuestsPage() {
     setActionId(guest.id);
     try {
       await deleteGuestInvitation(guest.id);
-      toastSuccess("Invitation deleted successfully.");
+      toastSuccess("Guest invitation deleted successfully.");
       if (viewing?.id === guest.id) setViewing(null);
+      setGuests((rows) => rows.filter((row) => row.id !== guest.id));
+      setTotal((count) => Math.max(0, count - 1));
+      setStats((current) => ({
+        ...current,
+        total: Math.max(0, current.total - 1),
+        pending_verification: Math.max(0, current.pending_verification - 1),
+      }));
       await load();
     } catch (err) {
       toastError(apiError(err));
@@ -548,7 +565,7 @@ export default function GuestsPage() {
             Invite temporary guests, review resident requests and manage access windows.
           </p>
         </div>
-        <button type="button" onClick={() => { setForm({ ...emptyForm, permissions: { ...INITIAL_GUEST_INVITE_PERMISSIONS }, ...defaultInviteWindow() }); setPhoneField(emptyPhoneField()); setPhoneShowError(false); setPermissionsError(null); setInviteFormKey((k) => k + 1); setShowForm(true); }} className="nl-btn-primary">
+        <button type="button" onClick={() => { setForm({ ...emptyForm, permissions: { ...INITIAL_GUEST_INVITE_PERMISSIONS }, ...defaultInviteWindow() }); setPhoneField(emptyPhoneField()); setPhoneShowError(false); setPermissionsError(null); setEmailExistsError(null); setInviteFormKey((k) => k + 1); setShowForm(true); }} className="nl-btn-primary">
           <Plus className="h-4 w-4" />
           Invite Guest User
         </button>
@@ -718,10 +735,14 @@ export default function GuestsPage() {
                       Email *
                     </label>
                     <input
+                      ref={emailInputRef}
                       type="email"
                       className={inputClass(emailError, "nl-input")}
                       value={form.guest_email}
-                      onChange={(e) => setForm((f) => ({ ...f, guest_email: e.target.value }))}
+                      onChange={(e) => {
+                        setEmailExistsError(null);
+                        setForm((f) => ({ ...f, guest_email: e.target.value }));
+                      }}
                       placeholder="guest@email.com"
                       aria-invalid={Boolean(emailError)}
                     />
