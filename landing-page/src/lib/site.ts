@@ -77,8 +77,7 @@ export const footerColumns: { title: string; links: NavItem[] }[] = [
  * The dashboard origin can be overridden with the `NEXT_PUBLIC_DASHBOARD_URL`
  * env var, e.g. for a deployed/staging environment.
  */
-const DASHBOARD_URL =
-    process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "http://localhost:3000";
+const DASHBOARD_URL = (process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "").replace(/\/$/, "");
 
 export const actionLinks = {
     /** Signup page — audience picker for resident or community admin. */
