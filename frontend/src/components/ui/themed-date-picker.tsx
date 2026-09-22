@@ -81,6 +81,34 @@ function yearPageStart(year: number) {
   return Math.floor(year / YEAR_PAGE_SIZE) * YEAR_PAGE_SIZE;
 }
 
+function isoInRange(iso: string, min?: string, max?: string) {
+  if (!iso) return false;
+  if (min && iso < min) return false;
+  if (max && iso > max) return false;
+  return true;
+}
+
+function monthOutOfRange(y: number, m: number, min?: string, max?: string) {
+  const start = toIso(y, m, 1);
+  const end = toIso(y, m, new Date(y, m + 1, 0).getDate());
+  if (min && end < min) return true;
+  if (max && start > max) return true;
+  return false;
+}
+
+function yearOutOfRange(y: number, min?: string, max?: string) {
+  if (min && toIso(y, 11, 31) < min) return true;
+  if (max && toIso(y, 0, 1) > max) return true;
+  return false;
+}
+
+function yearPageHasEnabled(start: number, min?: string, max?: string) {
+  for (let year = start; year < start + YEAR_PAGE_SIZE; year += 1) {
+    if (!yearOutOfRange(year, min, max)) return true;
+  }
+  return false;
+}
+
 function usePopoverDismiss(
   open: boolean,
   onClose: () => void,
@@ -120,6 +148,8 @@ type ThemedDatePickerProps = {
   icon?: ReactNode;
   className?: string;
   compact?: boolean;
+  min?: string;
+  max?: string;
 };
 
 export function ThemedDatePicker({
@@ -133,6 +163,8 @@ export function ThemedDatePicker({
   icon,
   className = "",
   compact = false,
+  min,
+  max,
 }: ThemedDatePickerProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -171,20 +203,41 @@ export function ThemedDatePicker({
 
   const cells = useMemo(() => buildMonthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
   const today = todayParts();
+  const todayIso = toIso(today.y, today.m, today.d);
   const hasValue = Boolean(value);
+  const todayEnabled = isoInRange(todayIso, min, max);
+  const prevMonth = shiftMonth(viewYear, viewMonth, -1);
+  const nextMonth = shiftMonth(viewYear, viewMonth, 1);
+  const canStepBack =
+    pane === "year"
+      ? yearPageHasEnabled(yearPage - YEAR_PAGE_SIZE, min, max)
+      : pane === "month"
+        ? !yearOutOfRange(viewYear - 1, min, max)
+        : !monthOutOfRange(prevMonth.y, prevMonth.m, min, max);
+  const canStepForward =
+    pane === "year"
+      ? yearPageHasEnabled(yearPage + YEAR_PAGE_SIZE, min, max)
+      : pane === "month"
+        ? !yearOutOfRange(viewYear + 1, min, max)
+        : !monthOutOfRange(nextMonth.y, nextMonth.m, min, max);
+
+  const emitDate = (iso: string) => {
+    if (!isoInRange(iso, min, max)) return false;
+    onChange(iso);
+    return true;
+  };
 
   const pickDay = (day: number, monthOffset: -1 | 0 | 1) => {
     const shifted = shiftMonth(viewYear, viewMonth, monthOffset);
     const iso = toIso(shifted.y, shifted.m, day);
-    onChange(iso);
+    if (!emitDate(iso)) return;
     setViewYear(shifted.y);
     setViewMonth(shifted.m);
     closePicker();
   };
 
   const goToday = () => {
-    const iso = toIso(today.y, today.m, today.d);
-    onChange(iso);
+    if (!emitDate(todayIso)) return;
     setViewYear(today.y);
     setViewMonth(today.m);
     closePicker();
@@ -201,6 +254,8 @@ export function ThemedDatePicker({
   };
 
   const stepView = (delta: number) => {
+    if (delta < 0 && !canStepBack) return;
+    if (delta > 0 && !canStepForward) return;
     if (pane === "year") {
       setYearPage((start) => start + delta * YEAR_PAGE_SIZE);
       return;
@@ -271,6 +326,7 @@ export function ThemedDatePicker({
                     type="button"
                     className="nl-calendar-nav"
                     aria-label={navBackLabel}
+                    disabled={!canStepBack}
                     onClick={() => stepView(-1)}
                   >
                     <ChevronLeft size={16} strokeWidth={2.5} />
@@ -292,6 +348,7 @@ export function ThemedDatePicker({
                     type="button"
                     className="nl-calendar-nav"
                     aria-label={navForwardLabel}
+                    disabled={!canStepForward}
                     onClick={() => stepView(1)}
                   >
                     <ChevronRight size={16} strokeWidth={2.5} />
@@ -303,13 +360,16 @@ export function ThemedDatePicker({
                     {yearOptions.map((year) => {
                       const isSelected = year === viewYear;
                       const isToday = year === today.y;
+                      const isDisabled = yearOutOfRange(year, min, max);
                       return (
                         <button
                           key={year}
                           type="button"
                           role="option"
                           aria-selected={isSelected}
+                          disabled={isDisabled}
                           onClick={() => {
+                            if (isDisabled) return;
                             setViewYear(year);
                             setPane("month");
                           }}
@@ -317,6 +377,7 @@ export function ThemedDatePicker({
                             "nl-calendar-meta-cell",
                             isSelected ? "nl-calendar-day-selected" : "",
                             isToday && !isSelected ? "nl-calendar-day-today" : "",
+                            isDisabled ? "nl-calendar-day-disabled" : "",
                           ].join(" ")}
                         >
                           {year}
@@ -332,13 +393,16 @@ export function ThemedDatePicker({
                         ? selectedParts.y === viewYear && selectedParts.m === index
                         : index === viewMonth;
                       const isToday = today.y === viewYear && today.m === index;
+                      const isDisabled = monthOutOfRange(viewYear, index, min, max);
                       return (
                         <button
                           key={month}
                           type="button"
                           role="option"
                           aria-selected={monthSelected}
+                          disabled={isDisabled}
                           onClick={() => {
+                            if (isDisabled) return;
                             setViewMonth(index);
                             setPane("day");
                           }}
@@ -346,6 +410,7 @@ export function ThemedDatePicker({
                             "nl-calendar-meta-cell",
                             monthSelected ? "nl-calendar-day-selected" : "",
                             isToday && !monthSelected ? "nl-calendar-day-today" : "",
+                            isDisabled ? "nl-calendar-day-disabled" : "",
                           ].join(" ")}
                         >
                           {month.slice(0, 3)}
@@ -371,17 +436,21 @@ export function ThemedDatePicker({
                         const isToday =
                           today.y === shifted.y && today.m === shifted.m && today.d === cell.day;
                         const isMuted = cell.monthOffset !== 0;
+                        const isDisabled = !isoInRange(iso, min, max);
 
                         return (
                           <button
                             key={`${index}-${iso}`}
                             type="button"
+                            disabled={isDisabled}
+                            aria-disabled={isDisabled}
                             onClick={() => pickDay(cell.day, cell.monthOffset)}
                             className={[
                               "nl-calendar-day",
                               isMuted ? "nl-calendar-day-muted" : "",
                               isSelected ? "nl-calendar-day-selected" : "",
                               isToday && !isSelected ? "nl-calendar-day-today" : "",
+                              isDisabled ? "nl-calendar-day-disabled" : "",
                             ].join(" ")}
                           >
                             {cell.day}
@@ -396,7 +465,12 @@ export function ThemedDatePicker({
                   <button type="button" className="nl-calendar-foot-btn" onClick={clear}>
                     Clear
                   </button>
-                  <button type="button" className="nl-calendar-foot-btn nl-calendar-foot-btn-primary" onClick={goToday}>
+                  <button
+                    type="button"
+                    className="nl-calendar-foot-btn nl-calendar-foot-btn-primary"
+                    disabled={!todayEnabled}
+                    onClick={goToday}
+                  >
                     Today
                   </button>
                 </div>

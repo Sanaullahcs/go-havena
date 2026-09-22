@@ -137,6 +137,22 @@ export async function fetchActivityLogStats(): Promise<ActivityLogStats> {
   };
 }
 
+const UNSET_ACTIVITY_LABELS = new Set(["", "(empty)", "null", "undefined"]);
+
+/** Friendly label for a missing previous/next audit value. Does not change stored data. */
+export function formatActivityChangeValue(value: string | number | null | undefined): string {
+  if (value == null) return "Not set";
+  const trimmed = String(value).trim();
+  if (UNSET_ACTIVITY_LABELS.has(trimmed.toLowerCase())) return "Not set";
+  return String(value);
+}
+
+/** Replace stored "(empty)" tokens in activity descriptions for display only. */
+export function formatActivityDescription(description: string | null | undefined): string {
+  if (!description) return "";
+  return description.replace(/\(empty\)/gi, "Not set");
+}
+
 export function formatLogTime(ts: string) {
   try {
     const date = new Date(ts);

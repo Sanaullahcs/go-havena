@@ -1,3 +1,7 @@
+"use client";
+
+import { useState, type CSSProperties } from "react";
+import { formatActivityChangeValue } from "@/lib/api/activity-logs";
 import { NL } from "@/lib/design-tokens";
 
 export type ActivityAuditChange = {
@@ -5,6 +9,37 @@ export type ActivityAuditChange = {
   previous: string;
   next: string;
 };
+
+const LONG_CHANGE_CHARS = 180;
+
+function ActivityWrappedValue({
+  value,
+  className,
+  style,
+}: {
+  value: string;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = value.length > LONG_CHANGE_CHARS;
+  const shown = isLong && !expanded ? `${value.slice(0, LONG_CHANGE_CHARS).trimEnd()}…` : value;
+
+  return (
+    <span className={["nl-activity-wrap-text", className].filter(Boolean).join(" ")} style={style}>
+      {shown}
+      {isLong ? (
+        <button
+          type="button"
+          className="nl-activity-wrap-toggle"
+          onClick={() => setExpanded((open) => !open)}
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      ) : null}
+    </span>
+  );
+}
 
 export function ActivityAuditDetails({
   performedBy,
@@ -41,10 +76,10 @@ export function ActivityAuditDetails({
   }
 
   return (
-    <div className="mt-3 space-y-2">
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px]" style={{ color: NL.textBody }}>
+    <div className="nl-activity-audit mt-3 space-y-2">
+      <div className="flex min-w-0 max-w-full flex-wrap gap-x-4 gap-y-1 text-[12px]" style={{ color: NL.textBody }}>
         {performedBy ? (
-          <span>
+          <span className="nl-activity-wrap-text">
             <span className="font-semibold" style={{ color: NL.textMuted }}>
               Performed by:{" "}
             </span>
@@ -52,7 +87,7 @@ export function ActivityAuditDetails({
           </span>
         ) : null}
         {affectedUser ? (
-          <span>
+          <span className="nl-activity-wrap-text">
             <span className="font-semibold" style={{ color: NL.textMuted }}>
               Affected User:{" "}
             </span>
@@ -60,7 +95,7 @@ export function ActivityAuditDetails({
           </span>
         ) : null}
         {communityName ? (
-          <span>
+          <span className="nl-activity-wrap-text">
             <span className="font-semibold" style={{ color: NL.textMuted }}>
               Community:{" "}
             </span>
@@ -94,7 +129,7 @@ export function ActivityAuditDetails({
         ) : null}
       </div>
       {expanded ? (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px]" style={{ color: NL.textSecondary }}>
+        <div className="flex min-w-0 max-w-full flex-wrap gap-x-4 gap-y-1 text-[12px]" style={{ color: NL.textSecondary }}>
           {ipAddress ? (
             <span>
               <span className="font-semibold" style={{ color: NL.textMuted }}>
@@ -104,7 +139,7 @@ export function ActivityAuditDetails({
             </span>
           ) : null}
           {userAgent ? (
-            <span>
+            <span className="nl-activity-wrap-text">
               <span className="font-semibold" style={{ color: NL.textMuted }}>
                 Device:{" "}
               </span>
@@ -120,7 +155,7 @@ export function ActivityAuditDetails({
             </span>
           ) : null}
           {error ? (
-            <span>
+            <span className="nl-activity-wrap-text">
               <span className="font-semibold" style={{ color: NL.textMuted }}>
                 Error:{" "}
               </span>
@@ -132,23 +167,29 @@ export function ActivityAuditDetails({
 
       {hasChanges ? (
         <div
-          className="rounded-xl border px-3 py-2"
+          className="nl-activity-changes min-w-0 max-w-full overflow-hidden rounded-xl border px-3 py-2"
           style={{ borderColor: NL.borderCard, background: NL.surfaceMuted }}
         >
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide" style={{ color: NL.textMuted }}>
             Changes
           </p>
-          <ul className="space-y-1">
+          <ul className="min-w-0 max-w-full space-y-1.5">
             {changes!.map((change, index) => (
-              <li key={`${change.field}-${index}`} className="text-[12.5px] leading-relaxed" style={{ color: NL.textBody }}>
+              <li
+                key={`${change.field}-${index}`}
+                className="nl-activity-change-row text-[12.5px] leading-relaxed"
+                style={{ color: NL.textBody }}
+              >
                 <span className="font-semibold" style={{ color: NL.textPrimary }}>
                   {change.field}:
                 </span>{" "}
-                <span style={{ color: NL.textSecondary }}>{change.previous || "(empty)"}</span>
+                <ActivityWrappedValue value={formatActivityChangeValue(change.previous)} style={{ color: NL.textSecondary }} />
                 <span style={{ color: NL.textMuted }}> → </span>
-                <span className="font-medium" style={{ color: NL.textPrimary }}>
-                  {change.next || "(empty)"}
-                </span>
+                <ActivityWrappedValue
+                  value={formatActivityChangeValue(change.next)}
+                  className="font-medium"
+                  style={{ color: NL.textPrimary }}
+                />
               </li>
             ))}
           </ul>

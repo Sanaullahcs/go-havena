@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ActivityLog, ActivitySeverity } from "@/lib/api/activity-logs";
-import { formatLogTime, relLogTime } from "@/lib/api/activity-logs";
+import { formatActivityDescription, formatLogTime, relLogTime } from "@/lib/api/activity-logs";
 import { NL } from "@/lib/design-tokens";
 import { AdminBadge } from "@/components/admin/ui";
 import { ActivityAuditDetails } from "@/components/admin/activity/activity-audit-details";
@@ -120,8 +120,8 @@ export function ActivityLogRow({ log }: { log: ActivityLog }) {
             ) : null}
           </div>
 
-          <p className="mt-1 text-[13px] leading-relaxed" style={{ color: NL.textSecondary }}>
-            {log.description}
+          <p className="nl-activity-wrap-text mt-1 text-[13px] leading-relaxed" style={{ color: NL.textSecondary }}>
+            {formatActivityDescription(log.description)}
           </p>
 
           <ActivityAuditDetails
