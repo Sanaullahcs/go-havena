@@ -1,32 +1,13 @@
-const PROJECT_ID = "23aaa527-0ab0-49ab-9f93-1aaa427e1b99";
-const EAS_UPDATE_URL = `https://u.expo.dev/${PROJECT_ID}`;
-
 // Local Expo Go rejects this project's development certificate
 // ("Code signature validation failed: Certificate not valid").
-// Omit projectId during `expo start` so the manifest is unsigned.
-//
-// Expo Go writes every QR/open into its updates SQLite table
-// UNIQUE(scope_key, commit_time). Stock CLI mints a new id/createdAt per
-// request, which collides on rescan. Local slug + disabled OTA keep Expo Go
-// off the production EAS channel; scripts/expo-go-manifest-identity.cjs
-// keeps one id/commit_time per Metro process so existing installs reopen
-// without reinstalling.
-// EAS binaries keep the production slug, projectId, and updates URL.
+// Omit projectId only for local Metro / Expo start so the manifest is unsigned.
+// EAS CLI and cloud builds must keep extra.eas.projectId.
 module.exports = ({ config }) => {
-  const runtimeVersion = config.runtimeVersion ?? { policy: "sdkVersion" };
+  const script = `${process.env.npm_lifecycle_event || ""} ${process.env.npm_lifecycle_script || ""}`;
+  const localStart = /\bstart\b|expo start/.test(script);
 
-  if (process.env.EAS_BUILD) {
-    return {
-      ...config,
-      runtimeVersion,
-      updates: {
-        ...(config.updates ?? {}),
-        enabled: true,
-        checkAutomatically: "ON_LOAD",
-        fallbackToCacheTimeout: 0,
-        url: EAS_UPDATE_URL,
-      },
-    };
+  if (process.env.EAS_BUILD || process.env.EAS_NO_STRIP_PROJECT_ID || !localStart) {
+    return config;
   }
 
   const extra = { ...(config.extra ?? {}) };
@@ -38,26 +19,5 @@ module.exports = ({ config }) => {
     }
   }
 
-  const updates = { ...(config.updates ?? {}) };
-  delete updates.url;
-  delete updates.requestHeaders;
-  delete updates.codeSigningCertificate;
-  delete updates.codeSigningMetadata;
-
-  return {
-    ...config,
-    name: "Havena",
-    // Unique slug per Metro start so Expo Go's scope_key cannot collide
-    // with a cached Havena / havena-dev / havena-local updates row.
-    slug: process.env.HAVENA_GO_SLUG || `havena-go-${Date.now().toString(36)}`,
-    owner: undefined,
-    runtimeVersion,
-    extra,
-    updates: {
-      ...updates,
-      enabled: false,
-      checkAutomatically: "NEVER",
-      fallbackToCacheTimeout: 0,
-    },
-  };
+  return { ...config, extra };
 };

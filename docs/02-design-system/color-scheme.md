@@ -1,9 +1,7 @@
 # Havena Color Scheme — Ocean Breeze
-
 Official palette for the Havena product. Applied across mobile, dashboard, and website. Solid fills only (no brand gradients).
 
 ## Palette
-
 | Name | Hex | Role |
 |------|-----|------|
 | Deep Navy | `#0A2A43` | Text, nav icons, hero fills |

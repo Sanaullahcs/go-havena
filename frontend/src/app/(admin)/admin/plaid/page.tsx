@@ -11,8 +11,8 @@ import {
   Unplug,
 } from "lucide-react";
 import type { PlaidLinkOnSuccessMetadata } from "react-plaid-link";
-import { usePlaidLink } from "react-plaid-link";
 import { AdminBadge } from "@/components/admin/ui";
+import { PlaidLinkLauncher } from "@/components/plaid/plaid-link-launcher";
 import { PageLoader } from "@/components/shared/page-states";
 import { confirmAction, toastError, toastSuccess } from "@/lib/alert";
 import { apiError } from "@/lib/api/client";
@@ -167,34 +167,24 @@ export default function PlaidPage() {
     [completeExchange, completeUpdate, linkMode],
   );
 
-  const { open, ready } = usePlaidLink({
-    token: linkToken,
-    onSuccess: handlePlaidSuccess,
-    onExit: (error) => {
-      setConnecting(false);
-      setLinkToken(null);
-
-      if (error) {
-        const message =
-          error.display_message ||
-          error.error_message ||
-          "Plaid Link closed before the connection finished.";
-        setLinkError(message);
-        toastError(message);
-        return;
-      }
-
-      if (!exchanging) {
-        toastSuccess("Plaid Link closed.");
-      }
-    },
-  });
-
-  useEffect(() => {
-    if (!linkToken || !ready) return;
-    open();
+  const handlePlaidExit = useCallback((error?: { display_message?: string | null; error_message?: string | null } | null) => {
     setConnecting(false);
-  }, [linkToken, ready, open]);
+    setLinkToken(null);
+
+    if (error) {
+      const message =
+        error.display_message ||
+        error.error_message ||
+        "Plaid Link closed before the connection finished.";
+      setLinkError(message);
+      toastError(message);
+      return;
+    }
+
+    if (!exchanging) {
+      toastSuccess("Plaid Link closed.");
+    }
+  }, [exchanging]);
 
   const startLink = async (mode: LinkMode) => {
     setConnecting(true);
@@ -236,7 +226,7 @@ export default function PlaidPage() {
     }
   };
 
-  const isBusy = connecting || exchanging || disconnecting || Boolean(linkToken && !ready);
+  const isBusy = connecting || exchanging || disconnecting || Boolean(linkToken);
 
   const headline = useMemo(() => {
     if (isConnected) return "Bank Account Connected";
@@ -264,7 +254,14 @@ export default function PlaidPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
+      {linkToken ? (
+        <PlaidLinkLauncher
+          token={linkToken}
+          onSuccess={handlePlaidSuccess}
+          onExit={handlePlaidExit}
+        />
+      ) : null}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Plaid</h2>
@@ -310,9 +307,9 @@ export default function PlaidPage() {
                 type="button"
                 onClick={() => void startLink("create")}
                 disabled={isBusy}
-                className="nl-btn-primary inline-flex min-w-[220px] items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
+                className="nl-btn-primary inline-flex w-full min-w-0 items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:min-w-[220px]"
               >
-                {connecting || (linkToken && !ready) ? (
+                {connecting || Boolean(linkToken) ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Opening Plaid Link…

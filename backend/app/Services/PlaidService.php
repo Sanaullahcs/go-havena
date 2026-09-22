@@ -8,10 +8,13 @@ use App\Models\CommunityPlaidConnection;
 use App\Models\ResidentPlaidConnection;
 use App\Models\User;
 use App\Services\AdminRoleService;
+use App\Support\TlsCaBundle;
 use ChkltLabs\Plaid\Entities\User as PlaidUser;
 use ChkltLabs\Plaid\Plaid;
 use ChkltLabs\Plaid\PlaidRequestException;
 use Illuminate\Support\Facades\Log;
+use Nimbly\Shuttle\Handler\CurlHandler;
+use Nimbly\Shuttle\Shuttle;
 
 class PlaidService
 {
@@ -78,6 +81,17 @@ class PlaidService
             (string) config('plaid.secret'),
             $this->environment(),
         );
+
+        $caBundle = TlsCaBundle::path();
+        if ($caBundle) {
+            $this->client->setHttpClient(new Shuttle(
+                handler: new CurlHandler([
+                    CURLOPT_CAINFO => $caBundle,
+                    CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_SSL_VERIFYHOST => 2,
+                ]),
+            ));
+        }
 
         return $this->client;
     }

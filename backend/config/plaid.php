@@ -57,4 +57,7 @@ return [
      */
     'verify_webhooks' => (bool) env('PLAID_VERIFY_WEBHOOKS', false),
 
+    /** Optional path to a CA bundle. WAMP often has empty curl.cainfo. */
+    'ca_bundle' => env('PLAID_CA_BUNDLE'),
+
 ];

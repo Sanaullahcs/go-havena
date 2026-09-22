@@ -41,6 +41,7 @@ class RegionSeeder extends Seeder
             ['title' => 'Colorado - Denver', 'area' => 'Denver Metro', 'state' => 'Colorado', 'country' => $us, 'users_label' => '5,430 users', 'sort_order' => 17],
             ['title' => 'Nevada - Las Vegas', 'area' => 'Las Vegas Valley', 'state' => 'Nevada', 'country' => $us, 'users_label' => '4,980 users', 'sort_order' => 18],
             ['title' => 'Massachusetts - Boston', 'area' => 'Boston', 'state' => 'Massachusetts', 'country' => $us, 'users_label' => '2,840 residents', 'sort_order' => 0],
+            ['title' => 'Massachusetts - Acton', 'area' => 'Acton & Nashoba Valley', 'state' => 'Massachusetts', 'country' => $us, 'users_label' => '24,021 residents', 'sort_order' => 19],
             ['title' => 'Pennsylvania - Philadelphia', 'area' => 'Philadelphia Metro', 'state' => 'Pennsylvania', 'country' => $us, 'users_label' => '5,760 users', 'sort_order' => 20],
             ['title' => 'North Carolina - Charlotte', 'area' => 'Charlotte Metro', 'state' => 'North Carolina', 'country' => $us, 'users_label' => '4,650 users', 'sort_order' => 21],
             ['title' => 'Virginia - Northern Virginia', 'area' => 'NoVA / DC Metro', 'state' => 'Virginia', 'country' => $us, 'users_label' => '7,110 users', 'sort_order' => 22],
@@ -58,6 +59,7 @@ class RegionSeeder extends Seeder
             'Florida - Jacksonville',
             'Arizona - Phoenix',
             'Massachusetts - Boston',
+            'Massachusetts - Acton',
             'Pakistan - Lahore',
             'Pakistan - Islamabad',
         ];

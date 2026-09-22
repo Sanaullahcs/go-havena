@@ -11,8 +11,8 @@ import {
   Unplug,
 } from "lucide-react";
 import type { PlaidLinkOnSuccessMetadata } from "react-plaid-link";
-import { usePlaidLink } from "react-plaid-link";
 import { DashboardHero, DashboardEmptyState } from "@/components/admin/dashboard/dashboard-shared";
+import { PlaidLinkLauncher } from "@/components/plaid/plaid-link-launcher";
 import { DashboardPanel } from "@/components/admin/dashboard/dashboard-panel";
 import { PageError, PageLoader } from "@/components/shared/page-states";
 import { confirmAction, toastError, toastSuccess } from "@/lib/alert";
@@ -95,39 +95,28 @@ export default function ResidentPaymentsPage() {
     await load();
   }, [load]);
 
-  const { open, ready } = usePlaidLink({
-    token: linkToken,
-    onSuccess: (publicToken, metadata) => {
-      const mode = linkMode;
-      setLinkToken(null);
-      if (mode === "update") {
-        void reconnectResidentPlaid()
-          .then((payload) => {
-            setCapability((current) => current ? { ...current, resident: payload, can_pay_with_bank: Boolean(current.community.bank_connected && payload.connected) } : current);
-            toastSuccess("Bank reconnection completed.");
-          })
-          .catch((err) => toastError(apiError(err)))
-          .finally(() => setBusy(false));
-        return;
-      }
-      if (!publicToken) {
-        toastError("Plaid did not return a public token.");
-        setBusy(false);
-        return;
-      }
-      void completeExchange(publicToken, metadata, mode === "replace")
+  const handleLinkSuccess = useCallback((publicToken: string, metadata: PlaidLinkOnSuccessMetadata) => {
+    const mode = linkMode;
+    setLinkToken(null);
+    if (mode === "update") {
+      void reconnectResidentPlaid()
+        .then((payload) => {
+          setCapability((current) => current ? { ...current, resident: payload, can_pay_with_bank: Boolean(current.community.bank_connected && payload.connected) } : current);
+          toastSuccess("Bank reconnection completed.");
+        })
         .catch((err) => toastError(apiError(err)))
         .finally(() => setBusy(false));
-    },
-    onExit: () => {
+      return;
+    }
+    if (!publicToken) {
+      toastError("Plaid did not return a public token.");
       setBusy(false);
-      setLinkToken(null);
-    },
-  });
-
-  useEffect(() => {
-    if (linkToken && ready) open();
-  }, [linkToken, ready, open]);
+      return;
+    }
+    void completeExchange(publicToken, metadata, mode === "replace")
+      .catch((err) => toastError(apiError(err)))
+      .finally(() => setBusy(false));
+  }, [completeExchange, linkMode]);
 
   const startLink = async (mode: LinkMode) => {
     setBusy(true);
@@ -171,7 +160,17 @@ export default function ResidentPaymentsPage() {
   const available = Boolean(capability?.plaid_available && capability?.ach_enabled);
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-4 sm:space-y-5">
+      {linkToken ? (
+        <PlaidLinkLauncher
+          token={linkToken}
+          onSuccess={handleLinkSuccess}
+          onExit={() => {
+            setBusy(false);
+            setLinkToken(null);
+          }}
+        />
+      ) : null}
       <DashboardHero
         eyebrow="Resident payments"
         title="Bank & amenity ACH"
@@ -184,14 +183,15 @@ export default function ResidentPaymentsPage() {
         compact
       />
 
-      <div className="grid gap-5 lg:grid-cols-2 lg:items-stretch">
-        <DashboardPanel title="Your bank" description="The account we debit for community charges" icon={Landmark} tone="blue" tall>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-stretch">
+        <DashboardPanel title="Your bank" description="The account we debit for community charges" icon={Landmark} tone="blue">
           {!available ? (
             <DashboardEmptyState title="ACH not available" description="This community is outside the US Plaid region, or billing-exempt." />
           ) : (
             <ResidentBankCard
               connection={resident ?? null}
-              busy={busy || Boolean(linkToken && !ready)}
+              busy={busy}
+              sandbox={capability?.environment === "sandbox"}
               onConnect={() => void startLink(connected || needsReconnect ? "replace" : "create")}
               onReconnect={needsReconnect ? () => void startLink("update") : undefined}
               onDisconnect={connected || needsReconnect ? () => void handleDisconnect() : undefined}
@@ -199,7 +199,7 @@ export default function ResidentPaymentsPage() {
           )}
         </DashboardPanel>
 
-        <DashboardPanel title="Community receiving account" description="Where amenity ACH lands" icon={Building2} tone="green" tall>
+        <DashboardPanel title="Community receiving account" description="Where amenity ACH lands" icon={Building2} tone="green">
           {community?.bank_connected ? (
             <div className="rounded-2xl border border-teal-200 bg-[#D1FAF5]/70 p-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-[#0A2A43]">
@@ -224,7 +224,7 @@ export default function ResidentPaymentsPage() {
       </div>
 
       <DashboardPanel title="What you can pay from this bank" description="Typical community amenity charges" icon={Building2} tone="teal">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {[
             ["Pool or court booking", "Pay the reservation fee when you book. Cancel before it happens and the ACH is refunded."],
             ["Clubhouse event", "Larger one-time fee for a private party. The owner sees it as posted, not a screenshot."],
@@ -283,12 +283,14 @@ export default function ResidentPaymentsPage() {
 function ResidentBankCard({
   connection,
   busy,
+  sandbox,
   onConnect,
   onReconnect,
   onDisconnect,
 }: {
   connection: PlaidExchangePayload | null;
   busy: boolean;
+  sandbox?: boolean;
   onConnect: () => void;
   onReconnect?: () => void;
   onDisconnect?: () => void;
@@ -321,31 +323,37 @@ function ResidentBankCard({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         {!connected && !needsReconnect ? (
-          <button type="button" onClick={onConnect} disabled={busy} className="nl-btn-primary inline-flex items-center gap-2 disabled:opacity-60">
+          <button type="button" onClick={onConnect} disabled={busy} className="nl-btn-primary inline-flex w-full items-center justify-center gap-2 disabled:opacity-60 sm:w-auto">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Landmark className="h-4 w-4" />}
             Connect bank
           </button>
         ) : null}
         {needsReconnect && onReconnect ? (
-          <button type="button" onClick={onReconnect} disabled={busy} className="nl-btn-primary inline-flex items-center gap-2 disabled:opacity-60">
+          <button type="button" onClick={onReconnect} disabled={busy} className="nl-btn-primary inline-flex w-full items-center justify-center gap-2 disabled:opacity-60 sm:w-auto">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             Reconnect
           </button>
         ) : null}
         {connected || needsReconnect ? (
-          <button type="button" onClick={onConnect} disabled={busy} className="nl-btn-secondary">
+          <button type="button" onClick={onConnect} disabled={busy} className="nl-btn-secondary w-full sm:w-auto">
             Replace bank
           </button>
         ) : null}
         {onDisconnect ? (
-          <button type="button" onClick={onDisconnect} disabled={busy} className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700 disabled:opacity-60">
+          <button type="button" onClick={onDisconnect} disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700 disabled:opacity-60 sm:w-auto">
             <Unplug className="h-4 w-4" />
             Disconnect
           </button>
         ) : null}
       </div>
+      {sandbox && !connected ? (
+        <p className="text-xs leading-relaxed text-slate-500">
+          Sandbox: use phone <span className="font-semibold text-[#0A2A43]">(415) 555-0011</span>, or tap
+          {" "}<span className="font-semibold text-[#0A2A43]">Continue without phone number</span>, then First Platypus Bank.
+        </p>
+      ) : null}
     </div>
   );
 }

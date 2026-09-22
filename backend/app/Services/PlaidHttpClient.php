@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\PlaidException;
+use App\Support\TlsCaBundle;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -22,10 +23,16 @@ class PlaidHttpClient
             'secret' => (string) config('plaid.secret'),
         ], $payload);
 
-        $response = Http::acceptJson()
+        $request = Http::acceptJson()
             ->asJson()
-            ->timeout(30)
-            ->post($url, $body);
+            ->timeout(30);
+
+        $caBundle = TlsCaBundle::path();
+        if ($caBundle) {
+            $request = $request->withOptions(['verify' => $caBundle]);
+        }
+
+        $response = $request->post($url, $body);
 
         return $this->decode($path, $response);
     }
