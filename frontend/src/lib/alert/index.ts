@@ -76,20 +76,14 @@ export async function confirmDeleteCommunityAdmin(opts: {
       <div class="nl-swal-delete-admin">
         ${
           isRecord
-            ? `<p>This will permanently remove this rejected application/record. It does not delete any community or unrelated user data.</p>
-        <p>This action cannot be undone.</p>`
-            : `<p>This will permanently delete this admin account. If you only want to remove the admin from a community, use <strong>Release from Community</strong> instead.</p>
-        <p>This action cannot be undone.</p>
-        <div class="nl-swal-delete-admin-compare">
-          <p><strong>Release from Community</strong> removes the admin from a community and keeps the account.</p>
-          <p><strong>Delete Admin</strong> permanently deletes the admin account.</p>
-        </div>`
+            ? `<p>This will permanently remove this rejected application. It does not delete any community or unrelated user data, and cannot be undone.</p>`
+            : `<p>This will permanently delete this admin account and cannot be undone. To remove the admin from a community while keeping the account, use <strong>Release Admin</strong> instead.</p>`
         }
         ${
           assignedList
             ? `<div class="nl-swal-delete-admin-assign">
                 <p><strong>Currently assigned to:</strong> ${assignedList}</p>
-                <p>The community will stay active and become unassigned. Residents, events, amenities, payments, and documents will not be deleted.</p>
+                <p>The community will remain active but become unassigned. Residents, events, amenities, payments, and documents will not be deleted.</p>
               </div>`
             : `<p class="nl-swal-delete-admin-unassigned">This admin is not currently assigned to a community.</p>`
         }
@@ -140,7 +134,7 @@ export async function confirmDeleteCommunityAdmin(opts: {
     preConfirm: () => {
       const value = String(Swal.getInput()?.value ?? "").trim();
       if (value !== "DELETE") {
-        Swal.showValidationMessage("Type DELETE to confirm permanent deletion.");
+        Swal.showValidationMessage("Type DELETE to confirm.");
         return false;
       }
       return value;
@@ -257,6 +251,16 @@ export async function confirmRejectWithReason(opts: {
       const counter = document.getElementById("nl-swal-char-current");
       const confirmBtn = Swal.getConfirmButton();
 
+      const fitReason = () => {
+        if (!textarea) return;
+        const max = Number.parseFloat(getComputedStyle(textarea).maxHeight);
+        textarea.style.height = "auto";
+        const border = textarea.offsetHeight - textarea.clientHeight;
+        const full = textarea.scrollHeight + border;
+        const next = Number.isFinite(max) ? Math.min(full, max) : full;
+        textarea.style.height = `${next}px`;
+      };
+
       const sync = () => {
         const raw = textarea?.value ?? "";
         const trimmed = raw.trim();
@@ -266,6 +270,7 @@ export async function confirmRejectWithReason(opts: {
           confirmBtn.disabled = trimmed.length < 3;
           confirmBtn.classList.toggle("nl-swal-confirm--disabled", trimmed.length < 3);
         }
+        fitReason();
       };
 
       clearBtn?.addEventListener("click", () => {

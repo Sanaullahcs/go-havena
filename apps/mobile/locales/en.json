@@ -242,6 +242,7 @@
     "couldNotLoad": "Could not load this profile",
     "profilePhoto": "Profile photo",
     "viewProfilePicture": "View Profile Picture",
+    "viewProfileAction": "View Profile",
     "takeOrChoose": "Take a new photo or choose one from your library.",
     "photoUpdated": "Profile photo updated",
     "photoSaved": "Your profile photo has been saved.",
@@ -797,6 +798,7 @@
     "noCountriesMatch": "No countries match your search",
     "noStatesMatch": "No states match your search",
     "noCitiesMatch": "No cities match your search",
+    "cityNotFound": "City not found",
     "useTypedCity": "Use “{{city}}”",
     "applyFilter": "Apply",
     "clearFilter": "Clear",
@@ -872,7 +874,7 @@
     "iOwnUnit": "I own this unit",
     "tenant": "Tenant",
     "iRentUnit": "I rent this unit",
-    "uploadLease": "Upload lease or last 3 month utility bill",
+    "uploadLease": "Upload your lease agreement or a utility bill issued within the last 3 months.",
     "uploadDocument": "Upload document",
     "uploadDocumentMsg": "Take a photo or choose from your gallery.",
     "uploadFile": "Upload file",
@@ -3836,7 +3838,7 @@
   "countryCode": {
     "selectCountryCode": "Select country code",
     "searchCountryOrCode": "Search country or code",
-    "noCountriesMatch": "No countries match your search"
+    "noCountriesMatch": "No country found."
   },
   "businessHours": {
     "opens": "Opens",
@@ -3936,6 +3938,8 @@
     "required": "{{field}} is required.",
     "minChars": "{{field}} must be at least {{min}} characters.",
     "maxChars": "{{field}} must be {{max}} characters or less.",
+    "communityAdminNameMax": "Full name cannot exceed 50 characters.",
+    "communityAdminUnitMax": "Unit / apartment cannot exceed 20 characters.",
     "reviewRequired": "Review is required.",
     "reviewMinLength": "Please write at least 10 characters.",
     "emailRequired": "Email address is required.",
@@ -4007,6 +4011,8 @@
   },
   "blockedAccount": {
     "title": "Account Suspended",
+    "signInTitle": "Account Suspended",
+    "signInMessage": "Your account has been suspended and you’re currently unable to sign in. Please contact your community administrator or support for assistance.",
     "message": "Your account has been suspended. Please contact your community administrator or support for assistance.",
     "systemAdmin": "System administrator",
     "communityAdmin": "Community administrator",
@@ -4253,8 +4259,14 @@
     "unableToOpenWebsite": "Could not open this website."
   },
   "video": {
-    "unavailable": "Video unavailable.",
-    "noVideoProvided": "No video provided."
+    "unavailable": "This video is unavailable.",
+    "noVideoProvided": "No video provided.",
+    "embedRestricted": "This video can't be played inside Havena.",
+    "playbackError": "This video couldn't be played.",
+    "watchOnYouTube": "Watch on YouTube",
+    "unavailableTitle": "Video unavailable in app",
+    "unavailableInApp": "This video can't be played inside Havena. You can continue watching it on YouTube.",
+    "loading": "Loading video…"
   },
   "listings": {
     "categoryFurniture": "Furniture",

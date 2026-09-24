@@ -12,11 +12,10 @@ import {
   DtTable,
   StatTile,
 } from "@/components/admin/ui";
-import { confirmAction, confirmDelete, toastError, toastSuccess } from "@/lib/alert";
+import { confirmAction, toastError, toastSuccess } from "@/lib/alert";
 import {
   approveCommunityRequest,
   createAdminCommunity,
-  deleteAdminCommunity,
   fetchAdminCommunitiesList,
   releaseCommunityAdmin,
   fetchCommunityRequests,
@@ -256,23 +255,6 @@ export default function CommunitiesPage() {
       toastError(apiError(err));
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const handleDelete = async (community: AdminCommunity) => {
-    const result = await confirmDelete({
-      title: "Delete community?",
-      text: `Permanently remove <strong>${community.name}</strong>? All memberships, posts, notices, and related data will be deleted. This cannot be undone.`,
-      confirmText: "Delete community",
-    });
-    if (!result.isConfirmed) return;
-
-    try {
-      await deleteAdminCommunity(community.id);
-      toastSuccess("Community deleted.");
-      load(true);
-    } catch (err) {
-      toastError(apiError(err));
     }
   };
 
@@ -533,14 +515,6 @@ export default function CommunitiesPage() {
                           { label: "Activity", icon: "view", onClick: () => setActivityTarget({ id: item.id, name: item.name }) },
                           { label: "Adjust Feature Set", icon: "view", onClick: () => setFeatureTarget({ id: item.id, name: item.name }) },
                           { label: "Edit", icon: "edit", onClick: () => openEdit(item) },
-                          { label: "Delete", icon: "delete", tone: "danger", onClick: () => handleDelete(item) },
-                          {
-                            label: "Release Admin",
-                            icon: "ban",
-                            tone: "danger",
-                            hidden: !item.admin_user,
-                            onClick: () => handleReleaseAdmin(item),
-                          },
                           {
                             label: "Assign Admin",
                             icon: "plus",

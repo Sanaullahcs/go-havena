@@ -211,11 +211,11 @@ export default function CommunityAdminsPage() {
 
   const handleReject = async (id: number, revokeActive = false) => {
     const r = await confirmRejectWithReason({
-      title: revokeActive ? "Revoke this community admin?" : "Reject this application?",
+      title: revokeActive ? "Revoke Access?" : "Reject this application?",
       text: revokeActive
         ? "Their subscription will be canceled immediately. A reason is required and will be shown to the admin."
         : "A reason is required. The applicant will see it in their account.",
-      confirmText: revokeActive ? "Revoke" : "Reject",
+      confirmText: revokeActive ? "Revoke Access" : "Reject",
     });
     if (!r.isConfirmed) return;
 
@@ -223,7 +223,7 @@ export default function CommunityAdminsPage() {
     try {
       const reason = String(r.value ?? "").trim();
       await rejectCommunityAdmin(id, reason);
-      toastSuccess(revokeActive ? "Admin revoked. Billing canceled." : "Application rejected");
+      toastSuccess(revokeActive ? "Access revoked. Billing canceled." : "Application rejected");
       setViewing((current) =>
         current?.id === id
           ? {
@@ -243,12 +243,9 @@ export default function CommunityAdminsPage() {
   };
 
   const handleSuspend = async (item: CommunityAdminApplicant) => {
-    const community = communityFor(item);
     const ok = await confirmAction({
       title: `Suspend ${item.name}?`,
-      text: community
-        ? `${community.name} and its residents will stay active. Only this admin loses access until you assign a replacement.`
-        : "The community and its residents will stay active. Only this admin loses dashboard access.",
+      text: "This admin’s access will be suspended. The community and its residents will remain active and unaffected.",
       confirmText: "Suspend admin",
       color: "red",
     });
@@ -503,17 +500,11 @@ export default function CommunityAdminsPage() {
                             onClick: () => handleApprove(item.id, lifecycle === "rejected"),
                           },
                           {
-                            label: "Reject",
+                            label: lifecycle === "active" ? "Revoke Access" : "Reject",
                             icon: "reject",
                             tone: "danger",
-                            hidden: !can("reject"),
-                            onClick: () => handleReject(item.id),
-                          },
-                          {
-                            label: "Release from Community",
-                            icon: "edit",
-                            hidden: !can("release"),
-                            onClick: () => handleRelease(item),
+                            hidden: lifecycle === "active" ? false : !can("reject"),
+                            onClick: () => handleReject(item.id, lifecycle === "active"),
                           },
                           {
                             label: "Suspend",
@@ -537,10 +528,10 @@ export default function CommunityAdminsPage() {
                             onClick: () => openAssign(item),
                           },
                           {
-                            label: can("delete_record") ? "Delete Record" : "Delete Admin",
+                            label: "Delete Record",
                             icon: "delete",
                             tone: "danger",
-                            hidden: !can("delete"),
+                            hidden: !can("delete_record"),
                             onClick: () => handleDelete(item),
                           },
                         ]}
@@ -594,21 +585,18 @@ export default function CommunityAdminsPage() {
         <CommunityAdminDetailModal
           item={viewing}
           onClose={() => setViewing(null)}
-          onEdit={communityAdminAllows(viewing, "edit") ? () => openEdit(viewing) : undefined}
           onApprove={
             communityAdminAllows(viewing, "approve")
               ? () => handleApprove(viewing.id, resolveCommunityAdminLifecycle(viewing) === "rejected")
               : undefined
           }
           onReject={communityAdminAllows(viewing, "reject") ? () => handleReject(viewing.id) : undefined}
-          onRelease={communityAdminAllows(viewing, "release") ? () => handleRelease(viewing) : undefined}
-          onSuspend={communityAdminAllows(viewing, "suspend") ? () => handleSuspend(viewing) : undefined}
           onReactivate={communityAdminAllows(viewing, "reactivate") ? () => handleReactivate(viewing) : undefined}
           onAssign={communityAdminAllows(viewing, "assign_community") ? () => openAssign(viewing) : undefined}
           approveLabel={resolveCommunityAdminLifecycle(viewing) === "rejected" ? "Approve" : "Approve"}
           rejectLabel="Reject"
-          deleteLabel={communityAdminAllows(viewing, "delete_record") ? "Delete Record" : "Delete Admin"}
-          onDelete={communityAdminAllows(viewing, "delete") ? () => handleDelete(viewing) : undefined}
+          deleteLabel="Delete Record"
+          onDelete={communityAdminAllows(viewing, "delete_record") ? () => handleDelete(viewing) : undefined}
           busy={busyId === viewing.id}
         />
       ) : null}
@@ -639,11 +627,8 @@ function capitalize(value?: string | null) {
 function CommunityAdminDetailModal({
   item,
   onClose,
-  onEdit,
   onApprove,
   onReject,
-  onRelease,
-  onSuspend,
   onReactivate,
   onAssign,
   onDelete,
@@ -654,11 +639,8 @@ function CommunityAdminDetailModal({
 }: {
   item: CommunityAdminApplicant;
   onClose: () => void;
-  onEdit?: () => void;
   onApprove?: () => void;
   onReject?: () => void;
-  onRelease?: () => void;
-  onSuspend?: () => void;
   onReactivate?: () => void;
   onAssign?: () => void;
   onDelete?: () => void;
@@ -768,23 +750,8 @@ function CommunityAdminDetailModal({
           {!isReassignRow && item.id ? <ProfileRow label="Admin ID" value={String(item.id)} /> : null}
         </div>
 
-        {(onEdit || onApprove || onReject || onRelease || onSuspend || onReactivate || onAssign || onDelete) ? (
+        {(onApprove || onReject || onReactivate || onAssign || onDelete) ? (
           <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
-            {onEdit ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={onEdit}
-                className="nl-btn-secondary"
-              >
-                Edit
-              </button>
-            ) : null}
-            {onRelease ? (
-              <button type="button" disabled={busy} onClick={onRelease} className="nl-btn-secondary">
-                Release from Community
-              </button>
-            ) : null}
             {onAssign ? (
               <button type="button" disabled={busy} onClick={onAssign} className="nl-btn-primary">
                 Assign Community
@@ -798,11 +765,6 @@ function CommunityAdminDetailModal({
                 className="nl-btn-danger"
               >
                 {rejectLabel}
-              </button>
-            ) : null}
-            {onSuspend ? (
-              <button type="button" disabled={busy} onClick={onSuspend} className="nl-btn-danger">
-                Suspend
               </button>
             ) : null}
             {onReactivate ? (

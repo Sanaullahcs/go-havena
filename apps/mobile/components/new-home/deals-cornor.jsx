@@ -1,4 +1,4 @@
-import { Text, View, StyleSheet, Pressable, useWindowDimensions, FlatList, Platform } from "react-native";
+import { Text, View, StyleSheet, Pressable, FlatList, Platform } from "react-native";
 import React, { useCallback, useMemo } from "react";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -13,6 +13,7 @@ import HomeSectionHeader from "./section-header";
 import { timeAgo } from "../../services/feed-api";
 import HomeSectionEmpty from "./home-section-empty";
 import { sw, sf } from "../../utils/responsive";
+import { useHomeFrame } from "../../hooks/use-home-frame";
 import { rnShadow } from "../../utils/shadow";
 import { arrowForward } from "../../utils/rtl";
 import { getCurrentRole } from "../../constants/role-session";
@@ -103,18 +104,18 @@ function DealCard({ item, cardWidth, cardHeight, onPress }) {
 export default function DealsCornor({ items = [] }) {
   const router = useRouter();
   const { t, i18n } = useTranslation();
-  const { width: screenWidth } = useWindowDimensions();
+  const frame = useHomeFrame();
   const activeRole = getCurrentRole();
 
   const cards = useMemo(() => (items ?? []).map((d, i) => mapDealToCard(d, i)), [items, i18n.language]);
 
   const layout = useMemo(() => {
-    const contentWidth = screenWidth - Home.gutter * 2;
+    const contentWidth = frame.contentWidth;
     const cardWidth = Math.floor((contentWidth - CARD_GAP - PEEK) / 2);
     const cardHeight = Math.round(cardWidth * 1.35);
     const snap = cardWidth + CARD_GAP;
     return { cardWidth, cardHeight, snap };
-  }, [screenWidth]);
+  }, [frame]);
 
   const openDeal = useCallback(
     (item) => {
@@ -142,7 +143,7 @@ export default function DealsCornor({ items = [] }) {
 
   if (!cards.length) {
     return (
-      <View style={homeStyles.section}>
+      <View style={[homeStyles.section, { marginHorizontal: frame.sideInset }]}>
         <HomeSectionHeader
           label={t("home.deals")}
           onPress={() => router.push(MarketplaceRoutes.DEALS)}
@@ -155,7 +156,7 @@ export default function DealsCornor({ items = [] }) {
   }
 
   return (
-    <View style={homeStyles.section}>
+    <View style={[homeStyles.section, { marginHorizontal: frame.sideInset }]}>
       <HomeSectionHeader
         label={t("home.deals")}
         onPress={() => router.push(MarketplaceRoutes.DEALS)}

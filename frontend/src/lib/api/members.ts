@@ -2,7 +2,7 @@ import api from "./client";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { getManagedCommunityId, getUser, isSystemAdminUser } from "@/lib/auth/session";
 
-export type MembershipStatus = "approved" | "pending" | "banned" | "rejected" | "onboarding" | "invitation_sent";
+export type MembershipStatus = "approved" | "pending" | "banned" | "rejected" | "onboarding" | "invitation_sent" | "not_invited";
 export type MembershipRole = "member" | "moderator" | "admin";
 
 export interface Member {
@@ -38,6 +38,7 @@ export interface MemberStats {
   rejected: number;
   onboarding?: number;
   invitation_sent?: number;
+  not_invited?: number;
 }
 
 export interface MemberMeta {
@@ -93,6 +94,8 @@ export function statusLabel(status: MembershipStatus): string {
       return "Pending";
     case "invitation_sent":
       return "Invitation Sent";
+    case "not_invited":
+      return "Not Invited";
     case "onboarding":
       return "Onboarding";
     case "banned":
@@ -211,6 +214,53 @@ export interface MemberInviteResult {
   email_sent?: boolean;
 }
 
+export interface MemberBatchIssue {
+  field: string;
+  message: string;
+}
+
+export interface MemberBatchRow {
+  row: number;
+  name: string;
+  email: string;
+  phone: string;
+  unit: string;
+  residence_type: string;
+  errors: string[];
+  issues?: MemberBatchIssue[];
+}
+
+export interface MemberBatchPreview {
+  valid_count: number;
+  invalid_count: number;
+  rows: MemberBatchRow[];
+}
+
+export interface MemberBatchResult {
+  sent_count: number;
+  failed_count: number;
+  sent: { row: number; name: string; email: string; email_sent: boolean }[];
+  failed: { row: number; name: string; email: string; errors: string[] }[];
+}
+
+export function memberBatchTemplateCsv() {
+  return "Name,Email,Phone Number,Unit / Apartment,Residence Type\n";
+}
+
+export async function previewMemberBatch(file: File) {
+  const body = new FormData();
+  body.append("file", file);
+  const res = await api.post("/v1/admin/members/invite-batch/preview", body);
+  return res.data as { data: MemberBatchPreview };
+}
+
+export async function commitMemberBatch(file: File) {
+  const body = new FormData();
+  body.append("file", file);
+  const res = await api.post("/v1/admin/members/invite-batch", body);
+  return res.data as { data: MemberBatchResult; message: string };
+}
+
 export async function inviteMember(data: {
   name: string;
   email: string;
@@ -236,6 +286,22 @@ export async function resendMemberInvite(userId: number, communityId?: number) {
     ...(communityId ? { community_id: communityId } : {}),
   });
   return res.data as { message: string; data?: { invite_code?: string; invite_qr_value?: string } };
+}
+
+export async function resendMemberInvites(memberIds: number[], communityId?: number) {
+  const res = await api.post("/v1/admin/members/resend-invites", {
+    member_ids: memberIds,
+    ...(communityId ? { community_id: communityId } : {}),
+  });
+  return res.data as {
+    message: string;
+    data: {
+      sent_count: number;
+      failed_count: number;
+      sent: { id: number; name?: string; email?: string }[];
+      failed: { id: number; name?: string; message: string }[];
+    };
+  };
 }
 
 export async function approveMember(userId: number, communityId?: number) {

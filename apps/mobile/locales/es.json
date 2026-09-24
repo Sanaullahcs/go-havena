@@ -242,6 +242,7 @@
     "couldNotLoad": "No se pudo cargar este perfil",
     "profilePhoto": "Foto de perfil",
     "viewProfilePicture": "Ver foto de perfil",
+    "viewProfileAction": "Ver perfil",
     "takeOrChoose": "Toma una foto nueva o elige una de tu biblioteca.",
     "photoUpdated": "Foto de perfil actualizada",
     "photoSaved": "Tu foto de perfil ha sido guardada.",
@@ -797,6 +798,7 @@
     "noCountriesMatch": "Ningún país coincide con tu búsqueda",
     "noStatesMatch": "Ningún estado coincide con tu búsqueda",
     "noCitiesMatch": "Ninguna ciudad coincide con tu búsqueda",
+    "cityNotFound": "Ciudad no encontrada",
     "useTypedCity": "Usar “{{city}}”",
     "applyFilter": "Aplicar",
     "clearFilter": "Limpiar",
@@ -872,7 +874,7 @@
     "iOwnUnit": "Soy dueño de esta unidad",
     "tenant": "Inquilino",
     "iRentUnit": "Rento esta unidad",
-    "uploadLease": "Sube contrato de arrendamiento o recibos de servicios",
+    "uploadLease": "Sube tu contrato de arrendamiento o un recibo de servicios emitido en los últimos 3 meses.",
     "uploadDocument": "Subir documento",
     "uploadDocumentMsg": "Toma una foto o elige una de tu galería.",
     "uploadFile": "Subir archivo",
@@ -3936,6 +3938,8 @@
     "required": "{{field}} es obligatorio.",
     "minChars": "{{field}} debe tener al menos {{min}} caracteres.",
     "maxChars": "{{field}} debe tener {{max}} caracteres o menos.",
+    "communityAdminNameMax": "El nombre completo no puede superar los 50 caracteres.",
+    "communityAdminUnitMax": "La unidad / apartamento no puede superar los 20 caracteres.",
     "reviewRequired": "La reseña es obligatoria.",
     "reviewMinLength": "Escribe al menos 10 caracteres.",
     "emailRequired": "El correo electrónico es obligatorio.",
@@ -4009,6 +4013,8 @@
   },
   "blockedAccount": {
     "title": "Tu cuenta está suspendida",
+    "signInTitle": "Cuenta suspendida",
+    "signInMessage": "Tu cuenta ha sido suspendida y no puedes iniciar sesión en este momento. Contacta al administrador de tu comunidad o al soporte para obtener ayuda.",
     "message": "Tu cuenta ha sido suspendida. Contacta al administrador de tu comunidad o al soporte.",
     "systemAdmin": "Administrador del sistema",
     "communityAdmin": "Administrador de la comunidad",
@@ -4235,8 +4241,14 @@
     "unableToOpenWebsite": "No se pudo abrir el sitio web."
   },
   "video": {
-    "unavailable": "Video no disponible",
-    "noVideoProvided": "No se proporcionó video"
+    "unavailable": "Este video no está disponible.",
+    "noVideoProvided": "No se proporcionó video.",
+    "embedRestricted": "Este video no se puede reproducir dentro de Havena.",
+    "playbackError": "No se pudo reproducir este video.",
+    "watchOnYouTube": "Ver en YouTube",
+    "unavailableTitle": "Video no disponible en la app",
+    "unavailableInApp": "Este video no se puede reproducir dentro de Havena. Puedes seguir viéndolo en YouTube.",
+    "loading": "Cargando video…"
   },
   "listings": {
     "categoryFurniture": "Muebles",

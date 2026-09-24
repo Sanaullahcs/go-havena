@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { Platform, View, Text, StyleSheet } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,7 +15,6 @@ import FaceIdDialog from "../../../components/biometric/faceid-dialog";
 import { validateUserEmail } from "../../../utils/form-validation";
 import { requestOtp } from "../../../services/auth-api";
 import {
-  buildBlockedAccountDialogOptions,
   handleAuthApiError,
   persistBlockedAccountNotice,
   showSuspendedAccountDialog,
@@ -40,7 +39,6 @@ export default function LoginScreen() {
   const { suspended } = useLocalSearchParams();
   const suspendedNoticeShown = useRef(false);
   const [email, setEmail] = useState("");
-  const [emailFocused, setEmailFocused] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [termsError, setTermsError] = useState(false);
   const [showFingerprintDialog, setShowFingerprintDialog] = useState(false);
@@ -52,7 +50,7 @@ export default function LoginScreen() {
   const { submitting, run } = useSubmitLock();
   const formatError = validateUserEmail(email);
   const isValid = !formatError;
-  const emailError = emailFocused && email.trim().length > 0 ? formatError : null;
+  const emailError = email.trim().length > 0 ? formatError : null;
   const biometricCaps = useBiometricCapabilities();
 
   useEffect(() => {
@@ -78,11 +76,7 @@ export default function LoginScreen() {
 
     (async () => {
       const notice = await consumeBlockedAccountNotice();
-      if (notice) {
-        await dialog.showDialog(buildBlockedAccountDialogOptions(notice));
-        return;
-      }
-      await showSuspendedAccountDialog(dialog);
+      await showSuspendedAccountDialog(dialog, undefined, notice);
     })();
   }, [suspended, dialog]);
 
@@ -169,7 +163,12 @@ export default function LoginScreen() {
           footerBorderless
           footerStyle={styles.footer}
           contentContainerStyle={layout.scrollBody}
-          scrollProps={{ bounces: false }}
+          scrollProps={{
+            bounces: false,
+            // Android on-drag dismisses the keyboard as soon as a short screen scrolls.
+            // iOS already uses interactive dismiss and must stay unchanged.
+            ...(Platform.OS === "android" ? { keyboardDismissMode: "none" } : null),
+          }}
           keyboardVerticalOffset={8}
           footer={
             <View style={layout.footerInner}>
@@ -218,8 +217,6 @@ export default function LoginScreen() {
               <AuthEmailField
                 value={email}
                 onChangeText={handleEmailChange}
-                onFocus={() => setEmailFocused(true)}
-                onBlur={() => setEmailFocused(false)}
                 placeholder={t("auth.emailPlaceholder")}
                 error={Boolean(emailError)}
               />

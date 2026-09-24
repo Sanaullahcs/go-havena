@@ -313,7 +313,7 @@ Route::prefix('v1')->group(function () {
             /* System admin — approve community admins & community requests (for now) */
             Route::middleware('system.admin')->group(function () {
                 Route::get('/community-admins', [AdminCommunityAdminController::class, 'index']);
-                Route::patch('/community-admins/{id}', [AdminCommunityAdminController::class, 'update']);
+                Route::match(['patch', 'post'], '/community-admins/{id}', [AdminCommunityAdminController::class, 'update']);
                 Route::match(['patch', 'post'], '/community-admins/{id}/approve', [AdminCommunityAdminController::class, 'approve']);
                 Route::match(['patch', 'post'], '/community-admins/{id}/reapprove', [AdminCommunityAdminController::class, 'approve']);
                 Route::match(['patch', 'post'], '/community-admins/{id}/reject', [AdminCommunityAdminController::class, 'reject']);
@@ -401,6 +401,9 @@ Route::prefix('v1')->group(function () {
                 Route::get('/members/{id}',         [MemberController::class, 'show']);
                 Route::get('/members/{id}/activity-logs', [MemberController::class, 'activityLogs']);
                 Route::post('/members/invite',      [MemberController::class, 'invite']);
+                Route::post('/members/invite-batch/preview', [MemberController::class, 'previewBatch']);
+                Route::post('/members/invite-batch', [MemberController::class, 'commitBatch']);
+                Route::post('/members/resend-invites', [MemberController::class, 'resendInvites']);
                 Route::post('/members/{id}/resend-invite', [MemberController::class, 'resendInvite'])->whereNumber('id');
                 Route::match(['patch', 'post'], '/members/{id}/approve',  [MemberController::class, 'approve']);
                 Route::match(['patch', 'post'], '/members/{id}/reject',   [MemberController::class, 'reject']);

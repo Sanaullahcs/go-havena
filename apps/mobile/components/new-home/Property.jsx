@@ -1,4 +1,4 @@
-import { Text, View, StyleSheet, Pressable, useWindowDimensions, FlatList, Platform } from "react-native";
+import { Text, View, StyleSheet, Pressable, FlatList, Platform } from "react-native";
 import React, { useMemo } from "react";
 import { useRouter, useNavigation } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -17,6 +17,7 @@ import {
 import { getAmenityVisual, getAmenityStatus } from "../../utils/amenity-display";
 import { rnShadow } from "../../utils/shadow";
 import { sw, sf } from "../../utils/responsive";
+import { useHomeFrame } from "../../hooks/use-home-frame";
 import { chevronForward } from "../../utils/rtl";
 import { localizedField } from "../../i18n";
 
@@ -83,14 +84,14 @@ export default function PropertyNew({ items = [] }) {
   const router = useRouter();
   const navigation = useNavigation();
   const { t } = useTranslation();
-  const { width: screenWidth } = useWindowDimensions();
+  const frame = useHomeFrame();
 
   const layout = useMemo(() => {
-    const contentWidth = screenWidth - Home.gutter * 2;
+    const contentWidth = frame.contentWidth;
     const cardWidth = Math.floor(contentWidth * 0.72);
     const snap = cardWidth + CARD_GAP;
     return { cardWidth, snap };
-  }, [screenWidth]);
+  }, [frame]);
 
   const cards = useMemo(() => (items ?? []).map(mapAmenityToCard), [items]);
 
@@ -112,7 +113,7 @@ export default function PropertyNew({ items = [] }) {
   );
 
   return (
-    <View style={homeStyles.sectionLast}>
+    <View style={[homeStyles.sectionLast, { marginHorizontal: frame.sideInset }]}>
       <HomeSectionHeader
         label={t("home.services")}
         onPress={() => openServicesHub(navigation, router)}

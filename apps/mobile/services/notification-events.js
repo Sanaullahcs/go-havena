@@ -23,6 +23,23 @@ export function subscribeNotificationBanner(listener) {
   return () => bannerListeners.delete(listener);
 }
 
+const messageUnreadListeners = new Set();
+
+export function subscribeMessageUnreadRefresh(listener) {
+  messageUnreadListeners.add(listener);
+  return () => messageUnreadListeners.delete(listener);
+}
+
+export function emitMessageUnreadRefresh() {
+  messageUnreadListeners.forEach((listener) => {
+    try {
+      listener();
+    } catch (err) {
+      console.warn("[messages] unread listener failed", err);
+    }
+  });
+}
+
 export function emitNotificationBanner(payload) {
   bannerListeners.forEach((listener) => {
     try {

@@ -151,6 +151,43 @@ class GuestInvitationTest extends TestCase
             ->assertJsonValidationErrors(['guest_name']);
     }
 
+    public function test_admin_invite_rejects_guest_name_outside_length_limits(): void
+    {
+        [, $admin] = $this->seedCommunityAdmin();
+        Sanctum::actingAs($admin);
+
+        $window = [
+            'guest_email' => 'length@example.com',
+            'starts_at'   => now()->addHour()->toIso8601String(),
+            'ends_at'     => now()->addDay()->toIso8601String(),
+        ];
+
+        $this->postJson('/api/v1/admin/guests/invite', [
+            ...$window,
+            'guest_name' => ' ',
+        ])->assertUnprocessable()
+            ->assertJsonPath('errors.guest_name.0', 'Guest name is required.');
+
+        $this->postJson('/api/v1/admin/guests/invite', [
+            ...$window,
+            'guest_name' => 'A',
+        ])->assertUnprocessable()
+            ->assertJsonPath('errors.guest_name.0', 'Guest name must be at least 2 characters.');
+
+        $this->postJson('/api/v1/admin/guests/invite', [
+            ...$window,
+            'guest_name' => str_repeat('A', 26),
+        ])->assertUnprocessable()
+            ->assertJsonPath('errors.guest_name.0', 'Guest name must be 25 characters or less.');
+
+        $this->postJson('/api/v1/admin/guests/invite', [
+            ...$window,
+            'guest_email' => 'length-ok@example.com',
+            'guest_name' => str_repeat('A', 25),
+        ])->assertCreated()
+            ->assertJsonPath('data.guest_name', str_repeat('A', 25));
+    }
+
     public function test_admin_invite_rejects_when_no_permission_is_selected(): void
     {
         [, $admin] = $this->seedCommunityAdmin();

@@ -19,6 +19,7 @@ export interface Notice {
   event_date: string | null;
   event_time: string | null;
   event_time_end: string | null;
+  schedule_timezone?: string | null;
   status: string;
   review_status: string;
   is_global: boolean;

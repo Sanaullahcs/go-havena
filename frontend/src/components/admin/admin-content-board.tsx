@@ -28,6 +28,7 @@ import {
 import { apiError } from "@/lib/api/client";
 import { getManagedCommunityId, isSystemAdminUser } from "@/lib/auth/session";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
+import { isEventSchedulePast } from "@/lib/admin/event-schedule";
 import { PageLoader, PageError } from "@/components/shared/page-states";
 
 export type ContentBoardKind = "notices" | "events" | "alerts";
@@ -545,7 +546,12 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
                           }),
                         },
                         { label: "View", icon: "view", onClick: () => setViewing(n) },
-                        { label: "Edit", icon: "edit", onClick: () => { setEditing(n); setModalMode("edit"); } },
+                        {
+                          label: "Edit",
+                          icon: "edit",
+                          hidden: kind === "events" && isEventSchedulePast(n),
+                          onClick: () => { setEditing(n); setModalMode("edit"); },
+                        },
                         {
                           label: "Approve",
                           icon: "approve",
@@ -628,7 +634,15 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
         />
       </DataTable>
 
-      <NoticeViewModal notice={viewing} onClose={() => setViewing(null)} onEdit={(notice) => { setViewing(null); setEditing(notice); setModalMode("edit"); }} />
+      <NoticeViewModal
+        notice={viewing}
+        onClose={() => setViewing(null)}
+        onEdit={
+          viewing && kind === "events" && isEventSchedulePast(viewing)
+            ? undefined
+            : (notice) => { setViewing(null); setEditing(notice); setModalMode("edit"); }
+        }
+      />
 
       <NoticeFormModal
         open={modalMode !== null}

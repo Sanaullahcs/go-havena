@@ -13,6 +13,7 @@ import {
   getPhonePlaceholder,
   getPhoneProgressHint,
   getPhoneValidationError,
+  isPhoneEntryIncomplete,
   parsePhoneInputChange,
   phoneFieldFromE164,
   type PhoneFieldState,
@@ -48,9 +49,14 @@ export function AdminPhoneInput({
   const hintId = `${inputId}-hint`;
   const listId = `${inputId}-countries`;
   const countryRootRef = useRef<HTMLDivElement>(null);
+  const [countryListStyle, setCountryListStyle] = useState<{ maxHeight: number; upward: boolean }>({
+    maxHeight: 288,
+    upward: false,
+  });
   const [field, setField] = useState<PhoneFieldState>(() => phoneFieldFromE164(value));
   const [touched, setTouched] = useState(false);
   const [countryOpen, setCountryOpen] = useState(false);
+  const [countryQuery, setCountryQuery] = useState("");
 
   useEffect(() => {
     // Parent often passes E.164 only — don't wipe in-progress digits when value is still empty.
@@ -66,7 +72,10 @@ export function AdminPhoneInput({
   }, [value, resetKey]);
 
   useEffect(() => {
-    if (!countryOpen) return;
+    if (!countryOpen) {
+      setCountryQuery("");
+      return;
+    }
 
     const onPointerDown = (event: MouseEvent) => {
       if (!countryRootRef.current?.contains(event.target as Node)) {
@@ -78,11 +87,31 @@ export function AdminPhoneInput({
       if (event.key === "Escape") setCountryOpen(false);
     };
 
+    const fitList = () => {
+      const root = countryRootRef.current;
+      const viewport = window.visualViewport;
+      if (!root || !viewport) return;
+      const rect = root.getBoundingClientRect();
+      const top = rect.top - viewport.offsetTop;
+      const bottom = viewport.height - (rect.bottom - viewport.offsetTop);
+      const upward = bottom < 200 && top > bottom;
+      const space = (upward ? top : bottom) - 16;
+      setCountryListStyle({
+        upward,
+        maxHeight: Math.max(168, Math.min(288, space)),
+      });
+    };
+
+    fitList();
     document.addEventListener("mousedown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
+    window.visualViewport?.addEventListener("resize", fitList);
+    window.visualViewport?.addEventListener("scroll", fitList);
     return () => {
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
+      window.visualViewport?.removeEventListener("resize", fitList);
+      window.visualViewport?.removeEventListener("scroll", fitList);
     };
   }, [countryOpen]);
 
@@ -95,7 +124,8 @@ export function AdminPhoneInput({
   const selected = getCountryByCode(field.country);
   const dial = formatDialLabel(field.country);
   const placeholder = getPhonePlaceholder(field.country);
-  const showValidation = Boolean((showError || touched) && validationError);
+  const incomplete = isPhoneEntryIncomplete(field.digits, field.country);
+  const showValidation = Boolean(validationError && (!incomplete || showError || touched));
 
   const updateField = (nextCountry: string, nextDigits: string) => {
     const next = buildPhoneField(nextCountry, nextDigits);
@@ -121,9 +151,24 @@ export function AdminPhoneInput({
   };
 
   const selectCountry = (code: string) => {
+    setTouched(true);
     updateField(code, field.digits);
+    setCountryQuery("");
     setCountryOpen(false);
   };
+
+  const countryQueryNormalized = countryQuery.trim().toLowerCase();
+  const visibleCountries = PHONE_COUNTRIES.filter((item) => {
+    if (!countryQueryNormalized) return true;
+    const dialLabel = formatDialLabel(item.code).toLowerCase();
+    const digits = dialLabel.replace(/\D/g, "");
+    const queryDigits = countryQueryNormalized.replace(/\D/g, "");
+    return (
+      item.name.toLowerCase().includes(countryQueryNormalized)
+      || dialLabel.includes(countryQueryNormalized)
+      || (queryDigits.length > 0 && digits.includes(queryDigits))
+    );
+  });
 
   return (
     <div className={className}>
@@ -184,10 +229,51 @@ export function AdminPhoneInput({
               id={listId}
               role="listbox"
               aria-label="Select country code"
-              className="absolute left-0 top-[calc(100%+0.4rem)] z-50 w-[min(18.5rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.14)]"
+              className={[
+                "absolute left-0 z-50 flex w-[min(18.5rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.14)]",
+                countryListStyle.upward ? "bottom-[calc(100%+0.4rem)]" : "top-[calc(100%+0.4rem)]",
+              ].join(" ")}
+              style={{ maxHeight: countryListStyle.maxHeight }}
             >
-              <div className="max-h-64 overflow-auto overscroll-contain py-1.5">
-                {PHONE_COUNTRIES.map((item) => {
+              <label className="relative block shrink-0 border-b border-slate-100 p-2">
+                <span className="sr-only">Search country or code</span>
+                <svg
+                  className="pointer-events-none absolute left-[1.15rem] top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  aria-hidden
+                >
+                  <circle cx="9" cy="9" r="5.25" stroke="currentColor" strokeWidth="1.6" />
+                  <path d="M13.2 13.2L16.5 16.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+                <input
+                  type="search"
+                  value={countryQuery}
+                  onChange={(event) => setCountryQuery(event.target.value)}
+                  placeholder="Search country or code"
+                  aria-label="Search country or code"
+                  autoComplete="off"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/70 py-0 pl-9 pr-9 text-sm text-slate-900 outline-none placeholder:text-slate-400 [appearance:textfield] [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none"
+                />
+                {countryQuery ? (
+                  <button
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => setCountryQuery("")}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 hover:text-slate-700"
+                    aria-label="Clear search"
+                  >
+                    <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" aria-hidden>
+                      <path d="M6 6l8 8M14 6l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                ) : null}
+              </label>
+              <div className="min-h-0 flex-1 overflow-auto overscroll-contain py-1.5">
+                {visibleCountries.length === 0 ? (
+                  <p className="px-3.5 py-6 text-center text-[13px] text-slate-500">No country found.</p>
+                ) : null}
+                {visibleCountries.map((item) => {
                   const itemDial = formatDialLabel(item.code);
                   const active = item.code === field.country;
                   return (
@@ -261,7 +347,7 @@ export function AdminPhoneInput({
                 <path d="M3.5 8.5l3 3 6-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
             </span>
-          ) : field.digits ? (
+          ) : field.digits && incomplete && !showValidation ? (
             <span className="mr-3 h-2 w-2 shrink-0 rounded-full bg-amber-400" title="Incomplete number" />
           ) : null}
         </div>

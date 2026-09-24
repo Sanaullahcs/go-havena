@@ -172,7 +172,23 @@ export type UpdateCommunityAdminPayload = {
   residence_type?: "" | "homeowner" | "tenant";
 };
 
-export async function updateCommunityAdmin(id: number, payload: UpdateCommunityAdminPayload) {
+export async function updateCommunityAdmin(
+  id: number,
+  payload: UpdateCommunityAdminPayload,
+  utilityBill?: File | null,
+) {
+  if (utilityBill) {
+    const form = new FormData();
+    if (payload.name != null) form.append("name", payload.name);
+    if (payload.phone != null) form.append("phone", payload.phone);
+    if (payload.unit_number != null) form.append("unit_number", payload.unit_number);
+    if (payload.residence_type) form.append("residence_type", payload.residence_type);
+    if (payload.display_name != null) form.append("display_name", payload.display_name);
+    form.append("utility_bill", utilityBill);
+    const res = await api.post(`/v1/admin/community-admins/${id}`, form);
+    return res.data as { data: CommunityAdminApplicant; message: string };
+  }
+
   const res = await api.patch(`/v1/admin/community-admins/${id}`, payload);
   return res.data as { data: CommunityAdminApplicant; message: string };
 }

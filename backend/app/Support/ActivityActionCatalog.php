@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class ActivityActionCatalog
@@ -72,6 +73,7 @@ class ActivityActionCatalog
         'plaid_ach_initiated' => 'Bank payment started',
         'plaid_ach_refunded' => 'Bank payment refunded',
         'community_features_updated' => 'Updated resident features',
+        'member_prepared' => 'Added a resident without an invitation',
         'member_invited' => 'Invited a member',
         'member_provisioned' => 'Provisioned a member',
         'member_invite_resent' => 'Resent member invitation',
@@ -221,7 +223,7 @@ class ActivityActionCatalog
             'status'        => $status,
             'severity'      => (string) ($log->severity ?? 'info'),
             'ip_address'    => $log->ip_address ?? null,
-            'created_at'    => (string) $log->created_at,
+            'created_at'    => self::utcIsoTimestamp($log->created_at ?? null),
             'changes'       => $changes,
             'performed_by'  => $performedBy,
             'affected_user' => $affectedUser,
@@ -326,5 +328,19 @@ class ActivityActionCatalog
         }
 
         return isset($row->status) ? (string) $row->status : null;
+    }
+
+    /**
+     * Activity rows store UTC wall time without an offset. Return one ISO-8601 UTC instant.
+     */
+    public static function utcIsoTimestamp(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $parsed = Carbon::parse($value, 'UTC')->utc();
+
+        return $parsed->toIso8601String();
     }
 }

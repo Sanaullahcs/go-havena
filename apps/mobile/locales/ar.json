@@ -242,6 +242,7 @@
     "couldNotLoad": "تعذّر تحميل هذا الملف الشخصي",
     "profilePhoto": "صورة الملف الشخصي",
     "viewProfilePicture": "عرض صورة الملف الشخصي",
+    "viewProfileAction": "عرض الملف الشخصي",
     "takeOrChoose": "التقط صورة جديدة أو اختر واحدة من مكتبتك.",
     "photoUpdated": "تم تحديث صورة الملف الشخصي",
     "photoSaved": "تم حفظ صورة ملفك الشخصي.",
@@ -797,6 +798,7 @@
     "noCountriesMatch": "لا توجد دول تطابق بحثك",
     "noStatesMatch": "لا توجد ولايات تطابق بحثك",
     "noCitiesMatch": "لا توجد مدن تطابق بحثك",
+    "cityNotFound": "لم يتم العثور على المدينة",
     "useTypedCity": "استخدام “{{city}}”",
     "applyFilter": "تطبيق",
     "clearFilter": "مسح",
@@ -872,7 +874,7 @@
     "iOwnUnit": "أملك هذه الوحدة",
     "tenant": "مستأجر",
     "iRentUnit": "أستأجر هذه الوحدة",
-    "uploadLease": "ارفع عقد الإيجار أو فواتير الخدمات",
+    "uploadLease": "ارفع عقد الإيجار أو فاتورة خدمات صادرة خلال الأشهر الثلاثة الماضية.",
     "uploadDocument": "رفع مستند",
     "uploadDocumentMsg": "التقط صورة أو اختر من معرض الصور.",
     "uploadFile": "رفع ملف",
@@ -3936,6 +3938,8 @@
     "required": "{{field}} مطلوب.",
     "minChars": "{{field}} يجب أن يحتوي على {{min}} أحرف على الأقل.",
     "maxChars": "{{field}} يجب أن يكون {{max}} حرفاً أو أقل.",
+    "communityAdminNameMax": "لا يمكن أن يتجاوز الاسم الكامل 50 حرفًا.",
+    "communityAdminUnitMax": "لا يمكن أن تتجاوز الوحدة / الشقة 20 حرفًا.",
     "emailRequired": "البريد الإلكتروني مطلوب.",
     "emailInvalid": "أدخل بريداً إلكترونياً صالحاً.",
     "emailPersonal": "أدخل بريداً إلكترونياً شخصياً.",
@@ -4007,6 +4011,8 @@
   },
   "blockedAccount": {
     "title": "حسابك معلّق",
+    "signInTitle": "الحساب معلّق",
+    "signInMessage": "تم تعليق حسابك ولا يمكنك تسجيل الدخول حالياً. يرجى التواصل مع مسؤول مجتمعك أو الدعم للحصول على المساعدة.",
     "message": "تم تعليق حسابك. يرجى التواصل مع مسؤول مجتمعك أو الدعم.",
     "systemAdmin": "مسؤول النظام",
     "communityAdmin": "مسؤول المجتمع",
@@ -4233,8 +4239,14 @@
     "unableToOpenWebsite": "تعذر فتح الموقع."
   },
   "video": {
-    "unavailable": "الفيديو غير متاح",
-    "noVideoProvided": "لم يتم توفير فيديو"
+    "unavailable": "هذا الفيديو غير متاح.",
+    "noVideoProvided": "لم يتم توفير فيديو.",
+    "embedRestricted": "لا يمكن تشغيل هذا الفيديو داخل هافينا.",
+    "playbackError": "تعذر تشغيل هذا الفيديو.",
+    "watchOnYouTube": "المشاهدة على يوتيوب",
+    "unavailableTitle": "الفيديو غير متاح في التطبيق",
+    "unavailableInApp": "لا يمكن تشغيل هذا الفيديو داخل هافينا. يمكنك متابعة مشاهدته على يوتيوب.",
+    "loading": "جارٍ تحميل الفيديو…"
   },
   "listings": {
     "categoryFurniture": "أثاث",

@@ -18,7 +18,7 @@ import {
   type MemberActivityLog,
   type MemberActivityMeta,
 } from "@/lib/api/members";
-import { formatActivityDescription, formatLogTime, relLogTime } from "@/lib/api/activity-logs";
+import { formatActivityDescription, formatLogTime, parseActivityTimestamp, relLogTime } from "@/lib/api/activity-logs";
 import { ActivityAuditDetails } from "@/components/admin/activity/activity-audit-details";
 import { apiError } from "@/lib/api/client";
 import { NL } from "@/lib/design-tokens";
@@ -107,7 +107,8 @@ function actionVisual(action: string) {
 }
 
 function dayGroupLabel(iso: string) {
-  const date = new Date(iso);
+  const date = parseActivityTimestamp(iso);
+  if (!date) return iso;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const target = new Date(date);

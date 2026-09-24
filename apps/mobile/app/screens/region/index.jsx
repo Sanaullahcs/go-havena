@@ -1,5 +1,14 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  Keyboard,
+  Platform,
+} from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
@@ -37,7 +46,26 @@ export default function RegionScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectingId, setSelectingId] = useState(null);
+  const scrollRef = useRef(null);
+  const scrollOffsetRef = useRef(0);
+  const [keyboardPad, setKeyboardPad] = useState(0);
   const isResident = activeRole !== "admin";
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      // Android already resizes the window. Extra padding there would stack
+      // on top of the keyboard and push the field too far.
+      if (Platform.OS !== "ios") return;
+      setKeyboardPad(event?.endCoordinates?.height ?? 0);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardPad(0));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const handleApplyFilter = ({ country, state, city }) => {
     setCountryFilter(country);
@@ -126,9 +154,19 @@ export default function RegionScreen() {
       </View>
 
       <ScrollView
+        ref={scrollRef}
+        style={styles.flex}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          keyboardPad > 0 && { paddingBottom: 28 + keyboardPad },
+        ]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="none"
+        onScroll={(event) => {
+          scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+        }}
+        scrollEventThrottle={16}
       >
         <View style={styles.card}>
           <RegionFilterSheet
@@ -137,6 +175,8 @@ export default function RegionScreen() {
             state={stateFilter}
             city={cityFilter}
             onApply={handleApplyFilter}
+            scrollRef={scrollRef}
+            scrollOffsetRef={scrollOffsetRef}
           />
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -204,6 +244,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: T.canvas,
+  },
+  flex: {
+    flex: 1,
   },
   hero: {
     paddingHorizontal: 20,

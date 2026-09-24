@@ -59,7 +59,7 @@ export default function Profile() {
   );
 
   const fields = getProfileFields(profile);
-  const { changePhoto, uploading, ProfilePhotoViewerModal } = useProfilePhoto({
+  const { changePhoto, uploading, uploadFailed, ProfilePhotoViewerModal } = useProfilePhoto({
     onUpdated: (data) => setProfile(data),
     avatarUrl: fields.avatarUrl,
   });
@@ -140,6 +140,7 @@ export default function Profile() {
                     avatarUrl={fields.avatarUrl}
                     size={sw(84)}
                     uploading={uploading}
+                    uploadFailed={uploadFailed}
                   />
                 </View>
               </Pressable>

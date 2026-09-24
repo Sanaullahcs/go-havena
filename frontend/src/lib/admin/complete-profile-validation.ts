@@ -3,6 +3,13 @@
  * and backend ProfileController rules.
  */
 
+import {
+  COMMUNITY_ADMIN_NAME_MAX,
+  COMMUNITY_ADMIN_NAME_MAX_MESSAGE,
+  COMMUNITY_ADMIN_UNIT_MAX,
+  COMMUNITY_ADMIN_UNIT_MAX_MESSAGE,
+  exceedsCharacterLimit,
+} from "@/lib/admin/community-admin-field-limits";
 import { EMAIL_RE, type FieldErrors } from "@/lib/admin/form-validation-utils";
 import { getPhoneValidationError } from "@/lib/phone/format";
 
@@ -13,6 +20,32 @@ export const COMPLETE_PROFILE_LIMITS = {
   profileBio: 500,
   utilityBillMaxBytes: 10 * 1024 * 1024,
 } as const;
+
+const UTILITY_BILL_EXTENSION = /\.(jpe?g|png|heic|heif|pdf)$/i;
+const UTILITY_BILL_MIME = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/heic",
+  "image/heif",
+  "application/pdf",
+]);
+
+export const UTILITY_BILL_ACCEPT =
+  ".jpg,.jpeg,.png,.pdf,.heic,.heif,image/jpeg,image/png,application/pdf";
+
+export const UTILITY_BILL_TYPE_MESSAGE = "Upload a JPG, PNG, HEIC, or PDF file.";
+export const UTILITY_BILL_SIZE_MESSAGE = "File must be 10 MB or smaller.";
+
+/** Optional document check. A missing file is valid. */
+export function utilityBillFileError(file: File | null | undefined): string | null {
+  if (!file) return null;
+  const mime = (file.type || "").toLowerCase();
+  const extensionOk = UTILITY_BILL_EXTENSION.test(file.name);
+  const mimeOk = mime === "" || UTILITY_BILL_MIME.has(mime);
+  if (!extensionOk || !mimeOk) return UTILITY_BILL_TYPE_MESSAGE;
+  if (file.size > COMPLETE_PROFILE_LIMITS.utilityBillMaxBytes) return UTILITY_BILL_SIZE_MESSAGE;
+  return null;
+}
 
 export const PLACEHOLDER_EMAIL_SUFFIX = "@phone.havena.local";
 
@@ -77,6 +110,7 @@ export function validateCompleteProfileForm(input: {
   requireUtilityFile?: boolean;
   requireResidenceType?: boolean;
   guestMode?: boolean;
+  communityAdmin?: boolean;
 }): FieldErrors {
   const errors: FieldErrors = {};
   const {
@@ -91,13 +125,22 @@ export function validateCompleteProfileForm(input: {
     requireUtilityFile = true,
     requireResidenceType = true,
     guestMode = false,
+    communityAdmin = false,
   } = input;
+
+  const nameMax = communityAdmin ? COMMUNITY_ADMIN_NAME_MAX : COMPLETE_PROFILE_LIMITS.profileName;
+  const unitMax = communityAdmin ? COMMUNITY_ADMIN_UNIT_MAX : COMPLETE_PROFILE_LIMITS.profileUnit;
 
   const nameErr = requiredText(name, "Full name", {
     min: 2,
-    max: COMPLETE_PROFILE_LIMITS.profileName,
+    max: nameMax,
   });
-  if (nameErr) errors.name = nameErr;
+  if (nameErr) {
+    errors.name =
+      communityAdmin && exceedsCharacterLimit(name, nameMax)
+        ? COMMUNITY_ADMIN_NAME_MAX_MESSAGE
+        : nameErr;
+  }
 
   const emailErr = validateUserEmail(email);
   if (emailErr) errors.email = emailErr;
@@ -117,16 +160,23 @@ export function validateCompleteProfileForm(input: {
 
   if (guestMode) {
     const unitText = String(unitNumber ?? "").trim();
-    if (unitText.length > COMPLETE_PROFILE_LIMITS.profileUnit) {
-      errors.unitNumber = `Unit number must be ${COMPLETE_PROFILE_LIMITS.profileUnit} characters or less.`;
+    if (unitNumber.length > unitMax || unitText.length > unitMax) {
+      errors.unitNumber = communityAdmin
+        ? COMMUNITY_ADMIN_UNIT_MAX_MESSAGE
+        : `Unit number must be ${unitMax} characters or less.`;
     }
     return errors;
   }
 
   const unitErr = requiredText(unitNumber, "Unit number", {
-    max: COMPLETE_PROFILE_LIMITS.profileUnit,
+    max: unitMax,
   });
-  if (unitErr) errors.unitNumber = unitErr;
+  if (unitErr) {
+    errors.unitNumber =
+      communityAdmin && exceedsCharacterLimit(unitNumber, unitMax)
+        ? COMMUNITY_ADMIN_UNIT_MAX_MESSAGE
+        : unitErr;
+  }
 
   if (requireResidenceType) {
     if (!residenceType) {

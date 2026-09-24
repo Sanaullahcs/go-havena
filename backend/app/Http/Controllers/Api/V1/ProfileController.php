@@ -14,11 +14,11 @@ use App\Services\ContactIdentityService;
 use App\Services\MembershipService;
 use App\Services\PointsRewardService;
 use App\Services\UserBlockService;
+use App\Services\UtilityBillStorage;
 use App\Support\MediaUrl;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -152,9 +152,10 @@ class ProfileController extends Controller
     public function update(Request $request)
     {
         $user = $request->user();
+        $isCommunityAdmin = $user->role === 'community_admin';
 
         $request->validate([
-            'name'           => 'sometimes|string|max:100',
+            'name'           => 'sometimes|string|max:'.($isCommunityAdmin ? '50' : '100'),
             'phone'          => 'sometimes|nullable|string|max:20',
             'email'          => [
                 'sometimes',
@@ -170,7 +171,7 @@ class ProfileController extends Controller
             ],
             'display_name'   => 'sometimes|string|max:50',
             'bio'            => 'sometimes|nullable|string|max:500',
-            'unit_number'    => 'sometimes|nullable|string|max:50',
+            'unit_number'    => 'sometimes|nullable|string|max:'.($isCommunityAdmin ? '20' : '50'),
             'residence_type' => 'sometimes|nullable|string|in:homeowner,tenant',
             'region_id'      => [
                 'sometimes',
@@ -178,7 +179,11 @@ class ProfileController extends Controller
                 'integer',
                 Rule::exists(Region::class, 'id')->where(fn ($query) => $query->where('status', 'active')),
             ],
-        ]);
+        ], $isCommunityAdmin ? [
+            'name.max' => 'Full name cannot exceed 50 characters.',
+            'display_name.max' => 'Full name cannot exceed 50 characters.',
+            'unit_number.max' => 'Unit / apartment cannot exceed 20 characters.',
+        ] : []);
 
         $this->assertUtilityBillPresentIfRequired($user, $request);
 
@@ -198,7 +203,7 @@ class ProfileController extends Controller
             $user->update(['name' => $request->name]);
         }
         if ($request->has('phone')) {
-            $phone = PhoneNormalizer::normalize($request->phone);
+            $phone = PhoneNormalizer::accept($request->phone);
             if ($request->filled('phone') && ! $phone) {
                 throw ValidationException::withMessages([
                     'phone' => ['Enter a valid phone number in international format.'],
@@ -483,17 +488,17 @@ class ProfileController extends Controller
     /** POST /v1/me/utility-bill — lease / utility bill for verification only */
     public function uploadUtilityBill(Request $request)
     {
-        $request->validate(['utility_bill' => 'required|file|mimes:jpg,jpeg,png,pdf,heic,heif|max:10240']);
+        $request->validate(['utility_bill' => 'required|'.UtilityBillStorage::RULE]);
 
-        $url = $this->storeProfileImage($request->file('utility_bill'), 'utility-bills');
+        $stored = app(UtilityBillStorage::class)->store($request->file('utility_bill'));
 
         $request->user()->profile()->updateOrCreate(
             ['user_id' => $request->user()->id],
-            ['utility_bill_url' => MediaUrl::normalize($url) ?? $url]
+            ['utility_bill_url' => $stored]
         );
 
         return response()->json([
-            'data' => ['utility_bill_url' => MediaUrl::toPublic(MediaUrl::normalize($url), $request)],
+            'data' => ['utility_bill_url' => MediaUrl::toPublic($stored, $request)],
             'message' => 'Utility bill uploaded for verification',
         ]);
     }
@@ -542,18 +547,6 @@ class ProfileController extends Controller
         ActivityLogService::user('account_deleted', 'User deleted their own account', 'User', $userId, 'warning');
 
         return response()->json(['message' => 'Account deleted']);
-    }
-
-    private function storeProfileImage(UploadedFile $file, string $folder): string
-    {
-        $path = $file->store($folder, 'public');
-        if (! is_string($path) || $path === '') {
-            throw ValidationException::withMessages([
-                'file' => ['Could not save the file. Storage is not writable.'],
-            ]);
-        }
-
-        return url(Storage::url($path));
     }
 
     private function resolveViewerCommunityId(Request $request, User $user): ?int

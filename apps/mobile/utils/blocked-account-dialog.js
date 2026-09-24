@@ -69,6 +69,23 @@ export function blockedAccountNoticeFromError(error) {
   };
 }
 
+/** Sign-in block for a suspended account: title, message, and one button. */
+export function buildSuspendedSignInDialogOptions() {
+  return {
+    type: "error",
+    title: i18n.t("blockedAccount.signInTitle"),
+    message: i18n.t("blockedAccount.signInMessage"),
+    actions: [{ key: "ok", label: i18n.t("blockedAccount.gotIt"), variant: "primary" }],
+  };
+}
+
+export function isSuspendedSignInBlock(error) {
+  if (!error) return true;
+  if (isRejectedBlock(error)) return false;
+  if (error.code === "COMMUNITY_DEACTIVATED") return false;
+  return error.code === "ACCOUNT_SUSPENDED" || error.statusKind === "suspended";
+}
+
 export function buildBlockedAccountDialogOptions(error, fallbackMessage) {
   const rejected = isRejectedBlock(error);
   const suspended =

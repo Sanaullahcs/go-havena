@@ -153,10 +153,31 @@ export function formatActivityDescription(description: string | null | undefined
   return description.replace(/\(empty\)/gi, "Not set");
 }
 
+/**
+ * Parse an activity timestamp once.
+ * Timezone-aware values keep their offset. Naive UTC datetimes from older responses
+ * are read as UTC so the browser does not treat them as local time.
+ */
+export function parseActivityTimestamp(ts: string | null | undefined): Date | null {
+  const trimmed = ts?.trim();
+  if (!trimmed) return null;
+
+  const hasZone = /(?:[zZ]|[+-]\d{2}:\d{2}|[+-]\d{4})$/.test(trimmed);
+  const normalized = hasZone
+    ? trimmed
+    : trimmed.replace(
+        /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2}(?:\.\d+)?)$/,
+        "$1T$2Z",
+      );
+
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export function formatLogTime(ts: string) {
   try {
-    const date = new Date(ts);
-    if (Number.isNaN(date.getTime())) return ts;
+    const date = parseActivityTimestamp(ts);
+    if (!date) return ts;
     return date.toLocaleString(undefined, {
       month: "short",
       day: "numeric",
@@ -214,11 +235,19 @@ export async function fetchCommunityActivityLogs(
   };
 }
 
-export function relLogTime(ts: string) {
-  const diff = Date.now() - new Date(ts).getTime();
-  if (Number.isNaN(diff)) return ts;
-  if (diff < 60000) return "just now";
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-  return `${Math.floor(diff / 86400000)}d ago`;
+export function relLogTime(ts: string, now = Date.now()) {
+  const date = parseActivityTimestamp(ts);
+  if (!date) return ts;
+  const diff = now - date.getTime();
+  if (diff < 60_000) return "Just now";
+  if (diff < 3_600_000) {
+    const mins = Math.floor(diff / 60_000);
+    return mins === 1 ? "1 min ago" : `${mins} mins ago`;
+  }
+  if (diff < 86_400_000) {
+    const hours = Math.floor(diff / 3_600_000);
+    return hours === 1 ? "1h ago" : `${hours}h ago`;
+  }
+  const days = Math.floor(diff / 86_400_000);
+  return days === 1 ? "1d ago" : `${days}d ago`;
 }

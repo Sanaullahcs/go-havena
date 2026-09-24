@@ -9,6 +9,16 @@ import type { PhoneFieldState } from "@/lib/phone/format";
 
 export const GUEST_NAME_RE = /^[\p{L} .]+$/u;
 
+export const GUEST_NAME_MIN = 2;
+
+export const GUEST_NAME_MAX = 25;
+
+export const GUEST_NAME_REQUIRED_MESSAGE = "Guest name is required.";
+
+export const GUEST_NAME_MIN_MESSAGE = "Guest name must be at least 2 characters.";
+
+export const GUEST_NAME_MAX_MESSAGE = "Guest name must be 25 characters or less.";
+
 export const GUEST_NAME_FORMAT_MESSAGE =
   "Guest name can only contain letters, spaces, and full stops.";
 
@@ -92,9 +102,11 @@ export function guestDurationFieldError(startsAt: string, endsAt: string): strin
 }
 
 export function guestNameFieldError(name: string): string | null {
-  if (!name.trim()) return null;
-  if (name.length > 100) return "Guest name must be 100 characters or less.";
-  if (!GUEST_NAME_RE.test(name)) return GUEST_NAME_FORMAT_MESSAGE;
+  const trimmed = name.trim();
+  if (!trimmed) return GUEST_NAME_REQUIRED_MESSAGE;
+  if (trimmed.length < GUEST_NAME_MIN) return GUEST_NAME_MIN_MESSAGE;
+  if (trimmed.length > GUEST_NAME_MAX) return GUEST_NAME_MAX_MESSAGE;
+  if (!GUEST_NAME_RE.test(trimmed)) return GUEST_NAME_FORMAT_MESSAGE;
   return null;
 }
 

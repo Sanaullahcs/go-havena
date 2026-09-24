@@ -6,12 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Community;
 use App\Models\CommunityMembership;
 use App\Models\User;
-use App\Models\User as UserModel;
 use App\Services\ActivityLogService;
 use App\Services\CommunityLifecycleService;
 use App\Services\ContactIdentityService;
 use App\Services\NotificationService;
 use App\Services\ReferralService;
+use App\Services\UtilityBillStorage;
 use App\Support\CommunityAdminRecordStatus;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
@@ -61,7 +61,7 @@ class AdminCommunityAdminController extends Controller
         ]);
     }
 
-    /** PATCH /v1/admin/community-admins/{id} */
+    /** PATCH or POST /v1/admin/community-admins/{id} */
     public function update(Request $request, int $id): JsonResponse
     {
         $user = User::query()
@@ -77,23 +77,29 @@ class AdminCommunityAdminController extends Controller
         CommunityAdminRecordStatus::assertCan($user, CommunityAdminRecordStatus::ACTION_EDIT);
 
         $request->validate([
-            'name' => 'sometimes|required|string|min:2|max:100',
+            'name' => 'sometimes|required|string|min:2|max:50',
             'phone' => 'sometimes|required|string|max:30',
             'email' => [
                 'sometimes',
-                'required',
-                'string',
-                'email',
-                'max:255',
-                function (string $attribute, mixed $value, \Closure $fail): void {
-                    if (UserModel::isPhonePlaceholderEmail(is_string($value) ? $value : null)) {
-                        $fail('Enter a personal email address.');
+                function (string $attribute, mixed $value, \Closure $fail) use ($user): void {
+                    $submitted = strtolower(trim(is_string($value) ? $value : ''));
+                    $current = strtolower(trim((string) $user->email));
+                    if ($submitted !== $current) {
+                        $fail('Email address cannot be changed from this form.');
                     }
                 },
             ],
             'display_name' => 'sometimes|nullable|string|max:50',
-            'unit_number' => 'sometimes|required|string|max:50',
+            'unit_number' => 'sometimes|required|string|max:20',
             'residence_type' => 'sometimes|required|string|in:homeowner,tenant',
+            'utility_bill' => 'sometimes|nullable|'.UtilityBillStorage::RULE,
+        ], [
+            'name.max' => 'Full name cannot exceed 50 characters.',
+            'display_name.max' => 'Full name cannot exceed 50 characters.',
+            'unit_number.max' => 'Unit / apartment cannot exceed 20 characters.',
+            'utility_bill.mimes' => 'Upload a JPG, PNG, HEIC, or PDF file.',
+            'utility_bill.file' => 'Upload a JPG, PNG, HEIC, or PDF file.',
+            'utility_bill.max' => 'File must be 10 MB or smaller.',
         ]);
 
         $user->loadMissing('profile');
@@ -104,6 +110,7 @@ class AdminCommunityAdminController extends Controller
             'display_name' => $user->profile?->display_name,
             'unit_number' => $user->profile?->unit_number,
             'residence_type' => $user->profile?->residence_type,
+            'utility_bill_url' => $user->profile?->utility_bill_url,
         ];
 
         if ($request->filled('name')) {
@@ -111,7 +118,7 @@ class AdminCommunityAdminController extends Controller
         }
 
         if ($request->has('phone')) {
-            $phone = PhoneNormalizer::normalize($request->phone);
+            $phone = PhoneNormalizer::accept($request->phone);
             if (! $phone) {
                 throw ValidationException::withMessages([
                     'phone' => ['Enter a valid phone number in international format (e.g. +2017777777).'],
@@ -120,12 +127,6 @@ class AdminCommunityAdminController extends Controller
 
             ContactIdentityService::assertAvailableForRegistration(null, $phone, $user->id, 'phone');
             $user->update(['phone' => $phone]);
-        }
-
-        if ($request->filled('email')) {
-            $email = strtolower(trim((string) $request->email));
-            ContactIdentityService::assertAvailableForRegistration($email, null, $user->id, 'email');
-            $user->update(['email' => $email]);
         }
 
         $profileData = [];
@@ -137,6 +138,9 @@ class AdminCommunityAdminController extends Controller
         }
         if ($request->has('residence_type')) {
             $profileData['residence_type'] = $request->input('residence_type');
+        }
+        if ($request->hasFile('utility_bill')) {
+            $profileData['utility_bill_url'] = app(UtilityBillStorage::class)->store($request->file('utility_bill'));
         }
 
         if ($profileData !== []) {
@@ -156,6 +160,7 @@ class AdminCommunityAdminController extends Controller
                 'display_name' => $fresh->profile?->display_name,
                 'unit_number' => $fresh->profile?->unit_number,
                 'residence_type' => $fresh->profile?->residence_type,
+                'utility_bill_url' => $fresh->profile?->utility_bill_url,
             ],
             [],
             $fresh->name,

@@ -1373,6 +1373,8 @@ body {
   gap: 0.25rem;
   min-height: 10.5rem;
   padding: 0.5rem 0.625rem 0.75rem;
+  overflow: visible;
+  max-height: none;
 }
 .nl-calendar-meta-cell {
   display: flex;
@@ -1785,6 +1787,14 @@ body {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+.nl-activity-wrap-expanded {
+  display: block;
+  max-height: none;
+  overflow: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 .nl-activity-wrap-toggle {
   display: inline;
   margin-left: 0.375rem;
@@ -2150,6 +2160,65 @@ body {
 }
 
 /* ─── nl-panel ─── */
+/* Members list selection — navy border, primary fill, white check. */
+input.nl-member-check {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex-shrink: 0;
+  border: 2px solid #1b4f8a !important;
+  border-radius: 4px;
+  background-color: #ffffff !important;
+  background-image: none !important;
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+  vertical-align: middle;
+  box-shadow: 0 0 0 1px rgba(27, 79, 138, 0.12);
+}
+input.nl-member-check::after {
+  content: "";
+  display: none;
+}
+input.nl-member-check:checked {
+  background-color: #1b4f8a !important;
+  border-color: #1b4f8a !important;
+}
+input.nl-member-check:checked::after {
+  display: block;
+  width: 4px;
+  height: 8px;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translate(-0.5px, -1px);
+}
+input.nl-member-check:indeterminate {
+  background-color: #ffffff !important;
+  border-color: #1b4f8a !important;
+}
+input.nl-member-check:indeterminate::after {
+  display: block;
+  width: 8px;
+  height: 2px;
+  border: 0;
+  border-radius: 1px;
+  background: #1b4f8a;
+  transform: none;
+}
+input.nl-member-check:disabled {
+  cursor: not-allowed;
+  background-color: #f4f8fd !important;
+  border-color: #1b4f8a !important;
+  opacity: 1;
+}
+input.nl-member-check:focus-visible {
+  outline: 2px solid #ccfbf1;
+  outline-offset: 2px;
+}
+
 .nl-panel {
   border-radius: var(--nl-radius-card);
   border: 1px solid var(--brand-border);
@@ -3433,8 +3502,12 @@ input[type="password"] {
 .nl-swal-textarea {
   display: block;
   width: 100%;
+  height: 6.5rem;
   min-height: 6.5rem;
-  resize: vertical;
+  max-height: 12rem;
+  resize: none;
+  overflow-x: hidden;
+  overflow-y: auto;
   border-radius: 0.625rem;
   border: 1px solid #cbd5e1;
   background: #fff;
@@ -3527,6 +3600,15 @@ input[type="password"] {
 }
 .nl-swal-delete-admin-unassigned {
   color: #64748b !important;
+}
+.nl-swal-delete-admin-email {
+  margin: -0.25rem 0 0 !important;
+  font-size: 0.875rem !important;
+  font-weight: 700 !important;
+  line-height: 1.4 !important;
+  color: #0f172a !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .nl-swal-delete-input {
   margin-top: 0.25rem !important;

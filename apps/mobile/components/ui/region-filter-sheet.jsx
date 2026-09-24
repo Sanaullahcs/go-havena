@@ -1,7 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,6 +30,52 @@ function matchesQuery(item, query) {
     .some((value) => String(value).toLowerCase().includes(q));
 }
 
+const SEARCH_FONT_SIZE = 13;
+const SEARCH_ROW_HEIGHT = 44;
+const LIST_MAX_HEIGHT = 220;
+const LIST_TARGET_HEIGHT = 168;
+const LIST_GAP = 12;
+
+/**
+ * No height and no lineHeight. iOS top-aligns and clips TextInput glyphs when
+ * lineHeight is set, and vertical padding shrinks the box those glyphs need.
+ * The 44px row centers this intrinsic line with the icon and clear button.
+ * Plain object so the text-metrics patch cannot inject lineHeight.
+ */
+const dropdownInputStyle = {
+  flex: 1,
+  alignSelf: "center",
+  margin: 0,
+  paddingHorizontal: 0,
+  paddingTop: 0,
+  paddingBottom: 0,
+  fontFamily: Fonts.regular,
+  fontSize: SEARCH_FONT_SIZE,
+  color: T.navy,
+  textAlignVertical: "center",
+  includeFontPadding: Platform.OS === "android",
+};
+
+function keyboardTopFromEvent(event) {
+  const { screenY, height } = event?.endCoordinates || {};
+  const windowHeight = Dimensions.get("window").height;
+  if (Number.isFinite(screenY) && screenY > 0) {
+    // Android resize already ends the window at the keyboard, so the
+    // visible bottom is the window itself.
+    if (screenY >= windowHeight - 1) return windowHeight;
+    return screenY;
+  }
+  if (Platform.OS === "android") return windowHeight;
+  if (Number.isFinite(height)) return windowHeight - height;
+  return null;
+}
+
+function currentKeyboardTop() {
+  const metrics = Keyboard.metrics?.();
+  if (!metrics) return null;
+  return keyboardTopFromEvent({ endCoordinates: metrics });
+}
+
 function SearchableField({
   label,
   placeholder,
@@ -38,10 +88,18 @@ function SearchableField({
   emptyText,
   allowCustom = false,
   onSelect,
+  scrollRef,
+  scrollOffsetRef,
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [listMaxHeight, setListMaxHeight] = useState(LIST_MAX_HEIGHT);
+  const fieldRef = useRef(null);
+  const searchRowRef = useRef(null);
+  const keyboardTopRef = useRef(null);
+  const fitTimerRef = useRef(null);
+  const fitRetryRef = useRef(null);
 
   const filtered = useMemo(
     () => options.filter((item) => item?.name && matchesQuery(item, query)),
@@ -56,10 +114,108 @@ function SearchableField({
   const close = () => {
     setQuery("");
     setOpen(false);
+    setListMaxHeight(LIST_MAX_HEIGHT);
   };
 
+  const setListHeight = useCallback((next) => {
+    const clamped = Math.min(LIST_MAX_HEIGHT, Math.max(0, Math.round(next)));
+    setListMaxHeight((current) => (Math.abs(current - clamped) < 4 ? current : clamped));
+  }, []);
+
+  const fitToKeyboard = useCallback((keyboardTop) => {
+    const row = searchRowRef.current;
+    if (!open || !row || !Number.isFinite(keyboardTop)) return;
+
+    row.measureInWindow((_x, rowY, _w, rowH) => {
+      if (!Number.isFinite(rowY)) return;
+      const searchBottom = rowY + rowH;
+      const scroll = scrollRef?.current;
+
+      const applyMeasured = () => {
+        row.measureInWindow((_x2, y2, _w2, h2) => {
+          if (!Number.isFinite(y2)) return;
+          setListHeight(keyboardTop - (y2 + h2) - LIST_GAP);
+        });
+      };
+
+      if (!scroll) {
+        setListHeight(keyboardTop - searchBottom - LIST_GAP);
+        return;
+      }
+
+      scroll.measureInWindow((_sx, viewY, _sw, viewH) => {
+        const visibleBottom = Math.min(keyboardTop, viewY + viewH);
+        const room = visibleBottom - searchBottom - LIST_GAP;
+        if (room >= LIST_TARGET_HEIGHT || !scrollOffsetRef) {
+          setListHeight(room);
+          return;
+        }
+
+        const deficit = LIST_TARGET_HEIGHT - Math.max(room, 0);
+        const maxLift = Math.max(0, rowY - (viewY + 8));
+        const lift = Math.min(deficit, maxLift);
+        if (lift > 4) {
+          const nextOffset = scrollOffsetRef.current + lift;
+          scrollOffsetRef.current = nextOffset;
+          scroll.scrollTo({ y: Math.max(0, nextOffset), animated: false });
+          requestAnimationFrame(applyMeasured);
+          return;
+        }
+
+        setListHeight(room);
+      });
+    });
+  }, [open, scrollOffsetRef, scrollRef, setListHeight]);
+
+  const scheduleFit = useCallback((keyboardTop) => {
+    if (!Number.isFinite(keyboardTop)) return;
+    keyboardTopRef.current = keyboardTop;
+    if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
+    if (fitRetryRef.current) clearTimeout(fitRetryRef.current);
+    // iOS adds scroll padding on keyboardWillShow; measure after that layout.
+    const delay = Platform.OS === "ios" ? 80 : 140;
+    fitTimerRef.current = setTimeout(() => fitToKeyboard(keyboardTop), delay);
+    fitRetryRef.current = setTimeout(() => fitToKeyboard(keyboardTop), delay + 220);
+  }, [fitToKeyboard]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const onShow = (event) => {
+      const top = keyboardTopFromEvent(event);
+      if (top != null) scheduleFit(top);
+    };
+    const onHide = () => {
+      keyboardTopRef.current = null;
+      if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
+      if (fitRetryRef.current) clearTimeout(fitRetryRef.current);
+      setListMaxHeight(LIST_MAX_HEIGHT);
+    };
+
+    const subs = [
+      Keyboard.addListener(showEvent, onShow),
+      Keyboard.addListener(hideEvent, onHide),
+    ];
+    if (Platform.OS === "ios") {
+      subs.push(Keyboard.addListener("keyboardDidShow", onShow));
+    } else {
+      subs.push(Keyboard.addListener("keyboardDidHide", onHide));
+    }
+
+    const alreadyOpen = currentKeyboardTop();
+    if (alreadyOpen != null) scheduleFit(alreadyOpen);
+
+    return () => {
+      if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
+      if (fitRetryRef.current) clearTimeout(fitRetryRef.current);
+      subs.forEach((sub) => sub.remove());
+    };
+  }, [open, scheduleFit]);
+
   return (
-    <View style={styles.field}>
+    <View ref={fieldRef} collapsable={false} style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TouchableOpacity
         style={[styles.fieldButton, disabled && styles.fieldButtonDisabled, open && styles.fieldButtonOpen]}
@@ -85,16 +241,23 @@ function SearchableField({
 
       {open && !disabled ? (
         <View style={styles.dropdown}>
-          <View style={styles.dropdownSearch}>
+          <View ref={searchRowRef} collapsable={false} style={styles.dropdownSearch}>
             <Ionicons name="search-outline" size={16} color={T.gray} />
             <LocaleTextInput
               value={query}
               onChangeText={setQuery}
               placeholder={searchPlaceholder}
               placeholderTextColor={T.gray}
-              style={styles.dropdownInput}
+              style={dropdownInputStyle}
+              allowFontScaling={false}
+              scrollEnabled={false}
+              underlineColorAndroid="transparent"
               autoCorrect={false}
               autoCapitalize="none"
+              onFocus={() => {
+                const top = currentKeyboardTop();
+                if (top != null) scheduleFit(top);
+              }}
             />
             {query.length > 0 ? (
               <Pressable onPress={() => setQuery("")} hitSlop={8}>
@@ -110,7 +273,7 @@ function SearchableField({
           ) : (
             <ScrollView
               keyboardShouldPersistTaps="handled"
-              style={styles.dropdownList}
+              style={[styles.dropdownList, { maxHeight: listMaxHeight }]}
               nestedScrollEnabled
             >
               {showCustom ? (
@@ -164,9 +327,15 @@ export default function RegionFilterSheet({
   city,
   onApply,
   onClose,
+  scrollRef,
+  scrollOffsetRef,
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const modalScrollRef = useRef(null);
+  const modalOffsetRef = useRef(0);
+  const activeScrollRef = scrollRef ?? modalScrollRef;
+  const activeOffsetRef = scrollOffsetRef ?? modalOffsetRef;
   const active = embedded || visible;
   const [draftCountry, setDraftCountry] = useState(country);
   const [draftState, setDraftState] = useState(state);
@@ -300,6 +469,8 @@ export default function RegionFilterSheet({
         loading={loadingCountries}
         emptyText={t("region.noCountriesMatch")}
         onSelect={handleCountrySelect}
+        scrollRef={activeScrollRef}
+        scrollOffsetRef={activeOffsetRef}
       />
       <SearchableField
         label={t("region.state")}
@@ -312,6 +483,8 @@ export default function RegionFilterSheet({
         disabledHint={t("region.pickCountryFirst")}
         emptyText={t("region.noStatesMatch")}
         onSelect={handleStateSelect}
+        scrollRef={activeScrollRef}
+        scrollOffsetRef={activeOffsetRef}
       />
       <SearchableField
         label={t("region.city")}
@@ -324,6 +497,8 @@ export default function RegionFilterSheet({
         disabledHint={t("region.pickStateFirst")}
         emptyText={t("region.noCitiesMatch")}
         allowCustom
+        scrollRef={activeScrollRef}
+        scrollOffsetRef={activeOffsetRef}
         onSelect={(next) => {
           setDraftCity(next);
           if (embedded) emit(draftCountry, draftState, next);
@@ -338,8 +513,22 @@ export default function RegionFilterSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
       <Pressable style={styles.overlay} onPress={onClose}>
         <Pressable style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]} onPress={(e) => e.stopPropagation()}>
+          <ScrollView
+            ref={modalScrollRef}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="none"
+            showsVerticalScrollIndicator={false}
+            onScroll={(event) => {
+              modalOffsetRef.current = event.nativeEvent.contentOffset.y;
+            }}
+            scrollEventThrottle={16}
+          >
           <View style={styles.handle} />
           <Text style={styles.title}>{t("region.filterRegions")}</Text>
           <Text style={styles.subtitle}>{t("region.filterHint")}</Text>
@@ -356,8 +545,10 @@ export default function RegionFilterSheet({
               <Text style={styles.applyText}>{t("region.applyFilter")}</Text>
             </TouchableOpacity>
           </View>
+          </ScrollView>
         </Pressable>
       </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -450,7 +641,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   dropdownSearch: {
-    height: 44,
+    height: SEARCH_ROW_HEIGHT,
     borderBottomWidth: 1,
     borderBottomColor: T.border,
     paddingHorizontal: 14,
@@ -458,14 +649,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  dropdownInput: {
-    flex: 1,
-    fontFamily: Fonts.regular,
-    fontSize: 13,
-    color: T.navy,
-  },
   dropdownList: {
-    maxHeight: 220,
+    flexGrow: 0,
   },
   dropdownState: {
     paddingVertical: 20,

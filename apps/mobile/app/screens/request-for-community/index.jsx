@@ -102,6 +102,16 @@ export default function RequestForCommunityScreen() {
   }, [loadRegions]);
 
   const selectedRegion = regions.find((r) => r.id === selectedRegionId);
+  const cityOptions = useMemo(
+    () => cities.map((item) => ({
+      id: item.id,
+      title: item.name,
+      area: selectedRegion?.stateName || "",
+      stateName: selectedRegion?.stateName || "",
+      countryName: selectedRegion?.countryName || "",
+    })),
+    [cities, selectedRegion?.stateName, selectedRegion?.countryName],
+  );
   const selectedRegionLabel =
     selectedRegion?.title ||
     (regionTitleParam ? String(regionTitleParam) : "");
@@ -418,15 +428,10 @@ export default function RequestForCommunityScreen() {
       />
       <RegionPicker
         visible={cityPickerVisible}
-        regions={cities.map((item) => ({
-          id: item.id,
-          title: item.name,
-          area: selectedRegion?.stateName || "",
-          stateName: selectedRegion?.stateName || "",
-          countryName: selectedRegion?.countryName || "",
-        }))}
+        regions={cityOptions}
         selectedId={selectedCity?.id}
         loading={false}
+        emptyText={t("region.noCitiesMatch")}
         onClose={() => setCityPickerVisible(false)}
         onSelect={(item) => {
           setSelectedCity({ id: item.id, name: item.title });

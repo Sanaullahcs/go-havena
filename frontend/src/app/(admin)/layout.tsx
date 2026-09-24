@@ -32,7 +32,7 @@ import {
   onboardingStepFromPath,
 } from "@/lib/admin/community-admin-onboarding";
 import { AdminOnboardingTopBar } from "@/components/admin/onboarding/onboarding-top-bar";
-import { confirmAdminSignOutAndRedirect } from "@/lib/auth/sign-out";
+import { COMPLETE_PROFILE_SIGN_OUT_MESSAGE, confirmAdminSignOutAndRedirect } from "@/lib/auth/sign-out";
 
 const PAGE_TITLES: Record<string, string> = {
   "/admin": "Dashboard",
@@ -295,7 +295,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             step={onboardingStep}
             wide
             onSignOut={() => {
-              void confirmAdminSignOutAndRedirect(router);
+              void confirmAdminSignOutAndRedirect(
+                router,
+                "/login",
+                pathname.startsWith("/admin/complete-profile")
+                  ? { text: COMPLETE_PROFILE_SIGN_OUT_MESSAGE }
+                  : undefined,
+              );
             }}
           />
           <main

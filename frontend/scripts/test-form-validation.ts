@@ -13,9 +13,15 @@ import { validateNoticeForm } from "../src/lib/admin/notice-form-validation";
 import { parseFlexibleTime } from "../src/lib/admin/notice-schedule-utils";
 import { validatePasswordForm, validateProfileForm } from "../src/lib/admin/profile-validation";
 import {
+  validateCommunityAdminEditForm,
   validateCommunityAdminForm,
   validateResidentForm,
 } from "../src/lib/admin/provision-user-validation";
+import {
+  COMMUNITY_ADMIN_NAME_MAX_MESSAGE,
+  COMMUNITY_ADMIN_UNIT_MAX_MESSAGE,
+  applyCharacterLimit,
+} from "../src/lib/admin/community-admin-field-limits";
 import {
   validateWellnessCategoryForm,
   validateWellnessCourseForm,
@@ -58,6 +64,9 @@ import {
   guestAccessLatestEndLocalValue,
   guestDurationFieldError,
   guestEmailFieldError,
+  GUEST_NAME_MAX_MESSAGE,
+  GUEST_NAME_MIN_MESSAGE,
+  GUEST_NAME_REQUIRED_MESSAGE,
   guestNameFieldError,
   isDuplicateGuestEmailError,
   guestPermissionsFieldError,
@@ -266,7 +275,12 @@ console.log("\nInvite member validation");
 
 console.log("\nGuest invite validation");
 {
-  assert(guestNameFieldError("") === null, "empty name has no live format error");
+  assert(guestNameFieldError("") === GUEST_NAME_REQUIRED_MESSAGE, "empty name is required");
+  assert(guestNameFieldError("   ") === GUEST_NAME_REQUIRED_MESSAGE, "blank name is required");
+  assert(guestNameFieldError("A") === GUEST_NAME_MIN_MESSAGE, "rejects a 1 character name");
+  assert(guestNameFieldError("Al") === null, "accepts a 2 character name");
+  assert(guestNameFieldError("A".repeat(25)) === null, "accepts a 25 character name");
+  assert(guestNameFieldError("A".repeat(26)) === GUEST_NAME_MAX_MESSAGE, "rejects a 26 character name");
   assert(guestNameFieldError("Alex Johnson") === null, "accepts letters and spaces");
   assert(guestNameFieldError("J. R. Ewing") === null, "accepts full stops");
   assert(guestNameFieldError("Alex2") === GUEST_NAME_FORMAT_MESSAGE, "rejects numbers in name");
@@ -302,6 +316,14 @@ console.log("\nGuest invite validation");
   assert(
     !canSubmitGuestInvite({ guest_name: "", guest_email: "a@b.com", ...window }, emptyPhone, now),
     "button blocked when name empty",
+  );
+  assert(
+    !canSubmitGuestInvite({ guest_name: "A", guest_email: "a@b.com", ...window }, emptyPhone, now),
+    "button blocked when name is shorter than 2 characters",
+  );
+  assert(
+    !canSubmitGuestInvite({ guest_name: "A".repeat(26), guest_email: "a@b.com", ...window }, emptyPhone, now),
+    "button blocked when name is longer than 25 characters",
   );
   assert(
     !canSubmitGuestInvite({ guest_name: "Alex2", guest_email: "a@b.com", ...window }, emptyPhone, now),
@@ -752,6 +774,17 @@ console.log("\nProfile validation");
 
   const ok = validateProfileForm("Admin User", emptyPhoneField(), "Community admin.");
   assertNoErrors(ok, "accepts valid profile without phone");
+
+  const communityAdminName = validateProfileForm("A".repeat(51), emptyPhoneField(), "", {
+    communityAdmin: true,
+  });
+  assertHasError(communityAdminName, "name", "community admin name max");
+  assert(communityAdminName.name === COMMUNITY_ADMIN_NAME_MAX_MESSAGE, "community admin name message");
+
+  const validCommunityAdminName = validateProfileForm("A".repeat(50), emptyPhoneField(), "", {
+    communityAdmin: true,
+  });
+  assertNoErrors(validCommunityAdminName, "accepts a 50 character community admin name");
 }
 
 console.log("\nPassword validation");
@@ -1080,6 +1113,66 @@ console.log("\nComplete profile form validation");
     guestMode: true,
   });
   assertNoErrors(guestOk, "guest can skip unit, residence, and utility bill");
+
+  const longCommunityAdmin = validateCompleteProfileForm({
+    name: "A".repeat(51),
+    email: "jane@example.com",
+    phoneDigits: "4155552671",
+    phoneCountry: "US",
+    bio: "",
+    unitNumber: "1".repeat(21),
+    residenceType: "homeowner",
+    utilityFile: null,
+    requireUtilityFile: false,
+    requireResidenceType: true,
+    communityAdmin: true,
+  });
+  assert(longCommunityAdmin.name === COMMUNITY_ADMIN_NAME_MAX_MESSAGE, "community admin profile name limit");
+  assert(longCommunityAdmin.unitNumber === COMMUNITY_ADMIN_UNIT_MAX_MESSAGE, "community admin profile unit limit");
+
+  const withinLimit = validateCompleteProfileForm({
+    name: "A".repeat(50),
+    email: "jane@example.com",
+    phoneDigits: "4155552671",
+    phoneCountry: "US",
+    bio: "",
+    unitNumber: "1".repeat(20),
+    residenceType: "homeowner",
+    utilityFile: null,
+    requireUtilityFile: false,
+    requireResidenceType: true,
+    communityAdmin: true,
+  });
+  assert(!withinLimit.name && !withinLimit.unitNumber, "community admin profile accepts the limits");
+
+  const residentUnit = validateCompleteProfileForm({
+    name: "Jane Doe",
+    email: "jane@example.com",
+    phoneDigits: "4155552671",
+    phoneCountry: "US",
+    bio: "",
+    unitNumber: "1".repeat(21),
+    residenceType: "homeowner",
+    utilityFile: null,
+    requireUtilityFile: false,
+    requireResidenceType: true,
+  });
+  assert(!residentUnit.unitNumber, "resident unit limit stays above 20 characters");
+}
+
+console.log("\nCommunity admin edit validation");
+{
+  const phone = { digits: "4155552671", country: "US", valid: true, e164: "+14155552671" };
+  const tooLong = validateCommunityAdminEditForm("A".repeat(51), phone, "1".repeat(21), "homeowner");
+  assert(tooLong.name === COMMUNITY_ADMIN_NAME_MAX_MESSAGE, "edit name limit");
+  assert(tooLong.unitNumber === COMMUNITY_ADMIN_UNIT_MAX_MESSAGE, "edit unit limit");
+
+  const atLimit = validateCommunityAdminEditForm("A".repeat(50), phone, "1".repeat(20), "homeowner");
+  assert(!atLimit.name && !atLimit.unitNumber, "edit accepts the limits");
+
+  assert(applyCharacterLimit("Hello", "Hello world pasted", 5) === "Hello", "paste does not grow past the limit");
+  assert(applyCharacterLimit("Hello", "Hel", 5) === "Hel", "shorter input is kept");
+  assert(applyCharacterLimit("Too long already", "Too long alread", 5) === "Too long alread", "over-limit values can be shortened");
 }
 
 console.log(`\nResults: ${passed} passed, ${failed} failed\n`);

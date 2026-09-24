@@ -478,6 +478,12 @@ class ActivityLogService
             return '(empty)';
         }
 
+        // Bio is shown with Show more / Show less in the activity UI.
+        // Truncating it here leaves nothing for that control to reveal.
+        if ($key === 'bio') {
+            return $string;
+        }
+
         if (in_array($key, ['menu_items', 'amenities', 'images', 'permissions'], true)) {
             $decoded = json_decode($string, true);
             if (is_array($decoded)) {

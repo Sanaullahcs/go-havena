@@ -1,3 +1,8 @@
+import {
+  COMMUNITY_ADMIN_NAME_MAX,
+  COMMUNITY_ADMIN_NAME_MAX_MESSAGE,
+  exceedsCharacterLimit,
+} from "@/lib/admin/community-admin-field-limits";
 import { getPhoneValidationError, type PhoneFieldState } from "@/lib/phone/format";
 import {
   type FieldErrors,
@@ -8,11 +13,21 @@ export function validateProfileForm(
   name: string,
   phone: PhoneFieldState,
   bio: string,
+  options?: { communityAdmin?: boolean },
 ): FieldErrors {
   const errors: FieldErrors = {};
 
-  const nameError = validateRequiredName(name, "Full name");
-  if (nameError) errors.name = nameError;
+  if (options?.communityAdmin) {
+    const value = name.trim();
+    if (!value) errors.name = "Full name is required.";
+    else if (value.length < 2) errors.name = "Full name must be at least 2 characters.";
+    else if (exceedsCharacterLimit(name, COMMUNITY_ADMIN_NAME_MAX)) {
+      errors.name = COMMUNITY_ADMIN_NAME_MAX_MESSAGE;
+    }
+  } else {
+    const nameError = validateRequiredName(name, "Full name");
+    if (nameError) errors.name = nameError;
+  }
 
   if (phone.digits.trim() && !phone.valid) {
     errors.phone = getPhoneValidationError(phone.digits, phone.country) ?? "Enter a valid phone number.";

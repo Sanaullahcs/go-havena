@@ -27,12 +27,17 @@ function ActivityWrappedValue({
 
   return (
     <span className={["nl-activity-wrap-text", className].filter(Boolean).join(" ")} style={style}>
-      {shown}
+      <span className={expanded ? "nl-activity-wrap-expanded" : undefined}>{shown}</span>
       {isLong ? (
         <button
           type="button"
           className="nl-activity-wrap-toggle"
-          onClick={() => setExpanded((open) => !open)}
+          aria-expanded={expanded}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setExpanded((open) => !open);
+          }}
         >
           {expanded ? "Show less" : "Show more"}
         </button>

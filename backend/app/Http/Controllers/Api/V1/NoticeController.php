@@ -604,6 +604,10 @@ class NoticeController extends Controller
 
         AdminRoleService::assertCanManageCommunity(auth()->user(), (int) $notice->community_id);
 
+        if (NoticeExpiry::isEventSchedulePast($notice)) {
+            return response()->json(['message' => 'Past events cannot be edited.'], 403);
+        }
+
         $validated = $request->validate([
             'title'          => 'sometimes|string|max:200',
             'category'       => 'sometimes|string',
@@ -1128,6 +1132,9 @@ class NoticeController extends Controller
             'event_date'       => $notice->event_date,
             'event_time'       => $notice->event_time,
             'event_time_end'   => $notice->event_time_end ?? null,
+            'schedule_timezone' => $notice->category === 'event'
+                ? NoticeExpiry::resolveTimezone((int) $notice->community_id)
+                : null,
             'status'           => $notice->status,
             'review_status'    => $notice->review_status ?? 'approved',
             'is_global'        => (bool) ($notice->is_global ?? false),

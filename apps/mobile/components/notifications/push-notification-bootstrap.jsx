@@ -12,7 +12,7 @@ import {
 } from "../../services/push-notifications";
 import { getToken } from "../../services/auth-session";
 import { fetchNotificationUnreadCount } from "../../services/notifications-api";
-import { emitNotificationBanner, emitNotificationRefresh } from "../../services/notification-events";
+import { emitMessageUnreadRefresh, emitNotificationBanner, emitNotificationRefresh } from "../../services/notification-events";
 import i18n from "../../i18n";
 
 async function refreshUnreadBadge() {
@@ -94,6 +94,9 @@ export default function PushNotificationBootstrap() {
 
         const { title, body, kind, type } = extractNotificationContent(content);
         const data = content?.data ?? {};
+        if (kind === "message" || kind === "new_message" || data.kind === "message" || data.conversation_id || data.conversationId) {
+          emitMessageUnreadRefresh();
+        }
         const tag = data.kind && data.post_id ? `${data.kind}-${data.post_id}` : data.kind || null;
         const actionUrl = data.action_url || data.actionUrl || null;
         emitNotificationBanner({

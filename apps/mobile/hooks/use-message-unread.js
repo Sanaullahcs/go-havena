@@ -1,6 +1,7 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import { fetchMessageUnreadCount } from "../services/messages-api";
+import { subscribeMessageUnreadRefresh } from "../services/notification-events";
 
 export function useMessageUnread({ refreshOnFocus = true } = {}) {
   const [unread, setUnread] = useState(0);
@@ -14,6 +15,10 @@ export function useMessageUnread({ refreshOnFocus = true } = {}) {
       return null;
     }
   }, []);
+
+  useEffect(() => subscribeMessageUnreadRefresh(() => {
+    refresh();
+  }), [refresh]);
 
   useFocusEffect(
     useCallback(() => {

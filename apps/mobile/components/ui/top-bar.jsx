@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: sw(6),
     minWidth: 0,
-    height: sw(36),
+    minHeight: sw(36),
     paddingEnd: sw(2),
   },
   locationText: {
@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   rangeChip: {
-    flexShrink: 0,
+    flexShrink: 1,
     paddingHorizontal: sw(8),
     paddingVertical: sw(3),
     borderRadius: 999,

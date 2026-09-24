@@ -5,10 +5,12 @@ import { getToken } from "../../services/auth-session";
 import { fetchNotifications } from "../../services/notifications-api";
 import { getPushNotificationsEnabled } from "../../services/notification-preferences";
 import {
+  emitMessageUnreadRefresh,
   emitNotificationBanner,
   emitNotificationRefresh,
 } from "../../services/notification-events";
 import { isRemotePushSupported, resolvePushNotificationRoute } from "../../services/push-notifications";
+import { isExpoGo } from "../../utils/expo-runtime";
 
 const POLL_MS = 20000;
 
@@ -21,7 +23,8 @@ export default function InAppNotificationMonitor() {
   const pollingRef = useRef(false);
 
   useEffect(() => {
-    if (isRemotePushSupported()) return undefined;
+    // Expo Go does not mount the push listener, including on iOS.
+    if (isRemotePushSupported() && !isExpoGo()) return undefined;
 
     let active = true;
     let intervalId = null;
@@ -52,6 +55,9 @@ export default function InAppNotificationMonitor() {
         if (latest.id === lastSeenId || latest.read) return;
 
         lastSeenIdRef.current = latest.id;
+        if (latest.kind === "message") {
+          emitMessageUnreadRefresh();
+        }
         const route = resolvePushNotificationRoute({
           actionUrl: latest.actionUrl,
           title: latest.title,

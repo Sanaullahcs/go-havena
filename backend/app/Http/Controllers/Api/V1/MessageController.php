@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class MessageController extends Controller
 {
@@ -229,16 +230,17 @@ class MessageController extends Controller
             NotificationService::send(
                 (int) $recipientId,
                 'info',
-                'New message',
-                $senderName.' sent you a message.',
+                'New message from '.$senderName,
+                $this->messagePreview($validated['body']),
                 $this->conversationActionUrl(
                     $id,
                     $conversation?->listing_id ? (int) $conversation->listing_id : null,
                     $senderName,
                 ),
                 [
-                    'kind'        => 'message',
-                    'actor_name'  => $senderName,
+                    'kind'            => 'message',
+                    'actor_name'      => $senderName,
+                    'conversation_id' => (int) $id,
                 ],
             );
         }
@@ -351,17 +353,17 @@ class MessageController extends Controller
         } elseif ($message !== '') {
             $createdMessage = $this->insertMessage($convId, $user->id, $message, 'text');
 
-            $about = $listing?->title ? ' about "'.$listing->title.'"' : '';
             $senderName = $this->senderDisplayName($user);
             NotificationService::send(
                 $recipientId,
                 'info',
-                'New message',
-                $senderName.' sent you a message'.$about.'.',
+                'New message from '.$senderName,
+                $this->messagePreview($message),
                 $this->conversationActionUrl($convId, $listingId, $senderName),
                 [
-                    'kind'       => 'message',
-                    'actor_name' => $senderName,
+                    'kind'            => 'message',
+                    'actor_name'      => $senderName,
+                    'conversation_id' => (int) $convId,
                 ],
             );
         }
@@ -640,6 +642,13 @@ class MessageController extends Controller
         }
 
         return $url;
+    }
+
+    private function messagePreview(string $body): string
+    {
+        $text = trim((string) preg_replace('/\s+/', ' ', $body));
+
+        return $text === '' ? 'New message' : Str::limit($text, 90, '…');
     }
 
     private function senderDisplayName(object $user): string

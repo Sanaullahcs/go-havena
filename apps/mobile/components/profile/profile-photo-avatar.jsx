@@ -10,6 +10,7 @@ export default function ProfilePhotoAvatar({
   avatarUrl,
   size = 44,
   uploading = false,
+  uploadFailed = false,
   showEditBadge = true,
   style,
 }) {
@@ -46,7 +47,7 @@ export default function ProfilePhotoAvatar({
         )}
       </View>
 
-      {showEditBadge ? (
+      {showEditBadge && !uploading ? (
         <View
           style={[
             styles.badge,
@@ -60,7 +61,7 @@ export default function ProfilePhotoAvatar({
           ]}
         >
           <Feather
-            name={hasPhoto ? "edit-2" : "camera"}
+            name={uploadFailed ? "refresh-cw" : hasPhoto ? "edit-2" : "camera"}
             size={Math.max(10, badgeSize * 0.55)}
             color="#FFFFFF"
           />
