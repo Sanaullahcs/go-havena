@@ -1,5 +1,5 @@
 import { ActivityIndicator, Linking, Switch, StyleSheet, Text, View, Pressable } from "react-native";
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import InternalPageShell from "../../../components/layout/internal-page-shell";
@@ -23,6 +23,12 @@ import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { usePushNotificationSettings } from "../../../hooks/use-push-notification-settings";
 import { useLanguage } from "../../../providers/language-provider";
 import { sw, sf } from "../../../utils/responsive";
+import {
+  clearDevInstalledVersionOverride,
+  getDevInstalledVersionOverride,
+  getRealInstalledAppVersion,
+  setDevInstalledVersionOverride,
+} from "../../../services/app-version";
 
 const LANGUAGE_OPTIONS = [
   { code: "en", flag: "🇺🇸", nativeName: "English" },
@@ -36,6 +42,8 @@ export default function ProfileSetting() {
   const { t } = useTranslation();
   const { language, changeLanguage } = useLanguage();
   const [langPickerOpen, setLangPickerOpen] = useState(false);
+  const appVersion = getRealInstalledAppVersion();
+  const [devOverride, setDevOverride] = useState(null);
   const {
     pushEnabled,
     emailEnabled,
@@ -46,6 +54,36 @@ export default function ProfileSetting() {
     setEmail,
     openSystemSettings,
   } = usePushNotificationSettings();
+
+  const refreshDevOverride = useCallback(async () => {
+    if (!__DEV__) return;
+    setDevOverride(await getDevInstalledVersionOverride());
+  }, []);
+
+  useEffect(() => {
+    void refreshDevOverride();
+  }, [refreshDevOverride]);
+
+  const applyDevVersionScenario = useCallback(
+    async (version) => {
+      if (!__DEV__) return;
+      if (version) {
+        await setDevInstalledVersionOverride(version);
+      } else {
+        await clearDevInstalledVersionOverride();
+      }
+      await refreshDevOverride();
+      await dialog.showDialog({
+        type: "info",
+        title: "Dev version override",
+        message: version
+          ? `Installed version simulated as ${version}. The update check re-runs immediately. Configure System Admin App Version settings for the scenario under test.`
+          : "Override cleared. Using the real installed version again.",
+        actions: [{ key: "ok", label: "OK", variant: "primary" }],
+      });
+    },
+    [dialog, refreshDevOverride],
+  );
 
   const handlePushToggle = async (nextValue) => {
     const result = await setPush(nextValue);
@@ -177,7 +215,7 @@ export default function ProfileSetting() {
     { id: 1, title: t("settings.helpCenter"), subTitle: t("settings.helpCenterSub"), icon: "help-circle", iconColor: "#1B4F8A", iconBg: "#D1FAF5", chevron: true, onPress: () => openLegalUrl(CONTACT_URL) },
     { id: 2, title: t("settings.privacyPolicy"), subTitle: t("settings.privacyPolicySub"), icon: "shield", iconColor: "#1B4F8A", iconBg: "#D1FAF5", chevron: true, onPress: () => openLegalUrl(PRIVACY_POLICY_URL) },
     { id: 3, title: t("settings.termsOfService"), subTitle: t("settings.termsOfServiceSub"), icon: "file-text", iconColor: "#1B4F8A", iconBg: "#D1FAF5", chevron: true, onPress: () => openLegalUrl(TERMS_OF_SERVICE_URL) },
-    { id: 4, title: t("settings.aboutHavena"), subTitle: t("common.version", { version: "1.0.0" }), icon: "info", iconColor: "#6B7280", iconBg: "#F3F4F6", chevron: true, onPress: () => dialog.showSuccess(t("settings.aboutHavena"), t("settings.aboutHavenaMsg", { email: SUPPORT_EMAIL })) },
+    { id: 4, title: t("settings.aboutHavena"), subTitle: t("common.version", { version: appVersion }), icon: "info", iconColor: "#6B7280", iconBg: "#F3F4F6", chevron: true, onPress: () => dialog.showSuccess(t("settings.aboutHavena"), t("settings.aboutHavenaMsg", { email: SUPPORT_EMAIL })) },
     { id: 5, title: t("settings.logOut"), subTitle: t("settings.logOutSub"), icon: "log-out", iconColor: "#DC2626", iconBg: "#FEF2F2", danger: true, onPress: handleLogout },
     { id: 6, title: t("settings.deleteAccount"), subTitle: t("settings.deleteAccountSub"), icon: "trash-2", iconColor: "#DC2626", iconBg: "#FEF2F2", danger: true, onPress: handleDeleteAccount },
   ];
@@ -312,7 +350,55 @@ export default function ProfileSetting() {
         ))}
       </MenuGroup>
 
-      <Text style={styles.footer}>{t("settings.footer", { version: "1.0.0" })}</Text>
+      {__DEV__ ? (
+        <MenuGroup label="Dev · App Update">
+          <ListRow
+            flat
+            title="Real installed version"
+            subtitle={appVersion}
+            icon="smartphone"
+            iconColor="#64748B"
+            iconBg="#F1F5F9"
+          />
+          <ListRow
+            flat
+            title="Active override"
+            subtitle={devOverride || "None (using real version)"}
+            icon="tool"
+            iconColor="#D97706"
+            iconBg="#FFFBEB"
+          />
+          <ListRow
+            flat
+            title="Simulate 1.0.1 (force / optional tests)"
+            subtitle="Then set System Admin min/latest as needed"
+            icon="alert-triangle"
+            iconColor="#DC2626"
+            iconBg="#FEF2F2"
+            onPress={() => void applyDevVersionScenario("1.0.1")}
+          />
+          <ListRow
+            flat
+            title="Simulate 1.0.2 (no popup baseline)"
+            subtitle="Matches current production baseline"
+            icon="check-circle"
+            iconColor="#059669"
+            iconBg="#ECFDF5"
+            onPress={() => void applyDevVersionScenario("1.0.2")}
+          />
+          <ListRow
+            flat
+            title="Clear version override"
+            subtitle="Restore real installed version"
+            icon="x-circle"
+            iconColor="#64748B"
+            iconBg="#F1F5F9"
+            onPress={() => void applyDevVersionScenario("")}
+          />
+        </MenuGroup>
+      ) : null}
+
+      <Text style={styles.footer}>{t("settings.footer", { version: appVersion })}</Text>
     </InternalPageShell>
   );
 }

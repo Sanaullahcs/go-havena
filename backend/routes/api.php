@@ -45,6 +45,7 @@ use App\Http\Controllers\Api\V1\SubscriptionPlanController;
 use App\Http\Controllers\Api\V1\SubscriptionCouponController;
 use App\Http\Controllers\Api\V1\ReferralController;
 use App\Http\Controllers\Api\V1\ReferralProgramController;
+use App\Http\Controllers\Api\V1\AppVersionController;
 use App\Http\Controllers\Api\V1\PlaidController;
 use App\Http\Controllers\Api\V1\PlaidPaymentController;
 use App\Http\Controllers\Api\V1\PlaidWebhookController;
@@ -66,6 +67,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/billing/stripe/webhook', StripeWebhookController::class);
     Route::post('/plaid/webhook', PlaidWebhookController::class);
     Route::get('/billing/plans', [SubscriptionPlanController::class, 'publicIndex']);
+    Route::get('/app/version-policy', [AppVersionController::class, 'policy']);
     Route::get('/public/invite-qr.png', [InviteQrImageController::class, 'show'])
         ->name('public.invite-qr');
     Route::get('/public/invite-qr', [InviteQrImageController::class, 'view'])
@@ -395,6 +397,9 @@ Route::prefix('v1')->group(function () {
                 Route::get('/referral-program/attributions', [ReferralProgramController::class, 'attributions']);
                 Route::post('/referral-program/attributions/{id}/review', [ReferralProgramController::class, 'review']);
                 Route::post('/referral-program/rewards/{id}/retry', [ReferralProgramController::class, 'retryReward']);
+                Route::get('/app-version/settings', [AppVersionController::class, 'settings']);
+                Route::put('/app-version/settings', [AppVersionController::class, 'updateSettings']);
+                Route::post('/app-version/send-update-notification', [AppVersionController::class, 'sendUpdateNotification']);
             });
 
             /* Community admin (+ system admin override) */

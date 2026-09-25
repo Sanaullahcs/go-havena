@@ -46,6 +46,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/billing-plans": "Billing & Plans",
   "/admin/billing-coupons": "Subscription Coupons",
   "/admin/referrals": "Referral Program",
+  "/admin/app-version": "App Version Management",
   "/admin/refer-and-earn": "Refer & Earn",
   "/admin/members": "Members",
   "/admin/billing": "Billing",
