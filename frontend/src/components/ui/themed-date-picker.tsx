@@ -165,12 +165,9 @@ type ThemedDatePickerProps = {
   icon?: ReactNode;
   className?: string;
   compact?: boolean;
-<<<<<<< HEAD
   mode?: DatePickerMode;
-=======
   min?: string;
   max?: string;
->>>>>>> b9baa2acea1d933e3b1ad9083f1c607a6d8f3c41
 };
 
 function initialPane(mode: DatePickerMode): CalendarPane {
@@ -190,12 +187,9 @@ export function ThemedDatePicker({
   icon,
   className = "",
   compact = false,
-<<<<<<< HEAD
   mode = "date",
-=======
   min,
   max,
->>>>>>> b9baa2acea1d933e3b1ad9083f1c607a6d8f3c41
 }: ThemedDatePickerProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -359,11 +353,7 @@ export function ThemedDatePicker({
                     type="button"
                     className="nl-calendar-nav"
                     aria-label={navBackLabel}
-<<<<<<< HEAD
-                    disabled={mode === "year"}
-=======
-                    disabled={!canStepBack}
->>>>>>> b9baa2acea1d933e3b1ad9083f1c607a6d8f3c41
+                    disabled={mode === "year" || !canStepBack}
                     onClick={() => stepView(-1)}
                   >
                     <ChevronLeft size={16} strokeWidth={2.5} />
@@ -385,11 +375,7 @@ export function ThemedDatePicker({
                     type="button"
                     className="nl-calendar-nav"
                     aria-label={navForwardLabel}
-<<<<<<< HEAD
-                    disabled={mode === "year"}
-=======
-                    disabled={!canStepForward}
->>>>>>> b9baa2acea1d933e3b1ad9083f1c607a6d8f3c41
+                    disabled={mode === "year" || !canStepForward}
                     onClick={() => stepView(1)}
                   >
                     <ChevronRight size={16} strokeWidth={2.5} />
@@ -519,7 +505,7 @@ export function ThemedDatePicker({
                   <button
                     type="button"
                     className="nl-calendar-foot-btn nl-calendar-foot-btn-primary"
-<<<<<<< HEAD
+                    disabled={!todayEnabled}
                     onClick={() => {
                       if (mode === "year") {
                         onChange(toIso(today.y, 0, 1));
@@ -533,10 +519,6 @@ export function ThemedDatePicker({
                       }
                       goToday();
                     }}
-=======
-                    disabled={!todayEnabled}
-                    onClick={goToday}
->>>>>>> b9baa2acea1d933e3b1ad9083f1c607a6d8f3c41
                   >
                     Today
                   </button>

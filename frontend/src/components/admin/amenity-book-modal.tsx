@@ -38,37 +38,13 @@ export function AmenityBookModal({
   const [slotsMessage, setSlotsMessage] = useState<string | null>(null);
   const [alreadyBooked, setAlreadyBooked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-<<<<<<< HEAD
-=======
-  const [payment, setPayment] = useState<BookingPaymentForm>({
-    file: null,
-    payment_date: todayIsoDate(),
-    payment_reference: "",
-    payment_note: "",
-    method: "proof",
-  });
-  const { showError, touch, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
-  const paymentErrors = useMemo(() => validatePaymentProofForm(payment), [payment]);
->>>>>>> b9baa2acea1d933e3b1ad9083f1c607a6d8f3c41
 
   useEffect(() => {
     if (!amenity) return;
     setDate(tomorrowIso());
     setSlot("");
     setGuests("1");
-<<<<<<< HEAD
   }, [amenity]);
-=======
-    setPayment({
-      file: null,
-      payment_date: todayIsoDate(),
-      payment_reference: "",
-      payment_note: "",
-      method: "proof",
-    });
-    resetTouched();
-  }, [amenity, resetTouched]);
->>>>>>> b9baa2acea1d933e3b1ad9083f1c607a6d8f3c41
 
   useEffect(() => {
     if (!amenity || amenity.status !== "bookable" || !date) {

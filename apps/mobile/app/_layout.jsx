@@ -256,6 +256,13 @@ export default function RootLayout() {
           options={{ headerShown: false, contentStyle: styles.screen }}
         />
         <Stack.Screen
+          name="screens/resident-features/index"
+          options={{
+            headerShown: false,
+            contentStyle: { flex: 1, backgroundColor: "#F4FBFD" },
+          }}
+        />
+        <Stack.Screen
           name="screens/complete-profile/index"
           options={{
             headerShown: false,

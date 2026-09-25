@@ -186,16 +186,12 @@ export default function PropertyPage() {
       return;
     }
 
-<<<<<<< HEAD
     const fee = amenity.shared_billing_enabled ? 0 : bookingFeeAmount(amenity.booking_fee);
-=======
-    const fee = bookingFeeAmount(amenity.booking_fee);
     const payWithBank = fee > 0 && payment.method === "bank_ach" && Boolean(achCapability?.can_pay_with_bank);
     if (fee > 0 && !payWithBank && !validateOnSubmit(paymentErrors)) {
       toastError(paymentErrors.file || paymentErrors.payment_date || "Add payment proof to continue.");
       return;
     }
->>>>>>> b9baa2acea1d933e3b1ad9083f1c607a6d8f3c41
     const slotLabel =
       amenity.status === "bookable" ? bookForm.slot : "Open access request";
     const r = await confirmAction({
@@ -219,8 +215,6 @@ export default function PropertyPage() {
         date: bookForm.date,
         ...(amenity.status === "bookable" ? { time_slot: bookForm.slot } : {}),
         guests: guestCount,
-<<<<<<< HEAD
-=======
         ...(fee > 0
           ? payWithBank
             ? { payment_method: "bank_ach" as const }
@@ -232,7 +226,6 @@ export default function PropertyPage() {
                 payment_note: payment.payment_note.trim() || undefined,
               }
           : {}),
->>>>>>> b9baa2acea1d933e3b1ad9083f1c607a6d8f3c41
       });
       setBookModal(null);
       toastSuccess(`Request submitted for ${amenity.name}.`);

@@ -6,6 +6,8 @@
 import {
   COMMUNITY_ADMIN_NAME_MAX,
   COMMUNITY_ADMIN_NAME_MAX_MESSAGE,
+  COMMUNITY_ADMIN_OFFICE_MAX,
+  COMMUNITY_ADMIN_OFFICE_MAX_MESSAGE,
   COMMUNITY_ADMIN_UNIT_MAX,
   COMMUNITY_ADMIN_UNIT_MAX_MESSAGE,
   exceedsCharacterLimit,
@@ -106,9 +108,12 @@ export function validateCompleteProfileForm(input: {
   bio: string;
   unitNumber: string;
   residenceType: string;
+  officeAddress?: string;
   utilityFile: UtilityFileInput;
   requireUtilityFile?: boolean;
   requireResidenceType?: boolean;
+  requireUnitNumber?: boolean;
+  requireOfficeAddress?: boolean;
   guestMode?: boolean;
   communityAdmin?: boolean;
 }): FieldErrors {
@@ -121,12 +126,17 @@ export function validateCompleteProfileForm(input: {
     bio,
     unitNumber,
     residenceType,
+    officeAddress = "",
     utilityFile,
     requireUtilityFile = true,
     requireResidenceType = true,
+    requireUnitNumber,
+    requireOfficeAddress,
     guestMode = false,
     communityAdmin = false,
   } = input;
+  const unitIsRequired = requireUnitNumber ?? (!guestMode && !communityAdmin);
+  const officeIsRequired = requireOfficeAddress ?? communityAdmin;
 
   const nameMax = communityAdmin ? COMMUNITY_ADMIN_NAME_MAX : COMPLETE_PROFILE_LIMITS.profileName;
   const unitMax = communityAdmin ? COMMUNITY_ADMIN_UNIT_MAX : COMPLETE_PROFILE_LIMITS.profileUnit;
@@ -161,13 +171,25 @@ export function validateCompleteProfileForm(input: {
   if (guestMode) {
     const unitText = String(unitNumber ?? "").trim();
     if (unitNumber.length > unitMax || unitText.length > unitMax) {
-      errors.unitNumber = communityAdmin
-        ? COMMUNITY_ADMIN_UNIT_MAX_MESSAGE
-        : `Unit number must be ${unitMax} characters or less.`;
+      errors.unitNumber = `Unit number must be ${unitMax} characters or less.`;
     }
     return errors;
   }
 
+  if (officeIsRequired) {
+    const officeErr = requiredText(officeAddress, "Office address", {
+      max: COMMUNITY_ADMIN_OFFICE_MAX,
+    });
+    if (officeErr) {
+      errors.officeAddress = exceedsCharacterLimit(officeAddress, COMMUNITY_ADMIN_OFFICE_MAX)
+        ? COMMUNITY_ADMIN_OFFICE_MAX_MESSAGE
+        : officeErr;
+    }
+  } else if (String(officeAddress ?? "").trim().length > COMMUNITY_ADMIN_OFFICE_MAX) {
+    errors.officeAddress = COMMUNITY_ADMIN_OFFICE_MAX_MESSAGE;
+  }
+
+  if (unitIsRequired) {
   const unitErr = requiredText(unitNumber, "Unit number", {
     max: unitMax,
   });
@@ -177,8 +199,9 @@ export function validateCompleteProfileForm(input: {
         ? COMMUNITY_ADMIN_UNIT_MAX_MESSAGE
         : unitErr;
   }
+  }
 
-  if (requireResidenceType) {
+  if (requireResidenceType && !communityAdmin) {
     if (!residenceType) {
       errors.residenceType = "Residence type is required.";
     } else if (!["homeowner", "tenant"].includes(residenceType)) {

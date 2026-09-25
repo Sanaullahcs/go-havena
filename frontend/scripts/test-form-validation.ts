@@ -19,6 +19,7 @@ import {
 } from "../src/lib/admin/provision-user-validation";
 import {
   COMMUNITY_ADMIN_NAME_MAX_MESSAGE,
+  COMMUNITY_ADMIN_OFFICE_MAX_MESSAGE,
   COMMUNITY_ADMIN_UNIT_MAX_MESSAGE,
   applyCharacterLimit,
 } from "../src/lib/admin/community-admin-field-limits";
@@ -951,10 +952,12 @@ console.log("\nComplete profile field visibility (mobile parity)");
     },
     role: "admin",
   });
-  assert(systemCreatedAdmin.showResidenceType, "system-created CA shows residence type");
+  assert(!systemCreatedAdmin.showResidenceType, "system-created CA hides residence type");
+  assert(!systemCreatedAdmin.showUnitNumber, "system-created CA hides unit number");
+  assert(systemCreatedAdmin.showOfficeAddress, "system-created CA shows office address");
   assert(systemCreatedAdmin.showUtilityBill, "system-created CA shows utility bill");
   assert(!systemCreatedAdmin.showFamilyNumberField, "system-created CA hides family number");
-  assert(systemCreatedAdmin.unitRequired, "system-created CA requires unit");
+  assert(!systemCreatedAdmin.unitRequired, "system-created CA does not require unit");
   assert(!systemCreatedAdmin.skipUtilityBill, "system-created CA does not skip utility bill");
 
   const selfServeAdmin = getCompleteProfileFieldVisibility({
@@ -965,7 +968,9 @@ console.log("\nComplete profile field visibility (mobile parity)");
     },
     role: "admin",
   });
-  assert(selfServeAdmin.showResidenceType, "self-serve CA shows residence type");
+  assert(!selfServeAdmin.showResidenceType, "self-serve CA hides residence type");
+  assert(!selfServeAdmin.showUnitNumber, "self-serve CA hides unit number");
+  assert(selfServeAdmin.showOfficeAddress, "self-serve CA shows office address");
   assert(selfServeAdmin.showUtilityBill, "self-serve CA shows utility bill");
   assert(!selfServeAdmin.showFamilyNumberField, "self-serve CA hides family number");
   assert(!selfServeAdmin.skipUtilityBill, "self-serve CA does not skip utility bill");
@@ -979,7 +984,8 @@ console.log("\nComplete profile field visibility (mobile parity)");
     role: "admin",
   });
   assert(invitedAdmin.showUtilityBill, "invited CA shows utility bill");
-  assert(invitedAdmin.showResidenceType, "invited CA still shows residence type");
+  assert(!invitedAdmin.showResidenceType, "invited CA hides residence type");
+  assert(invitedAdmin.showOfficeAddress, "invited CA shows office address");
   assert(!invitedAdmin.showFamilyNumberField, "invited CA hides family number");
 
   const invitedQuery = getCompleteProfileFieldVisibility({
@@ -998,6 +1004,8 @@ console.log("\nComplete profile field visibility (mobile parity)");
   });
   assert(residentJoin.showFamilyNumberField, "resident join shows family number");
   assert(residentJoin.showResidenceType, "resident join shows residence type");
+  assert(residentJoin.showUnitNumber, "resident join shows unit number");
+  assert(!residentJoin.showOfficeAddress, "resident join hides office address");
   assert(residentJoin.showUtilityBill, "resident join shows utility bill");
 
   const invitedResident = getCompleteProfileFieldVisibility({
@@ -1120,15 +1128,18 @@ console.log("\nComplete profile form validation");
     phoneDigits: "4155552671",
     phoneCountry: "US",
     bio: "",
-    unitNumber: "1".repeat(21),
-    residenceType: "homeowner",
+    unitNumber: "",
+    residenceType: "",
+    officeAddress: "1".repeat(256),
     utilityFile: null,
     requireUtilityFile: false,
-    requireResidenceType: true,
+    requireResidenceType: false,
     communityAdmin: true,
   });
   assert(longCommunityAdmin.name === COMMUNITY_ADMIN_NAME_MAX_MESSAGE, "community admin profile name limit");
-  assert(longCommunityAdmin.unitNumber === COMMUNITY_ADMIN_UNIT_MAX_MESSAGE, "community admin profile unit limit");
+  assert(longCommunityAdmin.officeAddress === COMMUNITY_ADMIN_OFFICE_MAX_MESSAGE, "community admin office address limit");
+  assert(!longCommunityAdmin.unitNumber, "community admin does not require unit number");
+  assert(!longCommunityAdmin.residenceType, "community admin does not require residence type");
 
   const withinLimit = validateCompleteProfileForm({
     name: "A".repeat(50),
@@ -1136,14 +1147,15 @@ console.log("\nComplete profile form validation");
     phoneDigits: "4155552671",
     phoneCountry: "US",
     bio: "",
-    unitNumber: "1".repeat(20),
-    residenceType: "homeowner",
+    unitNumber: "",
+    residenceType: "",
+    officeAddress: "100 Management Office, Oak Valley",
     utilityFile: null,
     requireUtilityFile: false,
-    requireResidenceType: true,
+    requireResidenceType: false,
     communityAdmin: true,
   });
-  assert(!withinLimit.name && !withinLimit.unitNumber, "community admin profile accepts the limits");
+  assert(!withinLimit.name && !withinLimit.officeAddress, "community admin profile accepts the limits");
 
   const residentUnit = validateCompleteProfileForm({
     name: "Jane Doe",

@@ -283,6 +283,36 @@ console.log("\nComplete profile validation");
     utilityFile: { uri: "file://bill.pdf" },
   });
   assertNoErrors(ok, "valid profile");
+
+  const adminMissingOffice = validateCompleteProfileForm({
+    name: "Jane Doe",
+    email: "jane@example.com",
+    phoneDigits: "5551234567",
+    phoneCountry: "US",
+    unitNumber: "",
+    residenceType: "",
+    officeAddress: "",
+    utilityFile: { uri: "file://bill.pdf" },
+    communityAdmin: true,
+    requireResidenceType: false,
+  });
+  assertHasError(adminMissingOffice, "officeAddress", "community admin office required");
+  assert(!adminMissingOffice.unitNumber, "community admin does not require unit");
+  assert(!adminMissingOffice.residenceType, "community admin does not require residence");
+
+  const adminOk = validateCompleteProfileForm({
+    name: "Jane Doe",
+    email: "jane@example.com",
+    phoneDigits: "5551234567",
+    phoneCountry: "US",
+    unitNumber: "",
+    residenceType: "",
+    officeAddress: "100 Management Office",
+    utilityFile: { uri: "file://bill.pdf" },
+    communityAdmin: true,
+    requireResidenceType: false,
+  });
+  assertNoErrors(adminOk, "valid community admin profile");
 }
 
 console.log("\nFeed post & comment validation");

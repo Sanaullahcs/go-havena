@@ -238,32 +238,17 @@ Route::prefix('v1')->group(function () {
         });
 
         /* ── Amenities & Bookings ── */
-<<<<<<< HEAD
-        Route::get('/amenities',                        [AmenityController::class, 'index']);
-        Route::post('/amenities',                       [AmenityController::class, 'create']);
-        Route::get('/amenities/{id}/slots',             [AmenityController::class, 'slots']);
-        Route::get('/amenities/{id}/bills',             [AmenitySharedBillController::class, 'residentIndex']);
-        Route::get('/amenity-bills',                    [AmenitySharedBillController::class, 'myIndex']);
-        Route::get('/amenity-owner-bills',              [AmenitySharedBillController::class, 'ownerIndex']);
-        Route::post('/amenities/{id}/bills/{residentBillId}/proof', [AmenitySharedBillController::class, 'residentSubmitProof']);
-        Route::patch('/amenities/{id}/resident-bills/{residentBillId}/approve', [AmenitySharedBillController::class, 'ownerApprove']);
-        Route::patch('/amenities/{id}/resident-bills/{residentBillId}/reject', [AmenitySharedBillController::class, 'ownerReject']);
-        Route::get('/bookings',                         [AmenityController::class, 'myBookings']);
-        Route::get('/bookings/inbox',                   [AmenityController::class, 'bookingInbox']);
-        Route::post('/bookings',                        [AmenityController::class, 'book']);
-        Route::delete('/bookings/{id}',                 [AmenityController::class, 'cancelBooking']);
-        // Hosting may block HTTP DELETE; POST keeps cancel available.
-        Route::post('/bookings/{id}/cancel',            [AmenityController::class, 'cancelBooking']);
-        Route::patch('/bookings/{id}/approve',          [AmenityController::class, 'approveBooking']);
-        Route::patch('/bookings/{id}/reject',           [AmenityController::class, 'rejectBooking']);
-=======
         Route::middleware('resident.feature:amenities')->group(function () {
             Route::get('/amenities',                        [AmenityController::class, 'index']);
             Route::post('/amenities',                       [AmenityController::class, 'create']);
             Route::get('/amenities/{id}/slots',             [AmenityController::class, 'slots']);
             Route::get('/amenities/{id}/bills',             [AmenitySharedBillController::class, 'residentIndex']);
+            Route::get('/amenity-bills',                    [AmenitySharedBillController::class, 'myIndex']);
+            Route::get('/amenity-owner-bills',              [AmenitySharedBillController::class, 'ownerIndex']);
             Route::post('/amenities/{id}/bills/{residentBillId}/proof', [AmenitySharedBillController::class, 'residentSubmitProof']);
             Route::post('/amenities/{id}/bills/{residentBillId}/pay-bank', [AmenitySharedBillController::class, 'residentPayBank']);
+            Route::patch('/amenities/{id}/resident-bills/{residentBillId}/approve', [AmenitySharedBillController::class, 'ownerApprove']);
+            Route::patch('/amenities/{id}/resident-bills/{residentBillId}/reject', [AmenitySharedBillController::class, 'ownerReject']);
         });
         Route::middleware('resident.feature:bookings')->group(function () {
             Route::get('/bookings',                         [AmenityController::class, 'myBookings']);
@@ -275,7 +260,6 @@ Route::prefix('v1')->group(function () {
             Route::patch('/bookings/{id}/approve',          [AmenityController::class, 'approveBooking']);
             Route::patch('/bookings/{id}/reject',           [AmenityController::class, 'rejectBooking']);
         });
->>>>>>> b9baa2acea1d933e3b1ad9083f1c607a6d8f3c41
 
         /* ── Wellness ── */
         Route::middleware('resident.feature:wellness')->group(function () {

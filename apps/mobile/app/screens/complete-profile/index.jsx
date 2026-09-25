@@ -117,6 +117,7 @@ export default function CompleteProfile() {
   const [phoneCountry, setPhoneCountry] = useState(DEFAULT_PHONE_COUNTRY);
   const [bio, setBio] = useState("");
   const [unitNumber, setUnitNumber] = useState("");
+  const [officeAddress, setOfficeAddress] = useState("");
   const [existingUnits, setExistingUnits] = useState([]);
   const [familyNumber, setFamilyNumber] = useState("");
   const [familyNumberError, setFamilyNumberError] = useState(null);
@@ -163,6 +164,7 @@ export default function CompleteProfile() {
     profileUser?.role === "admin";
   const nameMax = LIMITS.profileName;
   const unitMax = isCommunityAdminProfile ? LIMITS.communityAdminUnit : LIMITS.profileUnit;
+  const officeMax = LIMITS.officeAddress;
 
   // Non-edit onboarding: never `router.back()` / splash — auth redirect would loop here again.
   const leaveOnboardingOnBack = !isEditMode;
@@ -198,10 +200,11 @@ export default function CompleteProfile() {
     isAdminClaim,
   });
   const showFamilyNumberField = role !== "admin" && !isCommunityRequest;
-  // Homeowner/Tenant for everyone except guests (incl. system-created community admins).
-  const showResidenceType = !isGuestProfile;
+  const showResidenceType = !isGuestProfile && !isCommunityAdminProfile;
+  const showUnitNumber = !isCommunityAdminProfile;
+  const showOfficeAddress = isCommunityAdminProfile;
   // Utility bill is required for residents and community admins on every entry path.
-  const showUtilityBill = showResidenceType && !skipUtilityBill;
+  const showUtilityBill = (showResidenceType || showOfficeAddress) && !skipUtilityBill;
 
   const scrollRef = useRef(null);
   const contentRef = useRef(null);
@@ -459,7 +462,8 @@ export default function CompleteProfile() {
         }
         setBio(fields.bio ?? "");
         setUnitNumber(isPlaceholderUnitNumber(fields.unitNumber) ? "" : (fields.unitNumber ?? ""));
-        if (communityId) {
+        setOfficeAddress(fields.officeAddress ?? user.profile?.office_address ?? "");
+        if (communityId && !isCommunityAdminProfile) {
           fetchCommunityUnits(Number(communityId))
             .then((rows) => { if (!cancelled) setExistingUnits(Array.isArray(rows) ? rows : []); })
             .catch(() => { if (!cancelled) setExistingUnits([]); });
@@ -497,13 +501,16 @@ export default function CompleteProfile() {
         bio,
         unitNumber,
         residenceType,
+        officeAddress,
         utilityFile: selectedFile ?? (existingUtilityBillUrl ? { uri: existingUtilityBillUrl } : null),
         requireUtilityFile: showUtilityBill && !existingUtilityBillUrl,
         requireResidenceType: showResidenceType,
+        requireUnitNumber: showUnitNumber,
+        requireOfficeAddress: showOfficeAddress,
         guestMode: isGuestProfile,
         communityAdmin: isCommunityAdminProfile,
       }),
-    [name, email, phoneDigits, phoneCountry, bio, unitNumber, residenceType, selectedFile, existingUtilityBillUrl, isGuestProfile, showUtilityBill, showResidenceType, isCommunityAdminProfile],
+    [name, email, phoneDigits, phoneCountry, bio, unitNumber, residenceType, officeAddress, selectedFile, existingUtilityBillUrl, isGuestProfile, showUtilityBill, showResidenceType, showUnitNumber, showOfficeAddress, isCommunityAdminProfile],
   );
 
   const isValid = useMemo(() => {
@@ -573,7 +580,9 @@ export default function CompleteProfile() {
           email: email.trim().toLowerCase(),
           phone: toE164(phoneDigits, phoneCountry),
           bio: bio.trim(),
-          unit_number: unitNumber.trim(),
+          ...(showOfficeAddress
+            ? { office_address: officeAddress.trim() }
+            : { unit_number: unitNumber.trim() }),
           ...(showResidenceType
             ? {
                 residence_type: residenceType,
@@ -995,6 +1004,38 @@ export default function CompleteProfile() {
               {showError("bio", liveErrors) ? <Text style={styles.errorText}>{showError("bio", liveErrors)}</Text> : null}
             </View>
 
+            {showOfficeAddress ? (
+            <View ref={unitFieldRef} collapsable={false} style={styles.fieldGroup}>
+              <Text style={styles.inputText}>
+                {t("onboarding.officeAddress")}
+                <Text style={styles.requiredMark}> *</Text>
+              </Text>
+              <View style={[styles.inputBox, showError("officeAddress", liveErrors) && styles.inputError]}>
+                <LocaleTextInput
+                  style={fieldTextStyle}
+                  placeholder={t("onboarding.officeAddressPlaceholder")}
+                  placeholderTextColor={PLACEHOLDER_COLOR}
+                  value={officeAddress}
+                  onChangeText={(text) => {
+                    setOfficeAddress(applyCharacterLimit(officeAddress, text, officeMax));
+                    clearError("officeAddress");
+                  }}
+                  onBlur={() => touch("officeAddress")}
+                  onFocus={() => handleFieldFocus(unitFieldRef)}
+                  maxLength={officeAddress.length > officeMax ? undefined : officeMax}
+                  underlineColorAndroid="transparent"
+                  textAlignVertical="center"
+                />
+              </View>
+              <Text style={[styles.helperText, officeAddress.length > officeMax && styles.errorText]}>
+                {officeAddress.length} / {officeMax}
+              </Text>
+              <Text style={styles.helperText}>{t("onboarding.officeAddressHint")}</Text>
+              {showError("officeAddress", liveErrors) ? <Text style={styles.errorText}>{showError("officeAddress", liveErrors)}</Text> : null}
+            </View>
+            ) : null}
+
+            {showUnitNumber ? (
             <View ref={unitFieldRef} collapsable={false} style={styles.fieldGroup}>
               <Text style={styles.inputText}>
                 {t("onboarding.unitNumber")}
@@ -1017,11 +1058,6 @@ export default function CompleteProfile() {
                   textAlignVertical="center"
                 />
               </View>
-              {isCommunityAdminProfile ? (
-                <Text style={[styles.helperText, unitNumber.length > unitMax && styles.errorText]}>
-                  {unitNumber.length} / {unitMax}
-                </Text>
-              ) : null}
               {showError("unitNumber", liveErrors) ? <Text style={styles.errorText}>{showError("unitNumber", liveErrors)}</Text> : null}
               {existingUnits.length > 0 ? (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
@@ -1053,6 +1089,7 @@ export default function CompleteProfile() {
                 First resident on a new unit becomes the billing contact. Joining an existing unit does not change the contact.
               </Text>
             </View>
+            ) : null}
 
             {showFamilyNumberField && !isGuestProfile ? (
               <View style={styles.fieldGroup}>

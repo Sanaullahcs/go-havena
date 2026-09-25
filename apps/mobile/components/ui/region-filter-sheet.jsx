@@ -5,6 +5,7 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Modal,
+  FlatList,
   Platform,
   Pressable,
   ScrollView,
@@ -19,7 +20,7 @@ import { useTranslation } from "react-i18next";
 import LocaleTextInput from "./locale-text-input";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
-import { fetchCountries, fetchCountryStates, fetchStateCities } from "../../services/geography-api";
+import { fetchCountryStates, fetchStateCities, getCachedCountries, prefetchCountries } from "../../services/geography-api";
 import { getApiErrorMessage } from "../../utils/auth-errors";
 
 function matchesQuery(item, query) {
@@ -115,6 +116,11 @@ function SearchableField({
     setQuery("");
     setOpen(false);
     setListMaxHeight(LIST_MAX_HEIGHT);
+  };
+
+  const toggleOpen = () => {
+    if (disabled) return;
+    setOpen((prev) => !prev);
   };
 
   const setListHeight = useCallback((next) => {
@@ -217,27 +223,40 @@ function SearchableField({
   return (
     <View ref={fieldRef} collapsable={false} style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <TouchableOpacity
+      <View
         style={[styles.fieldButton, disabled && styles.fieldButtonDisabled, open && styles.fieldButtonOpen]}
-        activeOpacity={disabled ? 1 : 0.85}
-        disabled={disabled}
-        onPress={() => setOpen((prev) => !prev)}
       >
-        <Text style={[styles.fieldValue, !value && styles.fieldPlaceholder]} numberOfLines={1}>
-          {value?.name || (disabled ? disabledHint : placeholder)}
-        </Text>
+        <Pressable
+          style={styles.fieldButtonHit}
+          disabled={disabled}
+          onPressIn={toggleOpen}
+          android_ripple={disabled ? null : { color: "rgba(15, 23, 42, 0.06)" }}
+          accessibilityRole="button"
+          accessibilityState={{ disabled, expanded: open }}
+        >
+          <Text
+            style={[styles.fieldValue, !value && styles.fieldPlaceholder]}
+            numberOfLines={1}
+            allowFontScaling={false}
+          >
+            {value?.name || (disabled ? disabledHint : placeholder)}
+          </Text>
+        </Pressable>
         {value && !disabled ? (
           <Pressable
             hitSlop={8}
-            onPress={() => onSelect(null)}
+            onPressIn={() => onSelect(null)}
             accessibilityLabel={t("region.clearFilter")}
+            style={styles.fieldTrailing}
           >
             <Ionicons name="close-circle" size={18} color={T.gray} />
           </Pressable>
         ) : (
-          <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={T.gray} />
+          <Pressable disabled={disabled} onPressIn={toggleOpen} hitSlop={8} style={styles.fieldTrailing}>
+            <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={T.gray} />
+          </Pressable>
         )}
-      </TouchableOpacity>
+      </View>
 
       {open && !disabled ? (
         <View style={styles.dropdown}>
@@ -266,35 +285,46 @@ function SearchableField({
             ) : null}
           </View>
 
-          {loading ? (
+          {loading && filtered.length === 0 ? (
             <View style={styles.dropdownState}>
               <ActivityIndicator size="small" color={T.navy} />
             </View>
           ) : (
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
+            <FlatList
+              data={filtered}
+              keyboardShouldPersistTaps="always"
               style={[styles.dropdownList, { maxHeight: listMaxHeight }]}
               nestedScrollEnabled
-            >
-              {showCustom ? (
-                <TouchableOpacity
-                  style={styles.option}
-                  activeOpacity={0.85}
-                  onPress={() => {
-                    onSelect({ id: `custom:${customName}`, name: customName });
-                    close();
-                  }}
-                >
-                  <Text style={styles.optionText}>{t("region.useTypedCity", { city: customName })}</Text>
-                </TouchableOpacity>
-              ) : null}
-              {filtered.map((item, index) => {
+              initialNumToRender={14}
+              maxToRenderPerBatch={14}
+              windowSize={6}
+              removeClippedSubviews={Platform.OS === "android"}
+              keyExtractor={(item, index) => `${item.id ?? item.name}-${index}`}
+              ListHeaderComponent={
+                showCustom ? (
+                  <TouchableOpacity
+                    style={styles.option}
+                    activeOpacity={0.85}
+                    delayPressIn={0}
+                    onPress={() => {
+                      onSelect({ id: `custom:${customName}`, name: customName });
+                      close();
+                    }}
+                  >
+                    <Text style={styles.optionText}>{t("region.useTypedCity", { city: customName })}</Text>
+                  </TouchableOpacity>
+                ) : null
+              }
+              ListEmptyComponent={
+                !showCustom ? <Text style={styles.dropdownEmpty}>{emptyText}</Text> : null
+              }
+              renderItem={({ item }) => {
                 const selected = value?.id != null && String(value.id) === String(item.id);
                 return (
                   <TouchableOpacity
-                    key={`${item.id ?? item.name}-${index}`}
                     style={[styles.option, selected && styles.optionSelected]}
                     activeOpacity={0.85}
+                    delayPressIn={0}
                     onPress={() => {
                       onSelect(item);
                       close();
@@ -307,11 +337,8 @@ function SearchableField({
                     {selected ? <Ionicons name="checkmark" size={16} color={T.navy} /> : null}
                   </TouchableOpacity>
                 );
-              })}
-              {!showCustom && filtered.length === 0 ? (
-                <Text style={styles.dropdownEmpty}>{emptyText}</Text>
-              ) : null}
-            </ScrollView>
+              }}
+            />
           )}
         </View>
       ) : null}
@@ -340,10 +367,10 @@ export default function RegionFilterSheet({
   const [draftCountry, setDraftCountry] = useState(country);
   const [draftState, setDraftState] = useState(state);
   const [draftCity, setDraftCity] = useState(city);
-  const [countries, setCountries] = useState([]);
+  const [countries, setCountries] = useState(() => getCachedCountries());
   const [states, setStates] = useState([]);
   const [cities, setCities] = useState([]);
-  const [loadingCountries, setLoadingCountries] = useState(false);
+  const [loadingCountries, setLoadingCountries] = useState(() => getCachedCountries().length === 0);
   const [loadingStates, setLoadingStates] = useState(false);
   const [loadingCities, setLoadingCities] = useState(false);
   const [error, setError] = useState(null);
@@ -359,18 +386,24 @@ export default function RegionFilterSheet({
   useEffect(() => {
     if (!active) return undefined;
     let cancelled = false;
-
-    (async () => {
+    const cached = getCachedCountries();
+    if (cached.length) {
+      setCountries(cached);
+      setLoadingCountries(false);
+    } else {
       setLoadingCountries(true);
-      try {
-        const list = await fetchCountries();
+    }
+
+    prefetchCountries()
+      .then((list) => {
         if (!cancelled) setCountries(list);
-      } catch (err) {
+      })
+      .catch((err) => {
         if (!cancelled) setError(getApiErrorMessage(err));
-      } finally {
+      })
+      .finally(() => {
         if (!cancelled) setLoadingCountries(false);
-      }
-    })();
+      });
 
     return () => {
       cancelled = true;
@@ -521,7 +554,7 @@ export default function RegionFilterSheet({
         <Pressable style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]} onPress={(e) => e.stopPropagation()}>
           <ScrollView
             ref={modalScrollRef}
-            keyboardShouldPersistTaps="handled"
+            keyboardShouldPersistTaps="always"
             keyboardDismissMode="none"
             showsVerticalScrollIndicator={false}
             onScroll={(event) => {
@@ -607,7 +640,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   fieldButton: {
-    minHeight: 52,
+    height: 52,
     borderRadius: 16,
     backgroundColor: T.white,
     borderWidth: 1,
@@ -615,7 +648,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    overflow: "hidden",
+  },
+  fieldButtonHit: {
+    flex: 1,
+    height: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingEnd: 10,
+  },
+  fieldTrailing: {
+    height: 52,
+    justifyContent: "center",
+    alignItems: "center",
   },
   fieldButtonOpen: {
     borderColor: T.teal,
@@ -625,9 +670,15 @@ const styles = StyleSheet.create({
   },
   fieldValue: {
     flex: 1,
+    margin: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
     fontFamily: Fonts.regular,
     fontSize: 13,
+    lineHeight: 18,
     color: T.navy,
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   fieldPlaceholder: {
     color: T.gray,

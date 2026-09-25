@@ -31,6 +31,7 @@ class UserResource extends JsonResource
                 'bio' => $profile?->bio,
                 'unit_number' => $profile?->unit_number,
                 'residence_type' => $profile?->residence_type,
+                'office_address' => $profile?->office_address,
                 'region_id' => $profile?->region_id,
                 'region' => $profile?->relationLoaded('region') && $profile->region ? [
                     'id' => $profile->region->id,

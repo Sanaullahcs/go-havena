@@ -41,6 +41,7 @@ export type MeProfile = {
     bio?: string | null;
     unit_number?: string | null;
     residence_type?: string | null;
+    office_address?: string | null;
     utility_bill_url?: string | null;
     utility_bill_review_status?: string | null;
     region_id?: number | null;
@@ -130,6 +131,7 @@ export async function updateMe(data: {
   bio?: string;
   unit_number?: string;
   residence_type?: string;
+  office_address?: string;
   region_id?: number | null;
 }): Promise<MeProfile> {
   const res = await api.post("/v1/me", data);

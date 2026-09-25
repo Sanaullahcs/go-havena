@@ -16,6 +16,7 @@ import {
 } from "@/lib/admin/complete-profile-fields";
 import {
   COMMUNITY_ADMIN_NAME_MAX,
+  COMMUNITY_ADMIN_OFFICE_MAX,
   COMMUNITY_ADMIN_UNIT_MAX,
   applyCharacterLimit,
 } from "@/lib/admin/community-admin-field-limits";
@@ -75,6 +76,7 @@ function CompleteProfileInner() {
   const [bio, setBio] = useState("");
   const [unitNumber, setUnitNumber] = useState("");
   const [residenceType, setResidenceType] = useState("");
+  const [officeAddress, setOfficeAddress] = useState("");
   const [utilityFile, setUtilityFile] = useState<File | null>(null);
   const [existingUtilityBillUrl, setExistingUtilityBillUrl] = useState<string | null>(null);
   const [communityName, setCommunityName] = useState<string | null>(null);
@@ -97,6 +99,7 @@ function CompleteProfileInner() {
     completeProfileOnboardingRole(profileUser) === "admin" || communityRequest;
   const nameMax = isCommunityAdminProfile ? COMMUNITY_ADMIN_NAME_MAX : COMPLETE_PROFILE_LIMITS.profileName;
   const unitMax = isCommunityAdminProfile ? COMMUNITY_ADMIN_UNIT_MAX : COMPLETE_PROFILE_LIMITS.profileUnit;
+  const officeMax = COMMUNITY_ADMIN_OFFICE_MAX;
 
   const useSimpleSubmitLabel = useMemo(
     () =>
@@ -134,9 +137,12 @@ function CompleteProfileInner() {
         bio,
         unitNumber,
         residenceType,
+        officeAddress,
         utilityFile: utilityInput,
         requireUtilityFile: fields.showUtilityBill && !existingUtilityBillUrl,
         requireResidenceType: fields.showResidenceType,
+        requireUnitNumber: fields.showUnitNumber,
+        requireOfficeAddress: fields.showOfficeAddress,
         guestMode: fields.isGuestProfile,
         communityAdmin: isCommunityAdminProfile,
       }),
@@ -148,10 +154,13 @@ function CompleteProfileInner() {
       bio,
       unitNumber,
       residenceType,
+      officeAddress,
       utilityFile,
       existingUtilityBillUrl,
       fields.showUtilityBill,
       fields.showResidenceType,
+      fields.showUnitNumber,
+      fields.showOfficeAddress,
       fields.isGuestProfile,
       isCommunityAdminProfile,
     ],
@@ -186,6 +195,7 @@ function CompleteProfileInner() {
         setUnitNumber(
           isPlaceholderUnitNumber(me.profile?.unit_number) ? "" : (me.profile?.unit_number?.trim() ?? ""),
         );
+        setOfficeAddress(me.profile?.office_address?.trim() ?? "");
         const rawResidence = me.profile?.residence_type ?? "";
         setResidenceType(isPlaceholderResidenceType(rawResidence) ? "" : rawResidence);
         setExistingUtilityBillUrl(me.profile?.utility_bill_url ?? null);
@@ -219,8 +229,12 @@ function CompleteProfileInner() {
         email: email.trim().toLowerCase(),
         phone: phone.e164,
         bio: bio.trim(),
-        unit_number: unitNumber.trim(),
-        ...(fields.showResidenceType && residenceType ? { residence_type: residenceType } : {}),
+        ...(fields.showOfficeAddress
+          ? { office_address: officeAddress.trim() }
+          : {
+              unit_number: unitNumber.trim(),
+              ...(fields.showResidenceType && residenceType ? { residence_type: residenceType } : {}),
+            }),
       });
 
       updateUser(meToSessionUser(me));
@@ -244,6 +258,7 @@ function CompleteProfileInner() {
   const phoneErr = showError("phone", liveErrors);
   const bioErr = showError("bio", liveErrors);
   const unitErr = showError("unitNumber", liveErrors);
+  const officeErr = showError("officeAddress", liveErrors);
   const residenceErr = showError("residenceType", liveErrors);
   const utilityErr = showError("utilityFile", liveErrors);
 
@@ -394,6 +409,39 @@ function CompleteProfileInner() {
           </p>
         </OnboardingField>
 
+        {fields.showOfficeAddress ? (
+          <OnboardingField
+            id="profile-office"
+            label="Office address"
+            required
+            error={officeErr}
+            hint="The community office address residents can use to reach you"
+          >
+            <input
+              id="profile-office"
+              type="text"
+              maxLength={officeAddress.length > officeMax ? undefined : officeMax}
+              className={inputClass(
+                officeErr,
+                "h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-600/20",
+              )}
+              value={officeAddress}
+              onChange={(e) => {
+                setOfficeAddress(applyCharacterLimit(officeAddress, e.target.value, officeMax));
+                clearError("officeAddress");
+                setFormError(null);
+              }}
+              onBlur={() => touch("officeAddress")}
+              placeholder="e.g. 100 Management Office, Oak Valley"
+              aria-invalid={Boolean(officeErr)}
+            />
+            <p className={`text-right text-[11px] tabular-nums ${officeAddress.length > officeMax ? "text-red-600" : "text-slate-500"}`}>
+              {officeAddress.length} / {officeMax}
+            </p>
+          </OnboardingField>
+        ) : null}
+
+        {fields.showUnitNumber ? (
         <OnboardingField
           id="profile-unit"
           label="Unit number"
@@ -419,12 +467,8 @@ function CompleteProfileInner() {
             placeholder="e.g. 101 or Admin Office"
             aria-invalid={Boolean(unitErr)}
           />
-          {isCommunityAdminProfile ? (
-            <p className={`text-right text-[11px] tabular-nums ${unitNumber.length > unitMax ? "text-red-600" : "text-slate-500"}`}>
-              {unitNumber.length} / {unitMax}
-            </p>
-          ) : null}
         </OnboardingField>
+        ) : null}
 
         {fields.showResidenceType ? (
           <div>

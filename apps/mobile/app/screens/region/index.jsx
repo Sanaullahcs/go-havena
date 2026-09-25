@@ -19,7 +19,7 @@ import { getCurrentRole } from "../../../constants/role-session";
 import { saveRegionSelection } from "../../../services/auth-api";
 import { ionChevronForward } from "../../../utils/rtl";
 import { normalizeRegion } from "../../../services/regions-api";
-import { resolveLocation } from "../../../services/geography-api";
+import { prefetchCountries, resolveLocation } from "../../../services/geography-api";
 import { getApiErrorMessage } from "../../../utils/auth-errors";
 import BackButton from "../../../components/ui/back-button";
 import RegionFilterSheet from "../../../components/ui/region-filter-sheet";
@@ -50,6 +50,10 @@ export default function RegionScreen() {
   const scrollOffsetRef = useRef(0);
   const [keyboardPad, setKeyboardPad] = useState(0);
   const isResident = activeRole !== "admin";
+
+  useEffect(() => {
+    prefetchCountries();
+  }, []);
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -161,7 +165,7 @@ export default function RegionScreen() {
           styles.scrollContent,
           keyboardPad > 0 && { paddingBottom: 28 + keyboardPad },
         ]}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
         keyboardDismissMode="none"
         onScroll={(event) => {
           scrollOffsetRef.current = event.nativeEvent.contentOffset.y;

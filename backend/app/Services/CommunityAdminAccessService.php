@@ -151,7 +151,7 @@ class CommunityAdminAccessService
             return true;
         }
 
-        if (trim((string) ($profile->unit_number ?? '')) === '') {
+        if (! $this->hasCommunityAdminLocation($profile)) {
             return false;
         }
 
@@ -165,6 +165,20 @@ class CommunityAdminAccessService
         }
 
         return true;
+    }
+
+    private function hasCommunityAdminLocation($profile): bool
+    {
+        if (trim((string) ($profile->office_address ?? '')) !== '') {
+            return true;
+        }
+
+        $unit = trim((string) ($profile->unit_number ?? ''));
+        if ($unit === '') {
+            return false;
+        }
+
+        return ! in_array(strtolower($unit), ['office', 'management office'], true);
     }
 
     private function isPlaceholderDisplayName(string $name): bool

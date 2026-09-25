@@ -865,13 +865,10 @@ class AmenitySharedBillService
                 self::RESIDENT_STATUS_REJECTED,
                 self::RESIDENT_STATUS_OVERDUE,
             ], true),
-<<<<<<< HEAD
             'booking_id' => isset($row->booking_id) && $row->booking_id !== null ? (int) $row->booking_id : null,
-=======
             'payment_method' => $row->payment_method ?? null,
             'ach_status' => $row->ach_status ?? null,
             'plaid_transfer_id' => $row->plaid_transfer_id ?? null,
->>>>>>> b9baa2acea1d933e3b1ad9083f1c607a6d8f3c41
             'payment_proof' => $this->formatPaymentProof($row, $request),
             'rejection_reason' => in_array($status, [self::RESIDENT_STATUS_REJECTED, self::RESIDENT_STATUS_OVERDUE], true)
                 ? ($row->rejection_reason ?? null)

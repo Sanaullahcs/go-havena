@@ -269,6 +269,7 @@ export async function updateProfile(payload) {
           bio: payload.bio ?? user?.profile?.bio ?? "",
           unit_number: payload.unit_number ?? user?.profile?.unit_number ?? "",
           residence_type: payload.residence_type ?? user?.profile?.residence_type ?? null,
+          office_address: payload.office_address ?? user?.profile?.office_address ?? "",
           region_id: payload.region_id ?? user?.profile?.region_id ?? null,
         },
       };
@@ -491,7 +492,14 @@ export function isProfileComplete(user) {
   }
 
   const profile = user?.profile;
-  if (!profile?.display_name?.trim() || !profile?.unit_number?.trim()) return false;
-  if (isGuestUser(user) || isCommunityAdminRole(user)) return true;
+  if (!profile?.display_name?.trim()) return false;
+  if (isCommunityAdminRole(user)) {
+    const office = String(profile.office_address ?? "").trim();
+    const unit = String(profile.unit_number ?? "").trim().toLowerCase();
+    if (office) return true;
+    return Boolean(unit) && unit !== "office" && unit !== "management office";
+  }
+  if (!profile?.unit_number?.trim()) return false;
+  if (isGuestUser(user)) return true;
   return Boolean(profile?.residence_type);
 }

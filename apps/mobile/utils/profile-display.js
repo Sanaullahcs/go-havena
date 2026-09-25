@@ -235,6 +235,7 @@ export function getProfileFields(user, preferredCommunityId) {
       avatarUrl: null,
       utilityBillUrl: null,
       unitNumber: null,
+      officeAddress: null,
       communityName: i18n.t("community.myCommunity"),
       regionId: null,
       regionTitle: null,
@@ -255,6 +256,7 @@ export function getProfileFields(user, preferredCommunityId) {
     avatarUrl: resolveMediaUrl(profile.avatar_url ?? user.avatar_url),
     utilityBillUrl: resolveMediaUrl(profile.utility_bill_url ?? user.utility_bill_url),
     unitNumber: profile.unit_number ?? user.unit_number ?? null,
+    officeAddress: profile.office_address ?? user.office_address ?? null,
     communityName: (() => {
       const memberships = user.memberships ?? [];
       const approved = memberships.filter((m) => m.status === "approved");
