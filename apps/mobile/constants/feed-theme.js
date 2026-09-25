@@ -35,6 +35,13 @@ export const FEED_TAG_THEME = {
     accent: "#F59E0B",
     icon: "bell",
   },
+  Poll: {
+    bg: "#E0F2FE",
+    border: "#BAE6FD",
+    text: "#0369A1",
+    accent: "#0284C7",
+    icon: "bar-chart-2",
+  },
 };
 
 export const FEED_DEFAULT_THEME = {

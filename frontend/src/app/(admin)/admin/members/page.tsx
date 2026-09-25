@@ -13,6 +13,7 @@ import {
   fetchMember,
   inviteMember,
   resendMemberInvite,
+  resendMemberInvites,
   approveMember,
   rejectMember,
   suspendMember,
@@ -39,6 +40,7 @@ import { AdminPhoneInput } from "@/components/admin/phone-input";
 import { UtilityBillPreview } from "@/components/admin/utility-bill-preview";
 import { fetchAdminCommunities, type AdminCommunityOption } from "@/lib/api/communities";
 import { MemberInviteResultModal } from "@/components/admin/member-invite-result-modal";
+import { MemberBatchUploadModal } from "@/components/admin/member-batch-upload-modal";
 import { ResidentActivityModal } from "@/components/admin/resident-activity-modal";
 import { formatDisplayEmail } from "@/lib/user/email-display";
 import type { MemberInviteResult } from "@/lib/api/members";
@@ -55,6 +57,7 @@ const STATUS_META: Record<MembershipStatus, { tone: "green" | "amber" | "slate" 
   approved:         { tone: "green", label: "Active" },
   pending:          { tone: "amber", label: "Pending" },
   invitation_sent:  { tone: "slate", label: "Invitation Sent" },
+  not_invited:      { tone: "amber", label: "Not Invited" },
   onboarding:       { tone: "blue",  label: "Onboarding" },
   banned:           { tone: "red",   label: "Suspended" },
   rejected:         { tone: "slate", label: "Rejected" },
@@ -69,10 +72,14 @@ const ROLE_STYLE: Record<string, string> = {
 
 type Filter = "all" | MembershipStatus;
 
-const EMPTY_STATS: MemberStats = { total: 0, approved: 0, pending: 0, banned: 0, rejected: 0, onboarding: 0, invitation_sent: 0 };
+const EMPTY_STATS: MemberStats = { total: 0, approved: 0, pending: 0, banned: 0, rejected: 0, onboarding: 0, invitation_sent: 0, not_invited: 0 };
 
 function isCancellableInvitation(m: Member) {
   return !m.membership_id && (m.status === "invitation_sent" || m.status === "onboarding");
+}
+
+function canReceiveInvitation(m: Member) {
+  return m.role !== "admin" && m.status === "not_invited";
 }
 
 function contactDisplay(m: Member) {
@@ -111,6 +118,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   const debouncedSearch = useDebouncedValue(searchInput, 450);
   const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
   const [page, setPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", unit: "", communityId: "" });
   const [invitePhone, setInvitePhone] = useState<PhoneFieldState>(emptyPhoneField());
@@ -126,6 +134,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   const [inviteResult, setInviteResult] = useState<MemberInviteResult | null>(null);
   const [inviting, setInviting] = useState(false);
   const [provisionOpen, setProvisionOpen] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
   const [scopeCommunityId, setScopeCommunityId] = useState<number | "all" | undefined>(() => {
     if (isSystemResidents || isSystemAdminUser()) return "all";
     return getManagedCommunityId();
@@ -186,6 +195,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   useEffect(() => {
     if (prevFilterKey.current !== filterKey) {
       prevFilterKey.current = filterKey;
+      setSelectedIds([]);
       if (page !== 1) {
         setPage(1);
         return;
@@ -305,6 +315,94 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
 
   const memberCommunityId = (member: Member) =>
     member.community_id ?? (scopeCommunityId !== "all" ? scopeCommunityId : undefined);
+
+  const eligibleMembers = useMemo(() => members.filter(canReceiveInvitation), [members]);
+  const eligibleIdSet = useMemo(() => new Set(eligibleMembers.map((member) => member.id)), [eligibleMembers]);
+  const selectedMembers = eligibleMembers.filter((member) => selectedIds.includes(member.id));
+  const allEligibleSelected =
+    eligibleMembers.length > 0 && selectedMembers.length === eligibleMembers.length;
+  const someEligibleSelected = selectedMembers.length > 0 && !allEligibleSelected;
+  const selectAllRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someEligibleSelected;
+    }
+  }, [someEligibleSelected, allEligibleSelected, eligibleMembers.length]);
+
+  useEffect(() => {
+    setSelectedIds((current) => {
+      const next = current.filter((id) => eligibleIdSet.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [eligibleIdSet]);
+
+  const toggleMemberSelection = (memberId: number) => {
+    if (!eligibleIdSet.has(memberId)) return;
+    setSelectedIds((current) =>
+      current.includes(memberId) ? current.filter((id) => id !== memberId) : [...current, memberId],
+    );
+  };
+
+  const toggleAllEligible = () => {
+    if (eligibleMembers.length === 0) return;
+    const visibleIds = eligibleMembers.map((member) => member.id);
+    setSelectedIds((current) => {
+      const withoutVisible = current.filter((id) => !visibleIds.includes(id));
+      if (visibleIds.every((id) => current.includes(id))) return withoutVisible;
+      return [...withoutVisible, ...visibleIds];
+    });
+  };
+
+  const sendSelectedInvitations = async () => {
+    if (selectedMembers.length === 0 || profileActionLoading) return;
+    const count = selectedMembers.length;
+    const residentWord = count === 1 ? "resident" : "residents";
+    const confirmed = await confirmAction({
+      title: "Send Invitations?",
+      text: `You are about to send invitations to ${count} selected ${residentWord}. Would you like to continue?`,
+      confirmText: "Send Invitations",
+    });
+    if (!confirmed.isConfirmed) return;
+
+    setProfileActionLoading(true);
+    try {
+      const groups = new Map<number | undefined, number[]>();
+      for (const member of selectedMembers) {
+        const communityId = memberCommunityId(member);
+        const ids = groups.get(communityId) ?? [];
+        ids.push(member.id);
+        groups.set(communityId, ids);
+      }
+
+      let sent = 0;
+      let failed = 0;
+      const failedNames: string[] = [];
+      for (const [communityId, ids] of groups) {
+        try {
+          const result = await resendMemberInvites(ids, communityId);
+          sent += result.data.sent_count;
+          failed += result.data.failed_count;
+          for (const item of result.data.failed) {
+            if (item.name) failedNames.push(item.name);
+          }
+        } catch {
+          failed += ids.length;
+        }
+      }
+
+      const sentPart = sent === 1 ? "1 invitation sent successfully." : `${sent} invitations sent successfully.`;
+      const failedPart = failed === 1 ? "1 invitation failed." : `${failed} invitations failed.`;
+      const who = failedNames.length > 0 ? ` Failed: ${failedNames.join(", ")}.` : "";
+      const message = failed === 0 ? sentPart : sent === 0 ? `${failedPart}${who}` : `${sentPart} ${failedPart}${who}`;
+      if (sent > 0) toastSuccess(message);
+      else toastError(message);
+      setSelectedIds([]);
+      await load(true);
+    } finally {
+      setProfileActionLoading(false);
+    }
+  };
 
   const activityMenuItem = (member: Member) => ({
     label: "Activity",
@@ -472,19 +570,34 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                 <IcoPlus /> Create Resident
               </button>
             ) : (
-              <button
-                type="button"
-                className="nl-btn-primary disabled:opacity-60"
-                onClick={openInviteModal}
-                disabled={Boolean(billing && !billingExempt && !billing.setup.can_invite_residents)}
-                title={
-                  billing && !billingExempt && !billing.setup.can_invite_residents
-                    ? "Subscription or seats required — open Billing"
-                    : undefined
-                }
-              >
-                <IcoPlus /> Invite Member
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="nl-btn-secondary disabled:opacity-60"
+                  onClick={() => setBatchOpen(true)}
+                  disabled={Boolean(billing && !billingExempt && !billing.setup.can_invite_residents)}
+                  title={
+                    billing && !billingExempt && !billing.setup.can_invite_residents
+                      ? "Subscription or seats required — open Billing"
+                      : undefined
+                  }
+                >
+                  Batch Upload
+                </button>
+                <button
+                  type="button"
+                  className="nl-btn-primary disabled:opacity-60"
+                  onClick={openInviteModal}
+                  disabled={Boolean(billing && !billingExempt && !billing.setup.can_invite_residents)}
+                  title={
+                    billing && !billingExempt && !billing.setup.can_invite_residents
+                      ? "Subscription or seats required — open Billing"
+                      : undefined
+                  }
+                >
+                  <IcoPlus /> Invite Member
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -504,6 +617,36 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
         filters={filters}
         activeFilter={filter}
         onFilter={(key) => setFilter(key as Filter)}
+        filterAccessory={
+          eligibleMembers.length > 0 ? (
+            <input
+              ref={selectAllRef}
+              type="checkbox"
+              aria-label="Select all eligible members"
+              checked={allEligibleSelected}
+              onClick={(event) => event.stopPropagation()}
+              onChange={toggleAllEligible}
+              className="nl-member-check"
+            />
+          ) : null
+        }
+        toolbar={
+          selectedMembers.length > 0 ? (
+            <div className="flex items-center gap-2">
+              <span className="text-[12.5px] font-semibold tabular-nums text-slate-600">
+                {selectedMembers.length} selected
+              </span>
+              <button
+                type="button"
+                onClick={() => void sendSelectedInvitations()}
+                disabled={profileActionLoading}
+                className="h-8 rounded-lg bg-blue-600 px-3 text-[12.5px] font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+              >
+                Send Invitation
+              </button>
+            </div>
+          ) : null
+        }
         isEmpty={members.length === 0}
         empty="No members match your search or filters."
         searching={isSearchPending}
@@ -522,10 +665,26 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
           <tbody>
             {members.map((m) => {
               const st = STATUS_META[m.status] ?? STATUS_META.pending;
+              const selectable = canReceiveInvitation(m);
+              const selected = selectable && selectedIds.includes(m.id);
               return (
-                <DtRow key={`${m.id}-${m.membership_id ?? "onboarding"}`} muted={m.status === "banned"}>
+                <DtRow
+                  key={`${m.id}-${m.membership_id ?? "onboarding"}`}
+                  muted={m.status === "banned"}
+                  className={selected ? "bg-blue-50/70" : undefined}
+                >
                   <DtCell first>
                     <div className="flex items-center gap-3">
+                      {selectable ? (
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${m.name}`}
+                          checked={selected}
+                          onClick={(event) => event.stopPropagation()}
+                          onChange={() => toggleMemberSelection(m.id)}
+                          className="nl-member-check"
+                        />
+                      ) : null}
                       <UserAvatar name={m.name} src={m.avatar_url} size={32} />
                       <div>
                         <p className="font-semibold text-slate-900">{m.name}</p>
@@ -611,7 +770,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                                   },
                                 },
                                 {
-                                  label: "Resend invitation email",
+                                  label: "Resend Invite",
                                   icon: "view",
                                   hidden: !isCancellableInvitation(m) || m.status !== "invitation_sent",
                                   onClick: async () => {
@@ -846,6 +1005,12 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
           </div>
         </div>
       )}
+
+      <MemberBatchUploadModal
+        open={batchOpen}
+        onClose={() => setBatchOpen(false)}
+        onCompleted={() => load(true)}
+      />
 
       {inviteResult && (
         <MemberInviteResultModal

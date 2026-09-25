@@ -124,10 +124,11 @@ class ActivityLogAuditTest extends TestCase
 
         Sanctum::actingAs($user);
 
+        $longBio = rtrim('Updated bio '.str_repeat('community detail ', 20));
+
         $this->putJson('/api/v1/me', [
             'name' => 'Sana Ali',
-            'phone' => '+15555550022',
-            'bio' => 'Updated bio',
+            'bio' => $longBio,
         ])->assertOk();
 
         Sanctum::actingAs($this->systemAdmin());
@@ -143,10 +144,9 @@ class ActivityLogAuditTest extends TestCase
         $byField = collect($log['changes'])->keyBy('field');
         $this->assertSame('Sana', $byField['Name']['previous']);
         $this->assertSame('Sana Ali', $byField['Name']['next']);
-        $this->assertSame('+15555550011', $byField['Phone']['previous']);
-        $this->assertSame('+15555550022', $byField['Phone']['next']);
         $this->assertSame('Hello', $byField['Bio']['previous']);
-        $this->assertSame('Updated bio', $byField['Bio']['next']);
+        $this->assertSame($longBio, $byField['Bio']['next']);
+        $this->assertGreaterThan(180, mb_strlen($byField['Bio']['next']));
     }
 
     public function test_member_activity_includes_admin_changes_to_that_user(): void

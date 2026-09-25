@@ -242,6 +242,7 @@
     "couldNotLoad": "Could not load this profile",
     "profilePhoto": "Profile photo",
     "viewProfilePicture": "View Profile Picture",
+    "viewProfileAction": "View Profile",
     "takeOrChoose": "Take a new photo or choose one from your library.",
     "photoUpdated": "Profile photo updated",
     "photoSaved": "Your profile photo has been saved.",
@@ -361,6 +362,7 @@
       "emptySensitive": "Comments are disabled because this post was marked as sensitive content.",
       "emptyStart": "Start the conversation — your neighbors would love to hear from you.",
       "writeComment": "Write a comment",
+      "addThought": "Add a thought...",
       "send": "Send",
       "viewAllReplies_one": "View all {{count}} reply",
       "viewAllReplies_other": "View all {{count}} replies",
@@ -404,6 +406,19 @@
       "posting": "Posting...",
       "saveChanges": "Save changes",
       "sharePost": "Share post",
+      "publishPoll": "Publish Poll",
+      "pollNeedQuestion": "Enter a poll question.",
+      "pollNeedOptions": "Add at least 2 different options.",
+      "pollQuestion": "Poll question",
+      "pollQuestionPlaceholder": "Ask your community a question",
+      "pollDescription": "Short description (optional)",
+      "pollOptions": "Options",
+      "pollOption": "Option {{number}}",
+      "addOption": "Add option",
+      "pollDuration": "Poll duration",
+      "duration1": "1 day",
+      "duration3": "3 days",
+      "duration7": "7 days",
       "postUpdated": "Post Updated!",
       "postCreated": "Post Created!",
       "postLiveFallback": "Your post is now live in your community feed.",
@@ -483,7 +498,25 @@
       "events": "Events",
       "help": "Help",
       "neighborhood": "Neighborhood",
-      "announcements": "Announcements"
+      "announcements": "Announcements",
+      "poll": "Poll"
+    },
+    "poll": {
+      "feedback": "This poll is for community feedback.",
+      "vote": "Vote",
+      "voting": "Voting...",
+      "closed": "Poll closed",
+      "selectOption": "Select an option before voting.",
+      "couldNotVote": "Could not record your vote",
+      "votes_one": "{{count}} vote",
+      "votes_other": "{{count}} votes",
+      "daysLeft_one": "{{count}} day left",
+      "daysLeft_other": "{{count}} days left",
+      "hoursLeft_one": "{{count}} hour left",
+      "hoursLeft_other": "{{count}} hours left",
+      "minutesLeft_one": "{{count}} minute left",
+      "minutesLeft_other": "{{count}} minutes left",
+      "momentsLeft": "Less than a minute left"
     },
     "couldNotLike": "Could not update like",
     "postBy": "Post by {{name}}",
@@ -797,6 +830,7 @@
     "noCountriesMatch": "No countries match your search",
     "noStatesMatch": "No states match your search",
     "noCitiesMatch": "No cities match your search",
+    "cityNotFound": "City not found",
     "useTypedCity": "Use “{{city}}”",
     "applyFilter": "Apply",
     "clearFilter": "Clear",
@@ -872,7 +906,7 @@
     "iOwnUnit": "I own this unit",
     "tenant": "Tenant",
     "iRentUnit": "I rent this unit",
-    "uploadLease": "Upload lease or last 3 month utility bill",
+    "uploadLease": "Upload your lease agreement or a utility bill issued within the last 3 months.",
     "uploadDocument": "Upload document",
     "uploadDocumentMsg": "Take a photo or choose from your gallery.",
     "uploadFile": "Upload file",
@@ -4153,7 +4187,7 @@
   "countryCode": {
     "selectCountryCode": "Select country code",
     "searchCountryOrCode": "Search country or code",
-    "noCountriesMatch": "No countries match your search"
+    "noCountriesMatch": "No country found."
   },
   "businessHours": {
     "opens": "Opens",
@@ -4253,6 +4287,8 @@
     "required": "{{field}} is required.",
     "minChars": "{{field}} must be at least {{min}} characters.",
     "maxChars": "{{field}} must be {{max}} characters or less.",
+    "communityAdminNameMax": "Full name cannot exceed 50 characters.",
+    "communityAdminUnitMax": "Unit / apartment cannot exceed 20 characters.",
     "reviewRequired": "Review is required.",
     "reviewMinLength": "Please write at least 10 characters.",
     "emailRequired": "Email address is required.",
@@ -4323,8 +4359,10 @@
     }
   },
   "blockedAccount": {
-    "title": "Your account is suspended",
-    "message": "Your account has been suspended. Please contact your community administrator or support.",
+    "title": "Account Suspended",
+    "signInTitle": "Account Suspended",
+    "signInMessage": "Your account has been suspended and you’re currently unable to sign in. Please contact your community administrator or support for assistance.",
+    "message": "Your account has been suspended. Please contact your community administrator or support for assistance.",
     "systemAdmin": "System administrator",
     "communityAdmin": "Community administrator",
     "membershipDeclined": "Membership declined",
@@ -4585,8 +4623,14 @@
     "unableToOpenWebsite": "Could not open this website."
   },
   "video": {
-    "unavailable": "Video unavailable.",
-    "noVideoProvided": "No video provided."
+    "unavailable": "This video is unavailable.",
+    "noVideoProvided": "No video provided.",
+    "embedRestricted": "This video can't be played inside Havena.",
+    "playbackError": "This video couldn't be played.",
+    "watchOnYouTube": "Watch on YouTube",
+    "unavailableTitle": "Video unavailable in app",
+    "unavailableInApp": "This video can't be played inside Havena. You can continue watching it on YouTube.",
+    "loading": "Loading video…"
   },
   "listings": {
     "categoryFurniture": "Furniture",

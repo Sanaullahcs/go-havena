@@ -24,6 +24,20 @@ return [
         'language' => env('PLAID_LINK_LANGUAGE', 'en'),
         'country_codes' => ['US'],
         'products' => ['auth'],
+        'resident_products' => ['auth', 'transfer'],
+    ],
+
+    /*
+    | Resident → community ACH. Live Plaid Transfer is used when the product is
+    | enabled on the Plaid account. Sandbox falls back to a ledgered simulation
+    | so local/demo communities can still complete amenity payments.
+    */
+    'transfer' => [
+        'enabled' => (bool) env('PLAID_TRANSFER_ENABLED', true),
+        'simulate' => env('PLAID_TRANSFER_SIMULATE'),
+        'ach_class_debit' => env('PLAID_ACH_CLASS_DEBIT', 'web'),
+        'ach_class_credit' => env('PLAID_ACH_CLASS_CREDIT', 'ccd'),
+        'currency' => 'USD',
     ],
 
     /*
@@ -42,5 +56,8 @@ return [
      * When true, Plaid-Verification JWT must validate. Default false keeps Sandbox usable locally.
      */
     'verify_webhooks' => (bool) env('PLAID_VERIFY_WEBHOOKS', false),
+
+    /** Optional path to a CA bundle. WAMP often has empty curl.cainfo. */
+    'ca_bundle' => env('PLAID_CA_BUNDLE'),
 
 ];

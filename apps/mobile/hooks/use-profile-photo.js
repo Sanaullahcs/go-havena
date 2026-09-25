@@ -8,7 +8,7 @@ import ProfilePhotoViewer from "../components/profile/profile-photo-viewer";
 
 export function useProfilePhoto({ onUpdated, avatarUrl } = {}) {
   const dialog = useAppDialog();
-  const [uploading, setUploading] = useState(false);
+  const [uploadState, setUploadState] = useState("idle");
   const [viewerOpen, setViewerOpen] = useState(false);
 
   const showError = useCallback(
@@ -39,10 +39,11 @@ export function useProfilePhoto({ onUpdated, avatarUrl } = {}) {
 
       if (!picked?.uri) return null;
 
-      setUploading(true);
+      setUploadState("uploading");
       await uploadAvatar(picked.uri, picked);
       const data = await fetchMe();
       onUpdated?.(data);
+      setUploadState("idle");
 
       await dialog.showDialog({
         type: "success",
@@ -59,9 +60,8 @@ export function useProfilePhoto({ onUpdated, avatarUrl } = {}) {
         message: err?.message ?? i18n.t("profile.couldNotUpdatePhoto"),
         actions: [{ label: i18n.t("common.ok"), variant: "primary" }],
       });
+      setUploadState("failed");
       return null;
-    } finally {
-      setUploading(false);
     }
   }, [avatarUrl, dialog, onUpdated, showError]);
 
@@ -76,5 +76,10 @@ export function useProfilePhoto({ onUpdated, avatarUrl } = {}) {
     [avatarUrl, viewerOpen],
   );
 
-  return { changePhoto, uploading, ProfilePhotoViewerModal };
+  return {
+    changePhoto,
+    uploading: uploadState === "uploading",
+    uploadFailed: uploadState === "failed",
+    ProfilePhotoViewerModal,
+  };
 }

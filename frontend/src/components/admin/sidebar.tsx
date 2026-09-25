@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getUser, isPakistanCommunityRegion, isSystemAdminUser } from "@/lib/auth/session";
+import { isResidentFeatureEnabled } from "@/lib/resident-features";
 import { isPlaidAvailable } from "@/lib/plaid-eligibility";
 import { fetchMessageUnreadCount } from "@/lib/api/messages";
 import { HavenaMark } from "@/components/shared/havena-mark";
@@ -57,6 +58,7 @@ const systemAdminNav: NavItem[] = [
   { href: "/admin/billing-plans", label: "Billing & Plans", icon: CreditCard },
   { href: "/admin/billing-coupons", label: "Coupons", icon: Ticket },
   { href: "/admin/referrals", label: "Referrals", icon: Gift },
+  { href: "/admin/activity", label: "Activity Logs", icon: Activity },
 ];
 
 const communityAdminNav: NavItem[] = [
@@ -80,10 +82,6 @@ const communityAdminNav: NavItem[] = [
   { href: "/admin/feed", label: "Feed Moderation", icon: Newspaper },
   { href: "/admin/marketplace", label: "Marketplace", icon: Store },
   { href: "/admin/businesses", label: "Businesses", icon: Store },
-];
-
-const insightsNav: NavItem[] = [
-  { href: "/admin/activity", label: "Activity Logs", icon: Activity },
 ];
 
 /* ─── NavSection ─── */
@@ -127,11 +125,11 @@ function NavSection({
               "group relative flex items-center gap-2.5 overflow-hidden rounded-xl px-2.5 py-2 text-[13px] font-medium transition-colors duration-150",
               active
                 ? "text-white shadow-md"
-                : "text-slate-600 hover:bg-[#E8F0F7] hover:text-[#1B4F8A]",
+                : "text-slate-600 hover:bg-[#D1FAF5] hover:text-[#0A2A43]",
             ].join(" ")}
             style={
               active
-                ? { background: NL.fillCta, boxShadow: "0 4px 12px rgba(27, 79, 138, 0.28)" }
+                ? { background: NL.fillCta, boxShadow: "0 4px 12px rgba(20, 184, 166, 0.28)" }
                 : undefined
             }
           >
@@ -140,7 +138,7 @@ function NavSection({
                 "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all duration-200",
                 active
                   ? "bg-white/15 text-white"
-                  : "text-slate-400 group-hover:scale-105 group-hover:text-[#1B4F8A]",
+                  : "text-slate-400 group-hover:scale-105 group-hover:text-[#0D9488]",
               ].join(" ")}
             >
               <Icon className="h-4 w-4" strokeWidth={2} aria-hidden />
@@ -150,7 +148,7 @@ function NavSection({
               <span
                 className={[
                   "ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
-                  active ? "bg-white text-[#1B4F8A]" : "bg-[#1B4F8A] text-white",
+                  active ? "bg-white text-[#0A2A43]" : "bg-[#14B8A6] text-white",
                 ].join(" ")}
               >
                 {item.badge > 99 ? "99+" : item.badge}
@@ -231,7 +229,7 @@ function SidebarInner({
     };
   }, [isSystemAdmin]);
 
-  const hideReferAndEarn = isPakistanCommunityRegion(user);
+  const hideReferAndEarn = isPakistanCommunityRegion(user) || !isResidentFeatureEnabled(user?.resident_features, "refer_and_earn");
   const communityNav = communityAdminNav
     .filter((item) => !(item.href === "/admin/billing" && user?.access?.billing_exempt))
     .filter((item) => !(item.href === "/admin/plaid" && !isPlaidAvailable(user)))
@@ -262,7 +260,6 @@ function SidebarInner({
           <>
             <NavSection items={overviewNav} pathname={pathname} onNavigate={onNavigate} />
             <NavSection title="Manage" items={communityNav} pathname={pathname} onNavigate={onNavigate} />
-            <NavSection title="Logs" items={insightsNav} pathname={pathname} onNavigate={onNavigate} />
             <p className="px-2 pt-3 text-[11px] leading-relaxed text-slate-400">
               Approve residents, publish content, and moderate your community marketplace.
             </p>

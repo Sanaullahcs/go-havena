@@ -6,7 +6,9 @@ from pathlib import Path
 os.environ["PYTHONUNBUFFERED"] = "1"
 os.environ["PYTHONIOENCODING"] = "utf-8"
 
-root = Path(r"D:\wamp64-330\www\go-havena")
+root = Path(__file__).resolve().parents[1]
+if not (root / ".deploy" / "local.env").exists() and Path(r"D:\wamp64-330\www\go-havena\.deploy\local.env").exists():
+    root = Path(r"D:\wamp64-330\www\go-havena")
 env = {}
 for line in (root / ".deploy" / "local.env").read_text(encoding="utf-8").splitlines():
     line = line.strip()

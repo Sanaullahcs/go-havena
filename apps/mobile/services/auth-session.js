@@ -13,6 +13,24 @@ let memoryToken = null;
 let memoryUser = null;
 let memoryCommunityId = null;
 let guestSessionTerminatedHandler = null;
+const sessionUserListeners = new Set();
+
+function emitSessionUser(user) {
+  memoryUser = user ?? null;
+  sessionUserListeners.forEach((listener) => {
+    try {
+      listener(memoryUser);
+    } catch {
+      // UI listeners must not break session writes.
+    }
+  });
+}
+
+/** Subscribe to cached session user changes (mode switch, /me sync, logout). */
+export function subscribeSessionUser(listener) {
+  sessionUserListeners.add(listener);
+  return () => sessionUserListeners.delete(listener);
+}
 
 export function setGuestSessionTerminatedHandler(handler) {
   guestSessionTerminatedHandler = handler;
@@ -73,7 +91,7 @@ export async function getToken({ reload = false } = {}) {
 
 export async function setSession({ token, user }) {
   memoryToken = token;
-  memoryUser = user;
+  emitSessionUser(user);
   try {
     await storageSet(TOKEN_KEY, token);
     if (user) {
@@ -111,7 +129,7 @@ export async function patchCachedUser(patch) {
   if (!user) return null;
 
   const next = { ...user, ...patch };
-  memoryUser = next;
+  emitSessionUser(next);
 
   try {
     await storageSet(USER_KEY, JSON.stringify(next));
@@ -177,7 +195,7 @@ export async function clearSession({ keepBiometricUnlock = false } = {}) {
     await deleteKeyBestEffort(key);
   }
   memoryToken = null;
-  memoryUser = null;
+  emitSessionUser(null);
   memoryCommunityId = null;
 
   if (!keepBiometricUnlock) {

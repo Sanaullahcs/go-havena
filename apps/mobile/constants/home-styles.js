@@ -1,7 +1,21 @@
-import { StyleSheet } from "react-native";
+import { PixelRatio, StyleSheet } from "react-native";
 import { Fonts } from "./font";
 import { HomeTheme as T } from "./home-theme";
 import { sw, sf, hp } from "../utils/responsive";
+
+const HOME_BASE_WIDTH = 390;
+const HOME_MIN_SCALE = 0.9;
+const HOME_MAX_SCALE = 1.08;
+
+/** Phone-sized scale. Keeps Home proportions stable on small and large devices. */
+export function homeScaleForWidth(screenWidth) {
+  const width = Number(screenWidth) > 0 ? Number(screenWidth) : HOME_BASE_WIDTH;
+  return Math.min(HOME_MAX_SCALE, Math.max(HOME_MIN_SCALE, width / HOME_BASE_WIDTH));
+}
+
+export function homeSize(size, screenWidth) {
+  return PixelRatio.roundToNearestPixel(size * homeScaleForWidth(screenWidth));
+}
 
 export const HOME_SCROLL_BOTTOM_PAD = sw(12);
 

@@ -107,7 +107,7 @@ export function AdminMembersBarChart({
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  approved: "#059669",
+  approved: "#0D9488",
   pending: "#d97706",
   invitation_sent: "#64748b",
   banned: "#dc2626",
@@ -192,7 +192,7 @@ export function AdminModerationTrendChart({
             <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} />
             <Tooltip content={<NlTooltip />} cursor={{ fill: "#f8fafc" }} />
             <Bar dataKey="Filed" name="Reports Filed" fill="#fca5a5" radius={[3, 3, 0, 0]} />
-            <Bar dataKey="Resolved" name="Reports Resolved" fill="#059669" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="Resolved" name="Reports Resolved" fill="#0D9488" radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -354,15 +354,15 @@ export function ResidentEngagementChart() {
         <LineChart data={RESIDENT_ENGAGEMENT} margin={{ top: 4, right: 8, left: -24, bottom: 0 }}>
           <defs>
             <linearGradient id="gEng" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#059669" stopOpacity={0.15} />
-              <stop offset="100%" stopColor="#059669" stopOpacity={0} />
+              <stop offset="0%" stopColor="#0D9488" stopOpacity={0.15} />
+              <stop offset="100%" stopColor="#0D9488" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid vertical={false} stroke="#f0fdf4" />
           <XAxis dataKey="week" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-          <Tooltip content={<NlTooltip />} cursor={{ stroke: "#d1fae5" }} />
-          <Line type="monotone" dataKey="points" name="Community Points" stroke="#059669" strokeWidth={2.5} dot={{ r: 3.5, fill: "#059669", strokeWidth: 2, stroke: "#fff" }} activeDot={{ r: 5 }} />
+          <Tooltip content={<NlTooltip />} cursor={{ stroke: "#D1FAF5" }} />
+          <Line type="monotone" dataKey="points" name="Community Points" stroke="#0D9488" strokeWidth={2.5} dot={{ r: 3.5, fill: "#0D9488", strokeWidth: 2, stroke: "#fff" }} activeDot={{ r: 5 }} />
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -388,12 +388,49 @@ export function ResidentWellnessChart() {
           <XAxis dataKey="activity" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
           <Tooltip content={<NlTooltip />} cursor={{ fill: "#f0fdf4" }} />
-          <Bar dataKey="sessions" name="Sessions" radius={[4, 4, 0, 0]} fill="#34d399">
+          <Bar dataKey="sessions" name="Sessions" radius={[4, 4, 0, 0]} fill="#14B8A6">
             {WELLNESS_DATA.map((_, i) => (
-              <Cell key={i} fill={i % 2 === 0 ? "#059669" : "#34d399"} />
+              <Cell key={i} fill={i % 2 === 0 ? "#0D9488" : "#14B8A6"} />
             ))}
           </Bar>
         </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+export function ResidentActivityChart({
+  data,
+}: {
+  data: { date: string; posts: number; likes: number }[];
+}) {
+  const chartData = data.map((point) => ({
+    day: point.date,
+    Posts: point.posts,
+    Likes: point.likes,
+  }));
+
+  return (
+    <div className="h-[210px] w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+          <defs>
+            <linearGradient id="gPosts" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#1B4F8A" stopOpacity={0.22} />
+              <stop offset="100%" stopColor="#1B4F8A" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="gLikes" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#0d9488" stopOpacity={0.18} />
+              <stop offset="100%" stopColor="#0d9488" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid vertical={false} stroke="#eef2f6" />
+          <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+          <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+          <Tooltip content={<NlTooltip />} cursor={{ stroke: "#dbe7f3" }} />
+          <Area type="monotone" dataKey="Posts" stroke="#1B4F8A" strokeWidth={2.2} fill="url(#gPosts)" />
+          <Area type="monotone" dataKey="Likes" stroke="#0d9488" strokeWidth={2} fill="url(#gLikes)" />
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );

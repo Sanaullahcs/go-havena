@@ -3,7 +3,7 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Menu, X } from "lucide-react";
-import { HavenaMark } from "@/components/shared/havena-mark";
+import { HavenaLockup } from "@/components/shared/havena-lockup";
 import { MarketingNavLink } from "@/components/marketing/nav-link";
 import { navLinks } from "@/lib/marketing/content";
 
@@ -58,8 +58,7 @@ export function MarketingHeader() {
           className="lp-header__brand flex min-w-0 items-center gap-2"
           onClick={closeMenu}
         >
-          <HavenaMark size={36} tight />
-          <span className="lp-brand-name">Havena</span>
+          <HavenaLockup size={36} nameClassName="lp-brand-name" />
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex" aria-label="Primary">

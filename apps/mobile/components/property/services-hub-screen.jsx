@@ -22,6 +22,8 @@ import PropertyHubLinkCards from "../property/property-hub-link-cards";
 import PropertyHubApprovalQueue from "../property/property-hub-approval-queue";
 import { PropertyManagementRoutes, navigatePropertyHubRoute } from "../../constants/property-management-routes";
 import { getCurrentRole } from "../../constants/role-session";
+import { getCachedUser } from "../../services/auth-session";
+import { isResidentFeatureEnabled } from "../../constants/resident-features";
 import { Fonts } from "../../constants/font";
 import { Layout } from "../../constants/tokens";
 import { HOME_SCROLL_BOTTOM_PAD } from "../../constants/home-styles";

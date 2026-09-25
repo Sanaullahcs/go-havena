@@ -19,12 +19,20 @@ class EnsureCommunityAdmin
     private array $onboardingAllowPrefixes = [
         'api/v1/admin/billing',
         'api/v1/admin/referrals',
+        'api/v1/admin/resident-features',
         'api/v1/plaid',
     ];
 
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
+
+        if (AdminRoleService::isResidentMode($user)) {
+            return response()->json([
+                'message' => 'Switch back to Admin Mode to use community admin tools.',
+                'code' => 'RESIDENT_MODE_ACTIVE',
+            ], 403);
+        }
 
         if (AdminRoleService::isSystemAdmin($user)) {
             return $next($request);

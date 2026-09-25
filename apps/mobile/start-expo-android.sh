@@ -43,4 +43,8 @@ fi
 echo ""
 echo "Starting Metro on LAN (port 8081)..."
 lsof -ti :8081 | xargs kill -9 2>/dev/null || true
-exec npx expo start --host lan -c
+node ./scripts/patch-expo-go-manifest.cjs
+export HAVENA_GO_SESSION="${HAVENA_GO_SESSION:-$(uuidgen | tr '[:upper:]' '[:lower:]')}"
+export HAVENA_GO_SLUG="${HAVENA_GO_SLUG:-havena-go-$(uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '-' | cut -c1-8)}"
+node -e "require('./scripts/expo-go-manifest-identity.cjs').identity(process.cwd())"
+exec env EXPO_NO_UPDATES=1 HAVENA_GO_SESSION="$HAVENA_GO_SESSION" HAVENA_GO_SLUG="$HAVENA_GO_SLUG" npx expo start --host lan --go -c

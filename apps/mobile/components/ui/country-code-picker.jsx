@@ -11,6 +11,25 @@ import {
   getDialCode,
 } from "../../constants/phone-countries";
 
+/**
+ * Plain object, not StyleSheet.create. The text-metrics patch adds a tall
+ * lineHeight to stylesheet text styles, which top-aligns and clips iOS
+ * TextInput placeholder and value inside this 44px row.
+ */
+const searchInputStyle = {
+  flex: 1,
+  margin: 0,
+  paddingHorizontal: 0,
+  paddingTop: 0,
+  paddingBottom: 0,
+  fontFamily: Fonts.regular,
+  fontSize: 15,
+  color: "#0F172A",
+  textAlignVertical: "center",
+  includeFontPadding: false,
+  backgroundColor: "transparent",
+};
+
 export default function CountryCodePicker({
   visible,
   selectedCode,
@@ -23,14 +42,17 @@ export default function CountryCodePicker({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return PHONE_COUNTRIES;
+    const digits = q.replace(/\D/g, "");
     return PHONE_COUNTRIES.filter((country) => {
-      const dial = getDialCode(country.code);
-      return (
-        country.name.toLowerCase().includes(q) ||
-        country.code.toLowerCase().includes(q) ||
-        dial.includes(q.replace(/\D/g, "")) ||
-        `+${dial}`.includes(q)
-      );
+      const dial = String(getDialCode(country.code));
+      const dialLabel = `+${dial}`;
+      const nameMatch = country.name.toLowerCase().includes(q);
+      const codeMatch = country.code.toLowerCase().includes(q);
+      // Only compare dial codes when the query actually has digits.
+      // An empty digit string matches every code (`"+92".includes("")`).
+      const dialMatch =
+        digits.length > 0 && (dial.includes(digits) || dialLabel.includes(q));
+      return nameMatch || codeMatch || dialMatch;
     });
   }, [query]);
 
@@ -43,6 +65,8 @@ export default function CountryCodePicker({
     setQuery("");
     onSelect?.(code);
   };
+
+  const noMatches = query.trim().length > 0 && filtered.length === 0;
 
   return (
     <Modal
@@ -59,13 +83,14 @@ export default function CountryCodePicker({
           <View style={styles.searchRow}>
             <Ionicons name="search" size={18} color="#9CA3AF" />
             <LocaleTextInput
-              style={styles.searchInput}
+              style={searchInputStyle}
               placeholder={t("countryCode.searchCountryOrCode")}
               placeholderTextColor="#9CA3AF"
               value={query}
               onChangeText={setQuery}
               autoCorrect={false}
               autoCapitalize="none"
+              textAlignVertical="center"
             />
             {query.length > 0 ? (
               <Pressable onPress={() => setQuery("")} hitSlop={8}>
@@ -76,9 +101,12 @@ export default function CountryCodePicker({
 
           <FlatList
             data={filtered}
+            extraData={query}
             keyExtractor={(item) => item.code}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="none"
             style={styles.list}
+            contentContainerStyle={noMatches ? styles.listEmptyContent : undefined}
             renderItem={({ item }) => {
               const selected = item.code === selectedCode;
               return (
@@ -119,6 +147,7 @@ const styles = StyleSheet.create({
     borderTopEndRadius: 20,
     paddingHorizontal: 20,
     paddingBottom: 24,
+    height: "78%",
     maxHeight: "78%",
   },
   handle: {
@@ -149,15 +178,11 @@ const styles = StyleSheet.create({
     height: 44,
     marginBottom: 8,
   },
-  searchInput: {
-    flex: 1,
-    fontFamily: Fonts.regular,
-    fontSize: 15,
-    color: "#0F172A",
-    paddingVertical: 0,
-  },
   list: {
-    flexGrow: 0,
+    flex: 1,
+  },
+  listEmptyContent: {
+    flexGrow: 1,
   },
   row: {
     flexDirection: "row",

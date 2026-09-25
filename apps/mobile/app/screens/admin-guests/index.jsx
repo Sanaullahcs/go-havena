@@ -12,6 +12,7 @@ import { Fonts } from "../../../constants/font";
 import { sf, sw } from "../../../utils/responsive";
 import { fetchAdminGuests, revokeAdminGuest } from "../../../services/guests-api";
 import { useApiAction } from "../../../hooks/use-api-action";
+import { useRequireCommunityAdmin } from "../../../hooks/use-require-community-admin";
 import { Image } from "expo-image";
 import { resolveMediaUrl } from "../../../utils/profile-display";
 import { formatDisplayDate, formatDisplayTime } from "../../../utils/form-datetime";
@@ -258,6 +259,7 @@ function GuestCard({ item, revoking, onRevoke, t }) {
 }
 
 export default function AdminGuestsScreen() {
+  useRequireCommunityAdmin();
   const { t } = useTranslation();
   const router = useRouter();
   const { dialog, showFailure, showSuccess } = useApiAction();

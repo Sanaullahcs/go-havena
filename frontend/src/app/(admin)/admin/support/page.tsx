@@ -23,7 +23,7 @@ const FAQS = [
   },
   {
     q: "Where can I find system and user activity?",
-    a: "The Activity Logs page (in the Logs section of the sidebar) records all user actions and system events. You can filter by type, severity, and search by user or action.",
+    a: "System Admins can open Activity Logs in the sidebar for the full platform audit trail. Community Admins can open Activity from a resident's 3-dot menu to see that resident's history in their community.",
   },
   {
     q: "How do I manage marketplace listings?",

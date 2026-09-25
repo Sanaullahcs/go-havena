@@ -6,13 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Community;
 use App\Models\CommunityMembership;
 use App\Models\User;
-use App\Models\User as UserModel;
 use App\Services\ActivityLogService;
-use App\Services\AdminRoleService;
 use App\Services\CommunityLifecycleService;
 use App\Services\ContactIdentityService;
 use App\Services\NotificationService;
 use App\Services\ReferralService;
+use App\Services\UtilityBillStorage;
+use App\Support\CommunityAdminRecordStatus;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,26 +27,11 @@ class AdminCommunityAdminController extends Controller
         $status = $request->string('status')->trim()->toString() ?: 'pending';
         $search = $request->string('search')->trim()->toString();
 
-        if ($status === 'reassign') {
-            return $this->reassignIndex($request);
-        }
-
         $query = User::query()
             ->with(['profile', 'memberships.community'])
             ->where('role', 'community_admin');
 
-        if ($status === 'approved') {
-            $query->where('community_admin_status', 'approved')
-                ->where('status', 'active');
-        } elseif ($status === 'suspended') {
-            $query->where('community_admin_status', 'approved')
-                ->where('status', 'suspended')
-                ->whereHas('memberships', function ($membership) {
-                    $membership->where('role', 'admin');
-                });
-        } elseif (in_array($status, ['pending', 'rejected'], true)) {
-            $query->where('community_admin_status', $status);
-        }
+        CommunityAdminRecordStatus::applyScope($query, $status);
 
         if ($search !== '') {
             $like = '%'.$search.'%';
@@ -60,12 +45,11 @@ class AdminCommunityAdminController extends Controller
         $items = $query->orderByDesc('created_at')
             ->paginate(min((int) ($request->per_page ?? 15), 100));
 
-        $reassignCommunityIds = app(CommunityLifecycleService::class)->communityIdsNeedingAdminReassignment();
         $stats = $this->buildStats();
 
         return response()->json([
             'data' => collect($items->items())
-                ->map(fn (User $u) => $this->transform($u, $reassignCommunityIds))
+                ->map(fn (User $u) => $this->transform($u))
                 ->values(),
             'meta' => [
                 'current_page' => $items->currentPage(),
@@ -77,7 +61,7 @@ class AdminCommunityAdminController extends Controller
         ]);
     }
 
-    /** PATCH /v1/admin/community-admins/{id} */
+    /** PATCH or POST /v1/admin/community-admins/{id} */
     public function update(Request $request, int $id): JsonResponse
     {
         $user = User::query()
@@ -90,24 +74,32 @@ class AdminCommunityAdminController extends Controller
             return response()->json(['message' => 'Community admin not found.'], 404);
         }
 
+        CommunityAdminRecordStatus::assertCan($user, CommunityAdminRecordStatus::ACTION_EDIT);
+
         $request->validate([
-            'name' => 'sometimes|required|string|min:2|max:100',
+            'name' => 'sometimes|required|string|min:2|max:50',
             'phone' => 'sometimes|required|string|max:30',
             'email' => [
                 'sometimes',
-                'required',
-                'string',
-                'email',
-                'max:255',
-                function (string $attribute, mixed $value, \Closure $fail): void {
-                    if (UserModel::isPhonePlaceholderEmail(is_string($value) ? $value : null)) {
-                        $fail('Enter a personal email address.');
+                function (string $attribute, mixed $value, \Closure $fail) use ($user): void {
+                    $submitted = strtolower(trim(is_string($value) ? $value : ''));
+                    $current = strtolower(trim((string) $user->email));
+                    if ($submitted !== $current) {
+                        $fail('Email address cannot be changed from this form.');
                     }
                 },
             ],
             'display_name' => 'sometimes|nullable|string|max:50',
-            'unit_number' => 'sometimes|required|string|max:50',
+            'unit_number' => 'sometimes|required|string|max:20',
             'residence_type' => 'sometimes|required|string|in:homeowner,tenant',
+            'utility_bill' => 'sometimes|nullable|'.UtilityBillStorage::RULE,
+        ], [
+            'name.max' => 'Full name cannot exceed 50 characters.',
+            'display_name.max' => 'Full name cannot exceed 50 characters.',
+            'unit_number.max' => 'Unit / apartment cannot exceed 20 characters.',
+            'utility_bill.mimes' => 'Upload a JPG, PNG, HEIC, or PDF file.',
+            'utility_bill.file' => 'Upload a JPG, PNG, HEIC, or PDF file.',
+            'utility_bill.max' => 'File must be 10 MB or smaller.',
         ]);
 
         $user->loadMissing('profile');
@@ -118,6 +110,7 @@ class AdminCommunityAdminController extends Controller
             'display_name' => $user->profile?->display_name,
             'unit_number' => $user->profile?->unit_number,
             'residence_type' => $user->profile?->residence_type,
+            'utility_bill_url' => $user->profile?->utility_bill_url,
         ];
 
         if ($request->filled('name')) {
@@ -125,7 +118,7 @@ class AdminCommunityAdminController extends Controller
         }
 
         if ($request->has('phone')) {
-            $phone = PhoneNormalizer::normalize($request->phone);
+            $phone = PhoneNormalizer::accept($request->phone);
             if (! $phone) {
                 throw ValidationException::withMessages([
                     'phone' => ['Enter a valid phone number in international format (e.g. +2017777777).'],
@@ -134,12 +127,6 @@ class AdminCommunityAdminController extends Controller
 
             ContactIdentityService::assertAvailableForRegistration(null, $phone, $user->id, 'phone');
             $user->update(['phone' => $phone]);
-        }
-
-        if ($request->filled('email')) {
-            $email = strtolower(trim((string) $request->email));
-            ContactIdentityService::assertAvailableForRegistration($email, null, $user->id, 'email');
-            $user->update(['email' => $email]);
         }
 
         $profileData = [];
@@ -151,6 +138,9 @@ class AdminCommunityAdminController extends Controller
         }
         if ($request->has('residence_type')) {
             $profileData['residence_type'] = $request->input('residence_type');
+        }
+        if ($request->hasFile('utility_bill')) {
+            $profileData['utility_bill_url'] = app(UtilityBillStorage::class)->store($request->file('utility_bill'));
         }
 
         if ($profileData !== []) {
@@ -170,6 +160,7 @@ class AdminCommunityAdminController extends Controller
                 'display_name' => $fresh->profile?->display_name,
                 'unit_number' => $fresh->profile?->unit_number,
                 'residence_type' => $fresh->profile?->residence_type,
+                'utility_bill_url' => $fresh->profile?->utility_bill_url,
             ],
             [],
             $fresh->name,
@@ -332,19 +323,8 @@ class AdminCommunityAdminController extends Controller
     /** PATCH /v1/admin/community-admins/{id}/suspend */
     public function suspend(int $id, CommunityLifecycleService $lifecycle): JsonResponse
     {
-        $user = User::query()
-            ->where('id', $id)
-            ->where('role', 'community_admin')
-            ->where('community_admin_status', 'approved')
-            ->first();
-
-        if (! $user) {
-            return response()->json(['message' => 'Approved community admin not found.'], 404);
-        }
-
-        if ($user->status === 'suspended') {
-            return response()->json(['message' => 'This community admin is already suspended.'], 422);
-        }
+        $user = $this->findManagedAdmin($id);
+        CommunityAdminRecordStatus::assertCan($user, CommunityAdminRecordStatus::ACTION_SUSPEND);
 
         $previousStatus = $user->status;
         $lifecycle->suspendCommunityAdmin($user);
@@ -375,6 +355,154 @@ class AdminCommunityAdminController extends Controller
         ]);
     }
 
+    /** PATCH /v1/admin/community-admins/{id}/reactivate */
+    public function reactivate(int $id, CommunityLifecycleService $lifecycle): JsonResponse
+    {
+        $user = $this->findManagedAdmin($id);
+        CommunityAdminRecordStatus::assertCan($user, CommunityAdminRecordStatus::ACTION_REACTIVATE);
+
+        $previousStatus = $user->status;
+        $lifecycle->reactivateCommunityAdmin($user);
+
+        ActivityLogService::recordStatusChange(
+            'community_admin_reactivated',
+            'User',
+            $user->id,
+            $previousStatus,
+            'active',
+            'Status',
+            $user->name,
+            (int) $user->id,
+            ['related_item' => $user->name],
+        );
+
+        NotificationService::send(
+            $user->id,
+            'success',
+            'Admin access restored',
+            'Your community admin access has been restored by the system administrator.',
+        );
+
+        return response()->json([
+            'data'    => $this->transform($user->fresh(['profile', 'memberships.community'])),
+            'message' => 'Community admin reactivated.',
+        ]);
+    }
+
+    /** POST /v1/admin/community-admins/{id}/release */
+    public function release(int $id, Request $request, CommunityLifecycleService $lifecycle): JsonResponse
+    {
+        $user = $this->findManagedAdmin($id);
+        CommunityAdminRecordStatus::assertCan($user, CommunityAdminRecordStatus::ACTION_RELEASE);
+
+        $membership = $user->memberships->first(
+            fn ($item) => $item->role === 'admin' && in_array($item->status, ['approved', 'pending'], true),
+        );
+        $community = $membership?->community;
+        if (! $community) {
+            return response()->json(['message' => 'This community admin is not assigned to a community.'], 422);
+        }
+
+        $released = $lifecycle->releaseCommunityAdmin($community);
+        $actor = $request->user();
+
+        ActivityLogService::user(
+            'community_admin_released',
+            "Released {$released->name} as admin for {$community->name}",
+            'User',
+            $released->id,
+            'info',
+            $actor?->id,
+            [
+                'community_id' => $community->id,
+                'community_name' => $community->name,
+                'previous_admin' => [
+                    'id' => $released->id,
+                    'name' => $released->name,
+                    'email' => $released->email,
+                ],
+                'new_admin' => null,
+                'performed_by' => [
+                    'id' => $actor?->id,
+                    'name' => $actor?->name,
+                    'email' => $actor?->email,
+                ],
+                'performed_at' => now()->toIso8601String(),
+            ],
+        );
+
+        return response()->json([
+            'data' => $this->transform($released->fresh(['profile', 'memberships.community'])),
+            'message' => 'Community Admin released successfully. Assign a new community from the Reassign tab.',
+        ]);
+    }
+
+    /** POST /v1/admin/community-admins/{id}/assign-community */
+    public function assignCommunity(int $id, Request $request, CommunityLifecycleService $lifecycle): JsonResponse
+    {
+        $request->validate([
+            'community_id' => ['required', 'integer', 'exists:communities,id'],
+        ]);
+
+        $user = $this->findManagedAdmin($id);
+        CommunityAdminRecordStatus::assertCan($user, CommunityAdminRecordStatus::ACTION_ASSIGN_COMMUNITY);
+
+        $community = Community::query()->findOrFail((int) $request->input('community_id'));
+
+        try {
+            $lifecycle->assertCanAdminCommunity($user, $community);
+            $assigned = $lifecycle->assignCommunityAdmin($community, $user);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        $actor = $request->user();
+        ActivityLogService::recordChanges(
+            'community_admin_assigned',
+            'User',
+            $assigned->id,
+            [[
+                'field' => 'Community Assignment',
+                'key' => 'community_assignment',
+                'previous' => null,
+                'next' => $community->name,
+            ]],
+            $assigned->name,
+            (int) $assigned->id,
+            [
+                'community_id' => $community->id,
+                'community_name' => $community->name,
+                'new_admin' => [
+                    'id' => $assigned->id,
+                    'name' => $assigned->name,
+                    'email' => $assigned->email,
+                ],
+                'related_item' => $community->name,
+                'performed_by' => [
+                    'id' => $actor?->id,
+                    'name' => $actor?->name,
+                    'email' => $actor?->email,
+                ],
+                'performed_at' => now()->toIso8601String(),
+            ],
+        );
+
+        NotificationService::send(
+            $assigned->id,
+            'success',
+            'Community admin access granted',
+            "You have been assigned to manage {$community->name} in Havena.",
+        );
+
+        return response()->json([
+            'data' => $this->transform($assigned->fresh(['profile', 'memberships.community'])),
+            'message' => 'Community assigned. The admin is now Active.',
+        ]);
+    }
+
     /** DELETE /v1/admin/community-admins/{id} */
     public function destroy(Request $request, int $id, CommunityLifecycleService $lifecycle): JsonResponse
     {
@@ -387,21 +515,17 @@ class AdminCommunityAdminController extends Controller
             return response()->json(['message' => 'You cannot delete your own account.'], 403);
         }
 
-        $user = User::query()
-            ->with(['memberships.community'])
-            ->where('id', $id)
-            ->where('role', 'community_admin')
-            ->first();
-
-        if (! $user) {
-            return response()->json(['message' => 'Community admin not found.'], 404);
-        }
+        $user = $this->findManagedAdmin($id);
+        CommunityAdminRecordStatus::assertCan($user, CommunityAdminRecordStatus::ACTION_DELETE);
+        $wasRejected = CommunityAdminRecordStatus::resolve($user) === CommunityAdminRecordStatus::REJECTED;
 
         $snapshot = $lifecycle->deleteCommunityAdminAccount($user);
 
         ActivityLogService::user(
             'community_admin_deleted',
-            "Deleted community admin: {$snapshot['deleted_admin']['name']}",
+            $wasRejected
+                ? "Deleted rejected community admin record: {$snapshot['deleted_admin']['name']}"
+                : "Deleted community admin: {$snapshot['deleted_admin']['name']}",
             'User',
             $snapshot['deleted_admin']['id'],
             'warning',
@@ -409,6 +533,7 @@ class AdminCommunityAdminController extends Controller
             [
                 'deleted_admin' => $snapshot['deleted_admin'],
                 'communities' => $snapshot['communities'],
+                'record_only' => $wasRejected,
                 'performed_by' => [
                     'id' => $actor?->id,
                     'name' => $actor?->name,
@@ -419,160 +544,52 @@ class AdminCommunityAdminController extends Controller
         );
 
         return response()->json([
-            'message' => 'Community Admin deleted successfully.',
-        ]);
-    }
-
-    /** GET /v1/admin/community-admins?status=reassign — communities needing an active admin. */
-    private function reassignIndex(Request $request): JsonResponse
-    {
-        $search = $request->string('search')->trim()->toString();
-        $page = max(1, (int) ($request->page ?? 1));
-        $perPage = min((int) ($request->per_page ?? 15), 100);
-
-        $lifecycle = app(CommunityLifecycleService::class);
-        $communityIds = $lifecycle->communityIdsNeedingAdminReassignment();
-
-        $communities = Community::query()
-            ->whereIn('id', $communityIds ?: [-1])
-            ->orderByDesc('updated_at')
-            ->get();
-
-        $rows = $communities
-            ->map(fn (Community $community) => $this->transformReassignRow(
-                $community,
-                $this->findPreviousAdminForCommunity($community),
-            ))
-            ->sortBy(fn (array $row) => match ($row['reassign_reason'] ?? '') {
-                'community_inactive' => 0,
-                'previous_admin_suspended' => 1,
-                'previous_admin_removed' => 2,
-                default => 3,
-            })
-            ->values();
-
-        if ($search !== '') {
-            $needle = mb_strtolower($search);
-            $rows = $rows->filter(function (array $row) use ($needle) {
-                $haystack = mb_strtolower(implode(' ', array_filter([
-                    $row['name'] ?? '',
-                    $row['email'] ?? '',
-                    $row['phone'] ?? '',
-                    $row['reassign_summary'] ?? '',
-                    $row['previous_admin']['name'] ?? '',
-                    $row['community_request']['name'] ?? '',
-                    $row['community_request']['region'] ?? '',
-                ])));
-
-                return str_contains($haystack, $needle);
-            })->values();
-        }
-
-        $total = $rows->count();
-        $items = $rows->slice(($page - 1) * $perPage, $perPage)->values();
-        $stats = $this->buildStats();
-
-        return response()->json([
-            'data' => $items,
-            'meta' => [
-                'current_page' => $page,
-                'last_page'    => max(1, (int) ceil($total / $perPage)),
-                'total'        => $total,
-                'per_page'     => $perPage,
-                'stats'        => $stats,
-            ],
+            'message' => $wasRejected
+                ? 'Rejected record deleted successfully.'
+                : 'Community Admin deleted successfully.',
         ]);
     }
 
     private function buildStats(): array
     {
         $statsBase = User::query()->where('role', 'community_admin');
-        $reassignCommunityIds = app(CommunityLifecycleService::class)->communityIdsNeedingAdminReassignment();
 
-        $suspendedOnly = (clone $statsBase)
-            ->where('community_admin_status', 'approved')
-            ->where('status', 'suspended')
-            ->whereHas('memberships', function ($membership) {
-                $membership->where('role', 'admin');
-            })
-            ->count();
+        $activeQuery = (clone $statsBase);
+        CommunityAdminRecordStatus::applyScope($activeQuery, CommunityAdminRecordStatus::ACTIVE);
+
+        $reassignQuery = (clone $statsBase);
+        CommunityAdminRecordStatus::applyScope($reassignQuery, CommunityAdminRecordStatus::REASSIGN);
+
+        $suspendedQuery = (clone $statsBase);
+        CommunityAdminRecordStatus::applyScope($suspendedQuery, CommunityAdminRecordStatus::SUSPENDED);
+
+        $active = $activeQuery->count();
+        $reassign = $reassignQuery->count();
 
         return [
             'total'          => (clone $statsBase)->count(),
             'pending'        => (clone $statsBase)->where('community_admin_status', 'pending')->count(),
-            'active'         => (clone $statsBase)->where('community_admin_status', 'approved')->where('status', 'active')->count(),
-            'approved'       => (clone $statsBase)->where('community_admin_status', 'approved')->where('status', 'active')->count(),
-            'suspended'      => $suspendedOnly,
-            'needs_reassign' => count($reassignCommunityIds),
+            'active'         => $active,
+            'approved'       => $active,
+            'suspended'      => $suspendedQuery->count(),
+            'needs_reassign' => $reassign,
             'rejected'       => (clone $statsBase)->where('community_admin_status', 'rejected')->count(),
         ];
     }
 
-    private function findPreviousAdminForCommunity(Community $community): ?User
+    private function findManagedAdmin(int $id): User
     {
-        $adminUserIds = CommunityMembership::query()
-            ->where('community_id', $community->id)
-            ->where('role', 'admin')
-            ->pluck('user_id');
+        $user = User::query()
+            ->with(['profile', 'memberships.community'])
+            ->where('id', $id)
+            ->where('role', 'community_admin')
+            ->first();
 
-        if ($adminUserIds->isEmpty()) {
-            return null;
+        if (! $user) {
+            abort(404, 'Community admin not found.');
         }
 
-        // Prefer suspended / rejected / inactive former admins — not pending applicants.
-        return User::query()
-            ->with(['profile', 'memberships.community'])
-            ->whereIn('id', $adminUserIds)
-            ->where('role', 'community_admin')
-            ->where(function ($q) {
-                $q->where('status', 'suspended')
-                    ->orWhere('community_admin_status', 'rejected')
-                    ->orWhere(function ($approvedInactive) {
-                        $approvedInactive
-                            ->where('community_admin_status', 'approved')
-                            ->where('status', '!=', 'active');
-                    });
-            })
-            ->orderByRaw("CASE WHEN status = 'suspended' THEN 0 WHEN community_admin_status = 'rejected' THEN 1 ELSE 2 END")
-            ->orderByDesc('updated_at')
-            ->first();
-    }
-
-    private function transformReassignRow(Community $community, ?User $previousAdmin): array
-    {
-        $lifecycle = app(CommunityLifecycleService::class);
-        $reason = $lifecycle->resolveReassignReason($community, $previousAdmin);
-        $communityPayload = [
-            'id'            => $community->id,
-            'name'          => $community->name,
-            'review_status' => $community->review_status,
-            'status'        => $community->status,
-            'region'        => $community->region,
-        ];
-
-        return [
-            'id'                     => 0,
-            'reassign_row_id'        => 'community-'.$community->id,
-            'name'                   => $community->name,
-            'email'                  => null,
-            'phone'                  => null,
-            'role'                   => 'community_admin',
-            'community_admin_status' => 'approved',
-            'status'                 => 'unassigned',
-            'suspension_reason'      => null,
-            'needs_reassign'         => true,
-            'reassign_reason'        => $reason,
-            'reassign_summary'       => $lifecycle->reassignSummaryFor($community, $previousAdmin),
-            'previous_admin'         => $previousAdmin ? [
-                'id'                => $previousAdmin->id,
-                'name'              => $previousAdmin->name,
-                'status'            => $previousAdmin->status,
-                'suspension_reason' => $previousAdmin->suspension_reason,
-            ] : null,
-            'created_at'             => $community->created_at?->toIso8601String(),
-            'profile'                => null,
-            'community_request'      => $communityPayload,
-        ];
+        return $user;
     }
 
     private function findApprovableAdmin(int $id): User
@@ -586,9 +603,8 @@ class AdminCommunityAdminController extends Controller
             abort(404, 'Community admin applicant not found');
         }
 
-        if (! in_array($user->community_admin_status ?? '', ['pending', 'rejected'], true)) {
-            abort(422, 'This community admin application is not awaiting approval');
-        }
+        $user->loadMissing('memberships.community');
+        CommunityAdminRecordStatus::assertCan($user, CommunityAdminRecordStatus::ACTION_APPROVE);
 
         return $user;
     }
@@ -596,6 +612,7 @@ class AdminCommunityAdminController extends Controller
     private function findRejectableAdmin(int $id): User
     {
         $user = User::query()
+            ->with(['profile', 'memberships.community'])
             ->where('id', $id)
             ->where('role', 'community_admin')
             ->first();
@@ -604,11 +621,15 @@ class AdminCommunityAdminController extends Controller
             abort(404, 'Community admin applicant not found');
         }
 
-        if (! in_array($user->community_admin_status ?? '', ['pending', 'approved'], true)) {
-            abort(422, 'This community admin cannot be rejected');
+        $lifecycle = CommunityAdminRecordStatus::resolve($user);
+        if (in_array($lifecycle, [
+            CommunityAdminRecordStatus::PENDING,
+            CommunityAdminRecordStatus::ACTIVE,
+        ], true)) {
+            return $user;
         }
 
-        return $user;
+        abort(422, CommunityAdminRecordStatus::deniedMessage($lifecycle, CommunityAdminRecordStatus::ACTION_REJECT));
     }
 
     private function communityApprovalMessage(User $user): string
@@ -628,17 +649,13 @@ class AdminCommunityAdminController extends Controller
 
     private function transform(User $user, array $reassignCommunityIds = []): array
     {
+        $user->loadMissing(['profile', 'memberships.community']);
         $membership = $user->memberships->first(
             fn ($item) => $item->role === 'admin' && in_array($item->status, ['approved', 'pending'], true),
         );
         $community  = $membership?->community;
-        $needsReassign = $user->status === 'suspended'
-            && $membership?->role === 'admin'
-            && $community
-            && in_array($community->id, $reassignCommunityIds, true);
-
-        $lifecycle = app(CommunityLifecycleService::class);
-        $previousAdminForSummary = $user->status === 'suspended' ? $user : null;
+        $lifecycleStatus = CommunityAdminRecordStatus::resolve($user);
+        $needsReassign = $lifecycleStatus === CommunityAdminRecordStatus::REASSIGN;
 
         return [
             'id'                     => $user->id,
@@ -651,9 +668,11 @@ class AdminCommunityAdminController extends Controller
             'community_admin_rejection_reason' => $user->community_admin_rejection_reason,
             'status'                         => $user->status,
             'suspension_reason'              => $user->suspension_reason,
+            'lifecycle_status'       => $lifecycleStatus,
+            'allowed_actions'        => CommunityAdminRecordStatus::actionsFor($lifecycleStatus),
             'needs_reassign'         => $needsReassign,
-            'reassign_summary'       => ($needsReassign && $community)
-                ? $lifecycle->reassignSummaryFor($community, $previousAdminForSummary)
+            'reassign_summary'       => $needsReassign
+                ? 'This admin is not assigned to a community. Assign a community to restore Active status.'
                 : null,
             'created_at'             => $user->created_at?->toIso8601String(),
             'profile'                => $user->profile ? [

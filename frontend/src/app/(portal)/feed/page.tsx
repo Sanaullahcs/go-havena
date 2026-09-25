@@ -6,26 +6,54 @@ import { getUser } from "@/lib/auth/session";
 import { formatAccountDisplayName } from "@/lib/user/email-display";
 import { confirmDelete, toastSuccess, toastInfo, toastError } from "@/lib/alert";
 import {
-  fetchFeed, createPost, deletePost, likePost,
+  fetchFeed, createPost, deletePost, likePost, voteOnPoll,
   fetchComments, addComment, deleteComment,
   type Post as ApiPost, type Comment as ApiComment,
 } from "@/lib/api/feed";
 import { apiError } from "@/lib/api/client";
 import { PageLoader } from "@/components/shared/page-states";
 
-const AVATAR_COLORS = ["#1B4F8A", "#7c3aed", "#059669", "#d97706", "#0891b2", "#db2777", "#dc2626"];
+const C = {
+  navy: "#0A2A43",
+  teal: "#0D9488",
+  primary: "#14B8A6",
+  mint: "#D1FAF5",
+  canvas: "#F4F8FD",
+  white: "#FFFFFF",
+  muted: "rgba(10, 42, 67, 0.55)",
+  soft: "rgba(10, 42, 67, 0.42)",
+  border: "rgba(10, 42, 67, 0.10)",
+  borderSoft: "rgba(10, 42, 67, 0.06)",
+} as const;
+
+const AVATAR_COLORS = [C.navy, C.teal, C.primary];
 const ac = (i: number) => AVATAR_COLORS[i % AVATAR_COLORS.length];
 
-const CAT_COLOR: Record<string, string> = {
-  general: "#64748b",
-  event:   "#7c3aed",
-  help:    "#059669",
-  sale:    "#0891b2",
-  update:  "#1B4F8A",
+const CAT_TONE: Record<string, { color: string }> = {
+  general: { color: C.navy },
+  event:   { color: C.primary },
+  help:    { color: C.teal },
+  sale:    { color: C.teal },
+  update:  { color: C.primary },
 };
 const CAT_LABEL: Record<string, string> = {
   general: "General", event: "Event", help: "Help", sale: "For Sale", update: "Update",
+  announcement: "Announcement", poll: "Poll",
 };
+
+function formatFeedDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const diff = Date.now() - date.getTime();
+  if (diff >= 0 && diff < 60_000) return "Just now";
+  if (diff >= 0 && diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff >= 0 && diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function initialsOf(name: string) {
+  return name.split(" ").map((n) => n[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+}
 
 type FeedFilter = "all" | "events" | "updates" | "help";
 const PREVIEW_REPLY_COUNT = 1;
@@ -179,6 +207,15 @@ export default function FeedPage() {
     }
   };
 
+  const vote = async (postId: number, optionId: number) => {
+    try {
+      const res = await voteOnPoll(postId, optionId);
+      setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, ...res.data } : p)));
+    } catch (err) {
+      toastError(apiError(err));
+    }
+  };
+
   /* create post */
   const submitPost = async () => {
     if (!draft.trim()) return;
@@ -275,40 +312,50 @@ export default function FeedPage() {
   });
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
-
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="nl-eyebrow" style={{ color: "#059669" }}>Resident Portal</p>
-          <h2 className="mt-0.5 text-xl font-bold text-slate-900">Community Feed</h2>
-          <p className="mt-0.5 text-sm text-slate-500">Connect, share, and stay informed with your neighbors.</p>
-        </div>
+    <div className="mx-auto max-w-2xl space-y-4">
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: C.teal }}>
+          Resident Portal
+        </p>
+        <h2 className="mt-1 text-[22px] font-bold tracking-tight" style={{ color: C.navy }}>
+          Community Feed
+        </h2>
+        <p className="mt-1 text-[13.5px] leading-relaxed" style={{ color: C.muted }}>
+          Connect, share, and stay informed with your neighbors.
+        </p>
       </div>
 
-      {/* Feed filter tabs */}
-      <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-        {(["all", "events", "updates", "help"] as FeedFilter[]).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFeedFilter(f)}
-            className={[
-              "flex-1 rounded-lg py-1.5 text-[12.5px] font-semibold capitalize transition",
-              feedFilter === f
-                ? "bg-emerald-600 text-white shadow-sm"
-                : "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
-            ].join(" ")}
-          >
-            {f === "all" ? "All Posts" : f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
-        ))}
+      <div
+        className="flex items-center gap-1 rounded-2xl p-1"
+        style={{ background: C.white, border: `1px solid ${C.border}`, boxShadow: "0 1px 2px rgba(10, 42, 67, 0.04)" }}
+      >
+        {(["all", "events", "updates", "help"] as FeedFilter[]).map((f) => {
+          const active = feedFilter === f;
+          return (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setFeedFilter(f)}
+              className={`flex-1 rounded-xl py-2 text-[12.5px] font-semibold transition-colors ${
+                active ? "" : "hover:bg-[#D1FAF5] hover:text-[#0A2A43]"
+              }`}
+              style={
+                active
+                  ? { background: C.primary, color: C.white }
+                  : { color: C.muted }
+              }
+            >
+              {f === "all" ? "All posts" : f.charAt(0).toUpperCase() + f.slice(1)}
+            </button>
+          );
+        })}
       </div>
 
       {/* Composer */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-2xl bg-white shadow-sm" style={{ border: `1px solid ${C.border}` }}>
         <div className="p-4">
           <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[12px] font-bold text-white">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[12px] font-bold text-white" style={{ background: C.navy }}>
               {myInitials}
             </div>
             <div className="flex-1">
@@ -317,12 +364,12 @@ export default function FeedPage() {
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder={`What's on your mind, ${myName.split(" ")[0]}?`}
                 rows={draft ? 3 : 1}
-                className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-[13.5px] text-slate-800 outline-none placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100 transition"
+                className="w-full resize-none rounded-xl border border-[rgba(10,42,67,0.10)] bg-[#F4F8FD] px-3.5 py-2.5 text-[13.5px] text-[#0A2A43] outline-none transition placeholder:text-[rgba(10,42,67,0.42)] focus:border-[#14B8A6] focus:bg-white focus:shadow-[0_0_0_3px_#D1FAF5]"
               />
             </div>
           </div>
           {draft && (
-            <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+            <div className="mt-3 flex items-center justify-between gap-3 pt-3" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
               <div className="flex items-center gap-2">
                 <ComposerBtn icon={<IcoImage />} label="Photo" onClick={() => toastInfo("Photo upload coming soon.")} />
                 <ComposerBtn icon={<IcoCalendar />} label="Event" onClick={() => toastInfo("Event creation coming soon.")} />
@@ -330,7 +377,8 @@ export default function FeedPage() {
               <button
                 onClick={submitPost}
                 disabled={posting || !draft.trim()}
-                className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-1.5 text-[12.5px] font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-xl px-4 py-1.5 text-[12.5px] font-semibold text-white shadow-sm transition disabled:opacity-50"
+                style={{ background: C.primary }}
               >
                 <IcoSend /> {posting ? "Posting…" : "Post"}
               </button>
@@ -340,12 +388,12 @@ export default function FeedPage() {
       </div>
 
       {loading ? <PageLoader variant="cards" /> : visible.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-white py-12 text-center shadow-sm">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 [&_svg]:h-6 [&_svg]:w-6">
+        <div className="flex flex-col items-center gap-3 rounded-2xl bg-white py-12 text-center shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+          <div className="flex h-12 w-12 items-center justify-center rounded-full [&_svg]:h-6 [&_svg]:w-6" style={{ background: C.mint, color: C.teal }}>
             <IcoFeed />
           </div>
-          <p className="text-[13.5px] font-medium text-slate-500">No posts in this category yet.</p>
-          <p className="text-[12.5px] text-slate-400">Be the first to share something!</p>
+          <p className="text-[13.5px] font-medium" style={{ color: C.muted }}>No posts in this category yet.</p>
+          <p className="text-[12.5px]" style={{ color: C.soft }}>Be the first to share something!</p>
         </div>
       ) : visible.map((post, idx) => {
         const commentsOpen  = expandedComments.has(post.id);
@@ -356,39 +404,51 @@ export default function FeedPage() {
             key={post.id}
             id={`feed-post-${post.id}`}
             ref={String(post.id) === highlightPostId ? highlightedRef : undefined}
-            className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${
-              String(post.id) === highlightPostId
-                ? "border-emerald-400 ring-2 ring-emerald-100"
-                : "border-slate-200"
-            }`}
+            className="overflow-hidden rounded-2xl bg-white shadow-sm"
+            style={{
+              border: `1px solid ${String(post.id) === highlightPostId ? C.primary : C.border}`,
+              boxShadow: String(post.id) === highlightPostId ? `0 0 0 3px ${C.mint}` : undefined,
+            }}
           >
             {/* Post header */}
             <div className="flex items-start justify-between gap-3 px-5 pt-4 pb-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[12.5px] font-bold text-white"
-                  style={{ background: post.author_avatar ?? ac(idx) }}>
-                  {post.author_name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()}
+                  style={{ background: ac(idx) }}>
+                  {initialsOf(post.author_name)}
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-[13.5px] font-bold text-slate-900">{post.author_name}</p>
-                    <span className="rounded-full px-2 py-0.5 text-[10.5px] font-semibold text-white"
-                      style={{ background: CAT_COLOR[post.category] ?? "#64748b" }}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-[14px] font-semibold" style={{ color: C.navy }}>{post.author_name}</p>
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[10.5px] font-semibold"
+                      style={{ background: C.mint, color: CAT_TONE[post.category]?.color ?? C.navy }}
+                    >
                       {CAT_LABEL[post.category] ?? post.category}
                     </span>
                   </div>
-                  <p className="text-[12px] text-slate-400">{post.author_unit ?? "Resident"} · {new Date(post.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</p>
+                  <p className="mt-0.5 text-[12px]" style={{ color: C.soft }}>
+                    {post.author_unit ?? "Resident"} · {formatFeedDate(post.created_at)}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
                 {post.is_mine && (
-                  <button onClick={() => handleDeletePost(post.id)}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 transition hover:bg-red-50 hover:text-red-500 [&_svg]:h-3.5 [&_svg]:w-3.5">
+                  <button
+                    onClick={() => handleDeletePost(post.id)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#D1FAF5] hover:text-[#0A2A43] [&_svg]:h-3.5 [&_svg]:w-3.5"
+                    style={{ color: C.soft }}
+                    aria-label="Delete post"
+                  >
                     <IcoTrash />
                   </button>
                 )}
-                <button onClick={() => toastInfo("More options coming soon.")}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-100 hover:text-slate-500 [&_svg]:h-4 [&_svg]:w-4">
+                <button
+                  onClick={() => toastInfo("More options coming soon.")}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#F4F8FD] hover:text-[#0A2A43] [&_svg]:h-4 [&_svg]:w-4"
+                  style={{ color: C.soft }}
+                  aria-label="More options"
+                >
                   <IcoDots />
                 </button>
               </div>
@@ -396,42 +456,46 @@ export default function FeedPage() {
 
             {/* Content */}
             <div className="px-5 pb-3">
-              <p className="whitespace-pre-line text-[14px] leading-relaxed text-slate-800">{post.body}</p>
+              {post.poll ? (
+                <PollBlock post={post} onVote={(optionId) => vote(post.id, optionId)} />
+              ) : (
+                <p className="whitespace-pre-line text-[14px] leading-relaxed" style={{ color: C.navy }}>{post.body}</p>
+              )}
             </div>
 
             {/* Image */}
             {post.image_url && (
-              <div className="mb-3 overflow-hidden">
+              <div className="mx-5 mb-3 overflow-hidden rounded-xl">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={post.image_url} alt="Post attachment" className="w-full object-cover" style={{ maxHeight: "340px" }} />
               </div>
             )}
 
             {/* Counts */}
-            <div className="flex items-center justify-between border-t border-slate-100 px-5 py-2">
+            <div className="flex items-center justify-between px-5 py-2" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
               <div className="flex items-center gap-1.5">
                 {post.liked_by_me && (
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 [&_svg]:h-2.5 [&_svg]:w-2.5 [&_svg]:text-emerald-600">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full [&_svg]:h-2.5 [&_svg]:w-2.5" style={{ background: C.mint, color: C.teal }}>
                     <IcoHeart />
                   </span>
                 )}
-                <span className="text-[12.5px] text-slate-500">{post.likes_count} {post.likes_count === 1 ? "like" : "likes"}</span>
+                <span className="text-[12.5px]" style={{ color: C.muted }}>{post.likes_count} {post.likes_count === 1 ? "like" : "likes"}</span>
               </div>
               <div className="flex items-center gap-3">
-                <button onClick={() => toggleComments(post.id)} className="text-[12.5px] text-slate-500 transition hover:text-slate-700">
+                <button onClick={() => toggleComments(post.id)} className="text-[12.5px] transition hover:opacity-80" style={{ color: C.muted }}>
                   {post.comments_count} {post.comments_count === 1 ? "comment" : "comments"}
                 </button>
               </div>
             </div>
 
             {/* Action bar */}
-            <div className="flex items-center border-t border-slate-100 px-2">
+            <div className="flex items-center px-2" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
               <ReactionBtn
                 active={post.liked_by_me}
                 onClick={() => toggleLike(post.id)}
                 icon={<IcoHeart />}
                 label="Like"
-                activeColor="#059669"
+                activeColor={C.teal}
               />
               <ReactionBtn
                 active={false}
@@ -449,9 +513,9 @@ export default function FeedPage() {
 
             {/* Comments section */}
             {commentsOpen && (
-              <div className="border-t border-slate-100 bg-slate-50/40 px-5 py-4 space-y-3">
+              <div className="px-5 py-4 space-y-3" style={{ borderTop: `1px solid ${C.borderSoft}`, background: C.canvas }}>
                 {loadingCmts ? (
-                  <div className="py-4 text-center text-[12px] text-slate-400">Loading comments…</div>
+                  <div className="py-4 text-center text-[12px]" style={{ color: C.soft }}>Loading comments…</div>
                 ) : buildCommentDisplayRows(comments, expandedThreadsByPost[post.id] ?? new Set()).map((row) => {
                   if (row.type === "view_all" || row.type === "hide") {
                     return (
@@ -459,8 +523,8 @@ export default function FeedPage() {
                         key={`${row.type}-${row.parentId}`}
                         type="button"
                         onClick={() => toggleThread(post.id, row.parentId)}
-                        className="text-left text-[12px] font-semibold text-slate-500 hover:text-emerald-700"
-                        style={{ paddingLeft: 24 }}
+                        className="text-left text-[12px] font-semibold hover:opacity-80"
+                        style={{ color: C.teal, paddingLeft: 24 }}
                       >
                         {row.type === "hide"
                           ? "Hide replies"
@@ -476,32 +540,44 @@ export default function FeedPage() {
                     className="flex min-w-0 items-start gap-2.5"
                     style={{ paddingLeft: depth > 0 ? depth * 24 : 0 }}
                   >
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                      style={{ background: c.author_avatar ?? "#1B4F8A" }}>
-                      {c.author_name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
+                    <div
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                      style={{ background: C.navy }}
+                    >
+                      {initialsOf(c.author_name)}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="inline-block rounded-2xl rounded-tl-sm bg-white px-3.5 py-2 border border-slate-200/80 shadow-xs">
-                        <p className="text-[12px] font-bold text-slate-900">{c.author_name}</p>
+                      <div
+                        className="inline-block max-w-full rounded-2xl rounded-tl-sm px-3.5 py-2"
+                        style={{ background: C.white, border: `1px solid ${C.border}` }}
+                      >
+                        <p className="text-[12px] font-semibold" style={{ color: C.navy }}>{c.author_name}</p>
                         {c.parent_author_name && depth > 0 ? (
-                          <p className="text-[11px] text-slate-400 mb-0.5">
-                            Replying to <span className="font-semibold text-emerald-700">{c.parent_author_name}</span>
+                          <p className="mb-0.5 text-[11px]" style={{ color: C.soft }}>
+                            Replying to <span className="font-semibold" style={{ color: C.teal }}>{c.parent_author_name}</span>
                           </p>
                         ) : null}
-                        <p className="text-[13px] text-slate-700 leading-snug">{c.body}</p>
+                        <p className="text-[13px] leading-snug" style={{ color: C.navy }}>{c.body}</p>
                       </div>
-                      <div className="mt-1 flex items-center gap-2 px-1">
-                        <p className="text-[11px] text-slate-400">{new Date(c.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</p>
+                      <div className="mt-1 flex items-center gap-2.5 px-1">
+                        <p className="text-[11px]" style={{ color: C.soft }}>{formatFeedDate(c.created_at)}</p>
                         <button
                           type="button"
                           onClick={() => handleReply(post.id, c)}
-                          className="text-[11px] font-semibold text-slate-500 hover:text-emerald-600 transition"
+                          className="text-[11px] font-semibold transition hover:opacity-80"
+                          style={{ color: C.teal }}
                         >
                           Reply
                         </button>
                         {c.is_mine ? (
-                          <button type="button" onClick={() => handleDeleteComment(post.id, c.id)}
-                            className="text-[11px] text-slate-400 hover:text-red-500 transition">Delete</button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteComment(post.id, c.id)}
+                            className="text-[11px] transition hover:opacity-80"
+                            style={{ color: C.soft }}
+                          >
+                            Delete
+                          </button>
                         ) : null}
                       </div>
                     </div>
@@ -512,24 +588,28 @@ export default function FeedPage() {
                 {/* Write a comment / reply */}
                 <div className="pt-1 space-y-2">
                   {replyToByPost[post.id] ? (
-                    <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-1.5 text-[12px] text-emerald-800">
+                    <div className="flex items-center gap-2 rounded-xl px-3 py-1.5 text-[12px]" style={{ background: C.mint, color: C.navy }}>
                       <span className="flex-1 truncate">
                         Replying to <strong>{replyToByPost[post.id]?.name}</strong>
                       </span>
                       <button
                         type="button"
                         onClick={() => setReplyToByPost((d) => ({ ...d, [post.id]: null }))}
-                        className="font-semibold text-emerald-700 hover:text-emerald-900"
+                        className="font-semibold hover:opacity-80"
+                        style={{ color: C.teal }}
                       >
                         Cancel
                       </button>
                     </div>
                   ) : null}
                   <div className="flex items-start gap-2.5">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ background: C.navy }}>
                       {myInitials}
                     </div>
-                    <div className="flex flex-1 items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 py-1.5 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100 transition">
+                    <div
+                      className="flex flex-1 items-center gap-2 rounded-full px-3.5 py-1.5"
+                      style={{ background: C.white, border: `1px solid ${C.border}` }}
+                    >
                       <input
                         ref={(el) => { commentInputRefs.current[post.id] = el; }}
                         type="text"
@@ -539,13 +619,20 @@ export default function FeedPage() {
                         placeholder={
                           replyToByPost[post.id]
                             ? `Reply to ${replyToByPost[post.id]?.name}…`
-                            : "Write a comment…"
+                            : post.poll
+                              ? "Add a thought..."
+                              : "Write a comment…"
                         }
-                        className="flex-1 bg-transparent text-[13px] text-slate-800 outline-none placeholder:text-slate-400"
+                        className="flex-1 bg-transparent text-[13px] outline-none"
+                        style={{ color: C.navy }}
                       />
-                      <button onClick={() => handleAddComment(post.id)}
-                        className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white [&_svg]:h-2.5 [&_svg]:w-2.5 disabled:opacity-40"
-                        disabled={!(commentDraft[post.id] ?? "").trim()}>
+                      <button
+                        onClick={() => handleAddComment(post.id)}
+                        className="flex h-6 w-6 items-center justify-center rounded-full text-white disabled:opacity-40 [&_svg]:h-2.5 [&_svg]:w-2.5"
+                        style={{ background: C.primary }}
+                        disabled={!(commentDraft[post.id] ?? "").trim()}
+                        aria-label="Send comment"
+                      >
                         <IcoSend />
                       </button>
                     </div>
@@ -562,13 +649,96 @@ export default function FeedPage() {
 }
 
 /* ─── Sub-components ─── */
-function ReactionBtn({ active, onClick, icon, label, activeColor = "#1B4F8A" }: {
-  active: boolean; onClick: () => void; icon: React.ReactNode; label: string; activeColor?: string;
+function pollTimeLeft(endsAt: string, closed: boolean) {
+  if (closed) return "Poll closed";
+  const end = new Date(endsAt);
+  const diff = end.getTime() - Date.now();
+  if (!Number.isFinite(diff) || diff <= 0) return "Poll closed";
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "Less than a minute left";
+  if (minutes < 60) return `${minutes} ${minutes === 1 ? "minute" : "minutes"} left`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"} left`;
+  const days = Math.floor(hours / 24);
+  return `${days} ${days === 1 ? "day" : "days"} left`;
+}
+
+function PollBlock({ post, onVote }: { post: ApiPost; onVote: (optionId: number) => void }) {
+  const poll = post.poll;
+  const [selected, setSelected] = useState<number | null>(poll?.voted_option_id ?? null);
+  if (!poll) return null;
+  const closed = poll.closed || pollTimeLeft(poll.ends_at, false) === "Poll closed";
+  const showResults = poll.results_visible || closed;
+  const time = pollTimeLeft(poll.ends_at, closed);
+  return (
+    <div className="space-y-3">
+      <p className="text-[15px] font-semibold leading-snug" style={{ color: C.navy }}>{poll.question}</p>
+      {poll.description ? <p className="text-[13.5px] leading-relaxed" style={{ color: C.navy }}>{poll.description}</p> : null}
+      <p className="text-[12px]" style={{ color: C.soft }}>This poll is for community feedback.</p>
+      <div className="space-y-2">
+        {poll.options.map((option) => {
+          const picked = selected === option.id || poll.voted_option_id === option.id;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              disabled={showResults}
+              onClick={() => setSelected(option.id)}
+              className="relative w-full overflow-hidden rounded-xl border px-3 py-2.5 text-left"
+              style={{ borderColor: picked ? "#1B4F8A" : C.border }}
+            >
+              {showResults ? (
+                <span className="absolute inset-y-0 left-0" style={{ width: `${option.percent ?? 0}%`, background: C.mint }} />
+              ) : null}
+              <span className="relative flex items-center justify-between gap-3 text-[13.5px]" style={{ color: C.navy }}>
+                <span>{option.label}</span>
+                {showResults ? <span className="font-semibold">{option.percent ?? 0}%</span> : null}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {showResults ? (
+        <p className="text-[12px]" style={{ color: C.soft }}>
+          {poll.total_votes ?? 0} {(poll.total_votes ?? 0) === 1 ? "vote" : "votes"} · {closed ? "Poll closed" : time}
+        </p>
+      ) : (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[12px]" style={{ color: C.soft }}>{time}</p>
+          <button
+            type="button"
+            disabled={!selected}
+            onClick={() => selected && onVote(selected)}
+            className="rounded-lg px-4 py-1.5 text-[13px] font-semibold text-white disabled:opacity-50"
+            style={{ background: "#1B4F8A" }}
+          >
+            Vote
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReactionBtn({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  activeColor?: string;
 }) {
   return (
-    <button type="button" onClick={onClick}
-      className="flex flex-1 items-center justify-center gap-1.5 py-2.5 text-[12.5px] font-semibold transition rounded-lg hover:bg-slate-50 [&_svg]:h-4 [&_svg]:w-4"
-      style={{ color: active ? activeColor : "#64748b" }}>
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-[12.5px] font-semibold transition hover:bg-[#D1FAF5] [&_svg]:h-4 [&_svg]:w-4"
+      style={{ color: active ? C.teal : C.muted }}
+    >
       {icon} {label}
     </button>
   );
@@ -576,8 +746,12 @@ function ReactionBtn({ active, onClick, icon, label, activeColor = "#1B4F8A" }: 
 
 function ComposerBtn({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick}
-      className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 [&_svg]:h-4 [&_svg]:w-4">
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium transition hover:bg-[#D1FAF5] hover:text-[#0A2A43] [&_svg]:h-4 [&_svg]:w-4"
+      style={{ color: C.muted }}
+    >
       {icon} {label}
     </button>
   );

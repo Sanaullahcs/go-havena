@@ -4,6 +4,7 @@ import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useFocusEffect, useRouter } from "expo-router";
+import { useRequireCommunityAdmin } from "../../../hooks/use-require-community-admin";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 
@@ -369,6 +370,7 @@ function IconSelectField({ value, error, onChange, t }) {
 }
 
 export default function AdminAmenitiesScreen() {
+  useRequireCommunityAdmin();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();

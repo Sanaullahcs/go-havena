@@ -17,7 +17,7 @@ const TYPE_BADGE_COLOR: Record<string, string> = {
   sale:     "#7c3aed",
   for_sale: "#7c3aed",
   service:  "#0891b2",
-  deal:     "#059669",
+  deal:     "#0D9488",
   wanted:   "#b45309",
 };
 
@@ -138,7 +138,7 @@ export default function ResidentMarketplacePage() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="nl-eyebrow" style={{ color: "#059669" }}>Resident Portal</p>
+          <p className="nl-eyebrow" style={{ color: "#0D9488" }}>Resident Portal</p>
           <h2 className="mt-0.5 text-xl font-bold text-slate-900">Marketplace</h2>
           <p className="mt-0.5 text-sm text-slate-500">Local deals, resident listings, and community services.</p>
         </div>
@@ -158,7 +158,7 @@ export default function ResidentMarketplacePage() {
             placeholder="Search listings…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-9 w-full rounded-xl border border-slate-200 bg-white py-2 pr-3 text-[13px] shadow-sm outline-none placeholder:text-slate-400 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition"
+            className="h-9 w-full rounded-xl border border-slate-200 bg-white py-2 pr-3 text-[13px] shadow-sm outline-none placeholder:text-slate-400 focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition"
             style={{ paddingLeft: "2.25rem" }}
           />
         </div>
@@ -171,7 +171,7 @@ export default function ResidentMarketplacePage() {
               className={[
                 "flex h-9 items-center gap-1.5 rounded-xl border px-3.5 text-[12.5px] font-semibold transition",
                 category === c
-                  ? "border-emerald-600 bg-emerald-600 text-white shadow-sm"
+                  ? "border-[#14B8A6] bg-[#14B8A6] text-white shadow-sm"
                   : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
               ].join(" ")}
             >
@@ -219,7 +219,7 @@ export default function ResidentMarketplacePage() {
                       {badgeLabel}
                     </span>
                     {l.is_verified && (
-                      <span className="flex items-center gap-0.5 rounded-full bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 shadow-sm backdrop-blur-sm">
+                      <span className="flex items-center gap-0.5 rounded-full bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-[#0D9488] shadow-sm backdrop-blur-sm">
                         <IcoVerified /> Verified
                       </span>
                     )}
@@ -228,7 +228,7 @@ export default function ResidentMarketplacePage() {
                     onClick={() => toggleSave(l.id)}
                     className={[
                       "absolute right-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-full shadow-sm backdrop-blur-sm transition [&_svg]:h-3.5 [&_svg]:w-3.5",
-                      l.is_saved ? "bg-emerald-600 text-white" : "bg-white/90 text-slate-400 hover:text-emerald-600",
+                      l.is_saved ? "bg-[#14B8A6] text-white" : "bg-white/90 text-slate-400 hover:text-[#0D9488]",
                     ].join(" ")}
                   >
                     <IcoSave />

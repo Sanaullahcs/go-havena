@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { LogOut } from "lucide-react";
 import { OnboardingProgress } from "@/components/admin/onboarding/onboarding-ui";
-import { HavenaMark } from "@/components/shared/havena-mark";
+import { HavenaLockup } from "@/components/shared/havena-lockup";
 
 export function AdminOnboardingTopBar({
   title,
@@ -28,10 +28,7 @@ export function AdminOnboardingTopBar({
           href="/"
           className="flex shrink-0 items-center gap-2 rounded-lg outline-none ring-teal-500/30 focus-visible:ring-2"
         >
-          <HavenaMark size={44} tight />
-          <span className="hidden font-[family-name:var(--font-wordmark)] text-[1.75rem] font-bold leading-none tracking-[-0.02em] text-[#0b1f3a] sm:inline">
-            Havena
-          </span>
+          <HavenaLockup size={44} hideNameOnMobile />
         </Link>
 
         <div className="flex min-w-0 flex-1 items-center self-stretch py-0.5">

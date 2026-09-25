@@ -5,6 +5,7 @@ import {
   Pressable,
   StyleSheet,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useSegments, usePathname, useNavigation } from "expo-router";
@@ -15,6 +16,7 @@ import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { Colors } from "../../constants/tokens";
 import { sw, sf } from "../../utils/responsive";
+import { homeSize } from "../../constants/home-styles";
 import { getUser } from "../../services/auth-session";
 import { isGuestUser } from "../../services/community-access";
 import { guestCanAccessFeature } from "../../constants/guest-permissions";
@@ -126,6 +128,9 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
   const keyboardVisible = useKeyboardVisible();
   const [guestUser, setGuestUser] = useState(null);
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+  const fabSize = homeSize(48, screenWidth);
+  const fabRadius = homeSize(15, screenWidth);
   const router = useRouter();
   const navigation = useNavigation();
   const segments = useSegments();
@@ -181,7 +186,7 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
     () => getActiveTab(segments, pathname),
     [segments, pathname],
   );
-  const bottomPad = Math.max(insets.bottom, Platform.OS === "android" ? 8 : 4);
+  const bottomPad = Math.max(insets.bottom, 8);
 
   const haptic = useCallback(() => {
     if (Platform.OS === "ios") {
@@ -223,7 +228,7 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
     <View style={[styles.fabShell, Platform.OS === "ios" && styles.fabShellIos]}>
       {Platform.OS === "ios" ? null : <View style={styles.fabHalo} />}
       <View style={[styles.fabRing, Platform.OS === "ios" && styles.fabRingIos]}>
-        <View style={styles.fab}>
+        <View style={[styles.fab, { width: fabSize, height: fabSize, borderRadius: fabRadius }]}>
           <Ionicons name="add" size={sf(28)} color={T.white} />
         </View>
       </View>
@@ -288,6 +293,8 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
 
 const styles = StyleSheet.create({
   bar: {
+    width: "100%",
+    alignSelf: "stretch",
     backgroundColor: T.white,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: T.border,

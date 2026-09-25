@@ -2,6 +2,9 @@ import { confirmAction } from "@/lib/alert";
 import { logout } from "@/lib/api/auth";
 import { clearSession } from "@/lib/auth/session";
 
+export const COMPLETE_PROFILE_SIGN_OUT_MESSAGE =
+  "Are you sure you want to sign out? Any unsaved changes will be lost.";
+
 export async function confirmAdminSignOut(opts?: {
   text?: string;
 }): Promise<boolean> {
@@ -9,7 +12,7 @@ export async function confirmAdminSignOut(opts?: {
     title: "Sign out?",
     text:
       opts?.text ??
-      "You will be returned to the login screen. Any unsaved progress will be lost.",
+      "Are you sure you want to sign out?",
     confirmText: "Sign out",
     icon: "question",
     color: "red",

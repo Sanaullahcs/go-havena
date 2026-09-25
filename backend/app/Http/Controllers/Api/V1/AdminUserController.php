@@ -63,7 +63,7 @@ class AdminUserController extends Controller
             ],
         ]);
 
-        $phone = PhoneNormalizer::normalize($validated['phone']);
+        $phone = PhoneNormalizer::accept($validated['phone']);
         if (! $phone) {
             throw ValidationException::withMessages([
                 'phone' => ['Enter a valid phone number in international format (e.g. +2017777777).'],

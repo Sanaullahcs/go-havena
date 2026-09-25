@@ -38,6 +38,7 @@ export const TOPIC_LABEL_KEY = {
   Help: "feed.topics.help",
   Neighborhood: "feed.topics.neighborhood",
   Announcements: "feed.topics.announcements",
+  Poll: "feed.topics.poll",
 };
 
 /** Post type options for create-post (labelKey + API category + chip colors). */
@@ -440,11 +441,13 @@ export async function uploadPostImage(uri, assetMeta = {}) {
   return { image_url: imageUrl };
 }
 
-export async function createPost({ content, category = "general", imageUrl } = {}) {
+export async function createPost({ content, category = "general", imageUrl, poll } = {}) {
   await ensureFeedCommunityContext();
 
-  const body = { body: content, category };
-  if (imageUrl) {
+  const body = poll
+    ? { category: "poll", poll }
+    : { body: content, category };
+  if (!poll && imageUrl) {
     body.image_url = extractStoragePath(imageUrl) ?? imageUrl;
   }
 
@@ -487,6 +490,29 @@ export async function updatePost(
     post: normalizePost(res.data),
     message: res.message ?? i18n.t("feed.postUpdated"),
   };
+}
+
+export async function voteOnPoll(postId, optionId) {
+  await ensureFeedCommunityContext();
+  const res = await apiRequest(`/feed/${postId}/vote`, {
+    method: "POST",
+    body: { option_id: optionId },
+  });
+  return normalizePost(res.data);
+}
+
+export function pollTimeLeftLabel(endsAt, closed, t, now = Date.now()) {
+  if (closed) return t("feed.poll.closed");
+  const end = parseApiDate(endsAt);
+  if (!end) return "";
+  const diff = end.getTime() - now;
+  if (diff <= 0) return t("feed.poll.closed");
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return t("feed.poll.momentsLeft");
+  if (minutes < 60) return t("feed.poll.minutesLeft", { count: minutes });
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return t("feed.poll.hoursLeft", { count: hours });
+  return t("feed.poll.daysLeft", { count: Math.floor(hours / 24) });
 }
 
 export async function likePost(postId) {

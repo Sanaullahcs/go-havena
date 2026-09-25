@@ -7,7 +7,6 @@ import { setSession, getToken, getUser, isSystemAdminUser } from "@/lib/auth/ses
 import { handleLoginError } from "@/lib/auth/login-error";
 import { AuthErrorBanner } from "@/components/auth/auth-form-shell";
 import { SystemSignInStep } from "@/components/auth/system-sign-in-step";
-import { AuthRedirectOverlay } from "@/components/shared/loaders";
 
 const SYSTEM_DEMO = { email: "admin@havena.app", password: "password" };
 
@@ -17,7 +16,6 @@ export default function SystemLoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -37,30 +35,19 @@ export default function SystemLoginPage() {
       const res = await loginWithEmail(email.trim(), password);
       if (!isSystemAdminUser(res.user)) {
         setError("This sign-in page is for platform administrators only.");
+        setLoading(false);
         return;
       }
       setSession(res.token, res.user);
-      setRedirecting(true);
       router.replace("/admin/community-admins");
     } catch (err) {
       await handleLoginError(err, setError);
-    } finally {
       setLoading(false);
     }
   };
 
-  const isBusy = loading || redirecting;
-
   return (
     <>
-      {redirecting ? (
-        <AuthRedirectOverlay
-          variant="system"
-          title="Opening platform dashboard"
-          subtitle="Loading your workspace…"
-        />
-      ) : null}
-
       <main className="flex min-h-screen min-h-dvh items-center justify-center bg-[#f4f6fb] px-4 py-10">
         <div className="w-full max-w-md rounded-2xl border border-slate-200/80 bg-white p-8 shadow-lg shadow-slate-200/40">
           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Internal access</p>
@@ -97,8 +84,8 @@ export default function SystemLoginPage() {
               setError(null);
             }}
             demoLabel={`Try demo · ${SYSTEM_DEMO.email}`}
-            loading={loading && !redirecting}
-            disabled={isBusy}
+            loading={loading}
+            disabled={loading}
           />
         </div>
       </main>

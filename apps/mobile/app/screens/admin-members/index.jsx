@@ -13,6 +13,7 @@ import { approveMember, fetchAdminMembers, inviteMember, rejectMember } from "..
 import { hasFieldErrors, validateInviteMemberForm } from "../../../utils/form-validation";
 import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { useApiAction } from "../../../hooks/use-api-action";
+import { useRequireCommunityAdmin } from "../../../hooks/use-require-community-admin";
 import { FormPhoneInput } from "../../../components/ui/phone-input";
 import { DEFAULT_PHONE_COUNTRY } from "../../../constants/phone-countries";
 import { toE164 } from "../../../utils/phone";
@@ -99,6 +100,7 @@ function MemberRow({ item, approving, rejecting, onApprove, onReject, t }) {
 }
 
 export default function AdminMembersScreen() {
+  useRequireCommunityAdmin();
   const { t } = useTranslation();
   const params = useLocalSearchParams();
   const [filter, setFilter] = useState("pending");

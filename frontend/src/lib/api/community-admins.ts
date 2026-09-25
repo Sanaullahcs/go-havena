@@ -7,11 +7,32 @@ export type ReassignReason =
   | "previous_admin_removed"
   | "community_inactive";
 
+export type CommunityAdminLifecycleStatus =
+  | "pending"
+  | "active"
+  | "suspended"
+  | "reassign"
+  | "rejected";
+
+export type CommunityAdminAction =
+  | "view"
+  | "approve"
+  | "reject"
+  | "edit"
+  | "release"
+  | "suspend"
+  | "reactivate"
+  | "assign_community"
+  | "delete"
+  | "delete_record";
+
 export type CommunityAdminApplicant = {
   id: number;
   reassign_row_id?: string;
   reassign_reason?: ReassignReason;
   reassign_summary?: string | null;
+  lifecycle_status?: CommunityAdminLifecycleStatus;
+  allowed_actions?: CommunityAdminAction[];
   previous_admin?: {
     id: number;
     name: string;
@@ -118,6 +139,23 @@ export async function suspendCommunityAdmin(id: number) {
   return res.data as { data: CommunityAdminApplicant; message: string };
 }
 
+export async function reactivateCommunityAdmin(id: number) {
+  const res = await api.post(`/v1/admin/community-admins/${id}/reactivate`);
+  return res.data as { data: CommunityAdminApplicant; message: string };
+}
+
+export async function releaseCommunityAdminAccount(id: number) {
+  const res = await api.post(`/v1/admin/community-admins/${id}/release`);
+  return res.data as { data: CommunityAdminApplicant; message: string };
+}
+
+export async function assignCommunityToAdmin(id: number, communityId: number) {
+  const res = await api.post(`/v1/admin/community-admins/${id}/assign-community`, {
+    community_id: communityId,
+  });
+  return res.data as { data: CommunityAdminApplicant; message: string };
+}
+
 export async function deleteCommunityAdmin(id: number) {
   const res = await api.delete(`/v1/admin/community-admins/${id}`, {
     data: { confirmation: "DELETE" },
@@ -134,7 +172,23 @@ export type UpdateCommunityAdminPayload = {
   residence_type?: "" | "homeowner" | "tenant";
 };
 
-export async function updateCommunityAdmin(id: number, payload: UpdateCommunityAdminPayload) {
+export async function updateCommunityAdmin(
+  id: number,
+  payload: UpdateCommunityAdminPayload,
+  utilityBill?: File | null,
+) {
+  if (utilityBill) {
+    const form = new FormData();
+    if (payload.name != null) form.append("name", payload.name);
+    if (payload.phone != null) form.append("phone", payload.phone);
+    if (payload.unit_number != null) form.append("unit_number", payload.unit_number);
+    if (payload.residence_type) form.append("residence_type", payload.residence_type);
+    if (payload.display_name != null) form.append("display_name", payload.display_name);
+    form.append("utility_bill", utilityBill);
+    const res = await api.post(`/v1/admin/community-admins/${id}`, form);
+    return res.data as { data: CommunityAdminApplicant; message: string };
+  }
+
   const res = await api.patch(`/v1/admin/community-admins/${id}`, payload);
   return res.data as { data: CommunityAdminApplicant; message: string };
 }

@@ -61,7 +61,40 @@ class AuthAccountBlockTest extends TestCase
             ->assertStatus(403)
             ->assertJsonPath('code', 'ACCOUNT_SUSPENDED')
             ->assertJsonPath('status', 'suspended')
-            ->assertJsonPath('rejected_by', 'community_admin');
+            ->assertJsonPath('message', CommunityLifecycleService::ACCOUNT_SUSPENDED_MESSAGE)
+            ->assertJsonPath('rejected_by', null);
+    }
+
+    public function test_suspended_community_admin_login_omits_rejected_by(): void
+    {
+        $community = $this->seedCommunity();
+
+        $admin = User::factory()->create([
+            'role'                   => 'community_admin',
+            'community_admin_status' => 'approved',
+            'email'                  => 'suspended.admin@example.com',
+            'password'               => 'password',
+            'status'                 => 'suspended',
+            'suspension_reason'      => CommunityLifecycleService::REASON_ADMIN_SUSPENDED,
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $admin->id,
+            'community_id' => $community->id,
+            'role'         => 'admin',
+            'status'       => 'approved',
+        ]);
+
+        $this->postJson('/api/v1/auth/login', [
+            'email'    => 'suspended.admin@example.com',
+            'password' => 'password',
+            'portal'   => 'community_admin_dashboard',
+        ])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'ACCOUNT_SUSPENDED')
+            ->assertJsonPath('status', 'suspended')
+            ->assertJsonPath('message', CommunityLifecycleService::ACCOUNT_SUSPENDED_MESSAGE)
+            ->assertJsonPath('rejected_by', null);
     }
 
     public function test_rejected_membership_blocks_resident_login_with_reason(): void

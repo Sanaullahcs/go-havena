@@ -25,6 +25,7 @@ class Community extends Model
         'review_status',
         'rejection_reason',
         'reviewed_at',
+        'resident_features_configured_at',
         'requested_by_user_id',
     ];
 
@@ -34,9 +35,15 @@ class Community extends Model
             'settings'             => 'array',
             'estimated_residents'  => 'integer',
             'reviewed_at'          => 'datetime',
+            'resident_features_configured_at' => 'datetime',
             'latitude'             => 'float',
             'longitude'            => 'float',
         ];
+    }
+
+    public function featureFlags(): HasMany
+    {
+        return $this->hasMany(CommunityFeatureFlag::class);
     }
 
     public function memberships(): HasMany

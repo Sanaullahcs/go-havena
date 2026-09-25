@@ -1,21 +1,73 @@
-import React, { useMemo, useState } from "react";
-import { Modal, View, Text, SectionList, Pressable, StyleSheet, ActivityIndicator } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Modal,
+  View,
+  Text,
+  SectionList,
+  Pressable,
+  StyleSheet,
+  ActivityIndicator,
+  Platform,
+} from "react-native";
 import LocaleTextInput from "./locale-text-input";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { groupRegionsByGeography } from "../../services/regions-api";
 
-export default function RegionPicker({
+/**
+ * Plain object so the text-metrics patch cannot add lineHeight.
+ * iOS top-aligns and clips TextInput text when lineHeight or vertical
+ * padding is set. The 48px row centers this intrinsic line with the icons.
+ */
+const searchFieldStyle = {
+  flex: 1,
+  alignSelf: "center",
+  margin: 0,
+  paddingHorizontal: 0,
+  paddingTop: 0,
+  paddingBottom: 0,
+  fontFamily: Fonts.regular,
+  fontSize: 14,
+  color: "#101828",
+  textAlignVertical: "center",
+  includeFontPadding: Platform.OS === "android",
+};
+
+const EMPTY_SECTIONS = [{
+  key: "empty",
+  title: "",
+  subtitle: "",
+  billingExempt: false,
+  data: [],
+}];
+
+function sameRegions(left = [], right = []) {
+  if (left === right) return true;
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    const a = left[index];
+    const b = right[index];
+    if (a?.id !== b?.id || a?.title !== b?.title) return false;
+  }
+  return true;
+}
+
+function RegionPicker({
   visible,
   regions = [],
   selectedId,
   loading = false,
+  emptyText,
   onSelect,
   onClose,
 }) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    if (!visible) setQuery("");
+  }, [visible]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -37,7 +89,7 @@ export default function RegionPicker({
   }, [query, regions]);
 
   const sections = useMemo(() => {
-    return groupRegionsByGeography(filtered).flatMap((country) =>
+    const grouped = groupRegionsByGeography(filtered).flatMap((country) =>
       country.states.map((state) => ({
         key: `${country.countryCode || country.countryName}-${state.stateName}`,
         title: state.stateName,
@@ -46,15 +98,18 @@ export default function RegionPicker({
         data: state.regions,
       })),
     );
+    // SectionList crashes or collapses the sheet on iOS when sections is [].
+    return grouped.length > 0 ? grouped : EMPTY_SECTIONS;
   }, [filtered]);
 
+  const resolvedEmptyText = emptyText || t("region.noRegionsMatch");
+  const noMatches = query.trim().length > 0 && filtered.length === 0;
+
   const handleClose = () => {
-    setQuery("");
     onClose?.();
   };
 
   const handleSelect = (region) => {
-    setQuery("");
     onSelect?.(region);
   };
 
@@ -65,24 +120,42 @@ export default function RegionPicker({
       animationType="slide"
       onRequestClose={handleClose}
     >
-      <Pressable style={styles.overlay} onPress={handleClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+      <View style={styles.overlay}>
+        <Pressable style={styles.backdrop} onPress={handleClose} />
+        <View style={styles.sheet}>
           <View style={styles.handle} />
-          <Text style={styles.title}>{t("region.selectRegion")}</Text>
-          <Text style={styles.subtitle}>
-            {t("region.chooseAreaSubtitle")}
-          </Text>
+          <View style={styles.titleRow}>
+            <View style={styles.titleCopy}>
+              <Text style={styles.title}>{t("region.selectRegion")}</Text>
+              <Text style={styles.subtitle}>
+                {t("region.chooseAreaSubtitle")}
+              </Text>
+            </View>
+            <Pressable
+              onPress={handleClose}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={t("common.close")}
+              style={styles.closeBtn}
+            >
+              <Ionicons name="close" size={22} color="#344054" />
+            </Pressable>
+          </View>
 
           <View style={styles.searchRow}>
             <Ionicons name="search" size={18} color="#9CA3AF" />
             <LocaleTextInput
-              style={styles.searchInput}
+              style={searchFieldStyle}
               placeholder={t("region.searchRegions")}
               placeholderTextColor="#9CA3AF"
               value={query}
               onChangeText={setQuery}
+              allowFontScaling={false}
+              scrollEnabled={false}
               autoCorrect={false}
               autoCapitalize="none"
+              blurOnSubmit={false}
+              underlineColorAndroid="transparent"
             />
             {query.length > 0 ? (
               <Pressable onPress={() => setQuery("")} hitSlop={8}>
@@ -97,19 +170,16 @@ export default function RegionPicker({
               <Text style={styles.loadingText}>{t("region.loadingRegions")}</Text>
             </View>
           ) : (
+            <View style={styles.results}>
             <SectionList
               sections={sections}
               keyExtractor={(item) => String(item.id)}
-              keyboardShouldPersistTaps="handled"
+              keyboardShouldPersistTaps="always"
+              keyboardDismissMode="none"
+              automaticallyAdjustKeyboardInsets={false}
               style={styles.list}
-              stickySectionHeadersEnabled
-              ListEmptyComponent={
-                <View style={styles.emptyWrap}>
-                  <Ionicons name="map-outline" size={28} color="#C6CBD3" />
-                  <Text style={styles.emptyText}>{t("region.noRegionsMatch")}</Text>
-                </View>
-              }
-              renderSectionHeader={({ section }) => (
+              stickySectionHeadersEnabled={false}
+              renderSectionHeader={({ section }) => section.title ? (
                 <View style={styles.sectionHeader}>
                   <Text style={styles.sectionCountry}>{section.subtitle}</Text>
                   <Text style={styles.sectionState}>{section.title}</Text>
@@ -117,7 +187,7 @@ export default function RegionPicker({
                     <Text style={styles.sectionBadge}>{t("region.noBillingRequired", "No subscription required")}</Text>
                   ) : null}
                 </View>
-              )}
+              ) : null}
               renderItem={({ item }) => {
                 const selected = item.id === selectedId;
                 const location = [item.area, item.stateName || item.state].filter(Boolean).join(" · ");
@@ -146,20 +216,38 @@ export default function RegionPicker({
                 );
               }}
             />
+            {noMatches ? (
+              <View style={styles.emptyOverlay} pointerEvents="none">
+                <Text style={styles.emptyText}>{resolvedEmptyText}</Text>
+              </View>
+            ) : null}
+            </View>
           )}
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
 
+export default React.memo(RegionPicker, (prev, next) => (
+  prev.visible === next.visible
+  && prev.selectedId === next.selectedId
+  && prev.loading === next.loading
+  && sameRegions(prev.regions, next.regions)
+));
+
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.45)",
     justifyContent: "flex-end",
   },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+  },
   sheet: {
+    zIndex: 1,
+    height: "82%",
     maxHeight: "82%",
     backgroundColor: "#FFFFFF",
     borderTopStartRadius: 24,
@@ -167,6 +255,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 24,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  titleCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F2F4F7",
   },
   handle: {
     alignSelf: "center",
@@ -184,6 +289,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     marginTop: 4,
+    marginBottom: 0,
     fontFamily: Fonts.regular,
     fontSize: 13,
     color: "#667085",
@@ -202,14 +308,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     gap: 10,
   },
-  searchInput: {
+  results: {
     flex: 1,
-    fontFamily: Fonts.regular,
-    fontSize: 14,
-    color: "#101828",
+    marginTop: 4,
   },
   list: {
-    marginTop: 4,
+    flex: 1,
   },
   sectionHeader: {
     paddingTop: 12,
@@ -286,14 +390,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#667085",
   },
-  emptyWrap: {
+  emptyOverlay: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: "center",
-    paddingVertical: 36,
-    gap: 8,
+    paddingTop: 36,
+    paddingHorizontal: 24,
   },
   emptyText: {
     fontFamily: Fonts.regular,
-    fontSize: 13,
+    fontSize: 14,
+    lineHeight: 20,
     color: "#667085",
+    textAlign: "center",
   },
 });

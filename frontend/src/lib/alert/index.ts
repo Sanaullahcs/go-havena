@@ -59,7 +59,9 @@ export async function confirmDelete(opts: {
 export async function confirmDeleteCommunityAdmin(opts: {
   adminName: string;
   assignedCommunities?: Array<{ name?: string | null } | null>;
+  variant?: "admin" | "record";
 }) {
+  const isRecord = opts.variant === "record";
   const assignedNames = (opts.assignedCommunities ?? [])
     .map((community) => community?.name?.trim())
     .filter((name): name is string => Boolean(name));
@@ -69,20 +71,19 @@ export async function confirmDeleteCommunityAdmin(opts: {
 
   return nl.fire({
     icon: "warning",
-    title: "Delete Community Admin?",
+    title: isRecord ? "Delete Record?" : "Delete Community Admin?",
     html: `
       <div class="nl-swal-delete-admin">
-        <p>This will permanently delete this admin account. If you only want to remove the admin from a community, use <strong>Release Admin</strong> instead.</p>
-        <p>This action cannot be undone.</p>
-        <div class="nl-swal-delete-admin-compare">
-          <p><strong>Release Admin</strong> removes the admin from a community and keeps the account.</p>
-          <p><strong>Delete Admin</strong> permanently deletes the admin account.</p>
-        </div>
+        ${
+          isRecord
+            ? `<p>This will permanently remove this rejected application. It does not delete any community or unrelated user data, and cannot be undone.</p>`
+            : `<p>This will permanently delete this admin account and cannot be undone. To remove the admin from a community while keeping the account, use <strong>Release Admin</strong> instead.</p>`
+        }
         ${
           assignedList
             ? `<div class="nl-swal-delete-admin-assign">
                 <p><strong>Currently assigned to:</strong> ${assignedList}</p>
-                <p>The community will stay active and become unassigned. Residents, events, amenities, payments, and documents will not be deleted.</p>
+                <p>The community will remain active but become unassigned. Residents, events, amenities, payments, and documents will not be deleted.</p>
               </div>`
             : `<p class="nl-swal-delete-admin-unassigned">This admin is not currently assigned to a community.</p>`
         }
@@ -100,7 +101,7 @@ export async function confirmDeleteCommunityAdmin(opts: {
       spellcheck: "false",
       "aria-label": "Type DELETE to confirm",
     },
-    confirmButtonText: labeledButton(ICO_ALERT, "Delete Admin"),
+    confirmButtonText: labeledButton(ICO_ALERT, isRecord ? "Delete Record" : "Delete Admin"),
     showCancelButton: true,
     cancelButtonText: labeledButton(ICO_X, "Cancel"),
     focusConfirm: false,
@@ -133,7 +134,7 @@ export async function confirmDeleteCommunityAdmin(opts: {
     preConfirm: () => {
       const value = String(Swal.getInput()?.value ?? "").trim();
       if (value !== "DELETE") {
-        Swal.showValidationMessage("Type DELETE to confirm permanent deletion.");
+        Swal.showValidationMessage("Type DELETE to confirm.");
         return false;
       }
       return value;
@@ -250,6 +251,16 @@ export async function confirmRejectWithReason(opts: {
       const counter = document.getElementById("nl-swal-char-current");
       const confirmBtn = Swal.getConfirmButton();
 
+      const fitReason = () => {
+        if (!textarea) return;
+        const max = Number.parseFloat(getComputedStyle(textarea).maxHeight);
+        textarea.style.height = "auto";
+        const border = textarea.offsetHeight - textarea.clientHeight;
+        const full = textarea.scrollHeight + border;
+        const next = Number.isFinite(max) ? Math.min(full, max) : full;
+        textarea.style.height = `${next}px`;
+      };
+
       const sync = () => {
         const raw = textarea?.value ?? "";
         const trimmed = raw.trim();
@@ -259,6 +270,7 @@ export async function confirmRejectWithReason(opts: {
           confirmBtn.disabled = trimmed.length < 3;
           confirmBtn.classList.toggle("nl-swal-confirm--disabled", trimmed.length < 3);
         }
+        fitReason();
       };
 
       clearBtn?.addEventListener("click", () => {
@@ -358,8 +370,18 @@ export async function alertError(title: string, message: string) {
   return nl.fire({
     icon: "error",
     title,
-    html: message,
+    text: message,
     confirmButtonText: labeledButton(ICO_CHECK, "OK"),
+    showCancelButton: false,
+    showDenyButton: false,
+    customClass: {
+      popup: "nl-swal-popup",
+      title: "nl-swal-title",
+      htmlContainer: "nl-swal-body",
+      confirmButton: "nl-swal-confirm nl-swal-confirm--blue",
+      actions: "nl-swal-actions",
+      icon: "nl-swal-icon",
+    },
   });
 }
 

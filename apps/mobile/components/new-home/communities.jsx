@@ -3,7 +3,6 @@ import {
   View,
   StyleSheet,
   Pressable,
-  useWindowDimensions,
   Animated,
   Platform,
   FlatList,
@@ -17,7 +16,7 @@ import CrispImage from "../ui/crisp-image";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { TOPIC_LABEL_KEY } from "../../services/feed-api";
-import { Home, homeStyles } from "../../constants/home-styles";
+import { homeStyles } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
 import HomeSectionHeader from "./section-header";
 import HomeSectionEmpty from "./home-section-empty";
@@ -33,6 +32,7 @@ import SharePostSheet from "../feed/share-post-sheet";
 import { openNeighborProfile } from "../../services/profile-api";
 import { useNow } from "../../hooks/use-now";
 import { sw, sf } from "../../utils/responsive";
+import { useHomeFrame } from "../../hooks/use-home-frame";
 import { navigateAppRoute } from "../../utils/app-navigation";
 import { rnShadow } from "../../utils/shadow";
 
@@ -44,10 +44,7 @@ function formatCount(value) {
   return Number.isFinite(num) ? num.toLocaleString() : "0";
 }
 
-const CARD_GAP = sw(12);
-const PEEK = sw(40);
 const IMAGE_RATIO = 0.62;
-const BOTTOM_AREA_H = sw(140);
 
 function FeedCardInner({
   post,
@@ -124,7 +121,7 @@ function FeedCardInner({
           </View>
         ) : null}
 
-        <View style={[styles.contentArea, { minHeight: BOTTOM_AREA_H }]}>
+        <View style={styles.contentArea}>
           <Pressable style={styles.authorRow} onPress={onProfile} hitSlop={6}>
             <UserAvatar
               source={post.user?.avatar}
@@ -213,16 +210,20 @@ export default function Communities({ posts = [], onPostsChange }) {
   const { t } = useTranslation();
   const now = useNow(30000);
   const [sharePost, setSharePost] = useState(null);
-  const { width: screenWidth } = useWindowDimensions();
+  const frame = useHomeFrame();
 
   const layout = useMemo(() => {
-    const contentWidth = screenWidth - Home.gutter * 2;
-    const cardWidth = Math.floor(contentWidth - PEEK);
+    const gap = frame.size(12);
+    const peek = frame.size(40);
+    const bottom = frame.size(140);
+    const cardWidth = Math.min(
+      frame.contentWidth,
+      Math.max(1, Math.floor(frame.contentWidth - peek)),
+    );
     const imageH = Math.round(cardWidth * IMAGE_RATIO);
-    const cardHeight = imageH + BOTTOM_AREA_H;
-    const snap = cardWidth + CARD_GAP;
-    return { cardWidth, cardHeight, imageH, snap };
-  }, [screenWidth]);
+    const cardHeight = imageH + bottom;
+    return { cardWidth, cardHeight, imageH, snap: cardWidth + gap, gap, bottom };
+  }, [frame]);
 
   const handleLike = useCallback(
     async (postId) => {
@@ -290,7 +291,7 @@ export default function Communities({ posts = [], onPostsChange }) {
 
   if (posts.length === 0) {
     return (
-      <View style={homeStyles.section}>
+      <View style={[homeStyles.section, { marginHorizontal: frame.sideInset }]}>
         <HomeSectionHeader
           label={t("community.feed")}
           onPress={() => navigateAppRoute(router, COMMUNITY_FEED_ROUTE)}
@@ -303,7 +304,7 @@ export default function Communities({ posts = [], onPostsChange }) {
   }
 
   return (
-    <View style={homeStyles.section}>
+    <View style={[homeStyles.section, { marginHorizontal: frame.sideInset }]}>
       <HomeSectionHeader
         label={t("community.feed")}
         onPress={() => navigateAppRoute(router, COMMUNITY_FEED_ROUTE)}
@@ -325,7 +326,7 @@ export default function Communities({ posts = [], onPostsChange }) {
           offset: layout.snap * index,
           index,
         })}
-        ItemSeparatorComponent={() => <View style={{ width: CARD_GAP }} />}
+        ItemSeparatorComponent={() => <View style={{ width: layout.gap }} />}
         contentContainerStyle={styles.listContent}
       />
       <SharePostSheet
@@ -341,7 +342,7 @@ const RADIUS = sw(16);
 
 const styles = StyleSheet.create({
   carousel: { flexGrow: 0, alignSelf: "stretch" },
-  listContent: { paddingEnd: PEEK, alignItems: "flex-start" },
+  listContent: { alignItems: "flex-start" },
   card: {
     borderRadius: RADIUS,
     ...(Platform.OS === "ios"
@@ -363,6 +364,7 @@ const styles = StyleSheet.create({
   },
   imageWrap: {
     width: "100%",
+    overflow: "hidden",
     backgroundColor: T.canvas,
   },
   quoteBlock: {

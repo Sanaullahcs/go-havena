@@ -55,10 +55,20 @@ class AdminRoleService
             && ($user->community_admin_status ?? '') === 'rejected';
     }
 
+    /** Community admin currently using Resident Mode (same account, resident permissions). */
+    public static function isResidentMode(?User $user): bool
+    {
+        return UserActingContextService::isResidentMode($user);
+    }
+
     /** Approved community admin with an active community membership. */
     public static function isActiveCommunityAdmin(?User $user): bool
     {
         if (! $user) {
+            return false;
+        }
+
+        if (UserActingContextService::isResidentMode($user)) {
             return false;
         }
 
@@ -106,23 +116,41 @@ class AdminRoleService
 
     public static function getApprovedAdminMembership(User $user): ?object
     {
-        $membership = DB::table('community_memberships')
+        $preferredCommunityId = $user->active_context_community_id
+            ? (int) $user->active_context_community_id
+            : null;
+
+        $query = DB::table('community_memberships')
             ->where('user_id', $user->id)
             ->where('status', 'approved')
-            ->whereIn('role', ['admin', 'moderator'])
-            ->orderBy('id')
-            ->first();
+            ->whereIn('role', ['admin', 'moderator']);
+
+        if ($preferredCommunityId) {
+            $preferred = (clone $query)->where('community_id', $preferredCommunityId)->first();
+            if ($preferred) {
+                return $preferred;
+            }
+        }
+
+        $membership = $query->orderBy('id')->first();
 
         if ($membership) {
             return $membership;
         }
 
         if (self::isCommunityAdminApproved($user)) {
-            return DB::table('community_memberships')
+            $fallback = DB::table('community_memberships')
                 ->where('user_id', $user->id)
-                ->where('status', 'approved')
-                ->orderBy('id')
-                ->first();
+                ->where('status', 'approved');
+
+            if ($preferredCommunityId) {
+                $preferred = (clone $fallback)->where('community_id', $preferredCommunityId)->first();
+                if ($preferred) {
+                    return $preferred;
+                }
+            }
+
+            return $fallback->orderBy('id')->first();
         }
 
         return null;
@@ -144,6 +172,10 @@ class AdminRoleService
     {
         if ($requested) {
             return $requested;
+        }
+
+        if ($user->active_context_community_id) {
+            return (int) $user->active_context_community_id;
         }
 
         $membership = self::getApprovedAdminMembership($user);
@@ -237,6 +269,10 @@ class AdminRoleService
 
     public static function canManageCommunity(User $user, int $communityId): bool
     {
+        if (UserActingContextService::isResidentMode($user)) {
+            return false;
+        }
+
         if (self::isSystemAdmin($user)) {
             return true;
         }

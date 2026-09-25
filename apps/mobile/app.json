@@ -3,11 +3,17 @@
     "name": "Havena",
     "slug": "havena",
     "owner": "sanas-team",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
     "scheme": "havena",
     "userInterfaceStyle": "light",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/23aaa527-0ab0-49ab-9f93-1aaa427e1b99"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.zsquare.havena",

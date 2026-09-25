@@ -22,6 +22,16 @@ class GuestInvitationService
 
     public const START_IN_PAST_MESSAGE = 'Start date cannot be earlier than the current date and time.';
 
+    public const NAME_MIN = 2;
+
+    public const NAME_MAX = 25;
+
+    public const NAME_REQUIRED_MESSAGE = 'Guest name is required.';
+
+    public const NAME_MIN_MESSAGE = 'Guest name must be at least 2 characters.';
+
+    public const NAME_MAX_MESSAGE = 'Guest name must be 25 characters or less.';
+
     public static function latestAllowedEnd(\Illuminate\Support\Carbon $startsAt): \Illuminate\Support\Carbon
     {
         return $startsAt->copy()->addYearsNoOverflow(self::MAX_ACCESS_YEARS);
@@ -48,7 +58,7 @@ class GuestInvitationService
     public static function inviteFieldRules(): array
     {
         return [
-            'guest_name'  => ['required', 'string', 'max:100', 'regex:/^[\p{L} .]+$/u'],
+            'guest_name'  => ['required', 'string', 'min:'.self::NAME_MIN, 'max:'.self::NAME_MAX, 'regex:/^[\p{L} .]+$/u'],
             'guest_email' => 'required|email|max:200',
             'guest_phone' => 'nullable|string|max:30',
             'starts_at'   => ['required', 'date', function (string $attribute, mixed $value, \Closure $fail): void {
@@ -94,6 +104,9 @@ class GuestInvitationService
     public static function inviteFieldMessages(): array
     {
         return [
+            'guest_name.required' => self::NAME_REQUIRED_MESSAGE,
+            'guest_name.min' => self::NAME_MIN_MESSAGE,
+            'guest_name.max' => self::NAME_MAX_MESSAGE,
             'guest_name.regex' => 'Guest name can only contain letters, spaces, and full stops.',
             'permissions.required' => 'Please select at least one permission.',
             'ends_at.after' => self::MIN_ACCESS_DURATION_MESSAGE,

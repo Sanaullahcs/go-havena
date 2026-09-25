@@ -435,6 +435,9 @@ function SetupInner() {
                   }}
                   placeholder="Optional notes about this community"
                 />
+                <p className="text-right text-[11px] tabular-nums text-slate-500">
+                  {description.length} / 1000
+                </p>
               </OnboardingField>
 
               <div className="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">

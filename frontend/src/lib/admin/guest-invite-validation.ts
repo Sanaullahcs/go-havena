@@ -9,10 +9,22 @@ import type { PhoneFieldState } from "@/lib/phone/format";
 
 export const GUEST_NAME_RE = /^[\p{L} .]+$/u;
 
+export const GUEST_NAME_MIN = 2;
+
+export const GUEST_NAME_MAX = 25;
+
+export const GUEST_NAME_REQUIRED_MESSAGE = "Guest name is required.";
+
+export const GUEST_NAME_MIN_MESSAGE = "Guest name must be at least 2 characters.";
+
+export const GUEST_NAME_MAX_MESSAGE = "Guest name must be 25 characters or less.";
+
 export const GUEST_NAME_FORMAT_MESSAGE =
   "Guest name can only contain letters, spaces, and full stops.";
 
 export const GUEST_EMAIL_FORMAT_MESSAGE = "Please enter a valid email address.";
+
+export const GUEST_EMAIL_EXISTS_MESSAGE = "An account with this email address already exists.";
 
 export const MIN_GUEST_ACCESS_MINUTES = 30;
 
@@ -90,9 +102,11 @@ export function guestDurationFieldError(startsAt: string, endsAt: string): strin
 }
 
 export function guestNameFieldError(name: string): string | null {
-  if (!name.trim()) return null;
-  if (name.length > 100) return "Guest name must be 100 characters or less.";
-  if (!GUEST_NAME_RE.test(name)) return GUEST_NAME_FORMAT_MESSAGE;
+  const trimmed = name.trim();
+  if (!trimmed) return GUEST_NAME_REQUIRED_MESSAGE;
+  if (trimmed.length < GUEST_NAME_MIN) return GUEST_NAME_MIN_MESSAGE;
+  if (trimmed.length > GUEST_NAME_MAX) return GUEST_NAME_MAX_MESSAGE;
+  if (!GUEST_NAME_RE.test(trimmed)) return GUEST_NAME_FORMAT_MESSAGE;
   return null;
 }
 
@@ -102,6 +116,24 @@ export function guestEmailFieldError(email: string): string | null {
   if (value.length > 200) return "Email must be 200 characters or less.";
   if (!EMAIL_RE.test(value)) return GUEST_EMAIL_FORMAT_MESSAGE;
   return null;
+}
+
+export function isDuplicateGuestEmailError(
+  fields: Record<string, string>,
+  err?: unknown,
+): boolean {
+  const fieldMessage = fields.guest_email ?? "";
+  if (/already exists/i.test(fieldMessage) && /email/i.test(fieldMessage)) {
+    return true;
+  }
+
+  const data = (err as { response?: { data?: { code?: string; message?: string } } })?.response?.data;
+  const apiMessage = data?.message ?? "";
+  if (data?.code === "CONTACT_ALREADY_EXISTS" && /email/i.test(`${fieldMessage} ${apiMessage}`)) {
+    return true;
+  }
+
+  return /email already exists/i.test(apiMessage);
 }
 
 export function guestPermissionsFieldError(

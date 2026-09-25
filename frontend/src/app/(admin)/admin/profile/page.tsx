@@ -30,6 +30,10 @@ import {
 } from "@/lib/api/profile";
 import { apiError } from "@/lib/api/client";
 import { resolveMediaUrl } from "@/lib/media/resolve-url";
+import {
+  COMMUNITY_ADMIN_NAME_MAX,
+  applyCharacterLimit,
+} from "@/lib/admin/community-admin-field-limits";
 import { validatePasswordForm, validateProfileForm } from "@/lib/admin/profile-validation";
 import {
   adminRoleLabel,
@@ -39,6 +43,7 @@ import {
   type AdminNotificationPrefs,
 } from "@/lib/admin/profile-utils";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
+import { AdjustFeatureSetModal } from "@/components/admin/adjust-feature-set-modal";
 import { DashboardHero } from "@/components/admin/dashboard/dashboard-shared";
 import { DashboardPanel } from "@/components/admin/dashboard/dashboard-panel";
 import { AdminBadge } from "@/components/admin/ui";
@@ -95,6 +100,7 @@ export default function AdminProfilePage() {
   const [profileSubmitAttempted, setProfileSubmitAttempted] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const profileFormRef = useRef<HTMLFormElement>(null);
+  const [featureTarget, setFeatureTarget] = useState<{ id: number; name: string } | null>(null);
 
   const applyMe = useCallback((data: MeProfile) => {
     const next = profileFormFromMe(data);
@@ -134,8 +140,14 @@ export default function AdminProfilePage() {
     .join("")
     .toUpperCase();
 
+  const isCommunityAdminAccount = me?.role === "community_admin";
+  const nameMax = isCommunityAdminAccount ? COMMUNITY_ADMIN_NAME_MAX : 100;
+
   const showProfileError = (field: string) =>
     Boolean((profileSubmitAttempted || profileTouched[field]) && profileErrors[field]);
+
+  const profileFieldErrors = (nameValue: string, phoneValue = phoneField, bioValue = form.bio) =>
+    validateProfileForm(nameValue, phoneValue, bioValue, { communityAdmin: isCommunityAdminAccount });
 
   const cancelEdit = () => {
     setForm(savedForm);
@@ -149,7 +161,7 @@ export default function AdminProfilePage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileSubmitAttempted(true);
-    const nextErrors = validateProfileForm(form.name, phoneField, form.bio);
+    const nextErrors = profileFieldErrors(form.name);
     setProfileErrors(nextErrors);
     if (hasFieldErrors(nextErrors)) {
       const firstKey = Object.keys(nextErrors)[0];
@@ -336,29 +348,64 @@ export default function AdminProfilePage() {
                       data-field="name"
                       className={inputClass(showProfileError("name") ? profileErrors.name : undefined, "nl-input w-full")}
                       value={form.name}
-                      maxLength={100}
+                      maxLength={form.name.length > nameMax ? undefined : nameMax}
                       onBlur={() => {
                         setProfileTouched((t) => ({ ...t, name: true }));
-                        const next = validateProfileForm(form.name, phoneField, form.bio);
+                        const next = profileFieldErrors(form.name);
                         setProfileErrors((prev) => ({ ...prev, name: next.name }));
                       }}
                       onChange={(e) => {
+                        const nextName = applyCharacterLimit(form.name, e.target.value, nameMax);
+                        setForm((f) => ({ ...f, name: nextName }));
                         setProfileErrors((prev) => {
-                          if (!prev.name) return prev;
+                          if (!(profileSubmitAttempted || profileTouched.name)) {
+                            if (!prev.name) return prev;
+                            const next = { ...prev };
+                            delete next.name;
+                            return next;
+                          }
+                          const nameError = profileFieldErrors(nextName).name;
                           const next = { ...prev };
-                          delete next.name;
+                          if (nameError) next.name = nameError;
+                          else delete next.name;
                           return next;
                         });
-                        setForm((f) => ({ ...f, name: e.target.value }));
                       }}
                     />
-                    {showProfileError("name") && profileErrors.name ? (
-                      <p className="mt-1 text-[11px] font-medium text-red-600">{profileErrors.name}</p>
-                    ) : null}
+                    <div className="mt-1 flex items-start justify-between gap-3">
+                      {showProfileError("name") && profileErrors.name ? (
+                        <p className="text-[11px] font-medium text-red-600">{profileErrors.name}</p>
+                      ) : (
+                        <span />
+                      )}
+                      {isCommunityAdminAccount ? (
+                        <p className={`ml-auto shrink-0 text-[11px] tabular-nums ${form.name.length > nameMax ? "font-medium text-red-600" : ""}`} style={form.name.length > nameMax ? undefined : { color: NL.textMuted }}>
+                          {form.name.length} / {nameMax}
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
                   <div>
-                    <label className="nl-label mb-1.5">Email</label>
-                    <input className="nl-input w-full bg-slate-50" value={displayEmail ?? ""} placeholder="Phone sign-in — no email on file" disabled />
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                      <label className="nl-label">Email</label>
+                      <span className="text-[11px] font-medium" style={{ color: NL.textMuted }}>
+                        Read only
+                      </span>
+                    </div>
+                    <input
+                      className="nl-input w-full cursor-not-allowed"
+                      style={{
+                        background: NL.surfaceMuted,
+                        color: NL.textSecondary,
+                        borderColor: NL.borderCard,
+                        WebkitTextFillColor: NL.textSecondary,
+                      }}
+                      value={displayEmail ?? ""}
+                      placeholder="Phone sign-in — no email on file"
+                      disabled
+                      readOnly
+                      aria-readonly="true"
+                    />
                   </div>
                   <div className="sm:col-span-2">
                     <label className="nl-label mb-1.5">Phone</label>
@@ -377,7 +424,7 @@ export default function AdminProfilePage() {
                         }}
                         onBlur={() => {
                           setProfileTouched((t) => ({ ...t, phone: true }));
-                          const next = validateProfileForm(form.name, phoneField, form.bio);
+                          const next = profileFieldErrors(form.name);
                           setProfileErrors((prev) => ({ ...prev, phone: next.phone }));
                         }}
                       />
@@ -397,7 +444,7 @@ export default function AdminProfilePage() {
                     value={form.bio}
                     onBlur={() => {
                       setProfileTouched((t) => ({ ...t, bio: true }));
-                      const next = validateProfileForm(form.name, phoneField, form.bio);
+                      const next = profileFieldErrors(form.name);
                       setProfileErrors((prev) => ({ ...prev, bio: next.bio }));
                     }}
                     onChange={(e) => {
@@ -497,9 +544,20 @@ export default function AdminProfilePage() {
                       <span className="min-w-0 truncate font-medium" style={{ color: NL.textBody }}>
                         {c.name}
                       </span>
-                      <AdminBadge tone={c.status === "approved" ? "green" : "amber"}>
-                        {statusLabel(c.status as MembershipStatus)}
-                      </AdminBadge>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <AdminBadge tone={c.status === "approved" ? "green" : "amber"}>
+                          {statusLabel(c.status as MembershipStatus)}
+                        </AdminBadge>
+                        {c.status === "approved" ? (
+                          <button
+                            type="button"
+                            onClick={() => setFeatureTarget({ id: c.id, name: c.name })}
+                            className="font-semibold text-blue-700 underline-offset-2 transition hover:text-blue-800 hover:underline"
+                          >
+                            Adjust Feature Set
+                          </button>
+                        ) : null}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -543,6 +601,14 @@ export default function AdminProfilePage() {
           </DashboardPanel>
         </div>
       </div>
+
+      {featureTarget ? (
+        <AdjustFeatureSetModal
+          communityId={featureTarget.id}
+          communityName={featureTarget.name}
+          onClose={() => setFeatureTarget(null)}
+        />
+      ) : null}
     </div>
   );
 }

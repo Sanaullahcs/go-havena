@@ -24,6 +24,7 @@ import { PageLoader, PageError } from "@/components/shared/page-states";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { adminTableBusy, isAdminSearchPending, shouldSkipStalePageFetch } from "@/lib/admin/table-loading";
+import { PublishPollModal } from "@/components/admin/publish-poll-modal";
 
 const EMPTY_STATS: AdminPostStats = {
   total: 0,
@@ -54,6 +55,8 @@ export default function AdminFeedPage() {
   const [reportsPost, setReportsPost] = useState<AdminPost | null>(null);
   const [postReports, setPostReports] = useState<AdminPostReport[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
+  const [pollOpen, setPollOpen] = useState(false);
+  const canPublishPoll = !isSystemAdminUser() && Boolean(getManagedCommunityId());
   const prevFilterKey = useRef(`|${debouncedSearch}`);
 
   const handleDelete = async (post: AdminPost) => {
@@ -157,12 +160,23 @@ export default function AdminFeedPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="nl-eyebrow">Community</p>
-        <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Feed moderation</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Resident reports show as Reported. Admin reports mark posts as Sensitive for mobile users.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="nl-eyebrow">Community</p>
+          <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Feed moderation</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Resident reports show as Reported. Admin reports mark posts as Sensitive for mobile users.
+          </p>
+        </div>
+        {canPublishPoll ? (
+          <button
+            type="button"
+            onClick={() => setPollOpen(true)}
+            className="rounded-xl bg-[#1B4F8A] px-4 py-2 text-sm font-semibold text-white"
+          >
+            Publish Poll
+          </button>
+        ) : null}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -265,6 +279,11 @@ export default function AdminFeedPage() {
         />
       </DataTable>
 
+      <PublishPollModal
+        open={pollOpen}
+        onClose={() => setPollOpen(false)}
+        onPublished={() => load(true)}
+      />
       <FeedPostViewModal post={viewing} onClose={() => setViewing(null)} />
       <FeedPostReportModal
         post={reporting}

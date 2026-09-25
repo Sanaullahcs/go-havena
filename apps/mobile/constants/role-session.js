@@ -1,9 +1,10 @@
-import { isCommunityAdmin } from "../services/community-access";
+import { isCommunityAdmin, isResidentMode } from "../services/community-access";
 
 let currentRole = "resident";
 
 /** Map API user / route role to marketplace UI role. */
 export function marketplaceRoleFromUser(user) {
+  if (user && isResidentMode(user)) return "resident";
   if (user && isCommunityAdmin(user)) return "admin";
   return "resident";
 }

@@ -30,7 +30,7 @@ class OtpController extends Controller
         $validated = $request->validate([
             'email' => ['required', 'email', 'max:191'],
             'intent' => ['sometimes', 'string', 'in:login,signup'],
-            'portal' => ['sometimes', 'string', 'in:community_admin_dashboard'],
+            'portal' => ['sometimes', 'string', 'in:community_admin_dashboard,resident_portal'],
         ]);
 
         $email = ContactIdentityService::normalizeEmail($validated['email']);
@@ -56,6 +56,10 @@ class OtpController extends Controller
 
             if (($validated['portal'] ?? null) === 'community_admin_dashboard') {
                 $this->assertCanAccessCommunityAdminDashboard($user);
+            }
+
+            if (($validated['portal'] ?? null) === 'resident_portal') {
+                $this->assertCanAccessResidentPortal($user);
             }
 
             $this->assertAuthenticationAllowed($user, $validated['portal'] ?? null);
@@ -91,7 +95,7 @@ class OtpController extends Controller
         $validated = $request->validate([
             'email' => ['required', 'email', 'max:191'],
             'intent' => ['sometimes', 'string', 'in:login,signup'],
-            'portal' => ['sometimes', 'string', 'in:community_admin_dashboard'],
+            'portal' => ['sometimes', 'string', 'in:community_admin_dashboard,resident_portal'],
         ]);
 
         $email = ContactIdentityService::normalizeEmail($validated['email']);
@@ -136,7 +140,7 @@ class OtpController extends Controller
             'code' => ['required', 'string', 'size:6'],
             'intent' => ['sometimes', 'string', 'in:login,signup'],
             'role' => ['sometimes', 'string', 'in:admin,resident'],
-            'portal' => ['sometimes', 'string', 'in:community_admin_dashboard'],
+            'portal' => ['sometimes', 'string', 'in:community_admin_dashboard,resident_portal'],
             'referral_code' => ['nullable', 'string', 'max:16'],
         ]);
 
@@ -163,6 +167,10 @@ class OtpController extends Controller
 
             if (($validated['portal'] ?? null) === 'community_admin_dashboard') {
                 $this->assertCanAccessCommunityAdminDashboard($user);
+            }
+
+            if (($validated['portal'] ?? null) === 'resident_portal') {
+                $this->assertCanAccessResidentPortal($user);
             }
 
             $this->assertAuthenticationAllowed($user, $validated['portal'] ?? null);
@@ -232,9 +240,11 @@ class OtpController extends Controller
         app(LoginStreakService::class)->recordLogin($user);
         app(PointsRewardService::class)->awardDailyLogin($user);
 
-        $tokenName = ($validated['portal'] ?? null) === 'community_admin_dashboard'
-            ? 'web-admin'
-            : 'mobile';
+        $tokenName = match ($validated['portal'] ?? null) {
+            'community_admin_dashboard' => 'web-admin',
+            'resident_portal' => 'web-resident',
+            default => 'mobile',
+        };
         $token = $user->createToken($tokenName)->plainTextToken;
 
         if ($intent === 'login') {
@@ -355,6 +365,25 @@ class OtpController extends Controller
         $block = app(CommunityLifecycleService::class)->authenticationBlock($user, $portal);
         if ($block) {
             $this->failAuthenticationBlock('email', $block);
+        }
+    }
+
+    private function assertCanAccessResidentPortal(User $user): void
+    {
+        if (AdminRoleService::isSystemAdmin($user) || AdminRoleService::isCommunityAdminRole($user)) {
+            $this->failValidation(
+                'email',
+                'This account uses the admin portal. Sign in there instead.',
+                'USE_ADMIN_PORTAL',
+            );
+        }
+
+        if (! in_array($user->role ?? '', ['resident', 'guest'], true)) {
+            $this->failValidation(
+                'email',
+                'Account not found. Please verify your email address and try again.',
+                'ACCOUNT_NOT_FOUND',
+            );
         }
     }
 

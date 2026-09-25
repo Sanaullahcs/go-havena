@@ -1,9 +1,7 @@
 # Havena Color Scheme — Ocean Breeze
-
 Official palette for the Havena product. Applied across mobile, dashboard, and website. Solid fills only (no brand gradients).
 
 ## Palette
-
 | Name | Hex | Role |
 |------|-----|------|
 | Deep Navy | `#0A2A43` | Text, nav icons, hero fills |
@@ -14,7 +12,6 @@ Official palette for the Havena product. Applied across mobile, dashboard, and w
 | White | `#FFFFFF` | Cards / surfaces |
 
 ## Source files
-
 | File | Purpose |
 |------|---------|
 | [`design/color-scheme.js`](../../design/color-scheme.js) | Canonical JS tokens |
@@ -22,7 +19,6 @@ Official palette for the Havena product. Applied across mobile, dashboard, and w
 | [`frontend/src/lib/design-tokens.ts`](../../frontend/src/lib/design-tokens.ts) | Web `NL` tokens |
 
 ## Suggested mapping
-
 | UI role | Hex |
 |---------|-----|
 | Brand / CTA | `#14B8A6` |

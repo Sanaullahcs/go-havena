@@ -1,4 +1,4 @@
-import { Text, View, StyleSheet, Pressable, useWindowDimensions, FlatList, Platform } from "react-native";
+import { Text, View, StyleSheet, Pressable, FlatList, Platform } from "react-native";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
@@ -11,6 +11,7 @@ import HomeSectionEmpty from "./home-section-empty";
 import { wellnessDetailRouteParams } from "../../constants/wellness-categories";
 import { twoUpCardWidth, snapInterval } from "../../constants/carousel";
 import { sw, sf } from "../../utils/responsive";
+import { useHomeFrame } from "../../hooks/use-home-frame";
 import { arrowForward } from "../../utils/rtl";
 import { rnShadow } from "../../utils/shadow";
 import {
@@ -98,12 +99,12 @@ function WellnessCard({ item, width, onPress }) {
 export default function WellnessNew({ items = [] }) {
   const { t } = useTranslation();
   const router = useRouter();
-  const { width: screenWidth } = useWindowDimensions();
+  const frame = useHomeFrame();
 
   const layout = useMemo(() => {
-    const cardWidth = twoUpCardWidth(screenWidth, Home.gutter, CARD_GAP, PEEK);
+    const cardWidth = twoUpCardWidth(frame.screenWidth, frame.sideInset, CARD_GAP, PEEK);
     return { cardWidth, snap: snapInterval(cardWidth, CARD_GAP) };
-  }, [screenWidth]);
+  }, [frame]);
 
   const renderItem = ({ item }) => (
     <View style={{ width: layout.cardWidth, flexShrink: 0 }}>
@@ -122,7 +123,7 @@ export default function WellnessNew({ items = [] }) {
 
   if (!items.length) {
     return (
-      <View style={homeStyles.section}>
+      <View style={[homeStyles.section, { marginHorizontal: frame.sideInset }]}>
         <HomeSectionHeader label={t("wellness.title")} onPress={() => router.push("/wellness")} />
         <HomeSectionEmpty
           message={t("home.noWellnessPrograms")}
@@ -133,7 +134,7 @@ export default function WellnessNew({ items = [] }) {
   }
 
   return (
-    <View style={homeStyles.section}>
+    <View style={[homeStyles.section, { marginHorizontal: frame.sideInset }]}>
       <HomeSectionHeader label={t("wellness.title")} onPress={() => router.push("/wellness")} />
       <FlatList
         data={items}

@@ -213,6 +213,43 @@ export async function verifyCommunityAdminOtp(
   }
 }
 
+export async function requestResidentOtp(
+  email: string,
+): Promise<{ rate_limit: unknown; expires_at: string | null }> {
+  try {
+    const res = await api.post("/v1/auth/otp/request", {
+      email,
+      intent: "login",
+      portal: "resident_portal",
+    });
+    return otpRequestPayload(res.data);
+  } catch (err) {
+    throwAuthError(err);
+  }
+}
+
+export async function verifyResidentOtp(
+  email: string,
+  code: string,
+): Promise<{ token: string; user: AuthUser }> {
+  try {
+    const res = await api.post("/v1/auth/otp/verify", {
+      email,
+      code,
+      intent: "login",
+      portal: "resident_portal",
+    });
+    const data = res.data;
+    const token = data.token;
+    const raw = data.user ?? data.data;
+    const user = mapAuthUser(raw ?? {}, { email });
+    if (!token) throw new ApiError("Login failed — no token returned.");
+    return { token, user };
+  } catch (err) {
+    throwAuthError(err);
+  }
+}
+
 export async function requestSignupOtp(email: string): Promise<{ rate_limit: unknown }> {
   try {
     const res = await api.post("/v1/auth/otp/request", {

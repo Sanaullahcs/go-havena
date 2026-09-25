@@ -5,12 +5,16 @@ namespace App\Services;
 use App\Exceptions\PlaidException;
 use App\Models\Community;
 use App\Models\CommunityPlaidConnection;
+use App\Models\ResidentPlaidConnection;
 use App\Models\User;
 use App\Services\AdminRoleService;
+use App\Support\TlsCaBundle;
 use ChkltLabs\Plaid\Entities\User as PlaidUser;
 use ChkltLabs\Plaid\Plaid;
 use ChkltLabs\Plaid\PlaidRequestException;
 use Illuminate\Support\Facades\Log;
+use Nimbly\Shuttle\Handler\CurlHandler;
+use Nimbly\Shuttle\Shuttle;
 
 class PlaidService
 {
@@ -77,6 +81,17 @@ class PlaidService
             (string) config('plaid.secret'),
             $this->environment(),
         );
+
+        $caBundle = TlsCaBundle::path();
+        if ($caBundle) {
+            $this->client->setHttpClient(new Shuttle(
+                handler: new CurlHandler([
+                    CURLOPT_CAINFO => $caBundle,
+                    CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_SSL_VERIFYHOST => 2,
+                ]),
+            ));
+        }
 
         return $this->client;
     }
@@ -174,6 +189,7 @@ class PlaidService
             isset($options['account_id']) ? (string) $options['account_id'] : null,
             is_array($options['account'] ?? null) ? $options['account'] : [],
         );
+        $ach = $this->fetchAchNumbers($exchange['access_token'], $account['account_id'] ?? null);
 
         $connection ??= new CommunityPlaidConnection(['community_id' => $communityId]);
         $connection->fill([
@@ -189,6 +205,8 @@ class PlaidService
             'account_type' => $account['account_type'],
             'account_subtype' => $account['account_subtype'],
             'account_mask' => $account['account_mask'],
+            'ach_account' => $ach['account'] ?? null,
+            'ach_routing' => $ach['routing'] ?? null,
             'status' => CommunityPlaidConnection::STATUS_CONNECTED,
             'error_code' => null,
             'error_message' => null,
@@ -248,6 +266,7 @@ class PlaidService
             $connection->account_id,
             [],
         );
+        $ach = $this->fetchAchNumbers($connection->plaid_access_token, $account['account_id'] ?? $connection->account_id);
 
         $connection->fill([
             'institution_id' => $institution['institution_id'] ?: $connection->institution_id,
@@ -258,6 +277,8 @@ class PlaidService
             'account_type' => $account['account_type'] ?: $connection->account_type,
             'account_subtype' => $account['account_subtype'] ?: $connection->account_subtype,
             'account_mask' => $account['account_mask'] ?: $connection->account_mask,
+            'ach_account' => $ach['account'] ?? $connection->ach_account,
+            'ach_routing' => $ach['routing'] ?? $connection->ach_routing,
             'status' => CommunityPlaidConnection::STATUS_CONNECTED,
             'error_code' => null,
             'error_message' => null,
@@ -296,6 +317,10 @@ class PlaidService
         $connection->fill([
             'plaid_access_token' => '',
             'account_id' => null,
+            'ach_account' => null,
+            'ach_routing' => null,
+            'transfer_access_token' => null,
+            'transfer_account_id' => null,
             'status' => CommunityPlaidConnection::STATUS_DISCONNECTED,
             'error_code' => null,
             'error_message' => null,
@@ -344,6 +369,13 @@ class PlaidService
      */
     public function handleWebhook(array $payload): void
     {
+        $type = strtoupper((string) ($payload['webhook_type'] ?? ''));
+        if (str_starts_with($type, 'TRANSFER')) {
+            app(PlaidAchService::class)->handleTransferWebhook($payload);
+
+            return;
+        }
+
         $itemId = (string) ($payload['item_id'] ?? '');
         if ($itemId === '') {
             return;
@@ -354,12 +386,18 @@ class PlaidService
             ->first();
 
         if (! $connection) {
-            Log::info('Plaid webhook ignored for unknown item');
+            $resident = app(PlaidResidentService::class)->findByItemId($itemId);
+            if (! $resident) {
+                Log::info('Plaid webhook ignored for unknown item');
+
+                return;
+            }
+
+            $this->handleResidentItemWebhook($resident, $payload);
 
             return;
         }
 
-        $type = strtoupper((string) ($payload['webhook_type'] ?? ''));
         $code = strtoupper((string) ($payload['webhook_code'] ?? ''));
         $error = $payload['error'] ?? null;
 
@@ -563,6 +601,93 @@ class PlaidService
      * @param  array<string, mixed>  $linkAccount
      * @return array{account_id: string|null, account_name: string|null, account_official_name: string|null, account_type: string|null, account_subtype: string|null, account_mask: string|null}
      */
+    public function selectAccount(string $accessToken, ?string $accountId, array $linkAccount = []): array
+    {
+        return $this->resolveSelectedAccount($accessToken, $accountId, $linkAccount);
+    }
+
+    public function removeItemQuietlyPublic(?string $accessToken): void
+    {
+        $this->removeItemQuietly($accessToken);
+    }
+
+    /**
+     * @return array{account: string|null, routing: string|null}
+     */
+    public function fetchAchNumbers(string $accessToken, ?string $accountId = null): array
+    {
+        if (! filled($accessToken)) {
+            return ['account' => null, 'routing' => null];
+        }
+
+        try {
+            $payload = app(PlaidHttpClient::class)->post('/auth/get', [
+                'access_token' => $accessToken,
+            ]);
+        } catch (\Throwable $e) {
+            Log::info('Plaid Auth numbers lookup skipped', ['error' => $e->getMessage()]);
+
+            return ['account' => null, 'routing' => null];
+        }
+
+        $numbers = is_array($payload['numbers']['ach'] ?? null) ? $payload['numbers']['ach'] : [];
+        $selected = null;
+        foreach ($numbers as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            if ($accountId && ($row['account_id'] ?? null) === $accountId) {
+                $selected = $row;
+                break;
+            }
+            $selected ??= $row;
+        }
+
+        return [
+            'account' => isset($selected['account']) ? (string) $selected['account'] : null,
+            'routing' => isset($selected['routing']) ? (string) $selected['routing'] : null,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    protected function handleResidentItemWebhook(ResidentPlaidConnection $connection, array $payload): void
+    {
+        $type = strtoupper((string) ($payload['webhook_type'] ?? ''));
+        $code = strtoupper((string) ($payload['webhook_code'] ?? ''));
+        $error = $payload['error'] ?? null;
+
+        $connection->last_webhook_code = $code !== '' ? $code : $connection->last_webhook_code;
+        $connection->last_webhook_at = now();
+
+        $errorCode = is_array($error) ? strtoupper((string) ($error['error_code'] ?? '')) : '';
+        $errorMessage = is_array($error)
+            ? (string) ($error['display_message'] ?? $error['error_message'] ?? '')
+            : '';
+
+        $attention = $type === 'ITEM' && (
+            in_array($code, ['ERROR', 'ITEM_LOGIN_REQUIRED', 'PENDING_EXPIRATION', 'PENDING_DISCONNECT', 'USER_PERMISSION_REVOKED'], true)
+            || $errorCode !== ''
+        );
+
+        if ($attention) {
+            app(PlaidResidentService::class)->applyItemError(
+                $connection,
+                $errorCode !== '' ? $errorCode : $code,
+                $errorMessage,
+            );
+
+            return;
+        }
+
+        $connection->save();
+    }
+
+    /**
+     * @param  array<string, mixed>  $linkAccount
+     * @return array{account_id: string|null, account_name: string|null, account_official_name: string|null, account_type: string|null, account_subtype: string|null, account_mask: string|null}
+     */
     protected function resolveSelectedAccount(string $accessToken, ?string $accountId, array $linkAccount): array
     {
         $fromAuth = $this->fetchAuthAccounts($accessToken);
@@ -759,6 +884,7 @@ class PlaidService
     {
         return array_merge($connection->toPublicPayload(), [
             'plaid_available' => true,
+            'ach_ready' => $connection->isConnected(),
             'environment' => $this->environment(),
             'connected_at' => $connection->isConnected()
                 ? ($connection->updated_at?->toIso8601String() ?: $connection->created_at?->toIso8601String())

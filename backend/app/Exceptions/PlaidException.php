@@ -90,6 +90,56 @@ class PlaidException extends Exception
         );
     }
 
+    public static function residentAlreadyConnected(): self
+    {
+        return new self(
+            'You already have a connected bank account for this community.',
+            'PLAID_RESIDENT_ALREADY_CONNECTED',
+            409,
+        );
+    }
+
+    public static function residentNotConnected(): self
+    {
+        return new self(
+            'Connect a bank account before paying with ACH.',
+            'PLAID_RESIDENT_NOT_CONNECTED',
+            422,
+        );
+    }
+
+    public static function communityBankRequired(): self
+    {
+        return new self(
+            'This community has not connected a receiving bank yet. Upload payment proof instead.',
+            'PLAID_COMMUNITY_BANK_REQUIRED',
+            422,
+        );
+    }
+
+    public static function transferFailed(string $message = 'Unable to send this bank payment.'): self
+    {
+        return new self($message, 'PLAID_TRANSFER_FAILED', 422);
+    }
+
+    public static function transferInProgress(): self
+    {
+        return new self(
+            'A bank payment for this charge is already in progress.',
+            'PLAID_TRANSFER_IN_PROGRESS',
+            409,
+        );
+    }
+
+    public static function paymentAlreadySettled(): self
+    {
+        return new self(
+            'This charge has already been paid by bank transfer.',
+            'PLAID_PAYMENT_SETTLED',
+            409,
+        );
+    }
+
     public function render(): JsonResponse
     {
         return response()->json([

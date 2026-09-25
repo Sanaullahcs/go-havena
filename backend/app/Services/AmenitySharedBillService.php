@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\PlaidException;
 use App\Support\MediaUrl;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
@@ -31,6 +32,14 @@ class AmenitySharedBillService
     public const ACTION_APPROVED = 'approved';
 
     public const ACTION_REJECTED = 'rejected';
+
+    public const ACTION_ACH_SUBMITTED = 'ach_submitted';
+
+    public const ACTION_ACH_POSTED = 'ach_posted';
+
+    public const ACTION_ACH_FAILED = 'ach_failed';
+
+    public const ACTION_ACH_REFUNDED = 'ach_refunded';
 
     public const APPROVED_MESSAGE = 'Payment approved successfully.';
 
@@ -856,7 +865,13 @@ class AmenitySharedBillService
                 self::RESIDENT_STATUS_REJECTED,
                 self::RESIDENT_STATUS_OVERDUE,
             ], true),
+<<<<<<< HEAD
             'booking_id' => isset($row->booking_id) && $row->booking_id !== null ? (int) $row->booking_id : null,
+=======
+            'payment_method' => $row->payment_method ?? null,
+            'ach_status' => $row->ach_status ?? null,
+            'plaid_transfer_id' => $row->plaid_transfer_id ?? null,
+>>>>>>> b9baa2acea1d933e3b1ad9083f1c607a6d8f3c41
             'payment_proof' => $this->formatPaymentProof($row, $request),
             'rejection_reason' => in_array($status, [self::RESIDENT_STATUS_REJECTED, self::RESIDENT_STATUS_OVERDUE], true)
                 ? ($row->rejection_reason ?? null)
@@ -897,6 +912,9 @@ class AmenitySharedBillService
                 'rb.user_id',
                 'rb.amount as resident_amount',
                 'rb.status as resident_status',
+                'rb.payment_method',
+                'rb.plaid_transfer_id',
+                'rb.ach_status',
                 'rb.proof_file_path',
                 'rb.proof_file_name',
                 'rb.proof_file_size',
@@ -1050,6 +1068,10 @@ class AmenitySharedBillService
                     self::ACTION_SUBMITTED => 'Proof submitted',
                     self::ACTION_APPROVED => 'Approved',
                     self::ACTION_REJECTED => 'Rejected',
+                    self::ACTION_ACH_SUBMITTED => 'Bank payment started',
+                    self::ACTION_ACH_POSTED => 'Paid by bank',
+                    self::ACTION_ACH_FAILED => 'Bank payment failed',
+                    self::ACTION_ACH_REFUNDED => 'Bank payment refunded',
                     default => ucfirst((string) $row->action),
                 },
                 'actor_id' => $row->actor_id !== null ? (int) $row->actor_id : null,
@@ -1359,6 +1381,103 @@ class AmenitySharedBillService
             self::RESIDENT_STATUS_OVERDUE => 'Overdue',
             default => ucfirst(str_replace('_', ' ', $status)),
         };
+    }
+
+    public function assertCanPayWithBank(string $status): void
+    {
+        if ($status === self::RESIDENT_STATUS_PAID) {
+            throw PlaidException::paymentAlreadySettled();
+        }
+
+        $this->assertCanSubmitProof($status);
+    }
+
+    public function applyAchTransfer(\App\Models\PlaidTransfer $transfer): void
+    {
+        $billId = (int) $transfer->payable_id;
+        $bill = DB::table('amenity_resident_bills')->where('id', $billId)->first();
+        if (! $bill) {
+            return;
+        }
+
+        $from = (string) ($bill->status ?? self::RESIDENT_STATUS_UNPAID);
+        $now = now();
+
+        if ($transfer->isSuccessful()) {
+            $to = self::RESIDENT_STATUS_PAID;
+            $action = self::ACTION_ACH_POSTED;
+            $updates = [
+                'status' => $to,
+                'payment_method' => 'bank_ach',
+                'plaid_transfer_id' => $transfer->id,
+                'ach_status' => $transfer->status,
+                'payment_date' => $now->toDateString(),
+                'payment_reference' => $transfer->public_id,
+                'payment_note' => 'Paid by bank transfer to the community account.',
+                'proof_submitted_at' => $now,
+                'approved_at' => $now,
+                'approved_by' => null,
+                'rejected_at' => null,
+                'rejected_by' => null,
+                'rejection_reason' => null,
+                'updated_at' => $now,
+            ];
+        } elseif ($transfer->status === \App\Models\PlaidTransfer::STATUS_REFUNDED) {
+            $to = self::RESIDENT_STATUS_UNPAID;
+            $action = self::ACTION_ACH_REFUNDED;
+            $updates = [
+                'status' => $to,
+                'payment_method' => 'bank_ach',
+                'plaid_transfer_id' => $transfer->id,
+                'ach_status' => $transfer->status,
+                'updated_at' => $now,
+            ];
+        } elseif ($transfer->isFailed()) {
+            $to = self::RESIDENT_STATUS_UNPAID;
+            $action = self::ACTION_ACH_FAILED;
+            $updates = [
+                'status' => $to,
+                'payment_method' => 'bank_ach',
+                'plaid_transfer_id' => $transfer->id,
+                'ach_status' => $transfer->status,
+                'updated_at' => $now,
+            ];
+        } else {
+            $to = self::RESIDENT_STATUS_PENDING;
+            $action = self::ACTION_ACH_SUBMITTED;
+            $updates = [
+                'status' => $to,
+                'payment_method' => 'bank_ach',
+                'plaid_transfer_id' => $transfer->id,
+                'ach_status' => $transfer->status,
+                'payment_date' => $now->toDateString(),
+                'payment_reference' => $transfer->public_id,
+                'proof_submitted_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        DB::table('amenity_resident_bills')->where('id', $billId)->update($updates);
+
+        $this->writeReview([
+            'resident_bill_id' => $billId,
+            'monthly_bill_id' => (int) $bill->monthly_bill_id,
+            'amenity_id' => (int) $bill->amenity_id,
+            'community_id' => (int) $bill->community_id,
+            'user_id' => (int) $bill->user_id,
+            'action' => $action,
+            'actor_id' => (int) $bill->user_id,
+            'status_from' => $from,
+            'status_to' => $to,
+            'proof_file_path' => null,
+            'proof_file_name' => null,
+            'proof_file_size' => null,
+            'proof_mime_type' => null,
+            'payment_date' => $updates['payment_date'] ?? $bill->payment_date ?? null,
+            'payment_reference' => $transfer->public_id,
+            'payment_note' => $transfer->isSuccessful() ? 'Paid by bank transfer' : ($transfer->failure_message ?: null),
+            'rejection_reason' => $transfer->isFailed() ? ($transfer->failure_message ?: 'Bank payment failed') : null,
+        ]);
     }
 
     private function assertCanSubmitProof(string $status): void

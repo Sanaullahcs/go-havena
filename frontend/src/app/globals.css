@@ -3,26 +3,26 @@
 
 /* ─── Ocean Breeze · brand tokens ─── */
 :root {
-  --navy: #1B4F8A;
-  --deep-teal: #0d9488;
-  --teal: #14b8a6;
-  --mint: #d1fae5;
-  --soft-mint: #d1fae5;
-  --canvas: #f4f8fd;
+  --navy: #0A2A43;
+  --deep-teal: #0D9488;
+  --teal: #14B8A6;
+  --mint: #D1FAF5;
+  --soft-mint: #D1FAF5;
+  --canvas: #F4F8FD;
 
   --brand-primary: var(--teal);
   --brand-primary-deep: var(--navy);
   --brand-dark-teal: var(--deep-teal);
-  --brand-primary-light: #ccfbf1;
+  --brand-primary-light: var(--soft-mint);
   --brand-primary-lighter: var(--canvas);
   --brand-secondary: var(--navy);
-  --brand-secondary-muted: #6b7280;
+  --brand-secondary-muted: color-mix(in srgb, var(--navy) 55%, white);
   --brand-accent: var(--teal);
   --brand-accent-light: var(--soft-mint);
   --brand-canvas: var(--canvas);
   --brand-surface: #ffffff;
-  --brand-border: #e5e7eb;
-  --brand-success: #059669;
+  --brand-border: color-mix(in srgb, var(--navy) 10%, white);
+  --brand-success: #0D9488;
   --brand-warning: #d97706;
   --brand-danger: #e7000b;
   --background: var(--canvas);
@@ -1373,6 +1373,8 @@ body {
   gap: 0.25rem;
   min-height: 10.5rem;
   padding: 0.5rem 0.625rem 0.75rem;
+  overflow: visible;
+  max-height: none;
 }
 .nl-calendar-meta-cell {
   display: flex;
@@ -1462,6 +1464,35 @@ body {
   background: var(--nl-gradient-cta);
   border-color: transparent;
   color: #fff;
+}
+.nl-calendar-day-disabled,
+.nl-calendar-meta-cell.nl-calendar-day-disabled,
+.nl-calendar-day:disabled,
+.nl-calendar-meta-cell:disabled {
+  color: #cbd5e1;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.nl-calendar-day-disabled:hover,
+.nl-calendar-meta-cell.nl-calendar-day-disabled:hover,
+.nl-calendar-day:disabled:hover,
+.nl-calendar-meta-cell:disabled:hover {
+  background: transparent;
+  border-color: transparent;
+  color: #cbd5e1;
+}
+.nl-calendar-nav:disabled,
+.nl-calendar-foot-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.nl-calendar-nav:disabled:hover,
+.nl-calendar-foot-btn:disabled:hover {
+  background: transparent;
+  color: #64748b;
 }
 .nl-calendar-foot {
   display: flex;
@@ -1602,16 +1633,44 @@ body {
 }
 .nl-resident-activity-filter-row {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.5rem;
+  min-width: 0;
 }
 @media (min-width: 480px) {
   .nl-resident-activity-filter-row {
-    grid-template-columns: 1fr minmax(9.5rem, 11rem);
-    align-items: center;
+    grid-template-columns: minmax(0, 1fr) minmax(13.75rem, 15.5rem);
+    align-items: stretch;
   }
+}
+.nl-resident-activity-filter-row > .nl-notice-picker-field {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+}
+.nl-resident-activity-filter-row .nl-picker-wrap {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+}
+.nl-resident-activity-filter-row .nl-picker-trigger {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  gap: 0.5rem;
+  padding-right: 0.75rem;
+}
+.nl-resident-activity-filter-row .nl-picker-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .nl-resident-activity-search {
   position: relative;
+  min-width: 0;
 }
 .nl-resident-activity-search input {
   height: 2.5rem;
@@ -1707,12 +1766,48 @@ body {
 }
 .nl-resident-activity-card {
   min-width: 0;
+  max-width: 100%;
   flex: 1;
+  overflow: hidden;
   border-radius: 0.875rem;
   border: 1px solid #eef2f6;
   background: #fff;
   padding: 0.75rem 0.875rem;
   transition: border-color 150ms, box-shadow 150ms;
+}
+.nl-activity-audit,
+.nl-activity-changes,
+.nl-activity-change-row {
+  min-width: 0;
+  max-width: 100%;
+}
+.nl-activity-wrap-text,
+.nl-activity-change-row {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.nl-activity-wrap-expanded {
+  display: block;
+  max-height: none;
+  overflow: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.nl-activity-wrap-toggle {
+  display: inline;
+  margin-left: 0.375rem;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--brand-primary-deep);
+  cursor: pointer;
+}
+.nl-activity-wrap-toggle:hover {
+  text-decoration: underline;
 }
 .nl-resident-activity-card:hover {
   border-color: #e2e8f0;
@@ -2099,6 +2194,65 @@ body {
 }
 
 /* ─── nl-panel ─── */
+/* Members list selection — navy border, primary fill, white check. */
+input.nl-member-check {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex-shrink: 0;
+  border: 2px solid #1b4f8a !important;
+  border-radius: 4px;
+  background-color: #ffffff !important;
+  background-image: none !important;
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+  vertical-align: middle;
+  box-shadow: 0 0 0 1px rgba(27, 79, 138, 0.12);
+}
+input.nl-member-check::after {
+  content: "";
+  display: none;
+}
+input.nl-member-check:checked {
+  background-color: #1b4f8a !important;
+  border-color: #1b4f8a !important;
+}
+input.nl-member-check:checked::after {
+  display: block;
+  width: 4px;
+  height: 8px;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translate(-0.5px, -1px);
+}
+input.nl-member-check:indeterminate {
+  background-color: #ffffff !important;
+  border-color: #1b4f8a !important;
+}
+input.nl-member-check:indeterminate::after {
+  display: block;
+  width: 8px;
+  height: 2px;
+  border: 0;
+  border-radius: 1px;
+  background: #1b4f8a;
+  transform: none;
+}
+input.nl-member-check:disabled {
+  cursor: not-allowed;
+  background-color: #f4f8fd !important;
+  border-color: #1b4f8a !important;
+  opacity: 1;
+}
+input.nl-member-check:focus-visible {
+  outline: 2px solid #ccfbf1;
+  outline-offset: 2px;
+}
+
 .nl-panel {
   border-radius: var(--nl-radius-card);
   border: 1px solid var(--brand-border);
@@ -3020,7 +3174,6 @@ input[type="password"] {
 .nl-swal-confirm,
 .nl-swal-cancel,
 .nl-swal-deny {
-  display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
   box-sizing: border-box !important;
@@ -3029,6 +3182,15 @@ input[type="password"] {
   line-height: 1.25 !important;
   text-align: center !important;
   vertical-align: middle !important;
+}
+.nl-swal-popup .swal2-confirm,
+.nl-swal-popup .swal2-cancel:not([style*="display: none"]),
+.nl-swal-popup .swal2-deny:not([style*="display: none"]) {
+  display: inline-flex !important;
+}
+.nl-swal-popup .swal2-cancel[style*="display: none"],
+.nl-swal-popup .swal2-deny[style*="display: none"] {
+  display: none !important;
 }
 .nl-swal-confirm {
   border: none !important;
@@ -3374,8 +3536,12 @@ input[type="password"] {
 .nl-swal-textarea {
   display: block;
   width: 100%;
+  height: 6.5rem;
   min-height: 6.5rem;
-  resize: vertical;
+  max-height: 12rem;
+  resize: none;
+  overflow-x: hidden;
+  overflow-y: auto;
   border-radius: 0.625rem;
   border: 1px solid #cbd5e1;
   background: #fff;
@@ -3469,6 +3635,15 @@ input[type="password"] {
 .nl-swal-delete-admin-unassigned {
   color: #64748b !important;
 }
+.nl-swal-delete-admin-email {
+  margin: -0.25rem 0 0 !important;
+  font-size: 0.875rem !important;
+  font-weight: 700 !important;
+  line-height: 1.4 !important;
+  color: #0f172a !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 .nl-swal-delete-input {
   margin-top: 0.25rem !important;
   border-radius: 0.625rem !important;
@@ -3507,3 +3682,11 @@ input[type="password"] {
   max-width: none !important;
   max-height: none !important;
 }
+
+/* Plaid Link is appended to body; keep it above portal chrome and inside the viewport. */
+#plaid-link-iframe,
+iframe[id^="plaid-link-iframe"],
+iframe[src*="cdn.plaid.com"] {
+  max-width: 100vw !important;
+}
+

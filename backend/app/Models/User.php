@@ -29,6 +29,8 @@ class User extends Authenticatable
         'status',
         'role',
         'community_admin_status',
+        'active_context',
+        'active_context_community_id',
         'community_admin_rejection_reason',
         'suspension_reason',
     ];

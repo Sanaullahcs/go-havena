@@ -2,7 +2,7 @@ import { API_BASE_URL } from "../constants/api-config";
 import { resolveSeedMediaSource } from "../constants/seed-media";
 import { formatDisplayEmail } from "./form-validation";
 import { toDisplayPhone } from "./phone";
-import { isGuestUser } from "../services/community-access";
+import { currentCommunityId, isGuestUser, isResidentMode } from "../services/community-access";
 import i18n from "../i18n";
 
 function getPublicBase() {
@@ -175,6 +175,7 @@ export function mediaImageSource(uriOrSource) {
 export function getRoleLabel(user) {
   if (!user) return i18n.t("profile.roles.resident");
   if (isGuestUser(user)) return i18n.t("profile.roles.guest");
+  if (isResidentMode(user)) return i18n.t("profile.roles.resident");
   if (user.role === "community_admin" || user.role === "admin") return i18n.t("profile.roles.admin");
   return i18n.t("profile.roles.resident");
 }
@@ -257,8 +258,9 @@ export function getProfileFields(user, preferredCommunityId) {
     communityName: (() => {
       const memberships = user.memberships ?? [];
       const approved = memberships.filter((m) => m.status === "approved");
-      const preferred = preferredCommunityId
-        ? approved.find((m) => String(m.community_id) === String(preferredCommunityId))
+      const preferredId = preferredCommunityId ?? currentCommunityId(user);
+      const preferred = preferredId
+        ? approved.find((m) => String(m.community_id) === String(preferredId))
         : null;
       return (
         preferred?.community?.name ??
@@ -274,7 +276,7 @@ export function getProfileFields(user, preferredCommunityId) {
     displayEmail: formatDisplayEmail(user.email),
     displayPhone: toDisplayPhone(user.phone || user.email) || "",
     contactLine: formatDisplayEmail(user.email) || toDisplayPhone(user.phone || user.email) || "",
-    role: isGuestUser(user) ? "guest" : (user.role ?? "resident"),
+    role: isGuestUser(user) ? "guest" : (isResidentMode(user) ? "resident" : (user.role ?? "resident")),
   };
 }
 

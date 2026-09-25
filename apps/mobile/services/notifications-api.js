@@ -1,4 +1,5 @@
 import { apiRequest } from "./api-client";
+import { parseApiDate } from "./feed-api";
 import { getNoticeDetailRoute } from "./notices-api";
 import { getNotificationIconSource } from "../utils/notification-visual";
 import i18n from "../i18n";
@@ -253,9 +254,11 @@ function resolveNotificationRouteFallback(notification) {
 export function formatNotificationTime(dateStr) {
   if (!dateStr) return "";
   try {
-    const date = new Date(dateStr);
+    const date = parseApiDate(dateStr);
+    if (!date) return "";
     const now = new Date();
-    const diffMs = now - date;
+    const diffMs = now.getTime() - date.getTime();
+    if (!Number.isFinite(diffMs) || diffMs < 60_000) return i18n.t("time.justNow");
     const diffMins = Math.floor(diffMs / (1000 * 60));
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));

@@ -3,6 +3,8 @@
 namespace App\Support;
 
 use App\Models\User;
+use libphonenumber\NumberParseException;
+use libphonenumber\PhoneNumberUtil;
 
 class PhoneNormalizer
 {
@@ -122,6 +124,37 @@ class PhoneNormalizer
     public static function isValid(?string $phone): bool
     {
         return self::normalize($phone) !== null;
+    }
+
+    /**
+     * Accept a user-entered number only when it is valid for its country.
+     * Lookup of already stored numbers should keep using normalize().
+     */
+    public static function accept(?string $phone): ?string
+    {
+        $normalized = self::normalize($phone);
+        if ($normalized === null || ! self::isValidNumber($normalized)) {
+            return null;
+        }
+
+        return $normalized;
+    }
+
+    public static function isValidNumber(?string $phone): bool
+    {
+        $normalized = self::normalize($phone);
+        if ($normalized === null) {
+            return false;
+        }
+
+        try {
+            $util = PhoneNumberUtil::getInstance();
+            $number = $util->parse($normalized, null);
+        } catch (NumberParseException) {
+            return false;
+        }
+
+        return $util->isValidNumber($number);
     }
 
     /**

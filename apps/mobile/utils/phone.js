@@ -2,12 +2,14 @@ import {
   AsYouType,
   parsePhoneNumberFromString,
   getCountryCallingCode,
-  validatePhoneNumberLength,
-  isValidPhoneNumber,
   formatIncompletePhoneNumber,
   Metadata,
 } from "libphonenumber-js/min";
 import metadata from "libphonenumber-js/min/metadata";
+import {
+  isValidPhoneNumber,
+  validatePhoneNumberLength,
+} from "libphonenumber-js/max";
 
 import {
   DEFAULT_PHONE_COUNTRY,
@@ -244,11 +246,7 @@ export function formatInternationalDisplay(digits, country = DEFAULT_PHONE_COUNT
 export function isValidPhone(digits, country = DEFAULT_PHONE_COUNTRY) {
   if (!digits) return false;
   if (getCountryMismatchError(digits, country)) return false;
-  if (isValidPhoneNumber(digits, country)) return true;
-  // Match backend PhoneNormalizer — accept structurally valid US/CA numbers
-  // (includes dev/test lines like 555-555-5555 that libphonenumber rejects).
-  if (isNanpCountry(country) && isValidNanpNational(digits)) return true;
-  return false;
+  return isValidPhoneNumber(digits, country);
 }
 
 export function isPhoneComplete(digits, country = DEFAULT_PHONE_COUNTRY) {
@@ -298,9 +296,6 @@ export function toE164(digits, country = DEFAULT_PHONE_COUNTRY) {
   if (!digits || !isValidPhone(digits, country)) return "";
   const parsed = parseForSelectedCountry(digits, country);
   if (parsed?.isValid()) return parsed.number ?? "";
-  if (isNanpCountry(country) && isValidNanpNational(digits)) {
-    return `+1${digits}`;
-  }
   return "";
 }
 

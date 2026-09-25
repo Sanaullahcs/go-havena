@@ -12,6 +12,29 @@ type Props = {
 };
 
 const COMMUNITY_MAP_HEIGHT = 300;
+const TILE_SIZE = 256;
+const WORLD_BOUNDS = L.latLngBounds(
+  L.latLng(-85.05112878, -180),
+  L.latLng(85.05112878, 180),
+);
+
+/** Lowest zoom whose world tiles still cover the container, so the void never shows. */
+function coverZoom(map: L.Map) {
+  const size = map.getSize();
+  if (size.x < 1 || size.y < 1) return map.getZoom();
+
+  map.setMinZoom(0);
+  let zoom = map.getBoundsZoom(WORLD_BOUNDS, true);
+  const maxZoom = map.getMaxZoom();
+  while (zoom < maxZoom) {
+    const worldPx = TILE_SIZE * 2 ** zoom;
+    if (worldPx >= size.x && worldPx >= size.y) break;
+    zoom += 1;
+  }
+  map.setMinZoom(zoom);
+  map.setMaxBounds(WORLD_BOUNDS);
+  return zoom;
+}
 
 function createPinIcon() {
   return L.divIcon({
@@ -49,6 +72,8 @@ export function CommunityAddressMap({ latitude, longitude, onMove }: Props) {
     const map = L.map(el, {
       center: [latitude, longitude],
       zoom: 16,
+      minZoom: 0,
+      maxBoundsViscosity: 1,
       scrollWheelZoom: true,
       zoomControl: false,
       attributionControl: false,
@@ -102,7 +127,8 @@ export function CommunityAddressMap({ latitude, longitude, onMove }: Props) {
     const refreshSize = () => {
       map.invalidateSize({ animate: false });
       const pin = marker.getLatLng();
-      map.setView(pin, map.getZoom(), { animate: false });
+      const zoom = Math.max(map.getZoom(), coverZoom(map));
+      map.setView(pin, zoom, { animate: false });
     };
 
     map.whenReady(refreshSize);

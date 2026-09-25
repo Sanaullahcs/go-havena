@@ -68,7 +68,7 @@ export function AdminTopBar({
     setOpen(false);
     const result = await confirmAction({
       title: "Sign out?",
-      text: "You will be returned to the login screen.",
+      text: "Are you sure you want to sign out?",
       confirmText: "Sign out",
       icon: "question",
       color: "red",

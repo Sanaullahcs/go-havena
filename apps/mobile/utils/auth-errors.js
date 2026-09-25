@@ -6,6 +6,8 @@ import { isExistingAccountSignupError } from "./signup-errors";
 import {
   blockedAccountNoticeFromError,
   buildBlockedAccountDialogOptions,
+  buildSuspendedSignInDialogOptions,
+  isSuspendedSignInBlock,
 } from "./blocked-account-dialog";
 import { guestPermissionDialogTitle, resolveGuestFeatureError } from "./guest-permission-errors";
 import { isGuestAccessRejectedError, navigateToGuestRejectedStatus } from "./guest-access-schedule";
@@ -38,6 +40,10 @@ export async function persistBlockedAccountNotice(error) {
 }
 
 export async function showSuspendedAccountDialog(dialog, message, error) {
+  if (isSuspendedSignInBlock(error)) {
+    await dialog.showDialog(buildSuspendedSignInDialogOptions());
+    return;
+  }
   await dialog.showDialog(buildBlockedAccountDialogOptions(error, message));
 }
 

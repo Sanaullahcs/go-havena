@@ -1,5 +1,6 @@
+import { useState } from "react";
 import type { ActivityLog, ActivitySeverity } from "@/lib/api/activity-logs";
-import { formatLogTime, relLogTime } from "@/lib/api/activity-logs";
+import { formatActivityDescription, formatLogTime, relLogTime } from "@/lib/api/activity-logs";
 import { NL } from "@/lib/design-tokens";
 import { AdminBadge } from "@/components/admin/ui";
 import { ActivityAuditDetails } from "@/components/admin/activity/activity-audit-details";
@@ -72,10 +73,20 @@ function roleTone(role: string | null): "blue" | "violet" | "green" | "slate" {
 export function ActivityLogRow({ log }: { log: ActivityLog }) {
   const sev = SEV_CONFIG[log.severity] ?? SEV_CONFIG.info;
   const iconKey = ACTION_ICON_KEY[log.action] ?? "doc";
+  const [open, setOpen] = useState(false);
 
   return (
     <article
-      className="group rounded-2xl border bg-white p-4 transition hover:shadow-md"
+      role="button"
+      tabIndex={0}
+      onClick={() => setOpen((current) => !current)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          setOpen((current) => !current);
+        }
+      }}
+      className="group cursor-pointer rounded-2xl border bg-white p-4 text-left transition hover:shadow-md"
       style={{ borderColor: sev.border, boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)" }}
     >
       <div className="flex flex-wrap items-start gap-3">
@@ -109,8 +120,8 @@ export function ActivityLogRow({ log }: { log: ActivityLog }) {
             ) : null}
           </div>
 
-          <p className="mt-1 text-[13px] leading-relaxed" style={{ color: NL.textSecondary }}>
-            {log.description}
+          <p className="nl-activity-wrap-text mt-1 text-[13px] leading-relaxed" style={{ color: NL.textSecondary }}>
+            {formatActivityDescription(log.description)}
           </p>
 
           <ActivityAuditDetails
@@ -119,6 +130,14 @@ export function ActivityLogRow({ log }: { log: ActivityLog }) {
             entityType={log.entity_type}
             entityId={log.entity_id}
             changes={log.changes}
+            communityName={log.community_name}
+            module={log.module}
+            status={log.status}
+            requestId={log.request_id}
+            ipAddress={log.ip_address}
+            userAgent={log.user_agent}
+            error={log.error}
+            expanded={open}
           />
 
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11.5px]" style={{ color: NL.textMuted }}>

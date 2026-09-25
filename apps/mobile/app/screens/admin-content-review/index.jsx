@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
+import { useRequireCommunityAdmin } from "../../../hooks/use-require-community-admin";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import ScreenHeader from "../../../components/layout/screen-header";
@@ -101,6 +102,7 @@ function ContentRow({ item, busy, onApprove, onReject, t }) {
 }
 
 export default function AdminContentReviewScreen() {
+  useRequireCommunityAdmin();
   const { t } = useTranslation();
   const { kind = "event" } = useLocalSearchParams();
   const config = KIND_CONFIG[kind] ?? KIND_CONFIG.event;

@@ -120,7 +120,37 @@ export async function fetchAdminStats(params?: { community_id?: number }) {
   };
 }
 
+export interface ResidentDashboardNotice {
+  id: number;
+  title: string;
+  category?: string;
+  published_at?: string | null;
+  event_date?: string | null;
+}
+
+export interface ResidentDashboardActivityPoint {
+  date: string;
+  posts: number;
+  likes: number;
+}
+
+export interface ResidentDashboardData {
+  my_stats: {
+    posts: number;
+    bookings: number;
+    saved_listings: number;
+    likes_given: number;
+    unread_notifs: number;
+  };
+  community_stats: {
+    total_members: number;
+    total_posts: number;
+  };
+  recent_notices: ResidentDashboardNotice[];
+  personal_activity: ResidentDashboardActivityPoint[];
+}
+
 export async function fetchResidentStats(params?: { community_id?: number }) {
   const res = await api.get("/v1/dashboard/stats", { params });
-  return res.data.data;
+  return res.data.data as ResidentDashboardData;
 }

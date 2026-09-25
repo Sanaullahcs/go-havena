@@ -29,6 +29,8 @@ return [
         $codes = [
             'resident@gohavena.com' => env('OTP_DEMO_RESIDENT_CODE', '221322'),
             'community@gohavena.com' => env('OTP_DEMO_COMMUNITY_CODE', '221322'),
+            'acton@gohavena.com' => env('OTP_DEMO_ACTON_CODE', '221322'),
+            'resident.acton@gohavena.com' => env('OTP_DEMO_ACTON_RESIDENT_CODE', '221322'),
             'umer@namuve.com' => env('OTP_DEMO_UMER_CODE', '221322'),
         ];
 

@@ -534,4 +534,120 @@ class MemberInviteTest extends TestCase
             ->assertOk()
             ->assertJsonPath('message', 'Invitation email sent.');
     }
+
+    public function test_bulk_resend_sends_only_pending_invitations(): void
+    {
+        Mail::fake();
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        Sanctum::actingAs($admin);
+
+        $first = $this->postJson('/api/v1/admin/members/invite', [
+            'name' => 'Bulk One',
+            'email' => 'bulk.one@example.com',
+            'phone' => '+12025550131',
+            'unit_number' => '11',
+        ])->assertCreated();
+        $second = $this->postJson('/api/v1/admin/members/invite', [
+            'name' => 'Bulk Two',
+            'email' => 'bulk.two@example.com',
+            'phone' => '+12025550132',
+            'unit_number' => '12',
+        ])->assertCreated();
+
+        $joined = User::factory()->create([
+            'role' => 'resident',
+            'email' => 'bulk.joined@example.com',
+            'phone' => '+12025550133',
+            'phone_verified_at' => now(),
+        ]);
+        CommunityMembership::query()->create([
+            'user_id' => $joined->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+        ]);
+
+        $response = $this->postJson('/api/v1/admin/members/resend-invites', [
+            'member_ids' => [
+                (int) $first->json('data.id'),
+                (int) $second->json('data.id'),
+                $joined->id,
+            ],
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('data.sent_count', 2);
+        $response->assertJsonPath('data.failed_count', 1);
+        $response->assertJsonPath('message', '2 invitations sent successfully. 1 invitation failed.');
+        $this->assertSame('approved', CommunityMembership::query()->where('user_id', $joined->id)->value('status'));
+    }
+
+    public function test_batch_upload_previews_row_errors_and_invites_only_valid_residents(): void
+    {
+        Mail::fake();
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+        Sanctum::actingAs($admin);
+
+        $csv = implode("\n", [
+            'Name,Email,Phone Number,Unit / Apartment,Residence Type,Role',
+            'Jane Resident,jane.batch@example.com,+12025550111,B-12,Homeowner,admin',
+            'Bad Email,not-an-email,+12025550112,B-13,Tenant',
+            'Jane Resident,jane.batch@example.com,+12025550113,B-14,Tenant',
+            'Bad Phone,phone.batch@example.com,123,B-15,Homeowner',
+            'Bad Type,type.batch@example.com,+12025550114,B-16,Owner',
+        ]);
+
+        $preview = $this->post('/api/v1/admin/members/invite-batch/preview', [
+            'file' => \Illuminate\Http\UploadedFile::fake()->createWithContent('members.csv', $csv),
+        ]);
+        $preview->assertOk();
+        $preview->assertJsonPath('data.valid_count', 1);
+        $preview->assertJsonPath('data.invalid_count', 4);
+        $preview->assertJsonPath('data.rows.1.errors.0', 'Email address is invalid');
+        $preview->assertJsonPath('data.rows.2.errors.0', 'Email already exists');
+        $preview->assertJsonPath('data.rows.3.errors.0', 'Phone number is invalid');
+        $preview->assertJsonPath('data.rows.4.errors.0', 'Residence Type is not valid');
+
+        $commit = $this->post('/api/v1/admin/members/invite-batch', [
+            'file' => \Illuminate\Http\UploadedFile::fake()->createWithContent('members.csv', $csv),
+        ]);
+        $commit->assertOk();
+        $commit->assertJsonPath('data.sent_count', 1);
+        $commit->assertJsonPath('data.failed_count', 4);
+        Mail::assertNothingSent();
+
+        $user = User::query()->where('email', 'jane.batch@example.com')->first();
+        $this->assertNotNull($user);
+        $this->assertSame('resident', $user->role);
+        $this->assertSame('homeowner', $user->profile?->residence_type);
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id' => $user->id,
+            'status' => 'not_invited',
+        ]);
+        $this->assertDatabaseMissing('invite_codes', ['invited_user_id' => $user->id]);
+        $this->assertDatabaseMissing('users', ['email' => 'type.batch@example.com']);
+
+        $this->postJson('/api/v1/admin/members/resend-invites', [
+            'member_ids' => [$user->id],
+        ])->assertOk()
+            ->assertJsonPath('data.sent_count', 1)
+            ->assertJsonPath('message', '1 invitation sent successfully.');
+
+        $this->assertDatabaseMissing('community_memberships', [
+            'user_id' => $user->id,
+            'status' => 'not_invited',
+        ]);
+        $this->assertDatabaseHas('invite_codes', [
+            'invited_user_id' => $user->id,
+            'community_id' => $community->id,
+        ]);
+    }
 }

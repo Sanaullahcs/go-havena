@@ -14,6 +14,7 @@ use App\Services\PushNotificationService;
 use App\Services\UserBlockService;
 use App\Support\MediaUrl;
 use App\Support\ReportTypes;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -100,7 +101,10 @@ class FeedController extends Controller
             ->pluck('post_id')
             ->all();
 
-        $pageItems = $this->hydrateEngagementCounts($posts->items());
+        $pageItems = $this->hydratePolls(
+            $this->hydrateEngagementCounts($posts->items()),
+            (int) $user->id,
+        );
         $items = collect($pageItems)->map(fn ($p) => $this->formatPost($p, $likedPostIds, $user->id, ['mask_sensitive' => true]));
 
         return response()->json([
@@ -120,12 +124,18 @@ class FeedController extends Controller
         $this->assertNotGuestWrite($request, 'create_post');
 
         $request->validate([
-            'body'       => 'required_without:content|string|max:2000',
-            'content'    => 'required_without:body|string|max:2000',
+            'body'       => 'required_without_all:content,poll|string|max:2000',
+            'content'    => 'required_without_all:body,poll|string|max:2000',
             'body_es'    => 'nullable|string|max:2000',
             'body_ar'    => 'nullable|string|max:2000',
-            'category'   => 'nullable|in:general,event,update,help,announcement',
+            'category'   => 'nullable|in:general,event,update,help,announcement,poll',
             'image_url'  => 'nullable|string|max:512',
+            'poll'       => 'required_if:category,poll|array',
+            'poll.question' => 'required_if:category,poll|string|max:200',
+            'poll.description' => 'nullable|string|max:500',
+            'poll.duration_days' => 'required_if:category,poll|integer|in:1,3,7',
+            'poll.options' => 'required_if:category,poll|array|min:2|max:4',
+            'poll.options.*' => 'required|string|max:80',
         ]);
 
         $user = $request->user();
@@ -135,28 +145,70 @@ class FeedController extends Controller
             return response()->json(['message' => 'No approved community membership found.'], 422);
         }
 
-        $body = $request->input('body') ?? $request->input('content');
+        $isPoll = $request->input('category') === 'poll';
+        if ($isPoll && ! AdminRoleService::isCommunityAdminApproved($user)) {
+            return response()->json(['message' => 'Only community admins can publish polls.'], 403);
+        }
 
-        $id = DB::table('posts')->insertGetId([
-            'community_id'   => $communityId,
-            'user_id'        => $user->id,
-            'body'           => $body,
-            'body_es'        => $request->input('body_es'),
-            'body_ar'        => $request->input('body_ar'),
-            'category'       => $request->category ?? 'general',
-            'image_url'      => MediaUrl::normalize($request->image_url),
-            'status'         => 'approved',
-            'approved_by'    => $user->id,
-            'approved_at'    => now(),
-            'likes_count'    => 0,
-            'comments_count' => 0,
-            'created_at'     => now(),
-            'updated_at'     => now(),
-        ]);
+        $pollOptions = [];
+        if ($isPoll) {
+            $pollOptions = $this->normalizePollOptions($request->input('poll.options', []));
+            if (count($pollOptions) < 2) {
+                return response()->json(['message' => 'A poll needs at least 2 different options.'], 422);
+            }
+        }
+
+        $body = $isPoll
+            ? trim((string) $request->input('poll.question'))
+            : ($request->input('body') ?? $request->input('content'));
+
+        $id = DB::transaction(function () use ($request, $user, $communityId, $body, $isPoll, $pollOptions) {
+            $id = DB::table('posts')->insertGetId([
+                'community_id'   => $communityId,
+                'user_id'        => $user->id,
+                'body'           => $body,
+                'body_es'        => $isPoll ? null : $request->input('body_es'),
+                'body_ar'        => $isPoll ? null : $request->input('body_ar'),
+                'category'       => $request->category ?? 'general',
+                'image_url'      => $isPoll ? null : MediaUrl::normalize($request->image_url),
+                'status'         => 'approved',
+                'approved_by'    => $user->id,
+                'approved_at'    => now(),
+                'likes_count'    => 0,
+                'comments_count' => 0,
+                'created_at'     => now(),
+                'updated_at'     => now(),
+            ]);
+
+            if ($isPoll) {
+                $duration = (int) $request->input('poll.duration_days');
+                $description = trim((string) $request->input('poll.description', ''));
+                $pollId = DB::table('polls')->insertGetId([
+                    'post_id'        => $id,
+                    'question'       => $body,
+                    'description'    => $description !== '' ? $description : null,
+                    'duration_days'  => $duration,
+                    'ends_at'        => now()->addDays($duration),
+                    'created_at'     => now(),
+                    'updated_at'     => now(),
+                ]);
+                foreach ($pollOptions as $position => $label) {
+                    DB::table('poll_options')->insert([
+                        'poll_id'    => $pollId,
+                        'label'      => $label,
+                        'position'   => $position,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+
+            return $id;
+        });
 
         ActivityLogService::user(
             'post_created',
-            'Published a community post',
+            $isPoll ? 'Published a community poll' : 'Published a community post',
             'Post',
             $id,
             'info',
@@ -169,10 +221,13 @@ class FeedController extends Controller
         $post = $this->basePostQuery($communityId)
             ->where('posts.id', $id)
             ->first();
+        [$post] = $this->hydratePolls([$post], (int) $user->id);
 
         return response()->json([
             'data'    => $this->formatPost($post, [], $user->id),
-            'message' => 'Post published to your community feed.',
+            'message' => $isPoll
+                ? 'Poll published to your community feed.'
+                : 'Post published to your community feed.',
         ], 201);
     }
 
@@ -193,6 +248,75 @@ class FeedController extends Controller
         return response()->json([
             'data'    => ['image_url' => MediaUrl::toPublic($relative, $request)],
             'message' => 'Image uploaded',
+        ]);
+    }
+
+    /** POST /v1/feed/{id}/vote — one vote per resident. */
+    public function vote(Request $request, int $id): JsonResponse
+    {
+        $this->assertNotGuestWrite($request, 'vote_poll');
+
+        $request->validate([
+            'option_id' => 'required|integer',
+        ]);
+
+        $user = $request->user();
+        $communityId = $this->resolveCommunityId($request, $user);
+        if (! $communityId) {
+            return response()->json(['message' => 'No approved community membership found.'], 422);
+        }
+
+        $post = DB::table('posts')
+            ->where('id', $id)
+            ->where('community_id', $communityId)
+            ->where('category', 'poll')
+            ->where('status', 'approved')
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (! $post) {
+            return response()->json(['message' => 'Poll not found'], 404);
+        }
+
+        $poll = DB::table('polls')->where('post_id', $post->id)->first();
+        if (! $poll) {
+            return response()->json(['message' => 'Poll not found'], 404);
+        }
+
+        if (Carbon::parse($poll->ends_at)->lte(now())) {
+            return response()->json(['message' => 'This poll is closed.'], 422);
+        }
+
+        $option = DB::table('poll_options')
+            ->where('id', (int) $request->input('option_id'))
+            ->where('poll_id', $poll->id)
+            ->first();
+
+        if (! $option) {
+            return response()->json(['message' => 'That option is not part of this poll.'], 422);
+        }
+
+        if (DB::table('poll_votes')->where('poll_id', $poll->id)->where('user_id', $user->id)->exists()) {
+            return response()->json(['message' => 'You have already voted in this poll.'], 422);
+        }
+
+        try {
+            DB::table('poll_votes')->insert([
+                'poll_id'    => $poll->id,
+                'option_id'  => $option->id,
+                'user_id'    => $user->id,
+                'created_at' => now(),
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            return response()->json(['message' => 'You have already voted in this poll.'], 422);
+        }
+
+        $fresh = $this->basePostQuery($communityId)->where('posts.id', $id)->first();
+        [$fresh] = $this->hydratePolls($this->hydrateEngagementCounts([$fresh]), (int) $user->id);
+
+        return response()->json([
+            'data'    => $this->formatPost($fresh, [], $user->id),
+            'message' => 'Vote recorded.',
         ]);
     }
 
@@ -243,6 +367,10 @@ class FeedController extends Controller
 
         if (! $post) {
             return response()->json(['message' => 'Post not found or not yours'], 403);
+        }
+
+        if (($post->category ?? '') === 'poll' || $request->input('category') === 'poll') {
+            return response()->json(['message' => 'Polls cannot be edited.'], 422);
         }
 
         $data = ['updated_at' => now()];
@@ -344,7 +472,7 @@ class FeedController extends Controller
             ->pluck('post_id')
             ->all();
 
-        [$post] = $this->hydrateEngagementCounts([$post]);
+        [$post] = $this->hydratePolls($this->hydrateEngagementCounts([$post]), (int) $user->id);
 
         return response()->json([
             'data' => $this->formatPost($post, $likedPostIds, $user->id, ['mask_sensitive' => true]),
@@ -1309,6 +1437,7 @@ class FeedController extends Controller
     private function formatPost(object $post, array $likedPostIds, int $userId, array $options = []): array
     {
         $categoryLabels = collect(self::TOPICS)->pluck('label', 'id');
+        $categoryLabels->put('poll', 'Poll');
         $isSensitive = (bool) ($post->is_sensitive ?? false);
         $maskSensitive = ($options['mask_sensitive'] ?? false) && $isSensitive;
         $body = $maskSensitive ? null : $post->body;
@@ -1365,6 +1494,7 @@ class FeedController extends Controller
             ],
             'liked_by_me'    => in_array($post->id, $likedPostIds, true),
             'is_mine'        => (int) $post->user_id === $userId,
+            'poll'           => ($post->category ?? '') === 'poll' ? ($post->poll_view ?? null) : null,
         ];
     }
 
@@ -1597,6 +1727,149 @@ class FeedController extends Controller
         }
 
         return $items->all();
+    }
+
+    /**
+     * @param  list<mixed>  $options
+     * @return list<string>
+     */
+    private function normalizePollOptions(array $options): array
+    {
+        $labels = [];
+        $seen = [];
+        foreach ($options as $option) {
+            $label = trim((string) $option);
+            if ($label === '') {
+                continue;
+            }
+            $key = mb_strtolower($label);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $labels[] = $label;
+            if (count($labels) === 4) {
+                break;
+            }
+        }
+
+        return $labels;
+    }
+
+    /**
+     * @param  iterable<object>  $posts
+     * @return list<object>
+     */
+    private function hydratePolls(iterable $posts, int $userId): array
+    {
+        $items = collect($posts)->filter()->values();
+        if ($items->isEmpty()) {
+            return [];
+        }
+
+        $pollPostIds = $items
+            ->filter(fn ($post) => ($post->category ?? '') === 'poll')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if ($pollPostIds === []) {
+            return $items->all();
+        }
+
+        $polls = DB::table('polls')->whereIn('post_id', $pollPostIds)->get()->keyBy('post_id');
+        $pollIds = $polls->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $options = $pollIds === []
+            ? collect()
+            : DB::table('poll_options')->whereIn('poll_id', $pollIds)->orderBy('position')->orderBy('id')->get()->groupBy('poll_id');
+        $votes = $pollIds === []
+            ? collect()
+            : DB::table('poll_votes')->whereIn('poll_id', $pollIds)->get();
+        $votesByPoll = $votes->groupBy('poll_id');
+        $myVoteByPoll = $votes->where('user_id', $userId)->keyBy('poll_id');
+
+        foreach ($items as $post) {
+            if (($post->category ?? '') !== 'poll') {
+                continue;
+            }
+            $poll = $polls->get($post->id);
+            if (! $poll) {
+                $post->poll_view = null;
+                continue;
+            }
+            $pollOptions = $options->get($poll->id, collect())->values();
+            $pollVotes = $votesByPoll->get($poll->id, collect());
+            $counts = [];
+            foreach ($pollOptions as $option) {
+                $counts[] = $pollVotes->where('option_id', $option->id)->count();
+            }
+            $total = array_sum($counts);
+            $closed = Carbon::parse($poll->ends_at)->lte(now());
+            $myVote = $myVoteByPoll->get($poll->id);
+            $resultsVisible = $closed || $myVote !== null;
+            $percents = $resultsVisible ? $this->votePercents($counts, $total) : [];
+
+            $post->poll_view = [
+                'question'         => $poll->question,
+                'description'      => $poll->description,
+                'duration_days'    => (int) $poll->duration_days,
+                'ends_at'          => $this->formatTimestamp($poll->ends_at),
+                'closed'           => $closed,
+                'results_visible'  => $resultsVisible,
+                'total_votes'      => $resultsVisible ? $total : null,
+                'voted_option_id'  => $myVote ? (int) $myVote->option_id : null,
+                'options'          => $pollOptions->values()->map(function ($option, $index) use ($resultsVisible, $counts, $percents) {
+                    $row = [
+                        'id'    => (int) $option->id,
+                        'label' => $option->label,
+                    ];
+                    if ($resultsVisible) {
+                        $row['votes'] = (int) ($counts[$index] ?? 0);
+                        $row['percent'] = (int) ($percents[$index] ?? 0);
+                    }
+
+                    return $row;
+                })->all(),
+            ];
+        }
+
+        return $items->all();
+    }
+
+    /**
+     * @param  list<int>  $counts
+     * @return list<int>
+     */
+    private function votePercents(array $counts, int $total): array
+    {
+        $count = count($counts);
+        if ($count === 0 || $total <= 0) {
+            return array_fill(0, $count, 0);
+        }
+
+        $floors = [];
+        $remainders = [];
+        $sum = 0;
+        foreach ($counts as $index => $votes) {
+            $exact = ($votes / $total) * 100;
+            $floors[$index] = (int) floor($exact);
+            $remainders[$index] = $exact - $floors[$index];
+            $sum += $floors[$index];
+        }
+
+        $left = 100 - $sum;
+        arsort($remainders);
+        foreach (array_keys($remainders) as $index) {
+            if ($left <= 0) {
+                break;
+            }
+            $floors[$index]++;
+            $left--;
+        }
+
+        ksort($floors);
+
+        return array_values($floors);
     }
 
     private function storeImage(UploadedFile $file): string

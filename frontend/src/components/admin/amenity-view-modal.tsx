@@ -191,7 +191,7 @@ export function AmenityViewModal({
             <button
               type="button"
               onClick={onApprove}
-              className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
+              className="rounded-xl border border-teal-200 bg-[#D1FAF5] px-4 py-2 text-sm font-semibold text-[#0D9488] transition hover:bg-[#D1FAF5]"
             >
               Approve
             </button>
@@ -209,7 +209,7 @@ export function AmenityViewModal({
             <button
               type="button"
               onClick={() => onEdit(amenity)}
-              className="rounded-xl bg-[#1B4F8A] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1B4F8A]"
+              className="rounded-xl bg-[#14B8A6] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0D9488]"
             >
               Edit amenity
             </button>

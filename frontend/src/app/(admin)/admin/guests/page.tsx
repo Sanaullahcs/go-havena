@@ -35,6 +35,8 @@ import {
   type GuestPermissions,
 } from "@/lib/api/guests";
 import { inputClass } from "@/lib/admin/form-validation-utils";
+import { ThemedDatePicker } from "@/components/ui/themed-date-picker";
+import { ThemedTimePicker } from "@/components/ui/themed-time-picker";
 import { toDatetimeLocalValue } from "@/lib/admin/datetime-local";
 import {
   canSubmitGuestInvite,
@@ -44,9 +46,12 @@ import {
   guestDurationFieldError,
   guestEmailFieldError,
   GUEST_DURATION_MAX_MESSAGE,
+  GUEST_EMAIL_EXISTS_MESSAGE,
+  GUEST_NAME_MAX,
   guestNameFieldError,
   guestPermissionsFieldError,
   guestStartFieldError,
+  isDuplicateGuestEmailError,
   normalizeGuestInviteWindow,
 } from "@/lib/admin/guest-invite-validation";
 import { parseDatetimeLocalValue } from "@/lib/admin/datetime-local";
@@ -229,6 +234,50 @@ function pendingApprovalMessage(guest: GuestInvitation, canDecide: boolean) {
   return `Awaiting approval from ${host}. Resident invites must be approved by the host who sent the invitation.`;
 }
 
+function dateTimeParts(value: string) {
+  return {
+    date: value.slice(0, 10),
+    time: value.length >= 16 ? value.slice(11, 16) : "",
+  };
+}
+
+function joinDateTime(date: string, time: string) {
+  if (!date) return "";
+  return `${date}T${time || "00:00"}`;
+}
+
+function GuestDateTimeField({
+  value,
+  min,
+  max,
+  invalid,
+  onChange,
+}: {
+  value: string;
+  min?: string;
+  max?: string;
+  invalid?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const { date, time } = dateTimeParts(value);
+  return (
+    <div className="grid grid-cols-1 gap-2">
+      <ThemedDatePicker
+        value={date}
+        min={min?.slice(0, 10) || undefined}
+        max={max?.slice(0, 10) || undefined}
+        error={invalid ? " " : undefined}
+        onChange={(nextDate) => onChange(joinDateTime(nextDate, time))}
+      />
+      <ThemedTimePicker
+        value={time}
+        error={invalid ? " " : undefined}
+        onChange={(nextTime) => onChange(joinDateTime(date || min?.slice(0, 10) || "", nextTime))}
+      />
+    </div>
+  );
+}
+
 export default function GuestsPage() {
   const [currentUser, setCurrentUser] = useState<WebUser | null>(null);
   const [guests, setGuests] = useState<GuestInvitation[]>([]);
@@ -260,7 +309,10 @@ export default function GuestsPage() {
   const [phoneField, setPhoneField] = useState<PhoneFieldState>(emptyPhoneField());
   const [phoneShowError, setPhoneShowError] = useState(false);
   const [inviteFormKey, setInviteFormKey] = useState(0);
+  const [nameTouched, setNameTouched] = useState(false);
   const [permissionsError, setPermissionsError] = useState<string | null>(null);
+  const [emailExistsError, setEmailExistsError] = useState<string | null>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
   const hasLoadedOnce = useRef(false);
   const prevFilterKey = useRef(`${filterStatus}|`);
 
@@ -362,14 +414,14 @@ export default function GuestsPage() {
 
   const minStartAt = useMemo(() => toDatetimeLocalValue(new Date()), [showForm]);
   const startValidationNow = useMemo(() => new Date(), [form.starts_at]);
-  const nameError = guestNameFieldError(form.guest_name);
-  const emailError = guestEmailFieldError(form.guest_email);
+  const nameError = form.guest_name.trim() || nameTouched ? guestNameFieldError(form.guest_name) : null;
+  const emailError = guestEmailFieldError(form.guest_email) ?? emailExistsError;
   const startError = guestStartFieldError(form.starts_at, startValidationNow);
   const durationError = guestDurationFieldError(form.starts_at, form.ends_at);
   const minEndAt = guestAccessEarliestEndLocalValue(form.starts_at);
   const maxEndAt = guestAccessLatestEndLocalValue(form.starts_at);
   const canCreateInvitation =
-    canSubmitGuestInvite(form, phoneField, startValidationNow) && !submitting;
+    canSubmitGuestInvite(form, phoneField, startValidationNow) && !submitting && !emailExistsError;
 
   const handlePermissionToggle = (key: keyof GuestPermissions, checked: boolean) => {
     setForm((f) => {
@@ -421,12 +473,19 @@ export default function GuestsPage() {
       setPhoneField(emptyPhoneField());
       setPhoneShowError(false);
       setPermissionsError(null);
+      setEmailExistsError(null);
+      setNameTouched(false);
       await load();
     } catch (err) {
       const fields = apiFieldErrors(err);
       if (fields.permissions) setPermissionsError(fields.permissions);
       if (fields.starts_at) toastError(fields.starts_at);
       if (fields.ends_at) toastError(fields.ends_at);
+      if (isDuplicateGuestEmailError(fields, err)) {
+        setEmailExistsError(GUEST_EMAIL_EXISTS_MESSAGE);
+        requestAnimationFrame(() => emailInputRef.current?.focus());
+        return;
+      }
       await alertError("Could not create invitation", apiError(err));
     } finally {
       setSubmitting(false);
@@ -505,8 +564,15 @@ export default function GuestsPage() {
     setActionId(guest.id);
     try {
       await deleteGuestInvitation(guest.id);
-      toastSuccess("Invitation deleted successfully.");
+      toastSuccess("Guest invitation deleted successfully.");
       if (viewing?.id === guest.id) setViewing(null);
+      setGuests((rows) => rows.filter((row) => row.id !== guest.id));
+      setTotal((count) => Math.max(0, count - 1));
+      setStats((current) => ({
+        ...current,
+        total: Math.max(0, current.total - 1),
+        pending_verification: Math.max(0, current.pending_verification - 1),
+      }));
       await load();
     } catch (err) {
       toastError(apiError(err));
@@ -548,7 +614,7 @@ export default function GuestsPage() {
             Invite temporary guests, review resident requests and manage access windows.
           </p>
         </div>
-        <button type="button" onClick={() => { setForm({ ...emptyForm, permissions: { ...INITIAL_GUEST_INVITE_PERMISSIONS }, ...defaultInviteWindow() }); setPhoneField(emptyPhoneField()); setPhoneShowError(false); setPermissionsError(null); setInviteFormKey((k) => k + 1); setShowForm(true); }} className="nl-btn-primary">
+        <button type="button" onClick={() => { setForm({ ...emptyForm, permissions: { ...INITIAL_GUEST_INVITE_PERMISSIONS }, ...defaultInviteWindow() }); setPhoneField(emptyPhoneField()); setPhoneShowError(false); setPermissionsError(null); setEmailExistsError(null); setNameTouched(false); setInviteFormKey((k) => k + 1); setShowForm(true); }} className="nl-btn-primary">
           <Plus className="h-4 w-4" />
           Invite Guest User
         </button>
@@ -676,7 +742,7 @@ export default function GuestsPage() {
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center">
-          <div className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200">
+          <div className="nl-guest-invite-card w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200">
             <div className="border-b border-slate-100 bg-gradient-to-r from-[var(--navy)] via-[#163A66] to-[var(--deep-teal)] px-6 py-5 text-white">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
@@ -694,7 +760,7 @@ export default function GuestsPage() {
               </div>
             </div>
 
-            <div className="max-h-[70vh] space-y-5 overflow-y-auto px-6 py-5">
+            <div className="nl-guest-invite-body max-h-[70vh] space-y-5 overflow-y-auto px-6 py-5">
               <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
                 <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Guest details</p>
                 <div className="mt-3 space-y-4">
@@ -706,7 +772,9 @@ export default function GuestsPage() {
                     <input
                       className={inputClass(nameError, "nl-input")}
                       value={form.guest_name}
-                      onChange={(e) => setForm((f) => ({ ...f, guest_name: e.target.value }))}
+                      maxLength={GUEST_NAME_MAX}
+                      onChange={(e) => setForm((f) => ({ ...f, guest_name: e.target.value.slice(0, GUEST_NAME_MAX) }))}
+                      onBlur={() => setNameTouched(true)}
                       placeholder="e.g. Alex Johnson"
                       aria-invalid={Boolean(nameError)}
                     />
@@ -718,10 +786,14 @@ export default function GuestsPage() {
                       Email *
                     </label>
                     <input
+                      ref={emailInputRef}
                       type="email"
                       className={inputClass(emailError, "nl-input")}
                       value={form.guest_email}
-                      onChange={(e) => setForm((f) => ({ ...f, guest_email: e.target.value }))}
+                      onChange={(e) => {
+                        setEmailExistsError(null);
+                        setForm((f) => ({ ...f, guest_email: e.target.value }));
+                      }}
                       placeholder="guest@email.com"
                       aria-invalid={Boolean(emailError)}
                     />
@@ -789,24 +861,22 @@ export default function GuestsPage() {
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div>
                     <label className="mb-1.5 block text-[13px] font-medium text-slate-700">Start *</label>
-                    <input
-                      type="datetime-local"
-                      min={minStartAt}
-                      className={inputClass(Boolean(startError), "nl-input")}
+                    <GuestDateTimeField
                       value={form.starts_at}
-                      onChange={(e) => setForm((f) => ({ ...f, starts_at: e.target.value }))}
+                      min={minStartAt}
+                      invalid={Boolean(startError)}
+                      onChange={(starts_at) => setForm((f) => ({ ...f, starts_at }))}
                     />
                     {startError ? <p className="mt-1 text-xs text-red-600">{startError}</p> : null}
                   </div>
                   <div>
                     <label className="mb-1.5 block text-[13px] font-medium text-slate-700">End *</label>
-                    <input
-                      type="datetime-local"
+                    <GuestDateTimeField
+                      value={form.ends_at}
                       min={minEndAt || undefined}
                       max={maxEndAt || undefined}
-                      className={inputClass(Boolean(durationError), "nl-input")}
-                      value={form.ends_at}
-                      onChange={(e) => setForm((f) => ({ ...f, ends_at: e.target.value }))}
+                      invalid={Boolean(durationError)}
+                      onChange={(ends_at) => setForm((f) => ({ ...f, ends_at }))}
                     />
                     {durationError ? <p className="mt-1 text-xs text-red-600">{durationError}</p> : null}
                   </div>

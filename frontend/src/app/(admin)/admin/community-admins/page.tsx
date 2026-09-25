@@ -7,23 +7,24 @@ import {
   approveCommunityAdmin,
   deleteCommunityAdmin,
   fetchCommunityAdmins,
+  reactivateCommunityAdmin,
   rejectCommunityAdmin,
   reapproveCommunityAdmin,
+  releaseCommunityAdminAccount,
   suspendCommunityAdmin,
   type CommunityAdminApplicant,
   type CommunityAdminStats,
 } from "@/lib/api/community-admins";
-import {
-  AdminAccountStatusBadge,
-  AssignCommunityAdminModal,
-  type AssignAdminTarget,
-} from "@/components/admin/assign-community-admin-modal";
+import { communityAdminAllows, resolveCommunityAdminLifecycle } from "@/lib/admin/community-admin-actions";
+import { AdminAccountStatusBadge } from "@/components/admin/assign-community-admin-modal";
+import { AssignAdminCommunityModal } from "@/components/admin/assign-admin-community-modal";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { UserAvatar } from "@/components/admin/user-avatar";
 import { PhoneDisplay } from "@/components/admin/phone-display";
 import { DataTable, DtCell, DtHead, DtPagination, DtRow, DtTable, StatTile } from "@/components/admin/ui";
 import { ProvisionUserModal } from "@/components/admin/provision-user-modal";
 import { EditCommunityAdminModal } from "@/components/admin/edit-community-admin-modal";
+import { ContextualActivityModal } from "@/components/admin/contextual-activity-modal";
 import { PageLoader } from "@/components/shared/page-states";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { adminTableBusy, isAdminSearchPending, shouldSkipStalePageFetch } from "@/lib/admin/table-loading";
@@ -37,9 +38,9 @@ type StatusTab = "pending" | "approved" | "suspended" | "reassign" | "rejected";
 
 const STATUS_FILTERS: { key: StatusTab; label: string; description: string }[] = [
   { key: "pending", label: "Pending", description: "Applications awaiting review" },
-  { key: "approved", label: "Active", description: "Approved admins with dashboard access" },
-  { key: "suspended", label: "Suspended", description: "Suspended administrators — reassign a replacement while the community still needs one" },
-  { key: "reassign", label: "Reassign", description: "Communities needing an active admin — missing admin, suspended admin, or inactive community" },
+  { key: "approved", label: "Active", description: "Approved admins currently assigned to a community" },
+  { key: "suspended", label: "Suspended", description: "Suspended administrators — access is restricted until they are reactivated" },
+  { key: "reassign", label: "Reassign", description: "Approved admins waiting to be assigned to a community" },
   { key: "rejected", label: "Rejected", description: "Declined applications" },
 ];
 
@@ -90,9 +91,10 @@ export default function CommunityAdminsPage() {
   const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [assignTarget, setAssignTarget] = useState<AssignAdminTarget | null>(null);
+  const [assignTarget, setAssignTarget] = useState<CommunityAdminApplicant | null>(null);
   const [viewing, setViewing] = useState<CommunityAdminApplicant | null>(null);
   const [editing, setEditing] = useState<CommunityAdminApplicant | null>(null);
+  const [activityTarget, setActivityTarget] = useState<{ id: number; name: string } | null>(null);
 
   const load = useCallback(
     async (_silent = false) => {
@@ -158,7 +160,7 @@ export default function CommunityAdminsPage() {
       {
         label: "Needs Reassign",
         value: String(stats.needs_reassign ?? 0),
-        hint: "Communities without an active admin (includes inactive communities)",
+        hint: "Admins waiting to be assigned a community",
         tone: "amber" as const,
         icon: <IcoSwap />,
       },
@@ -198,6 +200,7 @@ export default function CommunityAdminsPage() {
         toastSuccess("Community admin approved");
       }
       setViewing((current) => (current?.id === id ? null : current));
+      setStatus("approved");
       await load(true);
     } catch (err) {
       toastError(apiError(err));
@@ -208,11 +211,11 @@ export default function CommunityAdminsPage() {
 
   const handleReject = async (id: number, revokeActive = false) => {
     const r = await confirmRejectWithReason({
-      title: revokeActive ? "Revoke this community admin?" : "Reject this application?",
+      title: revokeActive ? "Revoke Access?" : "Reject this application?",
       text: revokeActive
         ? "Their subscription will be canceled immediately. A reason is required and will be shown to the admin."
         : "A reason is required. The applicant will see it in their account.",
-      confirmText: revokeActive ? "Revoke" : "Reject",
+      confirmText: revokeActive ? "Revoke Access" : "Reject",
     });
     if (!r.isConfirmed) return;
 
@@ -220,7 +223,7 @@ export default function CommunityAdminsPage() {
     try {
       const reason = String(r.value ?? "").trim();
       await rejectCommunityAdmin(id, reason);
-      toastSuccess(revokeActive ? "Admin revoked. Billing canceled." : "Application rejected");
+      toastSuccess(revokeActive ? "Access revoked. Billing canceled." : "Application rejected");
       setViewing((current) =>
         current?.id === id
           ? {
@@ -230,6 +233,7 @@ export default function CommunityAdminsPage() {
             }
           : current,
       );
+      setStatus("rejected");
       await load(true);
     } catch (err) {
       toastError(apiError(err));
@@ -239,12 +243,9 @@ export default function CommunityAdminsPage() {
   };
 
   const handleSuspend = async (item: CommunityAdminApplicant) => {
-    const community = communityFor(item);
     const ok = await confirmAction({
       title: `Suspend ${item.name}?`,
-      text: community
-        ? `${community.name} and its residents will stay active. Only this admin loses access until you assign a replacement.`
-        : "The community and its residents will stay active. Only this admin loses dashboard access.",
+      text: "This admin’s access will be suspended. The community and its residents will remain active and unaffected.",
       confirmText: "Suspend admin",
       color: "red",
     });
@@ -253,8 +254,55 @@ export default function CommunityAdminsPage() {
     setBusyId(item.id);
     try {
       await suspendCommunityAdmin(item.id);
-      toastSuccess("Community admin suspended. Assign a replacement from the Suspended or Reassign tab.");
+      toastSuccess("Community admin suspended. Access is restricted until you reactivate the account.");
       setStatus("suspended");
+      await load(true);
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleRelease = async (item: CommunityAdminApplicant) => {
+    const community = communityFor(item);
+    const ok = await confirmAction({
+      title: `Release ${item.name}?`,
+      text: community
+        ? `${item.name} will be removed from ${community.name} only. The admin account stays available on the Reassign tab, and the community is not deleted.`
+        : "This removes only the community assignment. The admin account stays available on the Reassign tab.",
+      confirmText: "Release from community",
+      color: "amber",
+    });
+    if (!ok.isConfirmed) return;
+
+    setBusyId(item.id);
+    try {
+      await releaseCommunityAdminAccount(item.id);
+      toastSuccess("Community admin released. Assign a new community from the Reassign tab.");
+      setStatus("reassign");
+      await load(true);
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleReactivate = async (item: CommunityAdminApplicant) => {
+    const ok = await confirmAction({
+      title: `Reactivate ${item.name}?`,
+      text: "This restores dashboard access and returns the admin to Active.",
+      confirmText: "Reactivate admin",
+      color: "green",
+    });
+    if (!ok.isConfirmed) return;
+
+    setBusyId(item.id);
+    try {
+      await reactivateCommunityAdmin(item.id);
+      toastSuccess("Community admin reactivated.");
+      setStatus("approved");
       await load(true);
     } catch (err) {
       toastError(apiError(err));
@@ -265,10 +313,12 @@ export default function CommunityAdminsPage() {
 
   const handleDelete = async (item: CommunityAdminApplicant) => {
     if (!item.id || item.reassign_row_id) return;
+    const isRecord = resolveCommunityAdminLifecycle(item) === "rejected";
 
     const confirmed = await confirmDeleteCommunityAdmin({
       adminName: item.name,
       assignedCommunities: item.community_request ? [item.community_request] : [],
+      variant: isRecord ? "record" : "admin",
     });
     if (!confirmed.isConfirmed) return;
 
@@ -277,7 +327,7 @@ export default function CommunityAdminsPage() {
       await deleteCommunityAdmin(item.id);
       setItems((prev) => prev.filter((row) => row.id !== item.id));
       setViewing((current) => (current?.id === item.id ? null : current));
-      toastSuccess("Community Admin deleted successfully.");
+      toastSuccess(isRecord ? "Rejected record deleted successfully." : "Community Admin deleted successfully.");
       await load(true);
     } catch (err) {
       toastError(apiError(err));
@@ -297,23 +347,10 @@ export default function CommunityAdminsPage() {
     setViewing((current) => (current?.id === updated.id ? updated : current));
   };
 
-  const openAssign = (item: CommunityAdminApplicant, mode: "assign" | "reassign" = "assign") => {
-    const community = communityFor(item);
-    if (!community?.id) {
-      toastError("No community linked to this admin.");
-      return;
-    }
-    setAssignTarget({
-      communityId: community.id,
-      communityName: community.name,
-      region: community.region,
-      previousAdminName:
-        item.previous_admin?.name ?? (status === "suspended" && item.id ? item.name : undefined),
-      reassignReason: item.reassign_reason,
-      reassignSummary: item.reassign_summary,
-      communityStatus: community.status,
-      mode,
-    });
+  const openAssign = (item: CommunityAdminApplicant) => {
+    if (!item.id) return;
+    setAssignTarget(item);
+    setViewing((current) => (current?.id === item.id ? null : current));
   };
 
   const emptyMessage = useMemo(() => {
@@ -322,7 +359,7 @@ export default function CommunityAdminsPage() {
       return `No ${label} community admins match "${debouncedSearch.trim()}".`;
     }
     if (status === "reassign") {
-      return "All communities currently have an active administrator.";
+      return "No community admins are waiting to be assigned a community.";
     }
     return `No ${label} community admins yet.`;
   }, [activeTab, status, debouncedSearch]);
@@ -374,84 +411,25 @@ export default function CommunityAdminsPage() {
         >
           <DtTable>
             <DtHead
-              cols={
-                status === "reassign"
-                  ? [
-                      { label: "Community" },
-                      { label: "Situation" },
-                      { label: "Previous admin" },
-                      { label: "Status" },
-                      { label: "Updated" },
-                      { label: "", right: true },
-                    ]
-                  : [
-                      { label: "Administrator" },
-                      { label: "Contact" },
-                      { label: "Community" },
-                      { label: "Account status" },
-                      { label: "Billing" },
-                      { label: "Since" },
-                      { label: "", right: true },
-                    ]
-              }
+              cols={[
+                { label: "Administrator" },
+                { label: "Contact" },
+                { label: "Community" },
+                { label: "Account status" },
+                { label: "Billing" },
+                { label: "Since" },
+                { label: "", right: true },
+              ]}
             />
             <tbody>
               {items.map((item) => {
                 const community = communityFor(item);
-                if (status === "reassign") {
-                  return (
-                    <DtRow key={rowKey(item)} muted>
-                      <DtCell first>
-                        <div>
-                          <p className="font-semibold text-slate-900">{community?.name ?? item.name}</p>
-                          {community?.region ? (
-                            <p className="text-[12px] text-slate-400">{community.region}</p>
-                          ) : null}
-                        </div>
-                      </DtCell>
-                      <DtCell>
-                        <p className="text-[13px] text-slate-700">{item.reassign_summary ?? "This community needs an active administrator."}</p>
-                      </DtCell>
-                      <DtCell>
-                        {item.previous_admin?.name ? (
-                          <div>
-                            <p className="font-medium text-slate-800">{item.previous_admin.name}</p>
-                            <p className="text-[11px] capitalize text-slate-400">{item.previous_admin.status ?? "—"}</p>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
-                      </DtCell>
-                      <DtCell>
-                        <AdminAccountStatusBadge
-                          accountStatus={item.status}
-                          applicationStatus={item.community_admin_status}
-                          needsReassign
-                          reassignReason={item.reassign_reason}
-                        />
-                      </DtCell>
-                      <DtCell nowrap muted>{relDate(item.created_at)}</DtCell>
-                      <DtCell last right>
-                        <AdminActionsMenu
-                          disabled={busyId === item.id}
-                          actions={[
-                            { label: "View details", icon: "view", onClick: () => setViewing(item) },
-                            {
-                              label: "Reassign admin",
-                              icon: "edit",
-                              tone: "primary",
-                              hidden: !community?.id,
-                              onClick: () => openAssign(item, "reassign"),
-                            },
-                          ]}
-                        />
-                      </DtCell>
-                    </DtRow>
-                  );
-                }
+                const lifecycle = resolveCommunityAdminLifecycle(item);
+                const can = (action: Parameters<typeof communityAdminAllows>[1]) =>
+                  communityAdminAllows(item, action);
 
                 return (
-                  <DtRow key={rowKey(item)} muted={status === "suspended" || status === "reassign"}>
+                  <DtRow key={rowKey(item)} muted={lifecycle === "suspended" || lifecycle === "reassign"}>
                     <DtCell first>
                       <div className="flex items-center gap-3">
                         <UserAvatar
@@ -464,7 +442,7 @@ export default function CommunityAdminsPage() {
                             {formatAccountDisplayName(item, "Community admin")}
                           </p>
                           <p className="text-[12px] text-slate-400">
-                            {item.needs_reassign && item.reassign_summary
+                            {lifecycle === "reassign" && item.reassign_summary
                               ? item.reassign_summary
                               : formatAccountContact(item) || "—"}
                           </p>
@@ -487,10 +465,10 @@ export default function CommunityAdminsPage() {
                       <AdminAccountStatusBadge
                         accountStatus={item.status}
                         applicationStatus={item.community_admin_status}
-                        needsReassign={item.needs_reassign}
+                        needsReassign={lifecycle === "reassign"}
                       />
-                      {item.needs_reassign ? (
-                        <p className="mt-1 text-[11px] font-medium text-amber-700">Replacement needed</p>
+                      {lifecycle === "reassign" ? (
+                        <p className="mt-1 text-[11px] font-medium text-amber-700">Awaiting community</p>
                       ) : null}
                     </DtCell>
                     <DtCell>
@@ -503,51 +481,57 @@ export default function CommunityAdminsPage() {
                         actions={[
                           { label: "View details", icon: "view", onClick: () => setViewing(item) },
                           {
+                            label: "Activity",
+                            icon: "view",
+                            hidden: !item.id,
+                            onClick: () => setActivityTarget({ id: item.id, name: formatAccountDisplayName(item) }),
+                          },
+                          {
                             label: "Edit",
                             icon: "edit",
+                            hidden: !can("edit"),
                             onClick: () => openEdit(item),
                           },
                           {
                             label: "Approve",
                             icon: "approve",
                             tone: "primary",
-                            hidden: status !== "pending",
-                            onClick: () => handleApprove(item.id),
+                            hidden: !can("approve"),
+                            onClick: () => handleApprove(item.id, lifecycle === "rejected"),
                           },
                           {
-                            label: status === "approved" ? "Revoke access" : "Reject",
+                            label: lifecycle === "active" ? "Revoke Access" : "Reject",
                             icon: "reject",
                             tone: "danger",
-                            hidden: status !== "pending" && status !== "approved",
-                            onClick: () => handleReject(item.id, status === "approved"),
+                            hidden: lifecycle === "active" ? false : !can("reject"),
+                            onClick: () => handleReject(item.id, lifecycle === "active"),
                           },
                           {
                             label: "Suspend",
                             icon: "ban",
                             tone: "danger",
-                            hidden: status !== "approved",
+                            hidden: !can("suspend"),
                             onClick: () => handleSuspend(item),
                           },
                           {
-                            label: "Reassign admin",
-                            icon: "edit",
-                            tone: "primary",
-                            hidden: status !== "suspended" || !item.needs_reassign || !community?.id,
-                            disabled: !community?.id,
-                            onClick: () => openAssign(item, "reassign"),
-                          },
-                          {
-                            label: "Re-approve",
+                            label: "Reactivate",
                             icon: "approve",
                             tone: "primary",
-                            hidden: status !== "rejected",
-                            onClick: () => handleApprove(item.id, true),
+                            hidden: !can("reactivate"),
+                            onClick: () => handleReactivate(item),
                           },
                           {
-                            label: "Delete Admin",
+                            label: "Assign Community",
+                            icon: "plus",
+                            tone: "primary",
+                            hidden: !can("assign_community"),
+                            onClick: () => openAssign(item),
+                          },
+                          {
+                            label: "Delete Record",
                             icon: "delete",
                             tone: "danger",
-                            hidden: !item.id || Boolean(item.reassign_row_id),
+                            hidden: !can("delete_record"),
                             onClick: () => handleDelete(item),
                           },
                         ]}
@@ -575,12 +559,13 @@ export default function CommunityAdminsPage() {
         onCreated={() => load(true)}
       />
 
-      <AssignCommunityAdminModal
-        target={assignTarget}
+      <AssignAdminCommunityModal
+        admin={assignTarget}
         open={Boolean(assignTarget)}
         onClose={() => setAssignTarget(null)}
         onAssigned={() => {
-          load(true);
+          setStatus("approved");
+          void load(true);
         }}
       />
 
@@ -591,35 +576,27 @@ export default function CommunityAdminsPage() {
         onSaved={handleAdminSaved}
       />
 
+      <ContextualActivityModal
+        target={activityTarget ? { kind: "community_admin", ...activityTarget } : null}
+        onClose={() => setActivityTarget(null)}
+      />
+
       {viewing ? (
         <CommunityAdminDetailModal
           item={viewing}
           onClose={() => setViewing(null)}
-          onEdit={
-            viewing.id && !viewing.reassign_row_id
-              ? () => openEdit(viewing)
-              : undefined
-          }
           onApprove={
-            viewing.community_admin_status === "pending" && viewing.id
-              ? () => handleApprove(viewing.id)
-              : viewing.community_admin_status === "rejected" && viewing.id
-                ? () => handleApprove(viewing.id, true)
-                : undefined
-          }
-          onReject={
-            viewing.id &&
-            (viewing.community_admin_status === "pending" || viewing.community_admin_status === "approved")
-              ? () => handleReject(viewing.id, viewing.community_admin_status === "approved")
+            communityAdminAllows(viewing, "approve")
+              ? () => handleApprove(viewing.id, resolveCommunityAdminLifecycle(viewing) === "rejected")
               : undefined
           }
-          approveLabel={viewing.community_admin_status === "rejected" ? "Re-approve" : "Approve"}
-          rejectLabel={
-            viewing.community_admin_status === "approved" ? "Revoke access" : "Reject"
-          }
-          onDelete={
-            viewing.id && !viewing.reassign_row_id ? () => handleDelete(viewing) : undefined
-          }
+          onReject={communityAdminAllows(viewing, "reject") ? () => handleReject(viewing.id) : undefined}
+          onReactivate={communityAdminAllows(viewing, "reactivate") ? () => handleReactivate(viewing) : undefined}
+          onAssign={communityAdminAllows(viewing, "assign_community") ? () => openAssign(viewing) : undefined}
+          approveLabel={resolveCommunityAdminLifecycle(viewing) === "rejected" ? "Approve" : "Approve"}
+          rejectLabel="Reject"
+          deleteLabel="Delete Record"
+          onDelete={communityAdminAllows(viewing, "delete_record") ? () => handleDelete(viewing) : undefined}
           busy={busyId === viewing.id}
         />
       ) : null}
@@ -650,22 +627,26 @@ function capitalize(value?: string | null) {
 function CommunityAdminDetailModal({
   item,
   onClose,
-  onEdit,
   onApprove,
   onReject,
+  onReactivate,
+  onAssign,
   onDelete,
   approveLabel = "Approve",
   rejectLabel = "Reject",
+  deleteLabel = "Delete Admin",
   busy,
 }: {
   item: CommunityAdminApplicant;
   onClose: () => void;
-  onEdit?: () => void;
   onApprove?: () => void;
   onReject?: () => void;
+  onReactivate?: () => void;
+  onAssign?: () => void;
   onDelete?: () => void;
   approveLabel?: string;
   rejectLabel?: string;
+  deleteLabel?: string;
   busy?: boolean;
 }) {
   const community = communityFor(item);
@@ -769,16 +750,11 @@ function CommunityAdminDetailModal({
           {!isReassignRow && item.id ? <ProfileRow label="Admin ID" value={String(item.id)} /> : null}
         </div>
 
-        {(onEdit || onApprove || onReject || onDelete) ? (
+        {(onApprove || onReject || onReactivate || onAssign || onDelete) ? (
           <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
-            {onEdit ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={onEdit}
-                className="nl-btn-secondary"
-              >
-                Edit
+            {onAssign ? (
+              <button type="button" disabled={busy} onClick={onAssign} className="nl-btn-primary">
+                Assign Community
               </button>
             ) : null}
             {onReject ? (
@@ -791,6 +767,11 @@ function CommunityAdminDetailModal({
                 {rejectLabel}
               </button>
             ) : null}
+            {onReactivate ? (
+              <button type="button" disabled={busy} onClick={onReactivate} className="nl-btn-primary">
+                Reactivate
+              </button>
+            ) : null}
             {onDelete ? (
               <button
                 type="button"
@@ -798,7 +779,7 @@ function CommunityAdminDetailModal({
                 onClick={onDelete}
                 className="nl-btn-danger"
               >
-                Delete Admin
+                {deleteLabel}
               </button>
             ) : null}
             {onApprove ? (

@@ -584,7 +584,7 @@ function PayInner() {
             return;
           }
           const step = getCommunityAdminNextStep(getUser());
-          router.replace(communityAdminOnboardingPath(step === "complete_billing_web" ? "await_approval" : step));
+          router.replace(communityAdminOnboardingPath(step === "complete_billing_web" ? "configure_resident_features" : step));
           return;
         }
       } catch (err) {

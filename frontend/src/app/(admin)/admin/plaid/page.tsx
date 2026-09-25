@@ -11,8 +11,8 @@ import {
   Unplug,
 } from "lucide-react";
 import type { PlaidLinkOnSuccessMetadata } from "react-plaid-link";
-import { usePlaidLink } from "react-plaid-link";
 import { AdminBadge } from "@/components/admin/ui";
+import { PlaidLinkLauncher } from "@/components/plaid/plaid-link-launcher";
 import { PageLoader } from "@/components/shared/page-states";
 import { confirmAction, toastError, toastSuccess } from "@/lib/alert";
 import { apiError } from "@/lib/api/client";
@@ -24,6 +24,7 @@ import {
   reconnectPlaidConnection,
   type PlaidExchangePayload,
 } from "@/lib/api/plaid";
+import { fetchAdminPlaidPayments, type PlaidPayment } from "@/lib/api/resident-plaid";
 
 type LinkMode = "create" | "update" | "replace";
 
@@ -54,6 +55,7 @@ export default function PlaidPage() {
   const [disconnecting, setDisconnecting] = useState(false);
   const [loadingConnection, setLoadingConnection] = useState(true);
   const [connection, setConnection] = useState<PlaidExchangePayload | null>(null);
+  const [payments, setPayments] = useState<PlaidPayment[]>([]);
   const [linkError, setLinkError] = useState<string | null>(null);
 
   const status = connection?.status ?? "not_connected";
@@ -72,9 +74,13 @@ export default function PlaidPage() {
 
     (async () => {
       try {
-        const payload = await fetchPlaidConnection();
+        const [payload, ledger] = await Promise.all([
+          fetchPlaidConnection(),
+          fetchAdminPlaidPayments().catch(() => []),
+        ]);
         if (!cancelled) {
           setConnection(payload);
+          setPayments(ledger);
         }
       } catch (err) {
         if (!cancelled) {
@@ -161,34 +167,24 @@ export default function PlaidPage() {
     [completeExchange, completeUpdate, linkMode],
   );
 
-  const { open, ready } = usePlaidLink({
-    token: linkToken,
-    onSuccess: handlePlaidSuccess,
-    onExit: (error) => {
-      setConnecting(false);
-      setLinkToken(null);
-
-      if (error) {
-        const message =
-          error.display_message ||
-          error.error_message ||
-          "Plaid Link closed before the connection finished.";
-        setLinkError(message);
-        toastError(message);
-        return;
-      }
-
-      if (!exchanging) {
-        toastSuccess("Plaid Link closed.");
-      }
-    },
-  });
-
-  useEffect(() => {
-    if (!linkToken || !ready) return;
-    open();
+  const handlePlaidExit = useCallback((error?: { display_message?: string | null; error_message?: string | null } | null) => {
     setConnecting(false);
-  }, [linkToken, ready, open]);
+    setLinkToken(null);
+
+    if (error) {
+      const message =
+        error.display_message ||
+        error.error_message ||
+        "Plaid Link closed before the connection finished.";
+      setLinkError(message);
+      toastError(message);
+      return;
+    }
+
+    if (!exchanging) {
+      toastSuccess("Plaid Link closed.");
+    }
+  }, [exchanging]);
 
   const startLink = async (mode: LinkMode) => {
     setConnecting(true);
@@ -230,7 +226,7 @@ export default function PlaidPage() {
     }
   };
 
-  const isBusy = connecting || exchanging || disconnecting || Boolean(linkToken && !ready);
+  const isBusy = connecting || exchanging || disconnecting || Boolean(linkToken);
 
   const headline = useMemo(() => {
     if (isConnected) return "Bank Account Connected";
@@ -241,7 +237,7 @@ export default function PlaidPage() {
 
   const description = useMemo(() => {
     if (isConnected) {
-      return "Your community bank connection is stored securely on the Havena backend. This is bank linking only — it does not move rent, amenity fees, or ACH payments.";
+      return "This is the community receiving account. Resident amenity fees and shared bills debit their bank and credit this account via ACH.";
     }
     if (needsReconnect) {
       return connection?.error_message
@@ -258,16 +254,23 @@ export default function PlaidPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
+      {linkToken ? (
+        <PlaidLinkLauncher
+          token={linkToken}
+          onSuccess={handlePlaidSuccess}
+          onExit={handlePlaidExit}
+        />
+      ) : null}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Plaid</h2>
           <p className="mt-0.5 text-[13px] text-slate-500">
-            Connect a bank account through Plaid Sandbox for community admin verification.
+            Connect the community bank that receives resident ACH for amenity fees and shared bills.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <AdminBadge tone="cyan">Sandbox</AdminBadge>
+          <AdminBadge tone="teal">Plaid</AdminBadge>
           {isConnected ? <AdminBadge tone="green">Connected</AdminBadge> : null}
           {needsReconnect ? <AdminBadge tone="amber">Needs attention</AdminBadge> : null}
           {isDisconnected ? <AdminBadge tone="slate">Disconnected</AdminBadge> : null}
@@ -280,10 +283,10 @@ export default function PlaidPage() {
             className={[
               "flex h-14 w-14 items-center justify-center rounded-2xl ring-1",
               isConnected
-                ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
+                ? "bg-[#D1FAF5] text-[#0D9488] ring-[#D1FAF5]"
                 : needsReconnect
                   ? "bg-amber-50 text-amber-700 ring-amber-100"
-                  : "bg-sky-50 text-sky-700 ring-sky-100",
+                  : "bg-[#F4F8FD] text-[#0A2A43] ring-slate-200",
             ].join(" ")}
           >
             {isConnected ? (
@@ -304,9 +307,9 @@ export default function PlaidPage() {
                 type="button"
                 onClick={() => void startLink("create")}
                 disabled={isBusy}
-                className="nl-btn-primary inline-flex min-w-[220px] items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
+                className="nl-btn-primary inline-flex w-full min-w-0 items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:min-w-[220px]"
               >
-                {connecting || (linkToken && !ready) ? (
+                {connecting || Boolean(linkToken) ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Opening Plaid Link…
@@ -384,15 +387,15 @@ export default function PlaidPage() {
           className={[
             "rounded-2xl border p-5 shadow-sm sm:p-6",
             isConnected
-              ? "border-emerald-200 bg-emerald-50/60"
+              ? "border-teal-200 bg-[#D1FAF5]/70"
               : needsReconnect
                 ? "border-amber-200 bg-amber-50/70"
-                : "border-slate-200 bg-slate-50",
+                : "border-slate-200 bg-[#F4F8FD]",
           ].join(" ")}
         >
           <div className="flex items-start gap-3">
             {isConnected ? (
-              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#0D9488]" />
             ) : needsReconnect ? (
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
             ) : (
@@ -467,6 +470,62 @@ export default function PlaidPage() {
           </div>
         </div>
       ) : null}
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <h3 className="text-base font-semibold text-slate-900">Incoming ACH</h3>
+        <p className="mt-1 text-sm text-slate-500">
+          Resident bank payments into this community account. Posted payments do not need screenshot review.
+        </p>
+        {payments.length === 0 ? (
+          <p className="mt-4 text-sm text-slate-500">No resident bank payments yet.</p>
+        ) : (
+          <div className="mt-4 divide-y divide-slate-100">
+            {payments.map((payment) => (
+              <div key={payment.id} className="flex flex-wrap items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                <div>
+                  <p className="text-sm font-semibold text-[#0A2A43]">{payment.purpose_label}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {payment.user_name || "Resident"}
+                    {payment.source?.mask ? ` · •••• ${payment.source.mask}` : ""}
+                    {" → "}
+                    {payment.destination?.mask ? `•••• ${payment.destination.mask}` : "community bank"}
+                    {payment.simulated ? " · ledgered sandbox" : " · live ACH"}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-[#0A2A43]">
+                    {new Intl.NumberFormat("en-US", { style: "currency", currency: payment.currency || "USD" }).format(payment.amount)}
+                  </p>
+                  <p className="mt-0.5 text-[11px] font-bold uppercase tracking-wide text-[#0D9488]">{payment.status_label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <h3 className="text-base font-semibold text-[#0A2A43]">How residents pay amenities</h3>
+        <p className="mt-1 text-sm text-slate-500">
+          Money always moves resident bank → this community account. Havena never takes the funds.
+          Live Plaid Transfer runs when the product is enabled on the Plaid dashboard; otherwise sandbox posts a ledgered payment so bookings still complete.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {[
+            ["Resort pool booking", "$25 weekend swim. Resident pays at reserve. Cancel or decline refunds the ACH."],
+            ["Clubhouse event", "$150 private party. Admin can approve after the bank payment posts."],
+            ["Tennis court", "Booking fails if the community bank is not linked. No reservation is left behind."],
+            ["Fitness center dues", "October gym bill. One tap Pay with bank marks the resident paid — no screenshot review."],
+            ["Pool chemicals", "Shared monthly charge. Paying twice is blocked after the first posted transfer."],
+            ["Guest suite fallback", "If a resident has not linked a bank, they still upload payment proof."],
+          ].map(([title, copy]) => (
+            <div key={title} className="rounded-xl border border-slate-100 bg-[#F4F8FD] px-4 py-3">
+              <p className="text-sm font-semibold text-[#0A2A43]">{title}</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-600">{copy}</p>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

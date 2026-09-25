@@ -18,7 +18,7 @@ import { rnShadow } from "../utils/shadow";
 const SOURCE_OPTIONS = {
   view: {
     id: "view",
-    labelKey: "profile.viewProfilePicture",
+    labelKey: "profile.viewProfileAction",
     icon: "eye-outline",
   },
   camera: {
@@ -80,7 +80,9 @@ function ImageSourcePickerDialog({
                 onPress={() => onSelect(option.id)}
               >
                 <Ionicons name={option.icon} size={sf(18)} color={Colors.brandPrimaryDeep} />
-                <Text style={styles.optionBtnText}>{i18n.t(option.labelKey)}</Text>
+                <Text style={optionLabelStyle} numberOfLines={1}>
+                  {i18n.t(option.labelKey)}
+                </Text>
               </TouchableOpacity>
             ))}
 
@@ -89,7 +91,9 @@ function ImageSourcePickerDialog({
               activeOpacity={0.88}
               onPress={onDismiss}
             >
-              <Text style={styles.cancelBtnText}>{i18n.t("common.cancel")}</Text>
+              <Text style={cancelLabelStyle} numberOfLines={1}>
+                {i18n.t("common.cancel")}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -187,6 +191,27 @@ export function ImageSourcePickerProvider({ children }) {
   );
 }
 
+const optionLabelStyle = {
+  flexShrink: 0,
+  flexGrow: 0,
+  fontFamily: Fonts.semiBold,
+  fontSize: sf(15),
+  color: Colors.brandPrimaryDeep,
+  fontWeight: "600",
+  textAlign: "center",
+  includeFontPadding: false,
+};
+
+const cancelLabelStyle = {
+  flexShrink: 0,
+  fontFamily: Fonts.semiBold,
+  fontSize: sf(15),
+  color: Colors.textSecondary,
+  fontWeight: "600",
+  textAlign: "center",
+  includeFontPadding: false,
+};
+
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -248,12 +273,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(20, 184, 166, 0.18)",
     paddingHorizontal: sw(16),
-  },
-  optionBtnText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: sf(15),
-    color: Colors.brandPrimaryDeep,
-    fontWeight: "600",
+    paddingVertical: sw(12),
+    overflow: "visible",
   },
   cancelBtn: {
     minHeight: sw(48),
@@ -264,12 +285,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
     paddingHorizontal: sw(16),
-  },
-  cancelBtnText: {
-    fontFamily: Fonts.semiBold,
-    fontSize: sf(15),
-    color: Colors.textSecondary,
-    fontWeight: "600",
+    paddingVertical: sw(12),
+    overflow: "visible",
   },
 });
 

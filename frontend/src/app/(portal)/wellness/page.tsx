@@ -94,7 +94,7 @@ export default function WellnessPage() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="nl-eyebrow" style={{ color: "#059669" }}>Health & Wellness</p>
+        <p className="nl-eyebrow" style={{ color: "#0D9488" }}>Health & Wellness</p>
         <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Wellness Programs</h2>
         <p className="mt-1 text-sm text-slate-500">Track your progress across fitness, nutrition, sleep, and mindfulness.</p>
       </div>
@@ -114,7 +114,7 @@ export default function WellnessPage() {
           <p className="text-[13px] font-medium text-slate-700">Lessons Remaining</p>
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-slate-200/70 bg-white p-4 shadow-sm">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[14px] font-bold text-white" style={{ background: "#059669" }}>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[14px] font-bold text-white" style={{ background: "#0D9488" }}>
             {pct}%
           </div>
           <p className="text-[13px] font-medium text-slate-700">Overall Progress</p>
@@ -178,7 +178,7 @@ export default function WellnessPage() {
                 <div key={item.id} className="flex items-start gap-4 px-5 py-4 transition hover:bg-slate-50/60">
                   <div
                     className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white text-[12px] font-bold"
-                    style={{ background: item.completed ? "#059669" : (CAT_META[activeTab]?.color ?? "#64748b") }}
+                    style={{ background: item.completed ? "#0D9488" : (CAT_META[activeTab]?.color ?? "#64748b") }}
                   >
                     {item.duration_min}<span className="text-[9px] ml-0.5">m</span>
                   </div>
@@ -186,7 +186,7 @@ export default function WellnessPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-[14px] font-semibold text-slate-900">{item.title}</p>
                       {item.completed && (
-                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-700">
+                        <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[10.5px] font-semibold text-[#0D9488]">
                           Completed
                         </span>
                       )}
@@ -200,8 +200,8 @@ export default function WellnessPage() {
                     onClick={() => handleToggle(item)}
                     className={`ml-auto mt-0.5 shrink-0 rounded-lg border px-3 py-1.5 text-[12px] font-semibold transition ${
                       item.completed
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+                        ? "border-teal-200 bg-teal-50 text-[#0D9488] hover:bg-teal-100"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-teal-300 hover:bg-teal-50 hover:text-[#0D9488]"
                     }`}
                   >
                     {item.completed ? "Completed" : "Mark Done"}

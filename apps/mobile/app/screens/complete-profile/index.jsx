@@ -35,7 +35,7 @@ import AuthSuccessOverlay from "../../../components/ui/auth-success-overlay";
 import { isAuthenticated } from "../../../services/auth-session";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
-import { hasFieldErrors, LIMITS, validateCompleteProfileForm } from "../../../utils/form-validation";
+import { applyCharacterLimit, hasFieldErrors, LIMITS, validateCompleteProfileForm } from "../../../utils/form-validation";
 import { extractNationalDigits, toE164 } from "../../../utils/phone";
 import { DEFAULT_PHONE_COUNTRY } from "../../../constants/phone-countries";
 import { getProfileFields, isPlaceholderDisplayName, isPlaceholderResidenceType, isPlaceholderUnitNumber } from "../../../utils/profile-display";
@@ -51,8 +51,30 @@ function isPdfAsset(asset) {
 }
 
 const PLACEHOLDER_COLOR = "#9CA3AF";
+const UTILITY_UPLOAD_LABEL =
+  "Upload your lease agreement or a utility bill issued within the last 3 months.";
+
+function utilityUploadLabel(t, language) {
+  if (!language || language.toLowerCase().startsWith("en")) {
+    return UTILITY_UPLOAD_LABEL;
+  }
+  const translated = t("onboarding.uploadLease");
+  if (!translated || translated.includes("last 3 month")) {
+    return UTILITY_UPLOAD_LABEL;
+  }
+  return translated;
+}
 
 /** Plain object so the text-metrics patch cannot add lineHeight. */
+const utilityUploadLabelStyle = {
+  fontFamily: Fonts.semiBold,
+  fontSize: 13,
+  lineHeight: 20,
+  fontWeight: "600",
+  color: T.navy,
+  flexShrink: 1,
+};
+
 const fieldTextStyle = {
   fontFamily: Fonts.regular,
   fontSize: 14,
@@ -87,7 +109,7 @@ const bioFieldTextStyle = {
 };
 
 export default function CompleteProfile() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const dialog = useAppDialog();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -134,6 +156,13 @@ export default function CompleteProfile() {
 
   const isEditMode = mode === "edit";
   const isCommunityRequest = communityRequest === "1";
+  const isCommunityAdminProfile =
+    role === "admin" ||
+    isCommunityRequest ||
+    profileUser?.role === "community_admin" ||
+    profileUser?.role === "admin";
+  const nameMax = LIMITS.profileName;
+  const unitMax = isCommunityAdminProfile ? LIMITS.communityAdminUnit : LIMITS.profileUnit;
 
   // Non-edit onboarding: never `router.back()` / splash — auth redirect would loop here again.
   const leaveOnboardingOnBack = !isEditMode;
@@ -472,8 +501,9 @@ export default function CompleteProfile() {
         requireUtilityFile: showUtilityBill && !existingUtilityBillUrl,
         requireResidenceType: showResidenceType,
         guestMode: isGuestProfile,
+        communityAdmin: isCommunityAdminProfile,
       }),
-    [name, email, phoneDigits, phoneCountry, bio, unitNumber, residenceType, selectedFile, existingUtilityBillUrl, isGuestProfile, showUtilityBill, showResidenceType],
+    [name, email, phoneDigits, phoneCountry, bio, unitNumber, residenceType, selectedFile, existingUtilityBillUrl, isGuestProfile, showUtilityBill, showResidenceType, isCommunityAdminProfile],
   );
 
   const isValid = useMemo(() => {
@@ -857,7 +887,7 @@ export default function CompleteProfile() {
                   placeholderTextColor={PLACEHOLDER_COLOR}
                   value={name}
                   onChangeText={(text) => {
-                    setName(text);
+                    setName(applyCharacterLimit(name, text, nameMax));
                     clearError("name");
                   }}
                   onBlur={() => touch("name")}
@@ -871,11 +901,16 @@ export default function CompleteProfile() {
                   textContentType="none"
                   importantForAutofill="no"
                   autoCorrect={false}
-                  maxLength={LIMITS.profileName}
+                  maxLength={name.length > nameMax ? undefined : nameMax}
                   underlineColorAndroid="transparent"
                   textAlignVertical="center"
                 />
               </View>
+              {isCommunityAdminProfile ? (
+                <Text style={[styles.helperText, name.length > nameMax && styles.errorText]}>
+                  {name.length} / {nameMax}
+                </Text>
+              ) : null}
               {showError("name", liveErrors) ? <Text style={styles.errorText}>{showError("name", liveErrors)}</Text> : null}
             </View>
 
@@ -972,16 +1007,21 @@ export default function CompleteProfile() {
                   placeholderTextColor={PLACEHOLDER_COLOR}
                   value={unitNumber}
                   onChangeText={(text) => {
-                    setUnitNumber(text);
+                    setUnitNumber(applyCharacterLimit(unitNumber, text, unitMax));
                     clearError("unitNumber");
                   }}
                   onBlur={() => touch("unitNumber")}
                   onFocus={() => handleFieldFocus(unitFieldRef)}
-                  maxLength={LIMITS.profileUnit}
+                  maxLength={unitNumber.length > unitMax ? undefined : unitMax}
                   underlineColorAndroid="transparent"
                   textAlignVertical="center"
                 />
               </View>
+              {isCommunityAdminProfile ? (
+                <Text style={[styles.helperText, unitNumber.length > unitMax && styles.errorText]}>
+                  {unitNumber.length} / {unitMax}
+                </Text>
+              ) : null}
               {showError("unitNumber", liveErrors) ? <Text style={styles.errorText}>{showError("unitNumber", liveErrors)}</Text> : null}
               {existingUnits.length > 0 ? (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
@@ -1270,8 +1310,8 @@ export default function CompleteProfile() {
 
           {showUtilityBill ? (
           <View style={styles.fieldGroup}>
-            <Text style={styles.inputText}>
-              {t("onboarding.uploadLease")}{" "}
+            <Text style={utilityUploadLabelStyle}>
+              {utilityUploadLabel(t, i18n.language)}{" "}
               {!isEditMode || !existingUtilityBillUrl ? (
                 <Text style={styles.requiredMark}>*</Text>
               ) : null}

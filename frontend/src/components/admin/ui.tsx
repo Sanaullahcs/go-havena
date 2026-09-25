@@ -57,8 +57,8 @@ export function StatTile({
   icon: ReactNode;
   href?: string;
 }) {
-  const accent = TONE_ACCENT[tone];
-  const tile = TONE_TILE[tone];
+  const tile = TONE_TILE[tone] ?? TONE_TILE.green;
+  const accent = TONE_ACCENT[tone] ?? tile.accent;
   const percent = parsePercent(value);
 
   const inner = (
@@ -193,6 +193,7 @@ export function DataTable<K extends string>({
   activeSecondary,
   onSecondary,
   toolbar,
+  filterAccessory,
   children,
   empty = "No records match your filters.",
   isEmpty = false,
@@ -213,6 +214,8 @@ export function DataTable<K extends string>({
   activeSecondary?: string;
   onSecondary?: (k: string) => void;
   toolbar?: ReactNode;
+  /** Optional control rendered beside the All filter tab. */
+  filterAccessory?: ReactNode;
   children: ReactNode;
   empty?: string;
   isEmpty?: boolean;
@@ -275,8 +278,11 @@ export function DataTable<K extends string>({
       {filters && onFilter && (
         <div className="flex items-center gap-0 overflow-x-auto border-b border-slate-100 bg-slate-50/50 px-5 scrollbar-none">
           {filters.map((f) => (
+            <span key={f.key} className="flex shrink-0 items-center">
+            {f.key === "all" && filterAccessory ? (
+              <span className="flex items-center ps-0.5">{filterAccessory}</span>
+            ) : null}
             <button
-              key={f.key}
               type="button"
               onClick={() => onFilter(f.key)}
               className={[
@@ -298,6 +304,7 @@ export function DataTable<K extends string>({
                 </span>
               )}
             </button>
+            </span>
           ))}
         </div>
       )}

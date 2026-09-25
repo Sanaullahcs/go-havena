@@ -28,6 +28,10 @@ class CommunityPlaidConnection extends Model
         'account_type',
         'account_subtype',
         'account_mask',
+        'ach_account',
+        'ach_routing',
+        'transfer_access_token',
+        'transfer_account_id',
         'status',
         'error_code',
         'error_message',
@@ -40,6 +44,9 @@ class CommunityPlaidConnection extends Model
     {
         return [
             'plaid_access_token' => 'encrypted',
+            'ach_account' => 'encrypted',
+            'ach_routing' => 'encrypted',
+            'transfer_access_token' => 'encrypted',
             'last_webhook_at' => 'datetime',
             'disconnected_at' => 'datetime',
         ];

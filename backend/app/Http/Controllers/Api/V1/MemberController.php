@@ -6,14 +6,18 @@ use App\Http\Controllers\Controller;
 use App\Models\Community;
 use App\Models\InviteCode;
 use App\Models\User;
+use App\Services\ActivityLogQueryService;
 use App\Services\ActivityLogService;
 use App\Services\AdminRoleService;
+use App\Exceptions\BillingException;
 use App\Services\CommunityBillingService;
 use App\Services\CommunityLifecycleService;
 use App\Services\ContactIdentityService;
 use App\Services\FamilyService;
 use App\Services\InviteCodeService;
 use App\Services\LifecycleMailService;
+use App\Services\MemberBatchInviteService;
+use App\Services\ResidentInviteService;
 use App\Services\MemberLifecycleStatus;
 use App\Services\NotificationService;
 use App\Support\ActivityActionCatalog;
@@ -43,6 +47,19 @@ class MemberController extends Controller
         });
     }
 
+    /**
+     * Members/residents module: Community Admin-only accounts stay out of the
+     * list and analytics. Include users with an explicit resident role, or a
+     * resident membership/profile (cm.role = member).
+     */
+    private function applyResidentRecordsScope($query, string $usersAlias = 'users', string $cmAlias = 'cm'): void
+    {
+        $query->where(function ($q) use ($usersAlias, $cmAlias) {
+            $q->where("{$usersAlias}.role", 'resident')
+                ->orWhere("{$cmAlias}.role", 'member');
+        });
+    }
+
     /** Residents tab: only membership rows for residents, not community admins. */
     private function applyResidentsOnlyScope($query, bool $residentsOnly, string $usersAlias = 'users'): void
     {
@@ -50,8 +67,7 @@ class MemberController extends Controller
             return;
         }
 
-        $query->where("{$usersAlias}.role", 'resident')
-            ->where('cm.role', 'member');
+        $this->applyResidentRecordsScope($query, $usersAlias);
     }
 
     /** GET /v1/admin/members */
@@ -110,6 +126,7 @@ class MemberController extends Controller
 
         $this->excludePlatformAdminsScope($query);
         $this->excludeGuestMembershipsScope($query);
+        $this->applyResidentRecordsScope($query);
 
         if ($request->filled('status') && $request->status !== 'all') {
             if ($request->status === MemberLifecycleStatus::INVITATION_SENT) {
@@ -132,16 +149,7 @@ class MemberController extends Controller
             });
         }
 
-        if ($request->filled('search')) {
-            $s = $request->search;
-            $query->where(function ($q) use ($s) {
-                $q->where('users.name', 'like', "%{$s}%")
-                    ->orWhere('users.email', 'like', "%{$s}%")
-                    ->orWhere('users.phone', 'like', "%{$s}%")
-                    ->orWhere('profiles.unit_number', 'like', "%{$s}%")
-                    ->orWhere('profiles.display_name', 'like', "%{$s}%");
-            });
-        }
+        $this->applyMemberSearch($query, $request, includeCommunityName: false);
 
         $members = $query->orderByDesc('users.created_at')
             ->paginate(min((int) ($request->per_page ?? 15), 100));
@@ -155,7 +163,7 @@ class MemberController extends Controller
                 'per_page'     => $members->perPage(),
                 'community_id' => $communityId,
                 'scope'        => 'community',
-                'stats'        => $this->memberStats($communityId, $request->input('role') === 'member'),
+                'stats'        => $this->memberStats($communityId, $request->input('role') === 'member', $request),
             ],
         ]);
     }
@@ -191,7 +199,7 @@ class MemberController extends Controller
                 'per_page'     => $members->perPage(),
                 'community_id' => null,
                 'scope'        => 'all',
-                'stats'        => $this->memberStatsAll($residentsOnly),
+                'stats'        => $this->memberStatsAll($residentsOnly, $request),
             ],
         ]);
     }
@@ -329,22 +337,17 @@ class MemberController extends Controller
 
     private function applyMemberSearch($query, Request $request, bool $includeCommunityName): void
     {
-        if (! $request->filled('search')) {
-            return;
-        }
+        MemberLifecycleStatus::applySearch(
+            $query,
+            $request->filled('search') ? (string) $request->search : null,
+            'users',
+            $includeCommunityName,
+        );
+    }
 
-        $s = $request->search;
-        $query->where(function ($q) use ($s, $includeCommunityName) {
-            $q->where('users.name', 'like', "%{$s}%")
-                ->orWhere('users.email', 'like', "%{$s}%")
-                ->orWhere('users.phone', 'like', "%{$s}%")
-                ->orWhere('profiles.unit_number', 'like', "%{$s}%")
-                ->orWhere('profiles.display_name', 'like', "%{$s}%");
-
-            if ($includeCommunityName) {
-                $q->orWhere('communities.name', 'like', "%{$s}%");
-            }
-        });
+    private function memberSearchTerm(Request $request): ?string
+    {
+        return $request->filled('search') ? (string) $request->search : null;
     }
 
     /** GET /v1/admin/members/{id} */
@@ -434,52 +437,26 @@ class MemberController extends Controller
             return response()->json(['message' => 'Member not found'], 404);
         }
 
-        $query = DB::table('activity_logs')
-            ->where('log_type', 'user')
-            ->where(function ($q) use ($id) {
-                $q->where('user_id', $id)
-                    ->orWhere(function ($inner) use ($id) {
-                        $inner->where('entity_type', 'User')->where('entity_id', $id);
-                    })
-                    ->orWhere('meta->affected_user_id', $id);
-            })
-            ->orderByDesc('created_at');
-
-        if ($search = trim((string) $request->input('search', ''))) {
-            $query->where(function ($q) use ($search) {
-                $q->where('description', 'like', "%{$search}%")
-                    ->orWhere('action', 'like', "%{$search}%")
-                    ->orWhere('entity_type', 'like', "%{$search}%")
-                    ->orWhere('meta', 'like', "%{$search}%");
-            });
-        }
-
-        if ($request->filled('date')) {
-            $query->whereDate('created_at', $request->input('date'));
-        }
-
-        if ($request->filled('date_from')) {
-            $query->whereDate('created_at', '>=', $request->input('date_from'));
-        }
-
-        if ($request->filled('date_to')) {
-            $query->whereDate('created_at', '<=', $request->input('date_to'));
-        }
-
+        $logs = app(ActivityLogQueryService::class);
+        $query = $logs->baseQuery()->where('a.log_type', 'user');
+        $logs->constrainToPerson($query, $id);
+        $query->where(function ($scope) use ($communityId) {
+            $scope->where('a.community_id', $communityId)
+                ->orWhereNull('a.community_id');
+        });
+        $request->attributes->set('activity_community_locked', true);
+        $logs->applyFilters($query, $request);
         $perPage = min((int) $request->input('per_page', 25), 100);
-        $result  = $query->paginate($perPage);
-
-        $items = collect($result->items())->map(
-            fn ($row) => ActivityActionCatalog::formatLogRow($row),
-        )->values();
+        $result = $query->paginate($perPage);
+        $payload = $logs->present($result);
 
         return response()->json([
-            'data' => $items,
+            'data' => $payload['data'],
             'meta' => [
-                'current_page' => $result->currentPage(),
-                'last_page'    => $result->lastPage(),
-                'per_page'     => $result->perPage(),
-                'total'        => $result->total(),
+                'current_page' => $payload['current_page'],
+                'last_page'    => $payload['last_page'],
+                'per_page'     => $payload['per_page'],
+                'total'        => $payload['total'],
                 'member'       => [
                     'id'           => (int) $member->id,
                     'name'         => $member->display_name ?: $member->name,
@@ -520,7 +497,7 @@ class MemberController extends Controller
             'unit_number.max' => 'Please enter a valid Unit / Apartment number.',
         ]);
 
-        $phone = PhoneNormalizer::normalize($request->phone);
+        $phone = PhoneNormalizer::accept($request->phone);
         if (! $phone) {
             throw ValidationException::withMessages([
                 'phone' => ['Enter a valid phone number in international format (e.g. +2017777777).'],
@@ -535,102 +512,129 @@ class MemberController extends Controller
             return $this->provisionResidentForSystemAdmin($request, $phone, $communityId);
         }
 
-        $password    = \Illuminate\Support\Str::random(12);
-        $role        = $request->role ?? 'member';
-        $billing     = app(CommunityBillingService::class);
-
-        // Community admin seats are not billable; resident/moderator invites reserve a seat
-        // until the invite code is redeemed on the app (OTP → invite code → complete profile).
-        if ($role !== 'admin') {
-            $billing->releaseExpiredReservations($communityId);
-            $billing->assertCanAllocateSeat($communityId);
-        }
-
-        try {
-            $userId = DB::table('users')->insertGetId([
-                'name'               => $request->name,
-                'email'              => $request->email,
-                'phone'              => $phone,
-                'email_verified_at'  => null,
-                'phone_verified_at'  => null,
-                'password'           => Hash::make($password),
-                'role'               => $role === 'admin' ? 'community_admin' : 'resident',
-                'status'             => 'active',
-                'created_at'         => now(),
-                'updated_at'         => now(),
-            ]);
-        } catch (UniqueConstraintViolationException $e) {
-            $sql = $e->getMessage();
-            if (str_contains($sql, 'users_phone_unique')) {
-                ContactIdentityService::failDuplicate('phone', ContactIdentityService::DUPLICATE_PHONE_MESSAGE);
-            }
-            if (str_contains($sql, 'users_email_unique')) {
-                ContactIdentityService::failDuplicate('email', ContactIdentityService::DUPLICATE_EMAIL_MESSAGE);
-            }
-
-            throw $e;
-        }
-
-        DB::table('profiles')->insert([
-            'user_id'      => $userId,
-            'display_name' => $request->name,
-            'unit_number'  => $request->unit_number,
-            'created_at'   => now(),
-            'updated_at'   => now(),
-        ]);
-
-        $invite = InviteCodeService::createForCommunity(
-            communityId: $communityId,
-            createdBy: $request->user()->id,
-            maxUses: 1,
-            expiresAt: now()->addDays(30),
-            invitedUserId: $userId,
+        $sent = app(ResidentInviteService::class)->send(
+            $request->user(),
+            $communityId,
+            (string) $request->name,
+            (string) $request->email,
+            $phone,
+            (string) $request->unit_number,
+            null,
+            (string) ($request->role ?? 'member'),
         );
-
-        if ($role !== 'admin') {
-            $billing->reserveSeatForInvite($communityId, $userId, $invite);
-        }
-
-        $communityName = Community::query()->where('id', $communityId)->value('name') ?? 'your community';
-        $qrPayload = InviteCodeService::qrPayload($invite->code);
-
-        NotificationService::send(
-            $userId,
-            'info',
-            'Community invitation',
-            "You have been invited to {$communityName}. Open Havena and enter invite code {$invite->code} or scan your QR invite.",
-        );
-
-        ActivityLogService::user('member_invited', "Invited new member: {$request->name} ({$request->email})", 'User', $userId);
-
-        $community = Community::query()->find($communityId);
-        $invitee = User::query()->find($userId);
-        $emailSent = false;
-        if ($community && $invitee) {
-            $emailSent = app(LifecycleMailService::class)->residentInvited(
-                $invitee,
-                $community,
-                $invite,
-                $request->user(),
-            );
-        }
 
         return response()->json([
-            'data'    => [
-                'id'             => $userId,
-                'temp_password'  => $password,
-                'invite_code'    => $invite->code,
-                'invite_qr_value'=> $qrPayload,
-                'community_name' => $communityName,
-                'expires_at'     => $invite->expires_at?->toIso8601String(),
-                'member_name'    => $request->name,
-                'member_email'   => $request->email,
-                'email_sent'     => $emailSent,
-            ],
-            'message' => $emailSent
+            'data' => $sent,
+            'message' => ($sent['email_sent'] ?? false)
                 ? 'Member invited successfully. An invitation email was sent.'
                 : 'Member invited successfully. Share the invite code or QR with the resident — the invitation email could not be sent.',
         ], 201);
+    }
+
+    /** POST /v1/admin/members/invite-batch/preview */
+    public function previewBatch(Request $request): JsonResponse
+    {
+        return response()->json(['data' => $this->reviewedBatch($request)]);
+    }
+
+    /** POST /v1/admin/members/invite-batch */
+    public function commitBatch(Request $request): JsonResponse
+    {
+        if (AdminRoleService::isSystemAdmin($request->user())) {
+            return response()->json(['message' => 'Batch upload is available to community admins.'], 403);
+        }
+
+        $reviewed = $this->reviewedBatch($request);
+        $communityId = AdminRoleService::requireManagedCommunityId($request->user(), $request);
+        $sender = app(ResidentInviteService::class);
+        $sent = [];
+        $failed = [];
+
+        foreach ($reviewed['rows'] as $row) {
+            if ($row['errors'] !== []) {
+                $failed[] = [
+                    'row' => $row['row'],
+                    'name' => $row['name'],
+                    'email' => $row['email'],
+                    'errors' => $row['errors'],
+                ];
+                continue;
+            }
+
+            try {
+                $result = $sender->prepare(
+                    $request->user(),
+                    $communityId,
+                    $row['name'],
+                    $row['email'],
+                    $row['phone'],
+                    $row['unit'],
+                    $row['residence_type'],
+                );
+                $sent[] = [
+                    'row' => $row['row'],
+                    'id' => $result['id'],
+                    'name' => $row['name'],
+                    'email' => $row['email'],
+                    'email_sent' => false,
+                ];
+            } catch (ValidationException|BillingException|\Throwable $e) {
+                $failed[] = [
+                    'row' => $row['row'],
+                    'name' => $row['name'],
+                    'email' => $row['email'],
+                    'errors' => [ResidentInviteService::failureMessage($e)],
+                ];
+            }
+        }
+
+        return response()->json([
+            'data' => [
+                'sent_count' => count($sent),
+                'failed_count' => count($failed),
+                'sent' => $sent,
+                'failed' => $failed,
+            ],
+            'message' => count($sent) === 1
+                ? '1 resident added. No invitations were sent.'
+                : count($sent).' residents added. No invitations were sent.',
+        ]);
+    }
+
+    /** @return array{valid_count: int, invalid_count: int, rows: list<array<string, mixed>>} */
+    private function reviewedBatch(Request $request): array
+    {
+        if (AdminRoleService::isSystemAdmin($request->user())) {
+            abort(403, 'Batch upload is available to community admins.');
+        }
+
+        AdminRoleService::requireManagedCommunityId($request->user(), $request);
+
+        $request->validate([
+            'file' => 'required|file|mimes:csv,txt|max:1024',
+        ], [
+            'file.required' => 'Choose a CSV file to upload.',
+            'file.mimes' => 'Upload a CSV file.',
+            'file.max' => 'The CSV file must be 1 MB or smaller.',
+        ]);
+
+        $contents = (string) file_get_contents($request->file('file')->getRealPath());
+        $inspected = app(MemberBatchInviteService::class)->inspect($contents);
+        $valid = 0;
+        $invalid = 0;
+        foreach ($inspected['rows'] as $row) {
+            if ($row['errors'] === []) {
+                $valid++;
+            } else {
+                $invalid++;
+            }
+        }
+
+        return [
+            'valid_count' => $valid,
+            'invalid_count' => $invalid,
+            'rows' => $inspected['rows'],
+        ];
     }
 
     /** System admins add residents directly — no invite code or QR onboarding. */
@@ -719,16 +723,85 @@ class MemberController extends Controller
     /** POST /v1/admin/members/{id}/resend-invite */
     public function resendInvite(int $id, Request $request): JsonResponse
     {
-        $communityId = AdminRoleService::requireManagedCommunityIdForMember($request->user(), $request, $id);
+        $result = $this->sendMemberInvitation($request->user(), $request, $id);
+        if (! $result['ok']) {
+            return response()->json(['message' => $result['message']], $result['status']);
+        }
+
+        return response()->json([
+            'message' => 'Invitation email sent.',
+            'data' => $result['data'],
+        ]);
+    }
+
+    /** POST /v1/admin/members/resend-invites */
+    public function resendInvites(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'member_ids' => ['required', 'array', 'min:1', 'max:100'],
+            'member_ids.*' => ['integer', 'distinct'],
+        ]);
+
+        $sent = [];
+        $failed = [];
+
+        foreach ($payload['member_ids'] as $memberId) {
+            try {
+                $result = $this->sendMemberInvitation($request->user(), $request, (int) $memberId);
+            } catch (\Throwable $e) {
+                $failed[] = $this->invitationFailure(
+                    (int) $memberId,
+                    $e->getMessage() !== '' ? $e->getMessage() : 'Invitation failed.',
+                );
+                continue;
+            }
+
+            if ($result['ok']) {
+                $sent[] = $result['data'];
+                continue;
+            }
+
+            $failed[] = $this->invitationFailure((int) $memberId, $result['message']);
+        }
+
+        $sentCount = count($sent);
+        $failedCount = count($failed);
+
+        return response()->json([
+            'message' => $this->bulkInvitationResultMessage($sentCount, $failedCount),
+            'data' => [
+                'sent_count' => $sentCount,
+                'failed_count' => $failedCount,
+                'sent' => $sent,
+                'failed' => $failed,
+            ],
+        ]);
+    }
+
+    /**
+     * Same eligibility and delivery path as a single Resend Invite.
+     *
+     * @return array{ok: bool, status: int, message: string, data: array<string, mixed>|null}
+     */
+    private function sendMemberInvitation(User $actor, Request $request, int $id): array
+    {
+        $communityId = AdminRoleService::requireManagedCommunityIdForMember($actor, $request, $id);
 
         $membership = DB::table('community_memberships')
             ->where('user_id', $id)
             ->where('community_id', $communityId)
             ->first();
+        if ($membership && $membership->status === 'not_invited') {
+            return $this->sendPreparedMemberInvitation($actor, $communityId, $id);
+        }
+
         if ($membership) {
-            return response()->json([
+            return [
+                'ok' => false,
+                'status' => 422,
                 'message' => 'This resident has already joined the community.',
-            ], 422);
+                'data' => null,
+            ];
         }
 
         $invite = InviteCode::query()
@@ -737,16 +810,26 @@ class MemberController extends Controller
             ->orderByDesc('id')
             ->first();
         if (! $invite) {
-            return response()->json(['message' => 'No pending invitation found for this resident.'], 404);
+            return [
+                'ok' => false,
+                'status' => 404,
+                'message' => 'No pending invitation found for this resident.',
+                'data' => null,
+            ];
         }
 
         $invitee = User::query()->find($id);
         $community = Community::query()->find($communityId);
         if (! $invitee || ! $community) {
-            return response()->json(['message' => 'Invitation not found.'], 404);
+            return [
+                'ok' => false,
+                'status' => 404,
+                'message' => 'Invitation not found.',
+                'data' => null,
+            ];
         }
 
-        $inviter = User::query()->find($invite->created_by) ?: $request->user();
+        $inviter = User::query()->find($invite->created_by) ?: $actor;
         $emailSent = app(LifecycleMailService::class)->residentInvited(
             $invitee,
             $community,
@@ -756,9 +839,12 @@ class MemberController extends Controller
         );
 
         if (! $emailSent) {
-            return response()->json([
+            return [
+                'ok' => false,
+                'status' => 502,
                 'message' => 'Could not send the invitation email. Check the resident email address and try again.',
-            ], 502);
+                'data' => null,
+            ];
         }
 
         ActivityLogService::user(
@@ -768,15 +854,137 @@ class MemberController extends Controller
             $id,
         );
 
-        return response()->json([
+        return [
+            'ok' => true,
+            'status' => 200,
             'message' => 'Invitation email sent.',
             'data' => [
                 'id' => $id,
+                'name' => $invitee->name,
                 'email' => $invitee->email,
                 'invite_code' => $invite->code,
                 'invite_qr_value' => InviteCodeService::qrPayload($invite->code),
             ],
-        ]);
+        ];
+    }
+
+    /**
+     * First invitation for a resident added by batch upload.
+     *
+     * @return array{ok: bool, status: int, message: string, data: array<string, mixed>|null}
+     */
+    private function sendPreparedMemberInvitation(User $actor, int $communityId, int $id): array
+    {
+        $invitee = User::query()->find($id);
+        $community = Community::query()->find($communityId);
+        if (! $invitee || ! $community) {
+            return [
+                'ok' => false,
+                'status' => 404,
+                'message' => 'Resident not found.',
+                'data' => null,
+            ];
+        }
+
+        $invite = InviteCodeService::createForCommunity(
+            communityId: $communityId,
+            createdBy: $actor->id,
+            maxUses: 1,
+            expiresAt: now()->addDays(30),
+            invitedUserId: $id,
+        );
+
+        DB::table('community_seat_reservations')
+            ->where('community_id', $communityId)
+            ->where('user_id', $id)
+            ->whereNull('invite_code_id')
+            ->update([
+                'invite_code_id' => $invite->id,
+                'expires_at' => $invite->expires_at,
+                'updated_at' => now(),
+            ]);
+
+        $emailSent = app(LifecycleMailService::class)->residentInvited(
+            $invitee,
+            $community,
+            $invite,
+            $actor,
+        );
+
+        if (! $emailSent) {
+            $invite->delete();
+
+            return [
+                'ok' => false,
+                'status' => 502,
+                'message' => 'Could not send the invitation email. Check the resident email address and try again.',
+                'data' => null,
+            ];
+        }
+
+        DB::table('community_memberships')
+            ->where('user_id', $id)
+            ->where('community_id', $communityId)
+            ->where('status', 'not_invited')
+            ->delete();
+
+        NotificationService::send(
+            $id,
+            'info',
+            'Community invitation',
+            "You have been invited to {$community->name}. Open Havena and enter invite code {$invite->code} or scan your QR invite.",
+        );
+
+        ActivityLogService::user(
+            'member_invited',
+            "Invited new member: {$invitee->name} ({$invitee->email})",
+            'User',
+            $id,
+        );
+
+        return [
+            'ok' => true,
+            'status' => 200,
+            'message' => 'Invitation email sent.',
+            'data' => [
+                'id' => $id,
+                'name' => $invitee->name,
+                'email' => $invitee->email,
+                'invite_code' => $invite->code,
+                'invite_qr_value' => InviteCodeService::qrPayload($invite->code),
+            ],
+        ];
+    }
+
+    /** @return array{id: int, name: string, message: string} */
+    private function invitationFailure(int $id, string $message): array
+    {
+        $name = User::query()->whereKey($id)->value('name');
+
+        return [
+            'id' => $id,
+            'name' => $name ? (string) $name : 'Resident',
+            'message' => $message,
+        ];
+    }
+
+    private function bulkInvitationResultMessage(int $sent, int $failed): string
+    {
+        $sentPart = $sent === 1
+            ? '1 invitation sent successfully.'
+            : "{$sent} invitations sent successfully.";
+        $failedPart = $failed === 1
+            ? '1 invitation failed.'
+            : "{$failed} invitations failed.";
+
+        if ($failed === 0) {
+            return $sentPart;
+        }
+        if ($sent === 0) {
+            return $failedPart;
+        }
+
+        return "{$sentPart} {$failedPart}";
     }
 
     /** PATCH /v1/admin/members/{id}/approve */
@@ -1126,29 +1334,35 @@ class MemberController extends Controller
         return $payload;
     }
 
-    private function memberStatsAll(bool $residentsOnly = false): array
+    private function memberStatsAll(bool $residentsOnly = false, ?Request $request = null): array
     {
         $query = DB::table('community_memberships as cm')
             ->join('users', 'users.id', '=', 'cm.user_id')
+            ->leftJoin('communities', 'communities.id', '=', 'cm.community_id')
             ->select('cm.status', DB::raw('count(*) as total'))
             ->whereNotIn('users.role', ['system_admin', 'admin', 'guest'])
             ->where('cm.role', '!=', 'guest')
             ->where('users.status', '!=', 'deleted');
 
         if ($residentsOnly) {
-            $query->where('cm.role', 'member')->where('users.role', 'resident');
+            $this->applyResidentRecordsScope($query);
+        }
+
+        if ($request) {
+            $this->applyMemberSearch($query, $request, includeCommunityName: true);
         }
 
         $rows = $query->groupBy('cm.status')->pluck('total', 'status');
+        $search = $request ? $this->memberSearchTerm($request) : null;
 
         return $this->composeMemberStats(
             $rows,
-            MemberLifecycleStatus::countOnboarding(null),
-            MemberLifecycleStatus::countInvitationSent(null),
+            MemberLifecycleStatus::countOnboarding(null, $search),
+            MemberLifecycleStatus::countInvitationSent(null, $search),
         );
     }
 
-    private function memberStats(int $communityId, bool $residentsOnly = false): array
+    private function memberStats(int $communityId, bool $residentsOnly = false, ?Request $request = null): array
     {
         $query = DB::table('community_memberships as cm')
             ->join('users', 'users.id', '=', 'cm.user_id')
@@ -1158,16 +1372,19 @@ class MemberController extends Controller
             ->where('cm.role', '!=', 'guest')
             ->where('users.status', '!=', 'deleted');
 
-        if ($residentsOnly) {
-            $query->where('cm.role', 'member')->where('users.role', 'resident');
+        $this->applyResidentRecordsScope($query);
+
+        if ($request) {
+            $this->applyMemberSearch($query, $request, includeCommunityName: false);
         }
 
         $rows = $query->groupBy('cm.status')->pluck('total', 'status');
+        $search = $request ? $this->memberSearchTerm($request) : null;
 
         return $this->composeMemberStats(
             $rows,
-            MemberLifecycleStatus::countOnboarding($communityId),
-            MemberLifecycleStatus::countInvitationSent($communityId),
+            MemberLifecycleStatus::countOnboarding($communityId, $search),
+            MemberLifecycleStatus::countInvitationSent($communityId, $search),
         );
     }
 
@@ -1181,9 +1398,11 @@ class MemberController extends Controller
         $pending  = (int) ($rows['pending'] ?? 0);
         $banned   = (int) ($rows['banned'] ?? 0);
         $rejected = (int) ($rows['rejected'] ?? 0);
+        $notInvited = (int) ($rows['not_invited'] ?? 0);
 
         return [
-            'total'            => $approved + $pending + $banned + $rejected + $onboarding + $invitationSent,
+            'total'            => $approved + $pending + $banned + $rejected + $onboarding + $invitationSent + $notInvited,
+            'not_invited'      => $notInvited,
             'approved'         => $approved,
             'pending'          => $pending,
             'banned'           => $banned,

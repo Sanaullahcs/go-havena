@@ -18,13 +18,21 @@ export function accountBlockTitle(details: AccountBlockDetails): string {
   }
   if (details.status === "rejected") return "Account not approved";
   if (details.code === "COMMUNITY_DEACTIVATED") return "Community deactivated";
-  return "Account suspended";
+  return "Account Suspended";
+}
+
+function isRejectedAccountBlock(details: AccountBlockDetails): boolean {
+  if (details.status === "rejected") return true;
+  const code = details.code ?? "";
+  return code.includes("REJECTED") || code === "COMMUNITY_ADMIN_REVOKED";
 }
 
 export function accountBlockHtml(message: string, details: AccountBlockDetails): string {
   const rows: string[] = [];
   const reason = details.reason?.trim();
-  const rejectedBy = formatRejectedByLabel(details.rejected_by);
+  const rejectedBy = isRejectedAccountBlock(details)
+    ? formatRejectedByLabel(details.rejected_by)
+    : null;
 
   if (reason) {
     rows.push(

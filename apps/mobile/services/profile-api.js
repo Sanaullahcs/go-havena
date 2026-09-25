@@ -1,5 +1,6 @@
 import { apiRequest } from "./api-client";
-import { getToken } from "./auth-session";
+import { getToken, getUser, setCommunityId } from "./auth-session";
+import { canSwitchModes } from "./community-access";
 import { syncUserFromApi } from "./auth-api";
 import { API_BASE_URL } from "../constants/api-config";
 import { getProfileFields, resolveMediaUrl } from "../utils/profile-display";
@@ -8,9 +9,13 @@ import i18n from "../i18n";
 
 function normalizeMe(data) {
   if (!data) return null;
+  const fields = getProfileFields(data);
+  const { role: displayRole, ...displayFields } = fields;
   return {
     ...data,
-    ...getProfileFields(data),
+    ...displayFields,
+    role: data.role ?? "resident",
+    displayRole,
   };
 }
 
@@ -18,6 +23,30 @@ export async function fetchMe() {
   const res = await apiRequest("/me", { community: false });
   await syncUserFromApi(res.data);
   return normalizeMe(res.data);
+}
+
+export async function switchActiveContext(context, communityId) {
+  const user = await getUser();
+  if (!canSwitchModes(user)) {
+    const err = new Error("Only a Community Admin can switch modes.");
+    err.code = "MODE_SWITCH_NOT_ALLOWED";
+    throw err;
+  }
+  const res = await apiRequest("/me/active-context", {
+    method: "PUT",
+    community: false,
+    body: {
+      context,
+      active_mode: context,
+      community_id: communityId || undefined,
+    },
+  });
+  await syncUserFromApi(res.data);
+  const nextCommunityId = res.data?.active_context_community_id ?? communityId;
+  if (nextCommunityId) {
+    await setCommunityId(nextCommunityId);
+  }
+  return normalizeMe((await getUser()) ?? res.data);
 }
 
 /** GET /v1/neighbors/{id} — another resident in the same community */

@@ -14,7 +14,9 @@ export const LIMITS = {
   noticeTitleMin: 3,
   location: 255,
   profileName: 50,
+  guestName: 25,
   profileUnit: 50,
+  communityAdminUnit: 20,
   profileEmail: 255,
   profileBio: 500,
   feedPost: 2000,
@@ -78,6 +80,20 @@ export function validateUserEmail(email) {
 
 export function hasFieldErrors(errors) {
   return Object.values(errors).some(Boolean);
+}
+
+export function applyCharacterLimit(current, next, max) {
+  const value = String(next ?? "");
+  const previous = String(current ?? "");
+  if (value.length <= max) return value;
+  if (value.length < previous.length) return value;
+  if (previous.length >= max) return previous;
+  return value.slice(0, max);
+}
+
+function exceedsCharacterLimit(value, max) {
+  const text = String(value ?? "");
+  return text.length > max || text.trim().length > max;
 }
 
 function requiredText(value, labelKey, { min, max } = {}) {
@@ -245,11 +261,18 @@ export function validateCompleteProfileForm({
   requireUtilityFile = true,
   requireResidenceType = true,
   guestMode = false,
+  communityAdmin = false,
 }) {
   const errors = {};
+  const nameMax = LIMITS.profileName;
+  const unitMax = communityAdmin ? LIMITS.communityAdminUnit : LIMITS.profileUnit;
 
-  const nameErr = requiredText(name, "validation.fields.fullName", { min: 2, max: LIMITS.profileName });
-  if (nameErr) errors.name = nameErr;
+  const nameErr = requiredText(name, "validation.fields.fullName", { min: 2, max: nameMax });
+  if (nameErr) {
+    errors.name = communityAdmin && exceedsCharacterLimit(name, nameMax)
+      ? i18n.t("validation.communityAdminNameMax")
+      : nameErr;
+  }
 
   const emailErr = validateUserEmail(email);
   if (emailErr) errors.email = emailErr;
@@ -269,14 +292,20 @@ export function validateCompleteProfileForm({
 
   if (guestMode) {
     const unitText = String(unitNumber ?? "").trim();
-    if (unitText.length > LIMITS.profileUnit) {
-      errors.unitNumber = i18n.t("validation.maxChars", { field: i18n.t("validation.fields.unitNumber"), max: LIMITS.profileUnit });
+    if (String(unitNumber ?? "").length > unitMax || unitText.length > unitMax) {
+      errors.unitNumber = communityAdmin
+        ? i18n.t("validation.communityAdminUnitMax")
+        : i18n.t("validation.maxChars", { field: i18n.t("validation.fields.unitNumber"), max: unitMax });
     }
     return errors;
   }
 
-  const unitErr = requiredText(unitNumber, "validation.fields.unitNumber", { max: LIMITS.profileUnit });
-  if (unitErr) errors.unitNumber = unitErr;
+  const unitErr = requiredText(unitNumber, "validation.fields.unitNumber", { max: unitMax });
+  if (unitErr) {
+    errors.unitNumber = communityAdmin && exceedsCharacterLimit(unitNumber, unitMax)
+      ? i18n.t("validation.communityAdminUnitMax")
+      : unitErr;
+  }
 
   if (requireResidenceType) {
     if (!residenceType) {
@@ -588,7 +617,7 @@ export function addCalendarYears(date, years) {
 export function validateGuestInviteForm(form, { phoneCountry } = {}) {
   const errors = {};
 
-  const nameErr = requiredText(form.guest_name, "validation.fields.guestName", { min: 2, max: LIMITS.profileName });
+  const nameErr = requiredText(form.guest_name, "validation.fields.guestName", { min: 2, max: LIMITS.guestName });
   if (nameErr) errors.guest_name = nameErr;
 
   const digits = String(form.phone_digits ?? "").trim();

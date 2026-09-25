@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { HavenaMark } from "@/components/shared/havena-mark";
+import { HavenaLockup } from "@/components/shared/havena-lockup";
 import { MarketingNavLink } from "@/components/marketing/nav-link";
 import { footerColumns, footerCopy, footerSocialLinks, marketingSite } from "@/lib/marketing/content";
 import { StoreBadges } from "@/components/marketing/store-badges";
@@ -12,8 +12,7 @@ export function MarketingFooter() {
         <div className="lp-footer__grid">
           <div className="lp-footer__brand">
             <Link href="/" className="lp-footer__logo">
-              <HavenaMark size={36} tight />
-              <span>{marketingSite.name}</span>
+              <HavenaLockup size={36} nameClassName="text-[1.5rem]" />
             </Link>
             <p>{footerCopy.blurb}</p>
           </div>

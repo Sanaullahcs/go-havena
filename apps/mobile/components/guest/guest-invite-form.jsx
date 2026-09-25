@@ -11,7 +11,7 @@ import { Colors, Layout, Shadows } from "../../constants/tokens";
 import { DEFAULT_PHONE_COUNTRY } from "../../constants/phone-countries";
 import { sw, sf } from "../../utils/responsive";
 import { formatDisplayDate, formatDisplayTime, formatAccessDay, toApiScheduleDateTime, mergeDateAndTime, buildAccessWindowFromDuration, roundToNextHour } from "../../utils/form-datetime";
-import { addCalendarYears, GUEST_ACCESS_MAX_YEARS, validateGuestInviteForm, hasFieldErrors } from "../../utils/form-validation";
+import { addCalendarYears, GUEST_ACCESS_MAX_YEARS, LIMITS, validateGuestInviteForm, hasFieldErrors } from "../../utils/form-validation";
 import GuestPermissionsSection from "./guest-permissions-section";
 import { DEFAULT_GUEST_PERMISSIONS, normalizeGuestPermissions } from "../../constants/guest-permissions";
 import KeyboardSafeScreen from "../layout/keyboard-safe-screen";
@@ -20,6 +20,28 @@ import { useSubmitLock } from "../../hooks/use-submit-lock";
 import { useApiAction } from "../../hooks/use-api-action";
 import { useTouchedFieldErrors } from "../../hooks/use-touched-field-errors";
 import { arrowForward } from "../../utils/rtl";
+
+/**
+ * Plain object, not StyleSheet.create. The text-metrics patch adds a tall
+ * lineHeight to stylesheet inputs, which top-aligns iOS placeholder and value.
+ * Height matches the existing padded field so the box itself does not change.
+ */
+const guestTextFieldStyle = {
+  borderWidth: 1,
+  borderColor: "#E2E8F0",
+  borderRadius: sw(12),
+  paddingHorizontal: sw(14),
+  paddingTop: 0,
+  paddingBottom: 0,
+  marginVertical: 0,
+  height: sw(12) * 2 + Math.ceil(sf(13) * 1.5) + 2,
+  fontFamily: Fonts.regular,
+  fontSize: sf(13),
+  backgroundColor: "#FAFBFC",
+  color: "#0F172A",
+  textAlignVertical: "center",
+  includeFontPadding: false,
+};
 
 function getDurationPresets(t) {
   return [
@@ -549,15 +571,17 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
           >
             <LocaleTextInput
               value={guestName}
+              maxLength={LIMITS.guestName}
               onChangeText={(value) => {
-                setGuestName(value);
+                setGuestName(value.slice(0, LIMITS.guestName));
                 touch("guest_name");
                 clearError("guest_name");
               }}
               placeholder={t("guests.namePlaceholder")}
               placeholderTextColor="#98A2B3"
+              textAlignVertical="center"
               style={[
-                styles.input,
+                guestTextFieldStyle,
                 showError("guest_name", fieldErrorsLive) && styles.inputError,
               ]}
               autoCapitalize="words"
@@ -598,8 +622,9 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
               }}
               placeholder={t("guests.emailPlaceholder")}
               placeholderTextColor="#98A2B3"
+              textAlignVertical="center"
               style={[
-                styles.input,
+                guestTextFieldStyle,
                 showError("guest_email", fieldErrorsLive) && styles.inputError,
               ]}
               keyboardType="email-address"

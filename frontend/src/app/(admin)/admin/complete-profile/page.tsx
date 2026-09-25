@@ -15,6 +15,11 @@ import {
   shouldUseSimpleCompleteProfileSubmit,
 } from "@/lib/admin/complete-profile-fields";
 import {
+  COMMUNITY_ADMIN_NAME_MAX,
+  COMMUNITY_ADMIN_UNIT_MAX,
+  applyCharacterLimit,
+} from "@/lib/admin/community-admin-field-limits";
+import {
   COMPLETE_PROFILE_LIMITS,
   isPlaceholderDisplayName,
   isPlaceholderEmail,
@@ -30,7 +35,7 @@ import {
   type MeProfile,
 } from "@/lib/api/profile";
 import { apiError } from "@/lib/api/client";
-import { confirmAdminSignOutAndRedirect } from "@/lib/auth/sign-out";
+import { COMPLETE_PROFILE_SIGN_OUT_MESSAGE, confirmAdminSignOutAndRedirect } from "@/lib/auth/sign-out";
 import {
   canAccessCommunityDashboard,
   getCommunityAdminNextStep,
@@ -88,6 +93,11 @@ function CompleteProfileInner() {
     [profileUser, invited, communityRequest],
   );
 
+  const isCommunityAdminProfile =
+    completeProfileOnboardingRole(profileUser) === "admin" || communityRequest;
+  const nameMax = isCommunityAdminProfile ? COMMUNITY_ADMIN_NAME_MAX : COMPLETE_PROFILE_LIMITS.profileName;
+  const unitMax = isCommunityAdminProfile ? COMMUNITY_ADMIN_UNIT_MAX : COMPLETE_PROFILE_LIMITS.profileUnit;
+
   const useSimpleSubmitLabel = useMemo(
     () =>
       shouldUseSimpleCompleteProfileSubmit(profileUser, {
@@ -128,6 +138,7 @@ function CompleteProfileInner() {
         requireUtilityFile: fields.showUtilityBill && !existingUtilityBillUrl,
         requireResidenceType: fields.showResidenceType,
         guestMode: fields.isGuestProfile,
+        communityAdmin: isCommunityAdminProfile,
       }),
     [
       name,
@@ -142,6 +153,7 @@ function CompleteProfileInner() {
       fields.showUtilityBill,
       fields.showResidenceType,
       fields.isGuestProfile,
+      isCommunityAdminProfile,
     ],
   );
 
@@ -283,14 +295,14 @@ function CompleteProfileInner() {
             id="profile-name"
             type="text"
             autoComplete="name"
-            maxLength={COMPLETE_PROFILE_LIMITS.profileName}
+            maxLength={name.length > nameMax ? undefined : nameMax}
             className={inputClass(
               nameErr,
               "h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-600/20",
             )}
             value={name}
             onChange={(e) => {
-              setName(e.target.value);
+              setName(applyCharacterLimit(name, e.target.value, nameMax));
               clearError("name");
               setFormError(null);
             }}
@@ -298,6 +310,11 @@ function CompleteProfileInner() {
             placeholder="Jane Doe"
             aria-invalid={Boolean(nameErr)}
           />
+          {isCommunityAdminProfile ? (
+            <p className={`text-right text-[11px] tabular-nums ${name.length > nameMax ? "text-red-600" : "text-slate-500"}`}>
+              {name.length} / {nameMax}
+            </p>
+          ) : null}
         </OnboardingField>
 
         <OnboardingField
@@ -305,7 +322,7 @@ function CompleteProfileInner() {
           label="Email address"
           required
           error={emailErr}
-          hint="Used for account notifications — not your phone placeholder address"
+          hint="Used for important account notifications."
         >
           <input
             id="profile-email"
@@ -333,7 +350,7 @@ function CompleteProfileInner() {
           id="profile-phone"
           label="Phone number"
           required
-          hint="Your primary contact number for the community"
+          hint="Your primary phone number for community-related communication."
         >
           <AdminPhoneInput
             id="profile-phone"
@@ -387,14 +404,14 @@ function CompleteProfileInner() {
           <input
             id="profile-unit"
             type="text"
-            maxLength={COMPLETE_PROFILE_LIMITS.profileUnit}
+            maxLength={unitNumber.length > unitMax ? undefined : unitMax}
             className={inputClass(
               unitErr,
               "h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-600/20",
             )}
             value={unitNumber}
             onChange={(e) => {
-              setUnitNumber(e.target.value);
+              setUnitNumber(applyCharacterLimit(unitNumber, e.target.value, unitMax));
               clearError("unitNumber");
               setFormError(null);
             }}
@@ -402,6 +419,11 @@ function CompleteProfileInner() {
             placeholder="e.g. 101 or Admin Office"
             aria-invalid={Boolean(unitErr)}
           />
+          {isCommunityAdminProfile ? (
+            <p className={`text-right text-[11px] tabular-nums ${unitNumber.length > unitMax ? "text-red-600" : "text-slate-500"}`}>
+              {unitNumber.length} / {unitMax}
+            </p>
+          ) : null}
         </OnboardingField>
 
         {fields.showResidenceType ? (
@@ -559,7 +581,9 @@ function CompleteProfileInner() {
             type="button"
             className="order-2 text-center text-xs font-semibold text-slate-500 transition hover:text-slate-800 sm:order-1 sm:text-left"
             onClick={() => {
-              void confirmAdminSignOutAndRedirect(router);
+              void confirmAdminSignOutAndRedirect(router, "/login", {
+                text: COMPLETE_PROFILE_SIGN_OUT_MESSAGE,
+              });
             }}
           >
             Sign out

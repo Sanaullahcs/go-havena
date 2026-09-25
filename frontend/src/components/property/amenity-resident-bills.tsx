@@ -17,11 +17,12 @@ import {
   type AmenityMonthlyBill,
   type AmenityPaymentProofForm,
 } from "@/lib/api/amenities";
+import { fetchAchCapability, paySharedBillWithBank, type AchCapability } from "@/lib/api/resident-plaid";
 
 function statusClass(status?: string | null) {
   const tone = billStatusTone(status);
   if (tone === "blue") return "bg-blue-50 text-blue-700";
-  if (tone === "green") return "bg-emerald-50 text-emerald-700";
+  if (tone === "green") return "bg-teal-50 text-[#0D9488]";
   if (tone === "amber") return "bg-amber-50 text-amber-700";
   if (tone === "red") return "bg-rose-50 text-rose-700";
   return "bg-slate-100 text-slate-600";
@@ -61,14 +62,19 @@ export function AmenityResidentBills({ amenity }: { amenity: Amenity }) {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState<AmenityMonthlyBill | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [payingId, setPayingId] = useState<number | null>(null);
+  const [capability, setCapability] = useState<AchCapability | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetchAmenityBills(amenity.id)
-      .then((rows) => {
-        if (!cancelled) setBills(rows);
+    Promise.all([fetchAmenityBills(amenity.id), fetchAchCapability().catch(() => null)])
+      .then(([rows, nextCapability]) => {
+        if (!cancelled) {
+          setBills(rows);
+          setCapability(nextCapability);
+        }
       })
       .catch((err) => {
         if (!cancelled) setError(apiError(err));
@@ -145,7 +151,7 @@ export function AmenityResidentBills({ amenity }: { amenity: Amenity }) {
                 href={bill.file_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-2 inline-block text-[12px] font-semibold text-[#1B4F8A]"
+                className="mt-2 inline-block text-[12px] font-semibold text-[#0D9488]"
               >
                 {bill.file_name || "View bill"}
               </a>
@@ -163,14 +169,48 @@ export function AmenityResidentBills({ amenity }: { amenity: Amenity }) {
             {bill.status === "paid" && bill.payment_acknowledgement ? (
               <AmenityPaymentAcknowledgementCard acknowledgement={bill.payment_acknowledgement} />
             ) : null}
+            {bill.payment_method === "bank_ach" && bill.ach_status ? (
+              <p className="mt-2 text-[12px] text-slate-600">
+                Bank payment {bill.ach_status.replaceAll("_", " ")}
+              </p>
+            ) : null}
             {bill.can_submit_proof && bill.resident_bill_id ? (
-              <button
-                type="button"
-                onClick={() => setUploading(bill)}
-                className="mt-2 w-full rounded-lg bg-[#1B4F8A] py-1.5 text-[12px] font-bold text-white"
-              >
-                {bill.status === "rejected" ? "Upload new payment proof" : "Upload Payment Proof"}
-              </button>
+              <div className="mt-2 space-y-1.5">
+                {capability?.can_pay_with_bank ? (
+                  <button
+                    type="button"
+                    disabled={payingId === bill.resident_bill_id}
+                    onClick={async () => {
+                      if (!bill.resident_bill_id) return;
+                      setPayingId(bill.resident_bill_id);
+                      try {
+                        const result = await paySharedBillWithBank(amenity.id, bill.resident_bill_id);
+                        if (result?.data?.bill) {
+                          setBills((current) =>
+                            current.map((row) => (row.resident_bill_id === result.data.bill.resident_bill_id ? result.data.bill : row)),
+                          );
+                        }
+                        toastSuccess(result.message || "Paid from your bank.");
+                      } catch (err) {
+                        toastError(apiError(err));
+                      } finally {
+                        setPayingId(null);
+                      }
+                    }}
+                    className="w-full rounded-lg py-1.5 text-[12px] font-bold text-white disabled:opacity-60"
+                    style={{ background: "#0D9488" }}
+                  >
+                    {payingId === bill.resident_bill_id ? "Sending ACH…" : "Pay with bank"}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setUploading(bill)}
+                  className="w-full rounded-lg bg-[#0A2A43] py-1.5 text-[12px] font-bold text-white"
+                >
+                  {bill.status === "rejected" ? "Upload new payment proof" : "Upload Payment Proof"}
+                </button>
+              </div>
             ) : null}
             <SubmittedProof bill={bill} />
           </div>

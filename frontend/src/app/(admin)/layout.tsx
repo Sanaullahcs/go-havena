@@ -6,18 +6,20 @@ import { AuthShellSkeleton, AdminOnboardingShellSkeleton } from "@/components/sh
 import {
   getToken,
   getUser,
-  clearSession,
   updateUser,
   canAccessCommunityDashboard,
   canAccessCommunityOnboarding,
   communityAdminAccessBlockedCopy,
   getCommunityAdminNextStep,
+  getManagedCommunityId,
   isCommunityAdminOnboarding,
   isCommunityAdminUser,
+  isResidentMode,
   isSystemAdminUser,
 } from "@/lib/auth/session";
 import { resolveAdminPortalRedirect } from "@/lib/auth/admin-routes";
 import { fetchMe, meToSessionUser } from "@/lib/api/profile";
+import { switchToAdminMode } from "@/lib/auth/resident-mode";
 import { AdminSidebar } from "@/components/admin/sidebar";
 import { AdminTopBar } from "@/components/admin/top-bar";
 import { AdminPushBootstrap } from "@/components/push/admin-push-bootstrap";
@@ -30,7 +32,7 @@ import {
   onboardingStepFromPath,
 } from "@/lib/admin/community-admin-onboarding";
 import { AdminOnboardingTopBar } from "@/components/admin/onboarding/onboarding-top-bar";
-import { confirmAdminSignOutAndRedirect } from "@/lib/auth/sign-out";
+import { COMPLETE_PROFILE_SIGN_OUT_MESSAGE, confirmAdminSignOutAndRedirect } from "@/lib/auth/sign-out";
 
 const PAGE_TITLES: Record<string, string> = {
   "/admin": "Dashboard",
@@ -52,6 +54,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/billing/done": "Return to app",
   "/admin/setup": "Community setup",
   "/admin/complete-profile": "Complete profile",
+  "/admin/resident-features": "Resident Features",
   "/admin/pending-approval": "Pending approval",
   "/admin/guests": "Guest Users",
   "/admin/notices": "Notices",
@@ -154,13 +157,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     try {
       const me = await fetchMe();
-      updateUser(meToSessionUser(me));
+      updateUser(meToSessionUser(me), { silent: true });
       user = getUser();
     } catch {
       // Keep cached session if /me fails (offline / transient).
     }
 
-    if (isSystemAdminUser(user)) {
+    if (isSystemAdminUser(user) && !isCommunityAdminUser(user)) {
       setAccessBlocked(null);
       setOnboardingOnly(false);
       setChecked(true);
@@ -168,11 +171,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
 
     if (!isCommunityAdminUser(user)) {
-      clearSession();
       setChecked(true);
       setOnboardingOnly(false);
-      router.replace("/login");
+      router.replace(user?.role === "resident" || user?.role === "guest" ? "/home" : "/login");
       return;
+    }
+
+    if (isResidentMode(user)) {
+      try {
+        user = await switchToAdminMode(getManagedCommunityId(user));
+      } catch {
+        // Opening the Community Admin URL must stay in the CA portal.
+      }
     }
 
     if (!canAccessCommunityOnboarding(user)) {
@@ -198,6 +208,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           pathname.startsWith(`${expected}/`) ||
           (nextStep === "complete_billing_web" &&
             (pathname === "/admin/billing" || pathname.startsWith("/admin/billing/"))) ||
+          (nextStep === "configure_resident_features" &&
+            pathname.startsWith("/admin/resident-features")) ||
           (nextStep === "await_approval" &&
             (pathname.startsWith("/admin/pending-approval") || pathname.startsWith("/admin/billing/"))) ||
           (nextStep === "complete_profile" && pathname.startsWith("/admin/complete-profile")) ||
@@ -287,7 +299,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             step={onboardingStep}
             wide
             onSignOut={() => {
-              void confirmAdminSignOutAndRedirect(router);
+              void confirmAdminSignOutAndRedirect(
+                router,
+                "/login",
+                pathname.startsWith("/admin/complete-profile")
+                  ? { text: COMPLETE_PROFILE_SIGN_OUT_MESSAGE }
+                  : undefined,
+              );
             }}
           />
           <main

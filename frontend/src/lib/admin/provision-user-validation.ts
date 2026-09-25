@@ -1,5 +1,11 @@
 import { getPhoneValidationError, type PhoneFieldState } from "@/lib/phone/format";
-import { COMPLETE_PROFILE_LIMITS } from "@/lib/admin/complete-profile-validation";
+import {
+  COMMUNITY_ADMIN_NAME_MAX,
+  COMMUNITY_ADMIN_NAME_MAX_MESSAGE,
+  COMMUNITY_ADMIN_UNIT_MAX,
+  COMMUNITY_ADMIN_UNIT_MAX_MESSAGE,
+  exceedsCharacterLimit,
+} from "@/lib/admin/community-admin-field-limits";
 import {
   type FieldErrors,
   fieldInputClass,
@@ -127,18 +133,20 @@ export function validateResidentForm(
 
 export function validateCommunityAdminEditForm(
   name: string,
-  email: string,
   phone: PhoneFieldState,
   unitNumber: string,
   residenceType: string,
 ): ProvisionFieldErrors {
   const errors: ProvisionFieldErrors = {};
 
-  const nameError = validateRequiredName(name, "Full name");
-  if (nameError) errors.name = nameError;
-
-  const emailError = validateEmailField(email);
-  if (emailError) errors.email = emailError;
+  const nameValue = name.trim();
+  if (!nameValue) {
+    errors.name = "Full name is required.";
+  } else if (nameValue.length < 2) {
+    errors.name = "Full name must be at least 2 characters.";
+  } else if (exceedsCharacterLimit(name, COMMUNITY_ADMIN_NAME_MAX)) {
+    errors.name = COMMUNITY_ADMIN_NAME_MAX_MESSAGE;
+  }
 
   const phoneError = validateProvisionPhone(phone);
   if (phoneError) errors.phone = phoneError;
@@ -146,8 +154,8 @@ export function validateCommunityAdminEditForm(
   const unit = unitNumber.trim();
   if (!unit) {
     errors.unitNumber = "Unit number is required.";
-  } else if (unit.length > COMPLETE_PROFILE_LIMITS.profileUnit) {
-    errors.unitNumber = `Unit number must be ${COMPLETE_PROFILE_LIMITS.profileUnit} characters or less.`;
+  } else if (exceedsCharacterLimit(unitNumber, COMMUNITY_ADMIN_UNIT_MAX)) {
+    errors.unitNumber = COMMUNITY_ADMIN_UNIT_MAX_MESSAGE;
   }
 
   if (!residenceType) {

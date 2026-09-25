@@ -37,7 +37,17 @@ class NotificationController extends Controller
             ->orderByDesc('created_at')
             ->paginate($perPage, ['*'], 'page', $page);
 
-        $items = $this->enrichNoticeNotifications(collect($paginator->items()));
+        $items = $this->enrichNoticeNotifications(collect($paginator->items()))
+            ->map(function ($row) {
+                foreach (['created_at', 'updated_at', 'read_at'] as $column) {
+                    if (! isset($row->{$column}) || $row->{$column} === null || $row->{$column} === '') {
+                        continue;
+                    }
+                    $row->{$column} = \Carbon\Carbon::parse($row->{$column})->utc()->toIso8601String();
+                }
+
+                return $row;
+            });
 
         return response()->json([
             'data'   => $items->values(),

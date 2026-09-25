@@ -335,7 +335,7 @@ class FamilyService
             return null;
         }
 
-        if (AdminRoleService::isCommunityAdminRole($user)) {
+        if (AdminRoleService::isCommunityAdminRole($user) && ! AdminRoleService::isResidentMode($user)) {
             return null;
         }
 

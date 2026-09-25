@@ -18,7 +18,7 @@ import {
   type MemberActivityLog,
   type MemberActivityMeta,
 } from "@/lib/api/members";
-import { formatLogTime, relLogTime } from "@/lib/api/activity-logs";
+import { formatActivityDescription, formatLogTime, parseActivityTimestamp, relLogTime } from "@/lib/api/activity-logs";
 import { ActivityAuditDetails } from "@/components/admin/activity/activity-audit-details";
 import { apiError } from "@/lib/api/client";
 import { NL } from "@/lib/design-tokens";
@@ -39,6 +39,23 @@ function toIsoDate(date: Date) {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+}
+
+/** Local calendar date for a member timestamp, without UTC date-only shift. */
+function timestampToLocalIsoDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const date = new Date(trimmed);
+  if (Number.isNaN(date.getTime())) return null;
+  return toIsoDate(date);
+}
+
+function memberActivityDateBounds(createdAt: string | null | undefined) {
+  const max = toIsoDate(new Date());
+  const created = timestampToLocalIsoDate(createdAt);
+  const min = created && created > max ? max : created ?? undefined;
+  return { min, max };
 }
 
 function shiftDays(days: number) {
@@ -90,7 +107,8 @@ function actionVisual(action: string) {
 }
 
 function dayGroupLabel(iso: string) {
-  const date = new Date(iso);
+  const date = parseActivityTimestamp(iso);
+  if (!date) return iso;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const target = new Date(date);
@@ -233,8 +251,8 @@ function ActivityRow({ log }: { log: MemberActivityLog }) {
             <h4 className="text-[13px] font-bold leading-snug" style={{ color: NL.textPrimary }}>
               {log.activity_name}
             </h4>
-            <p className="mt-1 text-[12.5px] leading-relaxed" style={{ color: NL.textSecondary }}>
-              {log.description}
+            <p className="nl-activity-wrap-text mt-1 text-[12.5px] leading-relaxed" style={{ color: NL.textSecondary }}>
+              {formatActivityDescription(log.description)}
             </p>
             <ActivityAuditDetails
               performedBy={log.performed_by}
@@ -333,6 +351,11 @@ export function ResidentActivityModal({ member, communityId, onClose }: Props) {
   const [dismissReady, setDismissReady] = useState(false);
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
 
+  const dateBounds = useMemo(
+    () => memberActivityDateBounds(member?.created_at),
+    [member?.created_at],
+  );
+
   const dateParams = useMemo(() => {
     if (datePreset === "today") return { date: shiftDays(0) };
     if (datePreset === "yesterday") return { date: shiftDays(-1) };
@@ -406,6 +429,15 @@ export function ResidentActivityModal({ member, communityId, onClose }: Props) {
   }, [memberId, debouncedSearch, datePreset, customDate]);
 
   useEffect(() => {
+    if (!customDate) return;
+    const { min, max } = dateBounds;
+    if ((min && customDate < min) || (max && customDate > max)) {
+      setCustomDate("");
+      setDatePreset("all");
+    }
+  }, [customDate, dateBounds]);
+
+  useEffect(() => {
     load();
   }, [load]);
 
@@ -435,6 +467,10 @@ export function ResidentActivityModal({ member, communityId, onClose }: Props) {
   };
 
   const handleCustomDate = (value: string) => {
+    if (value) {
+      const { min, max } = dateBounds;
+      if ((min && value < min) || (max && value > max)) return;
+    }
     setCustomDate(value);
     setDatePreset(value ? "custom" : "all");
   };
@@ -497,6 +533,8 @@ export function ResidentActivityModal({ member, communityId, onClose }: Props) {
               onChange={handleCustomDate}
               placeholder="Pick date"
               compact
+              min={dateBounds.min}
+              max={dateBounds.max}
               icon={<Calendar className="h-3.5 w-3.5" strokeWidth={2} />}
             />
           </div>

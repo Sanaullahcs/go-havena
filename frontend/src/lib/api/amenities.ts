@@ -63,6 +63,14 @@ export interface Booking {
   display_fee_kind?: "monthly" | "yearly" | "booking" | "free" | string;
   status: string;
   payment_verification_status?: string | null;
+  payment_method?: string | null;
+  ach_status?: string | null;
+  bank_payment?: {
+    id?: string;
+    status?: string;
+    status_label?: string;
+    amount?: number;
+  } | null;
   notes?: string | null;
   rejection_reason?: string | null;
   payment_proof?: AmenityPaymentProof | null;
@@ -163,7 +171,20 @@ export async function createBooking(data: {
   payment_date?: string;
   payment_reference?: string;
   payment_note?: string;
+  payment_method?: "bank_ach" | "proof";
 }) {
+  if (data.payment_method === "bank_ach") {
+    const res = await api.post("/v1/bookings", {
+      amenity_id: data.amenity_id,
+      date: data.date,
+      time_slot: data.time_slot,
+      guests: data.guests,
+      notes: data.notes,
+      payment_method: "bank_ach",
+    });
+    return res.data;
+  }
+
   if (data.payment_proof) {
     const form = new FormData();
     form.append("amenity_id", String(data.amenity_id));
@@ -276,6 +297,8 @@ export type AmenityMonthlyBill = {
   resident_bill_id?: number;
   booking_id?: number | null;
   can_submit_proof?: boolean;
+  payment_method?: string | null;
+  ach_status?: string | null;
   payment_proof?: AmenityPaymentProof | null;
   payment_acknowledgement?: AmenityPaymentAcknowledgement | null;
   rejection_reason?: string | null;

@@ -1,4 +1,4 @@
-import { Text, View, StyleSheet, Pressable, useWindowDimensions, FlatList, Platform } from "react-native";
+import { Text, View, StyleSheet, Pressable, FlatList, Platform } from "react-native";
 import React, { useCallback, useMemo } from "react";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -15,11 +15,11 @@ import { PropertyManagementRoutes } from "../../constants/property-management-ro
 import { navigateAppRoute } from "../../utils/app-navigation";
 import { rnShadow } from "../../utils/shadow";
 import { sw, sf } from "../../utils/responsive";
+import { useHomeFrame } from "../../hooks/use-home-frame";
 import { localizedField } from "../../i18n";
 import { getLocaleForLang } from "../../hooks/use-app-locale";
 import { arrowForward } from "../../utils/rtl";
 
-const CARD_GAP = sw(12);
 const PEEK = sw(28);
 const CARD_RADIUS = sw(20);
 
@@ -117,7 +117,7 @@ function EventCard({ item, width, height, onPress, t }) {
 export default function HappeningSoon({ items = [] }) {
   const router = useRouter();
   const { t, i18n } = useTranslation();
-  const { width: screenWidth } = useWindowDimensions();
+  const frame = useHomeFrame();
 
   const events = useMemo(
     () => items.map((notice) => mapEventToCard(notice, i18n.language)),
@@ -125,23 +125,26 @@ export default function HappeningSoon({ items = [] }) {
   );
 
   const layout = useMemo(() => {
-    const contentWidth = screenWidth - Home.gutter * 2;
+    const contentWidth = frame.contentWidth;
+    const gap = frame.size(12);
     if (events.length <= 1) {
       return {
         featured: true,
         cardWidth: contentWidth,
         cardHeight: Math.round(contentWidth * 0.68),
         snap: contentWidth,
+        gap,
       };
     }
-    const cardWidth = Math.floor(contentWidth * 0.84);
+    const cardWidth = Math.min(contentWidth, Math.floor(contentWidth * 0.84));
     return {
       featured: false,
       cardWidth,
       cardHeight: Math.round(cardWidth * 0.68),
-      snap: cardWidth + CARD_GAP,
+      snap: cardWidth + gap,
+      gap,
     };
-  }, [screenWidth, events.length]);
+  }, [frame, events.length]);
 
   const openEvent = useCallback(
     (item) => {
@@ -165,7 +168,7 @@ export default function HappeningSoon({ items = [] }) {
 
   if (!events.length) {
     return (
-      <View style={[homeStyles.section, styles.sectionTightTop]}>
+      <View style={[homeStyles.section, styles.sectionTightTop, { marginHorizontal: frame.sideInset }]}>
         <HomeSectionHeader
           label={t("home.happeningSoon")}
           onPress={() => navigateAppRoute(router, PropertyManagementRoutes.NOTICES)}
@@ -176,7 +179,7 @@ export default function HappeningSoon({ items = [] }) {
   }
 
   return (
-    <View style={[homeStyles.section, styles.sectionTightTop]}>
+    <View style={[homeStyles.section, styles.sectionTightTop, { marginHorizontal: frame.sideInset }]}>
       <HomeSectionHeader
         label={t("home.happeningSoon")}
         onPress={() => navigateAppRoute(router, PropertyManagementRoutes.NOTICES)}
@@ -203,7 +206,7 @@ export default function HappeningSoon({ items = [] }) {
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           getItemLayout={(_, index) => ({ length: layout.snap, offset: layout.snap * index, index })}
-          ItemSeparatorComponent={() => <View style={{ width: CARD_GAP }} />}
+          ItemSeparatorComponent={() => <View style={{ width: layout.gap }} />}
           contentContainerStyle={styles.listContent}
         />
       )}

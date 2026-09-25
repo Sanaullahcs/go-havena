@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from "react";
+import React, { useEffect, useRef, useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import UserAvatar from "../ui/user-avatar";
 import FeedPostContent from "./feed-post-content";
+import FeedPollCard from "./feed-poll-card";
 import FeedPostImage from "./feed-post-image";
 import FeedSensitiveContent from "./feed-sensitive-content";
 import FeedPostOptions from "./feed-post-options";
@@ -37,6 +38,8 @@ export default function FeedPostCard({
   contentTextStyle,
 }) {
   const { t } = useTranslation();
+  const [votedPost, setVotedPost] = useState(null);
+  const viewPost = votedPost && String(votedPost.id) === String(post.id) ? { ...post, poll: votedPost.poll } : post;
   const authorName = post.user?.display_name ?? post.user?.name ?? t("feed.neighbor");
   const isLiked = post.liked_by_me ?? false;
   const likeCount = formatCount(post.likes_count ?? post.likes);
@@ -116,11 +119,15 @@ export default function FeedPostCard({
           <FeedSensitiveContent message={post.sensitive_message} />
         ) : (
           <>
+            {viewPost.poll ? (
+              <FeedPollCard post={viewPost} now={now} onVoted={setVotedPost} />
+            ) : (
             <FeedPostContent
               post={post}
               textStyle={contentTextStyle ?? (isEngagement ? styles.contentLarge : undefined)}
               collapsedLines={isEngagement ? 8 : 6}
             />
+            )}
             {post.image_url ? (
               <FeedPostImage
                 uri={post.image_url}

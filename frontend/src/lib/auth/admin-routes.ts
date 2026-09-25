@@ -17,6 +17,7 @@ export const SYSTEM_ADMIN_ROUTE_PREFIXES = [
   "/admin/analytics",
   "/admin/users",
   "/admin/community-requests",
+  "/admin/activity",
 ] as const;
 
 /** Routes reserved for community administrators (single-community scope). */
@@ -51,7 +52,6 @@ const SHARED_ADMIN_ROUTES = new Set([
   "/admin/support",
   "/admin/notifications",
   "/admin/messages",
-  "/admin/activity",
 ]);
 
 function matchesPrefix(pathname: string, prefix: string): boolean {

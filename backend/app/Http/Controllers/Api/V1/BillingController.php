@@ -11,6 +11,7 @@ use App\Services\RegionBillingPolicy;
 use App\Services\SubscriptionCouponService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class BillingController extends Controller
 {
@@ -27,12 +28,19 @@ class BillingController extends Controller
         $community = Community::query()->findOrFail($communityId);
         $this->billing->releaseExpiredReservations($communityId);
         $this->billing->refreshGraceIfNeeded($communityId);
-        // Heal stuck "incomplete" rows after Stripe Checkout when the return confirm was missed.
-        $this->billing->reconcileIncompleteCheckout($community);
-        // Sync portal cancellations / plan changes when Stripe webhooks were not delivered.
-        $this->billing->reconcileStripeSubscription($community);
-        // Match missed invoice.paid events to referral rewards for this community.
-        app(\App\Services\ReferralService::class)->reconcileReferralForCommunity($communityId);
+        try {
+            // Heal stuck "incomplete" rows after Stripe Checkout when the return confirm was missed.
+            $this->billing->reconcileIncompleteCheckout($community);
+            // Sync portal cancellations / plan changes when Stripe webhooks were not delivered.
+            $this->billing->reconcileStripeSubscription($community);
+            // Match missed invoice.paid events to referral rewards for this community.
+            app(\App\Services\ReferralService::class)->reconcileReferralForCommunity($communityId);
+        } catch (\Throwable $e) {
+            Log::warning('Billing page reconcile skipped', [
+                'community_id' => $communityId,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return response()->json([
             'data' => $this->billing->billingPayload($community->fresh()),

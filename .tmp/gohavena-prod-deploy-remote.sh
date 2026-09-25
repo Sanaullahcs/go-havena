@@ -43,12 +43,27 @@ else
   COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction
 fi
 
-echo "==> migrate --force"
-sudo -u gohvena "$PHP_BIN" artisan migrate --force --no-ansi
+# Never wipe or reseed production. Additive schema only.
+if grep -Eq '^PLAID_CLIENT_ID=' "$API/.env"; then
+  echo "==> PLAID_* already present in .env (left unchanged)"
+else
+  printf '\n# Plaid (sandbox). Fill keys in WHM if empty — do not reset DB.\nPLAID_CLIENT_ID=\nPLAID_SECRET=\nPLAID_ENV=sandbox\nPLAID_SUPPORTED_COUNTRY_CODES=US\nPLAID_WEBHOOK_URL=https://apis.gohavena.com/api/v1/plaid/webhook\nPLAID_VERIFY_WEBHOOKS=false\n' >> "$API/.env"
+  echo "==> appended empty PLAID_* keys (existing .env preserved)"
+fi
+
+echo "==> db snapshot BEFORE migrate"
+sudo -u gohvena "$PHP_BIN" artisan tinker --execute='echo "users=".App\Models\User::query()->count()." communities=".App\Models\Community::query()->count().PHP_EOL;' --no-ansi || true
+
+echo "==> migrate --force (additive only; no fresh/wipe/seed)"
+sudo -u gohvena "$PHP_BIN" artisan migrate --force --no-ansi --no-interaction
 echo "==> geography sync"
 sudo -u gohvena "$PHP_BIN" artisan geography:sync-locations --no-ansi || true
+echo "==> db snapshot AFTER migrate"
+sudo -u gohvena "$PHP_BIN" artisan tinker --execute='echo "users=".App\Models\User::query()->count()." communities=".App\Models\Community::query()->count().PHP_EOL;' --no-ansi || true
 echo "==> migrate status"
 sudo -u gohvena "$PHP_BIN" artisan migrate:status --no-ansi | tail -n 25 || true
+echo "==> plaid status"
+sudo -u gohvena "$PHP_BIN" artisan plaid:status --no-ansi || true
 
 echo "==> laravel cache"
 sudo -u gohvena "$PHP_BIN" artisan storage:link --force 2>/dev/null || true
@@ -98,5 +113,9 @@ sleep 5
 echo "==> health"
 curl -sS -o /dev/null -w "api:%{http_code}\n" https://apis.gohavena.com/api/v1/health
 curl -sS -o /dev/null -w "web:%{http_code}\n" https://gohavena.com/
+curl -sS -o /dev/null -w "login:%{http_code}\n" https://gohavena.com/login
 curl -sS -o /dev/null -w "feed:%{http_code}\n" https://gohavena.com/admin/feed
+curl -sS -o /dev/null -w "plaid:%{http_code}\n" https://gohavena.com/admin/plaid
+test -f "$API/app/Http/Controllers/Api/V1/PlaidController.php" && echo api_plaid=yes || echo api_plaid=no
+test -f "$FE/src/app/(admin)/admin/plaid/page.tsx" && echo fe_plaid=yes || echo fe_plaid=no
 echo DONE

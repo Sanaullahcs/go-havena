@@ -28,6 +28,7 @@ import { NoticeCoverMedia } from "../notices/notice-cover-thumbnail";
 import { mediaImageSource } from "../../utils/profile-display";
 import { rnShadow } from "../../utils/shadow";
 import { sw, sf } from "../../utils/responsive";
+import { useHomeFrame } from "../../hooks/use-home-frame";
 import HomeSectionEmpty from "./home-section-empty";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
 import { MarketplaceRoutes } from "../../constants/marketplace-routes";
@@ -48,11 +49,7 @@ const QUICK_ACTIONS = [
   { id: "chat", titleKey: "home.qa.chat", icon: "mail", route: "/screens/messages" },
 ];
 
-const QA_TILE_W = sw(56);
-const QA_GAP = sw(4);
-const QA_SIDE_PAD = sw(8);
-
-const HERO_HEIGHT = sw(175);
+const HERO_HEIGHT_DESIGN = 175;
 /** Auto-advance interval for the home notices carousel. */
 const AUTO_SCROLL_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -74,7 +71,7 @@ function mapNoticeToHero(notice, t) {
   };
 }
 
-function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
+function NoticeHeroCard({ item, cardWidth, heroHeight, onPress, onImagePress }) {
   const { t, i18n } = useTranslation();
   const [imageFailed, setImageFailed] = useState(false);
   const hasRemoteImage = Boolean(item.imageUrl);
@@ -88,7 +85,7 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
   const curveRight = cardWidth * 0.40;
 
   return (
-    <View style={[styles.heroShell, { width: cardWidth, height: HERO_HEIGHT }]}>
+    <View style={[styles.heroShell, { width: cardWidth, height: heroHeight }]}>
       {/* Layer 1 — image positioned on the right side only */}
       <View style={styles.imageArea}>
         <NoticeCoverMedia
@@ -109,7 +106,7 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
             height: circleD,
             borderRadius: circleD / 2,
             end: curveRight,
-            top: (HERO_HEIGHT - circleD) / 2,
+            top: (heroHeight - circleD) / 2,
             pointerEvents: "none",
           },
         ]}
@@ -124,7 +121,7 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
             height: circleD + sw(5),
             borderRadius: (circleD + sw(5)) / 2,
             end: curveRight - sw(2.5),
-            top: (HERO_HEIGHT - circleD - sw(5)) / 2,
+            top: (heroHeight - circleD - sw(5)) / 2,
             pointerEvents: "none",
           },
         ]}
@@ -179,7 +176,9 @@ function NoticeHeroCard({ item, cardWidth, onPress, onImagePress }) {
 function QuickActionsRow() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { width: screenWidth } = useWindowDimensions();
+  const frame = useHomeFrame();
+  const tileW = frame.size(72);
+  const gap = frame.size(8);
 
   const openAction = useCallback(
     (route) => {
@@ -188,14 +187,12 @@ function QuickActionsRow() {
     [router],
   );
 
-  const rowWidth =
-    QUICK_ACTIONS.length * QA_TILE_W +
-    Math.max(0, QUICK_ACTIONS.length - 1) * QA_GAP;
-  const centerRow = rowWidth <= screenWidth - QA_SIDE_PAD * 2;
+  const rowWidth = QUICK_ACTIONS.length * tileW + Math.max(0, QUICK_ACTIONS.length - 1) * gap;
+  const centerRow = rowWidth <= frame.contentWidth;
 
   return (
     <View style={styles.qaWrap}>
-      <Text style={[homeStyles.sectionLabel, styles.qaHeader]}>
+      <Text style={[homeStyles.sectionLabel, styles.qaHeader, { paddingHorizontal: frame.sideInset }]}>
         {t("home.quickActions", { defaultValue: "Quick Actions" })}
       </Text>
       <FlatList
@@ -205,36 +202,38 @@ function QuickActionsRow() {
         keyExtractor={(item) => item.id}
         nestedScrollEnabled
         decelerationRate="fast"
-        snapToInterval={QA_TILE_W + QA_GAP}
+        snapToInterval={tileW + gap}
         snapToAlignment="start"
         disableIntervalMomentum
-        ItemSeparatorComponent={() => <View style={{ width: QA_GAP }} />}
+        ItemSeparatorComponent={() => <View style={{ width: gap }} />}
         contentContainerStyle={[
           styles.qaListContent,
+          { paddingHorizontal: frame.sideInset },
           centerRow && styles.qaListContentCentered,
         ]}
         getItemLayout={(_, index) => ({
-          length: QA_TILE_W + QA_GAP,
-          offset: (QA_TILE_W + QA_GAP) * index,
+          length: tileW + gap,
+          offset: (tileW + gap) * index,
           index,
         })}
         renderItem={({ item }) => (
-          <View style={styles.qaItem}>
+          <View style={[styles.qaItem, { width: tileW, maxWidth: tileW }]}>
             <Pressable
               onPress={() => openAction(item.route)}
               style={({ pressed }) => [
                 styles.qaTile,
+                { width: tileW, maxWidth: tileW },
                 pressed && styles.qaTilePressed,
               ]}
               accessibilityRole="button"
               accessibilityLabel={t(item.titleKey)}
             >
-              <View style={styles.qaIconSlot}>
+              <View style={[styles.qaIconSlot, { width: tileW }]}>
                 <View style={styles.qaIcon}>
                   <Feather name={item.icon} size={sf(18)} color={T.navy} />
                 </View>
               </View>
-              <Text style={styles.qaLabel} numberOfLines={2} ellipsizeMode="clip">
+              <Text style={[styles.qaLabel, { width: tileW, maxWidth: tileW }]} numberOfLines={2} ellipsizeMode="tail">
                 {t(item.titleKey)}
               </Text>
             </Pressable>
@@ -249,10 +248,12 @@ export default function Notices({ items = [] }) {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const { width: screenWidth } = useWindowDimensions();
+  const frame = useHomeFrame();
   const insets = useSafeAreaInsets();
   const [activeIndex, setActiveIndex] = useState(0);
   const [previewImage, setPreviewImage] = useState(null);
-  const cardWidth = useMemo(() => screenWidth - Home.gutter * 2, [screenWidth]);
+  const cardWidth = frame.contentWidth;
+  const heroHeight = frame.size(HERO_HEIGHT_DESIGN);
   const listRef = useRef(null);
   const activeIndexRef = useRef(0);
   const userScrollingRef = useRef(false);
@@ -345,16 +346,17 @@ export default function Notices({ items = [] }) {
 
   const renderHero = useCallback(
     ({ item }) => (
-      <View style={{ width: screenWidth, paddingHorizontal: Home.gutter }}>
+      <View style={{ width: screenWidth, paddingHorizontal: frame.sideInset }}>
         <NoticeHeroCard
           item={item}
           cardWidth={cardWidth}
+          heroHeight={heroHeight}
           onPress={() => openNotice(item)}
           onImagePress={() => openImage(item)}
         />
       </View>
     ),
-    [screenWidth, cardWidth, openNotice, openImage],
+    [screenWidth, cardWidth, heroHeight, frame.sideInset, openNotice, openImage],
   );
 
   return (
@@ -387,8 +389,8 @@ export default function Notices({ items = [] }) {
             }}
             keyExtractor={(item) => item.id}
             renderItem={renderHero}
-            style={styles.heroFlatList}
-            contentContainerStyle={styles.heroFlatListContent}
+            style={[styles.heroFlatList, { height: heroHeight }]}
+            contentContainerStyle={[styles.heroFlatListContent, { height: heroHeight }]}
             getItemLayout={(_, index) => ({
               length: screenWidth,
               offset: screenWidth * index,
@@ -408,7 +410,7 @@ export default function Notices({ items = [] }) {
         </View>
       ) : (
         <View style={styles.heroEmptyWrap}>
-          <View style={{ paddingHorizontal: Home.gutter }}>
+          <View style={{ paddingHorizontal: frame.sideInset }}>
             <HomeSectionEmpty
               message={t("home.noNotices")}
             />
@@ -461,11 +463,9 @@ const styles = StyleSheet.create({
     paddingBottom: sw(4),
   },
   heroFlatList: {
-    height: HERO_HEIGHT,
     flexGrow: 0,
   },
   heroFlatListContent: {
-    height: HERO_HEIGHT,
     alignItems: "stretch",
   },
   heroShell: {
@@ -609,28 +609,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Home.gutter,
     marginBottom: sw(10),
   },
-  qaListContent: {
-    paddingHorizontal: QA_SIDE_PAD,
-  },
+  qaListContent: {},
   qaListContentCentered: {
     flexGrow: 1,
     justifyContent: "center",
   },
-  qaItem: {
-    width: QA_TILE_W,
-    maxWidth: QA_TILE_W,
-  },
+  qaItem: {},
   qaTile: {
-    width: QA_TILE_W,
-    maxWidth: QA_TILE_W,
     alignItems: "center",
-    overflow: "hidden",
   },
   qaTilePressed: {
     opacity: 0.7,
   },
   qaIconSlot: {
-    width: QA_TILE_W,
     alignItems: "center",
     marginBottom: sw(6),
   },
@@ -643,8 +634,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   qaLabel: {
-    width: QA_TILE_W,
-    maxWidth: QA_TILE_W,
     fontFamily: Fonts.medium,
     fontSize: sf(10.5),
     lineHeight: sf(14),
