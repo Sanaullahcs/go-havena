@@ -1,4 +1,4 @@
-import api from "./client";
+import api, { isProxyMethodBlocked } from "./client";
 
 export interface DealMenuItem {
   name: string;
@@ -82,12 +82,19 @@ export async function createDeal(data: DealFormData) {
 }
 
 export async function updateDeal(id: number, data: Partial<DealFormData>) {
-  const res = await api.patch(`/v1/admin/deals/${id}`, data);
+  const res = await api.post(`/v1/admin/deals/${id}`, data);
   return res.data.data as Deal;
 }
 
 export async function deleteDeal(id: number) {
-  return api.delete(`/v1/admin/deals/${id}`);
+  try {
+    return await api.delete(`/v1/admin/deals/${id}`);
+  } catch (err: unknown) {
+    if (isProxyMethodBlocked(err)) {
+      return api.post(`/v1/admin/deals/${id}/delete`);
+    }
+    throw err;
+  }
 }
 
 export async function uploadDealImage(file: File) {

@@ -60,12 +60,12 @@ function NavSection({
             className={[
               "group relative flex items-center gap-2.5 overflow-hidden rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors duration-150",
               active
-                ? "text-white shadow-md shadow-emerald-600/25"
-                : "text-slate-600 hover:bg-emerald-50/60 hover:text-emerald-700",
+                ? "text-white shadow-md"
+                : "text-slate-600 hover:bg-[#E8F0F7] hover:text-[#1B4F8A]",
             ].join(" ")}
             style={
               active
-                ? { background: "#1B4F8A" }
+                ? { background: "#1B4F8A", boxShadow: "0 4px 12px rgba(27, 79, 138, 0.22)" }
                 : undefined
             }
           >
@@ -74,7 +74,7 @@ function NavSection({
                 "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all duration-200",
                 active
                   ? "bg-white/15 text-white"
-                  : "text-slate-400 group-hover:scale-105 group-hover:text-emerald-600",
+                  : "text-slate-400 group-hover:scale-105 group-hover:text-[#1B4F8A]",
               ].join(" ")}
             >
               <Icon />

@@ -1,4 +1,4 @@
-import api from "./client";
+import api, { isProxyMethodBlocked } from "./client";
 
 export type PostStatus = "pending" | "approved" | "rejected";
 
@@ -101,15 +101,22 @@ export async function fetchAdminPostDetail(id: number) {
 }
 
 export async function deleteAdminPost(id: number) {
-  return api.delete(`/v1/admin/posts/${id}`);
+  try {
+    return await api.delete(`/v1/admin/posts/${id}`);
+  } catch (err: unknown) {
+    if (isProxyMethodBlocked(err)) {
+      return api.post(`/v1/admin/posts/${id}/delete`);
+    }
+    throw err;
+  }
 }
 
 export async function approvePost(id: number) {
-  return api.patch(`/v1/admin/posts/${id}/approve`);
+  return api.post(`/v1/admin/posts/${id}/approve`);
 }
 
 export async function rejectPost(id: number, reason?: string) {
-  return api.patch(`/v1/admin/posts/${id}/reject`, reason ? { reason } : undefined);
+  return api.post(`/v1/admin/posts/${id}/reject`, reason ? { reason } : undefined);
 }
 
 export async function reportAdminPost(id: number, reason: string, type = "other") {

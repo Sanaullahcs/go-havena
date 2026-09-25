@@ -1,4 +1,4 @@
-import api from "./client";
+import api, { isProxyMethodBlocked } from "./client";
 
 export interface CommunityDocument {
   id: number;
@@ -77,14 +77,22 @@ export async function updateDocument(
   file?: File | null,
 ): Promise<CommunityDocument> {
   const form = buildDocumentFormData(payload, file);
-  const res = await api.patch(`/v1/admin/documents/${id}`, form, {
+  const res = await api.post(`/v1/admin/documents/${id}`, form, {
     headers: { "Content-Type": "multipart/form-data" },
   });
   return res.data.data as CommunityDocument;
 }
 
 export async function deleteDocument(id: number): Promise<void> {
-  await api.delete(`/v1/admin/documents/${id}`);
+  try {
+    await api.delete(`/v1/admin/documents/${id}`);
+  } catch (err: unknown) {
+    if (isProxyMethodBlocked(err)) {
+      await api.post(`/v1/admin/documents/${id}/delete`);
+      return;
+    }
+    throw err;
+  }
 }
 
 export async function createDocumentCategory(name: string): Promise<DocumentCategory> {

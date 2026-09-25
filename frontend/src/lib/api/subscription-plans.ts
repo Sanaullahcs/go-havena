@@ -63,7 +63,7 @@ export async function updateSubscriptionPlan(id: number, data: Partial<Subscript
 }
 
 export async function setSubscriptionPlanStatus(id: number, isActive: boolean) {
-  const res = await api.patch(`/v1/admin/subscription-plans/${id}/status`, { is_active: isActive });
+  const res = await api.post(`/v1/admin/subscription-plans/${id}/status`, { is_active: isActive });
   return res.data as { data: SubscriptionPlan; message: string };
 }
 

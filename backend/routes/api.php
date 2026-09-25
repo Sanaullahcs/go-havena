@@ -137,8 +137,8 @@ Route::prefix('v1')->group(function () {
             Route::get('/guest-invitations/mine',              [ResidentGuestController::class, 'mine']);
             Route::get('/guest-invitations/pending-approval',  [ResidentGuestController::class, 'pendingApproval']);
             Route::post('/guest-invitations',                  [ResidentGuestController::class, 'store']);
-            Route::patch('/guest-invitations/{id}/approve',    [ResidentGuestController::class, 'approve']);
-            Route::patch('/guest-invitations/{id}/reject',     [ResidentGuestController::class, 'reject']);
+            Route::match(['patch', 'post'],'/guest-invitations/{id}/approve',    [ResidentGuestController::class, 'approve']);
+            Route::match(['patch', 'post'],'/guest-invitations/{id}/reject',     [ResidentGuestController::class, 'reject']);
         });
 
         /* Families (resident) */
@@ -152,14 +152,14 @@ Route::prefix('v1')->group(function () {
         Route::post('/families/leave',                       [FamilyController::class, 'leave']);
         Route::get('/families/join-requests/pending',        [FamilyController::class, 'pendingJoinRequests']);
         Route::post('/families/add-member-requests',         [FamilyController::class, 'storeAddMemberRequest']);
-        Route::patch('/family-join-requests/{id}/approve',   [FamilyController::class, 'approveJoinRequest']);
-        Route::patch('/family-join-requests/{id}/reject',    [FamilyController::class, 'rejectJoinRequest']);
-        Route::patch('/family-join-requests/{id}/cancel',    [FamilyController::class, 'cancelJoinRequest']);
-        Route::patch('/family-add-member-requests/{id}/approve', [FamilyController::class, 'approveAddMemberRequest']);
-        Route::patch('/family-add-member-requests/{id}/reject',  [FamilyController::class, 'rejectAddMemberRequest']);
-        Route::patch('/families/members/{userId}/suspend',   [FamilyController::class, 'suspendMember'])->whereNumber('userId');
-        Route::patch('/families/members/{userId}/unsuspend', [FamilyController::class, 'unsuspendMember'])->whereNumber('userId');
-        Route::patch('/families/members/{userId}/block',     [FamilyController::class, 'blockMember'])->whereNumber('userId');
+        Route::match(['patch', 'post'],'/family-join-requests/{id}/approve',   [FamilyController::class, 'approveJoinRequest']);
+        Route::match(['patch', 'post'],'/family-join-requests/{id}/reject',    [FamilyController::class, 'rejectJoinRequest']);
+        Route::match(['patch', 'post'],'/family-join-requests/{id}/cancel',    [FamilyController::class, 'cancelJoinRequest']);
+        Route::match(['patch', 'post'],'/family-add-member-requests/{id}/approve', [FamilyController::class, 'approveAddMemberRequest']);
+        Route::match(['patch', 'post'],'/family-add-member-requests/{id}/reject',  [FamilyController::class, 'rejectAddMemberRequest']);
+        Route::match(['patch', 'post'],'/families/members/{userId}/suspend',   [FamilyController::class, 'suspendMember'])->whereNumber('userId');
+        Route::match(['patch', 'post'],'/families/members/{userId}/unsuspend', [FamilyController::class, 'unsuspendMember'])->whereNumber('userId');
+        Route::match(['patch', 'post'],'/families/members/{userId}/block',     [FamilyController::class, 'blockMember'])->whereNumber('userId');
         Route::delete('/families/members/{userId}',         [FamilyController::class, 'removeMember'])->whereNumber('userId');
         });
 
@@ -180,8 +180,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/listings/{id}',        [ListingController::class, 'show'])->whereNumber('id');
         Route::post('/listings/upload-image', [ListingController::class, 'uploadImage']);
         Route::post('/listings',            [ListingController::class, 'store']);
-        Route::patch('/listings/{id}',           [ListingController::class, 'update']);
-        Route::patch('/listings/{id}/mark-sold', [ListingController::class, 'markSold']);
+        Route::match(['patch', 'post'],'/listings/{id}',           [ListingController::class, 'update']);
+        Route::match(['patch', 'post'],'/listings/{id}/mark-sold', [ListingController::class, 'markSold']);
         Route::delete('/listings/{id}',          [ListingController::class, 'destroy']);
         Route::post('/listings/{id}/save',  [ListingController::class, 'toggleSave']);
 
@@ -191,7 +191,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/deals',               [DealController::class, 'residentStore']);
         Route::get('/deals/{id}',           [DealController::class, 'show'])->whereNumber('id');
         Route::post('/deals/{id}/save',     [DealController::class, 'toggleSave'])->whereNumber('id');
-        Route::patch('/deals/{id}',         [DealController::class, 'residentUpdate'])->whereNumber('id');
+        Route::match(['patch', 'post'],'/deals/{id}',         [DealController::class, 'residentUpdate'])->whereNumber('id');
         Route::delete('/deals/{id}',        [DealController::class, 'residentDestroy'])->whereNumber('id');
 
         /* ── Businesses ── */
@@ -199,7 +199,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/businesses/upload-image',  [BusinessController::class, 'uploadImage']);
         Route::post('/businesses',               [BusinessController::class, 'store']);
         Route::get('/businesses/{id}',           [BusinessController::class, 'show'])->whereNumber('id');
-        Route::patch('/businesses/{id}',         [BusinessController::class, 'update'])->whereNumber('id');
+        Route::match(['patch', 'post'],'/businesses/{id}',         [BusinessController::class, 'update'])->whereNumber('id');
         Route::delete('/businesses/{id}',        [BusinessController::class, 'destroy'])->whereNumber('id');
         });
 
@@ -237,8 +237,8 @@ Route::prefix('v1')->group(function () {
             Route::delete('/bookings/{id}',                 [AmenityController::class, 'cancelBooking']);
             // Hosting may block HTTP DELETE; POST keeps cancel available.
             Route::post('/bookings/{id}/cancel',            [AmenityController::class, 'cancelBooking']);
-            Route::patch('/bookings/{id}/approve',          [AmenityController::class, 'approveBooking']);
-            Route::patch('/bookings/{id}/reject',           [AmenityController::class, 'rejectBooking']);
+            Route::match(['patch', 'post'],'/bookings/{id}/approve',          [AmenityController::class, 'approveBooking']);
+            Route::match(['patch', 'post'],'/bookings/{id}/reject',           [AmenityController::class, 'rejectBooking']);
         });
 
         /* ── Wellness ── */
@@ -332,7 +332,7 @@ Route::prefix('v1')->group(function () {
 
                 Route::put('/communities/{id}', [AdminCommunityController::class, 'update']);
                 Route::delete('/communities/{id}', [AdminCommunityController::class, 'destroy']);
-                Route::patch('/communities/{id}/status', [AdminCommunityController::class, 'updateStatus']);
+                Route::match(['patch', 'post'],'/communities/{id}/status', [AdminCommunityController::class, 'updateStatus']);
                 Route::get('/communities/{id}/admin', [AdminCommunityController::class, 'showAdmin']);
                 Route::post('/communities/{id}/assign-admin', [AdminCommunityController::class, 'assignAdmin']);
                 Route::post('/communities/{id}/release-admin', [AdminCommunityController::class, 'releaseAdmin']);
@@ -343,17 +343,17 @@ Route::prefix('v1')->group(function () {
 
                 Route::get('/contact-submissions', [ContactController::class, 'adminIndex']);
                 Route::get('/contact-submissions/{id}', [ContactController::class, 'adminShow']);
-                Route::patch('/contact-submissions/{id}', [ContactController::class, 'adminUpdate']);
+                Route::match(['patch', 'post'],'/contact-submissions/{id}', [ContactController::class, 'adminUpdate']);
 
                 Route::post('/billing/grant', [BillingController::class, 'grant']);
                 Route::get('/subscription-plans', [SubscriptionPlanController::class, 'index']);
                 Route::post('/subscription-plans', [SubscriptionPlanController::class, 'store']);
                 Route::put('/subscription-plans/{id}', [SubscriptionPlanController::class, 'update']);
-                Route::patch('/subscription-plans/{id}/status', [SubscriptionPlanController::class, 'updateStatus']);
+                Route::match(['patch', 'post'],'/subscription-plans/{id}/status', [SubscriptionPlanController::class, 'updateStatus']);
                 Route::get('/subscription-coupons', [SubscriptionCouponController::class, 'index']);
                 Route::post('/subscription-coupons', [SubscriptionCouponController::class, 'store']);
                 Route::put('/subscription-coupons/{id}', [SubscriptionCouponController::class, 'update']);
-                Route::patch('/subscription-coupons/{id}/status', [SubscriptionCouponController::class, 'updateStatus']);
+                Route::match(['patch', 'post'],'/subscription-coupons/{id}/status', [SubscriptionCouponController::class, 'updateStatus']);
                 Route::get('/referral-program/settings', [ReferralProgramController::class, 'settings']);
                 Route::put('/referral-program/settings', [ReferralProgramController::class, 'updateSettings']);
                 Route::get('/referral-program/attributions', [ReferralProgramController::class, 'attributions']);
@@ -371,26 +371,28 @@ Route::prefix('v1')->group(function () {
                 Route::post('/community-rules',             [CommunityRuleController::class, 'store']);
                 Route::post('/community-rules/categories',  [CommunityRuleController::class, 'storeCategory']);
                 Route::delete('/community-rules/categories', [CommunityRuleController::class, 'destroyCategory']);
-                Route::patch('/community-rules/{id}',       [CommunityRuleController::class, 'update']);
+                Route::match(['patch', 'post'],'/community-rules/{id}',       [CommunityRuleController::class, 'update']);
                 Route::delete('/community-rules/{id}',      [CommunityRuleController::class, 'destroy']);
+                Route::post('/community-rules/{id}/delete', [CommunityRuleController::class, 'destroy']);
 
                 /* Community Documents — admin CRUD */
                 Route::get('/documents',                   [CommunityDocumentController::class, 'adminIndex']);
                 Route::post('/documents',                  [CommunityDocumentController::class, 'store']);
                 Route::post('/documents/categories',       [CommunityDocumentController::class, 'storeCategory']);
                 Route::delete('/documents/categories',     [CommunityDocumentController::class, 'destroyCategory']);
-                Route::patch('/documents/{id}',            [CommunityDocumentController::class, 'update']);
+                Route::match(['patch', 'post'],'/documents/{id}',            [CommunityDocumentController::class, 'update']);
                 Route::delete('/documents/{id}',           [CommunityDocumentController::class, 'destroy']);
+                Route::post('/documents/{id}/delete',      [CommunityDocumentController::class, 'destroy']);
 
                 /* Guest users — admin CRUD */
                 Route::get('/guests',                     [GuestController::class, 'index']);
                 Route::get('/guests/{id}',                [GuestController::class, 'show']);
                 Route::get('/guests/{id}/activity',       [GuestController::class, 'activity']);
                 Route::post('/guests/invite',             [GuestController::class, 'invite']);
-                Route::patch('/guests/{id}/approve',     [GuestController::class, 'approve']);
-                Route::patch('/guests/{id}/reject',      [GuestController::class, 'reject']);
-                Route::patch('/guests/{id}/revoke',       [GuestController::class, 'revoke'])->whereNumber('id');
-                Route::patch('/guests/{id}/extend',       [GuestController::class, 'extend'])->whereNumber('id');
+                Route::match(['patch', 'post'],'/guests/{id}/approve',     [GuestController::class, 'approve']);
+                Route::match(['patch', 'post'],'/guests/{id}/reject',      [GuestController::class, 'reject']);
+                Route::match(['patch', 'post'],'/guests/{id}/revoke',       [GuestController::class, 'revoke'])->whereNumber('id');
+                Route::match(['patch', 'post'],'/guests/{id}/extend',       [GuestController::class, 'extend'])->whereNumber('id');
                 Route::delete('/guests/{id}',             [GuestController::class, 'destroy'])->whereNumber('id');
                 // Some hosts block HTTP DELETE; POST keeps Community Admin cancel working.
                 Route::post('/guests/{id}/cancel',        [GuestController::class, 'destroy'])->whereNumber('id');
@@ -409,6 +411,7 @@ Route::prefix('v1')->group(function () {
                 Route::match(['patch', 'post'], '/members/{id}/reject',   [MemberController::class, 'reject']);
                 Route::match(['patch', 'post'], '/members/{id}/suspend',  [MemberController::class, 'suspend']);
                 Route::delete('/members/{id}',      [MemberController::class, 'destroy']);
+                Route::post('/members/{id}/delete', [MemberController::class, 'destroy']);
 
                 /* Community subscription billing */
                 Route::get('/billing',                      [BillingController::class, 'show']);
@@ -420,62 +423,66 @@ Route::prefix('v1')->group(function () {
                 Route::post('/billing/change-plan',          [BillingController::class, 'changePlan']);
                 Route::get('/referrals/me',                  [ReferralController::class, 'me']);
 
-                Route::patch('/family-add-member-requests/{id}/approve', [FamilyController::class, 'adminApproveAddMemberRequest']);
-                Route::patch('/family-add-member-requests/{id}/reject',  [FamilyController::class, 'adminRejectAddMemberRequest']);
+                Route::match(['patch', 'post'],'/family-add-member-requests/{id}/approve', [FamilyController::class, 'adminApproveAddMemberRequest']);
+                Route::match(['patch', 'post'],'/family-add-member-requests/{id}/reject',  [FamilyController::class, 'adminRejectAddMemberRequest']);
 
                 Route::get('/notices',              [NoticeController::class, 'adminIndex']);
                 Route::post('/notices/upload-image', [NoticeController::class, 'uploadImage']);
                 Route::post('/notices',             [NoticeController::class, 'store']);
                 Route::post('/events',              [NoticeController::class, 'storeEvent']);
                 Route::post('/alerts',              [NoticeController::class, 'storeAlert']);
-                Route::patch('/notices/{id}',       [NoticeController::class, 'update']);
+                Route::match(['patch', 'post'],'/notices/{id}',       [NoticeController::class, 'update']);
                 Route::delete('/notices/{id}',      [NoticeController::class, 'destroy']);
-                Route::patch('/notices/{id}/approve', [NoticeController::class, 'approve']);
-                Route::patch('/notices/{id}/reject',  [NoticeController::class, 'reject']);
+                Route::post('/notices/{id}/delete', [NoticeController::class, 'destroy']);
+                Route::match(['patch', 'post'],'/notices/{id}/approve', [NoticeController::class, 'approve']);
+                Route::match(['patch', 'post'],'/notices/{id}/reject',  [NoticeController::class, 'reject']);
 
                 Route::get('/posts',                    [FeedController::class, 'adminIndex']);
                 Route::get('/posts/{id}',                [FeedController::class, 'adminShow']);
                 Route::post('/posts/{id}/report',        [FeedController::class, 'adminReportPost']);
                 Route::get('/posts/{id}/reports',        [FeedController::class, 'adminPostReports']);
                 Route::delete('/posts/{id}',             [FeedController::class, 'adminDestroy']);
-                Route::patch('/posts/{id}/approve',     [FeedController::class, 'adminApprove']);
-                Route::patch('/posts/{id}/reject',      [FeedController::class, 'adminReject']);
+                Route::post('/posts/{id}/delete',        [FeedController::class, 'adminDestroy']);
+                Route::match(['patch', 'post'],'/posts/{id}/approve',     [FeedController::class, 'adminApprove']);
+                Route::match(['patch', 'post'],'/posts/{id}/reject',      [FeedController::class, 'adminReject']);
 
                 /* Amenities — admin CRUD + publish review */
                 Route::get('/amenities',                      [AmenityController::class, 'adminIndex']);
                 Route::post('/amenities',                     [AmenityController::class, 'store']);
-                Route::patch('/amenities/{id}',               [AmenityController::class, 'update']);
+                Route::match(['patch', 'post'],'/amenities/{id}',               [AmenityController::class, 'update']);
                 Route::delete('/amenities/{id}',              [AmenityController::class, 'destroy']);
-                Route::patch('/amenities/{id}/approve',       [AmenityController::class, 'approveAmenity']);
-                Route::patch('/amenities/{id}/reject',        [AmenityController::class, 'rejectAmenity']);
+                Route::post('/amenities/{id}/delete',         [AmenityController::class, 'destroy']);
+                Route::match(['patch', 'post'],'/amenities/{id}/approve',       [AmenityController::class, 'approveAmenity']);
+                Route::match(['patch', 'post'],'/amenities/{id}/reject',        [AmenityController::class, 'rejectAmenity']);
                 Route::get('/amenities/{id}/bills',           [AmenitySharedBillController::class, 'adminIndex']);
                 Route::post('/amenities/{id}/bills',          [AmenitySharedBillController::class, 'adminStore']);
                 Route::get('/amenities/{id}/bills/{monthlyBillId}/residents', [AmenitySharedBillController::class, 'adminResidentIndex']);
                 Route::get('/amenities/{id}/resident-bills/{residentBillId}/reviews', [AmenitySharedBillController::class, 'adminReviews']);
-                Route::patch('/amenities/{id}/resident-bills/{residentBillId}/approve', [AmenitySharedBillController::class, 'adminApprove']);
-                Route::patch('/amenities/{id}/resident-bills/{residentBillId}/reject', [AmenitySharedBillController::class, 'adminReject']);
+                Route::match(['patch', 'post'],'/amenities/{id}/resident-bills/{residentBillId}/approve', [AmenitySharedBillController::class, 'adminApprove']);
+                Route::match(['patch', 'post'],'/amenities/{id}/resident-bills/{residentBillId}/reject', [AmenitySharedBillController::class, 'adminReject']);
 
                 /* Amenity bookings — admin can still review community-wide */
                 Route::get('/bookings',                       [AmenityController::class, 'adminBookings']);
-                Route::patch('/bookings/{id}/approve',        [AmenityController::class, 'approveBooking']);
-                Route::patch('/bookings/{id}/reject',         [AmenityController::class, 'rejectBooking']);
+                Route::match(['patch', 'post'],'/bookings/{id}/approve',        [AmenityController::class, 'approveBooking']);
+                Route::match(['patch', 'post'],'/bookings/{id}/reject',         [AmenityController::class, 'rejectBooking']);
 
                 Route::get('/communities', [AdminCommunityController::class, 'listActive']);
 
-                Route::patch('/listings/{id}/approve', [ListingController::class, 'approve']);
-                Route::patch('/listings/{id}/reject',  [ListingController::class, 'reject']);
+                Route::match(['patch', 'post'],'/listings/{id}/approve', [ListingController::class, 'approve']);
+                Route::match(['patch', 'post'],'/listings/{id}/reject',  [ListingController::class, 'reject']);
 
                 /* Deals & Offers (community admin managed) */
                 Route::get('/deals',            [DealController::class, 'adminIndex']);
                 Route::post('/deals',           [DealController::class, 'store']);
                 Route::post('/deals/upload-image', [DealController::class, 'uploadImage']);
-                Route::patch('/deals/{id}',     [DealController::class, 'update']);
+                Route::match(['patch', 'post'],'/deals/{id}',     [DealController::class, 'update']);
                 Route::delete('/deals/{id}',    [DealController::class, 'destroy']);
+                Route::post('/deals/{id}/delete', [DealController::class, 'destroy']);
 
                 /* Local businesses */
-                Route::patch('/businesses/{id}/approve',   [BusinessController::class, 'approve']);
-                Route::patch('/businesses/{id}/reject',    [BusinessController::class, 'reject']);
-                Route::patch('/businesses/{id}/reapprove', [BusinessController::class, 'approve']); // re-approve a rejected business
+                Route::match(['patch', 'post'],'/businesses/{id}/approve',   [BusinessController::class, 'approve']);
+                Route::match(['patch', 'post'],'/businesses/{id}/reject',    [BusinessController::class, 'reject']);
+                Route::match(['patch', 'post'],'/businesses/{id}/reapprove', [BusinessController::class, 'approve']); // re-approve a rejected business
             });
 
             /* Platform-only content review (legacy — system admin) */
@@ -490,23 +497,23 @@ Route::prefix('v1')->group(function () {
                 Route::post('/states', [GeographyController::class, 'storeState']);
 
                 Route::get('/reports',                       [ReportController::class, 'index']);
-                Route::patch('/reports/{id}/resolve',        [ReportController::class, 'resolve']);
-                Route::patch('/reports/{id}/escalate',       [ReportController::class, 'escalate']);
-                Route::patch('/reports/{id}/dismiss',        [ReportController::class, 'dismiss']);
+                Route::match(['patch', 'post'],'/reports/{id}/resolve',        [ReportController::class, 'resolve']);
+                Route::match(['patch', 'post'],'/reports/{id}/escalate',       [ReportController::class, 'escalate']);
+                Route::match(['patch', 'post'],'/reports/{id}/dismiss',        [ReportController::class, 'dismiss']);
 
                 Route::get('/wellness/categories',                    [AdminWellnessController::class, 'categories']);
                 Route::post('/wellness/categories',                    [AdminWellnessController::class, 'storeCategory']);
                 Route::post('/wellness/categories/upload-image',       [AdminWellnessController::class, 'uploadCategoryImage']);
-                Route::patch('/wellness/categories/{id}',              [AdminWellnessController::class, 'updateCategory']);
+                Route::match(['patch', 'post'],'/wellness/categories/{id}',              [AdminWellnessController::class, 'updateCategory']);
                 Route::delete('/wellness/categories/{id}',             [AdminWellnessController::class, 'destroyCategory']);
                 Route::get('/wellness/courses',                        [AdminWellnessController::class, 'courses']);
                 Route::post('/wellness/courses',                       [AdminWellnessController::class, 'storeCourse']);
                 Route::post('/wellness/courses/upload-image',          [AdminWellnessController::class, 'uploadCourseImage']);
-                Route::patch('/wellness/courses/{id}',                  [AdminWellnessController::class, 'updateCourse']);
+                Route::match(['patch', 'post'],'/wellness/courses/{id}',                  [AdminWellnessController::class, 'updateCourse']);
                 Route::delete('/wellness/courses/{id}',                [AdminWellnessController::class, 'destroyCourse']);
                 Route::get('/wellness/courses/{id}/lessons',           [AdminWellnessController::class, 'lessons']);
                 Route::post('/wellness/courses/{id}/lessons',          [AdminWellnessController::class, 'storeLesson']);
-                Route::patch('/wellness/lessons/{id}',                 [AdminWellnessController::class, 'updateLesson']);
+                Route::match(['patch', 'post'],'/wellness/lessons/{id}',                 [AdminWellnessController::class, 'updateLesson']);
                 Route::delete('/wellness/lessons/{id}',               [AdminWellnessController::class, 'destroyLesson']);
             });
         });

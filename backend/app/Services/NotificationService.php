@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\NotificationText;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -18,6 +19,9 @@ class NotificationService
         ?string $actionUrl = null,
         ?array $data = null
     ): void {
+        $title = NotificationText::title($title);
+        $body = NotificationText::body($body);
+
         $payload = [
             'user_id'    => $userId,
             'type'       => $type,

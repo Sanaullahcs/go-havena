@@ -128,6 +128,33 @@ class NoticeBoardTest extends TestCase
             ->assertJsonPath('data.title', 'Community BBQ');
     }
 
+    public function test_long_notice_body_still_creates_and_notifies_residents(): void
+    {
+        ['admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        Sanctum::actingAs($admin);
+
+        $body = str_repeat('Community BBQ details. ', 80);
+
+        $response = $this->postJson('/api/v1/admin/notices', array_merge([
+            'title'    => 'Neighborhood BBQ',
+            'body'     => $body,
+            'category' => 'general',
+            'status'   => 'published',
+        ], $this->scheduleFields()))->assertCreated();
+
+        $noticeId = $response->json('data.id');
+        $this->assertNotEmpty($noticeId);
+
+        $notification = DB::table('app_notifications')
+            ->where('user_id', $resident->id)
+            ->where('action_url', "/notices/{$noticeId}")
+            ->first();
+
+        $this->assertNotNull($notification);
+        $this->assertLessThanOrEqual(500, mb_strlen((string) $notification->body));
+    }
+
     public function test_notice_image_upload_endpoint_returns_url(): void
     {
         Storage::fake('public');

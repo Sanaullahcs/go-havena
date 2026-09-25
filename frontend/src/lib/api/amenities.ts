@@ -1,4 +1,4 @@
-import api from "./client";
+import api, { isProxyMethodBlocked } from "./client";
 import { getAdminCommunityId } from "./members";
 
 export interface Amenity {
@@ -215,11 +215,11 @@ export async function cancelBooking(id: number) {
 }
 
 export async function approveBooking(id: number) {
-  return api.patch(`/v1/bookings/${id}/approve`);
+  return api.post(`/v1/bookings/${id}/approve`);
 }
 
 export async function rejectBooking(id: number, reason?: string) {
-  return api.patch(`/v1/bookings/${id}/reject`, reason ? { reason } : {});
+  return api.post(`/v1/bookings/${id}/reject`, reason ? { reason } : {});
 }
 
 export async function fetchAdminAmenities(params?: {
@@ -241,20 +241,27 @@ export async function createAmenity(data: AmenityFormPayload) {
 }
 
 export async function updateAmenity(id: number, data: Partial<AmenityFormPayload>) {
-  const res = await api.patch(`/v1/admin/amenities/${id}`, data);
+  const res = await api.post(`/v1/admin/amenities/${id}`, data);
   return res.data.data as Amenity;
 }
 
 export async function deleteAmenity(id: number) {
-  return api.delete(`/v1/admin/amenities/${id}`);
+  try {
+    return await api.delete(`/v1/admin/amenities/${id}`);
+  } catch (err: unknown) {
+    if (isProxyMethodBlocked(err)) {
+      return api.post(`/v1/admin/amenities/${id}/delete`);
+    }
+    throw err;
+  }
 }
 
 export async function approveAmenity(id: number) {
-  return api.patch(`/v1/admin/amenities/${id}/approve`);
+  return api.post(`/v1/admin/amenities/${id}/approve`);
 }
 
 export async function rejectAmenity(id: number, reason?: string) {
-  return api.patch(`/v1/admin/amenities/${id}/reject`, reason ? { reason } : {});
+  return api.post(`/v1/admin/amenities/${id}/reject`, reason ? { reason } : {});
 }
 
 export type AmenityMonthlyBill = {
@@ -445,7 +452,7 @@ export async function fetchAdminAmenityResidentBillReviews(amenityId: number, re
 }
 
 export async function approveAmenityResidentPayment(amenityId: number, residentBillId: number) {
-  const res = await api.patch(`/v1/admin/amenities/${amenityId}/resident-bills/${residentBillId}/approve`);
+  const res = await api.post(`/v1/admin/amenities/${amenityId}/resident-bills/${residentBillId}/approve`);
   return {
     data: res.data.data as AmenityResidentPayment,
     message: (res.data.message as string | undefined) ?? "Payment approved successfully.",
@@ -457,7 +464,7 @@ export async function rejectAmenityResidentPayment(
   residentBillId: number,
   payload: { rejection_code: AmenityPaymentRejectionCode; rejection_reason?: string },
 ) {
-  const res = await api.patch(`/v1/admin/amenities/${amenityId}/resident-bills/${residentBillId}/reject`, payload);
+  const res = await api.post(`/v1/admin/amenities/${amenityId}/resident-bills/${residentBillId}/reject`, payload);
   return {
     data: res.data.data as AmenityResidentPayment,
     message: (res.data.message as string | undefined) ?? "Payment rejected.",

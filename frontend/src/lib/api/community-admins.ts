@@ -189,6 +189,6 @@ export async function updateCommunityAdmin(
     return res.data as { data: CommunityAdminApplicant; message: string };
   }
 
-  const res = await api.patch(`/v1/admin/community-admins/${id}`, payload);
+  const res = await api.post(`/v1/admin/community-admins/${id}`, payload);
   return res.data as { data: CommunityAdminApplicant; message: string };
 }

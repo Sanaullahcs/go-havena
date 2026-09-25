@@ -2,113 +2,101 @@ import { Text, View, StyleSheet, Pressable, FlatList, Platform } from "react-nat
 import React, { useCallback, useMemo } from "react";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
-import { Home, homeStyles } from "../../constants/home-styles";
+import { homeStyles } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { NoticeCoverMedia } from "../notices/notice-cover-thumbnail";
 import HomeSectionHeader from "./section-header";
 import HomeSectionEmpty from "./home-section-empty";
-import { formatEventTimeRange, getNoticeDetailRoute } from "../../services/notices-api";
+import {
+  formatEventRsvpLabel,
+  formatEventTimeRange,
+  formatLongDate,
+  getNoticeDetailRoute,
+} from "../../services/notices-api";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
 import { navigateAppRoute } from "../../utils/app-navigation";
 import { rnShadow } from "../../utils/shadow";
 import { sw, sf } from "../../utils/responsive";
 import { useHomeFrame } from "../../hooks/use-home-frame";
 import { localizedField } from "../../i18n";
-import { getLocaleForLang } from "../../hooks/use-app-locale";
-import { arrowForward } from "../../utils/rtl";
 
 const PEEK = sw(28);
-const CARD_RADIUS = sw(20);
-
-function eventDateParts(dateStr, lang) {
-  if (!dateStr) return null;
-  try {
-    const date = new Date(`${String(dateStr).slice(0, 10)}T12:00:00`);
-    if (Number.isNaN(date.getTime())) return null;
-    const locale = getLocaleForLang(lang);
-    return {
-      month: date.toLocaleDateString(locale, { month: "short" }).replace(".", "").toUpperCase(),
-      day: String(date.getDate()),
-    };
-  } catch {
-    return null;
-  }
-}
+const CARD_RADIUS = sw(16);
 
 function mapEventToCard(notice, lang) {
   return {
     id: String(notice.id),
     title: localizedField(notice, "title") || notice.title || "",
+    date: notice.eventDate
+      ? formatLongDate(notice.eventDate)
+      : notice.eventSchedule ?? notice.timeLabel ?? "",
     time: formatEventTimeRange(notice),
     location: notice.location ?? "",
+    rsvp: formatEventRsvpLabel(notice),
     imageUrl: notice.imageUrl,
-    dateParts: eventDateParts(notice.eventDate ?? notice.event_date, lang),
     notice,
+    lang,
   };
 }
 
-function EventCard({ item, width, height, onPress, t }) {
+function EventCard({ item, width, imageH, onPress }) {
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
-        { width, height },
+        { width },
         pressed && styles.cardPressed,
       ]}
     >
-      <View style={[styles.cardInner, { height }]}>
-        <NoticeCoverMedia
-          fill
-          imageUrl={item.imageUrl}
-          notice={item.notice}
-          kind="event"
-        />
-        <LinearGradient
-          colors={["transparent", "rgba(10,28,48,0.28)", "rgba(10,28,48,0.92)"]}
-          locations={[0.28, 0.55, 1]}
-          style={styles.overlay}
-        >
-          <View style={styles.badge}>
-            <Text style={styles.badgeText} numberOfLines={1}>
-              {t("categories.event").toUpperCase()}
-            </Text>
-          </View>
-          <View style={styles.copy}>
-            <Text style={styles.title} numberOfLines={2}>
-              {item.title}
-            </Text>
-            {item.time ? (
-              <View style={styles.metaRow}>
-                <Feather name="clock" size={sf(12)} color="rgba(255,255,255,0.86)" />
-                <Text style={styles.metaText} numberOfLines={1}>
-                  {item.time}
-                </Text>
-              </View>
-            ) : null}
-            {item.location ? (
-              <View style={styles.metaRow}>
-                <Feather name="map-pin" size={sf(12)} color="rgba(255,255,255,0.86)" />
-                <Text style={styles.metaText} numberOfLines={1}>
-                  {item.location}
-                </Text>
-              </View>
-            ) : null}
-            <View style={styles.ctaBtn}>
-              <Text style={styles.ctaBtnText}>{t("events.joinEvent")}</Text>
-              <Feather name={arrowForward()} size={sf(12)} color={T.navy} />
+      <View style={styles.cardInner}>
+        <View style={[styles.imageWrap, { height: imageH }]}>
+          <NoticeCoverMedia
+            fill
+            imageUrl={item.imageUrl}
+            notice={item.notice}
+            kind="event"
+            backgroundColor={T.mint}
+          />
+          {item.date ? (
+            <View style={styles.dateBadge}>
+              <Feather name="calendar" size={sf(10)} color={T.navy} />
+              <Text style={styles.dateBadgeText}>{item.date}</Text>
             </View>
-          </View>
-        </LinearGradient>
-        {item.dateParts ? (
-          <View style={styles.dateStack}>
-            <Text style={styles.dateMonth}>{item.dateParts.month}</Text>
-            <Text style={styles.dateDay}>{item.dateParts.day}</Text>
-          </View>
-        ) : null}
+          ) : null}
+        </View>
+
+        <View style={styles.body}>
+          <Text style={styles.title} numberOfLines={2}>
+            {item.title}
+          </Text>
+          {item.time ? (
+            <View style={styles.metaRow}>
+              <Feather name="clock" size={sf(12)} color={T.teal} />
+              <Text style={styles.metaText} numberOfLines={1}>
+                {item.time}
+              </Text>
+            </View>
+          ) : null}
+          {item.location ? (
+            <View style={styles.metaRow}>
+              <Feather name="map-pin" size={sf(12)} color={T.teal} />
+              <Text style={styles.metaText} numberOfLines={1}>
+                {item.location}
+              </Text>
+            </View>
+          ) : null}
+          {item.rsvp ? (
+            <View style={styles.metaRow}>
+              <Feather name="users" size={sf(12)} color={T.teal} />
+              <Text style={styles.metaText} numberOfLines={1}>
+                {item.rsvp}
+              </Text>
+            </View>
+          ) : null}
+        </View>
       </View>
     </Pressable>
   );
@@ -128,10 +116,11 @@ export default function HappeningSoon({ items = [] }) {
     const contentWidth = frame.contentWidth;
     const gap = frame.size(12);
     if (events.length <= 1) {
+      const cardWidth = contentWidth;
       return {
         featured: true,
-        cardWidth: contentWidth,
-        cardHeight: Math.round(contentWidth * 0.68),
+        cardWidth,
+        imageH: Math.round(cardWidth * 0.42),
         snap: contentWidth,
         gap,
       };
@@ -140,7 +129,7 @@ export default function HappeningSoon({ items = [] }) {
     return {
       featured: false,
       cardWidth,
-      cardHeight: Math.round(cardWidth * 0.68),
+      imageH: Math.round(cardWidth * 0.42),
       snap: cardWidth + gap,
       gap,
     };
@@ -155,15 +144,16 @@ export default function HappeningSoon({ items = [] }) {
 
   const renderItem = useCallback(
     ({ item }) => (
-      <EventCard
-        item={item}
-        width={layout.cardWidth}
-        height={layout.cardHeight}
-        onPress={() => openEvent(item)}
-        t={t}
-      />
+      <View style={{ width: layout.cardWidth, flexShrink: 0 }}>
+        <EventCard
+          item={item}
+          width={layout.cardWidth}
+          imageH={layout.imageH}
+          onPress={() => openEvent(item)}
+        />
+      </View>
     ),
-    [layout.cardWidth, layout.cardHeight, openEvent, t],
+    [layout.cardWidth, layout.imageH, openEvent],
   );
 
   if (!events.length) {
@@ -188,15 +178,14 @@ export default function HappeningSoon({ items = [] }) {
         <EventCard
           item={events[0]}
           width={layout.cardWidth}
-          height={layout.cardHeight}
+          imageH={layout.imageH}
           onPress={() => openEvent(events[0])}
-          t={t}
         />
       ) : (
         <FlatList
           data={events}
           horizontal
-          style={[styles.carousel, { minHeight: layout.cardHeight }]}
+          style={[styles.carousel, { minHeight: layout.imageH + sw(96) }]}
           showsHorizontalScrollIndicator={false}
           decelerationRate="fast"
           snapToInterval={layout.snap}
@@ -224,111 +213,70 @@ const styles = StyleSheet.create({
     borderRadius: CARD_RADIUS,
     ...(Platform.OS === "ios"
       ? {
-          backgroundColor: T.navy,
-          ...rnShadow({ color: T.navy, offset: { width: 0, height: 6 }, opacity: 0.16, radius: 16 }),
+          backgroundColor: T.white,
+          ...rnShadow({ color: T.navy, offset: { width: 0, height: 3 }, opacity: 0.08, radius: 10 }),
           borderCurve: "continuous",
         }
-      : { elevation: 4 }),
+      : { elevation: 2 }),
   },
-  cardPressed: { opacity: 0.94, transform: [{ scale: 0.985 }] },
+  cardPressed: { opacity: 0.93, transform: [{ scale: 0.98 }] },
   cardInner: {
     borderRadius: CARD_RADIUS,
     overflow: "hidden",
-    backgroundColor: T.navy,
+    backgroundColor: T.white,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: T.border,
     ...(Platform.OS === "ios" ? { borderCurve: "continuous" } : null),
   },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "flex-end",
-    paddingHorizontal: sw(16),
-    paddingBottom: sw(14),
-    paddingTop: sw(16),
+  imageWrap: {
+    width: "100%",
+    backgroundColor: T.mint,
+    position: "relative",
   },
-  badge: {
+  dateBadge: {
     position: "absolute",
-    top: sw(12),
-    start: sw(12),
-    paddingHorizontal: sw(10),
-    paddingVertical: sw(5),
-    borderRadius: 999,
-    backgroundColor: T.teal,
-  },
-  badgeText: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(9),
-    fontWeight: "700",
-    letterSpacing: 0.6,
-    color: T.navy,
-    textTransform: "uppercase",
-    writingDirection: "auto",
-  },
-  dateStack: {
-    position: "absolute",
-    top: sw(12),
-    end: sw(12),
-    minWidth: sw(48),
+    bottom: sw(8),
+    start: sw(8),
+    flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.96)",
-    borderRadius: sw(12),
+    gap: sw(4),
+    backgroundColor: "rgba(255,255,255,0.94)",
     paddingHorizontal: sw(8),
-    paddingTop: sw(6),
-    paddingBottom: sw(5),
+    paddingVertical: sw(4),
+    borderRadius: 999,
   },
-  dateMonth: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(9),
-    lineHeight: sf(11),
-    letterSpacing: 0.7,
-    color: T.teal,
-    fontWeight: "700",
-  },
-  dateDay: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(20),
-    lineHeight: sf(22),
+  dateBadgeText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(9.5),
     color: T.navy,
-    fontWeight: "700",
+    fontWeight: "600",
   },
-  copy: {
-    gap: sw(5),
+  body: {
+    paddingHorizontal: sw(10),
+    paddingTop: sw(10),
+    paddingBottom: sw(12),
   },
   title: {
     fontFamily: Fonts.bold,
-    fontSize: sf(20),
-    lineHeight: sf(25),
-    color: "#FFFFFF",
+    fontSize: sf(13),
+    lineHeight: sf(17),
+    color: T.navy,
     fontWeight: "700",
+    marginBottom: sw(6),
     writingDirection: "auto",
   },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: sw(6),
+    gap: sw(5),
+    marginTop: sw(3),
   },
   metaText: {
-    fontFamily: Fonts.medium,
-    fontSize: sf(12),
-    lineHeight: sf(16),
-    color: "rgba(255,255,255,0.86)",
+    fontFamily: Fonts.regular,
+    fontSize: sf(11),
+    lineHeight: sf(14),
+    color: T.gray,
     flex: 1,
-    writingDirection: "auto",
-  },
-  ctaBtn: {
-    marginTop: sw(6),
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: sw(4),
-    backgroundColor: T.teal,
-    paddingHorizontal: sw(14),
-    paddingVertical: sw(7),
-    borderRadius: 999,
-  },
-  ctaBtnText: {
-    fontFamily: Fonts.bold,
-    fontSize: sf(11.5),
-    color: T.navy,
-    fontWeight: "700",
     writingDirection: "auto",
   },
 });

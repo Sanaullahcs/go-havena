@@ -125,7 +125,7 @@ export async function updateWellnessCategory(
   id: number,
   payload: Partial<Pick<WellnessCategory, "title" | "subtitle" | "icon_key" | "color" | "image_url" | "sort_order" | "status">>,
 ) {
-  const res = await api.patch(`/v1/admin/wellness/categories/${id}`, payload);
+  const res = await api.post(`/v1/admin/wellness/categories/${id}`, payload);
   return res.data.data as WellnessCategory;
 }
 
@@ -169,7 +169,7 @@ export async function createWellnessCourse(payload: {
 }
 
 export async function updateWellnessCourse(id: number, payload: Partial<WellnessCourse>) {
-  const res = await api.patch(`/v1/admin/wellness/courses/${id}`, payload);
+  const res = await api.post(`/v1/admin/wellness/courses/${id}`, payload);
   return res.data.data as WellnessCourse;
 }
 
@@ -200,7 +200,7 @@ export async function updateWellnessLesson(id: number, payload: WellnessLessonPa
     return res.data.data as WellnessLesson;
   }
 
-  const res = await api.patch(`/v1/admin/wellness/lessons/${id}`, buildLessonJsonBody(payload));
+  const res = await api.post(`/v1/admin/wellness/lessons/${id}`, buildLessonJsonBody(payload));
   return res.data.data as WellnessLesson;
 }
 

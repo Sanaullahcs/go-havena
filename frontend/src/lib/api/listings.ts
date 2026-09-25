@@ -43,7 +43,7 @@ export async function createListing(data: ListingFormData) {
 }
 
 export async function updateListing(id: number, data: Partial<ListingFormData>) {
-  const res = await api.patch(`/v1/listings/${id}`, data);
+  const res = await api.post(`/v1/listings/${id}`, data);
   return res.data;
 }
 
@@ -53,11 +53,11 @@ export async function toggleSaveListing(id: number) {
 }
 
 export async function approveListing(id: number) {
-  return api.patch(`/v1/admin/listings/${id}/approve`);
+  return api.post(`/v1/admin/listings/${id}/approve`);
 }
 
 export async function rejectListing(id: number) {
-  return api.patch(`/v1/admin/listings/${id}/reject`);
+  return api.post(`/v1/admin/listings/${id}/reject`);
 }
 
 export async function deleteListing(id: number) {

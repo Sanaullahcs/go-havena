@@ -549,7 +549,12 @@ export default function EventDetailScreen() {
 
         <View style={styles.upcomingEvent}>
           <Text style={styles.eventTitle}>{localizedField(event, "title") || event.title}</Text>
-</View>
+          {scheduleItems.length > 0 ? (
+            <Text style={styles.eventSubtitle} numberOfLines={2}>
+              {scheduleItems.map((item) => item.detail).join(" · ")}
+            </Text>
+          ) : null}
+        </View>
 
         {scheduleItems.length > 0 ? (
           <View style={styles.eventDetailContainer}>
@@ -561,6 +566,13 @@ export default function EventDetailScreen() {
                 detail={item.detail}
               />
             ))}
+          </View>
+        ) : null}
+
+        {(localizedField(event, "body") || event.body) ? (
+          <View style={styles.section}>
+            <Text style={styles.attendeeTitle}>{t("events.aboutThisEvent")}</Text>
+            <Text style={styles.eventDescription}>{localizedField(event, "body") || event.body}</Text>
           </View>
         ) : null}
 
@@ -721,13 +733,6 @@ export default function EventDetailScreen() {
             ) : null}
           </View>
         </View>
-
-        {(localizedField(event, "body") || event.body) ? (
-          <View style={styles.section}>
-            <Text style={styles.attendeeTitle}>{t('events.aboutThisEvent')}</Text>
-            <Text style={styles.eventDescription}>{localizedField(event, "body") || event.body}</Text>
-          </View>
-        ) : null}
 
         {(isOrganizer || showRsvpFooter) ? (
         <View style={styles.footer}>
@@ -987,6 +992,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#101828",
     fontFamily: Fonts.bold,
+  },
+  eventSubtitle: {
+    marginTop: 6,
+    fontSize: sf(13),
+    lineHeight: sf(18),
+    fontWeight: "500",
+    color: "#667085",
+    fontFamily: Fonts.medium,
   },
   eventDescription: {
     fontSize: sf(13),

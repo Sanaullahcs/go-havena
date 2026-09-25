@@ -1,4 +1,4 @@
-import api from "./client";
+import api, { isProxyMethodBlocked } from "./client";
 
 export interface EventWaitlistEntry {
   id: number;
@@ -154,22 +154,29 @@ export async function createAlert(data: Omit<NoticeFormData, "category">) {
 }
 
 export async function updateNotice(id: number, data: Partial<NoticeFormData>) {
-  const res = await api.patch(`/v1/admin/notices/${id}`, data);
+  const res = await api.post(`/v1/admin/notices/${id}`, data);
   return res.data.data as Notice;
 }
 
 export async function approveNotice(id: number) {
-  const res = await api.patch(`/v1/admin/notices/${id}/approve`);
+  const res = await api.post(`/v1/admin/notices/${id}/approve`);
   return res.data.data as Notice;
 }
 
 export async function rejectNotice(id: number, reason?: string) {
-  const res = await api.patch(`/v1/admin/notices/${id}/reject`, { reason });
+  const res = await api.post(`/v1/admin/notices/${id}/reject`, { reason });
   return res.data;
 }
 
 export async function deleteNotice(id: number) {
-  return api.delete(`/v1/admin/notices/${id}`);
+  try {
+    return await api.delete(`/v1/admin/notices/${id}`);
+  } catch (err: unknown) {
+    if (isProxyMethodBlocked(err)) {
+      return api.post(`/v1/admin/notices/${id}/delete`);
+    }
+    throw err;
+  }
 }
 
 export async function uploadNoticeImage(file: File) {

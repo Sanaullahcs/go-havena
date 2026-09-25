@@ -1,4 +1,4 @@
-import api from "./client";
+import api, { isProxyMethodBlocked } from "./client";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { getManagedCommunityId, getUser, isSystemAdminUser } from "@/lib/auth/session";
 
@@ -316,7 +316,7 @@ export async function rejectMember(userId: number, reason: string, communityId?:
 }
 
 export async function approveFamilyAddMemberRequest(requestId: number, communityId?: number) {
-  return api.patch(`/v1/admin/family-add-member-requests/${requestId}/approve`, null, {
+  return api.post(`/v1/admin/family-add-member-requests/${requestId}/approve`, null, {
     params: communityId ? { community_id: communityId } : undefined,
   });
 }
@@ -326,7 +326,7 @@ export async function rejectFamilyAddMemberRequest(
   reason: string,
   communityId?: number,
 ) {
-  return api.patch(
+  return api.post(
     `/v1/admin/family-add-member-requests/${requestId}/reject`,
     { reason },
     {
@@ -340,9 +340,15 @@ export async function suspendMember(userId: number, communityId?: number) {
 }
 
 export async function deleteMember(id: number, communityId?: number) {
-  return api.delete(`/v1/admin/members/${id}`, {
-    params: communityId ? { community_id: communityId } : undefined,
-  });
+  const config = { params: communityId ? { community_id: communityId } : undefined };
+  try {
+    return await api.delete(`/v1/admin/members/${id}`, config);
+  } catch (err: unknown) {
+    if (isProxyMethodBlocked(err)) {
+      return api.post(`/v1/admin/members/${id}/delete`, {}, config);
+    }
+    throw err;
+  }
 }
 
 export function membersToCsv(rows: Member[]): string {

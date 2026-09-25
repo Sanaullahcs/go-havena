@@ -38,6 +38,7 @@ export const Routes = {
   MY_FAMILY: "/screens/my-family",
   TABS_HOME: "/(tabs)/home",
   ADMIN_DASHBOARD: "/screens/admin-dashboard",
+  COMMUNITY_WELCOME: "/screens/community-welcome",
 };
 
 function resetTo(router, pathname, params = {}) {
@@ -272,6 +273,25 @@ export function getPostAuthRoute(user, { role, mode } = {}) {
     pathname: Routes.REGION,
     params: { role: activeRole, ...(user?.phone ? { phone: user.phone } : {}) },
   };
+}
+
+/** Post-login overview is only for accounts that land straight on home. */
+export function shouldShowCommunityWelcome(user) {
+  if (!user || isGuestUser(user)) return false;
+  return getPostAuthRoute(user, { mode: "login" }).pathname === Routes.TABS_HOME;
+}
+
+export function openCommunityWelcome(router) {
+  router.replace(Routes.COMMUNITY_WELCOME);
+}
+
+/** Leave the overview without popping back to the login stack. */
+export function continueFromCommunityWelcome(router, user) {
+  const route = getPostAuthRoute(user, { mode: "login" });
+  if (route.pathname === Routes.TABS_HOME) {
+    markFirstHomeVisit();
+  }
+  router.replace({ pathname: route.pathname, params: route.params ?? {} });
 }
 
 /** Single entry for post-login, post-signup, splash, and biometric auth. */

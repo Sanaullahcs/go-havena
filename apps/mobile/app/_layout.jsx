@@ -278,6 +278,15 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
+          name="screens/community-welcome/index"
+          options={{
+            headerShown: false,
+            gestureEnabled: false,
+            animation: "fade",
+            contentStyle: { flex: 1, backgroundColor: "#E3EDF8" },
+          }}
+        />
+        <Stack.Screen
           name="screens/event-detail/index"
           options={{ headerShown: false }}
         />

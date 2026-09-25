@@ -105,22 +105,22 @@ export async function inviteGuest(payload: GuestForm): Promise<GuestInvitation> 
 }
 
 export async function approveGuest(id: number): Promise<GuestInvitation> {
-  const res = await api.patch(`/v1/admin/guests/${id}/approve`);
+  const res = await api.post(`/v1/admin/guests/${id}/approve`);
   return res.data.data as GuestInvitation;
 }
 
 export async function rejectGuest(id: number, reason?: string): Promise<GuestInvitation> {
-  const res = await api.patch(`/v1/admin/guests/${id}/reject`, reason ? { reason } : {});
+  const res = await api.post(`/v1/admin/guests/${id}/reject`, reason ? { reason } : {});
   return res.data.data as GuestInvitation;
 }
 
 export async function revokeGuest(id: number): Promise<GuestInvitation> {
-  const res = await api.patch(`/v1/admin/guests/${id}/revoke`);
+  const res = await api.post(`/v1/admin/guests/${id}/revoke`);
   return res.data.data as GuestInvitation;
 }
 
 export async function extendGuest(id: number, ends_at: string): Promise<GuestInvitation> {
-  const res = await api.patch(`/v1/admin/guests/${id}/extend`, { ends_at });
+  const res = await api.post(`/v1/admin/guests/${id}/extend`, { ends_at });
   return res.data.data as GuestInvitation;
 }
 

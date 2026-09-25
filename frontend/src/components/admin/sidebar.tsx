@@ -8,7 +8,6 @@ import { isResidentFeatureEnabled } from "@/lib/resident-features";
 import { isPlaidAvailable } from "@/lib/plaid-eligibility";
 import { fetchMessageUnreadCount } from "@/lib/api/messages";
 import { HavenaMark } from "@/components/shared/havena-mark";
-import { NL } from "@/lib/design-tokens";
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
@@ -119,11 +118,11 @@ function NavSection({
               "group relative flex items-center gap-2.5 overflow-hidden rounded-xl px-2.5 py-2 text-[13px] font-medium transition-colors duration-150",
               active
                 ? "text-white shadow-md"
-                : "text-slate-600 hover:bg-[#D1FAF5] hover:text-[#0A2A43]",
+                : "text-slate-600 hover:bg-[#E8F0F7] hover:text-[#1B4F8A]",
             ].join(" ")}
             style={
               active
-                ? { background: NL.fillCta, boxShadow: "0 4px 12px rgba(20, 184, 166, 0.28)" }
+                ? { background: "#1B4F8A", boxShadow: "0 4px 12px rgba(27, 79, 138, 0.22)" }
                 : undefined
             }
           >
@@ -132,7 +131,7 @@ function NavSection({
                 "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all duration-200",
                 active
                   ? "bg-white/15 text-white"
-                  : "text-slate-400 group-hover:scale-105 group-hover:text-[#0D9488]",
+                  : "text-slate-400 group-hover:scale-105 group-hover:text-[#1B4F8A]",
               ].join(" ")}
             >
               <Icon className="h-4 w-4" strokeWidth={2} aria-hidden />
@@ -142,7 +141,7 @@ function NavSection({
               <span
                 className={[
                   "ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
-                  active ? "bg-white text-[#0A2A43]" : "bg-[#14B8A6] text-white",
+                  active ? "bg-white text-[#1B4F8A]" : "bg-[#1B4F8A] text-white",
                 ].join(" ")}
               >
                 {item.badge > 99 ? "99+" : item.badge}

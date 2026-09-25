@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Support\NotificationText;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class NoticeAudienceService
@@ -242,16 +244,25 @@ class NoticeAudienceService
         $rows = $userIds->unique()->map(fn ($uid) => [
             'user_id'    => (int) $uid,
             'type'       => $category === 'emergency' ? 'warning' : 'info',
-            'title'      => $label,
-            'body'       => $summary,
+            'title'      => NotificationText::title($label),
+            'body'       => NotificationText::body($summary),
             'action_url' => "/notices/{$noticeId}",
             'read_at'    => null,
             'created_at' => $now,
             'updated_at' => $now,
         ])->values()->all();
 
-        if ($rows !== []) {
+        if ($rows === []) {
+            return;
+        }
+
+        try {
             DB::table('app_notifications')->insert($rows);
+        } catch (\Throwable $e) {
+            Log::warning('Notice audience notifications failed', [
+                'notice_id' => $noticeId,
+                'error'     => $e->getMessage(),
+            ]);
         }
     }
 

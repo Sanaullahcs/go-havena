@@ -15,35 +15,36 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
- * Village of Nagog Woods — Acton, Massachusetts.
+ * Acton, MA — the town as one community.
  *
- * A real Acton HOA: 277 cedar-and-glass townhouses and garden homes on 60
- * wooded acres off Route 2A/119, designed by The Architects Collaborative in
- * 1972, with its own ZIP code (01718). Its documented amenities — clubhouse,
- * competition lap pool, six tennis courts, fitness centre, trails into the
- * Nagog Hill Conservation Area — are what the seeded amenity set mirrors.
+ * The seeded community is Acton as a whole (West Acton, South Acton, Acton
+ * Centre, and the neighborhoods around Nagog Hill), not a single subdivision.
+ * Residents are fictional personas. Streets, transit, businesses, town
+ * services and public events referenced throughout are real.
  *
- * Residents are fictional personas; the places, streets, transit, businesses
- * and municipal services referenced throughout are real.
- *
- * Community admin: acton@gohavena.com    OTP 221322
- * Resident:        resident.acton@gohavena.com  OTP 221322
+ * Community admin: admin@gohavena.com     OTP 221322
+ * Resident:        resident@gohavena.com  OTP 221322
  *
  * Run: php artisan db:seed --class=Database\Seeders\ActonCommunitySeeder
  */
 class ActonCommunitySeeder extends Seeder
 {
-    public const COMMUNITY_NAME = 'Village of Nagog Woods';
+    public const COMMUNITY_NAME = 'Acton, MA';
 
-    public const COMMUNITY_ADDRESS = '100 Great Elm Way, Acton, MA 01718';
+    /** Previous seed name — used to rename the live row instead of creating a second community. */
+    public const LEGACY_COMMUNITY_NAME = 'Village of Nagog Woods';
+
+    public const COMMUNITY_ADDRESS = '472 Main Street, Acton, MA 01720';
 
     public const REGION_TITLE = 'Massachusetts - Acton';
 
-    public const INVITE_CODE = 'NAGOG-WOODS-26';
+    public const INVITE_CODE = 'ACTON-26';
 
-    public const ADMIN_EMAIL = 'acton@gohavena.com';
+    public const LEGACY_INVITE_CODE = 'NAGOG-WOODS-26';
 
-    public const RESIDENT_EMAIL = 'resident.acton@gohavena.com';
+    public const ADMIN_EMAIL = 'admin@gohavena.com';
+
+    public const RESIDENT_EMAIL = 'resident@gohavena.com';
 
     public const DEMO_OTP = '221322';
 
@@ -51,8 +52,8 @@ class ActonCommunitySeeder extends Seeder
 
     public const RESIDENT_PHONE = '+19785550120';
 
-    /** 277 units at Nagog Woods, about 2.2 people per unit. */
-    public const ESTIMATED_RESIDENTS = 609;
+    /** Town of Acton resident count. */
+    public const ESTIMATED_RESIDENTS = 24021;
 
     public function run(): void
     {
@@ -81,13 +82,11 @@ class ActonCommunitySeeder extends Seeder
 
     public static function communityQuery()
     {
-        return DB::table('communities')->where('name', self::COMMUNITY_NAME);
+        return DB::table('communities')->whereIn('name', [self::COMMUNITY_NAME, self::LEGACY_COMMUNITY_NAME]);
     }
 
     private function seedRegion(): Region
     {
-        $this->call(RegionSeeder::class);
-
         return Region::query()->updateOrCreate(
             ['title' => self::REGION_TITLE],
             [
@@ -102,22 +101,30 @@ class ActonCommunitySeeder extends Seeder
 
     private function seedCommunity(Region $region): Community
     {
-        $community = Community::query()->updateOrCreate(
-            ['name' => self::COMMUNITY_NAME],
-            [
-                'region' => $region->title,
-                'region_id' => $region->id,
-                'address' => self::COMMUNITY_ADDRESS,
-                'description' => 'An award-winning 1972 village of 277 cedar-and-glass townhouses and garden homes set on 60 wooded acres in North Acton, designed by The Architects Collaborative to sit inside the treeline rather than on top of it. Residents share a clubhouse, a competition lap pool and family pool, six tennis courts, a fitness centre, garden plots, and private trails that open onto the Nagog Hill Conservation Area and Nagog Pond. South Acton station on the MBTA Fitchburg Line is a ten-minute drive, and Route 2 puts Cambridge and Boston within reach.',
-                'timezone' => 'America/New_York',
-                'status' => 'active',
-                'review_status' => 'approved',
-                'reviewed_at' => now()->subYear(),
-                'estimated_residents' => self::ESTIMATED_RESIDENTS,
-                'latitude' => 42.5091000,
-                'longitude' => -71.4374000,
-            ],
-        );
+        $attributes = [
+            'name' => self::COMMUNITY_NAME,
+            'region' => $region->title,
+            'region_id' => $region->id,
+            'address' => self::COMMUNITY_ADDRESS,
+            'description' => 'Acton, Massachusetts is a New England town in Middlesex County, about twenty-five miles northwest of Boston. This community is the town as a whole — West Acton, South Acton, Acton Centre, and the neighborhoods around Nagog Hill — not a single subdivision. Residents share Memorial Library and Town Hall on Main Street, NARA Park, the Acton Arboretum, the Bruce Freeman and Assabet River rail trails, and South Acton station on the MBTA Fitchburg Line.',
+            'timezone' => 'America/New_York',
+            'status' => 'active',
+            'review_status' => 'approved',
+            'reviewed_at' => now()->subYear(),
+            'estimated_residents' => self::ESTIMATED_RESIDENTS,
+            'latitude' => 42.4851,
+            'longitude' => -71.4328,
+        ];
+
+        $community = Community::query()
+            ->whereIn('name', [self::COMMUNITY_NAME, self::LEGACY_COMMUNITY_NAME])
+            ->first();
+
+        if ($community) {
+            $community->update($attributes);
+        } else {
+            $community = Community::query()->create($attributes);
+        }
 
         $this->command?->info('  Community ready: '.$community->name);
 
@@ -128,10 +135,13 @@ class ActonCommunitySeeder extends Seeder
     {
         $joinedAt = now()->subMonths(26);
 
+        $existingAdmin = User::query()->where('email', self::ADMIN_EMAIL)->first();
+        $adminRole = $existingAdmin?->role === 'system_admin' ? 'system_admin' : 'community_admin';
+
         $admin = $this->upsertUser(self::ADMIN_EMAIL, [
             'name' => 'Deborah Kelleher',
             'phone' => self::ADMIN_PHONE,
-            'role' => 'community_admin',
+            'role' => $adminRole,
             'community_admin_status' => 'approved',
             'status' => 'active',
         ], $joinedAt);
@@ -139,14 +149,19 @@ class ActonCommunitySeeder extends Seeder
         $this->upsertProfile($admin, [
             'display_name' => 'Deborah Kelleher',
             'avatar_url' => '/storage/seed/avatar-admin.jpg',
-            'utility_bill_url' => '/storage/seed/utility-bill-admin.jpg',
-            'unit_number' => 'Clubhouse — Management Office',
+            'utility_bill_url' => '/storage/seed/notice-maintenance.jpg',
+            'unit_number' => 'Town Hall — Community Office',
             'residence_type' => 'Management',
-            'bio' => 'Community manager for the Village of Nagog Woods. The office is in the clubhouse on Great Elm Way, open Monday to Thursday 9–4 and Friday mornings. I handle notices, amenity bookings, trustee meetings, and the vendor schedule — snow, landscaping, and the cedar siding programme.',
+            'bio' => 'Community manager for Acton, MA. The office is at Town Hall, 472 Main Street, open Monday to Thursday 9–4 and Friday mornings. I handle notices, amenity bookings, town events, and day-to-day resident services.',
             'region_id' => $region->id,
         ], $joinedAt, now()->subMonths(2));
 
         $this->upsertMembership($admin, $community, 'admin', 'approved', $joinedAt);
+
+        CommunityMembership::query()
+            ->where('user_id', $admin->id)
+            ->where('community_id', '!=', $community->id)
+            ->delete();
 
         $this->command?->info('  Community admin ready: '.self::ADMIN_EMAIL);
 
@@ -167,14 +182,19 @@ class ActonCommunitySeeder extends Seeder
         $this->upsertProfile($resident, [
             'display_name' => 'Ananya Raghavan',
             'avatar_url' => '/storage/seed/avatar-11.jpg',
-            'utility_bill_url' => '/storage/seed/utility-bill-resident.jpg',
+            'utility_bill_url' => '/storage/seed/notice-maintenance.jpg',
             'unit_number' => '14 Great Elm Way',
-            'residence_type' => 'Townhouse — 3BR',
-            'bio' => 'Bought into Nagog Woods for the trees and stayed for the neighbours. I take the 7:12 out of South Acton most mornings, run the Nagog Hill loop on weekends, and I am on the tennis ladder in the summer. Happy to answer questions from anyone new to the village.',
+            'residence_type' => 'homeowner',
+            'bio' => 'Acton homeowner. I take the 7:12 out of South Acton most mornings, walk the Arboretum and Nagog Hill on weekends, and I am happy to answer questions from anyone new to town.',
             'region_id' => $region->id,
         ], $joinedAt, now()->subWeeks(3));
 
         $this->upsertMembership($resident, $community, 'member', 'approved', $joinedAt);
+
+        CommunityMembership::query()
+            ->where('user_id', $resident->id)
+            ->where('community_id', '!=', $community->id)
+            ->delete();
 
         $this->command?->info('  Resident ready: '.self::RESIDENT_EMAIL);
     }
@@ -207,7 +227,7 @@ class ActonCommunitySeeder extends Seeder
     }
 
     /**
-     * Fictional households, written against real Acton geography, schools,
+     * Fictional households written against real Acton geography, schools,
      * employers, and commuting patterns.
      *
      * @return list<array<string, string>>
@@ -220,7 +240,7 @@ class ActonCommunitySeeder extends Seeder
                 'email' => 'michael.nagog@havena.app',
                 'phone' => '+19785550121',
                 'unit' => '22 Great Elm Way',
-                'residence' => 'Townhouse — 2BR',
+                'residence' => 'homeowner',
                 'bio' => 'Thirty-one years with Acton DPW before I retired, so I know where every water shutoff in this village is buried. I run the snow-shovel call list for neighbours who cannot get out after a storm.',
                 'avatar' => 'avatar-05.jpg',
                 'status' => 'approved',
@@ -231,8 +251,8 @@ class ActonCommunitySeeder extends Seeder
                 'email' => 'weilin.nagog@havena.app',
                 'phone' => '+19785550122',
                 'unit' => '8 Meadows Edge',
-                'residence' => 'Garden home — 3BR',
-                'bio' => 'Process chemist, Kendall Square. I organise the summer tennis ladder on courts 3 and 4 and I will absolutely put you in the A flight if you say you are "a bit rusty".',
+                'residence' => 'homeowner',
+                'bio' => 'Process chemist in Kendall Square. I organise the summer tennis ladder on courts 3 and 4, and I will absolutely put you in the A flight if you tell me you are "a bit rusty".',
                 'avatar' => 'avatar-03.jpg',
                 'status' => 'approved',
                 'role' => 'member',
@@ -242,7 +262,7 @@ class ActonCommunitySeeder extends Seeder
                 'email' => 'kavita.nagog@havena.app',
                 'phone' => '+19785550123',
                 'unit' => '31 Meadows Edge',
-                'residence' => 'Townhouse — 3BR',
+                'residence' => 'homeowner',
                 'bio' => 'Dentist with a practice on Great Road. Two kids at Douglas School, which means I am at the Elm Street farmers market every Sunday whether I planned to be or not.',
                 'avatar' => 'avatar-09.jpg',
                 'status' => 'approved',
@@ -253,8 +273,8 @@ class ActonCommunitySeeder extends Seeder
                 'email' => 'tom.nagog@havena.app',
                 'phone' => '+19785550124',
                 'unit' => '47 Great Elm Way',
-                'residence' => 'Garden home — 2BR',
-                'bio' => 'Engineer out in Lexington. I ride the Bruce Freeman from the Route 2A bridge down to Concord most Saturdays — glad of company at a civilised pace.',
+                'residence' => 'homeowner',
+                'bio' => 'Engineer out in Lexington. I ride the Bruce Freeman from the Route 2A bridge down to Concord most Saturdays and I am always glad of company at a civilised pace.',
                 'avatar' => 'avatar-07.jpg',
                 'status' => 'approved',
                 'role' => 'member',
@@ -264,8 +284,8 @@ class ActonCommunitySeeder extends Seeder
                 'email' => 'grace.nagog@havena.app',
                 'phone' => '+19785550125',
                 'unit' => '5 Nagog Hill Road',
-                'residence' => 'Townhouse — 2BR',
-                'bio' => 'ICU nurse at Emerson in Concord, mostly nights. If my car is in the visitor bay at 8am it is because I have just got in — please do not have it towed.',
+                'residence' => 'tenant',
+                'bio' => 'ICU nurse at Emerson in Concord, mostly nights. If my car is in the visitor bay at 8am it is because I have only just got in — please do not have it towed.',
                 'avatar' => 'avatar-04.jpg',
                 'status' => 'approved',
                 'role' => 'member',
@@ -275,7 +295,7 @@ class ActonCommunitySeeder extends Seeder
                 'email' => 'daniel.nagog@havena.app',
                 'phone' => '+19785550126',
                 'unit' => '19 Meadows Edge',
-                'residence' => 'Townhouse — 3BR',
+                'residence' => 'homeowner',
                 'bio' => 'I teach orchestra at Acton-Boxborough. Yes, that is a cello you hear through the party wall on Sunday afternoons, and yes, I will stop by seven.',
                 'avatar' => 'avatar-12.jpg',
                 'status' => 'approved',
@@ -286,7 +306,7 @@ class ActonCommunitySeeder extends Seeder
                 'email' => 'meera.nagog@havena.app',
                 'phone' => '+19785550127',
                 'unit' => '26 Nagog Hill Road',
-                'residence' => 'Garden home — 3BR',
+                'residence' => 'homeowner',
                 'bio' => 'Paediatrician. I host the Diwali potluck in the clubhouse each autumn and it has grown every single year since 2019 — bring a dish, bring your neighbours.',
                 'avatar' => 'avatar-01.jpg',
                 'status' => 'approved',
@@ -297,7 +317,7 @@ class ActonCommunitySeeder extends Seeder
                 'email' => 'patrick.nagog@havena.app',
                 'phone' => '+19785550128',
                 'unit' => '52 Great Elm Way',
-                'residence' => 'Townhouse — 2BR',
+                'residence' => 'homeowner',
                 'bio' => 'Carpenter, semi-retired. I have re-trimmed half the cedar in this village and I am happy to tell you, at length, why you should not pressure-wash it.',
                 'avatar' => 'avatar-10.jpg',
                 'status' => 'approved',
@@ -308,7 +328,7 @@ class ActonCommunitySeeder extends Seeder
                 'email' => 'yuki.nagog@havena.app',
                 'phone' => '+19785550129',
                 'unit' => '11 Meadows Edge',
-                'residence' => 'Townhouse — 2BR',
+                'residence' => 'tenant',
                 'bio' => 'Museum educator down on Main Street. I bring the leftover build-a-bridge kits home, so if your kids want to make a mess on the clubhouse tables, say the word.',
                 'avatar' => 'avatar-02.jpg',
                 'status' => 'approved',
@@ -319,7 +339,7 @@ class ActonCommunitySeeder extends Seeder
                 'email' => 'rosa.nagog@havena.app',
                 'phone' => '+19785550130',
                 'unit' => '38 Great Elm Way',
-                'residence' => 'Garden home — 2BR',
+                'residence' => 'homeowner',
                 'bio' => 'I cater small events around Acton and Concord. Two of the garden plots on Meadows Edge are mine — the tomatoes are for the family, the basil is fair game.',
                 'avatar' => 'avatar-06.jpg',
                 'status' => 'approved',
@@ -330,8 +350,8 @@ class ActonCommunitySeeder extends Seeder
                 'email' => 'linda.nagog@havena.app',
                 'phone' => '+19785550131',
                 'unit' => '44 Meadows Edge',
-                'residence' => 'Townhouse — 2BR',
-                'bio' => 'Chair of the landscape committee and a volunteer at the Arboretum on Taylor Road. Ask me about the invasive glossy buckthorn along the west trail; I will not stop.',
+                'residence' => 'homeowner',
+                'bio' => 'Chair of the landscape committee and a volunteer at the Arboretum on Taylor Road. Ask me about the glossy buckthorn along the west trail; I will not stop.',
                 'avatar' => 'avatar-14.jpg',
                 'status' => 'approved',
                 'role' => 'member',
@@ -341,7 +361,7 @@ class ActonCommunitySeeder extends Seeder
                 'email' => 'hemant.nagog@havena.app',
                 'phone' => '+19785550132',
                 'unit' => '3 Nagog Hill Road',
-                'residence' => 'Townhouse — 3BR',
+                'residence' => 'homeowner',
                 'bio' => 'Closed on our unit three weeks ago and still finding light switches. Moved out from Waltham for the schools and the quiet.',
                 'avatar' => 'avatar-13.jpg',
                 'status' => 'pending',
@@ -352,7 +372,7 @@ class ActonCommunitySeeder extends Seeder
                 'email' => 'kevin.nagog@havena.app',
                 'phone' => '+19785550133',
                 'unit' => '29 Great Elm Way',
-                'residence' => 'Townhouse — 2BR',
+                'residence' => 'tenant',
                 'bio' => 'Suspended pending a trustee hearing on repeated quiet-hours complaints.',
                 'avatar' => 'avatar-08.jpg',
                 'status' => 'banned',
@@ -363,16 +383,25 @@ class ActonCommunitySeeder extends Seeder
 
     private function seedInviteCode(Community $community, User $admin): void
     {
-        InviteCode::query()->updateOrCreate(
-            ['code' => self::INVITE_CODE],
-            [
-                'community_id' => $community->id,
-                'created_by' => $admin->id,
-                'max_uses' => null,
-                'used_count' => 38,
-                'expires_at' => null,
-            ],
-        );
+        $invite = InviteCode::query()
+            ->where('community_id', $community->id)
+            ->orWhereIn('code', [self::INVITE_CODE, self::LEGACY_INVITE_CODE])
+            ->first();
+
+        $payload = [
+            'community_id' => $community->id,
+            'created_by' => $admin->id,
+            'code' => self::INVITE_CODE,
+            'max_uses' => null,
+            'used_count' => 38,
+            'expires_at' => null,
+        ];
+
+        if ($invite) {
+            $invite->update($payload);
+        } else {
+            InviteCode::query()->create($payload);
+        }
     }
 
     private function seedBilling(Community $community): void
@@ -383,7 +412,7 @@ class ActonCommunitySeeder extends Seeder
                 'plan_slug' => 'growth',
                 'billing_interval' => 'year',
                 'status' => CommunitySubscription::STATUS_ACTIVE,
-                'seat_limit' => 700,
+                'seat_limit' => 25000,
                 'extra_seats' => 0,
                 'estimated_residents' => self::ESTIMATED_RESIDENTS,
                 'current_period_start' => now()->subMonths(4),

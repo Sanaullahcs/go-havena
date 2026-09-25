@@ -18,6 +18,8 @@ use App\Support\NoticeSchedule;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Database\QueryException;
 
 class NoticeController extends Controller
@@ -475,7 +477,7 @@ class NoticeController extends Controller
             'title'          => 'required|string|max:200',
             'body'           => 'required|string',
             'location'       => 'nullable|string|max:255',
-            'image_url'      => 'nullable|string|max:512',
+            'image_url'      => 'nullable|string|max:2048',
             'event_date'     => 'required|date',
             'event_time'     => 'required|string|max:20',
             'event_time_end' => 'required|string|max:20',
@@ -564,14 +566,7 @@ class NoticeController extends Controller
             return response()->json(['message' => 'Approved community membership required'], 403);
         }
 
-        $request->validate(['image' => 'required|image|max:5120']);
-
-        $relative = $this->storeImage($request->file('image'));
-
-        return response()->json([
-            'data'    => ['image_url' => MediaUrl::toPublic($relative, $request)],
-            'message' => 'Image uploaded',
-        ]);
+        return $this->storeUploadedCover($request);
     }
 
     /** POST /v1/admin/notices */
@@ -613,7 +608,7 @@ class NoticeController extends Controller
             'category'       => 'sometimes|string',
             'body'           => 'sometimes|string',
             'location'       => 'nullable|string|max:255',
-            'image_url'      => 'nullable|string|max:512',
+            'image_url'      => 'nullable|string|max:2048',
             'event_date'     => 'nullable|date',
             'event_time'     => 'nullable|string|max:20',
             'event_time_end' => 'nullable|string|max:20',
@@ -909,14 +904,7 @@ class NoticeController extends Controller
     {
         $this->ensureCanManageContent();
 
-        $request->validate(['image' => 'required|image|max:5120']);
-
-        $relative = $this->storeImage($request->file('image'));
-
-        return response()->json([
-            'data'    => ['image_url' => MediaUrl::toPublic($relative, $request)],
-            'message' => 'Image uploaded',
-        ]);
+        return $this->storeUploadedCover($request);
     }
 
     private function createItem(Request $request, ?string $forcedCategory)
@@ -930,7 +918,7 @@ class NoticeController extends Controller
             'category'           => $forcedCategory ? 'nullable|string' : 'required|string',
             'body'               => 'required|string',
             'location'           => 'nullable|string|max:255',
-            'image_url'          => 'nullable|string|max:512',
+            'image_url'          => 'nullable|string|max:2048',
             'event_date'         => 'nullable|date',
             'event_time'         => 'nullable|string|max:20',
             'event_time_end'     => 'nullable|string|max:20',
@@ -1695,11 +1683,72 @@ class NoticeController extends Controller
         }
     }
 
+    private function storeUploadedCover(Request $request)
+    {
+        $request->validate(
+            ['image' => 'required|image|mimes:jpeg,jpg,png,webp,gif|max:5120'],
+            [
+                'image.required' => 'Please choose a cover image.',
+                'image.image'    => 'The cover must be a JPG, PNG, WEBP, or GIF image.',
+                'image.mimes'    => 'The cover must be a JPG, PNG, WEBP, or GIF image.',
+                'image.max'      => 'The cover image must be 5 MB or smaller.',
+            ],
+        );
+
+        $file = $request->file('image');
+        if (! $file instanceof UploadedFile || ! $file->isValid()) {
+            $code = $file instanceof UploadedFile ? $file->getError() : UPLOAD_ERR_NO_FILE;
+
+            return response()->json(['message' => $this->phpUploadErrorMessage($code)], 422);
+        }
+
+        try {
+            $relative = $this->storeImage($file);
+        } catch (\Throwable $e) {
+            Log::error('Notice image upload failed', ['error' => $e->getMessage()]);
+
+            return response()->json(['message' => $this->imageStoreFailureMessage($e)], 422);
+        }
+
+        return response()->json([
+            'data'    => ['image_url' => MediaUrl::toPublic($relative, $request)],
+            'message' => 'Image uploaded',
+        ]);
+    }
+
     private function storeImage(UploadedFile $file): string
     {
+        Storage::disk('public')->makeDirectory('notices');
         $path = $file->store('notices', 'public');
+        if (! is_string($path) || $path === '') {
+            throw new \RuntimeException('The server could not save the cover image.');
+        }
 
         return MediaUrl::normalize('/storage/'.$path) ?? '/storage/'.$path;
+    }
+
+    private function phpUploadErrorMessage(int $code): string
+    {
+        return match ($code) {
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'This image is larger than the server allows. Use a JPG or PNG under 5 MB.',
+            UPLOAD_ERR_PARTIAL => 'The image upload was interrupted. Please try again.',
+            UPLOAD_ERR_NO_FILE => 'Please choose a cover image.',
+            UPLOAD_ERR_NO_TMP_DIR, UPLOAD_ERR_CANT_WRITE => 'The server could not save the cover image. Please try again or contact support.',
+            default => 'The cover image could not be uploaded. Please try a smaller JPG or PNG.',
+        };
+    }
+
+    private function imageStoreFailureMessage(\Throwable $e): string
+    {
+        $raw = $e->getMessage();
+        if (stripos($raw, 'memory') !== false) {
+            return 'This image is too large for the server to process. Try a smaller JPG or PNG under 2 MB.';
+        }
+        if (stripos($raw, 'permission') !== false || stripos($raw, 'unable to write') !== false) {
+            return 'The server could not save the cover image. Please try again or contact support.';
+        }
+
+        return 'The cover image could not be uploaded. Please try a smaller JPG or PNG.';
     }
 
     private function notifyOrganizerEventRsvp(object $notice, $member, string $change, int $totalGoing): void
@@ -1736,7 +1785,14 @@ class NoticeController extends Controller
 
     private function notifyResidentsForNotice(object $notice, string $title): void
     {
-        NoticeAudienceService::notifyForNotice($notice, $title);
+        try {
+            NoticeAudienceService::notifyForNotice($notice, $title);
+        } catch (\Throwable $e) {
+            Log::warning('Notice resident notify failed', [
+                'notice_id' => $notice->id ?? null,
+                'error'     => $e->getMessage(),
+            ]);
+        }
     }
 
     private function syncNoticeNotifications(object $notice): void

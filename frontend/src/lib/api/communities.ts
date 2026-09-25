@@ -184,7 +184,7 @@ export async function rejectCommunityRequest(id: number, reason?: string) {
 }
 
 export async function updateCommunityStatus(id: number, status: "active" | "inactive") {
-  const res = await api.patch(`/v1/admin/communities/${id}/status`, { status });
+  const res = await api.post(`/v1/admin/communities/${id}/status`, { status });
   return res.data as { data: AdminCommunity; message: string };
 }
 

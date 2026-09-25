@@ -250,6 +250,18 @@ export default function NoticeFormModal({
 
   const handleImagePick = (file: File | null) => {
     if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      const message = "The cover must be a JPG, PNG, WEBP, or GIF image.";
+      setLocalError(message);
+      toastError(message);
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      const message = "The cover image must be 5 MB or smaller.";
+      setLocalError(message);
+      toastError(message);
+      return;
+    }
     setImageFile(file);
     setPreview(URL.createObjectURL(file));
     setLocalError(null);
@@ -292,33 +304,38 @@ export default function NoticeFormModal({
           ? toScheduleApiDateTime(form.scheduled_at_date, form.scheduled_at_time)
           : undefined;
 
-      await onSubmit({
-        title: form.title.trim(),
-        body: form.body.trim(),
-        category: lockedCategory ?? form.category,
-        location: isAlertForm ? undefined : form.location.trim() || undefined,
-        image_url: imageUrl,
-        event_date: form.event_date || undefined,
-        event_time: form.event_time.trim() || undefined,
-        event_time_end: form.event_time_end.trim() || undefined,
-        event_capacity:
-          isEventCategory && form.event_capacity.trim()
-            ? Number(form.event_capacity.trim())
-            : isEventCategory
-              ? null
-              : undefined,
-        requires_rsvp: isEventCategory ? form.requires_rsvp : undefined,
-        is_pinned: supportsAdminOptions && !isAlertForm ? form.is_pinned : undefined,
-        scheduled_at: scheduledAt,
-        status: supportsAdminOptions && form.schedule_later ? "draft" : status,
-        ...(isNoticeForm
-          ? {
-              audience_type: form.audience_type,
-              recipient_user_ids:
-                form.audience_type === "selected" ? form.recipient_user_ids : undefined,
-            }
-          : {}),
-      });
+      try {
+        await onSubmit({
+          title: form.title.trim(),
+          body: form.body.trim(),
+          category: lockedCategory ?? form.category,
+          location: isAlertForm ? undefined : form.location.trim() || undefined,
+          image_url: imageUrl,
+          event_date: form.event_date || undefined,
+          event_time: form.event_time.trim() || undefined,
+          event_time_end: form.event_time_end.trim() || undefined,
+          event_capacity:
+            isEventCategory && form.event_capacity.trim()
+              ? Number(form.event_capacity.trim())
+              : isEventCategory
+                ? null
+                : undefined,
+          requires_rsvp: isEventCategory ? form.requires_rsvp : undefined,
+          is_pinned: supportsAdminOptions && !isAlertForm ? form.is_pinned : undefined,
+          scheduled_at: scheduledAt,
+          status: supportsAdminOptions && form.schedule_later ? "draft" : status,
+          ...(isNoticeForm
+            ? {
+                audience_type: form.audience_type,
+                recipient_user_ids:
+                  form.audience_type === "selected" ? form.recipient_user_ids : undefined,
+              }
+            : {}),
+        });
+      } catch (err) {
+        setLocalError(apiError(err));
+        throw err;
+      }
     } finally {
       setUploading(false);
     }

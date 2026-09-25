@@ -56,6 +56,6 @@ export async function updateSubscriptionCoupon(id: number, data: Record<string, 
 }
 
 export async function setSubscriptionCouponStatus(id: number, isActive: boolean): Promise<SubscriptionCoupon> {
-  const res = await api.patch(`/v1/admin/subscription-coupons/${id}/status`, { is_active: isActive });
+  const res = await api.post(`/v1/admin/subscription-coupons/${id}/status`, { is_active: isActive });
   return res.data.data as SubscriptionCoupon;
 }

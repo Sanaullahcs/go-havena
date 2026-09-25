@@ -63,7 +63,7 @@ export async function createBusiness(data: BusinessFormData) {
 }
 
 export async function updateBusiness(id: number, data: Partial<BusinessFormData>) {
-  const res = await api.patch(`/v1/businesses/${id}`, data);
+  const res = await api.post(`/v1/businesses/${id}`, data);
   return res.data.data as Business;
 }
 
@@ -72,17 +72,17 @@ export async function deleteBusiness(id: number) {
 }
 
 export async function approveBusiness(id: number) {
-  const res = await api.patch(`/v1/admin/businesses/${id}/approve`);
+  const res = await api.post(`/v1/admin/businesses/${id}/approve`);
   return res.data as { data: Business; meta?: { deals_reactivated?: number }; message?: string };
 }
 
 export async function reapproveBusiness(id: number) {
-  const res = await api.patch(`/v1/admin/businesses/${id}/reapprove`);
+  const res = await api.post(`/v1/admin/businesses/${id}/reapprove`);
   return res.data as { data: Business; meta?: { deals_reactivated?: number }; message?: string };
 }
 
 export async function rejectBusiness(id: number) {
-  const res = await api.patch(`/v1/admin/businesses/${id}/reject`);
+  const res = await api.post(`/v1/admin/businesses/${id}/reject`);
   return res.data as { data: Business; meta?: { deals_disabled?: number }; message?: string };
 }
 

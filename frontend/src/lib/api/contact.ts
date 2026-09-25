@@ -67,6 +67,6 @@ export async function fetchContactSubmission(id: number) {
 }
 
 export async function updateContactSubmission(id: number, status: ContactStatus) {
-  const res = await api.patch(`/v1/admin/contact-submissions/${id}`, { status });
+  const res = await api.post(`/v1/admin/contact-submissions/${id}`, { status });
   return res.data as { data: ContactSubmission; message: string };
 }

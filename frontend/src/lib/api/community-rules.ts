@@ -1,4 +1,4 @@
-import api from "./client";
+import api, { isProxyMethodBlocked } from "./client";
 
 export interface CommunityRule {
   id: number;
@@ -58,12 +58,20 @@ export async function createRule(payload: RuleForm): Promise<CommunityRule> {
 }
 
 export async function updateRule(id: number, payload: Partial<RuleForm>): Promise<CommunityRule> {
-  const res = await api.patch(`/v1/admin/community-rules/${id}`, payload);
+  const res = await api.post(`/v1/admin/community-rules/${id}`, payload);
   return res.data.data as CommunityRule;
 }
 
 export async function deleteRule(id: number): Promise<void> {
-  await api.delete(`/v1/admin/community-rules/${id}`);
+  try {
+    await api.delete(`/v1/admin/community-rules/${id}`);
+  } catch (err: unknown) {
+    if (isProxyMethodBlocked(err)) {
+      await api.post(`/v1/admin/community-rules/${id}/delete`);
+      return;
+    }
+    throw err;
+  }
 }
 
 export async function createRuleCategory(name: string): Promise<RuleCategory> {

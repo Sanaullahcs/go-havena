@@ -8,7 +8,7 @@ export const PRODUCTION_API_URL = "https://apis.gohavena.com/api/v1";
 /** Android emulator → host machine (`php artisan serve --host=0.0.0.0 --port=8000`) */
 const DEV_ANDROID_EMULATOR = "http://10.0.2.2:8000/api/v1";
 const DEV_IOS_SIMULATOR = "http://127.0.0.1:8000/api/v1";
-const DEFAULT_LAN_PORT = "8000";
+const DEFAULT_LAN_PORT = process.env.EXPO_PUBLIC_API_PORT?.trim() || "8000";
 
 /** Dev/test credentials — use on login & signup in local builds */
 export const DEV_TEST_EMAIL = "test.resident@havena.app";

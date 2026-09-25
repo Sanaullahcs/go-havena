@@ -16,15 +16,15 @@ export async function fetchReports(params?: Record<string, unknown>) {
 }
 
 export async function resolveReport(id: number, note?: string) {
-  return api.patch(`/v1/admin/reports/${id}/resolve`, { resolution_note: note });
+  return api.post(`/v1/admin/reports/${id}/resolve`, { resolution_note: note });
 }
 
 export async function escalateReport(id: number) {
-  return api.patch(`/v1/admin/reports/${id}/escalate`);
+  return api.post(`/v1/admin/reports/${id}/escalate`);
 }
 
 export async function dismissReport(id: number) {
-  return api.patch(`/v1/admin/reports/${id}/dismiss`);
+  return api.post(`/v1/admin/reports/${id}/dismiss`);
 }
 
 export async function fileReport(data: { type: string; title: string; description: string; severity?: string }) {

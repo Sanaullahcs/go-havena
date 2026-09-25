@@ -84,6 +84,17 @@ api.interceptors.response.use(
 
 export default api;
 
+/** Apache on gohavena.com blocks PATCH/DELETE with an HTML 403 before Laravel sees the request. */
+export function isProxyMethodBlocked(err: unknown): boolean {
+  if (!axios.isAxiosError(err)) return false;
+  const status = err.response?.status;
+  if (status === 405) return true;
+  if (status !== 403) return false;
+  const data = err.response?.data;
+  return typeof data === "string" || data == null;
+}
+
+
 /** Legacy compat — some pages use ApiError class for instanceof checks */
 export class ApiError extends Error {
   status: number;
@@ -144,6 +155,10 @@ export function apiError(err: unknown): string {
       return "Request timed out. The server may be slow or unavailable — try again.";
     }
     if (!err.response) {
+      const host = (err.config?.baseURL ?? "").toLowerCase();
+      if (host.includes("gohavena.com")) {
+        return "Cannot reach Havena right now. Check your connection and try again.";
+      }
       return "Cannot reach the API server. Make sure the backend is running (npm run backend).";
     }
     const data = err.response?.data as { message?: string; errors?: Record<string, string[]> } | undefined;
@@ -155,10 +170,20 @@ export function apiError(err: unknown): string {
       if (Array.isArray(first) && first[0]) return first[0] as string;
     }
     if (message && message !== genericValidation && !isInternalDbError) return message;
+    if (err.response?.status === 413) {
+      return "This image is too large for the server. Use a JPG or PNG under 5 MB.";
+    }
     if (err.response?.status === 403) {
-      return "You do not have permission to view this page.";
+      if (typeof err.response.data === "string") {
+        return "This action was blocked by the server. Refresh and try again.";
+      }
+      return "You do not have permission to do that.";
     }
     if (err.response?.status === 500 || isInternalDbError) {
+      const url = String(err.config?.url ?? "");
+      if (url.includes("notices") || url.includes("upload-image")) {
+        return "Could not save this notice. Please try again, or use a smaller image.";
+      }
       return "Server error — please try again or contact support.";
     }
   }
