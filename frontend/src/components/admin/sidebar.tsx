@@ -28,6 +28,7 @@ import {
   MessageSquare,
   Newspaper,
   Scale,
+  Smartphone,
   Store,
   Ticket,
   TriangleAlert,
@@ -58,6 +59,7 @@ const systemAdminNav: NavItem[] = [
   { href: "/admin/billing-plans", label: "Billing & Plans", icon: CreditCard },
   { href: "/admin/billing-coupons", label: "Coupons", icon: Ticket },
   { href: "/admin/referrals", label: "Referrals", icon: Gift },
+  { href: "/admin/app-version", label: "App Version", icon: Smartphone },
   { href: "/admin/activity", label: "Activity Logs", icon: Activity },
 ];
 

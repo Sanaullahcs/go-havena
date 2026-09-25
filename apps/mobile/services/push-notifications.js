@@ -1,11 +1,11 @@
 import i18n from "../i18n";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import * as Device from "expo-device";
-import { AppState } from "react-native";
-import { Platform } from "react-native";
+import { AppState, Linking, Platform } from "react-native";
 import { registerDevice, unregisterDevice } from "./devices-api";
 import { getNoticeDetailRoute } from "./notices-api";
 import { resolveNotificationRoute } from "./notifications-api";
+import { getNativePlatform } from "./app-version";
 import {
   getPushNotificationsEnabled,
   getStoredPushToken,
@@ -281,6 +281,22 @@ export async function getInitialNotificationResponse() {
 
 export function handleNotificationResponse(response) {
   const data = response?.notification?.request?.content?.data ?? {};
+  const kind = String(data.kind || data.type || "");
+  if (kind === "app_update") {
+    const platform = getNativePlatform();
+    const storeUrl =
+      (platform === "ios"
+        ? data.ios_store_url || data.store_url || data.action_url || data.actionUrl
+        : data.android_store_url || data.store_url || data.action_url || data.actionUrl) ||
+      data.action_url ||
+      data.actionUrl ||
+      null;
+    if (storeUrl) {
+      Linking.openURL(String(storeUrl)).catch(() => {});
+    }
+    return null;
+  }
+
   const route = resolvePushNotificationRoute(data);
   if (!route?.pathname) return null;
   return route;
@@ -300,6 +316,12 @@ export async function addPushNotificationResponseListener(handler) {
 }
 
 export function resolvePushNotificationRoute(data = {}) {
+  const kind = String(data.kind || data.type || "");
+  if (kind === "app_update") {
+    // External store link — handled in handleNotificationResponse.
+    return null;
+  }
+
   const noticeId = data.noticeId ?? data.notice_id;
   if (noticeId) {
     const category =
@@ -310,8 +332,13 @@ export function resolvePushNotificationRoute(data = {}) {
   }
 
   if (data.action_url || data.actionUrl) {
+    const action = String(data.action_url ?? data.actionUrl);
+    if (/^https?:\/\//i.test(action) && /apps\.apple\.com|play\.google\.com|itunes\.apple\.com/i.test(action)) {
+      Linking.openURL(action).catch(() => {});
+      return null;
+    }
     const route = resolveNotificationRoute({
-      actionUrl: data.action_url ?? data.actionUrl,
+      actionUrl: action,
       title: data.title ?? "",
       description: data.body ?? "",
       category: data.category ?? null,

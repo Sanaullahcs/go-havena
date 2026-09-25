@@ -20,6 +20,7 @@ import LocationScopeProvider from "../providers/location-scope-provider";
 import GuestSessionGuard from "../components/auth/guest-session-guard";
 import PushNotificationBootstrap from "../components/notifications/push-notification-bootstrap";
 import InAppNotificationMonitor from "../components/notifications/in-app-notification-monitor";
+import AppUpdateGate from "../components/app-update/app-update-gate";
 import { NotificationBannerProvider } from "../providers/notification-banner-provider";
 import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import { NavigationBar } from "expo-navigation-bar";
@@ -124,6 +125,8 @@ export default function RootLayout() {
     <NotificationBannerProvider>
     <ImageSourcePickerProvider>
     <GuestSessionGuard />
+    <AppUpdateGate />
+    {/* Expo Go cannot register a production push token. EAS development, preview, and production builds mount this. */}
     {isExpoGo() ? null : <PushNotificationBootstrap />}
     <InAppNotificationMonitor />
     <ThemeProvider value={DefaultTheme}>
