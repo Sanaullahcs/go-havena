@@ -29,6 +29,9 @@ class EnsureSystemAdminCommand extends Command
             ],
         );
 
+        // Re-hash even when updateOrCreate skipped an unchanged row (fixes stale/plain passwords).
+        $user->forceFill(['password' => $password, 'status' => 'active', 'role' => 'system_admin'])->save();
+
         if (! Auth::attempt(['email' => $email, 'password' => $password])) {
             $this->error("System admin was saved but login verification failed for {$email}.");
 

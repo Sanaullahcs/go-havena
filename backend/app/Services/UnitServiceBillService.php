@@ -109,6 +109,7 @@ class UnitServiceBillService
             ) {
                 $now = now();
                 foreach ($units as $unit) {
+                    [$unit, $contactId] = $this->prepareUnitForBilling($unit);
                     $exists = DB::table('unit_service_bills')
                         ->where('service_id', $service->id)
                         ->where('unit_id', $unit->id)
@@ -118,8 +119,6 @@ class UnitServiceBillService
                         $skipped[] = (int) $unit->id;
                         continue;
                     }
-
-                    $contactId = $unit->billing_contact_user_id ? (int) $unit->billing_contact_user_id : null;
                     if (! $contactId) {
                         $missingContacts[] = [
                             'unit_id' => (int) $unit->id,
@@ -323,6 +322,7 @@ class UnitServiceBillService
 
     public function listResidentBills(int $communityId, int $userId, Request $request): array
     {
+        $this->syncDueAutomaticBillsForBillingContact($communityId, $userId);
         $this->backfillMissingSubscriptionBills($communityId, $userId);
         app(UnitServiceBillReminderService::class)->markOverdue($userId, $communityId);
         $this->attachCurrentBillingContacts($communityId);
@@ -872,7 +872,7 @@ class UnitServiceBillService
         $title = trim((string) ($data['title'] ?? (
             $isOneTime ? $service->name.' — one-time fee' : $this->defaultTitle($service, $period)
         )));
-        $contactId = $unit->billing_contact_user_id ? (int) $unit->billing_contact_user_id : null;
+        [$unit, $contactId] = $this->prepareUnitForBilling($unit);
         $now = now();
 
         $billId = (int) DB::table('unit_service_bills')->insertGetId([
@@ -914,6 +914,84 @@ class UnitServiceBillService
         }
 
         return $billId;
+    }
+
+    /** Create missing current-period bills when a unit gains a billing contact after services were published. */
+    public function syncDueAutomaticBillsForUnit(int $unitId, int $communityId, int $actorId = 0): void
+    {
+        $units = app(UnitAssignmentService::class);
+        $unit = $units->refreshBillingContactIfStale($unitId);
+        if (! $unit
+            || (int) ($unit->community_id ?? 0) !== $communityId
+            || ($unit->kind ?? '') !== UnitAssignmentService::KIND_RESIDENTIAL
+            || ($unit->status ?? '') !== UnitAssignmentService::STATUS_ACTIVE) {
+            return;
+        }
+
+        if (! $units->effectiveBillingContactUserId($unit)) {
+            return;
+        }
+
+        $services = DB::table('property_services')
+            ->where('community_id', $communityId)
+            ->where('status', PropertyServiceCatalogService::STATUS_ACTIVE)
+            ->where('application_type', PropertyServiceCatalogService::TYPE_AUTOMATIC)
+            ->where('auto_generate_bills', true)
+            ->get();
+
+        foreach ($services as $service) {
+            if (! $this->currentPeriodIsDue($service)) {
+                continue;
+            }
+
+            $period = $this->currentBillingPeriod($service);
+            $exists = DB::table('unit_service_bills')
+                ->where('service_id', $service->id)
+                ->where('unit_id', $unitId)
+                ->where('billing_period', $period)
+                ->exists();
+            if ($exists) {
+                continue;
+            }
+
+            try {
+                $this->generateBillForUnit($service, $unit, $actorId, ['billing_period' => $period]);
+            } catch (ValidationException) {
+                // Another request may have created the same period bill.
+            }
+        }
+    }
+
+    public function syncDueAutomaticBillsForBillingContact(int $communityId, int $userId): void
+    {
+        $unitIds = DB::table('units')
+            ->where('community_id', $communityId)
+            ->where('kind', UnitAssignmentService::KIND_RESIDENTIAL)
+            ->where('status', UnitAssignmentService::STATUS_ACTIVE)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        foreach ($unitIds as $unitId) {
+            $unit = DB::table('units')->find($unitId);
+            if (! $unit) {
+                continue;
+            }
+            if (app(UnitAssignmentService::class)->effectiveBillingContactUserId($unit) !== $userId) {
+                continue;
+            }
+            $this->syncDueAutomaticBillsForUnit($unitId, $communityId, $userId);
+        }
+    }
+
+    /** @return array{0: object, 1: ?int} */
+    private function prepareUnitForBilling(object $unit): array
+    {
+        $units = app(UnitAssignmentService::class);
+        $fresh = $units->refreshBillingContactIfStale((int) $unit->id) ?? $unit;
+        $contactId = $units->effectiveBillingContactUserId($fresh);
+
+        return [$fresh, $contactId];
     }
 
     private function backfillMissingSubscriptionBills(int $communityId, int $userId): void
@@ -1307,19 +1385,57 @@ class UnitServiceBillService
 
     private function attachCurrentBillingContacts(int $communityId): void
     {
-        $rows = DB::table('unit_service_bills as usb')
-            ->join('units', 'units.id', '=', 'usb.unit_id')
-            ->where('usb.community_id', $communityId)
-            ->whereNull('usb.billing_contact_user_id')
-            ->whereNotNull('units.billing_contact_user_id')
-            ->select('usb.id', 'units.billing_contact_user_id')
-            ->get();
+        $units = app(UnitAssignmentService::class);
+        foreach ($units->eligibleResidentialUnits($communityId) as $unit) {
+            $contactId = $units->effectiveBillingContactUserId($unit);
+            if (! $contactId) {
+                continue;
+            }
 
-        foreach ($rows as $row) {
-            DB::table('unit_service_bills')->where('id', $row->id)->update([
-                'billing_contact_user_id' => (int) $row->billing_contact_user_id,
-                'updated_at' => now(),
-            ]);
+            $billIds = DB::table('unit_service_bills')
+                ->where('community_id', $communityId)
+                ->where('unit_id', (int) $unit->id)
+                ->where(function ($query) use ($contactId) {
+                    $query->whereNull('billing_contact_user_id')
+                        ->orWhere('billing_contact_user_id', '!=', $contactId);
+                })
+                ->whereIn('status', [
+                    self::STATUS_UNPAID,
+                    self::STATUS_OVERDUE,
+                    self::STATUS_ACKNOWLEDGED,
+                    self::STATUS_REJECTED,
+                    self::STATUS_PENDING,
+                ])
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            foreach ($billIds as $billId) {
+                $bill = DB::table('unit_service_bills')->find($billId);
+                if (! $bill) {
+                    continue;
+                }
+
+                DB::table('unit_service_bills')->where('id', $billId)->update([
+                    'billing_contact_user_id' => $contactId,
+                    'updated_at' => now(),
+                ]);
+
+                $bill = DB::table('unit_service_bills')->find($billId);
+                if (! $bill || ! empty($bill->notice_id)) {
+                    continue;
+                }
+
+                $service = DB::table('property_services')->find($bill->service_id);
+                if ($service) {
+                    $this->publishFinanceNotice(
+                        $service,
+                        $bill,
+                        (int) ($bill->created_by ?? $contactId),
+                        (string) ($unit->unit_number ?? ''),
+                    );
+                }
+            }
         }
     }
 
