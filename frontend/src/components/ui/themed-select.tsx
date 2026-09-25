@@ -15,6 +15,8 @@ type ThemedSelectProps = {
   placeholder?: string;
   fieldKey?: string;
   error?: string;
+  onBlur?: () => void;
+  onFocus?: () => void;
 };
 
 export function ThemedSelect({
@@ -25,6 +27,8 @@ export function ThemedSelect({
   placeholder = "Select…",
   fieldKey,
   error,
+  onBlur,
+  onFocus,
 }: ThemedSelectProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -73,6 +77,10 @@ export function ThemedSelect({
           title={selected?.label}
           aria-expanded={open}
           aria-haspopup="listbox"
+          onFocus={onFocus}
+          onBlur={() => {
+            if (!open) onBlur?.();
+          }}
           onClick={() => setOpen((v) => !v)}
           className={[
             "nl-picker-trigger",
@@ -101,6 +109,7 @@ export function ThemedSelect({
                       onClick={() => {
                         onChange(opt.value);
                         setOpen(false);
+                        onBlur?.();
                       }}
                       className={["nl-select-option", active ? "nl-select-option-selected" : ""].join(" ")}
                     >

@@ -358,6 +358,22 @@ export default function RootLayout() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
+          name="screens/admin-units/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/admin-service-bills/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/admin-amenity-bills/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/admin-service-form/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="screens/admin-listings/index"
           options={{ headerShown: false }}
         />
@@ -440,6 +456,22 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="screens/property-management/my-booking/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/property-management/billing-contact/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/property-management/unit-bills/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/property-management/amenity-bills/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/property-management/available-services/index"
           options={{ headerShown: false }}
         />
         <Stack.Screen

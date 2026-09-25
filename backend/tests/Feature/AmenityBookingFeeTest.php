@@ -121,45 +121,23 @@ class AmenityBookingFeeTest extends TestCase
         $this->assertFalse($amenity['shared_billing_enabled']);
     }
 
-    public function test_paid_booking_requires_payment_proof_and_uses_amenity_fee(): void
+    public function test_paid_booking_is_requested_without_payment_proof(): void
     {
-        Storage::fake('public');
         ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity();
         $amenityId = $this->createAmenity($community->id, $admin->id, ['booking_fee' => 25]);
 
         Sanctum::actingAs($resident);
 
-        $this->postJson('/api/v1/bookings', [
+        $response = $this->postJson('/api/v1/bookings', [
             'amenity_id' => $amenityId,
             'date' => now()->addDay()->toDateString(),
             'time_slot' => '4:00 PM - 5:00 PM',
-            'booking_fee' => 1,
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['payment_proof']);
-
-        $response = $this->post('/api/v1/bookings', [
-            'amenity_id' => $amenityId,
-            'date' => now()->addDay()->toDateString(),
-            'time_slot' => '4:00 PM - 5:00 PM',
-            'booking_fee' => 1,
-            'payment_date' => now()->toDateString(),
-            'payment_reference' => 'TXN-25',
-            'payment_note' => 'Paid at office',
-            'payment_proof' => UploadedFile::fake()->image('receipt.jpg'),
-        ], [
-            'Accept' => 'application/json',
         ])->assertCreated();
 
         $this->assertSame('pending', $response->json('data.status'));
         $this->assertSame(25.0, (float) $response->json('data.booking_fee'));
-        $this->assertSame('pending', $response->json('data.payment_verification_status'));
-        $this->assertSame('TXN-25', $response->json('data.payment_proof.payment_reference'));
-        $this->assertNotEmpty($response->json('data.payment_proof.file_url'));
-
-        $row = DB::table('bookings')->where('id', $response->json('data.id'))->first();
-        $this->assertSame(25.0, (float) $row->booking_fee);
-        $this->assertSame('pending', $row->status);
-        $this->assertSame('pending', $row->payment_verification_status);
+        $this->assertSame('not_required', $response->json('data.payment_verification_status'));
+        $this->assertNull($response->json('data.payment_proof'));
     }
 
     public function test_zero_fee_booking_skips_payment_proof(): void
@@ -187,35 +165,36 @@ class AmenityBookingFeeTest extends TestCase
         $amenityId = $this->createAmenity($community->id, $admin->id);
 
         Sanctum::actingAs($resident);
-        $bookingId = $this->post('/api/v1/bookings', [
+        $bookingId = $this->postJson('/api/v1/bookings', [
             'amenity_id' => $amenityId,
             'date' => now()->addDay()->toDateString(),
             'time_slot' => '4:00 PM - 5:00 PM',
-            'payment_date' => now()->toDateString(),
-            'payment_reference' => 'REF-88',
-            'payment_proof' => UploadedFile::fake()->image('proof.png'),
-        ], [
-            'Accept' => 'application/json',
         ])->assertCreated()->json('data.id');
 
         Sanctum::actingAs($admin);
         $inbox = $this->getJson('/api/v1/bookings/inbox')->assertOk()->json('data.0');
         $this->assertSame($bookingId, $inbox['id']);
         $this->assertSame(25.0, (float) $inbox['booking_fee']);
-        $this->assertSame('REF-88', $inbox['payment_proof']['payment_reference']);
-        $this->assertNotEmpty($inbox['payment_proof']['file_url']);
 
         $this->patchJson("/api/v1/bookings/{$bookingId}/approve")->assertOk();
 
         $row = DB::table('bookings')->where('id', $bookingId)->first();
         $this->assertSame('confirmed', $row->status);
-        $this->assertSame('accepted', $row->payment_verification_status);
+
+        $this->assertDatabaseHas('amenity_resident_bills', [
+            'booking_id' => $bookingId,
+            'user_id' => $resident->id,
+            'amount' => 25,
+            'status' => 'unpaid',
+        ]);
 
         Sanctum::actingAs($resident);
         $this->getJson('/api/v1/bookings')
             ->assertOk()
-            ->assertJsonPath('data.0.status', 'confirmed')
-            ->assertJsonPath('data.0.payment_verification_status', 'accepted');
+            ->assertJsonPath('data.0.status', 'confirmed');
+        $this->getJson('/api/v1/amenity-bills')
+            ->assertOk()
+            ->assertJsonPath('data.0.amount', 25);
     }
 
     public function test_reject_paid_booking_frees_slot_and_shows_reason(): void
@@ -226,14 +205,10 @@ class AmenityBookingFeeTest extends TestCase
         $date = now()->addDay()->toDateString();
 
         Sanctum::actingAs($resident);
-        $bookingId = $this->post('/api/v1/bookings', [
+        $bookingId = $this->postJson('/api/v1/bookings', [
             'amenity_id' => $amenityId,
             'date' => $date,
             'time_slot' => '4:00 PM - 5:00 PM',
-            'payment_date' => now()->toDateString(),
-            'payment_proof' => UploadedFile::fake()->image('proof.jpg'),
-        ], [
-            'Accept' => 'application/json',
         ])->assertCreated()->json('data.id');
 
         Sanctum::actingAs($admin);
@@ -243,7 +218,6 @@ class AmenityBookingFeeTest extends TestCase
 
         $row = DB::table('bookings')->where('id', $bookingId)->first();
         $this->assertSame('rejected', $row->status);
-        $this->assertSame('rejected', $row->payment_verification_status);
         $this->assertSame('Receipt is unreadable', $row->rejection_reason);
 
         Sanctum::actingAs($resident);
@@ -278,14 +252,10 @@ class AmenityBookingFeeTest extends TestCase
         ]);
 
         Sanctum::actingAs($resident);
-        $bookingId = $this->post('/api/v1/bookings', [
+        $bookingId = $this->postJson('/api/v1/bookings', [
             'amenity_id' => $amenityId,
             'date' => now()->addDay()->toDateString(),
             'time_slot' => '4:00 PM - 5:00 PM',
-            'payment_date' => now()->toDateString(),
-            'payment_proof' => UploadedFile::fake()->image('mine.jpg'),
-        ], [
-            'Accept' => 'application/json',
         ])->assertCreated()->json('data.id');
 
         Sanctum::actingAs($other);
@@ -294,5 +264,230 @@ class AmenityBookingFeeTest extends TestCase
             (int) DB::table('bookings')->where('id', $bookingId)->value('user_id'),
         );
         $this->getJson('/api/v1/bookings')->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    public function test_two_paid_bookings_in_same_month_each_get_a_bill(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity();
+        $other = User::factory()->create([
+            'role' => 'resident',
+            'status' => 'active',
+            'phone' => '+201700000163',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id' => $other->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+        ]);
+        $amenityId = $this->createAmenity($community->id, $admin->id, ['booking_fee' => 25]);
+        $date = now()->addDay()->toDateString();
+
+        Sanctum::actingAs($resident);
+        $firstId = $this->postJson('/api/v1/bookings', [
+            'amenity_id' => $amenityId,
+            'date' => $date,
+            'time_slot' => '4:00 PM - 5:00 PM',
+        ])->assertCreated()->json('data.id');
+
+        Sanctum::actingAs($other);
+        $secondId = $this->postJson('/api/v1/bookings', [
+            'amenity_id' => $amenityId,
+            'date' => $date,
+            'time_slot' => '5:00 PM - 6:00 PM',
+        ])->assertCreated()->json('data.id');
+
+        Sanctum::actingAs($admin);
+        $this->patchJson("/api/v1/bookings/{$firstId}/approve")->assertOk();
+        $this->patchJson("/api/v1/bookings/{$secondId}/approve")->assertOk();
+
+        $this->assertSame(2, DB::table('amenity_resident_bills')->where('amenity_id', $amenityId)->count());
+        $this->assertDatabaseHas('amenity_resident_bills', [
+            'booking_id' => $firstId,
+            'user_id' => $resident->id,
+            'amount' => 25,
+        ]);
+        $this->assertDatabaseHas('amenity_resident_bills', [
+            'booking_id' => $secondId,
+            'user_id' => $other->id,
+            'amount' => 25,
+        ]);
+    }
+
+    public function test_booking_notifies_the_amenity_owner(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity();
+        $owner = User::factory()->create([
+            'role' => 'resident',
+            'status' => 'active',
+            'phone' => '+201700000164',
+            'name' => 'Amenity Owner',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id' => $owner->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+        ]);
+        $amenityId = $this->createAmenity($community->id, $owner->id);
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/bookings', [
+            'amenity_id' => $amenityId,
+            'date' => now()->addDay()->toDateString(),
+            'time_slot' => '4:00 PM - 5:00 PM',
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $owner->id,
+            'title' => 'New amenity booking request',
+            'action_url' => '/screens/admin-bookings',
+        ]);
+    }
+
+    public function test_amenity_owner_can_approve_booking_payment(): void
+    {
+        Storage::fake('public');
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity();
+        $owner = User::factory()->create([
+            'role' => 'resident',
+            'status' => 'active',
+            'phone' => '+201700000165',
+            'name' => 'Amenity Owner',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id' => $owner->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+        ]);
+        $amenityId = $this->createAmenity($community->id, $owner->id, ['booking_fee' => 25]);
+
+        Sanctum::actingAs($resident);
+        $bookingId = $this->postJson('/api/v1/bookings', [
+            'amenity_id' => $amenityId,
+            'date' => now()->addDay()->toDateString(),
+            'time_slot' => '4:00 PM - 5:00 PM',
+        ])->assertCreated()->json('data.id');
+
+        Sanctum::actingAs($owner);
+        $this->patchJson("/api/v1/bookings/{$bookingId}/approve")->assertOk();
+
+        $residentBillId = (int) DB::table('amenity_resident_bills')
+            ->where('booking_id', $bookingId)
+            ->value('id');
+        $this->assertGreaterThan(0, $residentBillId);
+
+        Sanctum::actingAs($resident);
+        $this->withHeaders(['Accept' => 'application/json'])
+            ->post("/api/v1/amenities/{$amenityId}/bills/{$residentBillId}/proof", [
+                'payment_date' => now()->toDateString(),
+                'payment_reference' => 'TXN-OWNER-1',
+                'file' => UploadedFile::fake()->image('receipt.jpg', 300, 300),
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $owner->id,
+            'title' => 'Amenity payment proof submitted',
+            'action_url' => '/screens/property-management/amenity-bills',
+        ]);
+
+        Sanctum::actingAs($owner);
+        $this->getJson('/api/v1/amenity-owner-bills')
+            ->assertOk()
+            ->assertJsonPath('data.0.resident_bill_id', $residentBillId)
+            ->assertJsonPath('data.0.status', 'pending_verification')
+            ->assertJsonPath('data.0.can_review', true);
+
+        Sanctum::actingAs($resident);
+        $this->patchJson("/api/v1/amenities/{$amenityId}/resident-bills/{$residentBillId}/approve")
+            ->assertForbidden();
+
+        Sanctum::actingAs($owner);
+        $this->patchJson("/api/v1/amenities/{$amenityId}/resident-bills/{$residentBillId}/approve")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'paid');
+    }
+
+    public function test_admin_booking_of_resident_amenity_pays_after_owner_approval(): void
+    {
+        Storage::fake('public');
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity();
+        $owner = User::factory()->create([
+            'role' => 'resident',
+            'status' => 'active',
+            'phone' => '+201700000166',
+            'name' => 'Amenity Owner',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id' => $owner->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+        ]);
+        $amenityId = $this->createAmenity($community->id, $owner->id, ['booking_fee' => 25]);
+        $date = now()->addDay()->toDateString();
+
+        Sanctum::actingAs($admin);
+        $bookingId = $this->postJson('/api/v1/bookings', [
+            'amenity_id' => $amenityId,
+            'date' => $date,
+            'time_slot' => '4:00 PM - 5:00 PM',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated()->json('data.id');
+
+        $this->assertSame('pending', DB::table('bookings')->where('id', $bookingId)->value('status'));
+        $this->assertDatabaseMissing('amenity_resident_bills', ['booking_id' => $bookingId]);
+
+        Sanctum::actingAs($owner);
+        $this->patchJson("/api/v1/bookings/{$bookingId}/approve")->assertOk();
+
+        $this->assertSame('awaiting_payment', DB::table('bookings')->where('id', $bookingId)->value('status'));
+        $residentBillId = (int) DB::table('amenity_resident_bills')->where('booking_id', $bookingId)->value('id');
+        $this->assertGreaterThan(0, $residentBillId);
+
+        Sanctum::actingAs($admin);
+        $this->getJson('/api/v1/bookings', [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertOk()
+            ->assertJsonPath('data.0.status', 'awaiting_payment')
+            ->assertJsonPath('data.0.booking_bill.can_submit_proof', true)
+            ->assertJsonPath('data.0.booking_bill.resident_bill_id', $residentBillId);
+
+        $this->getJson('/api/v1/admin/amenities', [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertOk()
+            ->assertJsonPath('data.0.user_next_booking_status', 'awaiting_payment')
+            ->assertJsonPath('data.0.user_next_booking_bill.can_submit_proof', true);
+
+        $this->withHeaders(['Accept' => 'application/json', 'X-Community-Id' => (string) $community->id])
+            ->post("/api/v1/amenities/{$amenityId}/bills/{$residentBillId}/proof", [
+                'payment_date' => now()->toDateString(),
+                'payment_reference' => 'TXN-ADMIN-1',
+                'file' => UploadedFile::fake()->image('admin-receipt.jpg', 300, 300),
+            ])
+            ->assertOk();
+
+        $this->assertSame('awaiting_payment', DB::table('bookings')->where('id', $bookingId)->value('status'));
+
+        Sanctum::actingAs($owner);
+        $this->patchJson("/api/v1/amenities/{$amenityId}/resident-bills/{$residentBillId}/approve")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'paid');
+
+        $this->assertSame('confirmed', DB::table('bookings')->where('id', $bookingId)->value('status'));
+        $noticeId = (int) DB::table('amenity_resident_bills')->where('id', $residentBillId)->value('finance_notice_id');
+        if ($noticeId > 0) {
+            $this->assertDatabaseMissing('notice_recipients', [
+                'notice_id' => $noticeId,
+                'user_id' => $admin->id,
+            ]);
+        }
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $admin->id,
+            'title' => 'Reservation confirmed',
+        ]);
     }
 }

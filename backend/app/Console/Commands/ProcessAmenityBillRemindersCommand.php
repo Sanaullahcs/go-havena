@@ -13,9 +13,10 @@ class ProcessAmenityBillRemindersCommand extends Command
 
     public function handle(AmenityBillReminderService $reminders): int
     {
+        $generated = app(\App\Services\AmenitySharedBillService::class)->generateDueSharedBills();
         $result = $reminders->processReminders();
 
-        $this->info("Marked {$result['overdue_marked']} overdue bill(s) and sent {$result['sent']} reminder(s).");
+        $this->info("Generated {$generated} shared bill(s), marked {$result['overdue_marked']} overdue bill(s) and sent {$result['sent']} reminder(s).");
 
         return self::SUCCESS;
     }

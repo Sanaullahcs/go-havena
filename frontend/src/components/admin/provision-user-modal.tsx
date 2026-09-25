@@ -589,7 +589,6 @@ export function ProvisionUserModal({
               label="Phone number"
               required
               className="sm:col-span-2"
-              error={showError("phone") ? errors.phone : undefined}
             >
               <AdminPhoneInput
                 resetKey={`${type}-${open}-${assignmentSource}`}

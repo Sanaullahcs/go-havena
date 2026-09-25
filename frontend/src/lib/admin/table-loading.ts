@@ -10,6 +10,22 @@ export function adminTableBusy(
   return flags.some(Boolean);
 }
 
+/** Client-side admin tables: transitions, deferred filter updates, and search debounce. */
+export function adminClientTableBusy(
+  isPending: boolean,
+  isDeferredPending: boolean,
+  searchInput: string,
+  debouncedSearch: string,
+  ...fetchFlags: Array<boolean | null | undefined>
+): boolean {
+  return adminTableBusy(
+    isPending,
+    isDeferredPending,
+    isAdminSearchPending(searchInput, debouncedSearch),
+    ...fetchFlags,
+  );
+}
+
 /**
  * Avoid double-fetching when a filter/search change also resets pagination.
  * Call from an effect that depends on `[filterKey, page, load]`.

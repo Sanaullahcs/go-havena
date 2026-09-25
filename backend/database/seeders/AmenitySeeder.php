@@ -118,7 +118,7 @@ class AmenitySeeder extends Seeder
                 'end_time' => '21:00:00',
                 'weekends_available' => true,
                 'slot_duration_minutes' => 120,
-                'icon_key' => 'hall',
+                'icon_key' => 'lounge',
                 'image' => 'amenity-clubhouse',
             ],
             [
@@ -213,7 +213,7 @@ class AmenitySeeder extends Seeder
                 'end_time' => '17:00:00',
                 'weekends_available' => false,
                 'slot_duration_minutes' => null,
-                'icon_key' => 'building',
+                'icon_key' => 'lounge',
                 'image' => 'amenity-clubhouse',
             ],
             [
@@ -232,7 +232,7 @@ class AmenitySeeder extends Seeder
                 'end_time' => '20:00:00',
                 'weekends_available' => true,
                 'slot_duration_minutes' => 60,
-                'icon_key' => 'spa',
+                'icon_key' => 'yoga',
                 'image' => 'wellness-exercise',
             ],
             [
@@ -273,6 +273,7 @@ class AmenitySeeder extends Seeder
                     'name_ar' => $row['name_ar'] ?? null,
                     'description_es' => $row['description_es'] ?? null,
                     'description_ar' => $row['description_ar'] ?? null,
+                    'icon_key' => $row['icon_key'],
                     'image_url' => $imageUrl,
                     'updated_at' => $now,
                 ]);

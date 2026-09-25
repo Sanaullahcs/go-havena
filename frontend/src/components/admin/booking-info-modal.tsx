@@ -156,7 +156,7 @@ export function BookingInfoModal({
           <section className="rounded-xl border border-slate-100 px-4 py-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Booking fee</p>
             <p className="mt-2 text-sm font-semibold text-slate-900">
-              {formatUsdAmount(booking.booking_fee)}
+              {formatUsdAmount(booking.display_fee ?? booking.booking_fee)}
             </p>
             {booking.payment_proof ? (
               <div className="mt-3 space-y-2 text-sm text-slate-700">

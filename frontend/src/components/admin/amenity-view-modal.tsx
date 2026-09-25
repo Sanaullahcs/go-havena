@@ -9,7 +9,6 @@ import {
   getAmenityVisual,
 } from "@/lib/admin/amenity-display";
 import {
-  SHARED_BILLING_FREQUENCY_LABEL,
   SHARED_BILLING_TYPE_LABEL,
   sharedBillingDueDayLabel,
 } from "@/lib/admin/amenity-form-validation";
@@ -98,10 +97,12 @@ export function AmenityViewModal({
           ) : null}
 
           <dl className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Capacity</dt>
-              <dd className="mt-0.5 font-semibold text-slate-900">{amenity.capacity}</dd>
-            </div>
+            {amenity.status !== "open" ? (
+              <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Capacity</dt>
+                <dd className="mt-0.5 font-semibold text-slate-900">{amenity.capacity}</dd>
+              </div>
+            ) : null}
             <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
               <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Location</dt>
               <dd className="mt-0.5 font-semibold text-slate-900">{amenity.floor || "—"}</dd>
@@ -132,24 +133,28 @@ export function AmenityViewModal({
               <dd className="mt-0.5 font-semibold text-slate-900">{amenity.creator_name || "—"}</dd>
             </div>
             <div className="col-span-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Booking fee</dt>
+              <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                {amenity.shared_billing_enabled ? "Shared fee" : "Booking fee"}
+              </dt>
               <dd className="mt-0.5 font-semibold text-slate-900">
-                {Number(amenity.booking_fee ?? 0) > 0
-                  ? `$${Number(amenity.booking_fee).toLocaleString("en-US", { maximumFractionDigits: 2 })} per reservation`
-                  : "Free"}
+                {amenity.shared_billing_enabled && Number(amenity.shared_billing_amount ?? amenity.display_fee ?? 0) > 0
+                  ? `$${Number(amenity.shared_billing_amount ?? amenity.display_fee).toLocaleString("en-US", { maximumFractionDigits: 2 })} per ${amenity.shared_billing_frequency === "yearly" ? "year" : "month"}`
+                  : Number(amenity.booking_fee ?? amenity.display_fee ?? 0) > 0
+                    ? `$${Number(amenity.booking_fee ?? amenity.display_fee).toLocaleString("en-US", { maximumFractionDigits: 2 })} per reservation`
+                    : "Free"}
               </dd>
             </div>
             <div className="col-span-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
               <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Shared billing</dt>
               <dd className="mt-0.5 font-semibold text-slate-900">
-                {amenity.shared_billing_enabled ? "On" : "Off"}
+                {amenity.shared_billing_enabled ? "On — each approved resident" : "Off"}
               </dd>
               {amenity.shared_billing_enabled ? (
                 <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                  {SHARED_BILLING_TYPE_LABEL} · {SHARED_BILLING_FREQUENCY_LABEL}
+                  {SHARED_BILLING_TYPE_LABEL} · {amenity.shared_billing_frequency === "yearly" ? "Yearly" : "Monthly"}
                   {amenity.shared_billing_amount != null ? ` · ${amenity.shared_billing_amount} per resident` : ""}
                   {amenity.shared_billing_due_day != null
-                    ? ` · due ${sharedBillingDueDayLabel(amenity.shared_billing_due_day)}`
+                    ? ` · due ${sharedBillingDueDayLabel(amenity.shared_billing_due_day, amenity.shared_billing_frequency ?? "monthly")}`
                     : ""}
                   {amenity.community_name ? ` · ${amenity.community_name}` : ""}
                 </p>

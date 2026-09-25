@@ -79,6 +79,20 @@ assert(
 );
 
 assert(
+  "undated finance bill stays on home",
+  !isNoticeExpiredForHome({ category: "finance", title: "New Service Bill" }),
+);
+
+assert(
+  "paid finance bill with past date is hidden from home",
+  isNoticeExpiredForHome({
+    category: "finance",
+    title: "New Service Bill",
+    event_date: yesterdayKey(),
+  }),
+);
+
+assert(
   "legacy event without schedule is expired",
   isNoticeExpiredForHome({ category: "event", title: "Old BBQ", isEvent: true }),
 );

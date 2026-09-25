@@ -4,18 +4,29 @@ import i18n from "../i18n";
 import { getLocaleForLang } from "../hooks/use-app-locale";
 
 const VISUALS = [
+  { key: "gym", match: ["gym", "workout", "gymnasium"], tint: "#DB2777", soft: "#FCE7F3", labelKey: "amenities.types.gym" },
+  { key: "yoga", match: ["yoga", "fitness", "pilates"], tint: "#BE185D", soft: "#FDF2F8", labelKey: "amenities.types.yoga" },
   { key: "pool", match: ["pool", "swim"], tint: "#0284C7", soft: "#E0F2FE", labelKey: "amenities.types.pool" },
-  { key: "gym", match: ["gym", "fitness", "workout"], tint: "#DB2777", soft: "#FCE7F3", labelKey: "amenities.types.gym" },
-  { key: "hall", match: ["hall", "party", "event", "lounge", "community", "clubhouse"], tint: "#6366F1", soft: "#D1FAF5", labelKey: "amenities.types.hall" },
-  { key: "meeting", match: ["meeting", "conference", "business", "office", "co-work", "cowork"], tint: "#1B4F8A", soft: "#D1FAF5", labelKey: "amenities.types.meeting" },
-  { key: "dining", match: ["bbq", "grill", "kitchen", "dining", "cafe", "restaurant"], tint: "#EA580C", soft: "#FFF7ED", labelKey: "amenities.types.dining" },
-  { key: "sports", match: ["tennis", "court", "sport", "basketball", "court"], tint: "#059669", soft: "#ECFDF5", labelKey: "amenities.types.sports" },
+  { key: "laundry", match: ["laundry"], tint: "#0D9488", soft: "#F0FDFA", labelKey: "amenities.types.laundry" },
+  { key: "car_wash", match: ["car wash", "carwash"], tint: "#475569", soft: "#F1F5F9", labelKey: "amenities.types.carWash" },
+  { key: "barber", match: ["barber", "salon", "hair"], tint: "#B45309", soft: "#FEF3C7", labelKey: "amenities.types.barber" },
+  { key: "cleaning", match: ["personal clean", "maid", "housekeep"], tint: "#0F766E", soft: "#CCFBF1", labelKey: "amenities.types.cleaning" },
+  { key: "sports", match: ["sport", "tennis", "basketball", "court"], tint: "#059669", soft: "#ECFDF5", labelKey: "amenities.types.sports" },
+  { key: "events", match: ["event", "activity", "participation"], tint: "#7C3AED", soft: "#F5F3FF", labelKey: "amenities.types.events" },
+  { key: "package", match: ["package", "parcel", "courier"], tint: "#1D4ED8", soft: "#DBEAFE", labelKey: "amenities.types.package" },
+  { key: "lounge", match: ["lounge", "community", "clubhouse", "hall"], tint: "#1B4F8A", soft: "#E8F0F7", labelKey: "amenities.types.lounge" },
+  { key: "other", match: ["other", "custom"], tint: "#64748B", soft: "#F1F5F9", labelKey: "amenities.types.other" },
+];
+
+const LEGACY_VISUALS = [
+  { key: "hall", match: ["hall", "party"], tint: "#6366F1", soft: "#D1FAF5", labelKey: "amenities.types.hall" },
+  { key: "meeting", match: ["meeting", "conference"], tint: "#1B4F8A", soft: "#D1FAF5", labelKey: "amenities.types.meeting" },
+  { key: "dining", match: ["bbq", "grill", "kitchen", "dining"], tint: "#EA580C", soft: "#FFF7ED", labelKey: "amenities.types.dining" },
   { key: "playground", match: ["kid", "playground", "child", "play"], tint: "#D97706", soft: "#FEF3C7", labelKey: "amenities.types.play" },
-  { key: "terrace", match: ["garden", "park", "green", "roof", "terrace", "outdoor"], tint: "#16A34A", soft: "#F0FDF4", labelKey: "amenities.types.outdoor" },
-  { key: "spa", match: ["spa", "sauna", "wellness", "yoga"], tint: "#BE185D", soft: "#FDF2F8", labelKey: "amenities.types.wellness" },
+  { key: "terrace", match: ["garden", "park", "roof", "terrace", "outdoor"], tint: "#16A34A", soft: "#F0FDF4", labelKey: "amenities.types.outdoor" },
+  { key: "spa", match: ["spa", "sauna", "wellness"], tint: "#BE185D", soft: "#FDF2F8", labelKey: "amenities.types.wellness" },
   { key: "library", match: ["library", "study", "reading"], tint: "#4F46E5", soft: "#D1FAF5", labelKey: "amenities.types.study" },
-  { key: "parking", match: ["parking", "garage", "car"], tint: "#475569", soft: "#F1F5F9", labelKey: "amenities.types.parking" },
-  { key: "laundry", match: ["laundry", "wash"], tint: "#0D9488", soft: "#F0FDFA", labelKey: "amenities.types.laundry" },
+  { key: "parking", match: ["parking", "garage"], tint: "#475569", soft: "#F1F5F9", labelKey: "amenities.types.parking" },
   { key: "cinema", match: ["cinema", "theater", "theatre", "movie"], tint: "#7C3AED", soft: "#F5F3FF", labelKey: "amenities.types.cinema" },
   { key: "bike", match: ["bike", "cycle", "bicycle"], tint: "#14B8A6", soft: "#D1FAF5", labelKey: "amenities.types.bike" },
 ];
@@ -27,21 +38,31 @@ const DEFAULT_VISUAL = {
   labelKey: "amenities.types.building",
 };
 
-/** Fixed Lucide catalog for the admin icon picker. */
-export const AMENITY_ICON_CATALOG = [
-  ...VISUALS.map(({ key, tint, soft, labelKey }) => ({ key, tint, soft, labelKey, get label() { return i18n.t(labelKey); } })),
-  { ...DEFAULT_VISUAL, get label() { return i18n.t(DEFAULT_VISUAL.labelKey); } },
-];
+const ALL_VISUALS = [...VISUALS, ...LEGACY_VISUALS];
 
-export const AMENITY_ICON_KEYS = AMENITY_ICON_CATALOG.map((v) => v.key);
+/** Fixed Lucide catalog for the admin icon picker. */
+export const AMENITY_ICON_CATALOG = VISUALS.map(({ key, tint, soft, labelKey }) => ({
+  key,
+  tint,
+  soft,
+  labelKey,
+  get label() { return i18n.t(labelKey); },
+}));
+
+export const AMENITY_ICON_KEYS = [
+  ...VISUALS.map((v) => v.key),
+  ...LEGACY_VISUALS.map((v) => v.key),
+  DEFAULT_VISUAL.key,
+];
 
 export function getAmenityVisual(name = "", iconKey = null) {
   if (iconKey) {
-    const byKey = AMENITY_ICON_CATALOG.find((v) => v.key === iconKey);
-    if (byKey) return byKey;
+    const byKey = ALL_VISUALS.find((v) => v.key === iconKey)
+      ?? (iconKey === DEFAULT_VISUAL.key ? DEFAULT_VISUAL : null);
+    if (byKey) return { ...byKey, get label() { return i18n.t(byKey.labelKey); } };
   }
   const n = String(name).toLowerCase();
-  const found = VISUALS.find((v) => v.match.some((m) => n.includes(m)));
+  const found = ALL_VISUALS.find((v) => v.match.some((m) => n.includes(m)));
   const base = found ?? DEFAULT_VISUAL;
   return { ...base, get label() { return i18n.t(base.labelKey); } };
 }
@@ -185,8 +206,15 @@ export function validateAmenityForm(form) {
     errors.status = i18n.t("amenities.validation.statusRequired");
   }
 
-  if (capacityRaw === "") errors.capacity = i18n.t("amenities.validation.capacityRequired");
-  else {
+  if (status === "bookable") {
+    if (capacityRaw === "") errors.capacity = i18n.t("amenities.validation.capacityRequired");
+    else {
+      const capacity = Number(capacityRaw);
+      if (!Number.isInteger(capacity) || capacity < 0 || capacity > 1000) {
+        errors.capacity = i18n.t("amenities.validation.capacityRange");
+      }
+    }
+  } else if (capacityRaw !== "") {
     const capacity = Number(capacityRaw);
     if (!Number.isInteger(capacity) || capacity < 0 || capacity > 1000) {
       errors.capacity = i18n.t("amenities.validation.capacityRange");
@@ -216,13 +244,40 @@ export function validateAmenityForm(form) {
 
   if (!iconKey || !AMENITY_ICON_KEYS.includes(iconKey)) {
     errors.icon_key = i18n.t("amenities.validation.categoryRequired");
+  } else if (iconKey === "other" && !String(form.custom_category ?? "").trim()) {
+    errors.custom_category = i18n.t("amenities.validation.customCategoryRequired");
   }
 
-  const feeRaw = String(form.booking_fee ?? "").trim();
-  if (feeRaw !== "") {
-    const fee = Number(feeRaw);
-    if (!Number.isFinite(fee) || fee < 0) {
+  if (!form.shared_billing_enabled) {
+    const charge = form.booking_charge === "paid" || Number(form.booking_fee) > 0 ? "paid" : "free";
+    const feeRaw = String(form.booking_fee ?? "").trim();
+    const fee = feeRaw === "" ? 0 : Number(feeRaw);
+    if (charge === "paid") {
+      if (!feeRaw || !Number.isFinite(fee) || fee <= 0) {
+        errors.booking_fee = i18n.t("amenities.validation.bookingFeeRequired");
+      } else if (status === "closed") {
+        errors.booking_fee = i18n.t("amenities.validation.bookingFeeRequiresBookable");
+      }
+    } else if (feeRaw !== "" && (!Number.isFinite(fee) || fee < 0)) {
       errors.booking_fee = i18n.t("amenities.validation.bookingFeeInvalid");
+    } else if (status === "closed" && fee > 0) {
+      errors.booking_fee = i18n.t("amenities.validation.bookingFeeRequiresBookable");
+    }
+  }
+
+  if (form.shared_billing_enabled) {
+    const amount = Number(form.shared_billing_amount);
+    if (!String(form.shared_billing_amount ?? "").trim()) {
+      errors.shared_billing_amount = i18n.t("amenities.validation.sharedAmountRequired");
+    } else if (!Number.isFinite(amount) || amount < 0.01) {
+      errors.shared_billing_amount = i18n.t("amenities.validation.sharedAmountInvalid");
+    }
+
+    const dueDay = Number(form.shared_billing_due_day);
+    if (!String(form.shared_billing_due_day ?? "").trim()) {
+      errors.shared_billing_due_day = i18n.t("amenities.validation.sharedDueDayRequired");
+    } else if (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31) {
+      errors.shared_billing_due_day = i18n.t("amenities.validation.sharedDueDayInvalid");
     }
   }
 
@@ -236,14 +291,26 @@ export function buildAmenityPayload(form) {
     name: String(form.name ?? "").trim(),
     description: String(form.description ?? "").trim() || null,
     status: form.status,
-    capacity: Number(form.capacity),
+    capacity: String(form.capacity ?? "").trim() === "" ? null : Number(form.capacity),
     floor: String(form.floor ?? "").trim(),
     icon_key: form.icon_key,
+    custom_category: form.icon_key === "other" ? String(form.custom_category ?? "").trim() : null,
     weekends_available: Boolean(form.weekends_available),
     start_time: times?.start_time,
     end_time: times?.end_time,
     hours: String(form.hours ?? "").trim(),
-    booking_fee: String(form.booking_fee ?? "").trim() === "" ? 0 : Number(form.booking_fee),
+    booking_fee: form.shared_billing_enabled || form.booking_charge === "free"
+      ? 0
+      : String(form.booking_fee ?? "").trim() === ""
+        ? 0
+        : Number(form.booking_fee),
+    shared_billing_enabled: Boolean(form.shared_billing_enabled),
+    shared_billing_type: form.shared_billing_enabled ? "all_residents" : null,
+    shared_billing_frequency: form.shared_billing_enabled
+      ? (form.shared_billing_frequency === "yearly" ? "yearly" : "monthly")
+      : null,
+    shared_billing_amount: form.shared_billing_enabled ? Number(form.shared_billing_amount) : null,
+    shared_billing_due_day: form.shared_billing_enabled ? Number(form.shared_billing_due_day) : null,
   };
   if (form.status === "bookable") {
     payload.slot_duration_minutes = Number(form.slot_duration_minutes);
@@ -361,6 +428,34 @@ export function formatUsdAmount(value) {
 export function bookingFeeAmount(value) {
   const amount = Number(value ?? 0);
   return Number.isFinite(amount) && amount > 0 ? amount : 0;
+}
+
+export function amenityDisplayFee(amenity) {
+  if (!amenity) return 0;
+  if (amenity.shared_billing_enabled || amenity.display_fee_kind === "monthly" || amenity.display_fee_kind === "yearly") {
+    return bookingFeeAmount(amenity.display_fee ?? amenity.shared_billing_amount);
+  }
+  return bookingFeeAmount(amenity.display_fee ?? amenity.booking_fee);
+}
+
+export function formatAmenityFeeLabel(amenity) {
+  const amount = amenityDisplayFee(amenity);
+  if (amount <= 0) return i18n.t("propertyMgmt.bookingAmountFree");
+  const formatted = formatUsdAmount(amount);
+  if (amenity?.shared_billing_enabled || amenity?.display_fee_kind === "monthly" || amenity?.display_fee_kind === "yearly") {
+    const yearly = amenity?.display_fee_kind === "yearly" || amenity?.shared_billing_frequency === "yearly";
+    return `${formatted} / ${yearly ? i18n.t("admin.sharedBillingYearly") : i18n.t("admin.sharedBillingMonthly")}`;
+  }
+  return formatted;
+}
+
+export function formatBookingDisplayFee(booking) {
+  const amount = bookingFeeAmount(booking?.display_fee ?? booking?.booking_fee);
+  if (amount <= 0) return i18n.t("propertyMgmt.bookingAmountFree");
+  const formatted = formatUsdAmount(amount);
+  if (booking?.display_fee_kind === "yearly") return `${formatted} / ${i18n.t("admin.sharedBillingYearly")}`;
+  if (booking?.display_fee_kind === "monthly") return `${formatted} / ${i18n.t("admin.sharedBillingMonthly")}`;
+  return formatted;
 }
 
 export function isDateBookedByUser(bookings, amenityId, dateKey) {

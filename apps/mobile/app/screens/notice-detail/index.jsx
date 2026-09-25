@@ -17,7 +17,10 @@ import CrispImage from "../../../components/ui/crisp-image";
 import { NoticeCoverMedia } from "../../../components/notices/notice-cover-thumbnail";
 import { Fonts } from "../../../constants/font";
 import { Colors, Layout, Shadows } from "../../../constants/tokens";
-import { fetchNotice, getCategoryTheme, formatDisplayTime12h } from "../../../services/notices-api";
+import { fetchNotice, getCategoryTheme, formatDisplayTime12h, formatShortDate } from "../../../services/notices-api";
+import { billingFrequencyLabel } from "../../../services/property-services-api";
+import { PropertyManagementRoutes } from "../../../constants/property-management-routes";
+import { navigateAppRoute } from "../../../utils/app-navigation";
 import { sw, sf, hp } from "../../../utils/responsive";
 import { useTranslation } from 'react-i18next';
 import i18n, { localizedField } from "../../../i18n";
@@ -84,6 +87,34 @@ function InfoTile({ icon, label, value, accent, bg, onPress }) {
       {content}
     </View>
   );
+}
+
+function billStatusMeta(status, label, t) {
+  const key = String(status || "").toLowerCase();
+  if (key === "paid") {
+    return { label: label || t("services.unitBillsStatusPaid"), color: "#047857", bg: "#ECFDF5", border: "#A7F3D0" };
+  }
+  if (key === "pending_verification") {
+    return { label: label || t("services.unitBillsStatusPending"), color: "#B45309", bg: "#FFFBEB", border: "#FDE68A" };
+  }
+  if (key === "overdue" || key === "rejected") {
+    return {
+      label: label || (key === "overdue" ? t("services.unitBillsStatusOverdue") : t("services.unitBillsStatusRejected")),
+      color: "#B91C1C",
+      bg: "#FEF2F2",
+      border: "#FECACA",
+    };
+  }
+  if (key === "acknowledged") {
+    return { label: label || t("services.unitBillsStatusAcknowledged"), color: "#1D4ED8", bg: "#EFF6FF", border: "#BFDBFE" };
+  }
+  return { label: label || t("services.unitBillsStatusUnpaid"), color: "#334155", bg: "#F8FAFC", border: "#E2E8F0" };
+}
+
+function formatBillAmount(amount) {
+  if (amount == null || Number.isNaN(Number(amount))) return "";
+  const value = Number(amount);
+  return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
 }
 
 function SectionHeader({ icon, title, accent }) {
@@ -282,6 +313,122 @@ export default function NoticeDetailScreen() {
                   </View>
                 ) : null}
               </View>
+
+              {notice.serviceBill ? (
+                <View style={styles.billCard}>
+                  <View style={styles.billCardTop}>
+                    <Text style={styles.billCardEyebrow}>{t("notices.billStatus")}</Text>
+                    {(() => {
+                      const status = billStatusMeta(
+                        notice.serviceBill.status,
+                        notice.serviceBill.statusLabel,
+                        t,
+                      );
+                      return (
+                        <View style={[styles.billStatusBadge, { backgroundColor: status.bg, borderColor: status.border }]}>
+                          <Text style={[styles.billStatusText, { color: status.color }]}>{status.label}</Text>
+                        </View>
+                      );
+                    })()}
+                  </View>
+                  <Text style={styles.billServiceName}>
+                    {notice.serviceBill.serviceName || t("notices.billService")}
+                  </Text>
+                  <View style={styles.billMetaRow}>
+                    {notice.serviceBill.unitNumber ? (
+                      <Text style={styles.billMetaText}>
+                        {t("notices.billUnit")} {notice.serviceBill.unitNumber}
+                      </Text>
+                    ) : null}
+                    {formatBillAmount(notice.serviceBill.amount) ? (
+                      <Text style={styles.billMetaText}>{formatBillAmount(notice.serviceBill.amount)}</Text>
+                    ) : null}
+                    {notice.serviceBill.dueDate ? (
+                      <Text style={styles.billMetaText}>
+                        {t("notices.billDueDate")}: {formatShortDate(notice.serviceBill.dueDate)}
+                      </Text>
+                    ) : null}
+                  </View>
+                  {billingFrequencyLabel(notice.serviceBill.billingFrequency, t) ? (
+                    <View style={styles.billTypeChip}>
+                      <Feather name="repeat" size={sf(11)} color={Colors.brandPrimary} />
+                      <Text style={styles.billTypeText}>
+                        {t("notices.billType")}: {billingFrequencyLabel(notice.serviceBill.billingFrequency, t)}
+                      </Text>
+                    </View>
+                  ) : null}
+                  <Pressable
+                    onPress={() => navigateAppRoute(router, PropertyManagementRoutes.UNIT_BILLS)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("notices.viewUnitBill")}
+                    style={({ pressed }) => [styles.billActionPressable, pressed && styles.billActionPressed]}
+                  >
+                    <View style={styles.billAction}>
+                      <Feather name="file-text" size={sf(15)} color="#FFFFFF" />
+                      <Text style={styles.billActionText}>{t("notices.viewUnitBill")}</Text>
+                    </View>
+                  </Pressable>
+                </View>
+              ) : null}
+
+              {!notice.serviceBill && notice.amenityBill ? (
+                <View style={styles.billCard}>
+                  <View style={styles.billCardTop}>
+                    <Text style={styles.billCardEyebrow}>{t("notices.billStatus")}</Text>
+                    {(() => {
+                      const status = billStatusMeta(
+                        notice.amenityBill.status,
+                        notice.amenityBill.statusLabel,
+                        t,
+                      );
+                      return (
+                        <View style={[styles.billStatusBadge, { backgroundColor: status.bg, borderColor: status.border }]}>
+                          <Text style={[styles.billStatusText, { color: status.color }]}>{status.label}</Text>
+                        </View>
+                      );
+                    })()}
+                  </View>
+                  <Text style={styles.billServiceName}>
+                    {notice.amenityBill.amenityName || t("notices.billAmenity")}
+                  </Text>
+                  <View style={styles.billMetaRow}>
+                    {notice.amenityBill.billingMonthLabel ? (
+                      <Text style={styles.billMetaText}>{notice.amenityBill.billingMonthLabel}</Text>
+                    ) : null}
+                    {formatBillAmount(notice.amenityBill.amount) ? (
+                      <Text style={styles.billMetaText}>{formatBillAmount(notice.amenityBill.amount)}</Text>
+                    ) : null}
+                    {notice.amenityBill.dueDate ? (
+                      <Text style={styles.billMetaText}>
+                        {t("notices.billDueDate")}: {formatShortDate(notice.amenityBill.dueDate)}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Pressable
+                    onPress={() => navigateAppRoute(router, PropertyManagementRoutes.AMENITY_BILLS)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("notices.viewAmenityBill")}
+                    style={({ pressed }) => [styles.billActionPressable, pressed && styles.billActionPressed]}
+                  >
+                    <View style={styles.billAction}>
+                      <Feather name="credit-card" size={sf(15)} color="#FFFFFF" />
+                      <Text style={styles.billActionText}>{t("notices.viewAmenityBill")}</Text>
+                    </View>
+                  </Pressable>
+                </View>
+              ) : notice.category === "finance" && !notice.serviceBill ? (
+                <Pressable
+                  onPress={() => navigateAppRoute(router, PropertyManagementRoutes.AMENITY_BILLS)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("notices.viewAmenityBill")}
+                  style={({ pressed }) => [styles.billActionPressable, pressed && styles.billActionPressed]}
+                >
+                  <View style={styles.billAction}>
+                    <Feather name="credit-card" size={sf(15)} color="#FFFFFF" />
+                    <Text style={styles.billActionText}>{t("notices.viewAmenityBill")}</Text>
+                  </View>
+                </Pressable>
+              ) : null}
 
               {(showScheduleDate || startTimeLabel || endTimeLabel || notice.location) && (
                 <View style={styles.infoGrid}>
@@ -602,6 +749,104 @@ const styles = StyleSheet.create({
     fontSize: sf(11),
     color: Colors.textMuted,
   },
+  billCard: {
+    marginTop: sw(16),
+    borderRadius: sw(16),
+    borderWidth: 1,
+    borderColor: "rgba(27, 79, 138, 0.16)",
+    backgroundColor: "#E8F0F7",
+    padding: sw(14),
+    gap: sw(10),
+  },
+  billCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: sw(8),
+  },
+  billCardEyebrow: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(10),
+    color: Colors.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    fontWeight: "600",
+  },
+  billStatusBadge: {
+    borderRadius: Layout.pillRadius,
+    borderWidth: 1,
+    paddingHorizontal: sw(10),
+    paddingVertical: sw(4),
+  },
+  billStatusText: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(11),
+    fontWeight: "700",
+  },
+  billServiceName: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(16),
+    color: Colors.textPrimary,
+    fontWeight: "700",
+  },
+  billMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: sw(10),
+  },
+  billMetaText: {
+    fontFamily: Fonts.medium,
+    fontSize: sf(12),
+    color: Colors.textMuted,
+  },
+  billTypeChip: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(6),
+    backgroundColor: "#FFFFFF",
+    borderRadius: Layout.pillRadius,
+    borderWidth: 1,
+    borderColor: "rgba(27, 79, 138, 0.16)",
+    paddingHorizontal: sw(10),
+    paddingVertical: sw(5),
+  },
+  billTypeText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(12),
+    lineHeight: sf(16),
+    color: Colors.brandPrimary,
+    includeFontPadding: false,
+  },
+  billActionPressable: {
+    alignSelf: "flex-start",
+    marginTop: sw(2),
+  },
+  billActionPressed: {
+    opacity: 0.88,
+  },
+  billAction: {
+    minHeight: sw(42),
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: sw(8),
+    paddingHorizontal: sw(16),
+    paddingVertical: sw(10),
+    borderRadius: Layout.buttonRadius,
+    backgroundColor: Colors.brandPrimaryDeep,
+    borderWidth: 1,
+    borderColor: Colors.brandPrimaryDeep,
+  },
+  billActionText: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(13),
+    lineHeight: sf(15),
+    color: "#FFFFFF",
+    fontWeight: "700",
+    includeFontPadding: false,
+    textAlignVertical: "center",
+  },
   infoGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -623,7 +868,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   infoTileLabel: {
-    fontFamily: Fonts.semibold,
+    fontFamily: Fonts.semiBold,
     fontSize: sf(10),
     color: Colors.textMuted,
     textTransform: "uppercase",

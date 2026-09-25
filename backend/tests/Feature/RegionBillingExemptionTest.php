@@ -349,4 +349,62 @@ class RegionBillingExemptionTest extends TestCase
             ->assertJsonPath('data.country_code', 'PK')
             ->assertJsonPath('data.billing_exempt', true);
     }
+
+    public function test_admin_region_status_filter_keeps_exact_counts(): void
+    {
+        $country = Country::query()->updateOrCreate(
+            ['code' => 'PK'],
+            [
+                'name' => 'Pakistan',
+                'billing_policy' => Country::BILLING_EXEMPT,
+                'sort_order' => 1,
+                'status' => 'active',
+            ],
+        );
+
+        $state = State::query()->updateOrCreate(
+            ['country_id' => $country->id, 'name' => 'Punjab'],
+            ['sort_order' => 1, 'status' => 'active'],
+        );
+
+        foreach ([
+            ['title' => 'Pakistan - Lahore', 'status' => 'active'],
+            ['title' => 'Pakistan - Islamabad', 'status' => 'active'],
+            ['title' => 'Pakistan - Karachi', 'status' => 'inactive'],
+            ['title' => 'Pakistan - Rawalpindi', 'status' => 'inactive'],
+            ['title' => 'Pakistan - Faisalabad', 'status' => 'inactive'],
+        ] as $index => $row) {
+            Region::query()->create([
+                'title' => $row['title'],
+                'area' => $row['title'],
+                'state' => 'Punjab',
+                'state_id' => $state->id,
+                'users_label' => '0 users',
+                'sort_order' => $index,
+                'status' => $row['status'],
+            ]);
+        }
+
+        $admin = User::factory()->create([
+            'role' => 'system_admin',
+            'status' => 'active',
+        ]);
+        $token = $admin->createToken('test')->plainTextToken;
+
+        $this->withToken($token)
+            ->getJson('/api/v1/admin/regions?status=active')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 2)
+            ->assertJsonPath('meta.stats.total', 5)
+            ->assertJsonPath('meta.stats.active', 2)
+            ->assertJsonPath('meta.stats.inactive', 3);
+
+        $this->withToken($token)
+            ->getJson('/api/v1/admin/regions?status=inactive')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 3)
+            ->assertJsonPath('meta.stats.total', 5)
+            ->assertJsonPath('meta.stats.active', 2)
+            ->assertJsonPath('meta.stats.inactive', 3);
+    }
 }

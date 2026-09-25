@@ -14,21 +14,34 @@ function formatBookingDate(value?: string | null): string {
 
 function bookingStatusMeta(status?: string | null) {
   if (status === "pending") return { label: "Pending approval", tone: "amber" as const, hint: "Waiting for the amenity creator to review your request." };
+  if (status === "awaiting_payment") return { label: "Payment required", tone: "amber" as const, hint: "The amenity creator approved your request. Pay and submit proof to confirm the booking." };
   if (status === "rejected") return { label: "Declined", tone: "red" as const, hint: "Your booking request was declined by the amenity creator." };
   if (status === "confirmed") return { label: "Approved", tone: "green" as const, hint: "Your reservation is confirmed." };
   return { label: "Booked", tone: "blue" as const, hint: "Your reservation details are below." };
 }
 
+export function canPayAmenityBooking(amenity?: Amenity | null) {
+  return amenity?.user_next_booking_status === "awaiting_payment"
+    && amenity.user_next_booking_bill?.can_submit_proof === true;
+}
+
 export function AmenityBookingTrackModal({
   amenity,
   onClose,
+  onPay,
 }: {
   amenity: Amenity | null;
   onClose: () => void;
+  onPay?: (amenity: Amenity) => void;
 }) {
   if (!amenity?.user_has_upcoming_booking) return null;
 
   const status = bookingStatusMeta(amenity.user_next_booking_status);
+  const canPay = canPayAmenityBooking(amenity);
+  const bill = amenity.user_next_booking_bill;
+  const awaitingReview = amenity.user_next_booking_status === "awaiting_payment"
+    && bill
+    && !bill.can_submit_proof;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
@@ -57,7 +70,11 @@ export function AmenityBookingTrackModal({
           <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Status</p>
-              <p className="mt-1 text-sm text-slate-700">{status.hint}</p>
+              <p className="mt-1 text-sm text-slate-700">
+                {awaitingReview
+                  ? "Payment proof submitted. Waiting for the amenity creator to approve it."
+                  : status.hint}
+              </p>
             </div>
             <AdminBadge tone={status.tone}>{status.label}</AdminBadge>
           </div>
@@ -79,6 +96,11 @@ export function AmenityBookingTrackModal({
                 <span>{amenity.user_next_booking_guests} guest{amenity.user_next_booking_guests === 1 ? "" : "s"}</span>
               </div>
             ) : null}
+            {bill?.amount ? (
+              <p className="text-sm font-semibold text-slate-800">
+                Amount due: ${Number(bill.amount).toFixed(Number(bill.amount) % 1 === 0 ? 0 : 2)}
+              </p>
+            ) : null}
           </div>
 
           {amenity.creator_name ? (
@@ -88,10 +110,15 @@ export function AmenityBookingTrackModal({
           ) : null}
         </div>
 
-        <div className="flex justify-end border-t border-slate-100 px-5 py-4">
+        <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">
           <button type="button" onClick={onClose} className="nl-btn-secondary">
             Close
           </button>
+          {canPay && onPay ? (
+            <button type="button" onClick={() => onPay(amenity)} className="nl-btn-primary">
+              Make payment
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

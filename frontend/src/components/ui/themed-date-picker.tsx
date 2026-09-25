@@ -24,8 +24,8 @@ const MONTHS = [
 function parseIso(iso: string) {
   if (!iso) return null;
   const [y, m, d] = iso.split("-").map(Number);
-  if (!y || !m || !d) return null;
-  return { y, m: m - 1, d };
+  if (!y) return null;
+  return { y, m: (m || 1) - 1, d: d || 1 };
 }
 
 function toIso(y: number, m: number, d: number) {
@@ -37,9 +37,26 @@ function todayParts() {
   return { y: now.getFullYear(), m: now.getMonth(), d: now.getDate() };
 }
 
-function formatDisplay(iso: string) {
+export type DatePickerMode = "date" | "month" | "year";
+
+const YEAR_HORIZON = 10;
+
+export function billingYearOptions(selectedYear?: string) {
+  const start = new Date().getFullYear();
+  const years = Array.from({ length: YEAR_HORIZON + 1 }, (_, index) => String(start + index));
+  if (selectedYear && /^\d{4}$/.test(selectedYear) && !years.includes(selectedYear)) {
+    years.unshift(selectedYear);
+  }
+  return years;
+}
+
+function formatDisplay(iso: string, mode: DatePickerMode = "date") {
   const parts = parseIso(iso);
-  if (!parts) return "";
+  if (!parts) return iso || "";
+  if (mode === "year") return String(parts.y);
+  if (mode === "month") {
+    return new Date(parts.y, parts.m, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  }
   return new Date(parts.y, parts.m, parts.d).toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
@@ -120,7 +137,14 @@ type ThemedDatePickerProps = {
   icon?: ReactNode;
   className?: string;
   compact?: boolean;
+  mode?: DatePickerMode;
 };
+
+function initialPane(mode: DatePickerMode): CalendarPane {
+  if (mode === "year") return "year";
+  if (mode === "month") return "month";
+  return "day";
+}
 
 export function ThemedDatePicker({
   value,
@@ -133,6 +157,7 @@ export function ThemedDatePicker({
   icon,
   className = "",
   compact = false,
+  mode = "date",
 }: ThemedDatePickerProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -144,16 +169,16 @@ export function ThemedDatePicker({
   const initial = parseIso(value) ?? todayParts();
   const [viewYear, setViewYear] = useState(initial.y);
   const [viewMonth, setViewMonth] = useState(initial.m);
-  const [pane, setPane] = useState<CalendarPane>("day");
+  const [pane, setPane] = useState<CalendarPane>(() => initialPane(mode));
   const [yearPage, setYearPage] = useState(() => yearPageStart(initial.y));
   const onBlurRef = useRef(onBlur);
   onBlurRef.current = onBlur;
 
   const closePicker = useCallback(() => {
-    setPane("day");
+    setPane(initialPane(mode));
     setOpen(false);
     onBlurRef.current?.();
-  }, []);
+  }, [mode]);
 
   usePopoverDismiss(open, closePicker, wrapRef, popoverRef);
 
@@ -214,7 +239,9 @@ export function ThemedDatePicker({
     setViewMonth(next.m);
   };
 
-  const yearOptions = Array.from({ length: YEAR_PAGE_SIZE }, (_, index) => yearPage + index);
+  const yearOptions = mode === "year"
+    ? billingYearOptions(value ? String(parseIso(value)?.y ?? "") : undefined).map(Number)
+    : Array.from({ length: YEAR_PAGE_SIZE }, (_, index) => yearPage + index);
   const titleLabel =
     pane === "year"
       ? `${yearPage} – ${yearPage + YEAR_PAGE_SIZE - 1}`
@@ -239,7 +266,7 @@ export function ThemedDatePicker({
           aria-haspopup="dialog"
           onClick={() => {
             setOpen((v) => {
-              if (!v) setPane("day");
+              if (!v) setPane(initialPane(mode));
               return !v;
             });
           }}
@@ -252,7 +279,7 @@ export function ThemedDatePicker({
         >
           <span className="nl-picker-icon">{icon ?? <CalendarDays size={14} strokeWidth={2} aria-hidden />}</span>
           <span className={["nl-picker-text", hasValue ? "" : "is-placeholder"].join(" ")}>
-            {hasValue ? formatDisplay(value) : placeholder}
+            {hasValue ? formatDisplay(value, mode) : placeholder}
           </span>
           <ChevronDown className={`nl-picker-chevron ${open ? "nl-picker-chevron-open" : ""}`} size={14} strokeWidth={2} aria-hidden />
         </button>
@@ -271,12 +298,13 @@ export function ThemedDatePicker({
                     type="button"
                     className="nl-calendar-nav"
                     aria-label={navBackLabel}
+                    disabled={mode === "year"}
                     onClick={() => stepView(-1)}
                   >
                     <ChevronLeft size={16} strokeWidth={2.5} />
                   </button>
-                  {pane === "year" ? (
-                    <p className="nl-calendar-title">{titleLabel}</p>
+                  {pane === "year" || mode === "year" ? (
+                    <p className="nl-calendar-title">{mode === "year" ? "Choose year" : titleLabel}</p>
                   ) : (
                     <button
                       type="button"
@@ -292,6 +320,7 @@ export function ThemedDatePicker({
                     type="button"
                     className="nl-calendar-nav"
                     aria-label={navForwardLabel}
+                    disabled={mode === "year"}
                     onClick={() => stepView(1)}
                   >
                     <ChevronRight size={16} strokeWidth={2.5} />
@@ -311,6 +340,11 @@ export function ThemedDatePicker({
                           aria-selected={isSelected}
                           onClick={() => {
                             setViewYear(year);
+                            if (mode === "year") {
+                              onChange(toIso(year, 0, 1));
+                              closePicker();
+                              return;
+                            }
                             setPane("month");
                           }}
                           className={[
@@ -340,6 +374,11 @@ export function ThemedDatePicker({
                           aria-selected={monthSelected}
                           onClick={() => {
                             setViewMonth(index);
+                            if (mode === "month") {
+                              onChange(toIso(viewYear, index, 1));
+                              closePicker();
+                              return;
+                            }
                             setPane("day");
                           }}
                           className={[
@@ -396,7 +435,23 @@ export function ThemedDatePicker({
                   <button type="button" className="nl-calendar-foot-btn" onClick={clear}>
                     Clear
                   </button>
-                  <button type="button" className="nl-calendar-foot-btn nl-calendar-foot-btn-primary" onClick={goToday}>
+                  <button
+                    type="button"
+                    className="nl-calendar-foot-btn nl-calendar-foot-btn-primary"
+                    onClick={() => {
+                      if (mode === "year") {
+                        onChange(toIso(today.y, 0, 1));
+                        closePicker();
+                        return;
+                      }
+                      if (mode === "month") {
+                        onChange(toIso(today.y, today.m, 1));
+                        closePicker();
+                        return;
+                      }
+                      goToday();
+                    }}
+                  >
                     Today
                   </button>
                 </div>

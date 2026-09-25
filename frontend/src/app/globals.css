@@ -1922,6 +1922,40 @@ body {
   color: var(--brand-primary-deep);
 }
 
+/* Segmented control — uses brand theme tokens */
+.nl-segment-control {
+  display: inline-flex;
+  gap: 0.125rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--brand-border);
+  background: var(--brand-canvas);
+  padding: 0.25rem;
+}
+.nl-segment-control-item {
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.25;
+  cursor: pointer;
+  outline: none;
+  transition: background 150ms, color 150ms, box-shadow 150ms;
+}
+.nl-segment-control-item-active {
+  background: var(--brand-surface);
+  color: var(--brand-primary-deep);
+  box-shadow: var(--nl-shadow-card);
+}
+.nl-segment-control-item-idle {
+  background: transparent;
+  color: var(--brand-secondary-muted);
+}
+.nl-segment-control-item-idle:hover {
+  background: var(--brand-primary-lighter);
+  color: var(--brand-primary-deep);
+}
+
 .nl-btn-primary {
   display: inline-flex;
   align-items: center;

@@ -15,6 +15,79 @@ class AmenitySharedBillController extends Controller
 {
     public function __construct(private AmenitySharedBillService $bills) {}
 
+    /** GET /v1/admin/amenity-bills */
+    public function communityIndex(Request $request): JsonResponse
+    {
+        $scope = AdminRoleService::resolveAdminCommunityScope($request->user(), $request);
+        abort_if(! $scope, 422, 'No community scope available.');
+
+        return response()->json([
+            'data' => $this->bills->listCommunityResidentBills((int) $scope, $request),
+        ]);
+    }
+
+    /** GET /v1/amenity-bills — signed-in resident's shared amenity bills. */
+    public function myIndex(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (GuestAccessService::isGuest($user)) {
+            return response()->json(['data' => []]);
+        }
+
+        $communityId = $this->resolveResidentCommunityId($request, $user);
+
+        return response()->json([
+            'data' => $this->bills->listMyResidentBills($communityId, (int) $user->id, $request),
+        ]);
+    }
+
+    /** GET /v1/amenity-owner-bills — bills for amenities the current user created. */
+    public function ownerIndex(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (GuestAccessService::isGuest($user)) {
+            return response()->json(['data' => []]);
+        }
+
+        $communityId = $this->resolveResidentCommunityId($request, $user);
+
+        return response()->json([
+            'data' => $this->bills->listOwnerResidentBills($communityId, (int) $user->id, $request),
+        ]);
+    }
+
+    /** PATCH /v1/amenities/{id}/resident-bills/{residentBillId}/approve */
+    public function ownerApprove(Request $request, int $id, int $residentBillId): JsonResponse
+    {
+        $bill = $this->findOwnerReviewableBill($request, $id, $residentBillId);
+
+        return response()->json([
+            'data' => $this->bills->approveResidentPayment($bill, (int) $request->user()->id, $request),
+            'message' => AmenitySharedBillService::APPROVED_MESSAGE,
+        ]);
+    }
+
+    /** PATCH /v1/amenities/{id}/resident-bills/{residentBillId}/reject */
+    public function ownerReject(Request $request, int $id, int $residentBillId): JsonResponse
+    {
+        $bill = $this->findOwnerReviewableBill($request, $id, $residentBillId);
+
+        $data = $request->validate([
+            'rejection_code' => ['required', 'string', Rule::in(array_keys(AmenitySharedBillService::REJECTION_REASONS))],
+            'rejection_reason' => 'nullable|string|max:500',
+        ]);
+
+        $reason = $this->bills->resolveRejectionReason(
+            $data['rejection_code'],
+            $data['rejection_reason'] ?? null,
+        );
+
+        return response()->json([
+            'data' => $this->bills->rejectResidentPayment($bill, (int) $request->user()->id, $reason, $request),
+            'message' => AmenitySharedBillService::REJECTED_MESSAGE,
+        ]);
+    }
+
     /** GET /v1/admin/amenities/{id}/bills */
     public function adminIndex(Request $request, int $id): JsonResponse
     {
@@ -197,6 +270,24 @@ class AmenitySharedBillController extends Controller
 
         $bill = $this->bills->findAdminResidentBill((int) $amenity->id, $residentBillId);
         abort_if(! $bill, 404, 'Bill not found.');
+
+        return $bill;
+    }
+
+    private function findOwnerReviewableBill(Request $request, int $amenityId, int $residentBillId): object
+    {
+        $user = $request->user();
+        abort_if(GuestAccessService::isGuest($user), 403, 'Guests cannot review amenity payments.');
+
+        $communityId = $this->resolveResidentCommunityId($request, $user);
+        $amenity = DB::table('amenities')
+            ->where('id', $amenityId)
+            ->where('community_id', $communityId)
+            ->first();
+        abort_if(! $amenity, 404, 'Amenity not found.');
+
+        $bill = $this->bills->findOwnerResidentBill((int) $amenity->id, $residentBillId, (int) $user->id);
+        abort_if(! $bill, 403, 'Only the amenity creator can review this payment.');
 
         return $bill;
     }

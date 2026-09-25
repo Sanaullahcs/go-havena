@@ -12,6 +12,7 @@ import { FormPhoneInput } from "../../../components/ui/phone-input";
 import { Image } from "expo-image";
 import { pickImage } from "../../../utils/pickImage";
 import { updateProfile, joinCommunity, fetchMe } from "../../../services/auth-api";
+import { fetchCommunityUnits } from "../../../services/property-services-api";
 import {
   checkFamilyNumberAvailability,
   ensureMyFamily,
@@ -94,6 +95,7 @@ export default function CompleteProfile() {
   const [phoneCountry, setPhoneCountry] = useState(DEFAULT_PHONE_COUNTRY);
   const [bio, setBio] = useState("");
   const [unitNumber, setUnitNumber] = useState("");
+  const [existingUnits, setExistingUnits] = useState([]);
   const [familyNumber, setFamilyNumber] = useState("");
   const [familyNumberError, setFamilyNumberError] = useState(null);
   const [familyNumberChecking, setFamilyNumberChecking] = useState(false);
@@ -428,6 +430,11 @@ export default function CompleteProfile() {
         }
         setBio(fields.bio ?? "");
         setUnitNumber(isPlaceholderUnitNumber(fields.unitNumber) ? "" : (fields.unitNumber ?? ""));
+        if (communityId) {
+          fetchCommunityUnits(Number(communityId))
+            .then((rows) => { if (!cancelled) setExistingUnits(Array.isArray(rows) ? rows : []); })
+            .catch(() => { if (!cancelled) setExistingUnits([]); });
+        }
         const rawResidence = user.profile?.residence_type ?? user.residence_type ?? "";
         setResidenceType(isPlaceholderResidenceType(rawResidence) ? "" : rawResidence);
         setExistingUtilityBillUrl(fields.utilityBillUrl);
@@ -976,6 +983,35 @@ export default function CompleteProfile() {
                 />
               </View>
               {showError("unitNumber", liveErrors) ? <Text style={styles.errorText}>{showError("unitNumber", liveErrors)}</Text> : null}
+              {existingUnits.length > 0 ? (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                  {existingUnits.slice(0, 12).map((unit) => (
+                    <TouchableOpacity
+                      key={unit.id}
+                      onPress={() => {
+                        setUnitNumber(unit.unit_number);
+                        clearError("unitNumber");
+                      }}
+                      style={{
+                        borderWidth: 1,
+                        borderColor: unitNumber === unit.unit_number ? T.teal : "#CBD5E1",
+                        backgroundColor: unitNumber === unit.unit_number ? "#CCFBF1" : "#fff",
+                        borderRadius: 999,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                      }}
+                    >
+                      <Text style={{ color: T.navy, fontSize: 12, fontFamily: Fonts.bold }}>
+                        {unit.unit_number}
+                        {unit.billing_contact?.name ? ` · ${unit.billing_contact.name}` : ""}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : null}
+              <Text style={styles.helperText}>
+                First resident on a new unit becomes the billing contact. Joining an existing unit does not change the contact.
+              </Text>
             </View>
 
             {showFamilyNumberField && !isGuestProfile ? (

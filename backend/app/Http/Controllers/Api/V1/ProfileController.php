@@ -213,6 +213,7 @@ class ProfileController extends Controller
 
             $user->load('profile.region');
             MembershipService::approvePendingForActiveCommunities($user);
+            $this->syncUnitAssignments($user);
             $this->maybeAwardProfileCompleted($user);
         }
 
@@ -504,6 +505,21 @@ class ProfileController extends Controller
         ActivityLogService::user('account_deleted', 'User deleted their own account', 'User', $userId, 'warning');
 
         return response()->json(['message' => 'Account deleted']);
+    }
+
+    private function syncUnitAssignments(User $user): void
+    {
+        $user->loadMissing(['profile', 'memberships']);
+        foreach ($user->memberships as $membership) {
+            if (($membership->status ?? '') !== 'approved') {
+                continue;
+            }
+            try {
+                app(\App\Services\UnitAssignmentService::class)->syncUserToCommunity($user, (int) $membership->community_id);
+            } catch (\Throwable) {
+                // Profile save should not fail if unit assignment cannot complete.
+            }
+        }
     }
 
     private function storeProfileImage(UploadedFile $file, string $folder): string

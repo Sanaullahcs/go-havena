@@ -11,13 +11,17 @@ import {
 } from "@/lib/admin/amenity-display";
 import { formatBillAmount, formatUsdAmount } from "@/lib/admin/amenity-bill-validation";
 import {
+  amenityChargeModel,
   amenityFormStepErrors,
   amenityFormToPayload,
-  SHARED_BILLING_FREQUENCY_LABEL,
+  applyAmenityChargeModel,
+  inferAmenityChargeModel,
+  SHARED_BILLING_FREQUENCY_OPTIONS,
   SHARED_BILLING_TYPE_LABEL,
   sharedBillingDueDayLabel,
   validateAmenityForm,
   visibleAmenityFormSteps,
+  type AmenityChargeModel,
   type AmenityForm,
   type AmenityFormStep,
 } from "@/lib/admin/amenity-form-validation";
@@ -35,7 +39,10 @@ const EMPTY_FORM: AmenityForm = {
   weekends_available: true,
   slot_duration_minutes: "60",
   icon_key: "",
+  custom_category: "",
+  charge_model: "free",
   shared_billing_enabled: false,
+  shared_billing_frequency: "monthly",
   shared_billing_amount: "",
   shared_billing_due_day: "",
   booking_fee: "0",
@@ -61,8 +68,8 @@ const STEP_COPY: Record<AmenityFormStep, { label: string; title: string; hint: s
   },
   billing: {
     label: "Billing",
-    title: "Shared billing",
-    hint: "Charge every resident in this community each month.",
+    title: "Resident billing",
+    hint: "Amenities bill each approved resident, not the unit. Community admins are never billed.",
   },
   review: {
     label: "Review",
@@ -76,14 +83,17 @@ function amenityToForm(amenity: Amenity): AmenityForm {
     name: amenity.name ?? "",
     description: amenity.description ?? "",
     status: (amenity.status as AmenityForm["status"]) ?? "bookable",
-    capacity: amenity.capacity != null ? String(amenity.capacity) : "",
+    capacity: amenity.capacity != null && Number(amenity.capacity) > 0 ? String(amenity.capacity) : "",
     floor: amenity.floor ?? "",
     hours: amenity.hours ?? "",
     weekends_available: amenity.weekends_available !== false,
     slot_duration_minutes:
       amenity.slot_duration_minutes != null ? String(amenity.slot_duration_minutes) : "60",
     icon_key: amenity.icon_key || getAmenityVisual(amenity.name).key,
+    custom_category: amenity.custom_category ?? "",
+    charge_model: inferAmenityChargeModel(amenity),
     shared_billing_enabled: Boolean(amenity.shared_billing_enabled),
+    shared_billing_frequency: amenity.shared_billing_frequency === "yearly" ? "yearly" : "monthly",
     shared_billing_amount:
       amenity.shared_billing_amount != null ? String(amenity.shared_billing_amount) : "",
     shared_billing_due_day:
@@ -96,7 +106,10 @@ function statusLabel(status: AmenityForm["status"]) {
   return AMENITY_STATUS_OPTIONS.find((opt) => opt.key === status)?.label ?? status;
 }
 
-function categoryLabel(iconKey: string) {
+function categoryLabel(iconKey: string, customCategory?: string) {
+  if (iconKey === "other" && customCategory?.trim()) {
+    return `Other · ${customCategory.trim()}`;
+  }
   return AMENITY_ICON_CATALOG.find((icon) => icon.key === iconKey)?.label ?? iconKey;
 }
 
@@ -180,9 +193,10 @@ export function AmenityFormModal({
 
   const liveErrors = useMemo(() => validateAmenityForm(form), [form]);
   const visibleSteps = useMemo(
-    () => visibleAmenityFormSteps(showSharedBilling, form.shared_billing_enabled),
-    [showSharedBilling, form.shared_billing_enabled],
+    () => visibleAmenityFormSteps(showSharedBilling),
+    [showSharedBilling],
   );
+  const chargeModel = amenityChargeModel(form);
 
   useEffect(() => {
     if (!visibleSteps.includes(step)) {
@@ -197,13 +211,9 @@ export function AmenityFormModal({
     clearError(key);
   };
 
-  const setSharedBillingEnabled = (enabled: boolean) => {
-    setForm((prev) => ({
-      ...prev,
-      shared_billing_enabled: enabled,
-      shared_billing_amount: enabled ? prev.shared_billing_amount : "",
-      shared_billing_due_day: enabled ? prev.shared_billing_due_day : "",
-    }));
+  const setChargeModel = (model: AmenityChargeModel) => {
+    setForm((prev) => applyAmenityChargeModel(prev, model));
+    clearError("booking_fee");
     clearError("shared_billing_amount");
     clearError("shared_billing_due_day");
   };
@@ -229,11 +239,17 @@ export function AmenityFormModal({
 
   const handleSubmit = async () => {
     if (!validateOnSubmit(liveErrors)) {
-      if (liveErrors.name || liveErrors.description || liveErrors.floor || liveErrors.capacity || liveErrors.icon_key) {
+      if (
+        liveErrors.name ||
+        liveErrors.description ||
+        liveErrors.floor ||
+        liveErrors.icon_key ||
+        liveErrors.custom_category
+      ) {
         setStep("details");
-      } else if (liveErrors.status || liveErrors.hours || liveErrors.slot_duration_minutes) {
+      } else if (liveErrors.status || liveErrors.capacity || liveErrors.hours || liveErrors.slot_duration_minutes) {
         setStep("availability");
-      } else if (liveErrors.shared_billing_amount || liveErrors.shared_billing_due_day) {
+      } else if (liveErrors.booking_fee || liveErrors.shared_billing_amount || liveErrors.shared_billing_due_day) {
         setStep(visibleSteps.includes("billing") ? "billing" : "availability");
       }
       return;
@@ -241,22 +257,23 @@ export function AmenityFormModal({
     await onSubmit(amenityFormToPayload(form));
   };
 
-  const billingToggle = showSharedBilling ? (
-    <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-      <span>
-        <span className="block text-sm font-semibold text-slate-800">Shared Billing</span>
-        <span className="text-xs text-slate-500">
-          Charge every resident in this community each month, even if they do not use this amenity.
-        </span>
-      </span>
-      <input
-        type="checkbox"
-        checked={form.shared_billing_enabled}
-        onChange={(e) => setSharedBillingEnabled(e.target.checked)}
-        className="h-4 w-4 rounded border-slate-300 text-[#1B4F8A]"
-      />
-    </label>
-  ) : null;
+  const chargeModels: Array<{ key: AmenityChargeModel; title: string; hint: string }> = [
+    {
+      key: "free",
+      title: "Free",
+      hint: "No monthly bill and no booking fee. Best for open facilities like a playground.",
+    },
+    {
+      key: "booking",
+      title: "Pay per booking",
+      hint: "The resident who reserves a slot pays a booking fee and uploads proof.",
+    },
+    {
+      key: "monthly",
+      title: "Shared monthly",
+      hint: "Each approved resident is billed every month, even if they do not use it.",
+    },
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-4 sm:items-center">
@@ -319,35 +336,19 @@ export function AmenityFormModal({
                 ) : null}
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-600">Location *</label>
-                  <input
-                    className={inputClass(showError("floor", liveErrors.floor))}
-                    value={form.floor}
-                    onChange={(e) => setField("floor", e.target.value)}
-                    onBlur={() => touch("floor")}
-                    placeholder="e.g. Ground floor"
-                    maxLength={40}
-                  />
-                  {showError("floor", liveErrors.floor) ? (
-                    <p className="mt-1 text-xs text-red-600">{liveErrors.floor}</p>
-                  ) : null}
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-600">Capacity *</label>
-                  <input
-                    className={inputClass(showError("capacity", liveErrors.capacity))}
-                    value={form.capacity}
-                    onChange={(e) => setField("capacity", e.target.value.replace(/[^0-9]/g, ""))}
-                    onBlur={() => touch("capacity")}
-                    placeholder="e.g. 10"
-                    inputMode="numeric"
-                  />
-                  {showError("capacity", liveErrors.capacity) ? (
-                    <p className="mt-1 text-xs text-red-600">{liveErrors.capacity}</p>
-                  ) : null}
-                </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-slate-600">Location *</label>
+                <input
+                  className={inputClass(showError("floor", liveErrors.floor))}
+                  value={form.floor}
+                  onChange={(e) => setField("floor", e.target.value)}
+                  onBlur={() => touch("floor")}
+                  placeholder="e.g. Ground floor"
+                  maxLength={40}
+                />
+                {showError("floor", liveErrors.floor) ? (
+                  <p className="mt-1 text-xs text-red-600">{liveErrors.floor}</p>
+                ) : null}
               </div>
 
               <div>
@@ -361,6 +362,9 @@ export function AmenityFormModal({
                         type="button"
                         onClick={() => {
                           setField("icon_key", icon.key);
+                          if (icon.key !== "other") {
+                            setField("custom_category", "");
+                          }
                           touch("icon_key");
                         }}
                         className={[
@@ -384,6 +388,29 @@ export function AmenityFormModal({
                 </div>
                 {showError("icon_key", liveErrors.icon_key) ? (
                   <p className="mt-1 text-xs text-red-600">{liveErrors.icon_key}</p>
+                ) : null}
+                {form.icon_key === "other" ? (
+                  <div className="mt-3">
+                    <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                      Custom category *
+                    </label>
+                    <input
+                      className={[
+                        "w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition",
+                        showError("custom_category", liveErrors.custom_category)
+                          ? "border-red-300 focus:border-red-400"
+                          : "border-slate-200 focus:border-[#1B4F8A]",
+                      ].join(" ")}
+                      value={form.custom_category}
+                      onChange={(e) => setField("custom_category", e.target.value)}
+                      onBlur={() => touch("custom_category")}
+                      placeholder="e.g. Rooftop garden"
+                      maxLength={80}
+                    />
+                    {showError("custom_category", liveErrors.custom_category) ? (
+                      <p className="mt-1 text-xs text-red-600">{liveErrors.custom_category}</p>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
             </div>
@@ -415,6 +442,28 @@ export function AmenityFormModal({
                 </div>
               </div>
 
+              {form.status !== "open" ? (
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-slate-600">Capacity / Limit</label>
+                  <input
+                    className={[
+                      inputClass(showError("capacity", liveErrors.capacity)),
+                      form.status === "closed" ? "cursor-not-allowed bg-slate-50 text-slate-400" : "",
+                    ].join(" ")}
+                    value={form.capacity}
+                    onChange={(e) => setField("capacity", e.target.value.replace(/[^0-9]/g, ""))}
+                    onBlur={() => touch("capacity")}
+                    placeholder="e.g. 10"
+                    inputMode="numeric"
+                    disabled={form.status === "closed"}
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Capacity is required when Slots is selected.</p>
+                  {showError("capacity", liveErrors.capacity) ? (
+                    <p className="mt-1 text-xs text-red-600">{liveErrors.capacity}</p>
+                  ) : null}
+                </div>
+              ) : null}
+
               <div>
                 <label className="mb-1.5 block text-xs font-semibold text-slate-600">Hours *</label>
                 <BusinessHoursInput
@@ -443,6 +492,59 @@ export function AmenityFormModal({
                   className="h-4 w-4 rounded border-slate-300 text-[#1B4F8A]"
                 />
               </label>
+
+              {!form.shared_billing_enabled && (form.status === "open" || form.status === "bookable") ? (
+                <div className="space-y-3">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                      Booking amount
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {(
+                        [
+                          { key: "free" as const, label: "Free" },
+                          { key: "booking" as const, label: "Paid" },
+                        ] as const
+                      ).map((opt) => {
+                        const active = chargeModel === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setChargeModel(opt.key)}
+                            className={[
+                              "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                              active
+                                ? "border-[#1B4F8A] bg-[#E8F0F7] text-[#1B4F8A]"
+                                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
+                            ].join(" ")}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {chargeModel === "booking" ? (
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                        Booking / reservation fee *
+                      </label>
+                      <input
+                        className={inputClass(showError("booking_fee", liveErrors.booking_fee))}
+                        value={form.booking_fee}
+                        onChange={(e) => setField("booking_fee", e.target.value.replace(/[^0-9.]/g, ""))}
+                        onBlur={() => touch("booking_fee")}
+                        placeholder="e.g. 50"
+                        inputMode="decimal"
+                      />
+                      {showError("booking_fee", liveErrors.booking_fee) ? (
+                        <p className="mt-1 text-xs text-red-600">{liveErrors.booking_fee}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               {form.status === "bookable" ? (
                 <div>
@@ -477,23 +579,48 @@ export function AmenityFormModal({
                   ) : null}
                 </div>
               ) : null}
+            </div>
+          ) : null}
 
-              {showSharedBilling ? (
+          {step === "billing" ? (
+            <div className="space-y-4">
+              <div className="grid gap-2">
+                {chargeModels.map((model) => {
+                  const active = chargeModel === model.key;
+                  return (
+                    <button
+                      key={model.key}
+                      type="button"
+                      onClick={() => setChargeModel(model.key)}
+                      className={[
+                        "rounded-2xl border px-4 py-3 text-left transition",
+                        active
+                          ? "border-[#1B4F8A] bg-[#E8F0F7]"
+                          : "border-slate-200 bg-white hover:border-slate-300",
+                      ].join(" ")}
+                    >
+                      <span className="block text-sm font-semibold text-slate-900">{model.title}</span>
+                      <span className="mt-0.5 block text-xs text-slate-500">{model.hint}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {chargeModel === "booking" ? (
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                    Booking / reservation fee
+                    Booking / reservation fee{chargeModel === "booking" ? " *" : ""}
                   </label>
                   <input
                     className={inputClass(showError("booking_fee", liveErrors.booking_fee))}
                     value={form.booking_fee}
                     onChange={(e) => setField("booking_fee", e.target.value.replace(/[^0-9.]/g, ""))}
                     onBlur={() => touch("booking_fee")}
-                    placeholder="0"
+                    placeholder={chargeModel === "booking" ? "e.g. 50" : "0"}
                     inputMode="decimal"
                   />
                   <p className="mt-1 text-xs text-slate-400">
-                    Charged per reservation, outside GoHavena. Use 0 for free bookings. Separate from
-                    shared monthly billing.
+                    Charged to the resident who books, outside GoHavena. Use 0 if the monthly fee already covers booking.
                   </p>
                   {showError("booking_fee", liveErrors.booking_fee) ? (
                     <p className="mt-1 text-xs text-red-600">{liveErrors.booking_fee}</p>
@@ -501,16 +628,8 @@ export function AmenityFormModal({
                 </div>
               ) : null}
 
-              {billingToggle}
-            </div>
-          ) : null}
-
-          {step === "billing" ? (
-            <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-              {billingToggle}
-
               {form.shared_billing_enabled ? (
-                <div className="space-y-3 border-t border-slate-200 pt-3">
+                <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
@@ -522,7 +641,26 @@ export function AmenityFormModal({
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                         Billing frequency
                       </p>
-                      <p className="mt-0.5 text-sm font-semibold text-slate-900">{SHARED_BILLING_FREQUENCY_LABEL}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {SHARED_BILLING_FREQUENCY_OPTIONS.map((opt) => {
+                          const active = form.shared_billing_frequency === opt.value;
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => setField("shared_billing_frequency", opt.value)}
+                              className={[
+                                "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                                active
+                                  ? "border-[#1B4F8A] bg-[#E8F0F7] text-[#1B4F8A]"
+                                  : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300",
+                              ].join(" ")}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
 
@@ -575,7 +713,7 @@ export function AmenityFormModal({
                       {amenity?.community_name || communityName || "This community"}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
-                      Uses this amenity&apos;s existing community. All residents there will be billed later.
+                      Each approved resident is billed individually. Community admins are not billed.
                     </p>
                   </div>
                 </div>
@@ -586,9 +724,14 @@ export function AmenityFormModal({
           {step === "review" ? (
             <dl className="grid gap-2 sm:grid-cols-2">
               <ReviewRow label="Name" value={form.name.trim() || "—"} />
-              <ReviewRow label="Category" value={categoryLabel(form.icon_key) || "—"} />
+              <ReviewRow
+                label="Category"
+                value={categoryLabel(form.icon_key, form.custom_category) || "—"}
+              />
               <ReviewRow label="Location" value={form.floor.trim() || "—"} />
-              <ReviewRow label="Capacity" value={form.capacity.trim() || "—"} />
+              {form.status !== "open" ? (
+                <ReviewRow label="Capacity / Limit" value={form.capacity.trim() || "—"} />
+              ) : null}
               <div className="sm:col-span-2">
                 <ReviewRow label="Description" value={form.description.trim() || "None"} />
               </div>
@@ -603,26 +746,41 @@ export function AmenityFormModal({
                     : "Not used"
                 }
               />
-              {showSharedBilling ? (
-                <ReviewRow
-                  label="Booking fee"
-                  value={
-                    Number(form.booking_fee) > 0
-                      ? formatUsdAmount(Number(form.booking_fee))
-                      : "Free (no payment proof)"
-                  }
-                />
-              ) : null}
-              {showSharedBilling ? (
+              {showSharedBilling || form.status === "open" || form.status === "bookable" ? (
                 <>
                   <ReviewRow
-                    label="Shared billing"
-                    value={form.shared_billing_enabled ? "On" : "Off"}
+                    label="Charge model"
+                    value={
+                      chargeModel === "monthly"
+                        ? "Shared monthly"
+                        : chargeModel === "booking"
+                          ? "Pay per booking"
+                          : "Free"
+                    }
                   />
-                  {form.shared_billing_enabled ? (
+                  {chargeModel === "booking" ? (
+                    <ReviewRow
+                      label="Booking fee"
+                      value={
+                        Number(form.booking_fee) > 0
+                          ? formatUsdAmount(Number(form.booking_fee))
+                          : "None"
+                      }
+                    />
+                  ) : null}
+                  {showSharedBilling ? (
+                    <ReviewRow
+                      label="Shared billing"
+                      value={form.shared_billing_enabled ? "On — each approved resident" : "Off"}
+                    />
+                  ) : null}
+                  {showSharedBilling && form.shared_billing_enabled ? (
                     <>
                       <ReviewRow label="Billing type" value={SHARED_BILLING_TYPE_LABEL} />
-                      <ReviewRow label="Frequency" value={SHARED_BILLING_FREQUENCY_LABEL} />
+                      <ReviewRow
+                        label="Frequency"
+                        value={form.shared_billing_frequency === "yearly" ? "Yearly" : "Monthly"}
+                      />
                       <ReviewRow
                         label="Amount per resident"
                         value={formatBillAmount(Number(form.shared_billing_amount))}
@@ -631,7 +789,7 @@ export function AmenityFormModal({
                         label="Due day"
                         value={
                           form.shared_billing_due_day
-                            ? sharedBillingDueDayLabel(Number(form.shared_billing_due_day))
+                            ? sharedBillingDueDayLabel(Number(form.shared_billing_due_day), form.shared_billing_frequency)
                             : "—"
                         }
                       />

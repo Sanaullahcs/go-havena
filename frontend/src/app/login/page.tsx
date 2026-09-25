@@ -37,7 +37,7 @@ import { Suspense } from "react";
 
 type OtpStep = "email" | "code";
 
-const COMMUNITY_DEMO_EMAIL = "test.community.admin@havena.app";
+const COMMUNITY_DEMO_EMAIL = "tgi.admin@havena.app";
 
 function LoginPageInner() {
   const router = useRouter();

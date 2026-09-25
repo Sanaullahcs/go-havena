@@ -2,25 +2,28 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
-import { Building2, CalendarCheck2, CalendarPlus, Clock3, MapPin, Plus, Users } from "lucide-react";
+import { Building2, CalendarCheck2, CalendarPlus, Clock3, DoorClosed, MapPin, Plus, Users } from "lucide-react";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { AmenityFormModal } from "@/components/admin/amenity-form-modal";
 import { AmenityViewModal } from "@/components/admin/amenity-view-modal";
 import { AmenityMonthlyBillModal } from "@/components/admin/amenity-monthly-bill-modal";
 import { AmenityBookModal } from "@/components/admin/amenity-book-modal";
-import { AmenityBookingTrackModal } from "@/components/admin/amenity-booking-track-modal";
+import { AmenityBookingTrackModal, canPayAmenityBooking } from "@/components/admin/amenity-booking-track-modal";
+import { AmenityPaymentProofModal } from "@/components/property/amenity-payment-proof-modal";
 import { AmenityIcon } from "@/components/admin/amenity-icon";
 import {
   AdminBadge,
   DataTable,
   DtCell,
   DtHead,
+  DtPagination,
   DtRow,
   DtTable,
   StatTile,
 } from "@/components/admin/ui";
-import { getAmenityReviewMeta, getAmenityStatusMeta } from "@/lib/admin/amenity-display";
-import { formatUsdAmount } from "@/lib/admin/amenity-bill-validation";
+import { ThemedSelect } from "@/components/ui/themed-select";
+import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
+import { formatAmenityFeeLabel, formatBookingDisplayFee, getAmenityReviewMeta, getAmenityStatusMeta } from "@/lib/admin/amenity-display";
 import { confirmAction, confirmDelete, confirmRejectWithReason, toastError, toastSuccess } from "@/lib/alert";
 import { BookingInfoModal } from "@/components/admin/booking-info-modal";
 import { apiError } from "@/lib/api/client";
@@ -34,27 +37,33 @@ import {
   publishAmenityMonthlyBill,
   rejectAmenity,
   rejectBooking,
+  submitAmenityBillProof,
   updateAmenity,
   type Amenity,
+  type AmenityMonthlyBill,
   type AmenityMonthlyBillForm,
+  type AmenityPaymentProofForm,
   type Booking,
 } from "@/lib/api/amenities";
 import { PageError, PageLoader } from "@/components/shared/page-states";
 import { getAdminCache, setAdminCache } from "@/lib/admin/navigation-cache";
 import { adminTableBusy } from "@/lib/admin/table-loading";
 
-type StatusFilter =
-  | "all"
-  | "mine"
-  | "my_bookings"
-  | "booking_requests"
-  | "pending"
-  | "bookable"
-  | "open"
-  | "closed";
+type TabFilter = "all" | "mine" | "my_bookings" | "booking_requests" | "pending";
+type AvailabilityFilter = "all" | "bookable" | "open" | "closed";
+
+const AVAILABILITY_FILTERS: AvailabilityFilter[] = ["all", "bookable", "open", "closed"];
+
+function availabilityFilterLabel(filter: AvailabilityFilter) {
+  if (filter === "all") return "All availability";
+  if (filter === "bookable") return "Timed slots";
+  if (filter === "open") return "Open";
+  return "Closed";
+}
 
 const BOOKING_STATUS_META: Record<string, { label: string; tone: "amber" | "green" | "red" | "slate" }> = {
   pending: { label: "Pending", tone: "amber" },
+  awaiting_payment: { label: "Payment required", tone: "amber" },
   confirmed: { label: "Confirmed", tone: "green" },
   rejected: { label: "Rejected", tone: "red" },
   cancelled: { label: "Cancelled", tone: "slate" },
@@ -64,6 +73,7 @@ type AmenitiesCache = { data: Amenity[]; pendingReview: number };
 
 function bookingStatusBadge(status?: string | null) {
   if (status === "pending") return { label: "Pending", tone: "amber" as const };
+  if (status === "awaiting_payment") return { label: "Payment required", tone: "amber" as const };
   if (status === "rejected") return { label: "Rejected", tone: "red" as const };
   if (status === "confirmed") return { label: "Approved", tone: "green" as const };
   return { label: "Booked", tone: "blue" as const };
@@ -83,6 +93,20 @@ function formatRequestDate(value?: string | null): string {
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
+function bookingHoursHint(amenity: Amenity): string {
+  if (!amenity.user_has_upcoming_booking) {
+    return amenity.weekends_available === false ? "Weekdays only" : "Includes weekends";
+  }
+  if (amenity.user_next_booking_status === "pending") return "Waiting for approval";
+  if (amenity.user_next_booking_status === "awaiting_payment") {
+    return amenity.user_next_booking_bill?.can_submit_proof
+      ? "Approved — payment required"
+      : "Waiting for payment approval";
+  }
+  if (amenity.user_next_booking_status === "rejected") return "Booking declined";
+  return "Upcoming reservation";
+}
+
 export default function AdminAmenitiesPage() {
   const searchParams = useSearchParams();
   const cached = getAdminCache<AmenitiesCache>("amenities:list");
@@ -93,12 +117,16 @@ export default function AdminAmenitiesPage() {
   const [pageError, setPageError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [tabFilter, setTabFilter] = useState<TabFilter>("all");
+  const [availabilityFilter, setAvailabilityFilter] = useState<AvailabilityFilter>("all");
+  const [page, setPage] = useState(1);
   const [viewing, setViewing] = useState<Amenity | null>(null);
   const [formMode, setFormMode] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<Amenity | null>(null);
   const [booking, setBooking] = useState<Amenity | null>(null);
   const [trackingBooking, setTrackingBooking] = useState<Amenity | null>(null);
+  const [payingBill, setPayingBill] = useState<{ amenity: Amenity; bill: AmenityMonthlyBill } | null>(null);
+  const [submittingProof, setSubmittingProof] = useState(false);
   const [billingAmenity, setBillingAmenity] = useState<Amenity | null>(null);
   const [billsRefreshKey, setBillsRefreshKey] = useState(0);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -140,32 +168,40 @@ export default function AdminAmenitiesPage() {
       setPickerOpen(true);
     }
     if (searchParams.get("view") === "requests") {
-      setStatusFilter("booking_requests");
+      setTabFilter("booking_requests");
     }
   }, [searchParams]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return amenities.filter((amenity) => {
-      const matchesStatus =
-        statusFilter === "all" || statusFilter === "booking_requests"
+      const matchesTab =
+        tabFilter === "all"
           ? true
-          : statusFilter === "my_bookings"
+          : tabFilter === "my_bookings"
             ? Boolean(amenity.user_has_upcoming_booking)
-            : statusFilter === "pending"
-            ? amenity.review_status === "pending"
-            : statusFilter === "mine"
-              ? Boolean(amenity.is_mine)
-              : amenity.status === statusFilter;
+            : tabFilter === "pending"
+              ? amenity.review_status === "pending"
+              : tabFilter === "mine"
+                ? Boolean(amenity.is_mine)
+                : true;
+      const matchesAvailability =
+        availabilityFilter === "all" || amenity.status === availabilityFilter;
       const matchesSearch =
         !q ||
         amenity.name.toLowerCase().includes(q) ||
         (amenity.description ?? "").toLowerCase().includes(q) ||
         (amenity.floor ?? "").toLowerCase().includes(q) ||
         (amenity.creator_name ?? "").toLowerCase().includes(q);
-      return matchesStatus && matchesSearch;
+      return matchesTab && matchesAvailability && matchesSearch;
     });
-  }, [amenities, search, statusFilter]);
+  }, [amenities, search, tabFilter, availabilityFilter]);
+
+  const lastPage = Math.max(1, Math.ceil(filtered.length / ADMIN_TABLE_PAGE_SIZE));
+  const paged = useMemo(
+    () => filtered.slice((page - 1) * ADMIN_TABLE_PAGE_SIZE, page * ADMIN_TABLE_PAGE_SIZE),
+    [filtered, page],
+  );
 
   const stats = useMemo(() => {
     const pending =
@@ -174,7 +210,7 @@ export default function AdminAmenitiesPage() {
       total: amenities.length,
       mine: amenities.filter((a) => a.is_mine).length,
       myBookings: amenities.filter((a) => a.user_has_upcoming_booking).length,
-      bookingRequests: inbox.filter((b) => b.status === "pending").length,
+      bookingRequests: inbox.length,
       pending,
       bookable: amenities.filter((a) => a.status === "bookable").length,
       open: amenities.filter((a) => a.status === "open").length,
@@ -201,11 +237,17 @@ export default function AdminAmenitiesPage() {
       { key: "my_bookings" as const, label: "My booking", count: stats.myBookings },
       { key: "booking_requests" as const, label: "Booking requests", count: stats.bookingRequests },
       { key: "pending" as const, label: "Need approval", count: stats.pending },
-      { key: "bookable" as const, label: "Timed slots", count: stats.bookable },
-      { key: "open" as const, label: "Open", count: stats.open },
-      { key: "closed" as const, label: "Closed", count: stats.closed },
     ],
     [stats],
+  );
+
+  const availabilityOptions = useMemo(
+    () =>
+      AVAILABILITY_FILTERS.map((value) => ({
+        value,
+        label: availabilityFilterLabel(value),
+      })),
+    [],
   );
 
   const openCreate = () => {
@@ -330,6 +372,17 @@ export default function AdminAmenitiesPage() {
     });
   }, [inbox, search]);
 
+  const inboxLastPage = Math.max(1, Math.ceil(inboxVisible.length / ADMIN_TABLE_PAGE_SIZE));
+  const inboxPaged = useMemo(
+    () => inboxVisible.slice((page - 1) * ADMIN_TABLE_PAGE_SIZE, page * ADMIN_TABLE_PAGE_SIZE),
+    [inboxVisible, page],
+  );
+
+  useEffect(() => {
+    const activeLastPage = tabFilter === "booking_requests" ? inboxLastPage : lastPage;
+    if (page > activeLastPage) setPage(activeLastPage);
+  }, [page, lastPage, inboxLastPage, tabFilter]);
+
   const handleApproveBooking = async (booking: Booking) => {
     const confirmed = await confirmAction({
       title: "Approve booking?",
@@ -375,6 +428,31 @@ export default function AdminAmenitiesPage() {
     }
   };
 
+  const openBookingPayment = (amenity: Amenity) => {
+    const bill = amenity.user_next_booking_bill;
+    if (!bill?.resident_bill_id || !bill.can_submit_proof) {
+      toastError("This booking is not ready for payment yet.");
+      return;
+    }
+    setTrackingBooking(null);
+    setPayingBill({ amenity, bill });
+  };
+
+  const handleSubmitBookingProof = async (payload: AmenityPaymentProofForm) => {
+    if (!payingBill?.bill.resident_bill_id) return;
+    setSubmittingProof(true);
+    try {
+      const result = await submitAmenityBillProof(payingBill.amenity.id, payingBill.bill.resident_bill_id, payload);
+      toastSuccess(result.message);
+      setPayingBill(null);
+      await load(true);
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setSubmittingProof(false);
+    }
+  };
+
   const handlePublishBill = async (payload: AmenityMonthlyBillForm) => {
     if (!billingAmenity) return;
     setSubmitting(true);
@@ -402,8 +480,8 @@ export default function AdminAmenitiesPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Amenities</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            Amenities you create go live immediately. Resident submissions need approval. You can also
-            book other residents&apos; amenities from here.
+            Amenities bill each approved resident, not the unit. Choose free, pay per booking, or shared monthly
+            billing when you create one. Resident submissions still need approval.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -422,7 +500,7 @@ export default function AdminAmenitiesPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <StatTile label="Total facilities" value={String(stats.total)} tone="blue" icon={<Building2 className="h-4 w-4" />} />
         <StatTile
           label="Booking requests"
@@ -432,19 +510,20 @@ export default function AdminAmenitiesPage() {
         />
         <StatTile label="Need approval" value={String(stats.pending)} tone="amber" icon={<Clock3 className="h-4 w-4" />} />
         <StatTile label="Timed slots" value={String(stats.bookable)} tone="amber" icon={<Users className="h-4 w-4" />} />
-        <StatTile label="Open availability" value={String(stats.open)} tone="green" icon={<MapPin className="h-4 w-4" />} />
+        <StatTile label="Open" value={String(stats.open)} tone="green" icon={<MapPin className="h-4 w-4" />} />
+        <StatTile label="Closed" value={String(stats.closed)} tone="red" icon={<DoorClosed className="h-4 w-4" />} />
       </div>
 
-      {statusFilter === "booking_requests" ? (
+      {tabFilter === "booking_requests" ? (
       <DataTable
         title="Booking requests"
         totalCount={inbox.length}
         visibleCount={inboxVisible.length}
         search={search}
-        onSearch={(value) => startTransition(() => setSearch(value))}
+        onSearch={(value) => startTransition(() => { setSearch(value); setPage(1); })}
         loading={adminTableBusy(refreshing, busyBookingId !== null, isPending)}
-        activeFilter={statusFilter}
-        onFilter={(key) => startTransition(() => setStatusFilter(key as StatusFilter))}
+        activeFilter={tabFilter}
+        onFilter={(key) => startTransition(() => { setTabFilter(key as TabFilter); setPage(1); })}
         filters={filters}
         empty={
           inbox.length === 0
@@ -468,7 +547,7 @@ export default function AdminAmenitiesPage() {
             ]}
           />
           <tbody>
-            {inboxVisible.map((booking) => {
+            {inboxPaged.map((booking) => {
               const status = BOOKING_STATUS_META[booking.status] ?? BOOKING_STATUS_META.pending;
               const busy = busyBookingId === booking.id;
               const canReview = booking.status === "pending";
@@ -492,7 +571,7 @@ export default function AdminAmenitiesPage() {
                   </DtCell>
                   <DtCell>{formatBookingDate(booking.date)}</DtCell>
                   <DtCell>{booking.time_slot || "Open access"}</DtCell>
-                  <DtCell>{formatUsdAmount(booking.booking_fee)}</DtCell>
+                  <DtCell>{formatBookingDisplayFee(booking)}</DtCell>
                   <DtCell>
                     {booking.payment_proof ? (
                       <div>
@@ -552,6 +631,13 @@ export default function AdminAmenitiesPage() {
             })}
           </tbody>
         </DtTable>
+        <DtPagination
+          showing={inboxPaged.length}
+          total={inboxVisible.length}
+          page={page}
+          lastPage={inboxLastPage}
+          onPageChange={(nextPage) => startTransition(() => setPage(nextPage))}
+        />
       </DataTable>
       ) : (
       <DataTable
@@ -559,17 +645,35 @@ export default function AdminAmenitiesPage() {
         totalCount={amenities.length}
         visibleCount={filtered.length}
         search={search}
-        onSearch={(value) => startTransition(() => setSearch(value))}
+        onSearch={(value) => startTransition(() => { setSearch(value); setPage(1); })}
         loading={adminTableBusy(refreshing, submitting, isPending)}
-        activeFilter={statusFilter}
-        onFilter={(key) => startTransition(() => setStatusFilter(key as StatusFilter))}
+        activeFilter={tabFilter}
+        onFilter={(key) => startTransition(() => { setTabFilter(key as TabFilter); setPage(1); })}
         filters={filters}
+        toolbar={
+          <>
+            <span className="hidden h-4 w-px shrink-0 bg-slate-200 sm:block" aria-hidden />
+            <div className="nl-picker-compact w-[168px]">
+              <ThemedSelect
+                value={availabilityFilter}
+                onChange={(value) => startTransition(() => {
+                  setAvailabilityFilter(value as AvailabilityFilter);
+                  setPage(1);
+                })}
+                options={availabilityOptions}
+                placeholder="All availability"
+              />
+            </div>
+          </>
+        }
         empty={
           amenities.length === 0
             ? "No amenities yet. Create your first facility to get started."
-            : statusFilter === "my_bookings"
+            : tabFilter === "my_bookings"
               ? "No upcoming bookings yet. Book a facility you don't manage to track it here."
-              : "No amenities match your filters."
+              : availabilityFilter !== "all" && !search.trim()
+                ? `No ${availabilityFilterLabel(availabilityFilter).toLowerCase()} amenities in this tab.`
+                : "No amenities match your filters."
         }
         isEmpty={filtered.length === 0}
       >
@@ -579,13 +683,14 @@ export default function AdminAmenitiesPage() {
               { label: "Facility" },
               { label: "Status" },
               { label: "Creator" },
+              { label: "Fee" },
               { label: "Capacity" },
               { label: "Hours" },
               { label: "Actions", right: true },
             ]}
           />
           <tbody>
-            {filtered.map((amenity) => {
+            {paged.map((amenity) => {
               const status = getAmenityStatusMeta(amenity.status);
               const review = getAmenityReviewMeta(amenity.review_status);
               return (
@@ -605,20 +710,21 @@ export default function AdminAmenitiesPage() {
                   </DtCell>
                   <DtCell>
                     <div className="flex flex-wrap gap-1.5">
-                      {statusFilter === "my_bookings" && amenity.user_has_upcoming_booking ? (
+                      {tabFilter === "my_bookings" && amenity.user_has_upcoming_booking ? (
                         <AdminBadge tone={bookingStatusBadge(amenity.user_next_booking_status).tone}>
                           {bookingStatusBadge(amenity.user_next_booking_status).label}
                         </AdminBadge>
                       ) : null}
-                      {statusFilter !== "my_bookings" && review ? (
+                      {tabFilter !== "my_bookings" && review ? (
                         <AdminBadge tone={review.tone}>{review.label}</AdminBadge>
                       ) : null}
-                      {statusFilter !== "my_bookings" ? (
+                      {tabFilter !== "my_bookings" ? (
                         <AdminBadge tone={status.tone}>{status.label}</AdminBadge>
                       ) : null}
                     </div>
                   </DtCell>
                   <DtCell>{amenity.creator_name || "—"}</DtCell>
+                  <DtCell>{formatAmenityFeeLabel(amenity)}</DtCell>
                   <DtCell>{amenity.capacity}</DtCell>
                   <DtCell>
                     <div className="min-w-0">
@@ -633,15 +739,7 @@ export default function AdminAmenitiesPage() {
                         <p>{amenity.hours || "—"}</p>
                       )}
                       <p className="text-xs text-slate-400">
-                        {amenity.user_has_upcoming_booking
-                          ? amenity.user_next_booking_status === "pending"
-                            ? "Waiting for approval"
-                            : amenity.user_next_booking_status === "rejected"
-                              ? "Booking declined"
-                              : "Upcoming reservation"
-                          : amenity.weekends_available === false
-                            ? "Weekdays only"
-                            : "Includes weekends"}
+                        {bookingHoursHint(amenity)}
                         {!amenity.user_has_upcoming_booking &&
                         amenity.status === "bookable" &&
                         amenity.slot_duration_minutes
@@ -670,6 +768,15 @@ export default function AdminAmenitiesPage() {
                                 icon: "view" as const,
                                 onClick: () => setTrackingBooking(amenity),
                               },
+                              ...(canPayAmenityBooking(amenity)
+                                ? [
+                                    {
+                                      label: "Make payment",
+                                      icon: "edit" as const,
+                                      onClick: () => openBookingPayment(amenity),
+                                    },
+                                  ]
+                                : []),
                             ]
                           : []),
                         ...(!amenity.is_mine &&
@@ -729,6 +836,13 @@ export default function AdminAmenitiesPage() {
             })}
           </tbody>
         </DtTable>
+        <DtPagination
+          showing={paged.length}
+          total={filtered.length}
+          page={page}
+          lastPage={lastPage}
+          onPageChange={(nextPage) => startTransition(() => setPage(nextPage))}
+        />
       </DataTable>
       )}
 
@@ -746,7 +860,8 @@ export default function AdminAmenitiesPage() {
           viewing?.is_mine
             ? () => {
                 setViewing(null);
-                setStatusFilter("booking_requests");
+                setTabFilter("booking_requests");
+                setPage(1);
               }
             : undefined
         }
@@ -786,7 +901,20 @@ export default function AdminAmenitiesPage() {
       <AmenityBookingTrackModal
         amenity={trackingBooking}
         onClose={() => setTrackingBooking(null)}
+        onPay={openBookingPayment}
       />
+
+      {payingBill ? (
+        <AmenityPaymentProofModal
+          bill={payingBill.bill}
+          amenityName={payingBill.amenity.name}
+          submitting={submittingProof}
+          onClose={() => {
+            if (!submittingProof) setPayingBill(null);
+          }}
+          onSubmit={handleSubmitBookingProof}
+        />
+      ) : null}
 
       {pickerOpen ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-4 sm:items-center">

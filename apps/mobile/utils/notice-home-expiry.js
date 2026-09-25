@@ -22,7 +22,7 @@ function parseClockTime(timeStr) {
 export function isNoticeExpiredForHome(notice, now = new Date()) {
   const dayKey = noticeDayKey(notice?.eventDate ?? notice?.event_date);
   if (!dayKey) {
-    if (isAlertNotice(notice)) return false;
+    if (isAlertNotice(notice) || isFinanceNotice(notice)) return false;
     if (isEventNotice(notice)) return true;
     return true;
   }
@@ -50,6 +50,11 @@ export function isEventNotice(notice) {
 export function isAlertNotice(notice) {
   const category = String(notice?.category ?? "").trim().toLowerCase();
   return category === "emergency" || notice?.isAlert === true;
+}
+
+export function isFinanceNotice(notice) {
+  const category = String(notice?.category ?? "").trim().toLowerCase();
+  return category === "finance";
 }
 
 export function isCarouselNotice(notice) {

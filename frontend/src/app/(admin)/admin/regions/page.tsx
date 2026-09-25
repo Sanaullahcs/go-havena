@@ -48,6 +48,7 @@ const emptyForm = {
 export default function RegionsPage() {
   const [regions, setRegions] = useState<Region[]>([]);
   const [total, setTotal] = useState(0);
+  const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -90,6 +91,9 @@ export default function RegionsPage() {
       setRegions(res.data);
       setTotal(res.meta.total);
       setLastPage(res.meta.last_page ?? 1);
+      if (res.meta.stats) {
+        setStats(res.meta.stats);
+      }
     } catch (err) {
       setError(apiError(err));
     } finally {
@@ -138,19 +142,13 @@ export default function RegionsPage() {
 
   const isSearchPending = isAdminSearchPending(searchInput, debouncedSearch);
 
-  const stats = useMemo(() => {
-    const active = regions.filter((r) => r.status === "active").length;
-    const inactive = regions.filter((r) => r.status === "inactive").length;
-    return { active, inactive };
-  }, [regions]);
-
   const statusFilters = useMemo(
     () => [
-      { key: "all" as StatusFilter, label: "All", count: total },
+      { key: "all" as StatusFilter, label: "All", count: stats.total },
       { key: "active" as StatusFilter, label: "Active", count: stats.active },
       { key: "inactive" as StatusFilter, label: "Inactive", count: stats.inactive },
     ],
-    [total, stats.active, stats.inactive],
+    [stats.total, stats.active, stats.inactive],
   );
 
   const openCreate = () => {
@@ -278,7 +276,7 @@ export default function RegionsPage() {
       <div className="grid gap-3 sm:grid-cols-3">
         <StatTile
           label="Total Regions"
-          value={String(total)}
+          value={String(stats.total)}
           hint="All regions"
           tone="blue"
           icon={<IcoGlobe />}

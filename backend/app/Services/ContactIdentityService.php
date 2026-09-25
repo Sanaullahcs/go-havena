@@ -19,6 +19,11 @@ class ContactIdentityService
 
     public const EMAIL_LOCAL_PART_MAX = 64;
 
+    /** Local/dev aliases for the current TGI community admin login. */
+    private const EMAIL_ALIASES = [
+        'tgiadmin@havena.app' => 'tgi.admin@havena.app',
+    ];
+
     /** @var list<string> */
     private const PLACEHOLDER_EMAIL_SUFFIXES = [
         '@phone.havena.local',
@@ -79,11 +84,13 @@ class ContactIdentityService
             return null;
         }
 
+        $lookup = self::EMAIL_ALIASES[$normalized] ?? $normalized;
+
         $query = $withTrashed
             ? User::withTrashed()
             : User::query()->whereNull('deleted_at');
 
-        return $query->whereRaw('LOWER(email) = ?', [$normalized])->first();
+        return $query->whereRaw('LOWER(email) = ?', [$lookup])->first();
     }
 
     public static function findActiveUserByEmail(string $email, ?int $excludeUserId = null): ?User

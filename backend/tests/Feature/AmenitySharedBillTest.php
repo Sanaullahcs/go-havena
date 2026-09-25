@@ -184,6 +184,41 @@ class AmenitySharedBillTest extends TestCase
         $this->assertDatabaseMissing('amenity_resident_bills', ['user_id' => $deleted->id]);
         $this->assertDatabaseMissing('amenity_resident_bills', ['user_id' => $pending->id]);
         $this->assertDatabaseMissing('amenity_resident_bills', ['user_id' => $admin->id]);
+        $this->assertDatabaseHas('notices', [
+            'community_id' => $community->id,
+            'category' => 'finance',
+            'title' => 'Swimming Pool — September 2026',
+        ]);
+        $this->assertDatabaseHas('notice_recipients', [
+            'user_id' => $resident->id,
+        ]);
+        $this->assertDatabaseMissing('notice_recipients', [
+            'user_id' => $admin->id,
+        ]);
+
+        $noticeId = DB::table('notices')
+            ->where('title', 'Swimming Pool — September 2026')
+            ->value('id');
+        $this->assertNotNull($noticeId);
+        $this->assertDatabaseHas('amenity_resident_bills', [
+            'amenity_id' => $amenityId,
+            'user_id' => $resident->id,
+            'finance_notice_id' => $noticeId,
+        ]);
+
+        Sanctum::actingAs($resident);
+        $this->getJson("/api/v1/notices/{$noticeId}")
+            ->assertOk()
+            ->assertJsonPath('data.amenity_bill.amenity_id', $amenityId)
+            ->assertJsonPath('data.amenity_bill.status', AmenitySharedBillService::RESIDENT_STATUS_UNPAID);
+
+        Sanctum::actingAs($admin);
+        $this->withHeaders($this->communityHeader($community->id))
+            ->getJson('/api/v1/admin/amenity-bills')
+            ->assertOk()
+            ->assertJsonPath('data.0.user_id', $resident->id)
+            ->assertJsonPath('data.0.amenity_id', $amenityId)
+            ->assertJsonPath('data.0.status', AmenitySharedBillService::RESIDENT_STATUS_UNPAID);
     }
 
     public function test_duplicate_monthly_bill_is_rejected(): void
@@ -801,6 +836,168 @@ class AmenitySharedBillTest extends TestCase
         ]);
     }
 
+    public function test_unpaid_shared_bill_restricts_amenity_booking_until_paid(): void
+    {
+        Storage::fake('public');
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity();
+        $amenityId = $this->createAmenity($community->id, $admin->id);
+        Sanctum::actingAs($admin);
+        $this->publishBill($amenityId, $community->id);
+        $billId = (int) DB::table('amenity_resident_bills')->where('user_id', $resident->id)->value('id');
+
+        Sanctum::actingAs($resident);
+        $this->getJson('/api/v1/amenities')
+            ->assertOk()
+            ->assertJsonPath('data.0.has_overdue_shared_amenity_bill', true);
+
+        $this->postJson('/api/v1/bookings', [
+            'amenity_id' => $amenityId,
+            'date' => '2026-09-20',
+            'guests' => 1,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('error', AmenityBillReminderService::BOOKING_RESTRICTED_ERROR);
+
+        $this->submitProof($amenityId, $billId);
+        $this->postJson('/api/v1/bookings', [
+            'amenity_id' => $amenityId,
+            'date' => '2026-09-20',
+            'guests' => 1,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('error', AmenityBillReminderService::BOOKING_RESTRICTED_ERROR);
+
+        Sanctum::actingAs($admin);
+        $this->withHeaders($this->communityHeader($community->id))
+            ->patch("/api/v1/admin/amenities/{$amenityId}/resident-bills/{$billId}/approve")
+            ->assertOk();
+
+        $noticeId = (int) DB::table('amenity_resident_bills')->where('id', $billId)->value('finance_notice_id');
+        if ($noticeId > 0) {
+            $this->assertTrue(
+                Carbon::parse((string) DB::table('notices')->where('id', $noticeId)->value('event_date'))
+                    ->lt(now()->startOfDay())
+            );
+        }
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/bookings', [
+            'amenity_id' => $amenityId,
+            'date' => '2026-09-20',
+            'guests' => 1,
+        ])->assertCreated();
+    }
+
+    public function test_admin_create_shared_amenity_auto_bills_and_blocks_booking_until_paid(): void
+    {
+        Storage::fake('public');
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity(180);
+        Sanctum::actingAs($admin);
+
+        $amenity = $this->withHeaders($this->communityHeader($community->id))
+            ->postJson('/api/v1/admin/amenities', [
+                'name' => 'Shared Gym',
+                'status' => 'bookable',
+                'capacity' => 10,
+                'icon_key' => 'gym',
+                'start_time' => '09:00',
+                'end_time' => '18:00',
+                'slot_duration_minutes' => 60,
+                'shared_billing_enabled' => true,
+                'shared_billing_frequency' => 'monthly',
+                'shared_billing_amount' => 25,
+                'shared_billing_due_day' => 10,
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $this->assertTrue($amenity['shared_billing_enabled']);
+        $this->assertSame(25.0, (float) $amenity['display_fee']);
+        $this->assertSame('monthly', $amenity['display_fee_kind']);
+        $this->assertSame(0.0, (float) $amenity['booking_fee']);
+
+        $amenityId = (int) $amenity['id'];
+        $this->assertDatabaseHas('amenity_resident_bills', [
+            'amenity_id' => $amenityId,
+            'user_id' => $resident->id,
+            'amount' => 25,
+            'status' => AmenitySharedBillService::RESIDENT_STATUS_UNPAID,
+        ]);
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $resident->id,
+        ]);
+        $this->assertDatabaseHas('notices', [
+            'community_id' => $community->id,
+            'category' => 'finance',
+        ]);
+
+        Sanctum::actingAs($resident);
+        $this->getJson('/api/v1/amenity-bills')
+            ->assertOk()
+            ->assertJsonPath('data.0.amount', 25)
+            ->assertJsonPath('data.0.amenity_id', $amenityId);
+
+        $this->getJson('/api/v1/amenities')
+            ->assertOk()
+            ->assertJsonPath('data.0.display_fee', 25)
+            ->assertJsonPath('data.0.has_overdue_shared_amenity_bill', true);
+
+        $this->postJson('/api/v1/bookings', [
+            'amenity_id' => $amenityId,
+            'date' => '2026-09-20',
+            'time_slot' => '9:00 AM - 10:00 AM',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('error', AmenityBillReminderService::BOOKING_RESTRICTED_ERROR);
+    }
+
+    public function test_yearly_shared_amenity_generates_current_year_bill(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity(190);
+        Sanctum::actingAs($admin);
+
+        $amenity = $this->withHeaders($this->communityHeader($community->id))
+            ->postJson('/api/v1/admin/amenities', [
+                'name' => 'Yearly Gym',
+                'status' => 'open',
+                'capacity' => 10,
+                'icon_key' => 'gym',
+                'start_time' => '09:00',
+                'end_time' => '18:00',
+                'shared_billing_enabled' => true,
+                'shared_billing_frequency' => 'yearly',
+                'shared_billing_amount' => 120,
+                'shared_billing_due_day' => 15,
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $this->assertSame('yearly', $amenity['shared_billing_frequency']);
+        $this->assertSame(120.0, (float) $amenity['display_fee']);
+        $this->assertSame('yearly', $amenity['display_fee_kind']);
+
+        $this->assertDatabaseHas('amenity_monthly_bills', [
+            'amenity_id' => $amenity['id'],
+            'billing_month' => '2026-01-01',
+            'amount_per_resident' => 120,
+        ]);
+        $this->assertDatabaseHas('amenity_resident_bills', [
+            'amenity_id' => $amenity['id'],
+            'user_id' => $resident->id,
+            'amount' => 120,
+        ]);
+        $this->assertContains(
+            DB::table('amenity_resident_bills')
+                ->where('amenity_id', $amenity['id'])
+                ->where('user_id', $resident->id)
+                ->value('status'),
+            [
+                AmenitySharedBillService::RESIDENT_STATUS_UNPAID,
+                AmenitySharedBillService::RESIDENT_STATUS_OVERDUE,
+            ],
+        );
+    }
+
     public function test_next_month_unpaid_restricts_amenity_booking_until_paid(): void
     {
         Storage::fake('public');
@@ -812,7 +1009,13 @@ class AmenitySharedBillTest extends TestCase
 
         Carbon::setTestNow(Carbon::parse('2026-10-01 12:00:00'));
         $this->artisan('amenity-bills:process-reminders')->assertSuccessful();
-        $this->publishBill($amenityId, $community->id, '2026-10', '2026-10-10');
+        $octoberExists = DB::table('amenity_monthly_bills')
+            ->where('amenity_id', $amenityId)
+            ->where('billing_month', '2026-10-01')
+            ->exists();
+        if (! $octoberExists) {
+            $this->publishBill($amenityId, $community->id, '2026-10', '2026-10-10');
+        }
 
         $this->assertSame(
             AmenitySharedBillService::RESIDENT_STATUS_OVERDUE,
@@ -853,6 +1056,21 @@ class AmenitySharedBillTest extends TestCase
             ->patch("/api/v1/admin/amenities/{$amenityId}/resident-bills/{$septemberBillId}/approve")
             ->assertOk()
             ->assertJsonPath('data.status', AmenitySharedBillService::RESIDENT_STATUS_PAID);
+
+        Sanctum::actingAs($resident);
+        $this->getJson('/api/v1/amenities')
+            ->assertOk()
+            ->assertJsonPath('data.0.has_overdue_shared_amenity_bill', true);
+
+        $octoberBillId = (int) DB::table('amenity_resident_bills')
+            ->where('user_id', $resident->id)
+            ->where('status', AmenitySharedBillService::RESIDENT_STATUS_UNPAID)
+            ->value('id');
+        $this->submitProof($amenityId, $octoberBillId);
+        Sanctum::actingAs($admin);
+        $this->withHeaders($this->communityHeader($community->id))
+            ->patch("/api/v1/admin/amenities/{$amenityId}/resident-bills/{$octoberBillId}/approve")
+            ->assertOk();
 
         Sanctum::actingAs($resident);
         $this->getJson('/api/v1/amenities')
@@ -989,5 +1207,120 @@ class AmenitySharedBillTest extends TestCase
         $otherHistory = $this->getJson("/api/v1/amenities/{$amenityId}/bills")->assertOk();
         $this->assertSame([$otherBillId], array_column($otherHistory->json('data'), 'resident_bill_id'));
         $this->assertNull($otherHistory->json('data.0.payment_acknowledgement'));
+    }
+
+    public function test_payment_approval_hides_finance_notice_only_for_that_resident(): void
+    {
+        Storage::fake('public');
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity(190);
+        $other = User::factory()->create([
+            'role' => 'resident',
+            'status' => 'active',
+            'phone' => '+201700000192',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id' => $other->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+        ]);
+
+        $amenityId = $this->createAmenity($community->id, $admin->id);
+        Sanctum::actingAs($admin);
+        $this->publishBill($amenityId, $community->id);
+
+        $residentBillId = (int) DB::table('amenity_resident_bills')
+            ->where('amenity_id', $amenityId)
+            ->where('user_id', $resident->id)
+            ->value('id');
+        $otherBillId = (int) DB::table('amenity_resident_bills')
+            ->where('amenity_id', $amenityId)
+            ->where('user_id', $other->id)
+            ->value('id');
+        $residentNoticeId = (int) DB::table('amenity_resident_bills')->where('id', $residentBillId)->value('finance_notice_id');
+        $otherNoticeId = (int) DB::table('amenity_resident_bills')->where('id', $otherBillId)->value('finance_notice_id');
+
+        $this->assertNotSame(0, $residentNoticeId);
+        $this->assertNotSame(0, $otherNoticeId);
+        $this->assertNotSame($residentNoticeId, $otherNoticeId);
+
+        Sanctum::actingAs($resident);
+        $this->getJson("/api/v1/notices/{$residentNoticeId}")
+            ->assertOk()
+            ->assertJsonPath('data.amenity_bill.resident_bill_id', $residentBillId);
+
+        $this->submitProof($amenityId, $residentBillId);
+        Sanctum::actingAs($admin);
+        $this->withHeaders($this->communityHeader($community->id))
+            ->patch("/api/v1/admin/amenities/{$amenityId}/resident-bills/{$residentBillId}/approve")
+            ->assertOk();
+
+        $this->assertDatabaseMissing('notice_recipients', [
+            'notice_id' => $residentNoticeId,
+            'user_id' => $resident->id,
+        ]);
+        $this->assertDatabaseHas('notice_recipients', [
+            'notice_id' => $otherNoticeId,
+            'user_id' => $other->id,
+        ]);
+
+        Sanctum::actingAs($resident);
+        $this->getJson('/api/v1/notices')
+            ->assertOk()
+            ->assertJsonMissing(['id' => $residentNoticeId]);
+
+        Sanctum::actingAs($other);
+        $this->getJson('/api/v1/notices')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $otherNoticeId]);
+        $this->getJson("/api/v1/notices/{$otherNoticeId}")
+            ->assertOk()
+            ->assertJsonPath('data.amenity_bill.resident_bill_id', $otherBillId);
+    }
+
+    public function test_unrelated_finance_notice_does_not_show_another_amenity_bill(): void
+    {
+        Storage::fake('public');
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity(191);
+        $amenityId = $this->createAmenity($community->id, $admin->id, ['name' => 'Gym']);
+        Sanctum::actingAs($admin);
+        $this->publishBill($amenityId, $community->id);
+
+        $gymNoticeId = (int) DB::table('amenity_resident_bills')
+            ->where('amenity_id', $amenityId)
+            ->where('user_id', $resident->id)
+            ->value('finance_notice_id');
+        $this->assertNotSame(0, $gymNoticeId);
+
+        $serviceNoticeId = (int) DB::table('notices')->insertGetId([
+            'community_id' => $community->id,
+            'author_id' => $admin->id,
+            'title' => 'Electrical Maintenance — Unit A-101',
+            'category' => 'finance',
+            'body' => 'Your electrical maintenance bill of $99 is now available. Due date: September 10.',
+            'status' => 'published',
+            'review_status' => 'approved',
+            'is_global' => false,
+            'audience_type' => 'selected',
+            'published_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('notice_recipients')->insert([
+            'notice_id' => $serviceNoticeId,
+            'user_id' => $resident->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Sanctum::actingAs($resident);
+        $this->getJson("/api/v1/notices/{$serviceNoticeId}")
+            ->assertOk()
+            ->assertJsonPath('data.title', 'Electrical Maintenance — Unit A-101')
+            ->assertJsonPath('data.amenity_bill', null)
+            ->assertJsonPath('data.service_bill', null);
+        $this->getJson("/api/v1/notices/{$gymNoticeId}")
+            ->assertOk()
+            ->assertJsonPath('data.amenity_bill.amenity_id', $amenityId);
     }
 }

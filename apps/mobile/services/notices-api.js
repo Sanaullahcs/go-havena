@@ -271,6 +271,32 @@ export function normalizeNotice(raw) {
     theme,
     isEvent: isEventNotice({ category: raw.category }),
     isAlert: isAlertNotice({ category: raw.category }),
+    serviceBill: raw.service_bill
+      ? {
+          id: raw.service_bill.id,
+          serviceName: raw.service_bill.service_name ?? "",
+          unitNumber: raw.service_bill.unit_number ?? "",
+          amount: raw.service_bill.amount ?? null,
+          dueDate: raw.service_bill.due_date ?? null,
+          billingFrequency: raw.service_bill.billing_frequency ?? "",
+          status: raw.service_bill.status ?? "",
+          statusLabel: raw.service_bill.status_label ?? "",
+        }
+      : null,
+    amenityBill: raw.amenity_bill
+      ? {
+          id: raw.amenity_bill.id,
+          residentBillId: raw.amenity_bill.resident_bill_id ?? raw.amenity_bill.id,
+          amenityId: raw.amenity_bill.amenity_id ?? null,
+          amenityName: raw.amenity_bill.amenity_name ?? "",
+          billingMonth: raw.amenity_bill.billing_month ?? "",
+          billingMonthLabel: raw.amenity_bill.billing_month_label ?? "",
+          amount: raw.amenity_bill.amount ?? null,
+          dueDate: raw.amenity_bill.due_date ?? null,
+          status: raw.amenity_bill.status ?? "",
+          statusLabel: raw.amenity_bill.status_label ?? "",
+        }
+      : null,
   };
 }
 

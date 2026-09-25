@@ -202,7 +202,7 @@ export function MemberInviteModal({
             />
           </Field>
 
-          <Field label="Phone number" required error={showError("phone") ? errors.phone : undefined}>
+          <Field label="Phone number" required>
             <AdminPhoneInput
               resetKey={phoneResetKey}
               required

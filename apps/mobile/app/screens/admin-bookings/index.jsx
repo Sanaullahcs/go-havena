@@ -26,7 +26,7 @@ import {
   approveBooking,
   rejectBooking,
 } from "../../../services/amenity-api";
-import { getAmenityVisual, formatLongDate, formatUsdAmount } from "../../../utils/amenity-display";
+import { getAmenityVisual, formatLongDate, formatBookingDisplayFee } from "../../../utils/amenity-display";
 import { useApiAction } from "../../../hooks/use-api-action";
 import { localizedField } from "../../../i18n";
 
@@ -127,7 +127,7 @@ function BookingInfoSheet({ booking, onClose, t }) {
             <View style={styles.detailRow}>
               <Feather name="credit-card" size={sf(14)} color={Colors.brandPrimaryDeep} />
               <Text style={styles.detailText}>
-                {t("propertyMgmt.bookingFee")}: {formatUsdAmount(booking.booking_fee)}
+                {t("propertyMgmt.bookingFee")}: {formatBookingDisplayFee(booking)}
               </Text>
             </View>
             {booking.payment_proof ? (
@@ -364,7 +364,7 @@ export default function AdminBookings() {
                     </View>
                     <View style={styles.detailRow}>
                       <Feather name="credit-card" size={sf(14)} color={Colors.brandPrimaryDeep} />
-                      <Text style={styles.detailText}>{formatUsdAmount(booking.booking_fee)}</Text>
+                      <Text style={styles.detailText}>{formatBookingDisplayFee(booking)}</Text>
                     </View>
                   </View>
                 </View>

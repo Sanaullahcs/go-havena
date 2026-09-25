@@ -31,6 +31,14 @@ export const PropertyManagementRoutes = {
   AMENITY_FORM: "/(tabs)/services/amenity-form",
   ADMIN_BOOKINGS: "/screens/admin-bookings",
   ADMIN_AMENITIES: "/screens/admin-amenities",
+  UNIT_BILLS: "/screens/property-management/unit-bills",
+  AMENITY_BILLS: "/screens/property-management/amenity-bills",
+  AVAILABLE_SERVICES: "/screens/property-management/available-services",
+  BILLING_CONTACT: "/screens/property-management/billing-contact",
+  ADMIN_SERVICE_BILLS: "/screens/admin-service-bills",
+  ADMIN_AMENITY_BILLS: "/screens/admin-amenity-bills",
+  ADMIN_SERVICE_FORM: "/screens/admin-service-form",
+  ADMIN_UNITS: "/screens/admin-units",
   NOTICES: "/(tabs)/notices",
   MARKETPLACE: MarketplaceRoutes.HOME,
   COMMUNITY_LISTINGS: MarketplaceRoutes.COMMUNITY_LISTINGS,
@@ -177,5 +185,15 @@ export function amenityFacilityParams(amenity) {
     hasOverdueSharedAmenityBill:
       amenity.has_overdue_shared_amenity_bill || amenity.hasOverdueSharedAmenityBill ? "1" : "0",
     bookingFee: amenity.booking_fee != null ? String(amenity.booking_fee) : "0",
+    displayFee:
+      amenity.display_fee != null
+        ? String(amenity.display_fee)
+        : amenity.shared_billing_enabled
+          ? String(amenity.shared_billing_amount ?? "0")
+          : amenity.booking_fee != null
+            ? String(amenity.booking_fee)
+            : "0",
+    sharedBillingEnabled: amenity.shared_billing_enabled ? "1" : "0",
+    sharedBillingFrequency: amenity.shared_billing_frequency ?? "",
   };
 }

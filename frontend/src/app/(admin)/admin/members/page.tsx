@@ -791,9 +791,6 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                     onBlur={() => touch("phone")}
                   />
                 </div>
-                {showError("phone", inviteLiveErrors) ? (
-                  <p className="mt-1 text-xs text-red-600">{showError("phone", inviteLiveErrors)}</p>
-                ) : null}
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">

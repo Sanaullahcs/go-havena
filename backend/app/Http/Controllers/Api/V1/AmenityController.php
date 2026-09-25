@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\ActivityLogService;
 use App\Services\AdminRoleService;
 use App\Services\AmenityBillReminderService;
+use App\Services\AmenitySharedBillService;
 use App\Services\GuestAccessService;
 use App\Services\GuestActivityService;
 use App\Services\NotificationService;
@@ -22,14 +23,17 @@ class AmenityController extends Controller
     private const STATUSES = ['open', 'bookable', 'closed'];
 
     private const ICON_KEYS = [
-        'pool', 'gym', 'hall', 'meeting', 'dining', 'sports',
-        'playground', 'terrace', 'spa', 'library', 'parking',
-        'laundry', 'cinema', 'bike', 'building',
+        'gym', 'yoga', 'pool', 'laundry', 'car_wash', 'barber',
+        'cleaning', 'sports', 'events', 'package', 'lounge',
+        'hall', 'meeting', 'dining', 'playground', 'terrace', 'spa',
+        'library', 'parking', 'cinema', 'bike', 'building', 'other',
     ];
 
     public const SHARED_BILLING_TYPE_ALL_RESIDENTS = 'all_residents';
 
     public const SHARED_BILLING_FREQUENCY_MONTHLY = 'monthly';
+
+    public const SHARED_BILLING_FREQUENCY_YEARLY = 'yearly';
 
     public const PAYMENT_NOT_REQUIRED = 'not_required';
 
@@ -79,6 +83,7 @@ class AmenityController extends Controller
 
             return $this->withViewerBookingState($formatted, $booking);
         });
+        $amenities = $this->withBookingBills($amenities, $request);
 
         return response()->json(['data' => $amenities]);
     }
@@ -87,9 +92,19 @@ class AmenityController extends Controller
     public function create(Request $request): JsonResponse
     {
         $user = $request->user();
+        GuestAccessService::assertCanWrite($user, 'create_amenity');
         $communityId = $this->resolveResidentCommunityId($request, $user);
         $isAdmin = AdminRoleService::canManageCommunity($user, $communityId)
             || AdminRoleService::isSystemAdmin($user);
+
+        if (! $isAdmin) {
+            $request->merge([
+                'shared_billing_enabled' => false,
+                'shared_billing_amount' => null,
+                'shared_billing_due_day' => null,
+                'shared_billing_frequency' => null,
+            ]);
+        }
 
         $data = $this->validateAmenityPayload($request, true);
         $row = $this->buildAmenityRow($data, $communityId, (int) $user->id, $isAdmin);
@@ -109,6 +124,9 @@ class AmenityController extends Controller
         }
 
         $amenity = DB::table('amenities')->find($id);
+        if ($isAdmin && ($amenity->shared_billing_enabled ?? false)) {
+            app(AmenitySharedBillService::class)->generateCurrentPeriodBill($amenity, (int) $user->id, $request);
+        }
 
         return response()->json([
             'data' => $this->formatAmenity($amenity, $user->id),
@@ -212,7 +230,7 @@ class AmenityController extends Controller
     /** GET /v1/bookings */
     public function myBookings(Request $request): JsonResponse
     {
-        $bookings = DB::table('bookings')
+        $rows = DB::table('bookings')
             ->join('amenities', 'amenities.id', '=', 'bookings.amenity_id')
             ->select(
                 'bookings.*',
@@ -222,12 +240,25 @@ class AmenityController extends Controller
                 'amenities.image_url as amenity_image',
                 'amenities.icon_key as amenity_icon_key',
                 'amenities.status as amenity_status',
+                'amenities.shared_billing_enabled as amenity_shared_billing_enabled',
+                'amenities.shared_billing_amount as amenity_shared_billing_amount',
+                'amenities.shared_billing_frequency as amenity_shared_billing_frequency',
             )
             ->where('bookings.user_id', auth()->id())
             ->orderBy('bookings.date', 'desc')
-            ->get()
-            ->map(fn ($row) => $this->formatResidentBooking($row))
-            ->values();
+            ->get();
+
+        $bills = app(AmenitySharedBillService::class)->residentBillsByBookingIds(
+            $rows->pluck('id')->map(fn ($id) => (int) $id)->all(),
+            $request,
+        );
+
+        $bookings = $rows->map(function ($row) use ($bills) {
+            $formatted = $this->formatResidentBooking($row);
+            $formatted['booking_bill'] = $bills[(int) $row->id] ?? null;
+
+            return $formatted;
+        })->values();
 
         return response()->json(['data' => $bookings]);
     }
@@ -257,6 +288,9 @@ class AmenityController extends Controller
                 'amenities.capacity as amenity_capacity',
                 'amenities.floor as amenity_floor',
                 'amenities.hours as amenity_hours',
+                'amenities.shared_billing_enabled as amenity_shared_billing_enabled',
+                'amenities.shared_billing_amount as amenity_shared_billing_amount',
+                'amenities.shared_billing_frequency as amenity_shared_billing_frequency',
                 DB::raw('COALESCE(profiles.display_name, users.name) as user_name'),
                 'profiles.unit_number as user_unit',
             )
@@ -268,7 +302,7 @@ class AmenityController extends Controller
         }
 
         $bookings = $query
-            ->orderByRaw("FIELD(bookings.status, 'pending', 'confirmed', 'rejected', 'cancelled')")
+            ->orderByRaw("FIELD(bookings.status, 'pending', 'awaiting_payment', 'confirmed', 'rejected', 'cancelled')")
             ->orderBy('bookings.date', 'asc')
             ->get()
             ->map(fn ($row) => $this->formatInboxBooking($row))
@@ -293,6 +327,8 @@ class AmenityController extends Controller
         ]);
 
         $user = $request->user();
+        GuestAccessService::assertCanWrite($user, 'book_amenity');
+
         $amenity = DB::table('amenities')->find($request->amenity_id);
         if (! $amenity) {
             return response()->json(['message' => 'Amenity not found.'], 404);
@@ -396,24 +432,18 @@ class AmenityController extends Controller
             $timeSlot = $timeSlot ?: 'Open access';
         }
 
-        $bookingFee = $this->amenityBookingFee($amenity);
-        $requiresProof = $bookingFee > 0;
-        $paymentStatus = $requiresProof ? self::PAYMENT_PENDING : self::PAYMENT_NOT_REQUIRED;
-        $proofFile = $request->file('payment_proof');
-
-        if ($requiresProof) {
-            if (! $proofFile instanceof UploadedFile) {
-                throw ValidationException::withMessages([
-                    'payment_proof' => 'Upload a payment screenshot or receipt for this booking fee.',
-                ]);
-            }
-            if (! $request->filled('payment_date')) {
-                throw ValidationException::withMessages([
-                    'payment_date' => 'Payment date is required.',
-                ]);
+        if ($amenity->shared_billing_enabled ?? false) {
+            app(AmenitySharedBillService::class)->generateCurrentPeriodBill($amenity, (int) ($amenity->created_by ?? $user->id), $request);
+            if (app(AmenityBillReminderService::class)->hasOverdueSharedAmenityBill((int) $amenity->id, (int) $user->id)) {
+                return response()->json([
+                    'message' => AmenityBillReminderService::BOOKING_RESTRICTED_MESSAGE,
+                    'error' => AmenityBillReminderService::BOOKING_RESTRICTED_ERROR,
+                    'has_overdue_shared_amenity_bill' => true,
+                ], 422);
             }
         }
 
+        $bookingFee = ($amenity->shared_billing_enabled ?? false) ? 0.0 : $this->amenityBookingFee($amenity);
         $now = now();
         $id = DB::table('bookings')->insertGetId([
             'amenity_id' => $request->amenity_id,
@@ -423,40 +453,11 @@ class AmenityController extends Controller
             'guests' => $guests,
             'booking_fee' => $bookingFee,
             'status' => 'pending',
-            'payment_verification_status' => $paymentStatus,
+            'payment_verification_status' => self::PAYMENT_NOT_REQUIRED,
             'notes' => $request->notes,
             'created_at' => $now,
             'updated_at' => $now,
         ]);
-
-        if ($requiresProof && $proofFile instanceof UploadedFile) {
-            try {
-                $fileMeta = $this->storeBookingProofFile(
-                    $proofFile,
-                    (int) $amenity->community_id,
-                    (int) $amenity->id,
-                    $id,
-                );
-                DB::table('bookings')->where('id', $id)->update([
-                    'proof_file_path' => $fileMeta['file_path'],
-                    'proof_file_name' => $fileMeta['file_name'],
-                    'proof_file_size' => $fileMeta['file_size'],
-                    'proof_mime_type' => $fileMeta['mime_type'],
-                    'payment_date' => $request->payment_date,
-                    'payment_reference' => $request->filled('payment_reference')
-                        ? trim((string) $request->payment_reference)
-                        : null,
-                    'payment_note' => $request->filled('payment_note')
-                        ? trim((string) $request->payment_note)
-                        : null,
-                    'proof_submitted_at' => $now,
-                    'updated_at' => $now,
-                ]);
-            } catch (\Throwable $e) {
-                DB::table('bookings')->where('id', $id)->delete();
-                throw $e;
-            }
-        }
 
         ActivityLogService::user(
             'amenity_booking_requested',
@@ -494,7 +495,7 @@ class AmenityController extends Controller
             return response()->json(['message' => 'Booking not found'], 404);
         }
 
-        if (! in_array($booking->status, ['pending', 'confirmed'], true)) {
+        if (! in_array($booking->status, ['pending', 'awaiting_payment', 'confirmed'], true)) {
             return response()->json([
                 'message' => 'Only pending or confirmed reservations can be cancelled.',
             ], 422);
@@ -506,7 +507,7 @@ class AmenityController extends Controller
     }
 
     /** PATCH /v1/bookings/{id}/approve — amenity creator or community admin. */
-    public function approveBooking(int $id): JsonResponse
+    public function approveBooking(Request $request, int $id): JsonResponse
     {
         $booking = $this->findBookingWithAmenity($id);
         if (! $booking) {
@@ -521,25 +522,56 @@ class AmenityController extends Controller
             ], 422);
         }
 
-        $paymentStatus = ($booking->payment_verification_status ?? self::PAYMENT_NOT_REQUIRED) === self::PAYMENT_PENDING
-            ? self::PAYMENT_ACCEPTED
-            : ($booking->payment_verification_status ?? self::PAYMENT_NOT_REQUIRED);
+        $amenity = DB::table('amenities')->find((int) $booking->amenity_id);
+        $fee = (float) ($booking->booking_fee ?? 0);
+        $booker = \App\Models\User::query()->find((int) $booking->user_id);
+        $adminPaysAfterApproval = $amenity
+            && ! ($amenity->shared_billing_enabled ?? false)
+            && $fee > 0
+            && AdminRoleService::isCommunityAdminRole($booker);
+
+        $nextStatus = $adminPaysAfterApproval ? 'awaiting_payment' : 'confirmed';
 
         DB::table('bookings')->where('id', $id)->update([
-            'status' => 'confirmed',
-            'payment_verification_status' => $paymentStatus,
+            'status' => $nextStatus,
             'rejection_reason' => null,
             'updated_at' => now(),
         ]);
 
+        if ($amenity && ! ($amenity->shared_billing_enabled ?? false) && $fee > 0) {
+            $booking->status = $nextStatus;
+            app(AmenitySharedBillService::class)->createBookingBill($booking, $amenity, (int) $request->user()->id, $request);
+            NotificationService::send(
+                $booking->user_id,
+                'info',
+                $adminPaysAfterApproval ? 'Pay for your booking' : 'Booking bill available',
+                $adminPaysAfterApproval
+                    ? "Your {$booking->amenity_name} booking was approved. Submit payment proof to confirm it."
+                    : "Your {$booking->amenity_name} booking was approved. Submit payment proof from Amenity bills.",
+                $adminPaysAfterApproval
+                    ? '/screens/property-management/my-booking'
+                    : '/screens/property-management/amenity-bills',
+            );
+        }
+
         ActivityLogService::user('booking_approved', "Approved {$booking->amenity_name} booking #{$id}", 'Booking', $id);
-        NotificationService::send(
-            $booking->user_id,
-            'success',
-            'Reservation approved',
-            "Your booking for {$booking->amenity_name} on {$booking->date}".($booking->time_slot ? " ({$booking->time_slot})" : '').' is confirmed.',
-            '/screens/property-management/my-booking',
-        );
+        if ($adminPaysAfterApproval) {
+            NotificationService::send(
+                $booking->user_id,
+                'info',
+                'Reservation approved — payment required',
+                "Your booking for {$booking->amenity_name} on {$booking->date}".($booking->time_slot ? " ({$booking->time_slot})" : '').' is approved. Pay and submit proof to confirm it.',
+                '/screens/property-management/my-booking',
+            );
+        } else {
+            NotificationService::send(
+                $booking->user_id,
+                'success',
+                'Reservation approved',
+                "Your booking for {$booking->amenity_name} on {$booking->date}".($booking->time_slot ? " ({$booking->time_slot})" : '').' is confirmed.',
+                '/screens/property-management/my-booking',
+            );
+        }
 
         return response()->json(['message' => 'Booking approved']);
     }
@@ -626,6 +658,7 @@ class AmenityController extends Controller
 
             return $this->withViewerBookingState($formatted, $booking);
         });
+        $amenities = $this->withBookingBills($amenities, $request);
 
         return response()->json([
             'data' => $amenities,
@@ -647,8 +680,13 @@ class AmenityController extends Controller
 
         ActivityLogService::user('amenity_created', "Created amenity: \"{$data['name']}\"", 'Amenity', $id);
 
+        $amenity = DB::table('amenities')->find($id);
+        if ($amenity->shared_billing_enabled ?? false) {
+            app(AmenitySharedBillService::class)->generateCurrentPeriodBill($amenity, (int) $user->id, $request);
+        }
+
         return response()->json([
-            'data' => $this->formatAmenity(DB::table('amenities')->find($id), $user->id),
+            'data' => $this->formatAmenity($amenity, $user->id),
             'message' => 'Amenity created.',
         ], 201);
     }
@@ -665,7 +703,7 @@ class AmenityController extends Controller
         $data = $this->validateAmenityPayload($request, false);
         $payload = $this->mapAmenityUpdatePayload($data);
         $payload['updated_at'] = now();
-        $fields = ['name', 'name_es', 'name_ar', 'description', 'description_es', 'description_ar', 'status', 'capacity', 'floor', 'hours', 'start_time', 'end_time', 'weekends_available', 'slot_duration_minutes', 'icon_key', 'review_status', 'shared_billing_enabled', 'shared_billing_amount', 'shared_billing_due_day', 'booking_fee'];
+        $fields = ['name', 'name_es', 'name_ar', 'description', 'description_es', 'description_ar', 'status', 'capacity', 'floor', 'hours', 'start_time', 'end_time', 'weekends_available', 'slot_duration_minutes', 'icon_key', 'review_status', 'shared_billing_enabled', 'shared_billing_frequency', 'shared_billing_amount', 'shared_billing_due_day', 'booking_fee'];
         $before = ActivityLogService::snapshot($amenity, $fields);
         DB::table('amenities')->where('id', $id)->update($payload);
 
@@ -681,6 +719,10 @@ class AmenityController extends Controller
             $amenity->created_by ? (int) $amenity->created_by : null,
             ['related_item' => $fresh->name ?? $amenity->name],
         );
+
+        if ($fresh && ($fresh->shared_billing_enabled ?? false)) {
+            app(AmenitySharedBillService::class)->generateCurrentPeriodBill($fresh, (int) $request->user()->id, $request);
+        }
 
         return response()->json([
             'data' => $this->formatAmenity(DB::table('amenities')->find($id), $request->user()->id),
@@ -758,6 +800,11 @@ class AmenityController extends Controller
             );
         }
 
+        $fresh = DB::table('amenities')->find($id);
+        if ($fresh && ($fresh->shared_billing_enabled ?? false)) {
+            app(AmenitySharedBillService::class)->generateCurrentPeriodBill($fresh, (int) $request->user()->id, $request);
+        }
+
         return response()->json([
             'data' => $this->formatAmenity(DB::table('amenities')->find($id), $request->user()->id),
             'message' => 'Amenity approved and published.',
@@ -833,7 +880,7 @@ class AmenityController extends Controller
             'description_es' => 'nullable|string|max:2000',
             'description_ar' => 'nullable|string|max:2000',
             'status' => ($creating ? 'required' : 'sometimes').'|in:'.implode(',', self::STATUSES),
-            'capacity' => 'nullable|integer|min:0|max:1000',
+            'capacity' => ($request->input('status') === 'bookable' ? 'required' : 'nullable').'|integer|min:0|max:1000',
             'floor' => 'nullable|string|max:40',
             'hours' => 'nullable|string|max:100',
             'start_time' => ($creating ? 'required' : 'sometimes').'|date_format:H:i',
@@ -855,9 +902,10 @@ class AmenityController extends Controller
             'weekends_available' => 'nullable|boolean',
             'slot_duration_minutes' => 'nullable|integer|min:15|max:480',
             'icon_key' => 'nullable|string|in:'.implode(',', self::ICON_KEYS),
+            'custom_category' => 'nullable|string|max:80',
             'shared_billing_enabled' => 'nullable|boolean',
             'shared_billing_type' => 'nullable|string|in:'.self::SHARED_BILLING_TYPE_ALL_RESIDENTS,
-            'shared_billing_frequency' => 'nullable|string|in:'.self::SHARED_BILLING_FREQUENCY_MONTHLY,
+            'shared_billing_frequency' => 'nullable|string|in:'.self::SHARED_BILLING_FREQUENCY_MONTHLY.','.self::SHARED_BILLING_FREQUENCY_YEARLY,
             'shared_billing_amount' => 'nullable|numeric|min:0.01|max:999999.99',
             'shared_billing_due_day' => 'nullable|integer|min:1|max:31',
             'booking_fee' => 'nullable|numeric|min:0|max:999999.99',
@@ -870,6 +918,10 @@ class AmenityController extends Controller
         if ($request->boolean('shared_billing_enabled')) {
             $rules['shared_billing_amount'] = 'required|numeric|min:0.01|max:999999.99';
             $rules['shared_billing_due_day'] = 'required|integer|min:1|max:31';
+        }
+
+        if (($request->input('icon_key') ?? '') === 'other') {
+            $rules['custom_category'] = ($creating ? 'required' : 'sometimes').'|string|min:2|max:80';
         }
 
         return $request->validate($rules);
@@ -901,7 +953,9 @@ class AmenityController extends Controller
             'description_ar' => $data['description_ar'] ?? null,
             'status' => $status,
             'review_status' => $isAdmin ? 'approved' : 'pending',
-            'capacity' => $data['capacity'] ?? 10,
+            'capacity' => array_key_exists('capacity', $data) && $data['capacity'] !== null
+                ? (int) $data['capacity']
+                : 0,
             'floor' => $data['floor'] ?? null,
             'hours' => $hours,
             'start_time' => $start ? $start.':00' : null,
@@ -912,6 +966,9 @@ class AmenityController extends Controller
             'slot_duration_minutes' => $slotDuration,
             'image_url' => null,
             'icon_key' => $data['icon_key'] ?? null,
+            'custom_category' => ($data['icon_key'] ?? null) === 'other'
+                ? (trim((string) ($data['custom_category'] ?? '')) ?: null)
+                : null,
             ...$this->normalizedSharedBilling($data),
             'booking_fee' => $this->normalizedBookingFee($data),
             'created_at' => now(),
@@ -924,8 +981,15 @@ class AmenityController extends Controller
         $payload = [];
         foreach (['name', 'name_es', 'name_ar', 'description', 'description_es', 'description_ar', 'status', 'capacity', 'floor', 'icon_key', 'weekends_available', 'slot_duration_minutes'] as $field) {
             if (array_key_exists($field, $data)) {
-                $payload[$field] = $data[$field];
+                $payload[$field] = $field === 'capacity' && $data[$field] === null ? 0 : $data[$field];
             }
+        }
+
+        if (array_key_exists('icon_key', $data) || array_key_exists('custom_category', $data)) {
+            $iconKey = $data['icon_key'] ?? null;
+            $payload['custom_category'] = $iconKey === 'other'
+                ? (trim((string) ($data['custom_category'] ?? '')) ?: null)
+                : null;
         }
 
         if (array_key_exists('start_time', $data)) {
@@ -1030,6 +1094,7 @@ class AmenityController extends Controller
                 : [],
             'image_url' => MediaUrl::toPublic($row->image_url ?? null, request()),
             'icon_key' => $row->icon_key ?? null,
+            'custom_category' => $row->custom_category ?? null,
             'community_name' => $row->community_name ?? $this->communityNameFor((int) $row->community_id),
             'shared_billing_enabled' => (bool) ($row->shared_billing_enabled ?? false),
             'shared_billing_type' => $row->shared_billing_type ?? null,
@@ -1037,6 +1102,12 @@ class AmenityController extends Controller
             'shared_billing_amount' => $row->shared_billing_amount !== null ? (float) $row->shared_billing_amount : null,
             'shared_billing_due_day' => $row->shared_billing_due_day !== null ? (int) $row->shared_billing_due_day : null,
             'booking_fee' => $this->amenityBookingFee($row),
+            'display_fee' => ($row->shared_billing_enabled ?? false)
+                ? (float) ($row->shared_billing_amount ?? 0)
+                : $this->amenityBookingFee($row),
+            'display_fee_kind' => ($row->shared_billing_enabled ?? false)
+                ? (($row->shared_billing_frequency ?? 'monthly') === 'yearly' ? 'yearly' : 'monthly')
+                : ($this->amenityBookingFee($row) > 0 ? 'booking' : 'free'),
             'has_overdue_shared_amenity_bill' => false,
             'is_mine' => $viewerId !== null && (int) ($row->created_by ?? 0) === $viewerId,
             'created_at' => $row->created_at,
@@ -1065,8 +1136,25 @@ class AmenityController extends Controller
         $amenity['user_next_booking_time_slot'] = $booking->time_slot ?? null;
         $amenity['user_next_booking_status'] = $booking->status ?? null;
         $amenity['user_next_booking_guests'] = $booking ? (int) ($booking->guests ?? 1) : null;
+        $amenity['user_next_booking_bill'] = null;
 
         return $amenity;
+    }
+
+    /** @param  \Illuminate\Support\Collection<int, array<string, mixed>>  $amenities */
+    private function withBookingBills($amenities, Request $request)
+    {
+        $bills = app(AmenitySharedBillService::class)->residentBillsByBookingIds(
+            $amenities->pluck('user_next_booking_id')->filter()->map(fn ($id) => (int) $id)->all(),
+            $request,
+        );
+
+        return $amenities->map(function (array $amenity) use ($bills) {
+            $bookingId = (int) ($amenity['user_next_booking_id'] ?? 0);
+            $amenity['user_next_booking_bill'] = $bookingId > 0 ? ($bills[$bookingId] ?? null) : null;
+
+            return $amenity;
+        });
     }
 
     /** Community admin inbox must use managed-community scope, not the latest resident membership. */
@@ -1115,13 +1203,21 @@ class AmenityController extends Controller
     /** @return array<string, mixed> */
     private function formatBookingCore(object $row): array
     {
+        $shared = (bool) ($row->amenity_shared_billing_enabled ?? false);
+        $sharedAmount = (float) ($row->amenity_shared_billing_amount ?? 0);
+        $bookingFee = (float) ($row->booking_fee ?? 0);
+
         return [
             'id' => (int) $row->id,
             'amenity_id' => (int) $row->amenity_id,
             'date' => $row->date,
             'time_slot' => $row->time_slot,
             'guests' => (int) ($row->guests ?? 1),
-            'booking_fee' => (float) ($row->booking_fee ?? 0),
+            'booking_fee' => $bookingFee,
+            'display_fee' => $shared ? $sharedAmount : $bookingFee,
+            'display_fee_kind' => $shared
+                ? (($row->amenity_shared_billing_frequency ?? 'monthly') === 'yearly' ? 'yearly' : 'monthly')
+                : ($bookingFee > 0 ? 'booking' : 'free'),
             'status' => $row->status,
             'payment_verification_status' => $row->payment_verification_status ?? self::PAYMENT_NOT_REQUIRED,
             'notes' => $row->notes,

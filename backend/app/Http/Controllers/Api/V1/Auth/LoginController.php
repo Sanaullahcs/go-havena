@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Services\ActivityLogService;
+use App\Services\ContactIdentityService;
 use App\Services\AdminRoleService;
 use App\Services\CommunityAdminAccessService;
 use App\Services\CommunityLifecycleService;
@@ -29,7 +30,9 @@ class LoginController extends Controller
         $attempt = ['password' => $credentials['password']];
 
         if (! empty($credentials['email'])) {
-            $attempt['email'] = $credentials['email'];
+            $email = ContactIdentityService::normalizeEmail($credentials['email']);
+            $user = $email ? ContactIdentityService::findUserByEmail($email) : null;
+            $attempt['email'] = $user?->email ?? $email;
         } else {
             $phone = PhoneNormalizer::normalize($credentials['phone']);
             if (! $phone) {

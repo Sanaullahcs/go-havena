@@ -12,6 +12,7 @@ import {
   Check,
   ChevronDown,
   Clock,
+  CircleDollarSign,
   MapPin,
   Users,
 } from "lucide-react-native";
@@ -32,6 +33,7 @@ import {
   approveAmenity,
   rejectAmenity,
 } from "../../../services/amenity-api";
+import AmenityPaymentProofModal from "../../../components/property/amenity-payment-proof-modal";
 import {
   AMENITY_ICON_CATALOG,
   SLOT_DURATION_OPTIONS,
@@ -42,6 +44,7 @@ import {
   buildAmenityPayload,
   generateAmenitySlots,
   parseHoursToApiTimes,
+  formatAmenityFeeLabel,
 } from "../../../utils/amenity-display";
 import { useApiAction } from "../../../hooks/use-api-action";
 import useOverlayChrome from "../../../hooks/use-overlay-chrome";
@@ -68,9 +71,15 @@ const FILTERS = [
 
 const BOOKING_STATUS_META = {
   pending: { label: "admin.pending", color: "#B45309", bg: "#FEF3C7" },
+  awaiting_payment: { label: "propertyMgmt.statusAwaitingPayment", color: "#B45309", bg: "#FEF3C7" },
   confirmed: { label: "admin.approved", color: "#047857", bg: "#ECFDF5" },
   rejected: { label: "admin.rejected", color: "#B91C1C", bg: "#FEF2F2" },
 };
+
+function canPayAmenityBooking(item) {
+  return item?.user_next_booking_status === "awaiting_payment"
+    && item?.user_next_booking_bill?.can_submit_proof === true;
+}
 
 function bookingStatusMeta(status) {
   return BOOKING_STATUS_META[status] ?? { label: "admin.booked", color: AdminTheme.accent, bg: AdminTheme.accentSoft };
@@ -86,7 +95,12 @@ const EMPTY_FORM = {
   weekends_available: true,
   slot_duration_minutes: 60,
   icon_key: "",
+  custom_category: "",
   booking_fee: "0",
+  shared_billing_enabled: false,
+  shared_billing_frequency: "monthly",
+  shared_billing_amount: "",
+  shared_billing_due_day: "",
 };
 
 function shortStatusLabel(status, t) {
@@ -210,6 +224,7 @@ function AmenityCard({ item, onOpen, onApprove, onReject, busy, t }) {
           {item.capacity > 0 ? <MetaChip icon={Users} label={`${item.capacity}`} /> : null}
           {item.floor ? <MetaChip icon={MapPin} label={item.floor} /> : null}
           {item.hours ? <MetaChip icon={Clock} label={item.hours} /> : null}
+          <MetaChip icon={CircleDollarSign} label={formatAmenityFeeLabel(item)} />
         </View>
         {reviewPending ? (
           <View style={styles.reviewActions}>
@@ -372,6 +387,7 @@ export default function AdminAmenitiesScreen() {
   const [formOpen, setFormOpen] = useState(false);
   const [viewing, setViewing] = useState(null);
   const [trackingBooking, setTrackingBooking] = useState(null);
+  const [proofFor, setProofFor] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [fieldErrors, setFieldErrors] = useState({});
@@ -469,13 +485,18 @@ export default function AdminAmenitiesScreen() {
       name: item.name ?? "",
       description: item.description ?? "",
       status: item.status ?? "bookable",
-      capacity: item.capacity != null ? String(item.capacity) : "",
+      capacity: item.capacity != null && Number(item.capacity) > 0 ? String(item.capacity) : "",
       floor: item.floor ?? "",
       hours: item.hours ?? "",
       weekends_available: item.weekends_available !== false,
       slot_duration_minutes: item.slot_duration_minutes ?? 60,
       icon_key: item.icon_key || getAmenityVisual(item.name).key || "",
+      custom_category: item.custom_category ?? "",
       booking_fee: item.booking_fee != null ? String(item.booking_fee) : "0",
+      shared_billing_enabled: Boolean(item.shared_billing_enabled),
+      shared_billing_frequency: item.shared_billing_frequency === "yearly" ? "yearly" : "monthly",
+      shared_billing_amount: item.shared_billing_amount != null ? String(item.shared_billing_amount) : "",
+      shared_billing_due_day: item.shared_billing_due_day != null ? String(item.shared_billing_due_day) : "",
     });
     setFieldErrors({});
     setTouched({});
@@ -530,9 +551,12 @@ export default function AdminAmenitiesScreen() {
       floor: true,
       hours: true,
       icon_key: true,
+      custom_category: true,
       weekends_available: true,
       slot_duration_minutes: true,
       booking_fee: true,
+      shared_billing_amount: true,
+      shared_billing_due_day: true,
     });
     if (Object.keys(errors).length > 0) return;
 
@@ -866,11 +890,15 @@ export default function AdminAmenitiesScreen() {
                 </View>
                 <FieldError message={errorFor("status")} />
 
-                <View style={[styles.twoCol, stackFields && styles.twoColStack]}>
-                  <View style={[styles.col, stackFields && styles.colStacked]}>
-                    <FieldLabel required>{t("admin.capacity")}</FieldLabel>
+                {form.status !== "open" ? (
+                  <>
+                    <FieldLabel>{t("admin.capacity")}</FieldLabel>
                     <LocaleTextInput
-                      style={[styles.input, errorFor("capacity") && styles.inputError]}
+                      style={[
+                        styles.input,
+                        errorFor("capacity") && styles.inputError,
+                        form.status === "closed" && styles.inputDisabled,
+                      ]}
                       value={form.capacity}
                       onChangeText={(v) => setField("capacity", v.replace(/[^0-9]/g, ""))}
                       onBlur={() => setTouched((prev) => ({ ...prev, capacity: true }))}
@@ -878,23 +906,24 @@ export default function AdminAmenitiesScreen() {
                       placeholder={t("admin.capacityPlaceholder")}
                       placeholderTextColor="#94A3B8"
                       maxLength={4}
+                      editable={form.status !== "closed"}
                     />
+                    <Text style={styles.fieldHint}>{t("admin.capacitySlotsHint")}</Text>
                     <FieldError message={errorFor("capacity")} />
-                  </View>
-                  <View style={[styles.col, stackFields && styles.colStacked]}>
-                    <FieldLabel required>{t("admin.location")}</FieldLabel>
-                    <LocaleTextInput
-                      style={[styles.input, errorFor("floor") && styles.inputError]}
-                      value={form.floor}
-                      onChangeText={(v) => setField("floor", v)}
-                      onBlur={() => setTouched((prev) => ({ ...prev, floor: true }))}
-                      placeholder={t("admin.locationPlaceholder")}
-                      placeholderTextColor="#94A3B8"
-                      maxLength={40}
-                    />
-                    <FieldError message={errorFor("floor")} />
-                  </View>
-                </View>
+                  </>
+                ) : null}
+
+                <FieldLabel required>{t("admin.location")}</FieldLabel>
+                <LocaleTextInput
+                  style={[styles.input, errorFor("floor") && styles.inputError]}
+                  value={form.floor}
+                  onChangeText={(v) => setField("floor", v)}
+                  onBlur={() => setTouched((prev) => ({ ...prev, floor: true }))}
+                  placeholder={t("admin.locationPlaceholder")}
+                  placeholderTextColor="#94A3B8"
+                  maxLength={40}
+                />
+                <FieldError message={errorFor("floor")} />
 
                 <FieldLabel required>{t("admin.dailyHours")}</FieldLabel>
                 <BusinessHoursInput
@@ -961,26 +990,121 @@ export default function AdminAmenitiesScreen() {
                   </>
                 ) : null}
 
-                <FieldLabel>{t("admin.bookingFee")}</FieldLabel>
-                <LocaleTextInput
-                  style={[styles.input, errorFor("booking_fee") && styles.inputError]}
-                  value={String(form.booking_fee ?? "")}
-                  onChangeText={(v) => setField("booking_fee", v.replace(/[^0-9.]/g, ""))}
-                  onBlur={() => setTouched((prev) => ({ ...prev, booking_fee: true }))}
-                  placeholder="0"
-                  keyboardType="decimal-pad"
-                />
-                <Text style={styles.switchHint}>{t("admin.bookingFeeHint")}</Text>
-                <FieldError message={errorFor("booking_fee")} />
+                {(form.status === "bookable" || form.status === "open") && !form.shared_billing_enabled ? (
+                  <>
+                    <FieldLabel>{t("admin.bookingFee")}</FieldLabel>
+                    <LocaleTextInput
+                      style={[styles.input, errorFor("booking_fee") && styles.inputError]}
+                      value={String(form.booking_fee ?? "")}
+                      onChangeText={(v) => setField("booking_fee", v.replace(/[^0-9.]/g, ""))}
+                      onBlur={() => setTouched((prev) => ({ ...prev, booking_fee: true }))}
+                      placeholder="0"
+                      keyboardType="decimal-pad"
+                    />
+                    <Text style={styles.switchHint}>{t("admin.bookingFeeHint")}</Text>
+                    <FieldError message={errorFor("booking_fee")} />
+                  </>
+                ) : null}
+
+                <View style={styles.switchRow}>
+                  <View style={styles.switchCopy}>
+                    <Text style={styles.switchTitle}>{t("admin.sharedBilling")}</Text>
+                    <Text style={styles.switchHint}>{t("admin.sharedBillingHint")}</Text>
+                  </View>
+                  <Switch
+                    value={Boolean(form.shared_billing_enabled)}
+                    onValueChange={(v) => {
+                      setField("shared_billing_enabled", v);
+                      if (v) {
+                        setField("booking_fee", "0");
+                      } else {
+                        setField("shared_billing_amount", "");
+                        setField("shared_billing_due_day", "");
+                      }
+                    }}
+                    trackColor={{ false: "#E2E8F0", true: "#93C5FD" }}
+                    thumbColor={form.shared_billing_enabled ? "#1B4F8A" : "#F8FAFC"}
+                  />
+                </View>
+
+                {form.shared_billing_enabled ? (
+                  <>
+                    <FieldLabel required>{t("admin.sharedBillingFrequency")}</FieldLabel>
+                    <View style={styles.durationRow}>
+                      {[
+                        { id: "monthly", label: t("admin.sharedBillingMonthly") },
+                        { id: "yearly", label: t("admin.sharedBillingYearly") },
+                      ].map((opt) => {
+                        const selected = (form.shared_billing_frequency || "monthly") === opt.id;
+                        return (
+                          <Pressable
+                            key={opt.id}
+                            onPress={() => setField("shared_billing_frequency", opt.id)}
+                            style={[styles.durationChip, selected && styles.durationChipActive]}
+                          >
+                            <Text style={[styles.durationText, selected && styles.durationTextActive]}>
+                              {opt.label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  <View style={[styles.twoCol, stackFields && styles.twoColStack]}>
+                    <View style={[styles.col, stackFields && styles.colStacked]}>
+                      <FieldLabel required>{t("admin.amountPerResident")}</FieldLabel>
+                      <LocaleTextInput
+                        style={[styles.input, errorFor("shared_billing_amount") && styles.inputError]}
+                        value={String(form.shared_billing_amount ?? "")}
+                        onChangeText={(v) => setField("shared_billing_amount", v.replace(/[^0-9.]/g, ""))}
+                        onBlur={() => setTouched((prev) => ({ ...prev, shared_billing_amount: true }))}
+                        placeholder="25"
+                        keyboardType="decimal-pad"
+                      />
+                      <FieldError message={errorFor("shared_billing_amount")} />
+                    </View>
+                    <View style={[styles.col, stackFields && styles.colStacked]}>
+                      <FieldLabel required>{t("admin.sharedDueDay")}</FieldLabel>
+                      <LocaleTextInput
+                        style={[styles.input, errorFor("shared_billing_due_day") && styles.inputError]}
+                        value={String(form.shared_billing_due_day ?? "")}
+                        onChangeText={(v) => setField("shared_billing_due_day", v.replace(/[^0-9]/g, ""))}
+                        onBlur={() => setTouched((prev) => ({ ...prev, shared_billing_due_day: true }))}
+                        placeholder="10"
+                        keyboardType="number-pad"
+                        maxLength={2}
+                      />
+                      <FieldError message={errorFor("shared_billing_due_day")} />
+                    </View>
+                  </View>
+                  </>
+                ) : null}
 
                 <FieldLabel required>{t("admin.category")}</FieldLabel>
                 <IconSelectField
                   value={form.icon_key}
                   error={errorFor("icon_key")}
-                  onChange={(key) => setField("icon_key", key)}
+                  onChange={(key) => {
+                    setField("icon_key", key);
+                    if (key !== "other") setField("custom_category", "");
+                  }}
                   t={t}
                 />
                 <FieldError message={errorFor("icon_key")} />
+                {form.icon_key === "other" ? (
+                  <View style={{ marginTop: sw(10) }}>
+                    <FieldLabel required>{t("propertyMgmt.customCategoryLabel")}</FieldLabel>
+                    <LocaleTextInput
+                      style={[styles.input, errorFor("custom_category") && styles.inputError]}
+                      value={String(form.custom_category ?? "")}
+                      onChangeText={(v) => setField("custom_category", v)}
+                      onBlur={() => setTouched((prev) => ({ ...prev, custom_category: true }))}
+                      placeholder={t("propertyMgmt.customCategoryPlaceholder")}
+                      placeholderTextColor="#94A3B8"
+                      maxLength={80}
+                    />
+                    <FieldError message={errorFor("custom_category")} />
+                  </View>
+                ) : null}
               </View>
             </ScrollView>
 
@@ -1131,6 +1255,10 @@ export default function AdminAmenitiesScreen() {
                   <Text style={styles.bookingStatusHint}>
                     {trackingBooking.user_next_booking_status === "pending"
                       ? t("admin.bookingStatusPendingHint")
+                      : trackingBooking.user_next_booking_status === "awaiting_payment"
+                        ? trackingBooking.user_next_booking_bill?.can_submit_proof
+                          ? t("admin.bookingStatusAwaitingPaymentHint")
+                          : t("admin.bookingStatusPaymentReviewHint")
                       : trackingBooking.user_next_booking_status === "rejected"
                         ? t("admin.bookingStatusRejectedHint")
                         : t("admin.bookingStatusConfirmedHint")}
@@ -1161,11 +1289,34 @@ export default function AdminAmenitiesScreen() {
                     {t("admin.managedBy", { name: trackingBooking.creator_name })}
                   </Text>
                 ) : null}
+                {canPayAmenityBooking(trackingBooking) ? (
+                  <TouchableOpacity
+                    style={styles.payBtn}
+                    onPress={() => setProofFor(trackingBooking.user_next_booking_bill)}
+                  >
+                    <Text style={styles.payBtnText}>{t("admin.makePayment")}</Text>
+                  </TouchableOpacity>
+                ) : null}
               </>
             ) : null}
           </Pressable>
         </Pressable>
       </Modal>
+
+      {proofFor ? (
+        <AmenityPaymentProofModal
+          visible
+          bill={proofFor}
+          amenityId={proofFor.amenity_id}
+          amenityName={proofFor.amenity_name || trackingBooking?.name}
+          onClose={() => setProofFor(null)}
+          onSubmitted={() => {
+            setProofFor(null);
+            setTrackingBooking(null);
+            load(true);
+          }}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -1375,6 +1526,19 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: sf(13),
     color: AdminTheme.accent,
+  },
+  payBtn: {
+    marginTop: sw(14),
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: AdminTheme.accent,
+    borderRadius: sw(12),
+    paddingVertical: sw(12),
+  },
+  payBtnText: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(13),
+    color: "#FFFFFF",
   },
   statusPill: {
     flexDirection: "row",
@@ -1654,6 +1818,16 @@ const styles = StyleSheet.create({
   inputError: {
     borderColor: "#FCA5A5",
     backgroundColor: "#FEF2F2",
+  },
+  inputDisabled: {
+    backgroundColor: "#F1F5F9",
+    color: "#94A3B8",
+  },
+  fieldHint: {
+    marginTop: 3,
+    fontFamily: Fonts.regular,
+    fontSize: sf(10),
+    color: AdminTheme.textMuted,
   },
   fieldError: {
     marginTop: 3,

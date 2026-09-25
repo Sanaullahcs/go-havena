@@ -2,7 +2,7 @@ import { API_BASE_URL } from "../constants/api-config";
 import { apiRequest, ApiError } from "./api-client";
 import { getCommunityId, getToken } from "./auth-session";
 import { HOME_SECTION_CARD_LIMIT } from "../constants/home-sections";
-import { persistUploadAsset, uploadMultipartFile } from "../utils/upload-form-data";
+import { guessImageMeta, persistUploadAsset, uploadMultipartFile } from "../utils/upload-form-data";
 import i18n from "../i18n";
 
 export async function fetchAmenities() {
@@ -196,6 +196,38 @@ export async function fetchAmenityBills(amenityId) {
   return res.data ?? [];
 }
 
+/** All shared amenity bills for the signed-in resident. */
+export async function fetchMyAmenityBills() {
+  const res = await apiRequest("/amenity-bills");
+  return res.data ?? [];
+}
+
+/** Bills for amenities the signed-in user created. */
+export async function fetchAmenityOwnerBills(status = "all") {
+  const query = status && status !== "all" ? `?status=${encodeURIComponent(status)}` : "";
+  const res = await apiRequest(`/amenity-owner-bills${query}`);
+  return res.data ?? [];
+}
+
+export async function approveAmenityOwnerPayment(amenityId, residentBillId) {
+  const res = await apiRequest(
+    `/amenities/${amenityId}/resident-bills/${residentBillId}/approve`,
+    { method: "PATCH" },
+  );
+  return res.data;
+}
+
+export async function rejectAmenityOwnerPayment(amenityId, residentBillId, rejection_code, rejection_reason) {
+  const res = await apiRequest(
+    `/amenities/${amenityId}/resident-bills/${residentBillId}/reject`,
+    {
+      method: "PATCH",
+      body: { rejection_code, rejection_reason },
+    },
+  );
+  return res.data;
+}
+
 const PROOF_UPLOAD_TIMEOUT_MS = 30000;
 
 function withTimeout(promise, ms, message) {
@@ -271,6 +303,76 @@ export async function submitAmenityBillProof(amenityId, residentBillId, { fileAs
       errors: err?.errors,
     });
   }
+}
+
+export async function fetchAdminCommunityAmenityBills(status = "all") {
+  const query = status && status !== "all" ? `?status=${encodeURIComponent(status)}` : "";
+  const res = await apiRequest(`/admin/amenity-bills${query}`);
+  return res.data ?? [];
+}
+
+export async function approveAmenityResidentPayment(amenityId, residentBillId) {
+  const res = await apiRequest(
+    `/admin/amenities/${amenityId}/resident-bills/${residentBillId}/approve`,
+    { method: "PATCH" },
+  );
+  return res.data;
+}
+
+export async function rejectAmenityResidentPayment(amenityId, residentBillId, rejection_code, rejection_reason) {
+  const res = await apiRequest(
+    `/admin/amenities/${amenityId}/resident-bills/${residentBillId}/reject`,
+    {
+      method: "PATCH",
+      body: { rejection_code, rejection_reason },
+    },
+  );
+  return res.data;
+}
+
+export async function publishAmenityMonthlyBill(amenityId, {
+  billingMonth,
+  title,
+  description,
+  amountPerResident,
+  dueDate,
+  fileAsset,
+}) {
+  const token = await getToken();
+  if (!token) throw new ApiError(i18n.t("imagePicker.signInRequired"), { status: 401 });
+  if (!amenityId) throw new ApiError(i18n.t("services.amenityBillsCouldNotPublish"), { status: 400 });
+
+  const communityId = await getCommunityId();
+  const headers = {};
+  if (communityId) headers["X-Community-Id"] = String(communityId);
+  if (API_BASE_URL.includes("loca.lt")) headers["Bypass-Tunnel-Reminder"] = "true";
+
+  const parameters = {
+    billing_month: String(billingMonth),
+    title: String(title).trim(),
+    amount_per_resident: String(amountPerResident),
+    due_date: String(dueDate),
+  };
+  if (description?.trim()) parameters.description = String(description).trim();
+
+  if (!fileAsset?.uri) {
+    throw new ApiError(i18n.t("services.amenityBillsAttachmentRequired"), { status: 422 });
+  }
+
+  const prepared = fileAsset.uploadPrepared
+    ? fileAsset
+    : await persistUploadAsset(fileAsset, "amenity-bill");
+  const body = await uploadMultipartFile({
+    url: `${API_BASE_URL}/admin/amenities/${amenityId}/bills`,
+    uri: prepared.uri,
+    fieldName: "file",
+    token,
+    mimeType: prepared.mimeType || "application/pdf",
+    assetMeta: prepared,
+    headers,
+    parameters,
+  });
+  return { data: body?.data ?? null, message: body?.message ?? i18n.t("services.amenityBillsPublishedMsg") };
 }
 
 /** @deprecated Prefer fetchBookingInbox — kept for older call sites. */

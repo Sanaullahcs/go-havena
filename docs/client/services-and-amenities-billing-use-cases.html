@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Services &amp; Amenities Billing — Use Cases | Havena</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 20mm 18mm 22mm 18mm;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      color: #1a2332;
+      font: 10.75pt/1.55 "Calibri", "Segoe UI", Arial, sans-serif;
+    }
+    .cover {
+      page-break-after: always;
+      min-height: 250mm;
+    }
+    .rule {
+      height: 3px;
+      background: #1B4F8A;
+      border: 0;
+      margin: 0 0 22px;
+    }
+    .rule-thin {
+      height: 1px;
+      background: #c5d0dc;
+      border: 0;
+      margin: 16px 0 20px;
+    }
+    .doc-kicker {
+      color: #1B4F8A;
+      font-size: 9.5pt;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 10px 0 8px;
+      color: #122033;
+      font-size: 26pt;
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
+    .cover h1 { font-size: 28pt; margin-top: 28px; }
+    .subtitle {
+      margin: 0 0 22px;
+      color: #3d4d63;
+      font-size: 13pt;
+      font-weight: 400;
+    }
+    .meta {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 28px 0 0;
+      font-size: 10.5pt;
+    }
+    .meta th {
+      width: 32%;
+      text-align: left;
+      font-weight: 700;
+      color: #1B4F8A;
+      padding: 7px 10px 7px 0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .meta td {
+      padding: 7px 0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .toc { page-break-after: always; }
+    .toc ol { margin: 8px 0 0 22px; }
+    .toc li { margin: 7px 0; }
+    h2 {
+      page-break-before: always;
+      margin: 0 0 12px;
+      padding-bottom: 7px;
+      border-bottom: 2px solid #1B4F8A;
+      color: #1B4F8A;
+      font-size: 16pt;
+      font-weight: 700;
+    }
+    h2.first { page-break-before: auto; }
+    h3 {
+      margin: 18px 0 6px;
+      color: #122033;
+      font-size: 12.5pt;
+      font-weight: 700;
+    }
+    h4 {
+      margin: 14px 0 4px;
+      color: #1B4F8A;
+      font-size: 11pt;
+      font-weight: 700;
+    }
+    p { margin: 0 0 8px; }
+    ul, ol { margin: 4px 0 10px 20px; padding: 0; }
+    li { margin: 3px 0; }
+    table.data {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0 14px;
+      font-size: 10.25pt;
+    }
+    table.data th {
+      text-align: left;
+      background: #1B4F8A;
+      color: #fff;
+      padding: 7px 9px;
+      font-weight: 650;
+    }
+    table.data td {
+      padding: 7px 9px;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: top;
+    }
+    table.data tr:nth-child(even) td { background: #f5f8fb; }
+    .callout {
+      border: 1px solid #d5deea;
+      border-left: 4px solid #1B4F8A;
+      background: #f5f8fb;
+      padding: 10px 12px;
+      margin: 10px 0 14px;
+    }
+    .callout.green {
+      border-left-color: #059669;
+      background: #ecfdf5;
+    }
+    .tree {
+      background: #f5f8fb;
+      border: 1px solid #d5deea;
+      padding: 12px 14px;
+      margin: 10px 0 14px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 9.5pt;
+      white-space: pre-wrap;
+      line-height: 1.45;
+    }
+    .example-card {
+      border: 1px solid #d5deea;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin: 10px 0 14px;
+      background: #fff;
+    }
+    .example-card h4 { margin-top: 0; }
+    .badge {
+      display: inline-block;
+      font-size: 8.5pt;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-right: 6px;
+    }
+    .badge-service { background: #dbeafe; color: #1e40af; }
+    .badge-amenity { background: #d1fae5; color: #065f46; }
+    .badge-free { background: #f3f4f6; color: #374151; }
+    .muted { color: #5b6b7c; font-size: 9.75pt; }
+    .footer {
+      margin-top: 24px;
+      padding-top: 8px;
+      border-top: 1px solid #c5d0dc;
+      color: #5b6b7c;
+      font-size: 9pt;
+    }
+  </style>
+</head>
+<body>
+
+  <section class="cover">
+    <hr class="rule" />
+    <p class="doc-kicker">Product specification</p>
+    <h1>Services &amp; Amenities Billing</h1>
+    <p class="subtitle">Use cases, flows, and configuration guide for Go Havena communities</p>
+    <p>This document defines how <strong>Services</strong> (unit-based billing) and <strong>Amenities</strong> (resident-based billing) work on the Havena platform. It covers admin configuration, resident flows, payment proof, and real-world examples such as Pool, Meeting Room, and Playground.</p>
+    <table class="meta">
+      <tr><th>Document owner</th><td>Havena</td></tr>
+      <tr><th>Audience</th><td>Community administrators, product &amp; engineering</td></tr>
+      <tr><th>Version</th><td>1.0</td></tr>
+      <tr><th>Effective date</th><td>16 September 2026</td></tr>
+      <tr><th>Classification</th><td>Internal / client reference</td></tr>
+      <tr><th>Support</th><td>hello@gohavena.com</td></tr>
+    </table>
+    <hr class="rule-thin" />
+    <p class="muted">Pakistan communities record payments outside the app (bank transfer, office cash). Residents upload payment proof; admins verify and mark bills as paid.</p>
+    <p class="footer">Havena &nbsp;·&nbsp; Services &amp; Amenities Billing &nbsp;·&nbsp; Version 1.0</p>
+  </section>
+
+  <section class="toc">
+    <h2 class="first">Contents</h2>
+    <ol>
+      <li>Purpose and core principles</li>
+      <li>Services overview</li>
+      <li>Service creation form</li>
+      <li>Automatic services — complete flow</li>
+      <li>Optional services — complete flow</li>
+      <li>Amenities overview</li>
+      <li>Amenity billing models</li>
+      <li>Amenity use-case examples</li>
+      <li>Payment proof and admin review</li>
+      <li>Unit billing contact</li>
+      <li>Side-by-side comparison</li>
+      <li>Resident and admin screens</li>
+      <li>Data model summary</li>
+    </ol>
+  </section>
+
+  <h2>1. Purpose and core principles</h2>
+  <p>Go Havena separates <strong>Services</strong> and <strong>Amenities</strong> because they answer different questions and bill different entities.</p>
+
+  <table class="data">
+    <thead>
+      <tr><th>Concept</th><th>Billed to</th><th>Who pays</th><th>Who is notified</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Services</strong></td>
+        <td><strong>Unit</strong> (apartment)</td>
+        <td>Unit billing contact</td>
+        <td><strong>One</strong> resident per unit</td>
+      </tr>
+      <tr>
+        <td><strong>Amenities</strong></td>
+        <td><strong>Resident</strong> (individual)</td>
+        <td>Each resident themselves</td>
+        <td><strong>Each</strong> resident who owes a bill</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <strong>Mental model.</strong>
+    <strong>Services</strong> = obligations for the apartment (water, waste, building internet, assigned parking for the unit).
+    <strong>Amenities</strong> = shared facilities used by people (pool, gym, meeting room, playground).
+  </div>
+
+  <p>All services are created by the <strong>Community Admin</strong>. Residents do not create services; they may subscribe to optional services or pay bills issued to their unit.</p>
+
+  <h2>2. Services overview</h2>
+  <p>There are two service types. Both bill the <strong>unit</strong>, not individual residents.</p>
+
+  <table class="data">
+    <thead>
+      <tr><th>Type</th><th>Applies to</th><th>Billing starts</th><th>Example</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Automatic</strong></td>
+        <td>All eligible units</td>
+        <td>Next billing cycle after publish</td>
+        <td>Water, gas, waste</td>
+      </tr>
+      <tr>
+        <td><strong>Optional</strong></td>
+        <td>Units that opt in</td>
+        <td>After subscription is active</td>
+        <td>Extra parking, premium security</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Shared bill lifecycle (both service types)</h3>
+  <div class="tree">Bill issued → Notice + push notification → Acknowledgement (optional)
+→ Payment proof uploaded → Admin review → Paid or Rejected
+→ If rejected: resident resubmits proof</div>
+
+  <h2>3. Service creation form</h2>
+  <p>Recommended as a <strong>4-step wizard</strong> for Community Admins.</p>
+
+  <h3>Step 1 — Basic details</h3>
+  <table class="data">
+    <thead><tr><th>Field</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Service name</td><td>e.g. Water, Assigned parking</td></tr>
+      <tr><td>Category</td><td>Utilities / Maintenance / Security / Other</td></tr>
+      <tr><td>Description</td><td>What the service covers</td></tr>
+      <tr><td>Icon</td><td>For mobile and web lists</td></tr>
+      <tr><td>Status</td><td>Active / Inactive</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Step 2 — Service type</h3>
+  <p><strong>Application type</strong> (radio):</p>
+  <ul>
+    <li><strong>Automatic</strong> — applies to all eligible units</li>
+    <li><strong>Optional</strong> — resident opt-in per unit</li>
+  </ul>
+
+  <h4>Automatic service fields</h4>
+  <table class="data">
+    <thead><tr><th>Field</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Applies to</td><td>All active units in community</td></tr>
+      <tr><td>Billing frequency</td><td>Monthly (v1)</td></tr>
+      <tr><td>Amount type</td><td>Fixed per unit · Variable per unit</td></tr>
+      <tr><td>Due day</td><td>1–31 (e.g. 10th of each month)</td></tr>
+      <tr><td>Payment instructions</td><td>Bank details, reference format, office hours</td></tr>
+      <tr><td>Require payment proof</td><td>Recommended: On</td></tr>
+      <tr><td>Auto-generate monthly bills</td><td>Cron or manual “Generate bills”</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Optional service fields</h4>
+  <table class="data">
+    <thead><tr><th>Field</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Subscription scope</td><td><strong>Per unit</strong> (recommended)</td></tr>
+      <tr><td>Requires admin approval</td><td>On = request → approve; Off = instant subscribe</td></tr>
+      <tr><td>Billing frequency</td><td>Monthly · One-time</td></tr>
+      <tr><td>Max subscribers</td><td>Optional cap (e.g. 50 parking spots)</td></tr>
+      <tr><td>Who can subscribe</td><td><strong>Unit billing contact only</strong></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Step 3 — Notice and communication</h3>
+  <ul>
+    <li>Notice template with invoice summary and due date</li>
+    <li>Send as community notice to billing contact</li>
+    <li>Send push notification</li>
+    <li>Require acknowledgement (resident confirms they have read the bill)</li>
+    <li>Optional invoice PDF attachment</li>
+  </ul>
+
+  <h3>Step 4 — Review and publish</h3>
+  <p>Summary of type, pricing, billing rules, and notification recipient (billing contact per unit).</p>
+
+  <h2>4. Automatic services — complete flow</h2>
+  <div class="tree">Admin creates service (Automatic)
+        ↓
+Service saved → applies to ALL active units
+        ↓
+Each month (cron or admin “Generate bills”):
+  FOR each eligible unit:
+    create unit_service_bill (unit_id, amount, due_date)
+    resolve billing_contact_user_id
+        ↓
+    IF billing contact exists:
+      send push notification (one resident)
+      publish notice with invoice + payment instructions
+      optional: require acknowledgement
+    ELSE:
+      alert admin: “Unit has no billing contact”
+        ↓
+Billing contact opens notice / Services → Unit bills
+        ↓
+Resident acknowledges (if required)
+        ↓
+Resident uploads payment proof
+        ↓
+Status → pending_verification
+        ↓
+Admin reviews → Approve (paid) or Reject (reason; resubmit allowed)
+        ↓
+Next month: new bill for same unit</div>
+
+  <h3>Bill statuses</h3>
+  <table class="data">
+    <thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>unpaid</td><td>Bill issued, no proof submitted</td></tr>
+      <tr><td>acknowledged</td><td>Resident read the notice</td></tr>
+      <tr><td>pending_verification</td><td>Proof uploaded, awaiting admin</td></tr>
+      <tr><td>paid</td><td>Admin approved payment</td></tr>
+      <tr><td>rejected</td><td>Admin rejected; resident may resubmit</td></tr>
+      <tr><td>overdue</td><td>Past due date, still unpaid</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. Optional services — complete flow</h2>
+  <p>Optional services use <strong>per-unit subscription</strong>. After activation, billing follows the same pipeline as automatic services.</p>
+
+  <div class="tree">Admin creates optional service → appears in “Available services” catalog
+        ↓
+Billing contact opens catalog → “Subscribe for my unit”
+        ↓
+IF approval required:
+  Request submitted → Admin approves/rejects → subscription active
+ELSE:
+  Instant subscribe → subscription active
+        ↓
+Billing starts next cycle
+        ↓
+Only subscribed units receive monthly unit_service_bills
+        ↓
+Same notice, acknowledgement, proof, and admin review as automatic services</div>
+
+  <p>Other unit residents see: <em>“Ask your unit billing contact to subscribe.”</em></p>
+  <p>Billing contact may cancel subscription at end of period; no new bills after end date.</p>
+
+  <h2>6. Amenities overview</h2>
+  <p>Amenities are <strong>always resident-based</strong>. Unit infrastructure (<code>units</code>, billing contact) does <strong>not</strong> apply to amenity billing.</p>
+  <p>Each amenity is configured independently. An amenity uses <strong>one primary charge model</strong>, or is free.</p>
+
+  <h2>7. Amenity billing models</h2>
+  <table class="data">
+    <thead>
+      <tr><th>Model</th><th>When charged</th><th>Who pays</th><th>Admin configuration</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Shared monthly billing</strong></td>
+        <td>Every month</td>
+        <td>Each approved resident</td>
+        <td>Shared billing <strong>On</strong>, amount per resident, due day</td>
+      </tr>
+      <tr>
+        <td><strong>Booking / reservation fee</strong></td>
+        <td>At booking time</td>
+        <td>Resident who booked</td>
+        <td>Shared billing <strong>Off</strong>, bookable + slots, booking fee &gt; 0</td>
+      </tr>
+      <tr>
+        <td><strong>Free</strong></td>
+        <td>Never</td>
+        <td>—</td>
+        <td>Shared billing <strong>Off</strong>, booking fee = 0</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout green">
+    <strong>Important.</strong> Booking fee and shared monthly billing are separate settings. In most cases, use one or the other — not both. Example: Pool = monthly only; Meeting Room = per booking only; Playground = free.
+  </div>
+
+  <h3>Monthly amenity flow</h3>
+  <div class="tree">Admin enables shared billing on amenity
+        ↓
+Each month: admin publishes monthly bill
+        ↓
+One amenity_resident_bill per approved resident (user_id)
+        ↓
+Each resident gets their own notification
+        ↓
+Each resident uploads their own payment proof
+        ↓
+Admin approves/rejects per resident
+        ↓
+Unpaid bills may block that resident from booking</div>
+
+  <h3>Per-booking amenity flow</h3>
+  <div class="tree">Resident selects date and available slot → books
+        ↓
+If booking fee &gt; 0 → payment proof at booking time
+        ↓
+Admin approves booking and verifies payment
+        ↓
+No monthly bill for this amenity</div>
+
+  <h2>8. Amenity use-case examples</h2>
+
+  <div class="example-card">
+    <h4><span class="badge badge-amenity">Amenity</span> Pool — Monthly subscription</h4>
+    <table class="data">
+      <tbody>
+        <tr><th style="width:28%;background:#475569;">Billing model</th><td>Shared monthly billing</td></tr>
+        <tr><th style="background:#475569;">Admin settings</th><td>Shared billing <strong>On</strong> · amount per resident · due day · booking fee <strong>$0</strong></td></tr>
+        <tr><th style="background:#475569;">Resident experience</th><td>Each resident receives a monthly bill, pays with proof, admin verifies. Pool may use bookable slots for capacity without an extra per-booking charge.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="example-card">
+    <h4><span class="badge badge-amenity">Amenity</span> Meeting Room — Pay per booking</h4>
+    <table class="data">
+      <tbody>
+        <tr><th style="width:28%;background:#475569;">Billing model</th><td>Booking / reservation fee</td></tr>
+        <tr><th style="background:#475569;">Admin settings</th><td>Shared billing <strong>Off</strong> · status <strong>Bookable</strong> · time slots enabled · booking fee <strong>&gt; $0</strong></td></tr>
+        <tr><th style="background:#475569;">Resident experience</th><td>Pick available slot → book → pay and upload proof at booking time → admin confirms payment.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="example-card">
+    <h4><span class="badge badge-free">Free</span> Playground — No charge</h4>
+    <table class="data">
+      <tbody>
+        <tr><th style="width:28%;background:#475569;">Billing model</th><td>Free</td></tr>
+        <tr><th style="background:#475569;">Admin settings</th><td>Shared billing <strong>Off</strong> · booking fee <strong>$0</strong> · status <strong>Open</strong></td></tr>
+        <tr><th style="background:#475569;">Resident experience</th><td>Walk in and use — no bill, no payment, no booking required.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Quick reference — amenity charge types</h3>
+  <table class="data">
+    <thead>
+      <tr><th>Setup</th><th>Shared billing</th><th>Booking fee</th><th>Use case</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Free &amp; open</td><td>Off</td><td>$0</td><td>Playground, open lounge</td></tr>
+      <tr><td>Free but bookable</td><td>Off</td><td>$0</td><td>Bookable gym slots, no charge</td></tr>
+      <tr><td>Pay per use</td><td>Off</td><td>&gt; $0</td><td>Meeting room, BBQ area</td></tr>
+      <tr><td>Monthly membership</td><td>On</td><td>$0</td><td>Pool upkeep shared by residents</td></tr>
+    </tbody>
+  </table>
+
+  <h2>9. Payment proof and admin review</h2>
+  <p>Both services and amenities use the same proof workflow. Only the <strong>billing entity</strong> differs.</p>
+
+  <table class="data">
+    <thead>
+      <tr><th>Step</th><th>Services (unit)</th><th>Amenities (resident)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Bill record</td><td>unit_service_bills</td><td>amenity_resident_bills</td></tr>
+      <tr><td>Notice audience</td><td>Billing contact</td><td>Billed resident</td></tr>
+      <tr><td>Acknowledgement</td><td>Billing contact</td><td>Resident</td></tr>
+      <tr><td>Upload proof</td><td>Billing contact</td><td>Resident</td></tr>
+      <tr><td>Admin review queue</td><td>Service Bills</td><td>Amenity Bills</td></tr>
+      <tr><td>Reject → resubmit</td><td>Yes</td><td>Yes</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Standard rejection reasons</h3>
+  <ul>
+    <li>Payment proof is unclear</li>
+    <li>Amount does not match</li>
+    <li>Incorrect bill / payment</li>
+    <li>Invalid receipt</li>
+    <li>Other (with admin note)</li>
+  </ul>
+
+  <h2>10. Unit billing contact</h2>
+  <p>Required for <strong>services only</strong>. Amenities ignore billing contact entirely.</p>
+
+  <table class="data">
+    <thead><tr><th>Rule</th><th>Detail</th></tr></thead>
+    <tbody>
+      <tr><td>One contact per unit</td><td>Stored on units.billing_contact_user_id</td></tr>
+      <tr><td>First resident</td><td>Becomes billing contact automatically</td></tr>
+      <tr><td>Additional residents</td><td>Join unit; pay own amenity bills only</td></tr>
+      <tr><td>Transfer</td><td>Via profile settings or admin Units UI</td></tr>
+      <tr><td>Missing contact</td><td>Bill created; admin alerted; no notification until assigned</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Example: Unit 4B — Ahmed (billing contact) and Maria</h3>
+  <table class="data">
+    <thead><tr><th>Charge</th><th>Billed to</th><th>Notified</th><th>Pays</th></tr></thead>
+    <tbody>
+      <tr><td>Water (automatic service)</td><td>Unit 4B</td><td>Ahmed</td><td>Ahmed</td></tr>
+      <tr><td>Optional parking</td><td>Unit 4B</td><td>Ahmed</td><td>Ahmed</td></tr>
+      <tr><td>Pool monthly fee</td><td>Ahmed (individual)</td><td>Ahmed</td><td>Ahmed</td></tr>
+      <tr><td>Pool monthly fee</td><td>Maria (individual)</td><td>Maria</td><td>Maria</td></tr>
+      <tr><td>Meeting room booking</td><td>Whoever booked</td><td>That person</td><td>That person</td></tr>
+    </tbody>
+  </table>
+
+  <h2>11. Side-by-side comparison</h2>
+  <table class="data">
+    <thead><tr><th></th><th>Services</th><th>Amenities</th></tr></thead>
+    <tbody>
+      <tr><td>Created by</td><td>Community Admin</td><td>Community Admin</td></tr>
+      <tr><td>Bill target</td><td>Unit</td><td>Resident</td></tr>
+      <tr><td>Charge models</td><td>Automatic or Optional subscribe</td><td>Monthly, per booking, or free</td></tr>
+      <tr><td>Monthly bill recipient</td><td>Billing contact (one per unit)</td><td>Each resident separately</td></tr>
+      <tr><td>Payment proof</td><td>Billing contact</td><td>Each resident</td></tr>
+      <tr><td>Examples</td><td>Water, waste, unit parking</td><td>Pool, meeting room, playground</td></tr>
+    </tbody>
+  </table>
+
+  <h2>12. Resident and admin screens</h2>
+
+  <h3>Resident (mobile / web)</h3>
+  <h4>Services</h4>
+  <ul>
+    <li>My unit bills (billing contact only)</li>
+    <li>Available services — optional catalog</li>
+    <li>Subscribe / request subscription</li>
+    <li>Unit bill history</li>
+  </ul>
+  <h4>Amenities</h4>
+  <ul>
+    <li>Browse facilities</li>
+    <li>My amenity bills (personal)</li>
+    <li>Book slots (if bookable)</li>
+    <li>My bookings</li>
+  </ul>
+
+  <h3>Admin (web portal)</h3>
+  <p>Keep <strong>three separate review queues</strong>:</p>
+  <ol>
+    <li><strong>Service bills</strong> — unit-based, filter by unit / service / status</li>
+    <li><strong>Amenity bills</strong> — resident-based, filter by resident / amenity / status</li>
+    <li><strong>Booking payments</strong> — per booking, per resident</li>
+  </ol>
+
+  <h2>13. Data model summary</h2>
+  <table class="data">
+    <thead><tr><th>Table</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td>property_services</td><td>Service definition; automatic/optional; pricing</td></tr>
+      <tr><td>units</td><td>Unit + billing_contact_user_id</td></tr>
+      <tr><td>unit_residents</td><td>Residents linked to units</td></tr>
+      <tr><td>unit_service_subscriptions</td><td>Optional service subscriptions per unit</td></tr>
+      <tr><td>unit_service_bills</td><td>One bill per unit per service per period</td></tr>
+      <tr><td>amenities</td><td>Facility: shared billing, booking fee, slots</td></tr>
+      <tr><td>amenity_monthly_bills</td><td>Admin-published monthly batch</td></tr>
+      <tr><td>amenity_resident_bills</td><td>One bill per resident per batch</td></tr>
+      <tr><td>bookings</td><td>Reservations with optional fee and proof</td></tr>
+      <tr><td>notices</td><td>Finance notices linked to bills</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Document history</h3>
+  <table class="data">
+    <thead><tr><th>Version</th><th>Date</th><th>Changes</th></tr></thead>
+    <tbody>
+      <tr><td>1.0</td><td>16 September 2026</td><td>Initial specification: services (automatic/optional), amenities (monthly/booking/free), billing contact rules</td></tr>
+    </tbody>
+  </table>
+
+  <p class="footer">Havena &nbsp;·&nbsp; Services &amp; Amenities Billing Use Cases &nbsp;·&nbsp; Version 1.0 &nbsp;·&nbsp; hello@gohavena.com</p>
+
+</body>
+</html>

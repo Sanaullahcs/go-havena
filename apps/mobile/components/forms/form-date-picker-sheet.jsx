@@ -27,10 +27,23 @@ function toPickerDate(value) {
 }
 
 function resolveMinimumDate(value, minimumDate) {
+  if (minimumDate == null) return undefined;
   const min = dateOnly(minimumDate) ?? startOfToday();
   const current = dateOnly(value);
   if (current && current.getTime() < min.getTime()) return current;
   return min;
+}
+
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function yearOptions(selectedYear) {
+  const start = new Date().getFullYear();
+  const years = Array.from({ length: 11 }, (_, index) => start + index);
+  if (selectedYear && !years.includes(selectedYear)) years.unshift(selectedYear);
+  return years;
 }
 
 function pickerTheme(scheme) {
@@ -57,6 +70,7 @@ export default function FormDatePickerSheet({
   minimumDate,
   onCancel,
   onConfirm,
+  mode = "date",
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -85,14 +99,14 @@ export default function FormDatePickerSheet({
 
   if (!visible) return null;
 
-  if (Platform.OS === "android") {
+  if (mode === "date" && Platform.OS === "android") {
     return (
       <DateTimePicker
         value={draft}
         mode="date"
         display="default"
         themeVariant={theme.variant}
-        minimumDate={minDate}
+        {...(minDate ? { minimumDate: minDate } : {})}
         onChange={(event, selected) => {
           if (event?.type === "dismissed") {
             closeWithoutSaving();
@@ -136,19 +150,67 @@ export default function FormDatePickerSheet({
           </View>
 
           <View style={[styles.pickerWrap, { backgroundColor: theme.pickerBg }]}>
-            <Text style={[styles.preview, { color: theme.text }]}>{formatDisplayDate(draft)}</Text>
-            <DateTimePicker
-              value={draft}
-              mode="date"
-              display="spinner"
-              themeVariant={theme.variant}
-              textColor={theme.text}
-              accentColor={theme.accent}
-              minimumDate={minDate}
-              onChange={handleChange}
-              onValueChange={handleChange}
-              style={[styles.picker, { backgroundColor: theme.pickerBg }]}
-            />
+            {mode === "year" ? (
+              <View style={styles.metaGrid}>
+                {yearOptions(draft.getFullYear()).map((year) => {
+                  const selected = year === draft.getFullYear();
+                  return (
+                    <TouchableOpacity
+                      key={year}
+                      onPress={() => setDraft(new Date(year, 0, 1))}
+                      style={[styles.metaCell, selected && { backgroundColor: theme.accent }]}
+                    >
+                      <Text style={[styles.metaText, { color: selected ? "#FFFFFF" : theme.text }]}>{year}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : mode === "month" ? (
+              <View style={styles.metaGrid}>
+                {yearOptions(draft.getFullYear()).map((year) => {
+                  const selected = year === draft.getFullYear();
+                  return (
+                    <TouchableOpacity
+                      key={year}
+                      onPress={() => setDraft(new Date(year, draft.getMonth(), 1))}
+                      style={[styles.metaCell, selected && { backgroundColor: theme.accent }]}
+                    >
+                      <Text style={[styles.metaText, { color: selected ? "#FFFFFF" : theme.text }]}>{year}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                {MONTHS.map((month, index) => {
+                  const selected = index === draft.getMonth();
+                  return (
+                    <TouchableOpacity
+                      key={month}
+                      onPress={() => setDraft(new Date(draft.getFullYear(), index, 1))}
+                      style={[styles.metaCell, selected && { backgroundColor: theme.accent }]}
+                    >
+                      <Text style={[styles.metaText, { color: selected ? "#FFFFFF" : theme.text }]}>
+                        {month.slice(0, 3)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : (
+              <>
+                <Text style={[styles.preview, { color: theme.text }]}>{formatDisplayDate(draft)}</Text>
+                <DateTimePicker
+                  value={draft}
+                  mode="date"
+                  display="spinner"
+                  themeVariant={theme.variant}
+                  textColor={theme.text}
+                  accentColor={theme.accent}
+                  {...(minDate ? { minimumDate: minDate } : {})}
+                  onChange={handleChange}
+                  onValueChange={handleChange}
+                  style={[styles.picker, { backgroundColor: theme.pickerBg }]}
+                />
+              </>
+            )}
           </View>
         </View>
       </View>
@@ -209,5 +271,25 @@ const styles = StyleSheet.create({
   picker: {
     width: "100%",
     height: 196,
+  },
+  metaGrid: {
+    width: "100%",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    gap: 8,
+  },
+  metaCell: {
+    width: "30%",
+    minHeight: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(148, 163, 184, 0.12)",
+  },
+  metaText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: 15,
   },
 });
