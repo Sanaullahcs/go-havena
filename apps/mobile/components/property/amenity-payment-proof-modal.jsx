@@ -84,6 +84,7 @@ export default function AmenityPaymentProofModal({
   amenityName,
   onClose,
   onSubmitted,
+  submitProof,
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -206,7 +207,7 @@ export default function AmenityPaymentProofModal({
       setError(t("propertyMgmt.paymentDateFuture"));
       return;
     }
-    if (!bill?.resident_bill_id || !amenityId) {
+    if (!submitProof && (!bill?.resident_bill_id || !amenityId)) {
       setError(t("propertyMgmt.couldNotSubmitProof"));
       return;
     }
@@ -217,7 +218,14 @@ export default function AmenityPaymentProofModal({
     await waitForNextPaint();
 
     try {
-      const result = await submitAmenityBillProof(amenityId, bill.resident_bill_id, {
+      const result = submitProof
+        ? { data: await submitProof({
+            file: fileAsset,
+            payment_date: dateIso,
+            payment_reference: reference.trim(),
+            payment_note: note.trim(),
+          }), message: t("propertyMgmt.paymentProofSubmitted") }
+        : await submitAmenityBillProof(amenityId, bill.resident_bill_id, {
         fileAsset,
         paymentDate: dateIso,
         paymentReference: reference.trim(),

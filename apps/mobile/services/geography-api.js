@@ -12,12 +12,35 @@ function asPlaces(list) {
     }));
 }
 
+let countriesCache = null;
+let countriesRequest = null;
+
+export function getCachedCountries() {
+  return countriesCache ?? [];
+}
+
+/** Start /countries as soon as Find your area mounts, not when the dropdown opens. */
+export function prefetchCountries() {
+  if (countriesCache) return Promise.resolve(countriesCache);
+  if (!countriesRequest) {
+    countriesRequest = apiRequest("/countries", {
+      auth: false,
+      community: false,
+    })
+      .then((result) => {
+        countriesCache = asPlaces(result.data);
+        return countriesCache;
+      })
+      .catch((err) => {
+        countriesRequest = null;
+        throw err;
+      });
+  }
+  return countriesRequest;
+}
+
 export async function fetchCountries() {
-  const result = await apiRequest("/countries", {
-    auth: false,
-    community: false,
-  });
-  return asPlaces(result.data);
+  return prefetchCountries();
 }
 
 export async function fetchCountryStates(countryId) {

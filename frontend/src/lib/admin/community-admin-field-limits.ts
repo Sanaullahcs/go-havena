@@ -1,8 +1,10 @@
 export const COMMUNITY_ADMIN_NAME_MAX = 50;
 export const COMMUNITY_ADMIN_UNIT_MAX = 20;
+export const COMMUNITY_ADMIN_OFFICE_MAX = 255;
 
 export const COMMUNITY_ADMIN_NAME_MAX_MESSAGE = "Full name cannot exceed 50 characters.";
 export const COMMUNITY_ADMIN_UNIT_MAX_MESSAGE = "Unit / apartment cannot exceed 20 characters.";
+export const COMMUNITY_ADMIN_OFFICE_MAX_MESSAGE = "Office address cannot exceed 255 characters.";
 
 /**
  * Cap new input and paste at the limit.

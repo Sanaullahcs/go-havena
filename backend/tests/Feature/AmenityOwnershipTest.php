@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Community;
 use App\Models\CommunityMembership;
 use App\Models\CommunitySubscription;
+use App\Models\GuestInvitation;
 use App\Models\Region;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -154,6 +155,46 @@ class AmenityOwnershipTest extends TestCase
         ])
             ->assertOk()
             ->assertJsonPath('data.review_status', 'approved');
+    }
+
+    public function test_guest_cannot_book_amenity(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity();
+        $amenityId = $this->createAmenity($community->id, $admin->id);
+
+        $guest = User::factory()->create([
+            'role' => 'guest',
+            'status' => 'active',
+            'phone' => '+15550009999',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id' => $guest->id,
+            'community_id' => $community->id,
+            'role' => 'guest',
+            'status' => 'approved',
+        ]);
+
+        GuestInvitation::query()->create([
+            'community_id' => $community->id,
+            'invited_by_user_id' => $admin->id,
+            'invitation_type' => 'admin',
+            'guest_name' => 'Pool Guest',
+            'guest_phone' => $guest->phone,
+            'invite_code' => 'GUESTBOOKTEST01',
+            'starts_at' => now()->subHour(),
+            'ends_at' => now()->addDay(),
+            'status' => 'active',
+            'guest_user_id' => $guest->id,
+        ]);
+
+        Sanctum::actingAs($guest);
+
+        $this->postJson('/api/v1/bookings', [
+            'amenity_id' => $amenityId,
+            'date' => now()->addDay()->toDateString(),
+            'time_slot' => '9:00 AM – 10:00 AM',
+        ])->assertForbidden();
     }
 
     public function test_resident_cannot_book_same_amenity_twice_on_one_date(): void
@@ -391,6 +432,29 @@ class AmenityOwnershipTest extends TestCase
             'time_slot' => '9:00 AM – 10:00 AM',
         ])->assertUnprocessable()
             ->assertJsonPath('message', 'This amenity is not available yet.');
+    }
+
+    public function test_resident_cannot_enable_shared_billing_when_creating_amenity(): void
+    {
+        ['resident' => $resident] = $this->seedCommunity();
+        Sanctum::actingAs($resident);
+
+        $this->postJson('/api/v1/amenities', [
+            'name' => 'Resident Pool',
+            'status' => 'bookable',
+            'capacity' => 10,
+            'icon_key' => 'pool',
+            'start_time' => '09:00',
+            'end_time' => '18:00',
+            'slot_duration_minutes' => 60,
+            'shared_billing_enabled' => true,
+            'shared_billing_amount' => 25,
+            'shared_billing_due_day' => 10,
+            'shared_billing_frequency' => 'monthly',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.shared_billing_enabled', false)
+            ->assertJsonPath('data.shared_billing_amount', null);
     }
 
     public function test_admin_amenity_is_auto_approved_on_create(): void
@@ -707,5 +771,45 @@ class AmenityOwnershipTest extends TestCase
             ->assertJsonPath('data.shared_billing_enabled', false)
             ->assertJsonPath('data.shared_billing_amount', null)
             ->assertJsonPath('data.shared_billing_due_day', null);
+    }
+
+    public function test_slots_require_capacity_and_open_closed_allow_empty(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity();
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/v1/admin/amenities', [
+            'name' => 'Slots Gym',
+            'status' => 'bookable',
+            'icon_key' => 'gym',
+            'start_time' => '09:00',
+            'end_time' => '18:00',
+            'slot_duration_minutes' => 60,
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertUnprocessable()->assertJsonValidationErrors(['capacity']);
+
+        $open = $this->postJson('/api/v1/admin/amenities', [
+            'name' => 'Open Lounge',
+            'status' => 'open',
+            'capacity' => null,
+            'icon_key' => 'hall',
+            'start_time' => '09:00',
+            'end_time' => '18:00',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated();
+        $this->assertSame(0, $open->json('data.capacity'));
+
+        $closed = $this->postJson('/api/v1/admin/amenities', [
+            'name' => 'Closed Court',
+            'status' => 'closed',
+            'icon_key' => 'hall',
+            'start_time' => '09:00',
+            'end_time' => '18:00',
+        ], [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertCreated();
+        $this->assertSame(0, $closed->json('data.capacity'));
     }
 }

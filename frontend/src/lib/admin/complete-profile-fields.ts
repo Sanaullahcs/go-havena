@@ -102,6 +102,8 @@ export type CompleteProfileFieldVisibility = {
   isGuestProfile: boolean;
   showFamilyNumberField: boolean;
   showResidenceType: boolean;
+  showUnitNumber: boolean;
+  showOfficeAddress: boolean;
   showUtilityBill: boolean;
   skipUtilityBill: boolean;
   unitRequired: boolean;
@@ -115,16 +117,20 @@ export function getCompleteProfileFieldVisibility(input: {
 }): CompleteProfileFieldVisibility {
   const role = input.role ?? completeProfileOnboardingRole(input.user);
   const guest = isGuestProfile(input.user);
+  const communityAdmin = role === "admin";
   const skip = shouldSkipUtilityBill(input.user, { role });
-  const showResidenceType = !guest;
+  const showResidenceType = !guest && !communityAdmin;
+  const showUnitNumber = !communityAdmin;
 
   return {
     isGuestProfile: guest,
     // Hidden for all community admins and community-request signups (mobile: role !== "admin" && !communityRequest).
     showFamilyNumberField: role !== "admin" && !input.communityRequest && !guest,
     showResidenceType,
-    showUtilityBill: showResidenceType && !skip,
+    showUnitNumber,
+    showOfficeAddress: communityAdmin,
+    showUtilityBill: (showResidenceType || communityAdmin) && !skip,
     skipUtilityBill: skip,
-    unitRequired: !guest,
+    unitRequired: showUnitNumber,
   };
 }

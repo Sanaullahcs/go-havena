@@ -392,9 +392,12 @@ export default function FeedCommentsScreen() {
   const focusComposer = () => inputRef.current?.focus();
 
   const commentCountLabel = loading ? "..." : formatCount(comments.length);
+  const isPoll = post?.category === "poll" || Boolean(post?.poll);
   const commentPlaceholder = replyTo
     ? t("feed.comments.replyPlaceholder", { name: replyTo.name })
-    : t("feed.comments.writeComment");
+    : isPoll
+      ? t("feed.comments.addThought")
+      : t("feed.comments.writeComment");
   const showPlaceholder = draft.length === 0;
 
   return (

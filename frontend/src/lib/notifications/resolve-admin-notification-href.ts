@@ -13,6 +13,9 @@ export type NoticeBoard = "events" | "alerts" | "notices";
 
 const KNOWN_ADMIN_PREFIXES = [
   "/admin/amenities",
+  "/admin/units",
+  "/admin/services",
+  "/admin/service-bills",
   "/admin/bookings",
   "/admin/events",
   "/admin/alerts",
@@ -86,8 +89,28 @@ function mapMobileScreenToAdminHref(pathname: string, query = ""): string | null
     return "/admin/bookings";
   }
 
+  if (path.includes("/screens/admin-amenity-bills") || path.includes("amenity_bill")) {
+    return "/admin/amenity-bills";
+  }
+
   if (path.includes("/screens/admin-amenities")) {
     return "/admin/amenities";
+  }
+
+  if (path.includes("/screens/admin-units") || path === "/admin/units") {
+    const unitId = params.get("unitId") ?? params.get("unit_id") ?? params.get("unit");
+    const unitNumber = params.get("unitNumber") ?? params.get("unit_number");
+    if (unitId) return `/admin/units?unit=${encodeURIComponent(unitId)}`;
+    if (unitNumber) return `/admin/units?unitNumber=${encodeURIComponent(unitNumber)}`;
+    return "/admin/units";
+  }
+
+  if (path.includes("/screens/admin-service-bills") || path.includes("/screens/property-management/unit-bills")) {
+    return "/admin/service-bills";
+  }
+
+  if (path.includes("/screens/admin-services") || path.includes("/screens/property-management/available-services")) {
+    return "/admin/services";
   }
 
   if (path.includes("/screens/guest-approvals")) {

@@ -58,7 +58,6 @@ function SetupInner() {
   const [countryFilter, setCountryFilter] = useState<Country | null>(null);
   const [stateFilter, setStateFilter] = useState<State | null>(null);
   const [cityFilter, setCityFilter] = useState<City | null>(null);
-  const [createCity, setCreateCity] = useState("");
   const [selectedRegion, setSelectedRegion] = useState<PublicRegion | null>(null);
 
   const [communities, setCommunities] = useState<PublicCommunity[]>([]);
@@ -222,7 +221,6 @@ function SetupInner() {
         address: address.trim(),
         description: description.trim() || undefined,
         region_id: selectedRegion.id,
-        city: createCity.trim() || cityFilter?.name || undefined,
         latitude,
         longitude,
       });
@@ -385,12 +383,6 @@ function SetupInner() {
                   aria-invalid={Boolean(nameErr)}
                 />
               </OnboardingField>
-
-              <CityField
-                stateId={selectedRegion.state_id ?? stateFilter?.id ?? null}
-                value={createCity}
-                onChange={setCreateCity}
-              />
 
               <OnboardingField
                 id="community-address"
@@ -869,67 +861,6 @@ function CommunityList({
         </>
       )}
     </div>
-  );
-}
-
-function CityField({
-  stateId,
-  value,
-  onChange,
-}: {
-  stateId: number | null;
-  value: string;
-  onChange: (next: string) => void;
-}) {
-  const [cities, setCities] = useState<City[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!stateId) {
-      setCities([]);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    void fetchPublicStateCities(stateId)
-      .then((res) => {
-        if (!cancelled) setCities(res.data ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setCities([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [stateId]);
-
-  return (
-    <OnboardingField
-      id="community-city"
-      label="City"
-      hint="Choose the city residents will search for"
-    >
-      <SearchableSelect
-        value={value}
-        onChange={onChange}
-        options={cities.map((item) => ({ value: item.name, label: item.name }))}
-        placeholder={
-          !stateId
-            ? "Select a region first"
-            : loading
-              ? "Loading cities…"
-              : "Select city"
-        }
-        searchPlaceholder="Search cities…"
-        emptyMessage="No cities match your search."
-        searchable
-        allowCustom
-        disabled={!stateId || loading}
-      />
-    </OnboardingField>
   );
 }
 

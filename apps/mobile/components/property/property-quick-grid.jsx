@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useState } from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
@@ -9,6 +9,7 @@ import { sf, sw } from "../../utils/responsive";
 import { chevronForward } from "../../utils/rtl";
 import { rnShadow } from "../../utils/shadow";
 
+const CARD_MIN_HEIGHT = sw(124);
 
 function chunkPairs(items) {
   const rows = [];
@@ -18,7 +19,7 @@ function chunkPairs(items) {
   return rows;
 }
 
-function ServiceCard({ item, badgeCount, onPress }) {
+function ServiceCard({ item, badgeCount, onPress, width }) {
   const showBadge = Number(badgeCount) > 0;
   const meta = getPropertyServiceMeta(item.key);
   const isPrimary = Boolean(item.primary);
@@ -26,7 +27,11 @@ function ServiceCard({ item, badgeCount, onPress }) {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.pressable, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.pressable,
+        width ? { width } : null,
+        pressed && styles.pressed,
+      ]}
       accessibilityRole="button"
       accessibilityLabel={item.title}
     >
@@ -61,18 +66,20 @@ function ServiceCard({ item, badgeCount, onPress }) {
             )}
           </View>
 
-          <Text
-            style={[styles.title, isPrimary && styles.titlePrimary]}
-            numberOfLines={2}
-          >
-            {item.title}
-          </Text>
-          <Text
-            style={[styles.subtitle, isPrimary && styles.subtitlePrimary]}
-            numberOfLines={2}
-          >
-            {item.subtitle}
-          </Text>
+          <View style={styles.copyBlock}>
+            <Text
+              style={[styles.title, isPrimary && styles.titlePrimary]}
+              numberOfLines={2}
+            >
+              {item.title}
+            </Text>
+            <Text
+              style={[styles.subtitle, isPrimary && styles.subtitlePrimary]}
+              numberOfLines={2}
+            >
+              {item.subtitle}
+            </Text>
+          </View>
         </View>
       </View>
     </Pressable>
@@ -81,30 +88,42 @@ function ServiceCard({ item, badgeCount, onPress }) {
 
 export default function PropertyQuickGrid({ actions, onAction, badges = {} }) {
   const rows = chunkPairs(actions);
+  const [gridWidth, setGridWidth] = useState(0);
+
+  const onGridLayout = useCallback((event) => {
+    const nextWidth = Math.floor(event.nativeEvent.layout.width);
+    if (nextWidth > 0) {
+      setGridWidth((current) => (current === nextWidth ? current : nextWidth));
+    }
+  }, []);
+
+  const columnWidth = gridWidth > 0
+    ? Math.floor((gridWidth - Property.gridGap) / 2)
+    : null;
 
   return (
-    <View style={styles.grid}>
+    <View style={styles.grid} onLayout={onGridLayout}>
       {rows.map((pair, rowIndex) => (
         <View
           key={`row-${rowIndex}`}
-          style={[styles.row, rowIndex < rows.length - 1 && styles.rowSpacing]}
+          style={[
+            styles.row,
+            columnWidth != null && { gap: Property.gridGap },
+            rowIndex < rows.length - 1 && styles.rowSpacing,
+          ]}
         >
-          {pair.map((item, columnIndex) => {
+          {pair.map((item) => {
             const badgeCount = item.badgeKey ? badges[item.badgeKey] : item.badge;
-            const isOrphan = pair.length === 1;
 
             return (
               <View
                 key={item.id}
-                style={[
-                  styles.col,
-                  isOrphan && styles.colOrphan,
-                  columnIndex === 0 && pair.length > 1 && styles.colGap,
-                ]}
+                style={columnWidth != null ? { width: columnWidth } : styles.colFlex}
               >
                 <ServiceCard
                   item={item}
                   badgeCount={badgeCount}
+                  width={columnWidth ?? undefined}
                   onPress={() => onAction(item.routeKey)}
                 />
               </View>
@@ -122,38 +141,32 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row",
+    alignItems: "stretch",
     width: "100%",
   },
   rowSpacing: {
     marginBottom: Property.gridGap,
   },
-  col: {
+  colFlex: {
     flex: 1,
+    flexBasis: 0,
     minWidth: 0,
-  },
-  colOrphan: {
-    flexGrow: 0,
-    flexShrink: 0,
-    flexBasis: "48%",
-    maxWidth: "48%",
-  },
-  colGap: {
-    marginEnd: Property.gridGap,
   },
   pressable: {
     width: "100%",
+    height: "100%",
   },
   pressed: {
     opacity: 0.92,
     transform: [{ scale: 0.99 }],
   },
   card: {
+    flex: 1,
     width: "100%",
-    minHeight: sw(118),
+    minHeight: CARD_MIN_HEIGHT,
     borderRadius: sw(14),
     borderWidth: 1,
     overflow: "hidden",
-    position: "relative",
     ...Platform.select({
       ios: {
         ...rnShadow({ color: PropertyHubTheme.text, offset: { width: 0, height: 1 }, opacity: 0.02, radius: 3 }),
@@ -177,14 +190,21 @@ const styles = StyleSheet.create({
   },
   cardInner: {
     flex: 1,
+    width: "100%",
     paddingVertical: sw(12),
-    paddingStart: sw(14),
-    paddingEnd: sw(12),
+    paddingHorizontal: sw(12),
   },
   cardTop: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
+    width: "100%",
+    minHeight: sw(42),
+  },
+  copyBlock: {
+    width: "100%",
+    marginTop: sw(10),
+    flex: 1,
   },
   countBubble: {
     minWidth: sw(22),
@@ -196,6 +216,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 2,
     borderColor: PropertyHubTheme.surface,
+    flexShrink: 0,
   },
   countBubbleOnPrimary: {
     borderColor: PropertyHubTheme.text,
@@ -216,6 +237,8 @@ const styles = StyleSheet.create({
     borderColor: PropertyHubTheme.border,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
+    marginStart: sw(8),
   },
   chevronWellOnPrimary: {
     backgroundColor: "rgba(255,255,255,0.12)",
@@ -227,7 +250,7 @@ const styles = StyleSheet.create({
     lineHeight: sf(17),
     fontWeight: "700",
     color: PropertyHubTheme.text,
-    marginTop: sw(10),
+    minHeight: sf(34),
   },
   titlePrimary: {
     color: "#FFFFFF",
@@ -238,6 +261,7 @@ const styles = StyleSheet.create({
     lineHeight: sf(15),
     color: PropertyHubTheme.textMuted,
     marginTop: sw(3),
+    minHeight: sf(30),
   },
   subtitlePrimary: {
     color: "rgba(209,250,245,0.82)",

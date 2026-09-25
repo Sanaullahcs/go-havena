@@ -53,6 +53,7 @@
         "android.permission.READ_MEDIA_AUDIO"
       ],
       "package": "com.zsquare.havena",
+      "googleServicesFile": "./google-services.json",
       "versionCode": 4
     },
     "web": {
@@ -140,6 +141,14 @@
         }
       ],
       "./plugins/with-app-locale.js",
+      [
+        "expo-notifications",
+        {
+          "color": "#1B4F8A",
+          "defaultChannel": "default",
+          "enableBackgroundRemoteNotifications": false
+        }
+      ],
       [
         "expo-build-properties",
         {

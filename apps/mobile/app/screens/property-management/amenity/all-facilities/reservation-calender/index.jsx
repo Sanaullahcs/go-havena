@@ -5,10 +5,7 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  TextInput,
-  Platform,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -33,7 +30,6 @@ import {
 } from "../../../../../../utils/amenity-display";
 import { useApiAction } from "../../../../../../hooks/use-api-action";
 import { useSubmitLock } from "../../../../../../hooks/use-submit-lock";
-import { pickImage } from "../../../../../../utils/pickImage";
 
 const DATES = buildUpcomingDates(14);
 
@@ -47,21 +43,6 @@ export default function ReservationCalender() {
   const ownedByMe = isMine === "1" || isMine === "true";
   const fee = bookingFeeAmount(bookingFee);
 
-  function todayDate() {
-    const now = new Date();
-    now.setHours(12, 0, 0, 0);
-    return now;
-  }
-
-  function toIsoDate(value) {
-    const date = value instanceof Date ? value : new Date(value);
-    if (Number.isNaN(date.getTime())) return "";
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  }
-
   const [selectedDate, setSelectedDate] = useState(DATES[0]?.key ?? null);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [slots, setSlots] = useState([]);
@@ -71,12 +52,6 @@ export default function ReservationCalender() {
   const [myBookings, setMyBookings] = useState([]);
   const { runAction } = useApiAction();
   const { submitting, run } = useSubmitLock();
-  const [proofAsset, setProofAsset] = useState(null);
-  const [paymentDate, setPaymentDate] = useState(todayDate);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [paymentReference, setPaymentReference] = useState("");
-  const [paymentNote, setPaymentNote] = useState("");
-  const paymentDateLabel = toIsoDate(paymentDate);
 
   useFocusEffect(
     useCallback(() => {
@@ -137,8 +112,6 @@ export default function ReservationCalender() {
   const confirmBooking = () => {
     if (ownedByMe || !selectedDate || submitting) return;
     if (!isOpenMode && !selectedSlot) return;
-    if (fee > 0 && !proofAsset?.uri) return;
-    if (fee > 0 && !paymentDateLabel) return;
     run(async () => {
       await runAction({
         action: async () => {
@@ -146,14 +119,6 @@ export default function ReservationCalender() {
             amenity_id: amenityId,
             date: selectedDate,
             time_slot: isOpenMode ? undefined : selectedSlot,
-            ...(fee > 0
-              ? {
-                  paymentProof: proofAsset,
-                  paymentDate: paymentDateLabel,
-                  paymentReference: paymentReference.trim() || undefined,
-                  paymentNote: paymentNote.trim() || undefined,
-                }
-              : {}),
           });
           return result;
         },
@@ -182,7 +147,6 @@ export default function ReservationCalender() {
     !selectedDateBooked &&
     !userAlreadyBooked &&
     (isOpenMode || Boolean(selectedSlot)) &&
-    (fee <= 0 || Boolean(proofAsset?.uri && paymentDateLabel)) &&
     !submitting;
 
   return (
@@ -332,75 +296,9 @@ export default function ReservationCalender() {
           </Text>
           <Text style={styles.summaryFee}>
             {t("propertyMgmt.bookingFee")}: {formatUsdAmount(fee)}
+            {fee > 0 ? ` · ${t("propertyMgmt.bookingFeeAfterApproval")}` : ""}
           </Text>
         </View>
-
-        {fee > 0 ? (
-          <View style={styles.payCard}>
-            <Text style={styles.payCopy}>
-              {t("propertyMgmt.pleasePayBookingFee", { amount: formatUsdAmount(fee) })}
-            </Text>
-            <Text style={styles.label}>{t("propertyMgmt.paymentProof")} *</Text>
-            <TouchableOpacity
-              style={styles.fileBtn}
-              onPress={() => {
-                pickImage(undefined, {
-                  allowFile: true,
-                  allowPdf: true,
-                  uploadBaseName: "booking-proof",
-                }).then((asset) => {
-                  if (asset) setProofAsset(asset);
-                });
-              }}
-            >
-              <Feather name="upload" size={sf(16)} color="#1B4F8A" />
-              <Text style={styles.fileBtnText}>
-                {proofAsset?.fileName || proofAsset?.name || t("propertyMgmt.choosePaymentProof")}
-              </Text>
-            </TouchableOpacity>
-            <Text style={styles.label}>{t("propertyMgmt.paymentDate")} *</Text>
-            <TouchableOpacity style={styles.fileBtn} onPress={() => setShowDatePicker(true)}>
-              <Feather name="calendar" size={sf(16)} color="#1B4F8A" />
-              <Text style={styles.fileBtnText}>{paymentDateLabel}</Text>
-            </TouchableOpacity>
-            {showDatePicker ? (
-              <>
-                <DateTimePicker
-                  value={paymentDate}
-                  mode="date"
-                  display={Platform.OS === "ios" ? "spinner" : "default"}
-                  maximumDate={todayDate()}
-                  onChange={(_, next) => {
-                    if (Platform.OS !== "ios") setShowDatePicker(false);
-                    if (next) setPaymentDate(next);
-                  }}
-                />
-                {Platform.OS === "ios" ? (
-                  <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                    <Text style={styles.fileBtnText}>{t("common.done")}</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </>
-            ) : null}
-            <Text style={styles.label}>{t("propertyMgmt.paymentReferenceOptional")}</Text>
-            <TextInput
-              style={styles.input}
-              value={paymentReference}
-              onChangeText={setPaymentReference}
-              placeholder={t("propertyMgmt.optional")}
-              placeholderTextColor="#94A3B8"
-            />
-            <Text style={styles.label}>{t("propertyMgmt.paymentNote")}</Text>
-            <TextInput
-              style={[styles.input, styles.noteInput]}
-              value={paymentNote}
-              onChangeText={setPaymentNote}
-              placeholder={t("propertyMgmt.optional")}
-              placeholderTextColor="#94A3B8"
-              multiline
-            />
-          </View>
-        ) : null}
 
         <View style={{ height: sw(24) }} />
       </ScrollView>

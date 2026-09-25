@@ -65,6 +65,24 @@ console.log("\nMobile amenity validation");
 
   const ok = mobile.validateAmenityForm(validForm);
   assert(Object.keys(ok).length === 0, "accepts valid form");
+  const openPaid = mobile.validateAmenityForm({
+    ...validForm,
+    status: "open",
+    capacity: "",
+    booking_charge: "paid",
+    booking_fee: "25",
+  });
+  assert(Object.keys(openPaid).length === 0, "open accepts a booking fee like slots");
+  assert(
+    mobile.buildAmenityPayload({
+      ...validForm,
+      status: "open",
+      capacity: "",
+      booking_charge: "paid",
+      booking_fee: "25",
+    }).booking_fee === 25,
+    "open payload stores booking fee",
+  );
   assert(mobile.isAmenityFormReady(validForm), "isAmenityFormReady true for valid form");
   assert(!mobile.isAmenityFormReady({ ...validForm, hours: "" }), "isAmenityFormReady false when hours empty");
 }

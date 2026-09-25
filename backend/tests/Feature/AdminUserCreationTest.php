@@ -85,7 +85,7 @@ class AdminUserCreationTest extends TestCase
             'type' => 'community_admin',
             'name' => 'Ahmed Admin',
             'email' => 'ahmed.login@example.com',
-            'phone' => '+2017777778',
+            'phone' => '+14155552671',
             'region_id' => $region->id,
             'community_name' => 'Nile Gardens',
             'community_address' => '123 Nile St',
@@ -103,7 +103,7 @@ class AdminUserCreationTest extends TestCase
         $this->putJson('/api/v1/me', [
             'display_name' => 'Ahmed Admin',
             'email' => 'ahmed.login@example.com',
-            'unit_number' => 'Office',
+            'office_address' => '100 Management Office, Nile Gardens',
         ])->assertUnprocessable()
             ->assertJsonValidationErrors(['utility_bill']);
 
@@ -117,11 +117,13 @@ class AdminUserCreationTest extends TestCase
         $this->putJson('/api/v1/me', [
             'display_name' => 'Ahmed Admin',
             'email' => 'ahmed.login@example.com',
-            'unit_number' => 'Office',
-        ])->assertOk();
+            'office_address' => '100 Management Office, Nile Gardens',
+        ])->assertOk()
+            ->assertJsonPath('data.profile.office_address', '100 Management Office, Nile Gardens');
 
         $this->getJson('/api/v1/me')
             ->assertOk()
+            ->assertJsonPath('data.profile.office_address', '100 Management Office, Nile Gardens')
             ->assertJsonPath('data.access.profile_complete', true)
             ->assertJsonPath('data.access.next_step', 'complete_billing_web');
     }

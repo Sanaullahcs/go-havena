@@ -16,6 +16,7 @@ import { fetchMe } from "../../../services/profile-api";
 import { getProfileFields } from "../../../utils/profile-display";
 import { ensureFeedCommunityContext } from "../../../services/feed-context";
 import { getUser } from "../../../services/auth-session";
+import { isCommunityAdmin } from "../../../services/community-access";
 import { useSubmitLock } from "../../../hooks/use-submit-lock";
 import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { useApiAction } from "../../../hooks/use-api-action";
@@ -36,6 +37,7 @@ const TYPE_ICONS = {
   Help: "help-circle",
   Neighborhood: "map-pin",
   Announcements: "bell",
+  Poll: "bar-chart-2",
 };
 
 const ATTACH_OPTIONS = [
@@ -79,6 +81,10 @@ export default function CreatePost() {
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
   const [feeling, setFeeling] = useState(null);
   const [location, setLocation] = useState(null);
+  const [pollQuestion, setPollQuestion] = useState("");
+  const [pollDescription, setPollDescription] = useState("");
+  const [pollOptions, setPollOptions] = useState(["", ""]);
+  const [pollDuration, setPollDuration] = useState(3);
   const [feelingModal, setFeelingModal] = useState(false);
   const [user, setUser] = useState(null);
   const [restrictionError, setRestrictionError] = useState(null);
@@ -154,10 +160,25 @@ export default function CreatePost() {
     [user],
   );
 
-  const liveErrors = useMemo(
-    () => validateFeedPostForm({ body: postText, hasImage: Boolean(attachedImage) }),
-    [postText, attachedImage],
-  );
+  const isPoll = selectedCategory === "poll";
+  const canPublishPoll = isCommunityAdmin(user) && !isEditing;
+  const liveErrors = useMemo(() => {
+    if (!isPoll) return validateFeedPostForm({ body: postText, hasImage: Boolean(attachedImage) });
+    const errors = {};
+    if (!pollQuestion.trim()) errors.body = t("feed.createPost.pollNeedQuestion");
+    else if (pollQuestion.trim().length > 200) {
+      errors.body = t("validation.maxChars", { field: t("feed.createPost.pollQuestion"), max: 200 });
+    }
+    const filled = pollOptions.map((option) => option.trim()).filter(Boolean);
+    const unique = new Set(filled.map((option) => option.toLowerCase()));
+    if (filled.length < 2 || unique.size !== filled.length || filled.some((option) => option.length > 80)) {
+      errors.options = t("feed.createPost.pollNeedOptions");
+    }
+    if (pollDescription.trim().length > 500) {
+      errors.description = t("validation.maxChars", { field: t("feed.createPost.pollDescription"), max: 500 });
+    }
+    return errors;
+  }, [attachedImage, isPoll, pollDescription, pollOptions, pollQuestion, postText, t]);
 
   const canPost = useMemo(
     () => !hasFieldErrors(liveErrors) && !submitting,
@@ -233,6 +254,21 @@ export default function CreatePost() {
       const communityId = await ensureFeedCommunityContext();
       if (!communityId) {
         throw new Error(t("feed.createPost.joinCommunityError"));
+      }
+
+      if (isPoll) {
+        const { message } = await createPost({
+          category: "poll",
+          poll: {
+            question: pollQuestion.trim(),
+            description: pollDescription.trim(),
+            duration_days: pollDuration,
+            options: pollOptions.map((option) => option.trim()).filter(Boolean),
+          },
+        });
+        setSuccessMessage(message);
+        setSuccessModal(true);
+        return;
       }
 
       let imageUrl;
@@ -342,6 +378,8 @@ export default function CreatePost() {
                       : t("feed.createPost.posting")
                     : isEditing
                       ? t("feed.createPost.saveChanges")
+                      : isPoll
+                      ? t("feed.createPost.publishPoll")
                       : t("feed.createPost.sharePost")}
               </Text>
             </TouchableOpacity>
@@ -359,6 +397,33 @@ export default function CreatePost() {
               </View>
             </View>
 
+            {isPoll ? (
+              <View style={styles.pollFields}>
+                <Text style={styles.sectionLabel}>{t("feed.createPost.pollQuestion")}</Text>
+                <LocaleTextInput
+                  placeholder={t("feed.createPost.pollQuestionPlaceholder")}
+                  placeholderTextColor={Colors.textMuted}
+                  value={pollQuestion}
+                  onChangeText={(text) => {
+                    setPollQuestion(text);
+                    clearError("body");
+                  }}
+                  onBlur={() => touch("body")}
+                  style={[styles.pollInput, showError("body", liveErrors) && styles.inputError]}
+                />
+                {showError("body", liveErrors) ? <Text style={styles.errorText}>{showError("body", liveErrors)}</Text> : null}
+                <Text style={styles.sectionLabel}>{t("feed.createPost.pollDescription")}</Text>
+                <LocaleTextInput
+                  placeholder={t("feed.createPost.pollDescription")}
+                  placeholderTextColor={Colors.textMuted}
+                  value={pollDescription}
+                  onChangeText={setPollDescription}
+                  multiline
+                  style={styles.pollInput}
+                />
+              </View>
+            ) : (
+            <>
             <LocaleTextInput
               placeholder={t("feed.createPost.placeholder")}
               placeholderTextColor={Colors.textMuted}
@@ -417,12 +482,21 @@ export default function CreatePost() {
                 {postText.length}/{LIMITS.feedPost}
               </Text>
             </View>
+            </>
+            )}
           </View>
 
           <View style={styles.card}>
             <Text style={styles.sectionLabel}>{t("feed.createPost.postType")}</Text>
             <View style={styles.typeChips}>
-              {POST_TYPE_OPTIONS.map((option) => {
+              {(canPublishPoll ? [...POST_TYPE_OPTIONS, {
+                label: "Poll",
+                labelKey: "feed.topics.poll",
+                category: "poll",
+                bg: "#E0F2FE",
+                text: "#0369A1",
+                border: "#BAE6FD",
+              }] : POST_TYPE_OPTIONS).map((option) => {
                 const selected = selectedCategory === option.category;
                 return (
                   <Pressable
@@ -455,6 +529,59 @@ export default function CreatePost() {
             </View>
           </View>
 
+          {isPoll ? (
+            <View style={styles.card}>
+              <Text style={styles.sectionLabel}>{t("feed.createPost.pollOptions")}</Text>
+              {pollOptions.map((option, index) => (
+                <View key={index} style={styles.pollOptionRow}>
+                  <LocaleTextInput
+                    placeholder={t("feed.createPost.pollOption", { number: index + 1 })}
+                    placeholderTextColor={Colors.textMuted}
+                    value={option}
+                    onChangeText={(text) => {
+                      setPollOptions((current) => current.map((item, itemIndex) => (itemIndex === index ? text : item)));
+                      clearError("options");
+                    }}
+                    style={styles.pollInput}
+                    maxLength={80}
+                  />
+                  {pollOptions.length > 2 ? (
+                    <TouchableOpacity
+                      onPress={() => setPollOptions((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                      hitSlop={8}
+                    >
+                      <Feather name="x" size={sf(16)} color={Colors.textMuted} />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              ))}
+              {showError("options", liveErrors) ? <Text style={styles.errorText}>{showError("options", liveErrors)}</Text> : null}
+              {pollOptions.length < 4 ? (
+                <TouchableOpacity onPress={() => setPollOptions((current) => [...current, ""])}>
+                  <Text style={styles.addOption}>{t("feed.createPost.addOption")}</Text>
+                </TouchableOpacity>
+              ) : null}
+              <Text style={[styles.sectionLabel, { marginTop: sw(12) }]}>{t("feed.createPost.pollDuration")}</Text>
+              <View style={styles.typeChips}>
+                {[
+                  { days: 1, label: t("feed.createPost.duration1") },
+                  { days: 3, label: t("feed.createPost.duration3") },
+                  { days: 7, label: t("feed.createPost.duration7") },
+                ].map((item) => {
+                  const selected = pollDuration === item.days;
+                  return (
+                    <Pressable
+                      key={item.days}
+                      style={[styles.typeChip, selected && styles.durationSelected]}
+                      onPress={() => setPollDuration(item.days)}
+                    >
+                      <Text style={[styles.typeChipText, selected && styles.durationSelectedText]}>{item.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : (
           <View style={styles.card}>
             <Text style={styles.sectionLabel}>{t("feed.createPost.addToPost")}</Text>
             <View style={styles.attachRow}>
@@ -486,6 +613,7 @@ export default function CreatePost() {
               })}
             </View>
           </View>
+          )}
         </KeyboardSafeScreen>
         )}
       </SafeAreaView>
@@ -601,6 +729,29 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     flexShrink: 1,
   },
+  pollFields: { gap: sw(8), marginTop: sw(8) },
+  pollOptionRow: { flexDirection: "row", alignItems: "center", gap: sw(8) },
+  pollInput: {
+    flex: 1,
+    fontSize: sf(15),
+    fontFamily: Fonts.regular,
+    color: Colors.textPrimary,
+    minHeight: sw(44),
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    borderRadius: sw(10),
+    paddingHorizontal: sw(12),
+    paddingVertical: sw(8),
+    textAlignVertical: "center",
+  },
+  addOption: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(13),
+    color: "#1B4F8A",
+    marginTop: sw(4),
+  },
+  durationSelected: { backgroundColor: "#E0F2FE", borderColor: "#BAE6FD" },
+  durationSelectedText: { color: "#0369A1" },
   postInput: {
     fontSize: sf(15),
     lineHeight: sf(22),

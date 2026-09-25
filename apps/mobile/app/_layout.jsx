@@ -20,6 +20,7 @@ import LocationScopeProvider from "../providers/location-scope-provider";
 import GuestSessionGuard from "../components/auth/guest-session-guard";
 import PushNotificationBootstrap from "../components/notifications/push-notification-bootstrap";
 import InAppNotificationMonitor from "../components/notifications/in-app-notification-monitor";
+import AppUpdateGate from "../components/app-update/app-update-gate";
 import { NotificationBannerProvider } from "../providers/notification-banner-provider";
 import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 import { NavigationBar } from "expo-navigation-bar";
@@ -124,6 +125,8 @@ export default function RootLayout() {
     <NotificationBannerProvider>
     <ImageSourcePickerProvider>
     <GuestSessionGuard />
+    <AppUpdateGate />
+    {/* Expo Go cannot register a production push token. EAS development, preview, and production builds mount this. */}
     {isExpoGo() ? null : <PushNotificationBootstrap />}
     <InAppNotificationMonitor />
     <ThemeProvider value={DefaultTheme}>
@@ -256,6 +259,13 @@ export default function RootLayout() {
           options={{ headerShown: false, contentStyle: styles.screen }}
         />
         <Stack.Screen
+          name="screens/resident-features/index"
+          options={{
+            headerShown: false,
+            contentStyle: { flex: 1, backgroundColor: "#F4FBFD" },
+          }}
+        />
+        <Stack.Screen
           name="screens/complete-profile/index"
           options={{
             headerShown: false,
@@ -367,6 +377,22 @@ export default function RootLayout() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
+          name="screens/admin-units/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/admin-service-bills/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/admin-amenity-bills/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/admin-service-form/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="screens/admin-listings/index"
           options={{ headerShown: false }}
         />
@@ -449,6 +475,22 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="screens/property-management/my-booking/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/property-management/billing-contact/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/property-management/unit-bills/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/property-management/amenity-bills/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/property-management/available-services/index"
           options={{ headerShown: false }}
         />
         <Stack.Screen

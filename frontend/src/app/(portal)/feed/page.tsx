@@ -6,7 +6,7 @@ import { getUser } from "@/lib/auth/session";
 import { formatAccountDisplayName } from "@/lib/user/email-display";
 import { confirmDelete, toastSuccess, toastInfo, toastError } from "@/lib/alert";
 import {
-  fetchFeed, createPost, deletePost, likePost,
+  fetchFeed, createPost, deletePost, likePost, voteOnPoll,
   fetchComments, addComment, deleteComment,
   type Post as ApiPost, type Comment as ApiComment,
 } from "@/lib/api/feed";
@@ -38,6 +38,7 @@ const CAT_TONE: Record<string, { color: string }> = {
 };
 const CAT_LABEL: Record<string, string> = {
   general: "General", event: "Event", help: "Help", sale: "For Sale", update: "Update",
+  announcement: "Announcement", poll: "Poll",
 };
 
 function formatFeedDate(value: string) {
@@ -202,6 +203,15 @@ export default function FeedPage() {
         const revert = !p.liked_by_me;
         return { ...p, liked_by_me: revert, likes_count: revert ? p.likes_count + 1 : p.likes_count - 1 };
       }));
+      toastError(apiError(err));
+    }
+  };
+
+  const vote = async (postId: number, optionId: number) => {
+    try {
+      const res = await voteOnPoll(postId, optionId);
+      setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, ...res.data } : p)));
+    } catch (err) {
       toastError(apiError(err));
     }
   };
@@ -446,7 +456,11 @@ export default function FeedPage() {
 
             {/* Content */}
             <div className="px-5 pb-3">
-              <p className="whitespace-pre-line text-[14px] leading-relaxed" style={{ color: C.navy }}>{post.body}</p>
+              {post.poll ? (
+                <PollBlock post={post} onVote={(optionId) => vote(post.id, optionId)} />
+              ) : (
+                <p className="whitespace-pre-line text-[14px] leading-relaxed" style={{ color: C.navy }}>{post.body}</p>
+              )}
             </div>
 
             {/* Image */}
@@ -605,7 +619,9 @@ export default function FeedPage() {
                         placeholder={
                           replyToByPost[post.id]
                             ? `Reply to ${replyToByPost[post.id]?.name}…`
-                            : "Write a comment…"
+                            : post.poll
+                              ? "Add a thought..."
+                              : "Write a comment…"
                         }
                         className="flex-1 bg-transparent text-[13px] outline-none"
                         style={{ color: C.navy }}
@@ -633,6 +649,77 @@ export default function FeedPage() {
 }
 
 /* ─── Sub-components ─── */
+function pollTimeLeft(endsAt: string, closed: boolean) {
+  if (closed) return "Poll closed";
+  const end = new Date(endsAt);
+  const diff = end.getTime() - Date.now();
+  if (!Number.isFinite(diff) || diff <= 0) return "Poll closed";
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "Less than a minute left";
+  if (minutes < 60) return `${minutes} ${minutes === 1 ? "minute" : "minutes"} left`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"} left`;
+  const days = Math.floor(hours / 24);
+  return `${days} ${days === 1 ? "day" : "days"} left`;
+}
+
+function PollBlock({ post, onVote }: { post: ApiPost; onVote: (optionId: number) => void }) {
+  const poll = post.poll;
+  const [selected, setSelected] = useState<number | null>(poll?.voted_option_id ?? null);
+  if (!poll) return null;
+  const closed = poll.closed || pollTimeLeft(poll.ends_at, false) === "Poll closed";
+  const showResults = poll.results_visible || closed;
+  const time = pollTimeLeft(poll.ends_at, closed);
+  return (
+    <div className="space-y-3">
+      <p className="text-[15px] font-semibold leading-snug" style={{ color: C.navy }}>{poll.question}</p>
+      {poll.description ? <p className="text-[13.5px] leading-relaxed" style={{ color: C.navy }}>{poll.description}</p> : null}
+      <p className="text-[12px]" style={{ color: C.soft }}>This poll is for community feedback.</p>
+      <div className="space-y-2">
+        {poll.options.map((option) => {
+          const picked = selected === option.id || poll.voted_option_id === option.id;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              disabled={showResults}
+              onClick={() => setSelected(option.id)}
+              className="relative w-full overflow-hidden rounded-xl border px-3 py-2.5 text-left"
+              style={{ borderColor: picked ? "#1B4F8A" : C.border }}
+            >
+              {showResults ? (
+                <span className="absolute inset-y-0 left-0" style={{ width: `${option.percent ?? 0}%`, background: C.mint }} />
+              ) : null}
+              <span className="relative flex items-center justify-between gap-3 text-[13.5px]" style={{ color: C.navy }}>
+                <span>{option.label}</span>
+                {showResults ? <span className="font-semibold">{option.percent ?? 0}%</span> : null}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {showResults ? (
+        <p className="text-[12px]" style={{ color: C.soft }}>
+          {poll.total_votes ?? 0} {(poll.total_votes ?? 0) === 1 ? "vote" : "votes"} · {closed ? "Poll closed" : time}
+        </p>
+      ) : (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[12px]" style={{ color: C.soft }}>{time}</p>
+          <button
+            type="button"
+            disabled={!selected}
+            onClick={() => selected && onVote(selected)}
+            className="rounded-lg px-4 py-1.5 text-[13px] font-semibold text-white disabled:opacity-50"
+            style={{ background: "#1B4F8A" }}
+          >
+            Vote
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReactionBtn({
   active,
   onClick,

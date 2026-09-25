@@ -23,6 +23,9 @@ use App\Http\Controllers\Api\V1\FamilyController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\AmenityController;
 use App\Http\Controllers\Api\V1\AmenitySharedBillController;
+use App\Http\Controllers\Api\V1\PropertyServiceController;
+use App\Http\Controllers\Api\V1\UnitController;
+use App\Http\Controllers\Api\V1\UnitServiceBillController;
 use App\Http\Controllers\Api\V1\WellnessController;
 use App\Http\Controllers\Api\V1\AdminWellnessController;
 use App\Http\Controllers\Api\V1\GeographyController;
@@ -42,6 +45,7 @@ use App\Http\Controllers\Api\V1\SubscriptionPlanController;
 use App\Http\Controllers\Api\V1\SubscriptionCouponController;
 use App\Http\Controllers\Api\V1\ReferralController;
 use App\Http\Controllers\Api\V1\ReferralProgramController;
+use App\Http\Controllers\Api\V1\AppVersionController;
 use App\Http\Controllers\Api\V1\PlaidController;
 use App\Http\Controllers\Api\V1\PlaidPaymentController;
 use App\Http\Controllers\Api\V1\PlaidWebhookController;
@@ -63,6 +67,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/billing/stripe/webhook', StripeWebhookController::class);
     Route::post('/plaid/webhook', PlaidWebhookController::class);
     Route::get('/billing/plans', [SubscriptionPlanController::class, 'publicIndex']);
+    Route::get('/app/version-policy', [AppVersionController::class, 'policy']);
     Route::get('/public/invite-qr.png', [InviteQrImageController::class, 'show'])
         ->name('public.invite-qr');
     Route::get('/public/invite-qr', [InviteQrImageController::class, 'view'])
@@ -127,6 +132,18 @@ Route::prefix('v1')->group(function () {
         Route::post('/communities/request',        [CommunityController::class, 'requestCommunity']);
         Route::post('/communities/self-serve',     [CommunityController::class, 'selfServeCreate']);
         Route::post('/communities/{id}/join',      [CommunityController::class, 'join']);
+        Route::get('/communities/{id}/units',      [UnitController::class, 'communityIndex'])->whereNumber('id');
+        Route::get('/units/mine',                  [UnitController::class, 'mine']);
+        Route::post('/units/mine/billing-contact-transfers', [UnitController::class, 'requestTransfer']);
+        Route::patch('/billing-contact-transfers/{id}/accept', [UnitController::class, 'acceptTransfer'])->whereNumber('id');
+        Route::patch('/billing-contact-transfers/{id}/reject', [UnitController::class, 'rejectTransfer'])->whereNumber('id');
+        Route::patch('/billing-contact-transfers/{id}/cancel', [UnitController::class, 'cancelTransfer'])->whereNumber('id');
+        Route::get('/property-services',           [PropertyServiceController::class, 'residentIndex']);
+        Route::post('/property-services/{id}/subscribe', [PropertyServiceController::class, 'subscribe'])->whereNumber('id');
+        Route::post('/property-services/{id}/unsubscribe', [PropertyServiceController::class, 'unsubscribe'])->whereNumber('id');
+        Route::get('/service-bills',               [UnitServiceBillController::class, 'residentIndex']);
+        Route::post('/service-bills/{id}/acknowledge', [UnitServiceBillController::class, 'residentAcknowledge'])->whereNumber('id');
+        Route::post('/service-bills/{id}/proof',   [UnitServiceBillController::class, 'residentSubmitProof'])->whereNumber('id');
 
         Route::get('/geo/address-suggest', [GeoController::class, 'suggest']);
         Route::get('/geo/address-reverse', [GeoController::class, 'reverse']);
@@ -213,6 +230,7 @@ Route::prefix('v1')->group(function () {
         Route::put('/feed/{id}',                                 [FeedController::class, 'update']);
         Route::delete('/feed/{id}',                              [FeedController::class, 'destroy']);
         Route::post('/feed/{id}/like',                         [FeedController::class, 'like']);
+        Route::post('/feed/{id}/vote',                         [FeedController::class, 'vote']);
         Route::post('/feed/{id}/report',                       [FeedController::class, 'reportPost']);
         Route::get('/feed/{id}/comments',                      [FeedController::class, 'comments']);
         Route::post('/feed/{id}/comments',                     [FeedController::class, 'addComment']);
@@ -227,8 +245,12 @@ Route::prefix('v1')->group(function () {
             Route::post('/amenities',                       [AmenityController::class, 'create']);
             Route::get('/amenities/{id}/slots',             [AmenityController::class, 'slots']);
             Route::get('/amenities/{id}/bills',             [AmenitySharedBillController::class, 'residentIndex']);
+            Route::get('/amenity-bills',                    [AmenitySharedBillController::class, 'myIndex']);
+            Route::get('/amenity-owner-bills',              [AmenitySharedBillController::class, 'ownerIndex']);
             Route::post('/amenities/{id}/bills/{residentBillId}/proof', [AmenitySharedBillController::class, 'residentSubmitProof']);
             Route::post('/amenities/{id}/bills/{residentBillId}/pay-bank', [AmenitySharedBillController::class, 'residentPayBank']);
+            Route::patch('/amenities/{id}/resident-bills/{residentBillId}/approve', [AmenitySharedBillController::class, 'ownerApprove']);
+            Route::patch('/amenities/{id}/resident-bills/{residentBillId}/reject', [AmenitySharedBillController::class, 'ownerReject']);
         });
         Route::middleware('resident.feature:bookings')->group(function () {
             Route::get('/bookings',                         [AmenityController::class, 'myBookings']);
@@ -359,6 +381,9 @@ Route::prefix('v1')->group(function () {
                 Route::get('/referral-program/attributions', [ReferralProgramController::class, 'attributions']);
                 Route::post('/referral-program/attributions/{id}/review', [ReferralProgramController::class, 'review']);
                 Route::post('/referral-program/rewards/{id}/retry', [ReferralProgramController::class, 'retryReward']);
+                Route::get('/app-version/settings', [AppVersionController::class, 'settings']);
+                Route::put('/app-version/settings', [AppVersionController::class, 'updateSettings']);
+                Route::post('/app-version/send-update-notification', [AppVersionController::class, 'sendUpdateNotification']);
             });
 
             /* Community admin (+ system admin override) */
@@ -447,6 +472,26 @@ Route::prefix('v1')->group(function () {
                 Route::match(['patch', 'post'],'/posts/{id}/reject',      [FeedController::class, 'adminReject']);
 
                 /* Amenities — admin CRUD + publish review */
+                Route::get('/units',                          [UnitController::class, 'adminIndex']);
+                Route::post('/units',                         [UnitController::class, 'adminStore']);
+                Route::patch('/units/{id}',                   [UnitController::class, 'adminUpdate'])->whereNumber('id');
+                Route::patch('/units/{id}/billing-contact',   [UnitController::class, 'adminTransfer'])->whereNumber('id');
+                Route::get('/property-services',              [PropertyServiceController::class, 'adminIndex']);
+                Route::post('/property-services',             [PropertyServiceController::class, 'store']);
+                Route::patch('/property-services/{id}',       [PropertyServiceController::class, 'update'])->whereNumber('id');
+                Route::delete('/property-services/{id}',      [PropertyServiceController::class, 'destroy'])->whereNumber('id');
+                Route::post('/property-services/{id}/generate-bills', [PropertyServiceController::class, 'generateBills'])->whereNumber('id');
+                Route::get('/property-services/{id}/subscriptions', [PropertyServiceController::class, 'adminSubscriptions'])->whereNumber('id');
+                Route::get('/service-subscriptions', [PropertyServiceController::class, 'adminSubscriptionInbox']);
+                Route::patch('/service-subscriptions/{id}/approve', [PropertyServiceController::class, 'approveSubscription'])->whereNumber('id');
+                Route::patch('/service-subscriptions/{id}/reject', [PropertyServiceController::class, 'rejectSubscription'])->whereNumber('id');
+                Route::get('/service-bills',                  [UnitServiceBillController::class, 'adminIndex']);
+                Route::get('/service-bills/{id}',             [UnitServiceBillController::class, 'adminShow'])->whereNumber('id');
+                Route::get('/service-bills/{id}/reviews',     [UnitServiceBillController::class, 'adminReviews'])->whereNumber('id');
+                Route::patch('/service-bills/{id}/approve',   [UnitServiceBillController::class, 'adminApprove'])->whereNumber('id');
+                Route::patch('/service-bills/{id}/reject',    [UnitServiceBillController::class, 'adminReject'])->whereNumber('id');
+
+                Route::get('/amenity-bills',                  [AmenitySharedBillController::class, 'communityIndex']);
                 Route::get('/amenities',                      [AmenityController::class, 'adminIndex']);
                 Route::post('/amenities',                     [AmenityController::class, 'store']);
                 Route::match(['patch', 'post'],'/amenities/{id}',               [AmenityController::class, 'update']);

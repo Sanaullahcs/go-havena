@@ -9,18 +9,19 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Fonts } from "../../../constants/font";
-import { Colors } from "../../../constants/tokens";
+import BackButton from "../../../components/ui/back-button";
 import AuthSubmitButton from "../../../components/ui/auth-submit-button";
+import ScreenStatusBar from "../../../components/layout/screen-status-bar";
 import { navigateAfterAuth } from "../../../constants/onboarding-routes";
 import { fetchMyResidentFeatures, saveMyResidentFeatures } from "../../../services/resident-features-api";
 import { fetchMe } from "../../../services/auth-api";
-import { confirmSignOut } from "../../../services/sign-out";
+import { confirmLeaveOnboarding, confirmSignOut } from "../../../services/sign-out";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { flagsFromUser } from "../../../constants/resident-features";
 import { getApiErrorMessage } from "../../../utils/api-error-core";
-
-export const options = { headerShown: false };
+import { HomeTheme as T } from "../../../constants/home-theme";
 
 function groupCatalog(catalog) {
   const groups = [];
@@ -38,8 +39,9 @@ function groupCatalog(catalog) {
 }
 
 export default function ResidentFeaturesScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
-  const { showDialog } = useAppDialog();
+  const dialog = useAppDialog();
   const [catalog, setCatalog] = useState([]);
   const [values, setValues] = useState({});
   const [loading, setLoading] = useState(true);
@@ -78,16 +80,25 @@ export default function ResidentFeaturesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.eyebrow}>Community setup</Text>
-        <Text style={styles.title}>Resident Features</Text>
-        <Text style={styles.subtitle}>
-          All features are enabled by default. Turn off any module you do not want residents to use.
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right", "bottom"]}>
+      <ScreenStatusBar style="dark" opaque androidBackgroundColor={T.canvas} />
+
+      <View style={styles.headerRow}>
+        <BackButton iconOnly compact onPress={() => confirmLeaveOnboarding(dialog)} />
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {t("onboarding.residentFeatures")}
         </Text>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.eyebrow}>{t("onboarding.communitySetup")}</Text>
+        <Text style={styles.subtitle}>{t("onboarding.residentFeaturesHint")}</Text>
 
         {loading ? (
-          <ActivityIndicator style={styles.loader} color="#1B4F8A" />
+          <ActivityIndicator style={styles.loader} color={T.navy} />
         ) : (
           groupCatalog(catalog).map((group) => (
             <View key={group.label} style={styles.group}>
@@ -103,7 +114,7 @@ export default function ResidentFeaturesScreen() {
                     onValueChange={(enabled) =>
                       setValues((current) => ({ ...current, [feature.key]: enabled }))
                     }
-                    trackColor={{ false: "#CBD5E1", true: "#059669" }}
+                    trackColor={{ false: "#CBD5E1", true: T.teal }}
                     thumbColor="#FFFFFF"
                   />
                 </View>
@@ -115,14 +126,14 @@ export default function ResidentFeaturesScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <AuthSubmitButton
-          label="Save and continue"
-          loadingLabel="Saving…"
+          label={t("onboarding.saveAndContinue")}
+          loadingLabel={t("onboarding.saving")}
           onPress={onSave}
           enabled={!loading}
           loading={saving}
         />
-        <Text style={styles.signOut} onPress={() => confirmSignOut(showDialog)}>
-          Sign out
+        <Text style={styles.signOut} onPress={() => confirmSignOut(dialog)}>
+          {t("guests.signOut", { defaultValue: "Sign out" })}
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -130,37 +141,101 @@ export default function ResidentFeaturesScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F8FAFC" },
-  scroll: { padding: 20, paddingBottom: 40 },
-  eyebrow: { color: "#1B4F8A", fontFamily: Fonts.semiBold, fontSize: 12, textTransform: "uppercase" },
-  title: { marginTop: 6, color: Colors.navy ?? "#0F172A", fontFamily: Fonts.bold, fontSize: 26 },
-  subtitle: { marginTop: 8, color: "#64748B", fontFamily: Fonts.regular, fontSize: 14, lineHeight: 20 },
-  loader: { marginVertical: 32 },
-  group: { marginTop: 22 },
+  safe: {
+    flex: 1,
+    backgroundColor: T.canvas,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 24,
+    paddingTop: 2,
+    paddingBottom: 12,
+  },
+  headerTitle: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: Fonts.bold,
+    fontSize: 17,
+    lineHeight: 22,
+    color: T.navy,
+    fontWeight: "700",
+  },
+  scroll: {
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+  },
+  eyebrow: {
+    color: T.navy,
+    fontFamily: Fonts.semiBold,
+    fontSize: 11,
+    letterSpacing: 1.6,
+    textTransform: "uppercase",
+    fontWeight: "600",
+  },
+  subtitle: {
+    marginTop: 8,
+    color: T.gray,
+    fontFamily: Fonts.regular,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  loader: {
+    marginVertical: 32,
+  },
+  group: {
+    marginTop: 22,
+  },
   groupLabel: {
-    color: "#94A3B8",
+    color: T.gray,
     fontFamily: Fonts.semiBold,
     fontSize: 11,
     letterSpacing: 0.8,
     textTransform: "uppercase",
     marginBottom: 8,
+    fontWeight: "600",
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: T.white,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: T.border,
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginBottom: 8,
   },
-  copy: { flex: 1 },
-  featureTitle: { fontFamily: Fonts.semiBold, fontSize: 14, color: "#0F172A" },
-  featureDesc: { marginTop: 3, fontFamily: Fonts.regular, fontSize: 12, color: "#64748B", lineHeight: 17 },
-  error: { marginTop: 12, color: "#DC2626", fontFamily: Fonts.medium, fontSize: 13 },
-  signOut: { marginTop: 18, textAlign: "center", color: "#64748B", fontFamily: Fonts.medium, fontSize: 13 },
+  copy: {
+    flex: 1,
+  },
+  featureTitle: {
+    fontFamily: Fonts.semiBold,
+    fontSize: 14,
+    color: T.navy,
+    fontWeight: "600",
+  },
+  featureDesc: {
+    marginTop: 3,
+    fontFamily: Fonts.regular,
+    fontSize: 12,
+    color: T.gray,
+    lineHeight: 17,
+  },
+  error: {
+    marginTop: 12,
+    color: "#DC2626",
+    fontFamily: Fonts.medium,
+    fontSize: 13,
+  },
+  signOut: {
+    marginTop: 18,
+    textAlign: "center",
+    color: T.gray,
+    fontFamily: Fonts.medium,
+    fontSize: 13,
+  },
 });

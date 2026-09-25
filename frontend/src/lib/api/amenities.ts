@@ -15,6 +15,7 @@ export interface Amenity {
   floor: string | null;
   image_url: string | null;
   icon_key?: string | null;
+  custom_category?: string | null;
   community_name?: string | null;
   shared_billing_enabled?: boolean;
   shared_billing_type?: "all_residents" | string | null;
@@ -22,6 +23,8 @@ export interface Amenity {
   shared_billing_amount?: number | null;
   shared_billing_due_day?: number | null;
   booking_fee?: number | null;
+  display_fee?: number | null;
+  display_fee_kind?: "monthly" | "yearly" | "booking" | "free" | string;
   has_overdue_shared_amenity_bill?: boolean;
   hours: string | null;
   start_time?: string | null;
@@ -37,6 +40,7 @@ export interface Amenity {
   user_next_booking_time_slot?: string | null;
   user_next_booking_status?: string | null;
   user_next_booking_guests?: number | null;
+  user_next_booking_bill?: AmenityMonthlyBill | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -55,6 +59,8 @@ export interface Booking {
   time_slot: string | null;
   guests: number;
   booking_fee?: number;
+  display_fee?: number | null;
+  display_fee_kind?: "monthly" | "yearly" | "booking" | "free" | string;
   status: string;
   payment_verification_status?: string | null;
   payment_method?: string | null;
@@ -68,6 +74,7 @@ export interface Booking {
   notes?: string | null;
   rejection_reason?: string | null;
   payment_proof?: AmenityPaymentProof | null;
+  booking_bill?: AmenityMonthlyBill | null;
   user_name?: string;
   user_unit?: string | null;
   created_at?: string | null;
@@ -86,6 +93,7 @@ export type AmenityFormPayload = {
   weekends_available?: boolean;
   slot_duration_minutes?: number | null;
   icon_key: string;
+  custom_category?: string | null;
   shared_billing_enabled?: boolean;
   shared_billing_type?: string | null;
   shared_billing_frequency?: string | null;
@@ -294,6 +302,7 @@ export type AmenityMonthlyBill = {
   total_amount_paid?: number;
   outstanding_amount?: number;
   resident_bill_id?: number;
+  booking_id?: number | null;
   can_submit_proof?: boolean;
   payment_method?: string | null;
   ach_status?: string | null;
@@ -413,6 +422,17 @@ export type AmenityMonthlyBillForm = {
   file: File | null;
 };
 
+export async function fetchAdminCommunityAmenityBills(status?: string) {
+  const communityId = getAdminCommunityId();
+  const res = await api.get("/v1/admin/amenity-bills", {
+    params: {
+      ...(communityId ? { community_id: communityId } : {}),
+      ...(status && status !== "all" ? { status } : {}),
+    },
+  });
+  return res.data.data as AmenityResidentPayment[];
+}
+
 export async function fetchAdminAmenityBills(amenityId: number) {
   const res = await api.get(`/v1/admin/amenities/${amenityId}/bills`);
   return res.data.data as AmenityMonthlyBill[];
@@ -432,6 +452,11 @@ export async function publishAmenityMonthlyBill(amenityId: number, payload: Amen
 
 export async function fetchAmenityBills(amenityId: number) {
   const res = await api.get(`/v1/amenities/${amenityId}/bills`);
+  return res.data.data as AmenityMonthlyBill[];
+}
+
+export async function fetchMyAmenityBills() {
+  const res = await api.get("/v1/amenity-bills");
   return res.data.data as AmenityMonthlyBill[];
 }
 

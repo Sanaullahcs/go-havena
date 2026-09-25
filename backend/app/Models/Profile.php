@@ -16,6 +16,7 @@ class Profile extends Model
         'bio',
         'unit_number',
         'residence_type',
+        'office_address',
         'region_id',
     ];
 

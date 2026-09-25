@@ -32,7 +32,9 @@ import {
   PropertyHubTheme,
   getPropertyHubServices,
   getPropertyCommunityServices,
+  filterPropertyServicesForViewer,
 } from "../../constants/property-management-theme";
+import { resolveViewerBillingAccess } from "../../services/property-services-api";
 import {
   fetchMyBookings,
   fetchBookingInbox,
@@ -98,23 +100,13 @@ export default function PropertyManagment() {
   const contentMaxWidth = Math.min(windowWidth, isWide ? 720 : windowWidth);
 
   const [isAdmin, setIsAdmin] = useState(() => getCurrentRole() === "admin");
+  const [isBillingContact, setIsBillingContact] = useState(false);
   const hubServices = useMemo(() => {
-    const user = getCachedUser();
-    return getPropertyHubServices(isAdmin, t).filter((item) => {
-      if (isAdmin) return true;
-      if (item.id === "book" || item.id === "add-amenity") return isResidentFeatureEnabled(user, "amenities");
-      if (item.id === "booking-requests") return isResidentFeatureEnabled(user, "bookings");
-      return true;
-    });
-  }, [isAdmin, t]);
-  const communityServices = useMemo(() => {
-    const user = getCachedUser();
-    return getPropertyCommunityServices(t).filter((item) => {
-      if (item.id === "rules") return isResidentFeatureEnabled(user, "community_rules");
-      if (item.id === "documents") return isResidentFeatureEnabled(user, "documents");
-      return true;
-    });
-  }, [t]);
+    const services = getPropertyHubServices(isAdmin, t);
+    if (isAdmin) return services;
+    return filterPropertyServicesForViewer(services, { isBillingContact });
+  }, [isAdmin, isBillingContact, t]);
+  const communityServices = useMemo(() => getPropertyCommunityServices(t), [t]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [adminActivity, setAdminActivity] = useState({ title: t("services.approvalQueue"), items: [] });
@@ -150,6 +142,7 @@ export default function PropertyManagment() {
         });
         setAdminActivity(built);
         setResidentActivity(getEmptyResidentActivity(t));
+        setIsBillingContact(false);
         setBookingCounts({
           myReservationCount: upcomingCount,
           approveRequestCount: pendingBookings.length,
@@ -167,10 +160,12 @@ export default function PropertyManagment() {
         return;
       }
 
-      const [inbox, bookings] = await Promise.all([
+      const [inbox, bookings, billingAccess] = await Promise.all([
         fetchBookingInbox({ status: "pending" }).catch(() => []),
         fetchMyBookings().catch(() => []),
+        resolveViewerBillingAccess(),
       ]);
+      setIsBillingContact(Boolean(billingAccess.isBillingContact));
 
       const resident = buildResidentHubActivity({
         inbox: inbox ?? [],
@@ -190,6 +185,7 @@ export default function PropertyManagment() {
       });
       setHubStats([]);
     } catch {
+      setIsBillingContact(false);
       setAdminActivity({ title: t("services.approvalQueue"), items: [] });
       setResidentActivity(getEmptyResidentActivity(t));
       setBookingCounts({ myReservationCount: 0, approveRequestCount: 0 });

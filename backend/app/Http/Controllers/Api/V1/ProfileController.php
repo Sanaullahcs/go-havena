@@ -173,6 +173,9 @@ class ProfileController extends Controller
             'bio'            => 'sometimes|nullable|string|max:500',
             'unit_number'    => 'sometimes|nullable|string|max:'.($isCommunityAdmin ? '20' : '50'),
             'residence_type' => 'sometimes|nullable|string|in:homeowner,tenant',
+            'office_address' => $isCommunityAdmin && $request->has('office_address')
+                ? 'required|string|max:255'
+                : 'sometimes|nullable|string|max:255',
             'region_id'      => [
                 'sometimes',
                 'nullable',
@@ -183,9 +186,12 @@ class ProfileController extends Controller
             'name.max' => 'Full name cannot exceed 50 characters.',
             'display_name.max' => 'Full name cannot exceed 50 characters.',
             'unit_number.max' => 'Unit / apartment cannot exceed 20 characters.',
+            'office_address.required' => 'Office address is required.',
+            'office_address.max' => 'Office address cannot exceed 255 characters.',
         ] : []);
 
         $this->assertUtilityBillPresentIfRequired($user, $request);
+        $this->assertOfficeAddressPresentIfRequired($user, $request, $isCommunityAdmin);
 
         $user->loadMissing('profile.region');
         $before = [
@@ -196,6 +202,7 @@ class ProfileController extends Controller
             'bio' => $user->profile?->bio,
             'unit_number' => $user->profile?->unit_number,
             'residence_type' => $user->profile?->residence_type,
+            'office_address' => $user->profile?->office_address,
             'region' => $user->profile?->region?->title ?? $user->profile?->region_id,
         ];
 
@@ -225,9 +232,20 @@ class ProfileController extends Controller
         $profileData = array_filter([
             'display_name'   => $request->display_name,
             'bio'            => $request->bio,
-            'unit_number'    => $request->unit_number,
-            'residence_type' => $request->residence_type,
         ], fn ($v) => $v !== null);
+
+        if ($isCommunityAdmin) {
+            if ($request->has('office_address')) {
+                $profileData['office_address'] = trim((string) $request->input('office_address', ''));
+            }
+        } else {
+            if ($request->has('unit_number')) {
+                $profileData['unit_number'] = $request->unit_number;
+            }
+            if ($request->has('residence_type')) {
+                $profileData['residence_type'] = $request->residence_type;
+            }
+        }
 
         if ($request->has('region_id')) {
             $profileData['region_id'] = $request->input('region_id');
@@ -256,6 +274,9 @@ class ProfileController extends Controller
 
             $user->load('profile.region');
             MembershipService::approvePendingForActiveCommunities($user);
+            if (! $isCommunityAdmin) {
+                $this->syncUnitAssignments($user);
+            }
             $this->maybeAwardProfileCompleted($user);
         }
 
@@ -268,6 +289,7 @@ class ProfileController extends Controller
             'bio' => $user->profile?->bio,
             'unit_number' => $user->profile?->unit_number,
             'residence_type' => $user->profile?->residence_type,
+            'office_address' => $user->profile?->office_address,
             'region' => $user->profile?->region?->title ?? $user->profile?->region_id,
         ];
 
@@ -428,7 +450,9 @@ class ProfileController extends Controller
 
     private function assertUtilityBillPresentIfRequired(User $user, Request $request): void
     {
-        $isCompletingProfile = $request->filled('display_name') || $request->filled('unit_number');
+        $isCompletingProfile = $request->filled('display_name')
+            || $request->filled('unit_number')
+            || $request->filled('office_address');
         if (! $isCompletingProfile) {
             return;
         }
@@ -445,6 +469,27 @@ class ProfileController extends Controller
 
         throw ValidationException::withMessages([
             'utility_bill' => ['Lease or utility bill is required.'],
+        ]);
+    }
+
+    private function assertOfficeAddressPresentIfRequired(User $user, Request $request, bool $isCommunityAdmin): void
+    {
+        if (! $isCommunityAdmin) {
+            return;
+        }
+
+        $isCompletingProfile = $request->filled('display_name') || $request->has('office_address');
+        if (! $isCompletingProfile) {
+            return;
+        }
+
+        $office = trim((string) ($request->input('office_address') ?? $user->profile?->office_address ?? ''));
+        if ($office !== '') {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'office_address' => ['Office address is required.'],
         ]);
     }
 
@@ -548,6 +593,34 @@ class ProfileController extends Controller
 
         return response()->json(['message' => 'Account deleted']);
     }
+
+    private function syncUnitAssignments(User $user): void
+    {
+        $user->loadMissing(['profile', 'memberships']);
+        foreach ($user->memberships as $membership) {
+            if (($membership->status ?? '') !== 'approved') {
+                continue;
+            }
+            try {
+                app(\App\Services\UnitAssignmentService::class)->syncUserToCommunity($user, (int) $membership->community_id);
+            } catch (\Throwable) {
+                // Profile save should not fail if unit assignment cannot complete.
+            }
+        }
+    }
+
+    private function storeProfileImage(UploadedFile $file, string $folder): string
+    {
+        $path = $file->store($folder, 'public');
+        if (! is_string($path) || $path === '') {
+            throw ValidationException::withMessages([
+                'file' => ['Could not save the file. Storage is not writable.'],
+            ]);
+        }
+
+        return url(Storage::url($path));
+    }
+
 
     private function resolveViewerCommunityId(Request $request, User $user): ?int
     {

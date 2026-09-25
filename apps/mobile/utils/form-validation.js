@@ -17,6 +17,7 @@ export const LIMITS = {
   guestName: 25,
   profileUnit: 50,
   communityAdminUnit: 20,
+  officeAddress: 255,
   profileEmail: 255,
   profileBio: 500,
   feedPost: 2000,
@@ -257,15 +258,21 @@ export function validateCompleteProfileForm({
   bio,
   unitNumber,
   residenceType,
+  officeAddress = "",
   utilityFile,
   requireUtilityFile = true,
   requireResidenceType = true,
+  requireUnitNumber,
+  requireOfficeAddress,
   guestMode = false,
   communityAdmin = false,
 }) {
   const errors = {};
   const nameMax = LIMITS.profileName;
   const unitMax = communityAdmin ? LIMITS.communityAdminUnit : LIMITS.profileUnit;
+  const officeMax = LIMITS.officeAddress;
+  const unitIsRequired = requireUnitNumber ?? (!guestMode && !communityAdmin);
+  const officeIsRequired = requireOfficeAddress ?? communityAdmin;
 
   const nameErr = requiredText(name, "validation.fields.fullName", { min: 2, max: nameMax });
   if (nameErr) {
@@ -293,21 +300,32 @@ export function validateCompleteProfileForm({
   if (guestMode) {
     const unitText = String(unitNumber ?? "").trim();
     if (String(unitNumber ?? "").length > unitMax || unitText.length > unitMax) {
-      errors.unitNumber = communityAdmin
-        ? i18n.t("validation.communityAdminUnitMax")
-        : i18n.t("validation.maxChars", { field: i18n.t("validation.fields.unitNumber"), max: unitMax });
+      errors.unitNumber = i18n.t("validation.maxChars", { field: i18n.t("validation.fields.unitNumber"), max: unitMax });
     }
     return errors;
   }
 
+  if (officeIsRequired) {
+    const officeErr = requiredText(officeAddress, "validation.fields.officeAddress", { max: officeMax });
+    if (officeErr) {
+      errors.officeAddress = exceedsCharacterLimit(officeAddress, officeMax)
+        ? i18n.t("validation.communityAdminOfficeMax")
+        : officeErr;
+    }
+  } else if (String(officeAddress ?? "").trim().length > officeMax) {
+    errors.officeAddress = i18n.t("validation.communityAdminOfficeMax");
+  }
+
+  if (unitIsRequired) {
   const unitErr = requiredText(unitNumber, "validation.fields.unitNumber", { max: unitMax });
   if (unitErr) {
     errors.unitNumber = communityAdmin && exceedsCharacterLimit(unitNumber, unitMax)
       ? i18n.t("validation.communityAdminUnitMax")
       : unitErr;
   }
+  }
 
-  if (requireResidenceType) {
+  if (requireResidenceType && !communityAdmin) {
     if (!residenceType) {
       errors.residenceType = i18n.t("validation.residenceTypeRequired");
     } else if (!["homeowner", "tenant"].includes(residenceType)) {

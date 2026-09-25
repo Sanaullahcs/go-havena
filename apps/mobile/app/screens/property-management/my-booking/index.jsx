@@ -13,6 +13,7 @@ import { HeaderIconSlot } from "../../../../components/layout/header-chrome";
 import { pageStyles } from "../../../../constants/page-styles";
 import { Property, propertyStyles } from "../../../../constants/property-styles";
 import { fetchMyBookings, cancelBooking } from "../../../../services/amenity-api";
+import AmenityPaymentProofModal from "../../../../components/property/amenity-payment-proof-modal";
 import { useApiAction } from "../../../../hooks/use-api-action";
 import { useAppDialog } from "../../../../providers/app-dialog-provider";
 import { sw, sf } from "../../../../utils/responsive";
@@ -21,10 +22,15 @@ import { rnShadow } from "../../../../utils/shadow";
 
 const STATUS_META = {
   pending: { label: "propertyMgmt.statusPending", color: "#B45309", bg: "#FEF3C7", icon: "clock" },
+  awaiting_payment: { label: "propertyMgmt.statusAwaitingPayment", color: "#B45309", bg: "#FEF3C7", icon: "credit-card" },
   confirmed: { label: "propertyMgmt.statusConfirmed", color: "#047857", bg: "#ECFDF5", icon: "check-circle" },
   rejected: { label: "propertyMgmt.statusDeclined", color: "#B91C1C", bg: "#FEF2F2", icon: "x-circle" },
   cancelled: { label: "propertyMgmt.statusCancelled", color: "#64748B", bg: "#F1F5F9", icon: "slash" },
 };
+
+function canPayBooking(reservation) {
+  return reservation?.status === "awaiting_payment" && reservation?.booking_bill?.can_submit_proof === true;
+}
 
 function formatDateTime(dateStr, timeStr) {
   if (!dateStr) return "";
@@ -45,6 +51,7 @@ export default function MyBooking() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [proofFor, setProofFor] = useState(null);
   const { runAction, showFailure } = useApiAction();
   const { showConfirm } = useAppDialog();
 
@@ -97,7 +104,7 @@ export default function MyBooking() {
 
   const categorized = bookings.map((b) => {
     const dateKey = String(b.date ?? b.starts_at ?? "").slice(0, 10);
-    const isActive = b.status === "pending" || b.status === "confirmed";
+    const isActive = b.status === "pending" || b.status === "awaiting_payment" || b.status === "confirmed";
     return {
       ...b,
       timeframe: isActive && dateKey >= todayKey ? "upcoming" : "past",
@@ -187,9 +194,12 @@ export default function MyBooking() {
               const amenityObj = reservation.amenity ?? reservation;
               const amenityName = localizedField(amenityObj, "name") || (reservation.amenity_name ?? t("propertyMgmt.amenityFallback"));
               const dateLabel = formatDateTime(reservation.date ?? reservation.starts_at, null);
+              const canPay = canPayBooking(reservation);
+              const awaitingReview =
+                reservation.status === "awaiting_payment" && reservation.booking_bill && !reservation.booking_bill.can_submit_proof;
               const canCancel =
                 reservation.timeframe === "upcoming" &&
-                (reservation.status === "pending" || reservation.status === "confirmed");
+                (reservation.status === "pending" || reservation.status === "awaiting_payment" || reservation.status === "confirmed");
               const cancelLabel =
                 reservation.status === "pending" ? t("propertyMgmt.cancelRequest") : t("propertyMgmt.cancelReservation");
 
@@ -202,6 +212,13 @@ export default function MyBooking() {
                       </Text>
                       {reservation.status === "pending" ? (
                         <Text style={styles.pendingNote}>{t("propertyMgmt.statusPendingApproval")}</Text>
+                      ) : null}
+                      {reservation.status === "awaiting_payment" ? (
+                        <Text style={styles.pendingNote}>
+                          {awaitingReview
+                            ? t("propertyMgmt.statusPaymentReview")
+                            : t("propertyMgmt.statusAwaitingPaymentHint")}
+                        </Text>
                       ) : null}
                       {reservation.status === "rejected" && reservation.rejection_reason ? (
                         <Text style={styles.pendingNote}>{reservation.rejection_reason}</Text>
@@ -242,6 +259,19 @@ export default function MyBooking() {
                     ) : null}
                   </View>
 
+                  {canPay ? (
+                    <Pressable
+                      style={({ pressed }) => [styles.payBtn, pressed && styles.pressed]}
+                      onPress={() => setProofFor(reservation.booking_bill)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t("propertyMgmt.makePayment")}
+                    >
+                      <View style={styles.cancelInner}>
+                        <Feather name="credit-card" size={sf(15)} color="#FFFFFF" />
+                        <Text style={styles.payText}>{t("propertyMgmt.makePayment")}</Text>
+                      </View>
+                    </Pressable>
+                  ) : null}
                   {canCancel ? (
                     <Pressable
                       style={({ pressed }) => [styles.cancelBtn, pressed && styles.pressed]}
@@ -259,6 +289,20 @@ export default function MyBooking() {
               );
             })
           )}
+
+          {proofFor ? (
+            <AmenityPaymentProofModal
+              visible
+              bill={proofFor}
+              amenityId={proofFor.amenity_id}
+              amenityName={proofFor.amenity_name}
+              onClose={() => setProofFor(null)}
+              onSubmitted={() => {
+                setProofFor(null);
+                load(true);
+              }}
+            />
+          ) : null}
 
           <View style={styles.reminder}>
             <View style={styles.reminderIcon}>
@@ -427,6 +471,24 @@ const styles = StyleSheet.create({
     lineHeight: sf(18),
     color: "#334155",
     fontWeight: "500",
+  },
+  payBtn: {
+    marginTop: sw(2),
+    backgroundColor: "#1B4F8A",
+    borderRadius: sw(12),
+    minHeight: sw(44),
+    paddingHorizontal: sw(14),
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  payText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(13),
+    lineHeight: sf(16),
+    color: "#FFFFFF",
+    fontWeight: "600",
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   cancelBtn: {
     marginTop: sw(2),

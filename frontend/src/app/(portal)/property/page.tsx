@@ -20,6 +20,7 @@ import { apiError } from "@/lib/api/client";
 import { PageLoader } from "@/components/shared/page-states";
 import { AmenityFormModal } from "@/components/admin/amenity-form-modal";
 import { AmenityResidentBills } from "@/components/property/amenity-resident-bills";
+import { UnitServiceWorkspace } from "@/components/property/unit-service-bills";
 import {
   BookingPaymentFields,
   BookingPaymentSummary,
@@ -54,7 +55,7 @@ function tomorrowIso() {
 }
 
 export default function PropertyPage() {
-  const [tab, setTab] = useState<"amenities" | "rules" | "bookings" | "inbox">("amenities");
+  const [tab, setTab] = useState<"amenities" | "services" | "rules" | "bookings" | "inbox">("amenities");
   const [bookModal, setBookModal] = useState<Amenity | null>(null);
   const [bookForm, setBookForm] = useState({ date: tomorrowIso(), slot: "", guests: "1" });
   const [payment, setPayment] = useState<BookingPaymentForm>({
@@ -185,7 +186,7 @@ export default function PropertyPage() {
       return;
     }
 
-    const fee = bookingFeeAmount(amenity.booking_fee);
+    const fee = amenity.shared_billing_enabled ? 0 : bookingFeeAmount(amenity.booking_fee);
     const payWithBank = fee > 0 && payment.method === "bank_ach" && Boolean(achCapability?.can_pay_with_bank);
     if (fee > 0 && !payWithBank && !validateOnSubmit(paymentErrors)) {
       toastError(paymentErrors.file || paymentErrors.payment_date || "Add payment proof to continue.");
@@ -195,7 +196,13 @@ export default function PropertyPage() {
       amenity.status === "bookable" ? bookForm.slot : "Open access request";
     const r = await confirmAction({
       title: `Request ${amenity.name}?`,
-      text: `Date: ${bookForm.date}${amenity.status === "bookable" ? ` · ${slotLabel}` : ""} · Booking fee: ${formatUsdAmount(fee)}. The amenity creator will review your request.`,
+      text: `Date: ${bookForm.date}${amenity.status === "bookable" ? ` · ${slotLabel}` : ""}${
+        fee > 0
+          ? ` · Booking fee ${formatUsdAmount(fee)} will be billed after approval.`
+          : amenity.shared_billing_enabled
+            ? ` · Shared fee ${formatUsdAmount(amenity.display_fee ?? amenity.shared_billing_amount)} must already be paid.`
+            : ""
+      } The amenity creator will review your request.`,
       confirmText: "Submit request",
       color: "green",
     });
@@ -270,6 +277,7 @@ export default function PropertyPage() {
       <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm w-fit">
         {([
           { id: "amenities" as const, label: "Amenities" },
+          { id: "services" as const, label: "Unit services" },
           { id: "rules" as const, label: "Rules" },
           { id: "bookings" as const, label: `My Reservations (${bookings.length})` },
           { id: "inbox" as const, label: `Approve Requests (${inbox.filter((b) => b.status === "pending").length})` },
@@ -355,6 +363,14 @@ export default function PropertyPage() {
                       <span>{a.capacity} persons</span>
                       <span className="text-slate-200">·</span>
                       <span>{a.floor}</span>
+                      <span className="text-slate-200">·</span>
+                      <span>
+                        {a.shared_billing_enabled
+                          ? `${formatUsdAmount(a.display_fee ?? a.shared_billing_amount)} / ${a.shared_billing_frequency === "yearly" ? "year" : "month"}`
+                          : Number(a.display_fee ?? a.booking_fee ?? 0) > 0
+                            ? formatUsdAmount(a.display_fee ?? a.booking_fee)
+                            : "Free"}
+                      </span>
                     </div>
                     {owned ? (
                       <div className="mt-3 space-y-2">
@@ -371,7 +387,7 @@ export default function PropertyPage() {
                       </div>
                     ) : billingRestricted && !owned ? (
                       <p className="mt-3 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-[12px] font-medium text-rose-700">
-                        Booking is paused for this amenity until the previous month&apos;s bill is paid.
+                        Booking is paused until this amenity&apos;s shared bill is paid and approved.
                       </p>
                     ) : canRequest ? (
                       <button
@@ -421,6 +437,8 @@ export default function PropertyPage() {
           })()}
         </div>
       )}
+
+      {tab === "services" && <UnitServiceWorkspace />}
 
       {/* ── Community Rules ── */}
       {tab === "rules" && (

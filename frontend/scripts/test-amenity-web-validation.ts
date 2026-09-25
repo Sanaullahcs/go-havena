@@ -37,7 +37,10 @@ const valid: AmenityForm = {
   weekends_available: true,
   slot_duration_minutes: "60",
   icon_key: "pool",
+  custom_category: "",
+  charge_model: "free",
   shared_billing_enabled: false,
+  shared_billing_frequency: "monthly",
   shared_billing_amount: "",
   shared_billing_due_day: "",
   booking_fee: "0",
@@ -55,7 +58,10 @@ console.log("\nWeb amenity form validation");
     weekends_available: true,
     slot_duration_minutes: "",
     icon_key: "",
+    custom_category: "",
+    charge_model: "free",
     shared_billing_enabled: false,
+    shared_billing_frequency: "monthly",
     shared_billing_amount: "",
     shared_billing_due_day: "",
     booking_fee: "",
@@ -110,25 +116,80 @@ console.log("\nWeb amenity form validation");
   assert(billingPayload.shared_billing_amount === 25, "payload stores amount");
   assert(billingPayload.shared_billing_due_day === 10, "payload stores due day");
 
+  assert(Boolean(validateAmenityForm({ ...valid, capacity: "" }).capacity), "requires capacity for slots");
+  assert(
+    !hasFieldErrors(validateAmenityForm({ ...valid, status: "open", capacity: "" })),
+    "open allows empty capacity",
+  );
+  assert(
+    !hasFieldErrors(
+      validateAmenityForm({
+        ...valid,
+        status: "open",
+        capacity: "",
+        charge_model: "booking",
+        booking_fee: "25",
+      }),
+    ),
+    "open accepts a booking fee like slots",
+  );
+  assert(
+    amenityFormToPayload({
+      ...valid,
+      status: "open",
+      capacity: "",
+      charge_model: "booking",
+      booking_fee: "25",
+    }).booking_fee === 25,
+    "open payload stores booking fee",
+  );
+  assert(
+    Boolean(
+      validateAmenityForm({
+        ...valid,
+        status: "closed",
+        capacity: "",
+        charge_model: "booking",
+        booking_fee: "25",
+      }).booking_fee,
+    ),
+    "closed rejects a booking fee",
+  );
+  assert(
+    !hasFieldErrors(validateAmenityForm({ ...valid, status: "closed", capacity: "" })),
+    "closed allows empty capacity",
+  );
+  assert(amenityFormToPayload(valid).capacity === 20, "slots payload includes capacity");
+  assert(
+    amenityFormToPayload({ ...valid, status: "open", capacity: "" }).capacity === null,
+    "open empty capacity payload is null",
+  );
+  assert(
+    amenityFormToPayload({ ...valid, status: "closed", capacity: "" }).capacity === null,
+    "closed empty capacity payload is null",
+  );
+
   const emptyDetails = amenityFormStepErrors(
     { ...valid, name: "", floor: "", capacity: "", icon_key: "" },
     "details",
   );
   assert(Boolean(emptyDetails.name), "step 1 validates name");
   assert(Boolean(emptyDetails.floor), "step 1 validates location");
+  assert(!emptyDetails.capacity, "step 1 does not require capacity");
   assert(!emptyDetails.hours, "step 1 does not require hours");
 
-  const emptyHours = amenityFormStepErrors({ ...valid, hours: "" }, "availability");
+  const emptyHours = amenityFormStepErrors({ ...valid, hours: "", capacity: "" }, "availability");
   assert(Boolean(emptyHours.hours), "step 2 validates hours");
+  assert(Boolean(emptyHours.capacity), "step 2 requires capacity for slots");
   assert(!emptyHours.name, "step 2 does not re-validate name");
 
   assert(
-    visibleAmenityFormSteps(true, false).join(",") === "details,availability,review",
-    "skips billing step when shared billing is off",
+    visibleAmenityFormSteps(true, false).join(",") === "details,availability,billing,review",
+    "always includes billing step when the form supports amenity billing",
   );
   assert(
     visibleAmenityFormSteps(true, true).join(",") === "details,availability,billing,review",
-    "includes billing step when shared billing is on",
+    "keeps billing step when shared billing is on",
   );
   assert(
     visibleAmenityFormSteps(false, true).join(",") === "details,availability,review",

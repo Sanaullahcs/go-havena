@@ -12,12 +12,15 @@ export function getNotificationIcon(raw) {
 /** Screens registered in app/_layout — unknown /screens paths must not passthrough. */
 const ALLOWED_SCREEN_PREFIXES = [
   "/screens/admin-amenities",
+  "/screens/admin-amenity-bills",
   "/screens/admin-bookings",
+  "/screens/admin-service-bills",
   "/screens/admin-content-review",
   "/screens/admin-dashboard",
   "/screens/admin-guests",
   "/screens/admin-listings",
   "/screens/admin-members",
+  "/screens/admin-units",
   "/screens/community-feed",
   "/screens/community-listings",
   "/screens/event-detail",
@@ -30,6 +33,7 @@ const ALLOWED_SCREEN_PREFIXES = [
   "/screens/notification",
   "/screens/pending-community",
   "/screens/pending-community-admin",
+  "/screens/property-management",
   "/(tabs)/services",
   "/screens/profile",
 ];
@@ -103,6 +107,19 @@ function resolveAdminPendingRoute(pathname, queryParams, notification) {
   return null;
 }
 
+function isMissingBillingContactNotification(notification) {
+  const kind = String(notification?.kind ?? "").toLowerCase();
+  const haystack = `${notification?.title ?? ""} ${notification?.description ?? ""}`.toLowerCase();
+  return kind === "unit_missing_billing_contact" || haystack.includes("has no billing contact");
+}
+
+function adminUnitsRoute(notification, extraParams = {}) {
+  return withParams("/screens/admin-units", {
+    unitId: extraParams.unitId ?? notification?.unitId ?? "",
+    unitNumber: extraParams.unitNumber ?? notification?.unitNumber ?? "",
+  });
+}
+
 function isInformationalOnlyNotification(notification) {
   const haystack = `${notification?.title ?? ""} ${notification?.description ?? ""}`.toLowerCase();
   return haystack.includes("community invitation");
@@ -127,6 +144,16 @@ function resolveNotificationRouteFallback(notification) {
   }
 
   if (haystack.includes("amenity") || haystack.includes("reservation") || haystack.includes("booking request")) {
+    if (
+      haystack.includes("booking request")
+      || haystack.includes("reservation requested")
+      || (haystack.includes("requested") && haystack.includes("amenity") && !haystack.includes("needs approval"))
+    ) {
+      return { pathname: "/screens/admin-bookings" };
+    }
+    if (haystack.includes("payment proof") || haystack.includes("amenity payment")) {
+      return { pathname: "/screens/property-management/amenity-bills" };
+    }
     if (haystack.includes("approved") || haystack.includes("declined")) {
       return { pathname: "/(tabs)/services/my-booking" };
     }
@@ -138,6 +165,50 @@ function resolveNotificationRouteFallback(notification) {
 
   if (haystack.includes("guest approval") || haystack.includes("approve or reject guest")) {
     return { pathname: "/screens/guest-approvals" };
+  }
+
+  if (isMissingBillingContactNotification(notification)) {
+    return adminUnitsRoute(notification);
+  }
+
+  if (haystack.includes("billing contact")) {
+    return { pathname: "/screens/property-management/billing-contact" };
+  }
+
+  if (
+    haystack.includes("new service available")
+    || haystack.includes("open available services")
+    || haystack.includes("now available for your unit")
+  ) {
+    return { pathname: "/screens/property-management/available-services" };
+  }
+
+  if (
+    haystack.includes("amenity bill")
+    || (haystack.includes("amenity") && haystack.includes("bill"))
+  ) {
+    if (haystack.includes("pending verification") || haystack.includes("payment proof submitted")) {
+      return { pathname: "/screens/admin-amenity-bills" };
+    }
+    const amenityId = notification?.data?.amenity_id ?? notification?.payload?.amenity_id;
+    if (amenityId) {
+      return {
+        pathname: "/screens/property-management/amenity/all-facilities",
+        params: { id: String(amenityId) },
+      };
+    }
+    return { pathname: "/screens/property-management/amenity" };
+  }
+
+  if (
+    haystack.includes("new service bill")
+    || haystack.includes("new service")
+    || haystack.includes("bill is now available")
+    || haystack.includes("service bill due")
+    || haystack.includes("payment proof")
+    || haystack.includes("payment approved")
+  ) {
+    return { pathname: "/screens/property-management/unit-bills" };
   }
 
   if (haystack.includes("new message") || haystack.includes("new offer") || haystack.includes("offer received") || haystack.includes("sent you a message")) {
@@ -226,6 +297,8 @@ export function normalizeNotification(raw) {
     createdAt: raw.created_at,
     kind,
     category,
+    unitId: data?.unit_id ?? raw.unit_id ?? null,
+    unitNumber: data?.unit_number ?? raw.unit_number ?? null,
   };
 
   normalized.icon = getNotificationIcon(normalized);
@@ -267,6 +340,13 @@ export function resolveNotificationRoute(notification) {
       String(notification?.description ?? "").toLowerCase().includes("left your event") ||
       String(notification?.description ?? "").toLowerCase().includes("seat available");
     return getNoticeDetailRoute(isEvent ? { id, category: "event" } : { id, category: categoryHint || "general" });
+  }
+
+  if (pathname === "/admin/units" || pathname.includes("/screens/admin-units")) {
+    return adminUnitsRoute(notification, {
+      unitId: queryParams.unitId ?? queryParams.unit_id ?? queryParams.unit,
+      unitNumber: queryParams.unitNumber ?? queryParams.unit_number,
+    });
   }
 
   if (pathname.startsWith("/admin/") || pathname.includes("review_status=pending")) {

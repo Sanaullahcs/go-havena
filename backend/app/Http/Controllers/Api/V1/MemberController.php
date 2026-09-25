@@ -1039,6 +1039,10 @@ class MemberController extends Controller
         if ($userModel = User::query()->find($id)) {
             app(CommunityLifecycleService::class)->restoreSuspendedMember($userModel);
             $userModel->load(['profile', 'memberships']);
+            try {
+                app(\App\Services\UnitAssignmentService::class)->syncUserToCommunity($userModel, (int) $communityId);
+            } catch (\Throwable) {
+            }
             FamilyService::promoteAddMemberAfterCommunityApproval(
                 $userModel,
                 (int) $communityId,

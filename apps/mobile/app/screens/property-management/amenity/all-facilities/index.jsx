@@ -50,6 +50,9 @@ export default function AllFacilities() {
     userNextBookingDate,
     hasOverdueSharedAmenityBill,
     bookingFee,
+    displayFee,
+    sharedBillingEnabled,
+    sharedBillingFrequency,
   } = useLocalSearchParams();
 
   const amenityObj = { name: nameEn, name_es: nameEs, name_ar: nameAr, description: descEn, description_es: descriptionEs, description_ar: descriptionAr };
@@ -131,12 +134,22 @@ export default function AllFacilities() {
           value: t("propertyMgmt.people", { count: Number(capacity) }),
         }
       : null,
-    bookingFeeAmount(bookingFee) > 0
+    bookingFeeAmount(displayFee ?? bookingFee) > 0
       ? {
           icon: "credit-card",
           tint: "#B45309",
-          label: t("propertyMgmt.bookingFee"),
-          value: formatUsdAmount(bookingFee),
+          label:
+            String(sharedBillingEnabled) === "1"
+              ? t("propertyMgmt.sharedFee")
+              : t("propertyMgmt.bookingFee"),
+          value:
+            String(sharedBillingEnabled) === "1"
+              ? `${formatUsdAmount(displayFee ?? bookingFee)} / ${
+                  sharedBillingFrequency === "yearly"
+                    ? t("admin.sharedBillingYearly")
+                    : t("admin.sharedBillingMonthly")
+                }`
+              : formatUsdAmount(displayFee ?? bookingFee),
         }
       : null,
   ].filter(Boolean);

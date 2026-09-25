@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use App\Services\UnitAssignmentService;
 use App\Support\MediaUrl;
 use App\Support\OnboardingContext;
 
@@ -30,6 +31,7 @@ class UserResource extends JsonResource
                 'bio' => $profile?->bio,
                 'unit_number' => $profile?->unit_number,
                 'residence_type' => $profile?->residence_type,
+                'office_address' => $profile?->office_address,
                 'region_id' => $profile?->region_id,
                 'region' => $profile?->relationLoaded('region') && $profile->region ? [
                     'id' => $profile->region->id,
@@ -61,6 +63,7 @@ class UserResource extends JsonResource
                     ] : null,
                 ]);
             }),
+            'unit' => app(UnitAssignmentService::class)->userUnitBrief($this->resource),
             'guest_access' => \App\Services\GuestAccessService::guestAccessSummary($this->resource),
             'family' => \App\Services\FamilyService::onboardingBrief($this->resource),
             'needs_invite_code' => \App\Services\InviteCodeService::userNeedsInviteCode($this->resource),

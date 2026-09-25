@@ -20,12 +20,13 @@ class AmenityBillReminderService
 
     public const DUE_SOON_DAYS = 3;
 
-    public const BOOKING_RESTRICTED_MESSAGE = 'You still have an unpaid shared amenity bill from a previous month. Please submit your payment proof before booking this amenity.';
+    public const BOOKING_RESTRICTED_MESSAGE = 'You have an unpaid shared amenity bill for this amenity. Please submit your payment proof before booking.';
 
-    public const BOOKING_RESTRICTED_ERROR = 'shared_amenity_bill_overdue';
+    public const BOOKING_RESTRICTED_ERROR = 'shared_amenity_bill_unpaid';
 
     public const OUTSTANDING_STATUSES = [
         AmenitySharedBillService::RESIDENT_STATUS_UNPAID,
+        AmenitySharedBillService::RESIDENT_STATUS_PENDING,
         AmenitySharedBillService::RESIDENT_STATUS_REJECTED,
         AmenitySharedBillService::RESIDENT_STATUS_OVERDUE,
     ];
@@ -137,7 +138,7 @@ class AmenityBillReminderService
         }
     }
 
-    /** Amenity booking restriction: prior-month unpaid/rejected/overdue after the next cycle exists. */
+    /** Amenity booking restriction: any published unpaid/rejected/overdue shared bill. */
     public function hasOverdueSharedAmenityBill(int $amenityId, int $userId): bool
     {
         return $this->restrictedAmenityIds($userId, [$amenityId]) !== [];
@@ -155,19 +156,20 @@ class AmenityBillReminderService
 
         $this->markOverdue(userId: $userId);
 
-        return DB::table('amenity_resident_bills as rb')
+        $query = DB::table('amenity_resident_bills as rb')
             ->join('amenity_monthly_bills as mb', 'mb.id', '=', 'rb.monthly_bill_id')
             ->where('rb.user_id', $userId)
             ->whereIn('rb.amenity_id', $amenityIds)
             ->whereIn('rb.status', self::OUTSTANDING_STATUSES)
-            ->where('mb.status', AmenitySharedBillService::STATUS_PUBLISHED)
-            ->whereExists(function ($query) {
-                $query->select(DB::raw(1))
-                    ->from('amenity_monthly_bills as later')
-                    ->whereColumn('later.amenity_id', 'rb.amenity_id')
-                    ->where('later.status', AmenitySharedBillService::STATUS_PUBLISHED)
-                    ->whereColumn('later.billing_month', '>', 'mb.billing_month');
-            })
+            ->where('mb.status', AmenitySharedBillService::STATUS_PUBLISHED);
+
+        if (\Illuminate\Support\Facades\Schema::hasColumn('amenity_resident_bills', 'booking_id')) {
+            $query->where(function ($inner) {
+                $inner->whereNull('rb.booking_id')->orWhere('rb.booking_id', 0);
+            });
+        }
+
+        return $query
             ->distinct()
             ->pluck('rb.amenity_id')
             ->map(fn ($id) => (int) $id)
@@ -270,7 +272,7 @@ class AmenityBillReminderService
             $type,
             $title,
             $body,
-            '/screens/property-management/amenity/all-facilities',
+            '/screens/property-management/amenity-bills',
             [
                 'kind' => 'amenity_bill_'.$kind,
                 'amenity_id' => (int) $row->amenity_id,

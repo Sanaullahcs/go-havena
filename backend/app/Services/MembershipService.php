@@ -18,11 +18,15 @@ class MembershipService
     public static function hasCompleteProfile(User $user): bool
     {
         $profile = $user->profile;
+        if (! $profile || ! filled($profile->display_name)) {
+            return false;
+        }
 
-        return $profile
-            && filled($profile->display_name)
-            && filled($profile->unit_number)
-            && filled($profile->residence_type);
+        if (AdminRoleService::isCommunityAdminRole($user)) {
+            return filled($profile->office_address);
+        }
+
+        return filled($profile->unit_number) && filled($profile->residence_type);
     }
 
     /**

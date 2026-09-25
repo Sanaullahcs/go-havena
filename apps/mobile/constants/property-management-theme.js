@@ -125,6 +125,41 @@ export const PROPERTY_SERVICE_META = {
     bg: "#CFFAFE",
     border: "rgba(14, 116, 144, 0.22)",
   },
+  unitBills: {
+    lucide: "Receipt",
+    icon: "file-text",
+    color: "#B45309",
+    bg: "#FFFBEB",
+    border: "rgba(180, 83, 9, 0.22)",
+  },
+  amenityBills: {
+    lucide: "Wallet",
+    icon: "credit-card",
+    color: "#1B4F8A",
+    bg: "#E8F0F7",
+    border: "rgba(27, 79, 138, 0.22)",
+  },
+  availableServices: {
+    lucide: "Droplets",
+    icon: "droplet",
+    color: "#0369A1",
+    bg: "#E0F2FE",
+    border: "rgba(3, 105, 161, 0.22)",
+  },
+  billingContact: {
+    lucide: "UserRound",
+    icon: "user",
+    color: "#0F766E",
+    bg: "#CCFBF1",
+    border: "rgba(15, 118, 110, 0.22)",
+  },
+  createService: {
+    lucide: "CirclePlus",
+    icon: "plus-circle",
+    color: "#0E7490",
+    bg: "#CFFAFE",
+    border: "rgba(14, 116, 144, 0.22)",
+  },
 };
 
 /** Themed icons for admin stats and approval queue cards. */
@@ -176,6 +211,35 @@ export function getPropertyResidentServices(t) {
       routeKey: "ADMIN_BOOKINGS",
       badgeKey: "approveRequestCount",
     },
+    {
+      id: "unit-bills",
+      key: "unitBills",
+      title: t("services.unitBillsTitle"),
+      subtitle: t("services.unitBillsSub"),
+      routeKey: "UNIT_BILLS",
+      requiresBillingContact: true,
+    },
+    {
+      id: "amenity-bills",
+      key: "amenityBills",
+      title: t("services.myAmenityBillsTitle"),
+      subtitle: t("services.myAmenityBillsSub"),
+      routeKey: "AMENITY_BILLS",
+    },
+    {
+      id: "available-services",
+      key: "availableServices",
+      title: t("services.availableServicesTitle"),
+      subtitle: t("services.availableServicesSub"),
+      routeKey: "AVAILABLE_SERVICES",
+    },
+    {
+      id: "billing-contact",
+      key: "billingContact",
+      title: t("services.billingContactTitle"),
+      subtitle: t("services.billingContactSub"),
+      routeKey: "BILLING_CONTACT",
+    },
   ];
 }
 
@@ -210,6 +274,27 @@ export function getPropertyAdminServices(t) {
       title: t("services.browseAmenitiesTitle"),
       subtitle: t("services.browseAmenitiesSub"),
       routeKey: "AMENITY",
+    },
+    {
+      id: "create-service",
+      key: "createService",
+      title: t("services.createServiceTitle"),
+      subtitle: t("services.createServiceSub"),
+      routeKey: "ADMIN_SERVICE_FORM",
+    },
+    {
+      id: "service-bills",
+      key: "unitBills",
+      title: t("services.serviceBillsTitle"),
+      subtitle: t("services.serviceBillsSub"),
+      routeKey: "ADMIN_SERVICE_BILLS",
+    },
+    {
+      id: "amenity-bills",
+      key: "amenityBills",
+      title: t("services.amenityBillsTitle"),
+      subtitle: t("services.amenityBillsSub"),
+      routeKey: "ADMIN_AMENITY_BILLS",
     },
   ];
 }
@@ -267,6 +352,11 @@ export function getPropertyQuickActions(isAdmin, t) {
 
 export function getPropertyHubServices(isAdmin, t) {
   return isAdmin ? getPropertyAdminServices(t) : getPropertyResidentServices(t);
+}
+
+/** Hide billing-contact-only tiles (e.g. unit bills) for other unit residents. */
+export function filterPropertyServicesForViewer(services, { isBillingContact = false } = {}) {
+  return services.filter((item) => !item.requiresBillingContact || isBillingContact);
 }
 
 export function getPropertyBookActions(isAdmin, t) {

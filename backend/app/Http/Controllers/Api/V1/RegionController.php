@@ -99,31 +99,10 @@ class RegionController extends Controller
     public function adminIndex(Request $request): JsonResponse
     {
         $query = Region::query()->with('stateRecord.country');
+        $this->applyAdminRegionFilters($query, $request, includeStatus: true);
 
-        if ($status = $request->string('status')->trim()->toString()) {
-            if (in_array($status, ['active', 'inactive'], true)) {
-                $query->where('status', $status);
-            }
-        }
-
-        if ($countryId = $request->integer('country_id')) {
-            $query->whereHas('stateRecord', fn ($builder) => $builder->where('country_id', $countryId));
-        }
-
-        if ($stateId = $request->integer('state_id')) {
-            $query->where('state_id', $stateId);
-        }
-
-        if ($q = $request->string('q')->trim()->toString()) {
-            $query->where(function ($builder) use ($q) {
-                $builder->where('title', 'like', '%'.$q.'%')
-                    ->orWhere('area', 'like', '%'.$q.'%')
-                    ->orWhere('state', 'like', '%'.$q.'%')
-                    ->orWhereHas('stateRecord', fn ($state) => $state
-                        ->where('name', 'like', '%'.$q.'%')
-                        ->orWhereHas('country', fn ($country) => $country->where('name', 'like', '%'.$q.'%')));
-            });
-        }
+        $statsQuery = Region::query();
+        $this->applyAdminRegionFilters($statsQuery, $request, includeStatus: false);
 
         $regions = $query->orderBy('sort_order')->orderBy('title')->paginate($request->integer('per_page', 20));
 
@@ -134,6 +113,11 @@ class RegionController extends Controller
                 'last_page' => $regions->lastPage(),
                 'total' => $regions->total(),
                 'per_page' => $regions->perPage(),
+                'stats' => [
+                    'total' => (clone $statsQuery)->count(),
+                    'active' => (clone $statsQuery)->where('status', 'active')->count(),
+                    'inactive' => (clone $statsQuery)->where('status', 'inactive')->count(),
+                ],
             ],
         ]);
     }
@@ -214,6 +198,35 @@ class RegionController extends Controller
         $region->delete();
 
         return response()->json(['message' => 'Region deleted']);
+    }
+
+    private function applyAdminRegionFilters($query, Request $request, bool $includeStatus): void
+    {
+        if ($includeStatus) {
+            $status = $request->string('status')->trim()->toString();
+            if (in_array($status, ['active', 'inactive'], true)) {
+                $query->where('status', $status);
+            }
+        }
+
+        if ($countryId = $request->integer('country_id')) {
+            $query->whereHas('stateRecord', fn ($builder) => $builder->where('country_id', $countryId));
+        }
+
+        if ($stateId = $request->integer('state_id')) {
+            $query->where('state_id', $stateId);
+        }
+
+        if ($q = $request->string('q')->trim()->toString()) {
+            $query->where(function ($builder) use ($q) {
+                $builder->where('title', 'like', '%'.$q.'%')
+                    ->orWhere('area', 'like', '%'.$q.'%')
+                    ->orWhere('state', 'like', '%'.$q.'%')
+                    ->orWhereHas('stateRecord', fn ($state) => $state
+                        ->where('name', 'like', '%'.$q.'%')
+                        ->orWhereHas('country', fn ($country) => $country->where('name', 'like', '%'.$q.'%')));
+            });
+        }
     }
 
     private function transform(Region $region): array

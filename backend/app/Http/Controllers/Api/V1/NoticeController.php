@@ -11,6 +11,8 @@ use App\Services\ActivityLogService;
 use App\Services\NoticeAudienceService;
 use App\Services\NotificationService;
 use App\Services\ScheduledNoticeService;
+use App\Services\AmenitySharedBillService;
+use App\Services\UnitServiceBillService;
 use App\Services\UserBlockService;
 use App\Support\MediaUrl;
 use App\Support\NoticeExpiry;
@@ -1143,6 +1145,16 @@ class NoticeController extends Controller
             'author_avatar'    => MediaUrl::toPublic($notice->author_avatar ?? null, request()),
             'can_report'       => $this->canReportNotice($notice, $user),
         ];
+
+        if (($notice->category ?? '') === 'finance') {
+            $payload['service_bill'] = app(UnitServiceBillService::class)->findBillForNotice((int) $notice->id);
+            $payload['amenity_bill'] = $payload['service_bill']
+                ? null
+                : app(AmenitySharedBillService::class)->findBillForNotice(
+                    (int) $notice->id,
+                    (int) $user->id,
+                );
+        }
 
         if ($notice->category === 'event') {
             $capacity = isset($notice->event_capacity) ? (int) $notice->event_capacity : null;

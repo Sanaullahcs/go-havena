@@ -144,6 +144,8 @@ class CommunityController extends Controller
                     $billing->consumeReservationsForUser($community->id, (int) $inviteModel->invited_user_id);
                 }
 
+                $this->syncUnitAssignment($user, (int) $community->id);
+
                 return response()->json([
                     'data' => [
                         'membership' => [
@@ -166,6 +168,8 @@ class CommunityController extends Controller
                 ]);
                 $existing->refresh();
             }
+
+            $this->syncUnitAssignment($user, (int) $community->id);
 
             return response()->json([
                 'data' => [
@@ -261,6 +265,7 @@ class CommunityController extends Controller
 
         // Family create/join is handled by Complete Profile (ensure / join-request),
         // or by MemberController when community membership is approved.
+        $this->syncUnitAssignment($user, (int) $community->id);
 
         return response()->json([
             'data' => [
@@ -490,6 +495,15 @@ class CommunityController extends Controller
             ],
             'message' => 'Community request submitted for admin review.',
         ], 201);
+    }
+
+    private function syncUnitAssignment($user, int $communityId): void
+    {
+        try {
+            app(\App\Services\UnitAssignmentService::class)->syncUserToCommunity($user->fresh(['profile']), $communityId);
+        } catch (\Throwable) {
+            // Join should still succeed if unit assignment cannot complete.
+        }
     }
 
     private function communityPayload(Community $community): array

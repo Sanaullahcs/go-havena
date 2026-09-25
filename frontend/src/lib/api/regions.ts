@@ -18,11 +18,23 @@ export interface Region {
   updated_at?: string;
 }
 
+export type RegionStats = {
+  total: number;
+  active: number;
+  inactive: number;
+};
+
 export async function fetchRegions(params?: Record<string, unknown>) {
   const res = await api.get("/v1/admin/regions", { params });
   return res.data as {
     data: Region[];
-    meta: { current_page: number; last_page: number; total: number; per_page: number };
+    meta: {
+      current_page: number;
+      last_page: number;
+      total: number;
+      per_page: number;
+      stats?: RegionStats;
+    };
   };
 }
 

@@ -11,6 +11,9 @@ import {
   Store,
   Tag,
   CirclePlus,
+  UserRound,
+  Receipt,
+  Droplets,
 } from "lucide-react-native";
 import { getPropertyServiceMeta } from "../../constants/property-management-theme";
 import { sf, sw } from "../../utils/responsive";
@@ -26,6 +29,9 @@ const LUCIDE = {
   Store,
   Tag,
   CirclePlus,
+  UserRound,
+  Receipt,
+  Droplets,
 };
 
 /** Soft-tint Lucide icon tile — fixed box, centered glyph (matches ListRow sizing). */
