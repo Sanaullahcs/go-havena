@@ -387,4 +387,77 @@ class FeedPostTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.comment_id', $commentId);
     }
+
+    public function test_community_admin_poll_accepts_one_vote_and_then_closes(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/feed', [
+            'category' => 'poll',
+            'poll' => [
+                'question' => 'Should guest parking be limited?',
+                'duration_days' => 3,
+                'options' => ['Yes', 'No'],
+            ],
+        ], ['X-Community-Id' => (string) $community->id])->assertForbidden();
+
+        Sanctum::actingAs($admin);
+        $create = $this->postJson('/api/v1/feed', [
+            'category' => 'poll',
+            'poll' => [
+                'question' => 'Should guest parking be limited to 4 hours after 8 PM?',
+                'description' => 'A quick pulse check before we decide.',
+                'duration_days' => 3,
+                'options' => ['Yes', 'No', 'Keep the current rule'],
+            ],
+        ], ['X-Community-Id' => (string) $community->id])->assertCreated();
+
+        $create->assertJsonPath('data.category', 'poll');
+        $create->assertJsonPath('data.poll.results_visible', false);
+        $create->assertJsonPath('data.poll.closed', false);
+        $this->assertCount(3, $create->json('data.poll.options'));
+        $postId = $create->json('data.id');
+        $yesId = $create->json('data.poll.options.0.id');
+
+        Sanctum::actingAs($resident);
+        $vote = $this->postJson('/api/v1/feed/'.$postId.'/vote', [
+            'option_id' => $yesId,
+        ], ['X-Community-Id' => (string) $community->id])->assertOk();
+
+        $vote->assertJsonPath('data.poll.voted_option_id', $yesId);
+        $vote->assertJsonPath('data.poll.total_votes', 1);
+        $vote->assertJsonPath('data.poll.options.0.percent', 100);
+        $vote->assertJsonPath('message', 'Vote recorded.');
+
+        $this->postJson('/api/v1/feed/'.$postId.'/vote', [
+            'option_id' => $create->json('data.poll.options.1.id'),
+        ], ['X-Community-Id' => (string) $community->id])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'You have already voted in this poll.');
+
+        $this->assertSame(1, DB::table('poll_votes')->where('user_id', $resident->id)->count());
+
+        DB::table('polls')->where('post_id', $postId)->update([
+            'ends_at' => now()->subMinute(),
+        ]);
+
+        Sanctum::actingAs($admin);
+        $closed = $this->getJson('/api/v1/feed/'.$postId, [
+            'X-Community-Id' => (string) $community->id,
+        ])->assertOk();
+        $closed->assertJsonPath('data.poll.closed', true);
+        $closed->assertJsonPath('data.poll.results_visible', true);
+        $closed->assertJsonPath('data.poll.total_votes', 1);
+
+        $this->postJson('/api/v1/feed/'.$postId.'/vote', [
+            'option_id' => $yesId,
+        ], ['X-Community-Id' => (string) $community->id])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'This poll is closed.');
+
+        $this->postJson('/api/v1/feed/'.$postId.'/comments', [
+            'body' => 'Four hours is enough overnight.',
+        ], ['X-Community-Id' => (string) $community->id])->assertCreated();
+    }
 }

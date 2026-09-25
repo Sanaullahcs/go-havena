@@ -148,6 +148,7 @@ export default function FeedPostOptions({ post, onDeleted, onUserBlocked }) {
           label: t("feed.options.editPost"),
           icon: "create-outline",
           tone: "primary",
+          hidden: post?.category === "poll" || Boolean(post?.poll),
           onPress: handleEdit,
         },
         {

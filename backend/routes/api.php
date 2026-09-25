@@ -213,6 +213,7 @@ Route::prefix('v1')->group(function () {
         Route::put('/feed/{id}',                                 [FeedController::class, 'update']);
         Route::delete('/feed/{id}',                              [FeedController::class, 'destroy']);
         Route::post('/feed/{id}/like',                         [FeedController::class, 'like']);
+        Route::post('/feed/{id}/vote',                         [FeedController::class, 'vote']);
         Route::post('/feed/{id}/report',                       [FeedController::class, 'reportPost']);
         Route::get('/feed/{id}/comments',                      [FeedController::class, 'comments']);
         Route::post('/feed/{id}/comments',                     [FeedController::class, 'addComment']);
