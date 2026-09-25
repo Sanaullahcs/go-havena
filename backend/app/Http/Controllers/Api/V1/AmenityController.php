@@ -526,7 +526,6 @@ class AmenityController extends Controller
             ], 422);
         }
 
-<<<<<<< HEAD
         $amenity = DB::table('amenities')->find((int) $booking->amenity_id);
         $fee = (float) ($booking->booking_fee ?? 0);
         $booker = \App\Models\User::query()->find((int) $booking->user_id);
@@ -536,18 +535,6 @@ class AmenityController extends Controller
             && AdminRoleService::isCommunityAdminRole($booker);
 
         $nextStatus = $adminPaysAfterApproval ? 'awaiting_payment' : 'confirmed';
-=======
-        if (($booking->payment_method ?? null) === 'bank_ach'
-            && ($booking->payment_verification_status ?? '') === self::PAYMENT_PENDING) {
-            return response()->json([
-                'message' => 'Wait for the bank payment to post before approving this reservation.',
-            ], 422);
-        }
-
-        $paymentStatus = ($booking->payment_verification_status ?? self::PAYMENT_NOT_REQUIRED) === self::PAYMENT_PENDING
-            ? self::PAYMENT_ACCEPTED
-            : ($booking->payment_verification_status ?? self::PAYMENT_NOT_REQUIRED);
->>>>>>> b9baa2acea1d933e3b1ad9083f1c607a6d8f3c41
 
         DB::table('bookings')->where('id', $id)->update([
             'status' => $nextStatus,
