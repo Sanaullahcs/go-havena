@@ -434,7 +434,6 @@ class AmenityController extends Controller
             $timeSlot = $timeSlot ?: 'Open access';
         }
 
-<<<<<<< HEAD
         if ($amenity->shared_billing_enabled ?? false) {
             app(AmenitySharedBillService::class)->generateCurrentPeriodBill($amenity, (int) ($amenity->created_by ?? $user->id), $request);
             if (app(AmenityBillReminderService::class)->hasOverdueSharedAmenityBill((int) $amenity->id, (int) $user->id)) {
@@ -443,27 +442,6 @@ class AmenityController extends Controller
                     'error' => AmenityBillReminderService::BOOKING_RESTRICTED_ERROR,
                     'has_overdue_shared_amenity_bill' => true,
                 ], 422);
-=======
-        $bookingFee = $this->amenityBookingFee($amenity);
-        $requiresPayment = $bookingFee > 0;
-        $paymentMethod = $request->string('payment_method')->toString();
-        if (! in_array($paymentMethod, ['bank_ach', 'proof'], true)) {
-            $paymentMethod = $requiresPayment ? 'proof' : 'none';
-        }
-        $paymentStatus = $requiresPayment ? self::PAYMENT_PENDING : self::PAYMENT_NOT_REQUIRED;
-        $proofFile = $request->file('payment_proof');
-
-        if ($requiresPayment && $paymentMethod !== 'bank_ach') {
-            if (! $proofFile instanceof UploadedFile) {
-                throw ValidationException::withMessages([
-                    'payment_proof' => 'Upload a payment screenshot or receipt, or pay with your linked bank.',
-                ]);
-            }
-            if (! $request->filled('payment_date')) {
-                throw ValidationException::withMessages([
-                    'payment_date' => 'Payment date is required.',
-                ]);
->>>>>>> b9baa2acea1d933e3b1ad9083f1c607a6d8f3c41
             }
         }
 
@@ -477,56 +455,12 @@ class AmenityController extends Controller
             'guests' => $guests,
             'booking_fee' => $bookingFee,
             'status' => 'pending',
-<<<<<<< HEAD
             'payment_verification_status' => self::PAYMENT_NOT_REQUIRED,
-=======
-            'payment_verification_status' => $paymentStatus,
-            'payment_method' => $requiresPayment ? $paymentMethod : null,
->>>>>>> b9baa2acea1d933e3b1ad9083f1c607a6d8f3c41
             'notes' => $request->notes,
             'created_at' => $now,
             'updated_at' => $now,
         ]);
 
-<<<<<<< HEAD
-=======
-        if ($requiresPayment && $paymentMethod === 'bank_ach') {
-            try {
-                app(PlaidAchService::class)->payBooking($user, $id);
-            } catch (\Throwable $e) {
-                DB::table('bookings')->where('id', $id)->delete();
-                throw $e;
-            }
-        } elseif ($requiresPayment && $proofFile instanceof UploadedFile) {
-            try {
-                $fileMeta = $this->storeBookingProofFile(
-                    $proofFile,
-                    (int) $amenity->community_id,
-                    (int) $amenity->id,
-                    $id,
-                );
-                DB::table('bookings')->where('id', $id)->update([
-                    'proof_file_path' => $fileMeta['file_path'],
-                    'proof_file_name' => $fileMeta['file_name'],
-                    'proof_file_size' => $fileMeta['file_size'],
-                    'proof_mime_type' => $fileMeta['mime_type'],
-                    'payment_date' => $request->payment_date,
-                    'payment_reference' => $request->filled('payment_reference')
-                        ? trim((string) $request->payment_reference)
-                        : null,
-                    'payment_note' => $request->filled('payment_note')
-                        ? trim((string) $request->payment_note)
-                        : null,
-                    'proof_submitted_at' => $now,
-                    'updated_at' => $now,
-                ]);
-            } catch (\Throwable $e) {
-                DB::table('bookings')->where('id', $id)->delete();
-                throw $e;
-            }
-        }
-
->>>>>>> b9baa2acea1d933e3b1ad9083f1c607a6d8f3c41
         ActivityLogService::user(
             'amenity_booking_requested',
             "Requested {$amenity->name} for {$date} {$timeSlot}",
