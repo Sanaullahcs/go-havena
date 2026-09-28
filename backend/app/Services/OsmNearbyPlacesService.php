@@ -157,7 +157,7 @@ class OsmNearbyPlacesService
             $places[] = $place;
         }
 
-        usort($places, fn ($a, $b) => ($a['distance_meters'] ?? 0) <=> ($b['distance_meters'] ?? 0));
+        usort($places, fn ($a, $b) => $this->comparePlacesByPhoneThenDistance($a, $b));
 
         return array_values($places);
     }
@@ -441,5 +441,27 @@ QL;
         }
 
         return $url;
+    }
+
+    /**
+     * @param  array<string, mixed>  $a
+     * @param  array<string, mixed>  $b
+     */
+    private function comparePlacesByPhoneThenDistance(array $a, array $b): int
+    {
+        $phoneCmp = $this->placeHasPhone($b) <=> $this->placeHasPhone($a);
+        if ($phoneCmp !== 0) {
+            return $phoneCmp;
+        }
+
+        return ($a['distance_meters'] ?? 0) <=> ($b['distance_meters'] ?? 0);
+    }
+
+    /**
+     * @param  array<string, mixed>  $place
+     */
+    private function placeHasPhone(array $place): bool
+    {
+        return trim((string) ($place['phone'] ?? '')) !== '';
     }
 }

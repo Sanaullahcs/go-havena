@@ -12,6 +12,16 @@ export const NEARBY_PLACE_CATEGORIES = [
 
 export const NEARBY_FILTER_CATEGORIES = ["all", ...NEARBY_PLACE_CATEGORIES];
 
+function nearbyPlaceHasPhone(place) {
+  return Boolean(String(place?.phone ?? "").trim());
+}
+
+export function compareNearbyPlacesByPhoneThenDistance(a, b) {
+  const phoneCmp = Number(nearbyPlaceHasPhone(b)) - Number(nearbyPlaceHasPhone(a));
+  if (phoneCmp !== 0) return phoneCmp;
+  return (a.distanceMeters ?? 0) - (b.distanceMeters ?? 0);
+}
+
 export function mergeNearbyPlaces(byCategory = {}) {
   const seen = new Map();
   for (const category of NEARBY_PLACE_CATEGORIES) {
@@ -20,7 +30,7 @@ export function mergeNearbyPlaces(byCategory = {}) {
       seen.set(place.id, place);
     }
   }
-  return [...seen.values()].sort((a, b) => (a.distanceMeters ?? 0) - (b.distanceMeters ?? 0));
+  return [...seen.values()].sort(compareNearbyPlacesByPhoneThenDistance);
 }
 
 let bundleCache = null;
