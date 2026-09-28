@@ -212,16 +212,20 @@ class AmenityOvernightHoursTest extends TestCase
 
         Sanctum::actingAs($otherResident);
 
-        $this->getJson("/api/v1/amenities/{$amenityId}/slots?date={$sessionDate}")
+        $after = $this->getJson("/api/v1/amenities/{$amenityId}/slots?date={$sessionDate}")
             ->assertOk()
-            ->assertJsonPath('data.2.available', false);
+            ->json('data.2');
+        $this->assertTrue($after['available']);
+        $this->assertSame(9, $after['remaining']);
+        $this->assertSame(1, $after['booked']);
 
         $this->postJson('/api/v1/bookings', [
             'amenity_id' => $amenityId,
             'date' => $sessionDate,
             'time_slot' => '12:00 AM - 1:00 AM',
-        ])->assertUnprocessable()
-            ->assertJsonPath('message', 'This time slot is already requested or booked.');
+            'guests' => 2,
+        ])->assertCreated()
+            ->assertJsonPath('data.guests', 2);
     }
 
     public function test_same_day_morning_hours_still_book_on_the_selected_date(): void

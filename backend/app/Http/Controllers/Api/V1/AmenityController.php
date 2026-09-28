@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\ActivityLogService;
 use App\Services\AdminRoleService;
 use App\Services\AmenityBillReminderService;
+use App\Services\AmenityCapacityService;
 use App\Services\AmenitySharedBillService;
 use App\Services\GuestAccessService;
 use App\Services\GuestActivityService;
@@ -14,6 +15,7 @@ use App\Services\PlaidAchService;
 use App\Models\PlaidTransfer;
 use App\Support\AmenitySlots;
 use App\Support\MediaUrl;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -154,14 +156,6 @@ class AmenityController extends Controller
             return response()->json(['message' => 'Amenity not found.'], 404);
         }
 
-        if ($amenity->status !== 'bookable') {
-            return response()->json([
-                'data' => [],
-                'weekends_available' => (bool) ($amenity->weekends_available ?? true),
-                'message' => 'This amenity does not use timed slots.',
-            ]);
-        }
-
         $date = (string) $request->date;
 
         if (app(AmenityBillReminderService::class)->hasOverdueSharedAmenityBill($id, (int) $user->id)) {
@@ -197,6 +191,27 @@ class AmenityController extends Controller
             ]);
         }
 
+        $capacity = (int) ($amenity->capacity ?? 0);
+        $capacityService = app(AmenityCapacityService::class);
+        $occupying = $capacityService->occupyingBookings($id, $date);
+        $capacityBookingType = $capacityService->typeFor($amenity);
+
+        if ($amenity->status !== 'bookable') {
+            $booked = $capacityService->totalGuests($occupying);
+            $remaining = $capacityService->remainingCapacity($capacity, $booked);
+
+            return response()->json([
+                'data' => [],
+                'capacity' => $capacity,
+                'capacity_booking_type' => $capacityBookingType,
+                'booked' => $booked,
+                'remaining' => $remaining,
+                'available' => $remaining === null || $remaining > 0,
+                'weekends_available' => (bool) ($amenity->weekends_available ?? true),
+                'message' => 'This amenity does not use timed slots.',
+            ]);
+        }
+
         $slots = AmenitySlots::generate(
             $amenity->start_time ?? null,
             $amenity->end_time ?? null,
@@ -205,26 +220,26 @@ class AmenityController extends Controller
             $date,
         );
 
-        $taken = DB::table('bookings')
-            ->where('amenity_id', $id)
-            ->where('date', $date)
-            ->whereNotIn('status', ['cancelled', 'rejected'])
-            ->pluck('time_slot')
-            ->all();
-        $takenNormalized = array_map(
-            static fn ($slot) => AmenitySlots::normalizeSlotLabel(is_string($slot) ? $slot : ''),
-            $taken,
-        );
+        $usedBySlot = $capacityService->usedSeatsBySlot($amenity, $occupying, $slots);
+        $data = [];
+        foreach ($slots as $index => $slot) {
+            $norm = AmenitySlots::normalizeSlotLabel((string) ($slot['value'] ?? ''));
+            $booked = (int) ($usedBySlot[$norm] ?? 0);
+            $payload = $this->slotOccupancyPayload($slot, $capacity, $booked);
+            $payload['remaining_forward'] = $capacityService->remainingFromIndex(
+                $slots,
+                $usedBySlot,
+                (int) $index,
+                $capacity,
+            );
 
-        $data = array_map(function (array $slot) use ($takenNormalized) {
-            return [
-                ...$slot,
-                'available' => ! in_array(AmenitySlots::normalizeSlotLabel($slot['value']), $takenNormalized, true),
-            ];
-        }, $slots);
+            $data[] = $payload;
+        }
 
         return response()->json([
             'data' => $data,
+            'capacity' => $capacity,
+            'capacity_booking_type' => $capacityBookingType,
             'weekends_available' => (bool) ($amenity->weekends_available ?? true),
         ]);
     }
@@ -320,7 +335,7 @@ class AmenityController extends Controller
             'amenity_id' => 'required|integer|exists:amenities,id',
             'date' => 'required|date|after_or_equal:today',
             'time_slot' => 'nullable|string|max:50',
-            'guests' => 'integer|min:1|max:50',
+            'guests' => 'integer|min:1|max:1000',
             'notes' => 'nullable|string|max:500',
             'payment_proof' => 'nullable|'.self::BOOKING_PROOF_FILE_RULE,
             'payment_date' => 'nullable|date|before_or_equal:today',
@@ -370,29 +385,15 @@ class AmenityController extends Controller
             return response()->json(['message' => 'This amenity is not available on weekends.'], 422);
         }
 
-        $guests = (int) ($request->guests ?? 1);
+        $requestedSeats = (int) ($request->guests ?? 1);
         $capacity = (int) ($amenity->capacity ?? 0);
-        if ($capacity > 0 && $guests > $capacity) {
-            return response()->json([
-                'message' => "This amenity allows up to {$capacity} guests.",
-            ], 422);
-        }
-
-        $alreadyUserDay = DB::table('bookings')
-            ->where('amenity_id', $request->amenity_id)
-            ->where('user_id', $user->id)
-            ->where('date', $date)
-            ->whereNotIn('status', ['cancelled', 'rejected'])
-            ->exists();
-
-        if ($alreadyUserDay) {
-            return response()->json([
-                'message' => 'You already have a reservation for this amenity on that date.',
-            ], 422);
-        }
+        $capacityService = app(AmenityCapacityService::class);
+        $timedSlot = $amenity->status === 'bookable';
 
         $timeSlot = $request->time_slot;
-        if ($amenity->status === 'bookable') {
+        $normalizedSlot = '';
+        $validSlots = [];
+        if ($timedSlot) {
             if (! $timeSlot) {
                 return response()->json(['message' => 'Please select a time slot.'], 422);
             }
@@ -414,24 +415,16 @@ class AmenityController extends Controller
                 return response()->json(['message' => 'Selected time slot is not available for this amenity.'], 422);
             }
 
-            $existingSlots = DB::table('bookings')
-                ->where('amenity_id', $request->amenity_id)
-                ->where('date', $date)
-                ->whereNotIn('status', ['cancelled', 'rejected'])
-                ->pluck('time_slot');
-
-            $conflict = $existingSlots->contains(
-                static fn ($existing) => AmenitySlots::slotLabelsMatch((string) $existing, $normalizedSlot),
-            );
-
             $timeSlot = $normalizedSlot !== '' ? $normalizedSlot : $timeSlot;
-
-            if ($conflict) {
-                return response()->json(['message' => 'This time slot is already requested or booked.'], 422);
-            }
         } else {
             // Open availability — no timed slot.
             $timeSlot = $timeSlot ?: 'Open access';
+            $normalizedSlot = AmenitySlots::normalizeSlotLabel((string) $timeSlot);
+            if ($capacity > 0 && $requestedSeats > $capacity) {
+                return response()->json([
+                    'message' => "This amenity allows up to {$capacity} guests.",
+                ], 422);
+            }
         }
 
         if ($amenity->shared_billing_enabled ?? false) {
@@ -445,21 +438,89 @@ class AmenityController extends Controller
             }
         }
 
-        $bookingFee = ($amenity->shared_billing_enabled ?? false) ? 0.0 : $this->amenityBookingFee($amenity);
-        $now = now();
-        $id = DB::table('bookings')->insertGetId([
-            'amenity_id' => $request->amenity_id,
-            'user_id' => $user->id,
-            'date' => $date,
-            'time_slot' => $timeSlot,
-            'guests' => $guests,
-            'booking_fee' => $bookingFee,
-            'status' => 'pending',
-            'payment_verification_status' => self::PAYMENT_NOT_REQUIRED,
-            'notes' => $request->notes,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
+        $guests = $capacityService->storedGuestCount($amenity, $requestedSeats, $timedSlot);
+        $bookingFee = $capacityService->bookingFee($amenity, $requestedSeats, $timedSlot);
+
+        $id = DB::transaction(function () use (
+            $amenity,
+            $request,
+            $user,
+            $date,
+            $timeSlot,
+            $normalizedSlot,
+            $guests,
+            $requestedSeats,
+            $capacity,
+            $bookingFee,
+            $timedSlot,
+            $validSlots,
+            $capacityService,
+        ) {
+            DB::table('amenities')->where('id', $amenity->id)->lockForUpdate()->first();
+
+            $alreadyUserDay = DB::table('bookings')
+                ->where('amenity_id', $request->amenity_id)
+                ->where('user_id', $user->id)
+                ->where('date', $date)
+                ->whereNotIn('status', ['cancelled', 'rejected'])
+                ->exists();
+
+            if ($alreadyUserDay) {
+                throw new HttpResponseException(response()->json([
+                    'message' => 'You already have a reservation for this amenity on that date.',
+                ], 422));
+            }
+
+            $occupying = $capacityService->occupyingBookings((int) $amenity->id, $date);
+            $allocations = [];
+
+            if ($timedSlot && $validSlots !== []) {
+                try {
+                    $allocations = $capacityService->planAllocations(
+                        $amenity,
+                        $validSlots,
+                        $normalizedSlot,
+                        $requestedSeats,
+                        $occupying,
+                    );
+                } catch (\InvalidArgumentException $e) {
+                    throw new HttpResponseException(response()->json(['message' => $e->getMessage()], 422));
+                }
+            } else {
+                $used = $capacityService->totalGuests($occupying);
+                if ($capacity > 0 && $used + $requestedSeats > $capacity) {
+                    $remaining = max(0, $capacity - $used);
+                    if ($remaining < 1) {
+                        $message = 'This date is fully booked.';
+                    } else {
+                        $spotWord = $remaining === 1 ? 'spot' : 'spots';
+                        $message = "Only {$remaining} {$spotWord} left in this date.";
+                    }
+
+                    throw new HttpResponseException(response()->json(['message' => $message], 422));
+                }
+            }
+
+            $now = now();
+
+            $bookingId = DB::table('bookings')->insertGetId([
+                'amenity_id' => $request->amenity_id,
+                'user_id' => $user->id,
+                'date' => $date,
+                'time_slot' => $timeSlot,
+                'guests' => $guests,
+                'booking_fee' => $bookingFee,
+                'status' => 'pending',
+                'payment_verification_status' => self::PAYMENT_NOT_REQUIRED,
+                'notes' => $request->notes,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+
+            $capacityService->storeAllocations($bookingId, (int) $amenity->id, $date, $allocations);
+
+            return $bookingId;
+        });
 
         ActivityLogService::user(
             'amenity_booking_requested',
@@ -500,6 +561,12 @@ class AmenityController extends Controller
         if (! in_array($booking->status, ['pending', 'awaiting_payment', 'confirmed'], true)) {
             return response()->json([
                 'message' => 'Only pending or confirmed reservations can be cancelled.',
+            ], 422);
+        }
+
+        if (! app(AmenityCapacityService::class)->canCancel($booking)) {
+            return response()->json([
+                'message' => 'This reservation can no longer be cancelled after payment.',
             ], 422);
         }
 
@@ -708,7 +775,7 @@ class AmenityController extends Controller
         $data = $this->validateAmenityPayload($request, false);
         $payload = $this->mapAmenityUpdatePayload($data);
         $payload['updated_at'] = now();
-        $fields = ['name', 'name_es', 'name_ar', 'description', 'description_es', 'description_ar', 'status', 'capacity', 'floor', 'hours', 'start_time', 'end_time', 'weekends_available', 'slot_duration_minutes', 'icon_key', 'review_status', 'shared_billing_enabled', 'shared_billing_frequency', 'shared_billing_amount', 'shared_billing_due_day', 'booking_fee'];
+        $fields = ['name', 'name_es', 'name_ar', 'description', 'description_es', 'description_ar', 'status', 'capacity', 'capacity_booking_type', 'floor', 'hours', 'start_time', 'end_time', 'weekends_available', 'slot_duration_minutes', 'icon_key', 'review_status', 'shared_billing_enabled', 'shared_billing_frequency', 'shared_billing_amount', 'shared_billing_due_day', 'booking_fee'];
         $before = ActivityLogService::snapshot($amenity, $fields);
         DB::table('amenities')->where('id', $id)->update($payload);
 
@@ -886,6 +953,7 @@ class AmenityController extends Controller
             'description_ar' => 'nullable|string|max:2000',
             'status' => ($creating ? 'required' : 'sometimes').'|in:'.implode(',', self::STATUSES),
             'capacity' => ($request->input('status') === 'bookable' ? 'required' : 'nullable').'|integer|min:0|max:1000',
+            'capacity_booking_type' => 'nullable|in:'.AmenityCapacityService::TYPE_PER_SEAT.','.AmenityCapacityService::TYPE_FULL_SLOT,
             'floor' => 'nullable|string|max:40',
             'hours' => 'nullable|string|max:100',
             'start_time' => ($creating ? 'required' : 'sometimes').'|date_format:H:i',
@@ -961,6 +1029,7 @@ class AmenityController extends Controller
             'capacity' => array_key_exists('capacity', $data) && $data['capacity'] !== null
                 ? (int) $data['capacity']
                 : 0,
+            'capacity_booking_type' => app(AmenityCapacityService::class)->normalizeType($data['capacity_booking_type'] ?? null),
             'floor' => $data['floor'] ?? null,
             'hours' => $hours,
             'start_time' => $start ? $start.':00' : null,
@@ -988,6 +1057,10 @@ class AmenityController extends Controller
             if (array_key_exists($field, $data)) {
                 $payload[$field] = $field === 'capacity' && $data[$field] === null ? 0 : $data[$field];
             }
+        }
+
+        if (array_key_exists('capacity_booking_type', $data)) {
+            $payload['capacity_booking_type'] = app(AmenityCapacityService::class)->normalizeType($data['capacity_booking_type']);
         }
 
         if (array_key_exists('icon_key', $data) || array_key_exists('custom_category', $data)) {
@@ -1087,6 +1160,7 @@ class AmenityController extends Controller
             'review_status' => $row->review_status ?? 'approved',
             'rejection_reason' => $row->rejection_reason ?? null,
             'capacity' => (int) ($row->capacity ?? 0),
+            'capacity_booking_type' => app(AmenityCapacityService::class)->typeFor($row),
             'floor' => $row->floor,
             'hours' => AmenitySlots::formatHoursDisplay($start, $end, $row->hours ?? null),
             'start_time' => $start ? substr((string) $start, 0, 5) : null,
@@ -1237,6 +1311,8 @@ class AmenityController extends Controller
             'amenity_name_es' => $row->amenity_name_es ?? null,
             'amenity_name_ar' => $row->amenity_name_ar ?? null,
             'payment_proof' => $this->formatBookingPaymentProof($row),
+            'slot_allocations' => app(AmenityCapacityService::class)->allocationsForBooking((int) $row->id),
+            'can_cancel' => app(AmenityCapacityService::class)->canCancel($row),
         ];
     }
 
@@ -1302,6 +1378,29 @@ class AmenityController extends Controller
         $fee = (float) ($amenity->booking_fee ?? 0);
 
         return $fee > 0 ? round($fee, 2) : 0.0;
+    }
+
+    private function remainingCapacity(int $capacity, int $used): ?int
+    {
+        if ($capacity <= 0) {
+            return null;
+        }
+
+        return max(0, $capacity - $used);
+    }
+
+    /** @param  array<string, mixed>  $slot */
+    private function slotOccupancyPayload(array $slot, int $capacity, int $booked): array
+    {
+        $remaining = $this->remainingCapacity($capacity, $booked);
+
+        return [
+            ...$slot,
+            'capacity' => $capacity,
+            'booked' => $booked,
+            'remaining' => $remaining,
+            'available' => $remaining === null || $remaining > 0,
+        ];
     }
 
     /** @param  array<string, mixed>  $data */

@@ -59,7 +59,7 @@ class ResetTestDbCommand extends Command
 
         $this->info("Truncated {$cleared} tables.");
 
-        $code = $this->call('havena:ensure-system-admin');
+        $code = $this->call('havena:ensure-login-accounts');
         if ($code !== self::SUCCESS) {
             return $code;
         }
@@ -70,6 +70,7 @@ class ResetTestDbCommand extends Command
         $this->info('Test database reset complete.');
         $this->line("  Regions kept: {$regionCount}");
         $this->line('  System admin: admin@havena.app / password');
+        $this->line('  TGI community admin: tgi.admin@havena.app / OTP 123456 (local)');
         $this->line('  Wellness hub: W-E-L-L-S categories seeded (add courses and lessons in admin)');
 
         return self::SUCCESS;

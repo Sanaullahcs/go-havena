@@ -1,6 +1,7 @@
 /** Canonical property management stack routes (expo-router). */
 
 import { MarketplaceRoutes } from "./marketplace-routes";
+import { normalizeCapacityBookingType } from "../utils/amenity-display";
 
 export const PropertyManagementRoutes = {
   HOME: "/(tabs)/services",
@@ -163,6 +164,9 @@ export function amenityFacilityParams(amenity) {
     descriptionEs: amenity.description_es ?? "",
     descriptionAr: amenity.description_ar ?? "",
     capacity: amenity.capacity != null ? String(amenity.capacity) : "",
+    capacityBookingType: normalizeCapacityBookingType(
+      amenity.capacity_booking_type ?? amenity.capacityBookingType ?? "per_seat",
+    ),
     floor: amenity.floor ?? "",
     hours: amenity.hours ?? "",
     status: amenity.status ?? "",

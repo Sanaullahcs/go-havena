@@ -12,6 +12,7 @@ export interface Amenity {
   review_status?: "pending" | "approved" | "rejected" | string;
   rejection_reason?: string | null;
   capacity: number;
+  capacity_booking_type?: "per_seat" | "full_slot" | string;
   floor: string | null;
   image_url: string | null;
   icon_key?: string | null;
@@ -59,6 +60,8 @@ export interface Booking {
   time_slot: string | null;
   guests: number;
   booking_fee?: number;
+  can_cancel?: boolean;
+  slot_allocations?: Array<{ time_slot: string; seats: number }>;
   display_fee?: number | null;
   display_fee_kind?: "monthly" | "yearly" | "booking" | "free" | string;
   status: string;
@@ -86,6 +89,7 @@ export type AmenityFormPayload = {
   description?: string | null;
   status: "open" | "bookable" | "closed";
   capacity: number;
+  capacity_booking_type?: "per_seat" | "full_slot" | string;
   floor?: string | null;
   hours?: string | null;
   start_time?: string | null;
@@ -121,14 +125,22 @@ export type AmenitySlot = {
   end_day_offset?: number;
   starts_at?: string | null;
   ends_at?: string | null;
+  available?: boolean;
+  capacity?: number;
+  booked?: number;
+  remaining?: number | null;
+  remaining_forward?: number | null;
 };
 
 export type AmenitySlotResult = {
-  slots: Array<AmenitySlot & { available?: boolean }>;
+  slots: Array<AmenitySlot>;
   closed: boolean;
   message?: string;
   weekendsAvailable: boolean;
   userAlreadyBooked: boolean;
+  capacity?: number;
+  capacityBookingType?: string;
+  remaining?: number | null;
 };
 
 export async function fetchAmenitySlots(amenityId: number, date: string): Promise<AmenitySlotResult> {
@@ -136,11 +148,14 @@ export async function fetchAmenitySlots(amenityId: number, date: string): Promis
     params: { date },
   });
   return {
-    slots: (res.data.data ?? []) as Array<AmenitySlot & { available?: boolean }>,
+    slots: (res.data.data ?? []) as AmenitySlot[],
     closed: Boolean(res.data.closed),
     message: res.data.message as string | undefined,
     weekendsAvailable: res.data.weekends_available !== false,
     userAlreadyBooked: Boolean(res.data.user_already_booked),
+    capacity: res.data.capacity as number | undefined,
+    capacityBookingType: res.data.capacity_booking_type as string | undefined,
+    remaining: res.data.remaining ?? null,
   };
 }
 

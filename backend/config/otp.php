@@ -33,6 +33,12 @@ return [
             'acton@gohavena.com' => env('OTP_DEMO_ACTON_CODE', '221322'),
             'resident.acton@gohavena.com' => env('OTP_DEMO_ACTON_RESIDENT_CODE', '221322'),
             'umer@namuve.com' => env('OTP_DEMO_UMER_CODE', '221322'),
+            'tgi.admin@havena.app' => env('OTP_DEMO_TGI_ADMIN_CODE', '123456'),
+            'tgiadmin@havena.app' => env('OTP_DEMO_TGI_ADMIN_CODE', '123456'),
+            'tgi.resident1@havena.app' => env('OTP_DEMO_TGI_RESIDENT_CODE', '123456'),
+            'tgi.resident2@havena.app' => env('OTP_DEMO_TGI_RESIDENT_CODE', '123456'),
+            'tgi.resident3@havena.app' => env('OTP_DEMO_TGI_RESIDENT_CODE', '123456'),
+            'tgi.resident4@havena.app' => env('OTP_DEMO_TGI_RESIDENT_CODE', '123456'),
         ];
 
         $fallback = trim((string) env('OTP_DEMO_FALLBACK_CODE', '221322'));

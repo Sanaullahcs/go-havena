@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Feather } from "@expo/vector-icons";
@@ -27,6 +28,10 @@ import {
   formatUsdAmount,
   bookingFeeAmount,
   isDateBookedByUser,
+  isFullSlotCapacity,
+  maxBookableSeats,
+  normalizeCapacityBookingType,
+  reservationFeeTotal,
 } from "../../../../../../utils/amenity-display";
 import { useApiAction } from "../../../../../../hooks/use-api-action";
 import { useSubmitLock } from "../../../../../../hooks/use-submit-lock";
@@ -37,14 +42,21 @@ export default function ReservationCalender() {
   const { t } = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
-  const { id, name, status, isMine, bookingFee } = useLocalSearchParams();
+  const { id, name, status, isMine, bookingFee, capacity, capacityBookingType } = useLocalSearchParams();
   const amenityId = Number(id);
   const isOpenMode = String(status) === "open";
   const ownedByMe = isMine === "1" || isMine === "true";
-  const fee = bookingFeeAmount(bookingFee);
+  const unitFee = bookingFeeAmount(bookingFee);
+  const amenityCapacity = Math.max(0, Number(capacity) || 0);
+  const [slotCapacityType, setSlotCapacityType] = useState(() =>
+    normalizeCapacityBookingType(capacityBookingType),
+  );
+  const fullSlot = !isOpenMode && isFullSlotCapacity(slotCapacityType);
 
   const [selectedDate, setSelectedDate] = useState(DATES[0]?.key ?? null);
   const [selectedSlot, setSelectedSlot] = useState(null);
+  const [guests, setGuests] = useState(1);
+  const [seatPickerOpen, setSeatPickerOpen] = useState(false);
   const [slots, setSlots] = useState([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsMessage, setSlotsMessage] = useState("");
@@ -65,6 +77,30 @@ export default function ReservationCalender() {
     () => isDateBookedByUser(myBookings, amenityId, selectedDate),
     [myBookings, amenityId, selectedDate],
   );
+  const selectedSlotRow = useMemo(
+    () => slots.find((slot) => slot.value === selectedSlot) ?? null,
+    [slots, selectedSlot],
+  );
+  const remainingSpots = isOpenMode
+    ? amenityCapacity
+    : selectedSlotRow?.remaining != null
+      ? selectedSlotRow.remaining
+      : amenityCapacity;
+  const maxGuests = maxBookableSeats({
+    capacity: amenityCapacity,
+    remaining: remainingSpots,
+    remainingForward: selectedSlotRow?.remaining_forward,
+    fullSlot,
+  });
+  const fee = reservationFeeTotal(unitFee, Math.max(1, guests), fullSlot);
+
+  useEffect(() => {
+    setSlotCapacityType(normalizeCapacityBookingType(capacityBookingType));
+  }, [capacityBookingType]);
+
+  useEffect(() => {
+    if (fullSlot) setGuests(1);
+  }, [fullSlot]);
 
   useEffect(() => {
     if (!ownedByMe) return;
@@ -88,6 +124,9 @@ export default function ReservationCalender() {
     try {
       const result = await fetchAmenitySlots(amenityId, selectedDate);
       setSlots(result.slots ?? []);
+      setSlotCapacityType(
+        normalizeCapacityBookingType(result.capacityBookingType ?? capacityBookingType),
+      );
       setUserAlreadyBooked(Boolean(result.userAlreadyBooked));
       setSlotsMessage(
         result.userAlreadyBooked
@@ -119,6 +158,7 @@ export default function ReservationCalender() {
             amenity_id: amenityId,
             date: selectedDate,
             time_slot: isOpenMode ? undefined : selectedSlot,
+            guests,
           });
           return result;
         },
@@ -175,9 +215,10 @@ export default function ReservationCalender() {
                 key={d.key}
                 activeOpacity={0.85}
                 disabled={bookedByUser}
-                onPress={() => {
+                  onPress={() => {
                   setSelectedDate(d.key);
                   setSelectedSlot(null);
+                  setGuests(1);
                 }}
                 style={[
                   styles.dateChip,
@@ -261,7 +302,20 @@ export default function ReservationCalender() {
                       key={slot.value}
                       disabled={booked}
                       activeOpacity={0.85}
-                      onPress={() => setSelectedSlot(slot.value)}
+                      onPress={() => {
+                        setSelectedSlot(slot.value);
+                        if (fullSlot) {
+                          setGuests(1);
+                          return;
+                        }
+                        const max = maxBookableSeats({
+                          capacity: amenityCapacity,
+                          remaining: slot.remaining,
+                          remainingForward: slot.remaining_forward,
+                        });
+                        setGuests((prev) => Math.min(Math.max(1, prev), max));
+                        if (!fullSlot && max > 1) setSeatPickerOpen(true);
+                      }}
                       style={[
                         styles.slot,
                         active && styles.slotActive,
@@ -277,7 +331,15 @@ export default function ReservationCalender() {
                       >
                         {slot.label}
                       </Text>
-                      {booked ? <Text style={styles.slotBookedLabel}>{t("propertyMgmt.taken")}</Text> : null}
+                      {booked ? (
+                        <Text style={styles.slotBookedLabel}>{t("propertyMgmt.slotFull")}</Text>
+                      ) : slot.remaining != null ? (
+                        <Text style={styles.slotRemaining}>
+                          {fullSlot
+                            ? t("propertyMgmt.slotAvailable")
+                            : t("propertyMgmt.spotsLeft", { count: slot.remaining })}
+                        </Text>
+                      ) : null}
                     </TouchableOpacity>
                   );
                 })}
@@ -294,8 +356,39 @@ export default function ReservationCalender() {
           <Text style={styles.summaryLine}>
             {t("propertyMgmt.availableTimeSlots")}: {isOpenMode ? t("propertyMgmt.openAvailability") : (selectedSlot || "—")}
           </Text>
+          {(isOpenMode || selectedSlot) && !selectedDateBooked ? (
+            fullSlot ? (
+              <Text style={styles.summaryLine}>{t("propertyMgmt.fullSlotBooksEntire", { capacity: amenityCapacity })}</Text>
+            ) : (
+              <View style={styles.guestRow}>
+                <Text style={styles.summaryLine}>{t("propertyMgmt.howManyGuests")}</Text>
+                <View style={styles.guestStepper}>
+                  <TouchableOpacity
+                    onPress={() => setGuests((n) => Math.max(1, n - 1))}
+                    style={styles.guestBtn}
+                    disabled={guests <= 1}
+                  >
+                    <Feather name="minus" size={sf(14)} color={guests <= 1 ? "#94A3B8" : "#1B4F8A"} />
+                  </TouchableOpacity>
+                  <Text style={styles.guestCount}>{guests}</Text>
+                  <TouchableOpacity
+                    onPress={() => setGuests((n) => Math.min(maxGuests, n + 1))}
+                    style={styles.guestBtn}
+                    disabled={guests >= maxGuests}
+                  >
+                    <Feather name="plus" size={sf(14)} color={guests >= maxGuests ? "#94A3B8" : "#1B4F8A"} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )
+          ) : null}
           <Text style={styles.summaryFee}>
             {t("propertyMgmt.bookingFee")}: {formatUsdAmount(fee)}
+            {unitFee > 0 && fullSlot
+              ? ` (${formatUsdAmount(unitFee)}${t("propertyMgmt.perSlotSuffix")})`
+              : unitFee > 0 && !fullSlot
+                ? ` (${formatUsdAmount(unitFee)} × ${guests})`
+                : ""}
             {fee > 0 ? ` · ${t("propertyMgmt.bookingFeeAfterApproval")}` : ""}
           </Text>
         </View>
@@ -330,6 +423,46 @@ export default function ReservationCalender() {
           )}
         </TouchableOpacity>
       </View>
+
+      <Modal
+        visible={seatPickerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSeatPickerOpen(false)}
+      >
+        <View style={styles.pickerBackdrop}>
+          <View style={styles.pickerCard}>
+            <Text style={styles.pickerTitle}>{t("propertyMgmt.howManyGuests")}</Text>
+            {selectedSlotRow?.remaining != null &&
+            selectedSlotRow.remaining_forward != null &&
+            selectedSlotRow.remaining_forward > selectedSlotRow.remaining ? (
+              <Text style={styles.pickerHint}>{t("propertyMgmt.overflowHint", { count: selectedSlotRow.remaining })}</Text>
+            ) : null}
+            <ScrollView style={styles.pickerList} contentContainerStyle={styles.pickerListContent}>
+              {Array.from({ length: maxGuests }, (_, index) => index + 1).map((count) => {
+                const active = guests === count;
+                return (
+                  <TouchableOpacity
+                    key={count}
+                    style={[styles.pickerOption, active && styles.pickerOptionActive]}
+                    onPress={() => {
+                      setGuests(count);
+                      setSeatPickerOpen(false);
+                    }}
+                  >
+                    <Text style={[styles.pickerOptionText, active && styles.pickerOptionTextActive]}>
+                      {t("propertyMgmt.guestOption", { count })}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <TouchableOpacity style={styles.pickerClose} onPress={() => setSeatPickerOpen(false)}>
+              <Text style={styles.pickerCloseText}>{t("common.cancel")}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -493,6 +626,12 @@ const styles = StyleSheet.create({
     fontSize: sf(9),
     color: "#94A3B8",
   },
+  slotRemaining: {
+    marginTop: 2,
+    fontFamily: Fonts.medium,
+    fontSize: sf(9),
+    color: "#0D9488",
+  },
 
   footer: {
     paddingHorizontal: Layout.screenPadding,
@@ -530,6 +669,34 @@ const styles = StyleSheet.create({
     fontSize: sf(14),
     color: Colors.textPrimary,
     marginTop: sw(4),
+  },
+  guestRow: {
+    marginTop: sw(4),
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  guestStepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(10),
+  },
+  guestBtn: {
+    width: sw(30),
+    height: sw(30),
+    borderRadius: sw(8),
+    borderWidth: 1,
+    borderColor: "#D0D5DD",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  guestCount: {
+    minWidth: sw(20),
+    textAlign: "center",
+    fontFamily: Fonts.bold,
+    fontSize: sf(16),
+    color: Colors.textPrimary,
   },
   payCard: {
     marginTop: sw(12),
@@ -584,5 +751,64 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: sf(15),
     color: "#FFFFFF",
+  },
+  pickerBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+    justifyContent: "center",
+    paddingHorizontal: sw(24),
+  },
+  pickerCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: sw(16),
+    padding: sw(16),
+    maxHeight: "70%",
+  },
+  pickerTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(16),
+    color: Colors.textPrimary,
+  },
+  pickerHint: {
+    marginTop: sw(6),
+    fontFamily: Fonts.regular,
+    fontSize: sf(12),
+    color: Colors.textMuted,
+  },
+  pickerList: {
+    marginTop: sw(12),
+    maxHeight: sw(280),
+  },
+  pickerListContent: {
+    gap: sw(8),
+  },
+  pickerOption: {
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: sw(12),
+    paddingVertical: sw(12),
+    paddingHorizontal: sw(14),
+  },
+  pickerOptionActive: {
+    borderColor: "#1B4F8A",
+    backgroundColor: "#E8F0F7",
+  },
+  pickerOptionText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(14),
+    color: Colors.textPrimary,
+  },
+  pickerOptionTextActive: {
+    color: "#1B4F8A",
+  },
+  pickerClose: {
+    marginTop: sw(12),
+    alignItems: "center",
+    paddingVertical: sw(10),
+  },
+  pickerCloseText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(14),
+    color: "#64748B",
   },
 });

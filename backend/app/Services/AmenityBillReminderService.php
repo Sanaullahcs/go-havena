@@ -5,6 +5,7 @@ namespace App\Services;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class AmenityBillReminderService
 {
@@ -97,7 +98,8 @@ class AmenityBillReminderService
                 $sent++;
             }
 
-            if ($this->hasLaterMonthlyBill((int) $row->amenity_id, (string) $row->billing_month)
+            if (! $this->isBookingBill($row)
+                && $this->hasLaterMonthlyBill((int) $row->amenity_id, (string) $row->billing_month)
                 && in_array($status, self::OUTSTANDING_STATUSES, true)
                 && $this->notifyNextCycle($row)
             ) {
@@ -130,8 +132,10 @@ class AmenityBillReminderService
             ->where('mb.billing_month', '<', $monthlyBill->billing_month)
             ->whereIn('rb.status', self::OUTSTANDING_STATUSES)
             ->select($this->reminderSelect())
-            ->addSelect('a.name as amenity_name')
-            ->get();
+            ->addSelect('a.name as amenity_name');
+        $this->excludeBookingBills($previous);
+
+        $previous = $previous->get();
 
         foreach ($previous as $row) {
             $this->notifyNextCycle($row);
@@ -194,8 +198,10 @@ class AmenityBillReminderService
                 'rb.status',
                 'mb.billing_month',
                 'mb.due_date',
-            ])
-            ->first();
+            ]);
+        $this->excludeBookingBills($row);
+
+        $row = $row->first();
 
         if (! $row) {
             return null;
@@ -216,7 +222,7 @@ class AmenityBillReminderService
 
     private function notifyCreated(object $row): bool
     {
-        $month = Carbon::parse((string) $row->billing_month)->format('F Y');
+        $month = $this->periodLabel($row);
 
         return $this->sendOnce((int) $row->resident_bill_id, self::KIND_CREATED, $row, 'info',
             "Your {$row->amenity_name} bill for {$month} is available.",
@@ -324,7 +330,7 @@ class AmenityBillReminderService
     /** @return list<string> */
     private function reminderSelect(): array
     {
-        return [
+        $columns = [
             'rb.id as resident_bill_id',
             'rb.user_id',
             'rb.amenity_id',
@@ -334,6 +340,46 @@ class AmenityBillReminderService
             'mb.billing_month',
             'mb.due_date',
         ];
+        if (Schema::hasColumn('amenity_monthly_bills', 'booking_id')) {
+            $columns[] = 'mb.booking_id';
+        }
+
+        return $columns;
+    }
+
+    private function excludeBookingBills($query)
+    {
+        if (Schema::hasColumn('amenity_monthly_bills', 'booking_id')) {
+            $query->where(function ($inner) {
+                $inner->whereNull('mb.booking_id')->orWhere('mb.booking_id', 0);
+            });
+
+            return $query;
+        }
+
+        return $query->whereYear('mb.billing_month', '>=', 2000);
+    }
+
+    private function isBookingBill(object $row): bool
+    {
+        if (isset($row->booking_id) && (int) $row->booking_id > 0) {
+            return true;
+        }
+
+        try {
+            return Carbon::parse((string) $row->billing_month)->year < 2000;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    private function periodLabel(object $row): string
+    {
+        if ($this->isBookingBill($row)) {
+            return Carbon::parse((string) $row->due_date)->toFormattedDateString();
+        }
+
+        return Carbon::parse((string) $row->billing_month)->format('F Y');
     }
 
     private function hasLaterMonthlyBill(int $amenityId, string $billingMonth): bool

@@ -4,6 +4,7 @@ import { getCommunityId, getToken } from "./auth-session";
 import { HOME_SECTION_CARD_LIMIT } from "../constants/home-sections";
 import { guessImageMeta, persistUploadAsset, uploadMultipartFile } from "../utils/upload-form-data";
 import i18n from "../i18n";
+import { normalizeCapacityBookingType } from "../utils/amenity-display";
 
 export async function fetchAmenities() {
   const res = await apiRequest("/amenities");
@@ -47,6 +48,9 @@ export async function fetchAmenitySlots(amenityId, date) {
     message: res.message,
     weekendsAvailable: res.weekends_available !== false,
     userAlreadyBooked: Boolean(res.user_already_booked),
+    capacity: res.capacity,
+    capacityBookingType: normalizeCapacityBookingType(res.capacity_booking_type),
+    remaining: res.remaining ?? null,
   };
 }
 

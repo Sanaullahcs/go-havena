@@ -81,12 +81,20 @@ console.log("\nWeb amenity form validation");
   assert(payload.start_time === "06:00", "payload includes start_time");
   assert(payload.end_time === "22:00", "payload includes end_time");
   assert(payload.weekends_available === true, "payload includes weekends_available");
+  assert(payload.capacity_booking_type === "per_seat", "payload defaults to per-seat capacity booking");
+  assert(
+    amenityFormToPayload({ ...valid, capacity_booking_type: "full_slot" }).capacity_booking_type === "full_slot",
+    "payload stores full-slot capacity booking",
+  );
   assert(payload.slot_duration_minutes === 60, "payload includes slot duration");
   assert(payload.shared_billing_enabled === false, "shared billing defaults off");
   assert(payload.shared_billing_amount === null, "shared billing amount is null when off");
   assert(payload.booking_fee === 0, "booking fee defaults to 0");
-  assert(!hasFieldErrors(validateAmenityForm({ ...valid, booking_fee: "25" })), "accepts booking fee");
-  assert(amenityFormToPayload({ ...valid, booking_fee: "25" }).booking_fee === 25, "payload stores booking fee");
+  assert(Boolean(validateAmenityForm({ ...valid, charge_model: "" }).charge_model), "requires a payment type");
+  assert(
+    amenityFormToPayload({ ...valid, charge_model: "booking", booking_fee: "10" }).booking_fee === 10,
+    "payload stores per-person reservation fee",
+  );
 
   const billingOn = validateAmenityForm({
     ...valid,

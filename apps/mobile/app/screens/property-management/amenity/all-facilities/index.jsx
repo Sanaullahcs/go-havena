@@ -21,6 +21,7 @@ import {
   bookingFeeAmount,
   hasUpcomingUserBooking,
   getNextUserBookingDate,
+  isFullSlotCapacity,
 } from "../../../../../utils/amenity-display";
 import { localizedField } from "../../../../../i18n";
 import { rnShadow } from "../../../../../utils/shadow";
@@ -53,6 +54,7 @@ export default function AllFacilities() {
     displayFee,
     sharedBillingEnabled,
     sharedBillingFrequency,
+    capacityBookingType,
   } = useLocalSearchParams();
 
   const amenityObj = { name: nameEn, name_es: nameEs, name_ar: nameAr, description: descEn, description_es: descriptionEs, description_ar: descriptionAr };
@@ -112,6 +114,7 @@ export default function AllFacilities() {
     weekendsAvailable !== "0" &&
     weekendsAvailable !== "false" &&
     weekendsAvailable !== false;
+  const feeIsFullSlot = isFullSlotCapacity(capacityBookingType);
 
   const infoRows = [
     floor
@@ -149,7 +152,8 @@ export default function AllFacilities() {
                     ? t("admin.sharedBillingYearly")
                     : t("admin.sharedBillingMonthly")
                 }`
-              : formatUsdAmount(displayFee ?? bookingFee),
+              : formatUsdAmount(displayFee ?? bookingFee) +
+                (feeIsFullSlot ? t("propertyMgmt.perSlotSuffix") : t("propertyMgmt.perPersonSuffix")),
         }
       : null,
   ].filter(Boolean);
@@ -169,6 +173,8 @@ export default function AllFacilities() {
         weekendsAvailable: String(weekendsAvailable ?? "1"),
         isMine: ownedByMe ? "1" : "0",
         bookingFee: String(bookingFee ?? "0"),
+        capacity: String(capacity ?? "0"),
+        capacityBookingType: String(capacityBookingType ?? "per_seat"),
       },
     });
   };

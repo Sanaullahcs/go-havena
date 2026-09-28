@@ -2,9 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Models\User;
+use App\Services\LocalLoginAccountRestorer;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Auth;
 
 class EnsureSystemAdminCommand extends Command
 {
@@ -14,31 +13,18 @@ class EnsureSystemAdminCommand extends Command
 
     protected $description = 'Create or reset the platform system admin (fixes login after bad seed hashes)';
 
-    public function handle(): int
+    public function handle(LocalLoginAccountRestorer $restorer): int
     {
         $email = (string) $this->option('email');
         $password = (string) $this->option('password');
 
-        $user = User::query()->updateOrCreate(
-            ['email' => $email],
-            [
-                'name'     => 'Admin User',
-                'password' => $password,
-                'status'   => 'active',
-                'role'     => 'system_admin',
-            ],
-        );
-
-        // Re-hash even when updateOrCreate skipped an unchanged row (fixes stale/plain passwords).
-        $user->forceFill(['password' => $password, 'status' => 'active', 'role' => 'system_admin'])->save();
-
-        if (! Auth::attempt(['email' => $email, 'password' => $password])) {
-            $this->error("System admin was saved but login verification failed for {$email}.");
+        try {
+            $user = $restorer->ensureSystemAdmin($email, $password);
+        } catch (\Throwable $e) {
+            $this->error($e->getMessage());
 
             return self::FAILURE;
         }
-
-        Auth::logout();
 
         $this->info("System admin ready: {$email} / {$password} (role: {$user->role}, id: {$user->id})");
 

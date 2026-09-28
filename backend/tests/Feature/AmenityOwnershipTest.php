@@ -274,7 +274,7 @@ class AmenityOwnershipTest extends TestCase
         $this->postJson('/api/v1/bookings', [
             'amenity_id' => $amenityId,
             'date' => now()->addDay()->toDateString(),
-            'time_slot' => '9:00 AM – 10:00 AM',
+            'time_slot' => '5:00 PM - 6:00 PM',
             'guests' => 8,
         ])->assertUnprocessable();
     }
