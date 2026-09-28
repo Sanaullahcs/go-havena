@@ -22,6 +22,7 @@ const TOPIC_TO_CATEGORY = {
   Help: "help",
   Neighborhood: "update",
   Announcements: "announcement",
+  Poll: "poll",
 };
 
 export const POST_TYPE_THEMES = {
@@ -30,6 +31,7 @@ export const POST_TYPE_THEMES = {
   Help: { bg: "#ECFDF5", text: "#047857", border: "#A7F3D0" },
   Neighborhood: { bg: "#D1FAF5", text: "#1B4F8A", border: "rgba(20, 184, 166, 0.28)" },
   Announcements: { bg: "#FEF3C7", text: "#B45309", border: "#FDE68A" },
+  Poll: { bg: "#E8F0F7", text: "#1B4F8A", border: "rgba(27, 79, 138, 0.28)" },
 };
 
 export const TOPIC_LABEL_KEY = {
@@ -41,17 +43,27 @@ export const TOPIC_LABEL_KEY = {
   Poll: "feed.topics.poll",
 };
 
-/** Post type options for create-post (labelKey + API category + chip colors). */
-export const POST_TYPE_OPTIONS = FEED_TOPICS.map((label) => ({
-  label,
-  labelKey: TOPIC_LABEL_KEY[label] ?? label,
-  category: TOPIC_TO_CATEGORY[label],
-  ...(POST_TYPE_THEMES[label] ?? {
-    bg: "#F3F4F6",
-    text: "#4B5563",
-    border: "#E5E7EB",
-  }),
-}));
+/** Create Post type chips — Poll is always the 6th option (after Announcements). */
+export const POST_TYPE_OPTIONS = [
+  ...FEED_TOPICS.map((label) => ({
+    label,
+    labelKey: TOPIC_LABEL_KEY[label] ?? label,
+    category: TOPIC_TO_CATEGORY[label],
+    ...(POST_TYPE_THEMES[label] ?? {
+      bg: "#F3F4F6",
+      text: "#4B5563",
+      border: "#E5E7EB",
+    }),
+  })),
+  {
+    label: "Poll",
+    labelKey: TOPIC_LABEL_KEY.Poll,
+    category: "poll",
+    bg: "#E8F0F7",
+    text: "#1B4F8A",
+    border: "rgba(27, 79, 138, 0.28)",
+  },
+];
 
 /**
  * Parse Laravel/MySQL datetime strings reliably across iOS & Android.
@@ -302,6 +314,7 @@ const CATEGORY_TO_TOPIC = {
   help: "Help",
   update: "Neighborhood",
   announcement: "Announcements",
+  poll: "Poll",
 };
 
 export function categoryToTopic(category) {

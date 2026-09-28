@@ -37,6 +37,8 @@ import AuthSuccessOverlay from "../../../components/ui/auth-success-overlay";
 import { navigateAfterAuth } from "../../../constants/onboarding-routes";
 import { decodeRouteEmail, paramString } from "../../../utils/route-params";
 import { ScreenBrand as B } from "../../../constants/screen-brand";
+import { DEV_OTP_HINT, shouldShowDevOtpHint } from "../../../constants/api-config";
+import { getApiErrorMessage } from "../../../utils/api-error-core";
 
 export default function VerifyRegistrationScreen() {
   const { t } = useTranslation();
@@ -47,6 +49,7 @@ export default function VerifyRegistrationScreen() {
   const email = decodeRouteEmail(emailParam) || decodeRouteEmail(phoneParam);
   const [otp, setOtp] = useState("");
   const [showOtpError, setShowOtpError] = useState(false);
+  const [otpErrorMessage, setOtpErrorMessage] = useState("");
   const [otpRefocusToken, setOtpRefocusToken] = useState(0);
   const { submitting, run } = useSubmitLock();
   const [resending, setResending] = useState(false);
@@ -68,7 +71,10 @@ export default function VerifyRegistrationScreen() {
 
   const handleVerify = () => {
     if (!isValid || submitting || lockType === "security") {
-      if (!isValid) setShowOtpError(true);
+      if (!isValid) {
+        setOtpErrorMessage(t("auth.enter6DigitCode"));
+        setShowOtpError(true);
+      }
       return;
     }
 
@@ -89,6 +95,11 @@ export default function VerifyRegistrationScreen() {
         setVerifiedUser(user);
         setShowSuccess(true);
       } catch (err) {
+        setOtpErrorMessage(
+          err?.code === "INVALID_OTP"
+            ? t("auth.invalidOrExpiredCode")
+            : getApiErrorMessage(err) || t("auth.enter6DigitCode"),
+        );
         setShowOtpError(true);
         if (!applyRateLimitFromError(err)) {
           await handleAuthApiError(err, dialog, router, { email });
@@ -122,6 +133,7 @@ export default function VerifyRegistrationScreen() {
     setOtp(value);
     if (showOtpError) {
       setShowOtpError(false);
+      setOtpErrorMessage("");
     }
   };
 
@@ -180,7 +192,12 @@ export default function VerifyRegistrationScreen() {
               />
               {showOtpError ? (
                 <Text style={authStyles.inputErrorText}>
-                  {t("auth.enter6DigitCode")}
+                  {otpErrorMessage || t("auth.enter6DigitCode")}
+                </Text>
+              ) : null}
+              {shouldShowDevOtpHint() ? (
+                <Text style={layout.devHint}>
+                  Dev · <Text style={layout.devHintCode}>{DEV_OTP_HINT}</Text>
                 </Text>
               ) : null}
             </View>

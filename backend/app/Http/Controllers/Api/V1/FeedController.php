@@ -146,9 +146,6 @@ class FeedController extends Controller
         }
 
         $isPoll = $request->input('category') === 'poll';
-        if ($isPoll && ! AdminRoleService::isCommunityAdminApproved($user)) {
-            return response()->json(['message' => 'Only community admins can publish polls.'], 403);
-        }
 
         $pollOptions = [];
         if ($isPoll) {

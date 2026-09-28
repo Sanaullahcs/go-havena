@@ -52,4 +52,17 @@ return Application::configure(basePath: dirname(__DIR__))
 
             return null;
         });
+
+        // Never leak SQLSTATE / PDO details to API clients (even when APP_DEBUG=true locally).
+        $exceptions->renderable(function (\Illuminate\Database\QueryException $e, Request $request) {
+            if (! ($request->is('api/*') || $request->expectsJson())) {
+                return null;
+            }
+
+            report($e);
+
+            return response()->json([
+                'message' => 'We could not complete that request. Please try again in a moment.',
+            ], 503);
+        });
     })->create();

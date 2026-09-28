@@ -36,10 +36,10 @@ export const FEED_TAG_THEME = {
     icon: "bell",
   },
   Poll: {
-    bg: "#E0F2FE",
-    border: "#BAE6FD",
-    text: "#0369A1",
-    accent: "#0284C7",
+    bg: "#E8F0F7",
+    border: "rgba(27, 79, 138, 0.28)",
+    text: "#1B4F8A",
+    accent: "#1B4F8A",
     icon: "bar-chart-2",
   },
 };

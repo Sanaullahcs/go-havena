@@ -32,7 +32,7 @@ import { handleAuthApiError } from "../../../utils/auth-errors";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { AUTH_FIELD_INPUT_STYLE, authLayoutStyles as layout } from "../../../constants/auth-layout";
 import { authStyles } from "../../../constants/auth-styles";
-import { DEV_OTP_HINT } from "../../../constants/api-config";
+import { DEV_OTP_HINT, shouldShowDevOtpHint } from "../../../constants/api-config";
 import { Fonts } from "../../../constants/font";
 import { Shadows } from "../../../constants/tokens";
 import { ScreenBrand } from "../../../constants/screen-brand";
@@ -398,7 +398,7 @@ export default function GuestLoginScreen() {
                 {emailError ? (
                   <Text style={authStyles.inputErrorText}>{emailError}</Text>
                 ) : null}
-                {__DEV__ ? (
+                {shouldShowDevOtpHint() ? (
                   <Text style={layout.devHint}>
                     Dev · <Text style={layout.devHintCode}>{DEV_OTP_HINT}</Text>
                   </Text>
@@ -429,7 +429,7 @@ export default function GuestLoginScreen() {
                         {t("auth.enter6DigitCode")}
                       </Text>
                     ) : null}
-                    {__DEV__ ? (
+                    {shouldShowDevOtpHint() ? (
                       <Text style={layout.devHint}>
                         Dev · <Text style={layout.devHintCode}>{DEV_OTP_HINT}</Text>
                       </Text>
