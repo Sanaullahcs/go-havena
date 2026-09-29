@@ -199,6 +199,7 @@ export default function MyBooking() {
                 reservation.status === "awaiting_payment" && reservation.booking_bill && !reservation.booking_bill.can_submit_proof;
               const canCancel =
                 reservation.timeframe === "upcoming" &&
+                reservation.can_cancel !== false &&
                 (reservation.status === "pending" || reservation.status === "awaiting_payment" || reservation.status === "confirmed");
               const cancelLabel =
                 reservation.status === "pending" ? t("propertyMgmt.cancelRequest") : t("propertyMgmt.cancelReservation");

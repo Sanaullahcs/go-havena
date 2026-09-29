@@ -35,6 +35,14 @@ import { chevronForward } from "../../../../utils/rtl";
 import { localizedField } from "../../../../i18n";
 import { rnShadow } from "../../../../utils/shadow";
 
+const FILTERS = [
+  { key: "all", labelKey: "propertyMgmt.allFilter" },
+  { key: "bookable", labelKey: "propertyMgmt.timedSlots" },
+  { key: "open", labelKey: "propertyMgmt.freeAvailability" },
+  { key: "closed", labelKey: "propertyMgmt.closed" },
+  { key: "mine", labelKey: "propertyMgmt.yourAmenities" },
+  { key: "bookings", labelKey: "propertyMgmt.yourBookings" },
+];
 
 function AmenityCard({ amenity, onPress, alreadyBooked = false }) {
   const { t, i18n } = useTranslation();
@@ -121,6 +129,7 @@ export default function Amenity() {
   const [amenities, setAmenities] = useState([]);
   const [myBookings, setMyBookings] = useState([]);
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -155,8 +164,12 @@ export default function Amenity() {
     [amenities, search],
   );
 
-  const { mine, openAccess, bookable, alreadyBooked, others } = useMemo(() => {
-    const enriched = visibleAmenities.map((a) => enrichAmenityBookingState(a, myBookings));
+  const enriched = useMemo(
+    () => visibleAmenities.map((a) => enrichAmenityBookingState(a, myBookings)),
+    [visibleAmenities, myBookings],
+  );
+
+  const { mine, openAccess, bookable, alreadyBooked, closed } = useMemo(() => {
     const mineOnes = enriched.filter((a) => a.is_mine);
     const notMine = enriched.filter((a) => !a.is_mine && a.review_status !== "pending");
     const reserved = notMine.filter(
@@ -171,9 +184,22 @@ export default function Amenity() {
       openAccess: available.filter((a) => a.status === "open"),
       bookable: available.filter((a) => a.status === "bookable"),
       alreadyBooked: reserved,
-      others: notMine,
+      closed: notMine.filter((a) => a.status === "closed"),
     };
-  }, [visibleAmenities, myBookings]);
+  }, [enriched]);
+
+  const filtered = useMemo(() => {
+    if (filter === "bookable") return enriched.filter((a) => a.status === "bookable");
+    if (filter === "open") return enriched.filter((a) => a.status === "open");
+    if (filter === "closed") return enriched.filter((a) => a.status === "closed");
+    if (filter === "mine") return enriched.filter((a) => a.is_mine);
+    if (filter === "bookings") {
+      return enriched.filter((a) => a.user_has_upcoming_booking && !a.is_mine);
+    }
+    return enriched;
+  }, [enriched, filter]);
+
+  const visibleCount = filter === "all" ? visibleAmenities.length : filtered.length;
 
   const openDetail = (amenity) => {
     router.push({
@@ -182,15 +208,78 @@ export default function Amenity() {
     });
   };
 
+  const renderCards = (items, { markBooked = false } = {}) => (
+    <View style={styles.list}>
+      {items.map((amenity) => (
+        <AmenityCard
+          key={amenity.id}
+          amenity={amenity}
+          alreadyBooked={markBooked || (Boolean(amenity.user_has_upcoming_booking) && !amenity.is_mine)}
+          onPress={() => openDetail(amenity)}
+        />
+      ))}
+    </View>
+  );
+
+  const allEmpty =
+    mine.length === 0 &&
+    alreadyBooked.length === 0 &&
+    bookable.length === 0 &&
+    openAccess.length === 0 &&
+    closed.length === 0;
+  const listEmpty =
+    amenities.length === 0 ||
+    (search.trim() && enriched.length === 0) ||
+    (filter !== "all" && filtered.length === 0) ||
+    (filter === "all" && allEmpty);
+  const emptyTitle =
+    amenities.length === 0 ? t("propertyMgmt.noFacilities") : t("propertyMgmt.noFilterFacilities");
+  const emptyText =
+    amenities.length === 0
+      ? t("propertyMgmt.noFacilitiesDesc")
+      : t("propertyMgmt.noFilterFacilitiesDesc");
+
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <ScreenHeader
         layout="inline"
         titleAlign="center"
         title={t("propertyMgmt.amenityTitle")}
-        subtitle={loading ? " " : t("propertyMgmt.facilitiesAvailable", { count: search.trim() ? visibleAmenities.length : amenities.length })}
+        subtitle={loading ? " " : t("propertyMgmt.facilitiesAvailable", { count: visibleCount })}
         iconOnly
       />
+
+      <View style={styles.toolbar}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterBar}
+          style={styles.filterScroll}
+          keyboardShouldPersistTaps="handled"
+        >
+          {FILTERS.map((item) => {
+            const active = filter === item.key;
+            return (
+              <TouchableOpacity
+                key={item.key}
+                activeOpacity={0.85}
+                onPress={() => setFilter(item.key)}
+                style={[styles.filterChip, active && styles.filterChipActive]}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={t(item.labelKey)}
+              >
+                <Text
+                  style={[styles.filterChipText, active && styles.filterChipTextActive]}
+                  numberOfLines={1}
+                >
+                  {t(item.labelKey)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       {loading ? (
         <ActivityIndicator color={Colors.brandPrimary} style={{ marginTop: sw(40) }} />
@@ -215,23 +304,22 @@ export default function Amenity() {
             />
           ) : null}
 
-          {amenities.length === 0 ? (
+          {listEmpty ? (
             <View style={styles.empty}>
               <View style={styles.emptyIcon}>
                 <Feather name="home" size={sf(28)} color="#94A3B8" />
               </View>
-              <Text style={styles.emptyTitle}>{t("propertyMgmt.noFacilities")}</Text>
-              <Text style={styles.emptyText}>
-                {t("propertyMgmt.noFacilitiesDesc")}
+              <Text style={styles.emptyTitle}>
+                {search.trim() && enriched.length === 0
+                  ? t("propertyMgmt.noAmenitiesMatch")
+                  : emptyTitle}
               </Text>
+              {search.trim() && enriched.length === 0 ? null : (
+                <Text style={styles.emptyText}>{emptyText}</Text>
+              )}
             </View>
-          ) : visibleAmenities.length === 0 ? (
-            <View style={styles.empty}>
-              <View style={styles.emptyIcon}>
-                <Feather name="search" size={sf(28)} color="#94A3B8" />
-              </View>
-              <Text style={styles.emptyTitle}>{t("propertyMgmt.noAmenitiesMatch")}</Text>
-            </View>
+          ) : filter !== "all" ? (
+            renderCards(filtered, { markBooked: filter === "bookings" })
           ) : (
             <>
               {mine.length > 0 ? (
@@ -240,49 +328,24 @@ export default function Amenity() {
                   <Text style={styles.sectionHint}>
                     {t("propertyMgmt.manageBookingHint")}
                   </Text>
-                  <View style={styles.list}>
-                    {mine.map((amenity) => (
-                      <AmenityCard
-                        key={amenity.id}
-                        amenity={amenity}
-                        onPress={() => openDetail(amenity)}
-                      />
-                    ))}
-                  </View>
+                  {renderCards(mine)}
                 </View>
               ) : null}
 
               {alreadyBooked.length > 0 ? (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>{t("propertyMgmt.alreadyBookedSection")}</Text>
+                  <Text style={styles.sectionTitle}>{t("propertyMgmt.yourBookings")}</Text>
                   <Text style={styles.sectionHint}>
                     {t("propertyMgmt.alreadyBookedHint")}
                   </Text>
-                  <View style={styles.list}>
-                    {alreadyBooked.map((amenity) => (
-                      <AmenityCard
-                        key={amenity.id}
-                        amenity={amenity}
-                        alreadyBooked
-                        onPress={() => openDetail(amenity)}
-                      />
-                    ))}
-                  </View>
+                  {renderCards(alreadyBooked, { markBooked: true })}
                 </View>
               ) : null}
 
               {bookable.length > 0 ? (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>{t("propertyMgmt.timedSlots")}</Text>
-                  <View style={styles.list}>
-                    {bookable.map((amenity) => (
-                      <AmenityCard
-                        key={amenity.id}
-                        amenity={amenity}
-                        onPress={() => openDetail(amenity)}
-                      />
-                    ))}
-                  </View>
+                  {renderCards(bookable)}
                 </View>
               ) : null}
 
@@ -290,34 +353,16 @@ export default function Amenity() {
                 <View style={styles.section}>
                   <View style={styles.sectionHead}>
                     <View style={styles.liveDot} />
-                    <Text style={styles.sectionTitle}>{t("propertyMgmt.openAvailability")}</Text>
+                    <Text style={styles.sectionTitle}>{t("propertyMgmt.freeAvailability")}</Text>
                   </View>
-                  <View style={styles.list}>
-                    {openAccess.map((amenity) => (
-                      <AmenityCard
-                        key={amenity.id}
-                        amenity={amenity}
-                        onPress={() => openDetail(amenity)}
-                      />
-                    ))}
-                  </View>
+                  {renderCards(openAccess)}
                 </View>
               ) : null}
 
-              {others.filter((a) => a.status === "closed").length > 0 ? (
+              {closed.length > 0 ? (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>{t("propertyMgmt.closed")}</Text>
-                  <View style={styles.list}>
-                    {others
-                      .filter((a) => a.status === "closed")
-                      .map((amenity) => (
-                        <AmenityCard
-                          key={amenity.id}
-                          amenity={amenity}
-                          onPress={() => openDetail(amenity)}
-                        />
-                      ))}
-                  </View>
+                  {renderCards(closed)}
                 </View>
               ) : null}
             </>
@@ -330,6 +375,45 @@ export default function Amenity() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F7F8FC" },
+  toolbar: {
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E5E7EB",
+  },
+  filterScroll: {
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  filterBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Layout.screenPadding,
+    paddingVertical: sw(12),
+    gap: sw(8),
+    minHeight: sw(56),
+  },
+  filterChip: {
+    backgroundColor: "#F1F5F9",
+    height: sw(36),
+    paddingHorizontal: sw(14),
+    borderRadius: sw(10),
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  filterChipActive: { backgroundColor: "#1B4F8A" },
+  filterChipText: {
+    fontFamily: Fonts.medium,
+    fontSize: sf(13),
+    lineHeight: sf(16),
+    color: "#4A5565",
+    fontWeight: "500",
+  },
+  filterChipTextActive: {
+    fontFamily: Fonts.bold,
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
   scroll: {
     paddingHorizontal: Layout.screenPadding,
     paddingTop: sw(12),

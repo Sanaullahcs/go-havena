@@ -10,7 +10,7 @@ import {
 } from "@/lib/api/amenities";
 import { apiError } from "@/lib/api/client";
 import { toastError, toastSuccess } from "@/lib/alert";
-import { BookingPaymentSummary, bookingFeeAmount } from "@/components/property/booking-payment-fields";
+import { BookingPaymentSummary, bookingFeeAmount, isFullSlotCapacity, maxBookableSeats, reservationFeeTotal } from "@/components/property/booking-payment-fields";
 import { formatUsdAmount } from "@/lib/admin/amenity-bill-validation";
 import { useResidentPlaidConnect } from "@/components/plaid/use-resident-plaid-connect";
 import { fetchAchCapability, type AchCapability, type PlaidExchangePayload } from "@/lib/api/resident-plaid";
@@ -35,7 +35,7 @@ export function AmenityBookModal({
   const [date, setDate] = useState(tomorrowIso());
   const [slot, setSlot] = useState("");
   const [guests, setGuests] = useState("1");
-  const [slots, setSlots] = useState<Array<AmenitySlot & { available?: boolean }>>([]);
+  const [slots, setSlots] = useState<AmenitySlot[]>([]);
   const [resolvedSlotKey, setResolvedSlotKey] = useState("");
   const [slotsMessage, setSlotsMessage] = useState<string | null>(null);
   const [alreadyBooked, setAlreadyBooked] = useState(false);
@@ -186,8 +186,23 @@ export function AmenityBookModal({
     );
   }
 
-  const maxGuests = Math.max(1, Number(amenity.capacity) || 50);
-  const fee = amenity.shared_billing_enabled ? 0 : bookingFeeAmount(amenity.booking_fee);
+  const selectedSlot = slots.find((item) => item.value === slot);
+  const fullSlot = isFullSlotCapacity(amenity.capacity_booking_type) && amenity.status === "bookable";
+  const remaining =
+    amenity.status === "bookable"
+      ? selectedSlot?.remaining != null
+        ? selectedSlot.remaining
+        : Math.max(0, Number(amenity.capacity) || 0)
+      : Math.max(0, Number(amenity.capacity) || 0);
+  const maxGuests = maxBookableSeats({
+    capacity: amenity.capacity,
+    remaining,
+    remainingForward: selectedSlot?.remaining_forward,
+    fullSlot,
+  });
+  const unitFee = amenity.shared_billing_enabled ? 0 : bookingFeeAmount(amenity.booking_fee);
+  const guestCount = fullSlot ? 1 : Math.max(1, parseInt(guests, 10) || 1);
+  const fee = reservationFeeTotal(unitFee, guestCount, fullSlot);
 
   const handleSubmit = async () => {
     if (!date) {
@@ -202,9 +217,9 @@ export function AmenityBookModal({
       toastError("Choose an available time slot.");
       return;
     }
-    const guestCount = parseInt(guests, 10) || 1;
-    if (guestCount > maxGuests) {
-      toastError(`This amenity allows up to ${maxGuests} guests.`);
+    const guestCount = fullSlot ? 1 : parseInt(guests, 10) || 1;
+    if (!fullSlot && guestCount > maxGuests) {
+      toastError(`Only ${maxGuests} ${maxGuests === 1 ? "spot" : "spots"} left from this ${amenity.status === "bookable" ? "time slot" : "date"}.`);
       return;
     }
 
@@ -285,23 +300,79 @@ export function AmenityBookModal({
                 slots={slots}
                 message={slotsMessage}
                 selected={slot}
-                onSelect={setSlot}
+                fullSlot={fullSlot}
+                onSelect={(value) => {
+                  setSlot(value);
+                  const item = slots.find((slotItem) => slotItem.value === value);
+                  if (fullSlot) {
+                    setGuests("1");
+                    return;
+                  }
+                  const max = maxBookableSeats({
+                    capacity: amenity.capacity,
+                    remaining: item?.remaining,
+                    remainingForward: item?.remaining_forward,
+                  });
+                  setGuests((prev) =>
+                    String(Math.min(Math.max(1, parseInt(prev, 10) || 1), max)),
+                  );
+                }}
               />
             </div>
           ) : null}
 
-          <div>
-            <label className="nl-label">Guests</label>
-            <input
-              type="number"
-              min={1}
-              max={maxGuests}
-              value={guests}
-              onChange={(e) => setGuests(e.target.value)}
-              className="nl-input mt-1.5"
-            />
-            <p className="mt-1 text-xs text-slate-400">Max {maxGuests} guests</p>
-          </div>
+          {fullSlot ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-sm font-semibold text-slate-800">This books the entire slot</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Capacity is {Number(amenity.capacity) || 0}. Other residents will not be able to book this time.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <label className="nl-label">How many guests are you booking?</label>
+              {amenity.status === "bookable" && slot && maxGuests <= 24 ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {Array.from({ length: maxGuests }, (_, index) => index + 1).map((count) => {
+                    const active = guestCount === count;
+                    return (
+                      <button
+                        key={count}
+                        type="button"
+                        onClick={() => setGuests(String(count))}
+                        className={[
+                          "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                          active
+                            ? "border-[#1B4F8A] bg-[#E8F0F7] text-[#1B4F8A]"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
+                        ].join(" ")}
+                      >
+                        {count} {count === 1 ? "guest" : "guests"}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <input
+                  type="number"
+                  min={1}
+                  max={maxGuests}
+                  value={guests}
+                  onChange={(e) => setGuests(e.target.value)}
+                  className="nl-input mt-1.5"
+                />
+              )}
+              <p className="mt-1 text-xs text-slate-400">
+                {amenity.status === "bookable" && slot
+                  ? selectedSlot?.remaining != null &&
+                    selectedSlot.remaining_forward != null &&
+                    selectedSlot.remaining_forward > selectedSlot.remaining
+                    ? `${selectedSlot.remaining} left in this slot. Extra seats use the next available slots.`
+                    : `Up to ${maxGuests} ${maxGuests === 1 ? "guest" : "guests"} available from this slot`
+                  : `Max ${maxGuests} guests`}
+              </p>
+            </div>
+          )}
 
           {bookStep === "community_bank" ? (
             <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
@@ -313,6 +384,9 @@ export function AmenityBookModal({
             date={date}
             slot={amenity.status === "bookable" ? slot : "Open access"}
             fee={fee}
+            guests={guestCount}
+            unitFee={unitFee}
+            fullSlot={fullSlot}
           />
         </div>
 

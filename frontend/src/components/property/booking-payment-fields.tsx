@@ -20,17 +20,56 @@ export function bookingFeeAmount(value?: number | null): number {
   return Number.isFinite(amount) && amount > 0 ? amount : 0;
 }
 
+export function normalizeCapacityBookingType(
+  type?: string | string[] | null,
+): "per_seat" | "full_slot" {
+  const raw = Array.isArray(type) ? type[0] : type;
+  return String(raw ?? "").trim().toLowerCase() === "full_slot" ? "full_slot" : "per_seat";
+}
+
+export function isFullSlotCapacity(type?: string | string[] | null): boolean {
+  return normalizeCapacityBookingType(type) === "full_slot";
+}
+
+export function reservationFeeTotal(unitFee: number, guests: number, fullSlot = false): number {
+  if (!(unitFee > 0)) return 0;
+  return fullSlot ? unitFee : unitFee * Math.max(1, guests);
+}
+
+export function maxBookableSeats(options: {
+  capacity?: number | null;
+  remaining?: number | null;
+  remainingForward?: number | null;
+  fullSlot?: boolean;
+}): number {
+  if (options.fullSlot) return 1;
+  const forward = options.remainingForward != null ? Number(options.remainingForward) : null;
+  const remaining = options.remaining != null ? Number(options.remaining) : null;
+  const capacity = Number(options.capacity) || 0;
+  const n = forward ?? remaining ?? capacity;
+  return Math.max(1, n > 0 ? n : capacity || 1);
+}
+
 export function BookingPaymentSummary({
   amenityName,
   date,
   slot,
   fee,
+  guests,
+  unitFee,
+  fullSlot = false,
 }: {
   amenityName: string;
   date: string;
   slot?: string | null;
   fee: number;
+  guests?: number;
+  unitFee?: number;
+  fullSlot?: boolean;
 }) {
+  const guestCount = Math.max(1, Number(guests) || 1);
+  const perPerson = unitFee != null && unitFee > 0 ? unitFee : guestCount > 1 && fee > 0 ? fee / guestCount : fee;
+
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
       <p>
@@ -45,9 +84,27 @@ export function BookingPaymentSummary({
         <span className="font-semibold text-slate-500">Slot: </span>
         {slot || "Open access"}
       </p>
+      {!fullSlot && guestCount > 0 ? (
+        <p className="mt-1">
+          <span className="font-semibold text-slate-500">Seats: </span>
+          {guestCount}
+        </p>
+      ) : null}
+      {fullSlot ? (
+        <p className="mt-1">
+          <span className="font-semibold text-slate-500">Capacity: </span>
+          Entire slot reserved
+        </p>
+      ) : null}
       <p className="mt-1">
-        <span className="font-semibold text-slate-500">Booking Fee: </span>
-        <span className="font-bold text-slate-900">{formatUsdAmount(fee)}</span>
+        <span className="font-semibold text-slate-500">Reservation fee: </span>
+        <span className="font-bold text-slate-900">
+          {fee > 0 && fullSlot
+            ? `${formatUsdAmount(fee)} (per slot)`
+            : fee > 0 && perPerson > 0 && guestCount > 1
+              ? `${formatUsdAmount(perPerson)} × ${guestCount} = ${formatUsdAmount(fee)}`
+              : formatUsdAmount(fee)}
+        </span>
       </p>
     </div>
   );

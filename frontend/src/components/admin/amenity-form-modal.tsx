@@ -34,18 +34,19 @@ const EMPTY_FORM: AmenityForm = {
   description: "",
   status: "bookable",
   capacity: "",
+  capacity_booking_type: "per_seat",
   floor: "",
   hours: "",
   weekends_available: true,
   slot_duration_minutes: "60",
   icon_key: "",
   custom_category: "",
-  charge_model: "free",
+  charge_model: "",
   shared_billing_enabled: false,
   shared_billing_frequency: "monthly",
   shared_billing_amount: "",
   shared_billing_due_day: "",
-  booking_fee: "0",
+  booking_fee: "",
 };
 
 const SLOT_OPTIONS = [
@@ -64,12 +65,12 @@ const STEP_COPY: Record<AmenityFormStep, { label: string; title: string; hint: s
   availability: {
     label: "Availability",
     title: "Availability",
-    hint: "Set hours, weekends, and how residents book.",
+    hint: "Set hours, weekends, timed slots, and how many people can share a slot.",
   },
   billing: {
     label: "Billing",
     title: "Resident billing",
-    hint: "Amenities bill each approved resident, not the unit. Community admins are never billed.",
+    hint: "Choose free, a reservation fee per person, or shared billing per resident. Community admins are never billed.",
   },
   review: {
     label: "Review",
@@ -84,6 +85,7 @@ function amenityToForm(amenity: Amenity): AmenityForm {
     description: amenity.description ?? "",
     status: (amenity.status as AmenityForm["status"]) ?? "bookable",
     capacity: amenity.capacity != null && Number(amenity.capacity) > 0 ? String(amenity.capacity) : "",
+    capacity_booking_type: amenity.capacity_booking_type === "full_slot" ? "full_slot" : "per_seat",
     floor: amenity.floor ?? "",
     hours: amenity.hours ?? "",
     weekends_available: amenity.weekends_available !== false,
@@ -98,7 +100,7 @@ function amenityToForm(amenity: Amenity): AmenityForm {
       amenity.shared_billing_amount != null ? String(amenity.shared_billing_amount) : "",
     shared_billing_due_day:
       amenity.shared_billing_due_day != null ? String(amenity.shared_billing_due_day) : "",
-    booking_fee: amenity.booking_fee != null ? String(amenity.booking_fee) : "0",
+    booking_fee: amenity.booking_fee != null && Number(amenity.booking_fee) > 0 ? String(amenity.booking_fee) : "",
   };
 }
 
@@ -197,6 +199,7 @@ export function AmenityFormModal({
     [showSharedBilling],
   );
   const chargeModel = amenityChargeModel(form);
+  const bookingFeeFullSlot = form.capacity_booking_type === "full_slot";
 
   useEffect(() => {
     if (!visibleSteps.includes(step)) {
@@ -213,6 +216,7 @@ export function AmenityFormModal({
 
   const setChargeModel = (model: AmenityChargeModel) => {
     setForm((prev) => applyAmenityChargeModel(prev, model));
+    clearError("charge_model");
     clearError("booking_fee");
     clearError("shared_billing_amount");
     clearError("shared_billing_due_day");
@@ -229,7 +233,7 @@ export function AmenityFormModal({
 
   const goNext = () => {
     if (submitting || isLast) return;
-    const stepErrors = amenityFormStepErrors(form, step);
+    const stepErrors = amenityFormStepErrors(form, step, showSharedBilling);
     if (hasFieldErrors(stepErrors)) {
       validateOnSubmit(stepErrors);
       return;
@@ -247,9 +251,21 @@ export function AmenityFormModal({
         liveErrors.custom_category
       ) {
         setStep("details");
-      } else if (liveErrors.status || liveErrors.capacity || liveErrors.hours || liveErrors.slot_duration_minutes) {
+      } else if (
+        liveErrors.status ||
+        liveErrors.capacity ||
+        liveErrors.capacity_booking_type ||
+        liveErrors.hours ||
+        liveErrors.slot_duration_minutes ||
+        (!showSharedBilling && (liveErrors.charge_model || liveErrors.booking_fee))
+      ) {
         setStep("availability");
-      } else if (liveErrors.booking_fee || liveErrors.shared_billing_amount || liveErrors.shared_billing_due_day) {
+      } else if (
+        liveErrors.charge_model ||
+        liveErrors.booking_fee ||
+        liveErrors.shared_billing_amount ||
+        liveErrors.shared_billing_due_day
+      ) {
         setStep(visibleSteps.includes("billing") ? "billing" : "availability");
       }
       return;
@@ -261,17 +277,17 @@ export function AmenityFormModal({
     {
       key: "free",
       title: "Free",
-      hint: "No monthly bill and no booking fee. Best for open facilities like a playground.",
+      hint: "No reservation fee and no shared bill. Residents can still request a slot.",
     },
     {
       key: "booking",
-      title: "Pay per booking",
-      hint: "The resident who reserves a slot pays a booking fee and uploads proof.",
+      title: "Per booking",
+      hint: "Charge a reservation fee per person for per-seat amenities, or once per booking for full-slot amenities.",
     },
     {
       key: "monthly",
-      title: "Shared monthly",
-      hint: "Each approved resident is billed every month, even if they do not use it.",
+      title: "Shared amenity",
+      hint: "Bill each approved resident every month or year. No per-booking fee.",
     },
   ];
 
@@ -444,7 +460,9 @@ export function AmenityFormModal({
 
               {form.status !== "open" ? (
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-600">Capacity / Limit</label>
+                  <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                    {form.status === "bookable" ? "People per time slot *" : "Capacity / Limit"}
+                  </label>
                   <input
                     className={[
                       inputClass(showError("capacity", liveErrors.capacity)),
@@ -453,13 +471,62 @@ export function AmenityFormModal({
                     value={form.capacity}
                     onChange={(e) => setField("capacity", e.target.value.replace(/[^0-9]/g, ""))}
                     onBlur={() => touch("capacity")}
-                    placeholder="e.g. 10"
+                    placeholder="e.g. 50"
                     inputMode="numeric"
                     disabled={form.status === "closed"}
                   />
-                  <p className="mt-1 text-xs text-slate-500">Capacity is required when Slots is selected.</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {form.status === "bookable"
+                      ? form.capacity_booking_type === "full_slot"
+                        ? "This many people fit in the slot. One booking still reserves the whole slot."
+                        : "Several residents can book the same slot until this many seats are reserved."
+                      : "Capacity is required when Slots is selected."}
+                  </p>
                   {showError("capacity", liveErrors.capacity) ? (
                     <p className="mt-1 text-xs text-red-600">{liveErrors.capacity}</p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {form.status === "bookable" ? (
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                    Capacity booking type *
+                  </label>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {([
+                      {
+                        key: "per_seat" as const,
+                        title: "Book per seat in a slot",
+                        hint: "Residents choose how many seats to hold. Leftover seats stay open for others.",
+                      },
+                      {
+                        key: "full_slot" as const,
+                        title: "Book full slot",
+                        hint: "A booking reserves the entire time slot, even if fewer people attend.",
+                      },
+                    ]).map((opt) => {
+                      const active = (form.capacity_booking_type || "per_seat") === opt.key;
+                      return (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          onClick={() => setField("capacity_booking_type", opt.key)}
+                          className={[
+                            "rounded-xl border px-3 py-2.5 text-left transition",
+                            active
+                              ? "border-[#1B4F8A] bg-[#E8F0F7] text-[#1B4F8A]"
+                              : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300",
+                          ].join(" ")}
+                        >
+                          <span className="block text-xs font-semibold">{opt.title}</span>
+                          <span className="mt-0.5 block text-[11px] font-normal text-slate-500">{opt.hint}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {showError("capacity_booking_type", liveErrors.capacity_booking_type) ? (
+                    <p className="mt-1 text-xs text-red-600">{liveErrors.capacity_booking_type}</p>
                   ) : null}
                 </div>
               ) : null}
@@ -493,17 +560,17 @@ export function AmenityFormModal({
                 />
               </label>
 
-              {!form.shared_billing_enabled && (form.status === "open" || form.status === "bookable") ? (
+              {!showSharedBilling && !form.shared_billing_enabled && (form.status === "open" || form.status === "bookable") ? (
                 <div className="space-y-3">
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                      Booking amount
+                      How residents pay *
                     </label>
                     <div className="flex flex-wrap gap-2">
                       {(
                         [
                           { key: "free" as const, label: "Free" },
-                          { key: "booking" as const, label: "Paid" },
+                          { key: "booking" as const, label: "Per booking" },
                         ] as const
                       ).map((opt) => {
                         const active = chargeModel === opt.key;
@@ -524,20 +591,31 @@ export function AmenityFormModal({
                         );
                       })}
                     </div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Choose a type to continue. Reservation fee is only needed for per-booking amenities.
+                    </p>
+                    {showError("charge_model", liveErrors.charge_model) ? (
+                      <p className="mt-1 text-xs text-red-600">{liveErrors.charge_model}</p>
+                    ) : null}
                   </div>
                   {chargeModel === "booking" ? (
                     <div>
                       <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                        Booking / reservation fee *
+                        {bookingFeeFullSlot ? "Reservation fee per slot *" : "Reservation fee per person *"}
                       </label>
                       <input
                         className={inputClass(showError("booking_fee", liveErrors.booking_fee))}
                         value={form.booking_fee}
                         onChange={(e) => setField("booking_fee", e.target.value.replace(/[^0-9.]/g, ""))}
                         onBlur={() => touch("booking_fee")}
-                        placeholder="e.g. 50"
+                        placeholder="e.g. 10"
                         inputMode="decimal"
                       />
+                      <p className="mt-1 text-xs text-slate-400">
+                        {bookingFeeFullSlot
+                          ? "Flat fee for the whole slot at booking. Billed after the owner approves."
+                          : "Charged after approval. Two guests at $10 each pay $20."}
+                      </p>
                       {showError("booking_fee", liveErrors.booking_fee) ? (
                         <p className="mt-1 text-xs text-red-600">{liveErrors.booking_fee}</p>
                       ) : null}
@@ -606,21 +684,27 @@ export function AmenityFormModal({
                 })}
               </div>
 
+              {showError("charge_model", liveErrors.charge_model) ? (
+                <p className="text-xs text-red-600">{liveErrors.charge_model}</p>
+              ) : null}
+
               {chargeModel === "booking" ? (
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                    Booking / reservation fee{chargeModel === "booking" ? " *" : ""}
+                    {bookingFeeFullSlot ? "Reservation fee per slot *" : "Reservation fee per person *"}
                   </label>
                   <input
                     className={inputClass(showError("booking_fee", liveErrors.booking_fee))}
                     value={form.booking_fee}
                     onChange={(e) => setField("booking_fee", e.target.value.replace(/[^0-9.]/g, ""))}
                     onBlur={() => touch("booking_fee")}
-                    placeholder={chargeModel === "booking" ? "e.g. 50" : "0"}
+                    placeholder="e.g. 10"
                     inputMode="decimal"
                   />
                   <p className="mt-1 text-xs text-slate-400">
-                    Charged to the resident who books, outside GoHavena. Use 0 if the monthly fee already covers booking.
+                    {bookingFeeFullSlot
+                      ? "Flat fee for the whole slot at booking. Billed after the owner approves."
+                      : "Total at booking is this amount × number of guests. Billed after the owner approves."}
                   </p>
                   {showError("booking_fee", liveErrors.booking_fee) ? (
                     <p className="mt-1 text-xs text-red-600">{liveErrors.booking_fee}</p>
@@ -730,7 +814,20 @@ export function AmenityFormModal({
               />
               <ReviewRow label="Location" value={form.floor.trim() || "—"} />
               {form.status !== "open" ? (
-                <ReviewRow label="Capacity / Limit" value={form.capacity.trim() || "—"} />
+                <ReviewRow
+                  label={form.status === "bookable" ? "People per time slot" : "Capacity / Limit"}
+                  value={form.capacity.trim() || "—"}
+                />
+              ) : null}
+              {form.status === "bookable" ? (
+                <ReviewRow
+                  label="Capacity booking type"
+                  value={
+                    form.capacity_booking_type === "full_slot"
+                      ? "Book full slot"
+                      : "Book per seat in a slot"
+                  }
+                />
               ) : null}
               <div className="sm:col-span-2">
                 <ReviewRow label="Description" value={form.description.trim() || "None"} />
@@ -749,21 +846,23 @@ export function AmenityFormModal({
               {showSharedBilling || form.status === "open" || form.status === "bookable" ? (
                 <>
                   <ReviewRow
-                    label="Charge model"
+                    label="How residents pay"
                     value={
                       chargeModel === "monthly"
-                        ? "Shared monthly"
+                        ? "Shared amenity"
                         : chargeModel === "booking"
-                          ? "Pay per booking"
-                          : "Free"
+                          ? "Per booking"
+                          : chargeModel === "free"
+                            ? "Free"
+                            : "Not selected"
                     }
                   />
                   {chargeModel === "booking" ? (
                     <ReviewRow
-                      label="Booking fee"
+                      label={bookingFeeFullSlot ? "Reservation fee per slot" : "Reservation fee per person"}
                       value={
                         Number(form.booking_fee) > 0
-                          ? formatUsdAmount(Number(form.booking_fee))
+                          ? `${formatUsdAmount(Number(form.booking_fee))} / ${bookingFeeFullSlot ? "slot" : "person"}`
                           : "None"
                       }
                     />

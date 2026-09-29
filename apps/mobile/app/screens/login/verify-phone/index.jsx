@@ -20,6 +20,7 @@ import {
   fetchMe,
 } from "../../../../services/auth-api";
 import { handleAuthApiError } from "../../../../utils/auth-errors";
+import { getApiErrorMessage } from "../../../../utils/api-error-core";
 import { useAppDialog } from "../../../../providers/app-dialog-provider";
 import { useOtpResendLimit } from "../../../../hooks/use-otp-resend-limit";
 import OtpResendFooter from "../../../../components/auth/otp-resend-footer";
@@ -33,7 +34,7 @@ import {
 } from "../../../../constants/onboarding-routes";
 import { decodeRouteEmail, paramString } from "../../../../utils/route-params";
 import { ScreenBrand as B } from "../../../../constants/screen-brand";
-import { DEV_OTP_HINT } from "../../../../constants/api-config";
+import { DEV_OTP_HINT, shouldShowDevOtpHint } from "../../../../constants/api-config";
 
 export default function VerifyPhoneScreen() {
   const { t } = useTranslation();
@@ -49,7 +50,9 @@ export default function VerifyPhoneScreen() {
 
   const [otp, setOtp] = useState("");
   const [showOtpError, setShowOtpError] = useState(false);
+  const [otpErrorMessage, setOtpErrorMessage] = useState("");
   const [otpSending, setOtpSending] = useState(shouldSendOnMount);
+  const [otpIssued, setOtpIssued] = useState(!shouldSendOnMount);
   const [resending, setResending] = useState(false);
   const [resendNotice, setResendNotice] = useState(false);
   const [otpRefocusToken, setOtpRefocusToken] = useState(0);
@@ -68,6 +71,7 @@ export default function VerifyPhoneScreen() {
   const emailDisplay = email || t("auth.yourEmail");
   const verifyLockRef = useRef(false);
   const initialSendRef = useRef(false);
+  const showDevOtpHint = shouldShowDevOtpHint() && otpIssued;
 
   useEffect(() => {
     if (!shouldSendOnMount || !email || initialSendRef.current) return;
@@ -77,13 +81,16 @@ export default function VerifyPhoneScreen() {
 
     (async () => {
       setOtpSending(true);
+      setOtpIssued(false);
       try {
         const result = await requestOtp(email, { intent: "login" });
         if (!cancelled) {
           applyRateLimit(result?.rate_limit ?? extractOtpRateLimitFromResponse({ data: result }));
+          setOtpIssued(true);
         }
       } catch (err) {
         if (!cancelled) {
+          setOtpIssued(false);
           if (!applyRateLimitFromError(err)) {
             await handleAuthApiError(err, dialog, router, { email });
           }
@@ -102,7 +109,16 @@ export default function VerifyPhoneScreen() {
     (code) => {
       const digits = String(code).replace(/[^0-9]/g, "");
       if (digits.length !== 6 || submitting || otpSending || verifyLockRef.current || lockType === "security") {
-        if (digits.length !== 6) setShowOtpError(true);
+        if (digits.length !== 6) {
+          setOtpErrorMessage(t("auth.enter6DigitCode"));
+          setShowOtpError(true);
+        }
+        return;
+      }
+
+      if (!otpIssued) {
+        setOtpErrorMessage(t("auth.codeNotSentYet"));
+        setShowOtpError(true);
         return;
       }
 
@@ -122,6 +138,11 @@ export default function VerifyPhoneScreen() {
           setShowSuccess(true);
         } catch (err) {
           verifyLockRef.current = false;
+          setOtpErrorMessage(
+            err?.code === "INVALID_OTP"
+              ? t("auth.invalidOrExpiredCode")
+              : getApiErrorMessage(err) || t("auth.enter6DigitCode"),
+          );
           setShowOtpError(true);
           if (!applyRateLimitFromError(err)) {
             await handleAuthApiError(err, dialog, router, { email });
@@ -130,7 +151,7 @@ export default function VerifyPhoneScreen() {
         }
       });
     },
-    [submitting, otpSending, run, email, dialog, router, lockType, applyRateLimitFromError],
+    [submitting, otpSending, otpIssued, run, email, dialog, router, lockType, applyRateLimitFromError, t],
   );
 
   const handleVerify = () => {
@@ -145,6 +166,7 @@ export default function VerifyPhoneScreen() {
       const result = await requestOtp(email, { intent: "login" });
       const rateLimit = result?.rate_limit ?? extractOtpRateLimitFromResponse({ data: result });
       const limits = applyRateLimit(rateLimit);
+      setOtpIssued(true);
       if (!limits.locked) {
         setResendNotice(true);
         setTimeout(() => setResendNotice(false), 2500);
@@ -162,6 +184,7 @@ export default function VerifyPhoneScreen() {
     setOtp(value.replace(/[^0-9]/g, "").slice(0, 6));
     if (showOtpError) {
       setShowOtpError(false);
+      setOtpErrorMessage("");
     }
   };
 
@@ -223,7 +246,7 @@ export default function VerifyPhoneScreen() {
               <AuthSubmitButton
                 label={t("auth.verifySignIn")}
                 loadingLabel={t("auth.verifying")}
-                enabled={isValid && !otpSending && lockType !== "security"}
+                enabled={isValid && !otpSending && otpIssued && lockType !== "security"}
                 loading={submitting}
                 onPress={handleVerify}
                 solidColor={B.cta}
@@ -269,10 +292,10 @@ export default function VerifyPhoneScreen() {
                   />
                   {showOtpError ? (
                     <Text style={authStyles.inputErrorText}>
-                      {t("auth.enter6DigitCode")}
+                      {otpErrorMessage || t("auth.enter6DigitCode")}
                     </Text>
                   ) : null}
-                  {__DEV__ ? (
+                  {showDevOtpHint ? (
                     <Text style={layout.devHint}>
                       Dev · <Text style={layout.devHintCode}>{DEV_OTP_HINT}</Text>
                     </Text>

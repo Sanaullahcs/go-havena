@@ -131,7 +131,7 @@ class UnitAssignmentService
         $normalized = $this->normalizeUnitNumber($unitNumber);
         $kind = $isAdmin ? self::KIND_OFFICE : self::KIND_RESIDENTIAL;
 
-        return DB::transaction(function () use ($communityId, $userId, $unitNumber, $normalized, $kind, $isAdmin) {
+        $unit = DB::transaction(function () use ($communityId, $userId, $unitNumber, $normalized, $kind, $isAdmin) {
             $unit = DB::table('units')
                 ->where('community_id', $communityId)
                 ->where('unit_number_normalized', $normalized)
@@ -179,6 +179,16 @@ class UnitAssignmentService
 
             return $unit;
         });
+
+        if ($unit && ($unit->kind ?? '') === self::KIND_RESIDENTIAL) {
+            app(UnitServiceBillService::class)->syncDueAutomaticBillsForUnit(
+                (int) $unit->id,
+                $communityId,
+                $userId,
+            );
+        }
+
+        return $unit;
     }
 
     public function createUnit(int $communityId, string $unitNumber, string $kind = self::KIND_RESIDENTIAL): object
@@ -332,9 +342,16 @@ class UnitAssignmentService
             return false;
         }
 
-        $effectiveId = $this->resolveEffectiveBillingContactId($unit);
+        $effectiveId = $this->effectiveBillingContactUserId($unit);
 
         return $effectiveId !== null && $effectiveId === $userId;
+    }
+
+    public function effectiveBillingContactUserId(object $unit): ?int
+    {
+        $fresh = $this->refreshBillingContactIfStale((int) $unit->id) ?? $unit;
+
+        return $this->resolveEffectiveBillingContactId($fresh);
     }
 
     public function eligibleResidentialUnits(int $communityId): array
@@ -354,7 +371,7 @@ class UnitAssignmentService
         $seen = [];
         $contacts = [];
         foreach ($this->eligibleResidentialUnits($communityId) as $unit) {
-            $userId = (int) ($unit->billing_contact_user_id ?? 0);
+            $userId = (int) ($this->effectiveBillingContactUserId($unit) ?? 0);
             if ($userId < 1 || isset($seen[$userId])) {
                 continue;
             }

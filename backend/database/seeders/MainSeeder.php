@@ -11,6 +11,12 @@ class MainSeeder extends Seeder
 {
     public function run(): void
     {
+        if (DB::table('users')->where('email', 'admin@havena.app')->exists()) {
+            $this->command?->warn('MainSeeder skipped: login accounts already exist.');
+
+            return;
+        }
+
         $now = now();
 
         /* ── Community ── */

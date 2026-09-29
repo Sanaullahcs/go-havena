@@ -26,19 +26,21 @@ export function sharedBillingDueDayLabel(day: number, frequency: "monthly" | "ye
 }
 
 export type AmenityChargeModel = "free" | "booking" | "monthly";
+export type AmenityFormChargeModel = AmenityChargeModel | "";
 
 export type AmenityForm = {
   name: string;
   description: string;
   status: "open" | "bookable" | "closed";
   capacity: string;
+  capacity_booking_type?: "per_seat" | "full_slot";
   floor: string;
   hours: string;
   weekends_available: boolean;
   slot_duration_minutes: string;
   icon_key: string;
   custom_category: string;
-  charge_model: AmenityChargeModel;
+  charge_model: AmenityFormChargeModel;
   shared_billing_enabled: boolean;
   shared_billing_frequency: "monthly" | "yearly";
   shared_billing_amount: string;
@@ -51,15 +53,17 @@ export type AmenityFormStep = (typeof AMENITY_FORM_STEPS)[number];
 
 export const AMENITY_FORM_STEP_FIELDS: Record<Exclude<AmenityFormStep, "review">, (keyof AmenityForm)[]> = {
   details: ["name", "description", "floor", "icon_key", "custom_category"],
-  availability: ["status", "capacity", "hours", "slot_duration_minutes", "booking_fee"],
-  billing: ["booking_fee", "shared_billing_frequency", "shared_billing_amount", "shared_billing_due_day"],
+  availability: ["status", "capacity", "capacity_booking_type", "hours", "slot_duration_minutes", "booking_fee"],
+  billing: ["charge_model", "booking_fee", "shared_billing_frequency", "shared_billing_amount", "shared_billing_due_day"],
 };
 
-export function amenityChargeModel(form: Pick<AmenityForm, "charge_model" | "shared_billing_enabled" | "booking_fee">): AmenityChargeModel {
+export function amenityChargeModel(
+  form: Pick<AmenityForm, "charge_model" | "shared_billing_enabled" | "booking_fee">,
+): AmenityFormChargeModel {
   if (form.charge_model) return form.charge_model;
   if (form.shared_billing_enabled) return "monthly";
   if (Number(form.booking_fee) > 0) return "booking";
-  return "free";
+  return "";
 }
 
 export function inferAmenityChargeModel(amenity: {
@@ -108,10 +112,15 @@ export function applyAmenityChargeModel(form: AmenityForm, model: AmenityChargeM
 export function amenityFormStepErrors(
   form: AmenityForm,
   step: Exclude<AmenityFormStep, "review">,
+  showSharedBilling = false,
 ): Record<string, string> {
   const all = validateAmenityForm(form);
+  const fields: Array<keyof AmenityForm> = [...AMENITY_FORM_STEP_FIELDS[step]];
+  if (step === "availability" && !showSharedBilling) {
+    fields.push("charge_model");
+  }
   const errors: Record<string, string> = {};
-  for (const field of AMENITY_FORM_STEP_FIELDS[step]) {
+  for (const field of fields) {
     if (all[field]) errors[field] = all[field];
   }
   return errors;
@@ -151,6 +160,9 @@ export function validateAmenityForm(form: AmenityForm): Record<string, string> {
         errors.capacity = "Capacity must be 0–1000.";
       }
     }
+    if (form.capacity_booking_type && form.capacity_booking_type !== "per_seat" && form.capacity_booking_type !== "full_slot") {
+      errors.capacity_booking_type = "Choose how capacity is booked.";
+    }
   } else if (capacityRaw !== "") {
     const capacity = Number(capacityRaw);
     if (!Number.isInteger(capacity) || capacity < 0 || capacity > 1000) {
@@ -181,11 +193,23 @@ export function validateAmenityForm(form: AmenityForm): Record<string, string> {
 
   const feeRaw = form.charge_model === "monthly" || form.shared_billing_enabled ? "0" : form.booking_fee.trim();
   const fee = feeRaw === "" ? 0 : Number(feeRaw);
-  if (form.charge_model !== "monthly" && !form.shared_billing_enabled) {
+  if (form.status === "bookable" || form.status === "open") {
+    if (!form.charge_model) {
+      errors.charge_model = "Choose how residents pay.";
+    }
+  }
+  if (form.charge_model === "booking") {
+    if (!feeRaw || !Number.isFinite(fee) || fee <= 0) {
+      errors.booking_fee =
+        form.capacity_booking_type === "full_slot"
+          ? "Enter a reservation fee per slot greater than 0."
+          : "Enter a reservation fee per person greater than 0.";
+    } else if (form.status === "closed") {
+      errors.booking_fee = "Closed amenities cannot have a booking fee.";
+    }
+  } else if (form.charge_model !== "monthly" && !form.shared_billing_enabled) {
     if (feeRaw !== "" && (!Number.isFinite(fee) || fee < 0)) {
       errors.booking_fee = "Enter 0 or a valid booking fee.";
-    } else if (form.charge_model === "booking" && (!Number.isFinite(fee) || fee <= 0)) {
-      errors.booking_fee = "Pay-per-booking amenities need a fee greater than 0.";
     } else if (form.status === "closed" && fee > 0) {
       errors.booking_fee = "Closed amenities cannot have a booking fee.";
     }
@@ -223,6 +247,7 @@ export function amenityFormToPayload(form: AmenityForm) {
     description: form.description.trim() || null,
     status: form.status,
     capacity: form.capacity.trim() === "" ? null : Math.max(0, parseInt(form.capacity, 10) || 0),
+    capacity_booking_type: form.capacity_booking_type === "full_slot" ? "full_slot" : "per_seat",
     floor: form.floor.trim() || null,
     hours: form.hours.trim() || null,
     start_time: range.open || null,
@@ -232,21 +257,19 @@ export function amenityFormToPayload(form: AmenityForm) {
       form.status === "bookable" ? Number(form.slot_duration_minutes) || 60 : null,
     icon_key: form.icon_key,
     custom_category: form.icon_key === "other" ? form.custom_category.trim() : null,
-    shared_billing_enabled: Boolean(form.shared_billing_enabled),
-    shared_billing_type: form.shared_billing_enabled ? SHARED_BILLING_TYPE : null,
-    shared_billing_frequency: form.shared_billing_enabled
+    shared_billing_enabled: form.charge_model === "monthly" || Boolean(form.shared_billing_enabled),
+    shared_billing_type: form.charge_model === "monthly" || form.shared_billing_enabled ? SHARED_BILLING_TYPE : null,
+    shared_billing_frequency: form.charge_model === "monthly" || form.shared_billing_enabled
       ? (form.shared_billing_frequency === "yearly" ? "yearly" : "monthly")
       : null,
-    shared_billing_amount: form.shared_billing_enabled
+    shared_billing_amount: form.charge_model === "monthly" || form.shared_billing_enabled
       ? Number(form.shared_billing_amount)
       : null,
-    shared_billing_due_day: form.shared_billing_enabled
+    shared_billing_due_day: form.charge_model === "monthly" || form.shared_billing_enabled
       ? Number(form.shared_billing_due_day)
       : null,
-    booking_fee: form.shared_billing_enabled || form.charge_model === "monthly"
-      ? 0
-      : feeRaw === ""
-        ? 0
-        : Number(form.booking_fee),
+    booking_fee: form.charge_model === "booking"
+      ? (feeRaw === "" ? 0 : Number(form.booking_fee))
+      : 0,
   };
 }

@@ -7,11 +7,12 @@ import {
   DEV_TEST_EMAIL,
   DEV_OTP_HINT,
   DEV_INVITE_CODE,
+  shouldShowDevOtpHint,
 } from "../../constants/api-config";
 
-/** Dev-only helpers — hidden in production builds. */
+/** Dev-only helpers — hidden in production builds and when API is remote. */
 export function DevPhoneFill({ onFill }) {
-  if (!__DEV__) return null;
+  if (!shouldShowDevOtpHint()) return null;
   return (
     <Pressable
       style={styles.chip}
@@ -25,7 +26,7 @@ export function DevPhoneFill({ onFill }) {
 }
 
 export function DevOtpFill({ onFill }) {
-  if (!__DEV__) return null;
+  if (!shouldShowDevOtpHint()) return null;
   return (
     <Pressable
       style={styles.chip}
@@ -39,7 +40,7 @@ export function DevOtpFill({ onFill }) {
 }
 
 export function DevInviteFill({ onFill }) {
-  if (!__DEV__) return null;
+  if (!shouldShowDevOtpHint()) return null;
   return (
     <Pressable
       style={styles.chip}
@@ -53,7 +54,7 @@ export function DevInviteFill({ onFill }) {
 }
 
 export function DevHelperRow({ children }) {
-  if (!__DEV__) return null;
+  if (!shouldShowDevOtpHint()) return null;
   return <View style={styles.row}>{children}</View>;
 }
 

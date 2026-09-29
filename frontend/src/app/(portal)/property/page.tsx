@@ -25,6 +25,9 @@ import {
   BookingPaymentFields,
   BookingPaymentSummary,
   bookingFeeAmount,
+  isFullSlotCapacity,
+  maxBookableSeats,
+  reservationFeeTotal,
   type BookingPaymentForm,
 } from "@/components/property/booking-payment-fields";
 import { formatUsdAmount, todayIsoDate, validatePaymentProofForm } from "@/lib/admin/amenity-bill-validation";
@@ -71,7 +74,7 @@ export default function PropertyPage() {
   const [achCapability, setAchCapability] = useState<AchCapability | null>(null);
   const { showError, touch, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
   const paymentErrors = useMemo(() => validatePaymentProofForm(payment), [payment]);
-  const [slots, setSlots] = useState<Array<AmenitySlot & { available?: boolean }>>([]);
+  const [slots, setSlots] = useState<AmenitySlot[]>([]);
   const [resolvedSlotKey, setResolvedSlotKey] = useState("");
   const [slotsMessage, setSlotsMessage] = useState<string | null>(null);
   const [alreadyBookedDate, setAlreadyBookedDate] = useState(false);
@@ -193,14 +196,28 @@ export default function PropertyPage() {
       toastError("Choose an available time slot.");
       return;
     }
-    const maxGuests = Math.max(1, Number(amenity.capacity) || 50);
-    const guestCount = parseInt(bookForm.guests, 10) || 1;
-    if (guestCount > maxGuests) {
-      toastError(`This amenity allows up to ${maxGuests} guests.`);
+    const selectedSlot = slots.find((s) => s.value === bookForm.slot);
+    const fullSlot = isFullSlotCapacity(amenity.capacity_booking_type) && amenity.status === "bookable";
+    const remaining =
+      amenity.status === "bookable"
+        ? selectedSlot?.remaining != null
+          ? selectedSlot.remaining
+          : Math.max(0, Number(amenity.capacity) || 0)
+        : Math.max(0, Number(amenity.capacity) || 0);
+    const maxGuests = maxBookableSeats({
+      capacity: amenity.capacity,
+      remaining,
+      remainingForward: selectedSlot?.remaining_forward,
+      fullSlot,
+    });
+    const guestCount = fullSlot ? 1 : parseInt(bookForm.guests, 10) || 1;
+    if (!fullSlot && guestCount > maxGuests) {
+      toastError(`Only ${maxGuests} ${maxGuests === 1 ? "spot" : "spots"} left from this ${amenity.status === "bookable" ? "time slot" : "date"}.`);
       return;
     }
 
-    const fee = amenity.shared_billing_enabled ? 0 : bookingFeeAmount(amenity.booking_fee);
+    const unitFee = amenity.shared_billing_enabled ? 0 : bookingFeeAmount(amenity.booking_fee);
+    const fee = reservationFeeTotal(unitFee, guestCount, fullSlot);
     const step = paidBookingPlaidStep(fee, capability);
     if (step === "link") {
       bookAmenityRef.current = amenity;
@@ -222,7 +239,9 @@ export default function PropertyPage() {
         step === "charge"
           ? ` Pay ${formatUsdAmount(fee)} from your linked bank through Plaid now.`
           : fee > 0
-            ? ` Include payment proof for ${formatUsdAmount(fee)}.`
+            ? fullSlot
+              ? ` Reservation fee ${formatUsdAmount(fee)}.`
+              : ` Reservation fee ${formatUsdAmount(fee)} (${formatUsdAmount(unitFee)} × ${guestCount}).`
             : amenity.shared_billing_enabled
               ? ` Shared fee ${formatUsdAmount(amenity.display_fee ?? amenity.shared_billing_amount)} must already be paid.`
               : "";
@@ -577,7 +596,7 @@ export default function PropertyPage() {
                     style={{ background: `${statusColor}18`, color: statusColor }}>
                     {b.status}
                   </span>
-                  {b.status !== "cancelled" && (
+                  {b.status !== "cancelled" && b.status !== "rejected" && b.can_cancel !== false && (
                     <button onClick={() => handleCancelBooking(b)}
                       className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500 [&_svg]:h-3.5 [&_svg]:w-3.5">
                       <IcoX />
@@ -722,26 +741,88 @@ export default function PropertyPage() {
                     slots={slots}
                     message={slotsMessage}
                     selected={bookForm.slot}
-                    onSelect={(value) => setBookForm((f) => ({ ...f, slot: value }))}
                     tone="teal"
+                    fullSlot={isFullSlotCapacity(bookModal.capacity_booking_type)}
+                    onSelect={(value) =>
+                      setBookForm((f) => {
+                        const fullSlotBooking = isFullSlotCapacity(bookModal.capacity_booking_type);
+                        if (fullSlotBooking) return { ...f, slot: value, guests: "1" };
+                        const item = slots.find((slotItem) => slotItem.value === value);
+                        const max = maxBookableSeats({
+                          capacity: bookModal.capacity,
+                          remaining: item?.remaining,
+                          remainingForward: item?.remaining_forward,
+                        });
+                        const nextGuests = Math.min(Math.max(1, parseInt(f.guests, 10) || 1), max);
+                        return { ...f, slot: value, guests: String(nextGuests) };
+                      })
+                    }
                   />
                 </div>
               ) : null}
-              <div>
-                <label className="nl-label">Number of Guests</label>
-                <input
-                  type="number"
-                  min="1"
-                  max={Math.max(1, Number(bookModal.capacity) || 50)}
-                  value={bookForm.guests}
-                  onChange={(e) => setBookForm((f) => ({ ...f, guests: e.target.value }))}
-                  className="nl-input mt-1.5"
-                  placeholder="1"
-                />
-                <p className="mt-1 text-xs text-slate-400">
-                  Max {Math.max(1, Number(bookModal.capacity) || 50)} guests
-                </p>
-              </div>
+              {isFullSlotCapacity(bookModal.capacity_booking_type) && bookModal.status === "bookable" ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-sm font-semibold text-slate-800">This books the entire slot</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Capacity is {Number(bookModal.capacity) || 0}. Other residents will not be able to book this time.
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <label className="nl-label">How many guests are you booking?</label>
+                  {(() => {
+                    const selected = slots.find((s) => s.value === bookForm.slot);
+                    const max = maxBookableSeats({
+                      capacity: bookModal.capacity,
+                      remaining: bookModal.status === "bookable" ? selected?.remaining : bookModal.capacity,
+                      remainingForward: selected?.remaining_forward,
+                    });
+                    const guestCount = Math.max(1, parseInt(bookForm.guests, 10) || 1);
+                    return (
+                      <>
+                        {bookModal.status === "bookable" && bookForm.slot && max <= 24 ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {Array.from({ length: max }, (_, index) => index + 1).map((count) => (
+                              <button
+                                key={count}
+                                type="button"
+                                onClick={() => setBookForm((f) => ({ ...f, guests: String(count) }))}
+                                className={[
+                                  "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                                  guestCount === count
+                                    ? "border-teal-500 bg-teal-50 text-[#0A2A43]"
+                                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
+                                ].join(" ")}
+                              >
+                                {count} {count === 1 ? "guest" : "guests"}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <input
+                            type="number"
+                            min="1"
+                            max={max}
+                            value={bookForm.guests}
+                            onChange={(e) => setBookForm((f) => ({ ...f, guests: e.target.value }))}
+                            className="nl-input mt-1.5"
+                            placeholder="1"
+                          />
+                        )}
+                        <p className="mt-1 text-xs text-slate-400">
+                          {bookModal.status === "bookable" && bookForm.slot
+                            ? selected?.remaining != null &&
+                              selected.remaining_forward != null &&
+                              selected.remaining_forward > selected.remaining
+                              ? `${selected.remaining} left in this slot. Extra seats use the next available slots.`
+                              : `Up to ${max} ${max === 1 ? "guest" : "guests"} available from this slot`
+                            : `Max ${max} guests`}
+                        </p>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
               {bookStep === "community_bank" ? (
                 <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
                   Your bank is connected. This community has not connected a receiving account, so this paid amenity cannot be booked yet.
@@ -751,10 +832,21 @@ export default function PropertyPage() {
                 amenityName={bookModal.name}
                 date={bookForm.date}
                 slot={bookModal.status === "bookable" ? bookForm.slot : "Open access"}
-                fee={bookingFeeAmount(bookModal.booking_fee)}
+                fee={reservationFeeTotal(
+                  bookModal.shared_billing_enabled ? 0 : bookingFeeAmount(bookModal.booking_fee),
+                  Math.max(1, parseInt(bookForm.guests, 10) || 1),
+                  isFullSlotCapacity(bookModal.capacity_booking_type) && bookModal.status === "bookable",
+                )}
+                guests={Math.max(1, parseInt(bookForm.guests, 10) || 1)}
+                unitFee={bookModal.shared_billing_enabled ? 0 : bookingFeeAmount(bookModal.booking_fee)}
+                fullSlot={isFullSlotCapacity(bookModal.capacity_booking_type) && bookModal.status === "bookable"}
               />
               <BookingPaymentFields
-                fee={bookStep === "proof" ? bookingFeeAmount(bookModal.booking_fee) : 0}
+                fee={bookStep === "proof" ? reservationFeeTotal(
+                  bookModal.shared_billing_enabled ? 0 : bookingFeeAmount(bookModal.booking_fee),
+                  Math.max(1, parseInt(bookForm.guests, 10) || 1),
+                  isFullSlotCapacity(bookModal.capacity_booking_type) && bookModal.status === "bookable",
+                ) : 0}
                 form={payment}
                 errors={paymentErrors}
                 showError={showError}

@@ -388,19 +388,23 @@ class FeedPostTest extends TestCase
             ->assertJsonPath('data.comment_id', $commentId);
     }
 
-    public function test_community_admin_poll_accepts_one_vote_and_then_closes(): void
+    public function test_resident_and_admin_can_create_polls_and_vote_once(): void
     {
         ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
 
         Sanctum::actingAs($resident);
-        $this->postJson('/api/v1/feed', [
+        $residentCreate = $this->postJson('/api/v1/feed', [
             'category' => 'poll',
             'poll' => [
                 'question' => 'Should guest parking be limited?',
                 'duration_days' => 3,
                 'options' => ['Yes', 'No'],
             ],
-        ], ['X-Community-Id' => (string) $community->id])->assertForbidden();
+        ], ['X-Community-Id' => (string) $community->id])->assertCreated();
+
+        $residentCreate->assertJsonPath('data.category', 'poll');
+        $residentCreate->assertJsonPath('data.poll.closed', false);
+        $this->assertCount(2, $residentCreate->json('data.poll.options'));
 
         Sanctum::actingAs($admin);
         $create = $this->postJson('/api/v1/feed', [
@@ -438,6 +442,12 @@ class FeedPostTest extends TestCase
 
         $this->assertSame(1, DB::table('poll_votes')->where('user_id', $resident->id)->count());
 
+        Sanctum::actingAs($admin);
+        $adminVote = $this->postJson('/api/v1/feed/'.$postId.'/vote', [
+            'option_id' => $create->json('data.poll.options.1.id'),
+        ], ['X-Community-Id' => (string) $community->id])->assertOk();
+        $adminVote->assertJsonPath('data.poll.total_votes', 2);
+
         DB::table('polls')->where('post_id', $postId)->update([
             'ends_at' => now()->subMinute(),
         ]);
@@ -448,7 +458,7 @@ class FeedPostTest extends TestCase
         ])->assertOk();
         $closed->assertJsonPath('data.poll.closed', true);
         $closed->assertJsonPath('data.poll.results_visible', true);
-        $closed->assertJsonPath('data.poll.total_votes', 1);
+        $closed->assertJsonPath('data.poll.total_votes', 2);
 
         $this->postJson('/api/v1/feed/'.$postId.'/vote', [
             'option_id' => $yesId,

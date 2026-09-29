@@ -34,14 +34,16 @@ const EMPTY_FORM = {
   description: "",
   status: "bookable",
   capacity: "",
+  capacity_booking_type: "per_seat",
   floor: "",
   hours: "",
   weekends_available: true,
   slot_duration_minutes: 60,
   icon_key: "gym",
   custom_category: "",
-  booking_charge: "free",
+  booking_charge: "",
   booking_fee: "",
+  pricing_type: "",
   shared_billing_enabled: false,
   shared_billing_frequency: "monthly",
   shared_billing_amount: "",
@@ -116,6 +118,23 @@ export default function AmenityFormScreen() {
     clearError(key);
   };
 
+  const setPricing = (type) => {
+    setForm((prev) => ({
+      ...prev,
+      pricing_type: type,
+      booking_charge: type === "per_booking" ? "paid" : "free",
+      booking_fee: type === "per_booking" ? prev.booking_fee : "",
+      shared_billing_enabled: type === "shared",
+      shared_billing_amount: type === "shared" ? prev.shared_billing_amount : "",
+      shared_billing_due_day: type === "shared" ? prev.shared_billing_due_day : "",
+    }));
+    touch("pricing_type");
+    clearError("pricing_type");
+    clearError("booking_fee");
+    clearError("shared_billing_amount");
+    clearError("shared_billing_due_day");
+  };
+
   const onSubmit = useCallback(async () => {
     if (!validateOnSubmit(liveErrors) || submitting) return;
 
@@ -149,6 +168,7 @@ export default function AmenityFormScreen() {
   const hoursError = showError("hours", liveErrors);
   const slotError = showError("slot_duration_minutes", liveErrors);
   const capacityError = showError("capacity", liveErrors);
+  const pricingError = showError("pricing_type", liveErrors);
   const floorError = showError("floor", liveErrors);
 
   const scrollRef = useRef(null);
@@ -309,8 +329,39 @@ export default function AmenityFormScreen() {
               placeholderTextColor="#94A3B8"
               editable={form.status !== "closed"}
             />
-            <Text style={styles.modeSub}>{t("admin.capacitySlotsHint")}</Text>
+            <Text style={styles.modeSub}>
+              {form.capacity_booking_type === "full_slot"
+                ? t("admin.capacityFullSlotHint")
+                : t("admin.capacityPerSlotHint")}
+            </Text>
             {capacityError ? <Text style={styles.errorText}>{capacityError}</Text> : null}
+          </View>
+        ) : null}
+
+        {form.status === "bookable" ? (
+          <View style={styles.field}>
+            <RequiredLabel>{t("admin.capacityBookingType")}</RequiredLabel>
+            {[
+              { id: "per_seat", titleKey: "admin.capacityBookingPerSeat", subtitleKey: "admin.capacityBookingPerSeatHint" },
+              { id: "full_slot", titleKey: "admin.capacityBookingFullSlot", subtitleKey: "admin.capacityBookingFullSlotHint" },
+            ].map((opt) => {
+              const selected = (form.capacity_booking_type || "per_seat") === opt.id;
+              return (
+                <Pressable
+                  key={opt.id}
+                  onPress={() => setF("capacity_booking_type", opt.id)}
+                  style={[styles.modeCard, selected && styles.modeCardActive]}
+                >
+                  <View style={styles.modeCopy}>
+                    <Text style={styles.modeTitle}>{t(opt.titleKey)}</Text>
+                    <Text style={styles.modeSub}>{t(opt.subtitleKey)}</Text>
+                  </View>
+                  <View style={[styles.radio, selected && styles.radioActive]}>
+                    {selected ? <View style={styles.radioDot} /> : null}
+                  </View>
+                </Pressable>
+              );
+            })}
           </View>
         ) : null}
 
@@ -373,23 +424,87 @@ export default function AmenityFormScreen() {
           </View>
         ) : null}
 
-        {(form.status === "bookable" || form.status === "open") && !form.shared_billing_enabled ? (
+        {(form.status === "bookable" || form.status === "open") ? (
+          <View style={styles.field}>
+            <RequiredLabel>{t("propertyMgmt.pricingTypeLabel")}</RequiredLabel>
+            <Text style={styles.modeSub}>{t("propertyMgmt.pricingTypeHint")}</Text>
+            {[
+              { id: "free", titleKey: "propertyMgmt.pricingFree", subtitleKey: "propertyMgmt.pricingFreeSub" },
+              { id: "per_booking", titleKey: "propertyMgmt.pricingPerBooking", subtitleKey: "propertyMgmt.pricingPerBookingSub" },
+              ...(isAdmin
+                ? [{ id: "shared", titleKey: "propertyMgmt.pricingShared", subtitleKey: "propertyMgmt.pricingSharedSub" }]
+                : []),
+            ].map((opt) => {
+              const selected = form.pricing_type === opt.id;
+              return (
+                <Pressable
+                  key={opt.id}
+                  onPress={() => setPricing(opt.id)}
+                  style={[
+                    styles.modeCard,
+                    selected && styles.modeCardActive,
+                    pricingError && styles.inputError,
+                  ]}
+                >
+                  <View style={styles.modeCopy}>
+                    <Text style={styles.modeTitle}>{t(opt.titleKey)}</Text>
+                    <Text style={styles.modeSub}>{t(opt.subtitleKey)}</Text>
+                  </View>
+                  <View style={[styles.radio, selected && styles.radioActive]}>
+                    {selected ? <View style={styles.radioDot} /> : null}
+                  </View>
+                </Pressable>
+              );
+            })}
+            {pricingError ? <Text style={styles.errorText}>{pricingError}</Text> : null}
+          </View>
+        ) : null}
+
+        {(form.status === "bookable" || form.status === "open") && form.pricing_type === "per_booking" ? (
+          <View style={styles.field}>
+            <RequiredLabel>
+              {form.capacity_booking_type === "full_slot"
+                ? t("propertyMgmt.reservationFeePerSlot")
+                : t("propertyMgmt.reservationFeePerPerson")}
+            </RequiredLabel>
+            <LocaleTextInput
+              style={[
+                styles.input,
+                singleLineInputStyle,
+                showError("booking_fee", liveErrors) && styles.inputError,
+              ]}
+              value={String(form.booking_fee ?? "")}
+              onChangeText={(v) => setF("booking_fee", v.replace(/[^0-9.]/g, ""))}
+              onBlur={() => touch("booking_fee")}
+              placeholder={t("propertyMgmt.bookingAmountPlaceholder")}
+              placeholderTextColor="#94A3B8"
+              keyboardType="decimal-pad"
+            />
+            <Text style={styles.modeSub}>
+              {form.capacity_booking_type === "full_slot"
+                ? t("propertyMgmt.reservationFeePerSlotHint")
+                : t("propertyMgmt.reservationFeePerPersonHint")}
+            </Text>
+            {showError("booking_fee", liveErrors) ? (
+              <Text style={styles.errorText}>{liveErrors.booking_fee}</Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {isAdmin && form.pricing_type === "shared" ? (
           <>
             <View style={styles.field}>
-              <RequiredLabel>{t("propertyMgmt.bookingAmountLabel")}</RequiredLabel>
+              <RequiredLabel>{t("admin.sharedBillingFrequency")}</RequiredLabel>
               <View style={styles.durationRow}>
                 {[
-                  { id: "free", label: t("propertyMgmt.bookingAmountFree") },
-                  { id: "paid", label: t("propertyMgmt.bookingAmountPaid") },
+                  { id: "monthly", label: t("admin.sharedBillingMonthly") },
+                  { id: "yearly", label: t("admin.sharedBillingYearly") },
                 ].map((opt) => {
-                  const selected = (form.booking_charge || "free") === opt.id;
+                  const selected = (form.shared_billing_frequency || "monthly") === opt.id;
                   return (
                     <Pressable
                       key={opt.id}
-                      onPress={() => {
-                        setF("booking_charge", opt.id);
-                        if (opt.id === "free") setF("booking_fee", "");
-                      }}
+                      onPress={() => setF("shared_billing_frequency", opt.id)}
                       style={[styles.durationChip, selected && styles.durationChipActive]}
                     >
                       <Text style={[styles.durationText, selected && styles.durationTextActive]}>
@@ -399,117 +514,44 @@ export default function AmenityFormScreen() {
                   );
                 })}
               </View>
-              <Text style={styles.modeSub}>{t("propertyMgmt.bookingAmountHint")}</Text>
             </View>
-            {form.booking_charge === "paid" ? (
-              <View style={styles.field}>
-                <RequiredLabel>{t("propertyMgmt.bookingFee")}</RequiredLabel>
-                <LocaleTextInput
-                  style={[
-                    styles.input,
-                    showError("booking_fee", liveErrors) && styles.inputError,
-                  ]}
-                  value={String(form.booking_fee ?? "")}
-                  onChangeText={(v) => setF("booking_fee", v.replace(/[^0-9.]/g, ""))}
-                  onBlur={() => touch("booking_fee")}
-                  placeholder={t("propertyMgmt.bookingAmountPlaceholder")}
-                  placeholderTextColor="#94A3B8"
-                  keyboardType="decimal-pad"
-                />
-                {showError("booking_fee", liveErrors) ? (
-                  <Text style={styles.errorText}>{liveErrors.booking_fee}</Text>
-                ) : null}
-              </View>
-            ) : null}
-          </>
-        ) : null}
-
-        {isAdmin ? (
-          <>
-            <View style={styles.switchRow}>
-              <View style={styles.switchCopy}>
-                <Text style={styles.modeTitle}>{t("admin.sharedBilling")}</Text>
-                <Text style={styles.modeSub}>{t("admin.sharedBillingHint")}</Text>
-              </View>
-              <Switch
-                value={Boolean(form.shared_billing_enabled)}
-                    onValueChange={(v) => {
-                  setF("shared_billing_enabled", v);
-                  if (v) {
-                    setF("booking_charge", "free");
-                    setF("booking_fee", "");
-                  } else {
-                    setF("shared_billing_amount", "");
-                    setF("shared_billing_due_day", "");
-                  }
-                }}
-                trackColor={{ false: "#E2E8F0", true: "#93C5FD" }}
-                thumbColor={form.shared_billing_enabled ? "#1B4F8A" : "#F8FAFC"}
+            <View style={styles.field}>
+              <RequiredLabel>{t("admin.amountPerResident")}</RequiredLabel>
+              <LocaleTextInput
+                style={[
+                  styles.input,
+                  showError("shared_billing_amount", liveErrors) && styles.inputError,
+                ]}
+                value={String(form.shared_billing_amount ?? "")}
+                onChangeText={(v) => setF("shared_billing_amount", v.replace(/[^0-9.]/g, ""))}
+                onBlur={() => touch("shared_billing_amount")}
+                placeholder="25"
+                placeholderTextColor="#94A3B8"
+                keyboardType="decimal-pad"
               />
+              {showError("shared_billing_amount", liveErrors) ? (
+                <Text style={styles.errorText}>{liveErrors.shared_billing_amount}</Text>
+              ) : null}
             </View>
-            {form.shared_billing_enabled ? (
-              <>
-                <View style={styles.field}>
-                  <RequiredLabel>{t("admin.sharedBillingFrequency")}</RequiredLabel>
-                  <View style={styles.durationRow}>
-                    {[
-                      { id: "monthly", label: t("admin.sharedBillingMonthly") },
-                      { id: "yearly", label: t("admin.sharedBillingYearly") },
-                    ].map((opt) => {
-                      const selected = (form.shared_billing_frequency || "monthly") === opt.id;
-                      return (
-                        <Pressable
-                          key={opt.id}
-                          onPress={() => setF("shared_billing_frequency", opt.id)}
-                          style={[styles.durationChip, selected && styles.durationChipActive]}
-                        >
-                          <Text style={[styles.durationText, selected && styles.durationTextActive]}>
-                            {opt.label}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-                <View style={styles.field}>
-                  <RequiredLabel>{t("admin.amountPerResident")}</RequiredLabel>
-                  <LocaleTextInput
-                    style={[
-                      styles.input,
-                      showError("shared_billing_amount", liveErrors) && styles.inputError,
-                    ]}
-                    value={String(form.shared_billing_amount ?? "")}
-                    onChangeText={(v) => setF("shared_billing_amount", v.replace(/[^0-9.]/g, ""))}
-                    onBlur={() => touch("shared_billing_amount")}
-                    placeholder="25"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="decimal-pad"
-                  />
-                  {showError("shared_billing_amount", liveErrors) ? (
-                    <Text style={styles.errorText}>{liveErrors.shared_billing_amount}</Text>
-                  ) : null}
-                </View>
-                <View style={styles.field}>
-                  <RequiredLabel>{t("admin.sharedDueDay")}</RequiredLabel>
-                  <LocaleTextInput
-                    style={[
-                      styles.input,
-                      showError("shared_billing_due_day", liveErrors) && styles.inputError,
-                    ]}
-                    value={String(form.shared_billing_due_day ?? "")}
-                    onChangeText={(v) => setF("shared_billing_due_day", v.replace(/[^0-9]/g, ""))}
-                    onBlur={() => touch("shared_billing_due_day")}
-                    placeholder="10"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="number-pad"
-                    maxLength={2}
-                  />
-                  {showError("shared_billing_due_day", liveErrors) ? (
-                    <Text style={styles.errorText}>{liveErrors.shared_billing_due_day}</Text>
-                  ) : null}
-                </View>
-              </>
-            ) : null}
+            <View style={styles.field}>
+              <RequiredLabel>{t("admin.sharedDueDay")}</RequiredLabel>
+              <LocaleTextInput
+                style={[
+                  styles.input,
+                  showError("shared_billing_due_day", liveErrors) && styles.inputError,
+                ]}
+                value={String(form.shared_billing_due_day ?? "")}
+                onChangeText={(v) => setF("shared_billing_due_day", v.replace(/[^0-9]/g, ""))}
+                onBlur={() => touch("shared_billing_due_day")}
+                placeholder="10"
+                placeholderTextColor="#94A3B8"
+                keyboardType="number-pad"
+                maxLength={2}
+              />
+              {showError("shared_billing_due_day", liveErrors) ? (
+                <Text style={styles.errorText}>{liveErrors.shared_billing_due_day}</Text>
+              ) : null}
+            </View>
           </>
         ) : null}
 

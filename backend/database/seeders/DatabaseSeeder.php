@@ -11,6 +11,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             MainSeeder::class,
             SystemAdminSeeder::class,
+            TgiCommunitySeeder::class,
             DevPhoneSeeder::class,
             BostonDemoSeeder::class,
             MobileTestAccountsSeeder::class,

@@ -1584,6 +1584,52 @@ class PropertyServiceBillingTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-09-21 12:00:00'));
     }
 
+    public function test_automatic_service_bill_backfills_when_residential_unit_is_assigned_after_publish(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity(410);
+
+        DB::table('unit_residents')->where('user_id', $resident->id)->delete();
+        DB::table('units')
+            ->where('community_id', $community->id)
+            ->where('kind', UnitAssignmentService::KIND_RESIDENTIAL)
+            ->delete();
+
+        Sanctum::actingAs($admin);
+        $headers = $this->headers($community->id);
+        $serviceId = $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', [
+                'name' => 'Water Supply',
+                'category' => 'water',
+                'application_type' => 'automatic',
+                'billing_frequency' => 'monthly',
+                'amount' => 35,
+                'due_day' => 10,
+                'first_billing_month' => '2026-09',
+                'auto_generate_bills' => true,
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->assertDatabaseMissing('unit_service_bills', ['service_id' => $serviceId]);
+
+        app(UnitAssignmentService::class)->syncUserToCommunity($resident->fresh('profile'), $community->id);
+
+        $this->assertDatabaseHas('unit_service_bills', [
+            'service_id' => $serviceId,
+            'billing_contact_user_id' => $resident->id,
+            'status' => UnitServiceBillService::STATUS_UNPAID,
+        ]);
+        $this->assertDatabaseHas('notice_recipients', [
+            'user_id' => $resident->id,
+        ]);
+
+        Sanctum::actingAs($resident);
+        $bills = $this->getJson('/api/v1/service-bills')->assertOk()->json('data');
+        $this->assertTrue(collect($bills)->contains(
+            fn ($row) => (int) ($row['service_id'] ?? 0) === (int) $serviceId,
+        ));
+    }
+
     private function addUnitResident(int $communityId, string $name, string $unitNumber, string $phone): User
     {
         $user = User::factory()->create([

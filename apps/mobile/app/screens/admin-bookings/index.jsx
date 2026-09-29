@@ -15,7 +15,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
-import { useRequireCommunityAdmin } from "../../../hooks/use-require-community-admin";
+import { useSafeModeBack } from "../../../hooks/use-safe-mode-back";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import AmenityIcon from "../../../components/property/amenity-icon";
 import { Fonts } from "../../../constants/font";
@@ -159,7 +159,7 @@ function BookingInfoSheet({ booking, onClose, t }) {
 }
 
 export default function AdminBookings() {
-  useRequireCommunityAdmin();
+  useSafeModeBack();
   const { t } = useTranslation();
   const [selectedTab, setSelectedTab] = useState("pending");
   const [bookings, setBookings] = useState([]);

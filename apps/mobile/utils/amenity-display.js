@@ -214,6 +214,10 @@ export function validateAmenityForm(form) {
         errors.capacity = i18n.t("amenities.validation.capacityRange");
       }
     }
+    const bookingType = form.capacity_booking_type;
+    if (bookingType && bookingType !== "per_seat" && bookingType !== "full_slot") {
+      errors.capacity_booking_type = i18n.t("amenities.validation.capacityBookingTypeRequired");
+    }
   } else if (capacityRaw !== "") {
     const capacity = Number(capacityRaw);
     if (!Number.isInteger(capacity) || capacity < 0 || capacity > 1000) {
@@ -248,24 +252,14 @@ export function validateAmenityForm(form) {
     errors.custom_category = i18n.t("amenities.validation.customCategoryRequired");
   }
 
-  if (!form.shared_billing_enabled) {
-    const charge = form.booking_charge === "paid" || Number(form.booking_fee) > 0 ? "paid" : "free";
-    const feeRaw = String(form.booking_fee ?? "").trim();
-    const fee = feeRaw === "" ? 0 : Number(feeRaw);
-    if (charge === "paid") {
-      if (!feeRaw || !Number.isFinite(fee) || fee <= 0) {
-        errors.booking_fee = i18n.t("amenities.validation.bookingFeeRequired");
-      } else if (status === "closed") {
-        errors.booking_fee = i18n.t("amenities.validation.bookingFeeRequiresBookable");
-      }
-    } else if (feeRaw !== "" && (!Number.isFinite(fee) || fee < 0)) {
-      errors.booking_fee = i18n.t("amenities.validation.bookingFeeInvalid");
-    } else if (status === "closed" && fee > 0) {
-      errors.booking_fee = i18n.t("amenities.validation.bookingFeeRequiresBookable");
+  if ((status === "bookable" || status === "open") && !form.shared_billing_enabled) {
+    const pricingType = form.pricing_type || form.booking_charge || "";
+    if (!pricingType || (pricingType !== "free" && pricingType !== "per_booking" && pricingType !== "paid" && pricingType !== "shared")) {
+      errors.pricing_type = i18n.t("amenities.validation.pricingTypeRequired");
     }
   }
 
-  if (form.shared_billing_enabled) {
+  if (form.pricing_type === "shared" || form.shared_billing_enabled) {
     const amount = Number(form.shared_billing_amount);
     if (!String(form.shared_billing_amount ?? "").trim()) {
       errors.shared_billing_amount = i18n.t("amenities.validation.sharedAmountRequired");
@@ -278,6 +272,24 @@ export function validateAmenityForm(form) {
       errors.shared_billing_due_day = i18n.t("amenities.validation.sharedDueDayRequired");
     } else if (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31) {
       errors.shared_billing_due_day = i18n.t("amenities.validation.sharedDueDayInvalid");
+    }
+  } else {
+    const charge = form.pricing_type === "per_booking" || form.booking_charge === "paid" ? "paid" : form.pricing_type === "free" || form.booking_charge === "free" ? "free" : "";
+    const feeRaw = String(form.booking_fee ?? "").trim();
+    const fee = feeRaw === "" ? 0 : Number(feeRaw);
+    if (charge === "paid") {
+      if (!feeRaw || !Number.isFinite(fee) || fee <= 0) {
+        errors.booking_fee =
+          form.capacity_booking_type === "full_slot"
+            ? i18n.t("amenities.validation.bookingFeeRequiredSlot")
+            : i18n.t("amenities.validation.bookingFeeRequired");
+      } else if (status === "closed") {
+        errors.booking_fee = i18n.t("amenities.validation.bookingFeeRequiresBookable");
+      }
+    } else if (feeRaw !== "" && (!Number.isFinite(fee) || fee < 0)) {
+      errors.booking_fee = i18n.t("amenities.validation.bookingFeeInvalid");
+    } else if (status === "closed" && fee > 0) {
+      errors.booking_fee = i18n.t("amenities.validation.bookingFeeRequiresBookable");
     }
   }
 
@@ -292,6 +304,7 @@ export function buildAmenityPayload(form) {
     description: String(form.description ?? "").trim() || null,
     status: form.status,
     capacity: String(form.capacity ?? "").trim() === "" ? null : Number(form.capacity),
+    capacity_booking_type: form.capacity_booking_type === "full_slot" ? "full_slot" : "per_seat",
     floor: String(form.floor ?? "").trim(),
     icon_key: form.icon_key,
     custom_category: form.icon_key === "other" ? String(form.custom_category ?? "").trim() : null,
@@ -299,18 +312,16 @@ export function buildAmenityPayload(form) {
     start_time: times?.start_time,
     end_time: times?.end_time,
     hours: String(form.hours ?? "").trim(),
-    booking_fee: form.shared_billing_enabled || form.booking_charge === "free"
-      ? 0
-      : String(form.booking_fee ?? "").trim() === ""
-        ? 0
-        : Number(form.booking_fee),
-    shared_billing_enabled: Boolean(form.shared_billing_enabled),
-    shared_billing_type: form.shared_billing_enabled ? "all_residents" : null,
-    shared_billing_frequency: form.shared_billing_enabled
+    booking_fee: form.pricing_type === "per_booking" || form.booking_charge === "paid"
+      ? (String(form.booking_fee ?? "").trim() === "" ? 0 : Number(form.booking_fee))
+      : 0,
+    shared_billing_enabled: form.pricing_type === "shared" || Boolean(form.shared_billing_enabled),
+    shared_billing_type: form.pricing_type === "shared" || form.shared_billing_enabled ? "all_residents" : null,
+    shared_billing_frequency: form.pricing_type === "shared" || form.shared_billing_enabled
       ? (form.shared_billing_frequency === "yearly" ? "yearly" : "monthly")
       : null,
-    shared_billing_amount: form.shared_billing_enabled ? Number(form.shared_billing_amount) : null,
-    shared_billing_due_day: form.shared_billing_enabled ? Number(form.shared_billing_due_day) : null,
+    shared_billing_amount: form.pricing_type === "shared" || form.shared_billing_enabled ? Number(form.shared_billing_amount) : null,
+    shared_billing_due_day: form.pricing_type === "shared" || form.shared_billing_enabled ? Number(form.shared_billing_due_day) : null,
   };
   if (form.status === "bookable") {
     payload.slot_duration_minutes = Number(form.slot_duration_minutes);
@@ -484,6 +495,32 @@ export function amenityMatchesSearch(amenity, query) {
     .join(" ")
     .toLowerCase();
   return blob.includes(q);
+}
+
+export function normalizeCapacityBookingType(type) {
+  const raw = Array.isArray(type) ? type[0] : type;
+  const normalized = String(raw ?? "")
+    .trim()
+    .toLowerCase();
+  return normalized === "full_slot" ? "full_slot" : "per_seat";
+}
+
+export function isFullSlotCapacity(type) {
+  return normalizeCapacityBookingType(type) === "full_slot";
+}
+
+export function reservationFeeTotal(unitFee, guests, fullSlot = false) {
+  if (!(Number(unitFee) > 0)) return 0;
+  return fullSlot ? Number(unitFee) : Number(unitFee) * Math.max(1, guests);
+}
+
+export function maxBookableSeats({ capacity, remaining, remainingForward, fullSlot = false } = {}) {
+  if (fullSlot) return 1;
+  const forward = remainingForward != null ? Number(remainingForward) : null;
+  const left = remaining != null ? Number(remaining) : null;
+  const cap = Number(capacity) || 0;
+  const n = forward ?? left ?? cap;
+  return Math.max(1, n > 0 ? n : cap || 1);
 }
 
 export function enrichAmenityBookingState(amenity, myBookings = []) {

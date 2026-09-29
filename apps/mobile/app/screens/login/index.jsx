@@ -139,7 +139,8 @@ export default function LoginScreen() {
           params: { email: encodeRouteEmail(normalizedEmail) },
         });
       } catch (err) {
-        await handleAuthApiError(err, dialog, router, { email: normalizedEmail });
+        // Do not await the dialog here — waiting keeps the "Sending..." lock until OK.
+        void handleAuthApiError(err, dialog, router, { email: normalizedEmail });
       }
     });
   };

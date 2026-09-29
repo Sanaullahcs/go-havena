@@ -218,7 +218,8 @@ class AmenitySharedBillService
         return $this->publishPeriod($amenity, [
             'title' => $amenity->name.' booking — '.$date->toFormattedDateString(),
             'description' => 'Booking fee for '.$date->toFormattedDateString()
-                .(! empty($booking->time_slot) ? ' ('.$booking->time_slot.')' : ''),
+                .(! empty($booking->time_slot) ? ' ('.$booking->time_slot.')' : '')
+                .((int) ($booking->guests ?? 1) > 1 ? ' · '.(int) $booking->guests.' guests' : ''),
             'amount_per_resident' => $fee,
             'due_date' => $date->toDateString(),
             'billing_month' => Carbon::create(1900, 1, 1)->addDays(max(1, (int) $booking->id))->toDateString(),

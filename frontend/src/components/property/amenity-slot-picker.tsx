@@ -11,6 +11,7 @@ export function AmenitySlotPicker({
   selected,
   onSelect,
   tone = "navy",
+  fullSlot = false,
 }: {
   loading: boolean;
   slots: Slot[];
@@ -18,6 +19,7 @@ export function AmenitySlotPicker({
   selected: string;
   onSelect: (value: string) => void;
   tone?: "navy" | "teal";
+  fullSlot?: boolean;
 }) {
   if (loading) {
     return (
@@ -76,7 +78,13 @@ export function AmenitySlotPicker({
             ].join(" ")}
           >
             {label}
-            {taken ? " · Taken" : ""}
+            {taken
+              ? " · Full"
+              : item.remaining != null
+                ? fullSlot
+                  ? " · Available"
+                  : ` · ${item.remaining} left`
+                : ""}
           </button>
         );
       })}

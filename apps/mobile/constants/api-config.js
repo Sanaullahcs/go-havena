@@ -149,6 +149,31 @@ function resolveApiBaseUrl() {
 
 export const API_BASE_URL = resolveApiBaseUrl();
 
+/**
+ * True only when the connected API is a local/dev server that accepts the
+ * implicit fixed OTP (Laravel APP_ENV local/testing/uat/staging → 123456).
+ * Never true for production/UAT HTTPS hosts — even inside Expo Go (__DEV__).
+ */
+export function isLocalDevApi(url = API_BASE_URL) {
+  const raw = String(url || "").trim();
+  if (!raw || /^https:\/\//i.test(raw)) return false;
+  try {
+    const { hostname } = new URL(raw);
+    if (!hostname) return false;
+    if (/gohavena\.com$/i.test(hostname)) return false;
+    if (isPublicTunnelHost(hostname)) return false;
+    if (isLoopbackHost(hostname) || hostname === "10.0.2.2") return true;
+    return /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(hostname);
+  } catch {
+    return false;
+  }
+}
+
+/** Show Dev · 123456 only in Expo Go/dev client against a local API. */
+export function shouldShowDevOtpHint() {
+  return Boolean(__DEV__) && isLocalDevApi();
+}
+
 function stripAdminPath(url) {
   return String(url || "").replace(/\/$/, "").replace(/\/admin(?:\/billing)?\/?$/, "");
 }
@@ -222,7 +247,7 @@ export function isDevTestEmail(input) {
 }
 
 export function isRemoteApi() {
-  return /^https:\/\//.test(API_BASE_URL);
+  return /^https:\/\//.test(API_BASE_URL) || /gohavena\.com$/i.test(API_BASE_URL);
 }
 
 export function describeApiConnectionHint() {

@@ -505,7 +505,7 @@ export function ThemedDatePicker({
                   <button
                     type="button"
                     className="nl-calendar-foot-btn nl-calendar-foot-btn-primary"
-                    disabled={!todayEnabled}
+                    disabled={mode === "date" && !todayEnabled}
                     onClick={() => {
                       if (mode === "year") {
                         onChange(toIso(today.y, 0, 1));

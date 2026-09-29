@@ -93,6 +93,7 @@ const EMPTY_FORM = {
   description: "",
   status: "bookable",
   capacity: "",
+  capacity_booking_type: "per_seat",
   floor: "",
   hours: "",
   weekends_available: true,
@@ -497,6 +498,7 @@ export default function AdminAmenitiesScreen() {
       description: item.description ?? "",
       status: item.status ?? "bookable",
       capacity: item.capacity != null && Number(item.capacity) > 0 ? String(item.capacity) : "",
+      capacity_booking_type: item.capacity_booking_type === "full_slot" ? "full_slot" : "per_seat",
       floor: item.floor ?? "",
       hours: item.hours ?? "",
       weekends_available: item.weekends_available !== false,
@@ -929,8 +931,38 @@ export default function AdminAmenitiesScreen() {
                       maxLength={4}
                       editable={form.status !== "closed"}
                     />
-                    <Text style={styles.fieldHint}>{t("admin.capacitySlotsHint")}</Text>
+                    <Text style={styles.fieldHint}>
+                      {form.capacity_booking_type === "full_slot"
+                        ? t("admin.capacityFullSlotHint")
+                        : t("admin.capacityPerSlotHint")}
+                    </Text>
                     <FieldError message={errorFor("capacity")} />
+                    {form.status === "bookable" ? (
+                      <>
+                        <FieldLabel required>{t("admin.capacityBookingType")}</FieldLabel>
+                        {[
+                          { id: "per_seat", titleKey: "admin.capacityBookingPerSeat", subtitleKey: "admin.capacityBookingPerSeatHint" },
+                          { id: "full_slot", titleKey: "admin.capacityBookingFullSlot", subtitleKey: "admin.capacityBookingFullSlotHint" },
+                        ].map((opt) => {
+                          const active = (form.capacity_booking_type || "per_seat") === opt.id;
+                          return (
+                            <TouchableOpacity
+                              key={opt.id}
+                              style={[styles.statusChip, active && styles.statusChipActive, { marginBottom: sw(8), width: "100%" }]}
+                              onPress={() => setField("capacity_booking_type", opt.id)}
+                              activeOpacity={0.88}
+                            >
+                              <View>
+                                <Text style={[styles.statusChipText, active && styles.statusChipTextActive]}>
+                                  {t(opt.titleKey)}
+                                </Text>
+                                <Text style={styles.fieldHint}>{t(opt.subtitleKey)}</Text>
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </>
+                    ) : null}
                   </>
                 ) : null}
 

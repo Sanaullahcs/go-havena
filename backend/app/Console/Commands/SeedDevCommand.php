@@ -13,8 +13,8 @@ class SeedDevCommand extends Command
 
     public function handle(): int
     {
-        $this->info('Ensuring system admin…');
-        $code = $this->call('havena:ensure-system-admin');
+        $this->info('Ensuring login accounts…');
+        $code = $this->call('havena:ensure-login-accounts');
         if ($code !== self::SUCCESS) {
             return $code;
         }
@@ -32,7 +32,8 @@ class SeedDevCommand extends Command
         $this->newLine();
         $this->info('Dev data ready.');
         $this->line('  System admin: admin@havena.app / password');
-        $this->line("  Community admin: {$email} / OTP 123456 (local)");
+        $this->line('  TGI community admin: tgi.admin@havena.app / OTP 123456 (local)');
+        $this->line("  Extra community admin: {$email} / OTP 123456 (local)");
 
         return self::SUCCESS;
     }

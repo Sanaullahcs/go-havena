@@ -140,6 +140,23 @@ class AmenityBookingFeeTest extends TestCase
         $this->assertNull($response->json('data.payment_proof'));
     }
 
+    public function test_paid_booking_fee_is_charged_per_guest(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity();
+        $amenityId = $this->createAmenity($community->id, $admin->id, ['booking_fee' => 10]);
+
+        Sanctum::actingAs($resident);
+
+        $this->postJson('/api/v1/bookings', [
+            'amenity_id' => $amenityId,
+            'date' => now()->addDay()->toDateString(),
+            'time_slot' => '4:00 PM - 5:00 PM',
+            'guests' => 2,
+        ])->assertCreated()
+            ->assertJsonPath('data.guests', 2)
+            ->assertJsonPath('data.booking_fee', 20);
+    }
+
     public function test_zero_fee_booking_skips_payment_proof(): void
     {
         ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity();
@@ -489,5 +506,66 @@ class AmenityBookingFeeTest extends TestCase
             'user_id' => $admin->id,
             'title' => 'Reservation confirmed',
         ]);
+    }
+
+    public function test_paid_booking_approval_creates_finance_notice_and_notifications(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunity();
+        $amenityId = $this->createAmenity($community->id, $admin->id, ['booking_fee' => 10]);
+        $date = now()->addDay()->toDateString();
+
+        Sanctum::actingAs($resident);
+        $bookingId = $this->postJson('/api/v1/bookings', [
+            'amenity_id' => $amenityId,
+            'date' => $date,
+            'time_slot' => '4:00 PM - 5:00 PM',
+            'guests' => 2,
+        ])->assertCreated()->json('data.id');
+
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $admin->id,
+            'title' => 'New amenity booking request',
+        ]);
+
+        Sanctum::actingAs($admin);
+        $this->patchJson("/api/v1/bookings/{$bookingId}/approve")->assertOk();
+
+        $residentBill = DB::table('amenity_resident_bills')->where('booking_id', $bookingId)->first();
+        $this->assertNotNull($residentBill);
+        $this->assertEquals(20, (float) $residentBill->amount);
+
+        $monthly = DB::table('amenity_monthly_bills')->where('id', $residentBill->monthly_bill_id)->first();
+        $this->assertStringContainsString('2 guests', (string) $monthly->description);
+
+        $noticeId = (int) ($residentBill->finance_notice_id ?? 0);
+        $this->assertGreaterThan(0, $noticeId);
+        $this->assertDatabaseHas('notices', [
+            'id' => $noticeId,
+            'category' => 'finance',
+            'status' => 'published',
+        ]);
+        $this->assertDatabaseHas('notice_recipients', [
+            'notice_id' => $noticeId,
+            'user_id' => $resident->id,
+        ]);
+
+        Sanctum::actingAs($resident);
+        $this->getJson("/api/v1/notices/{$noticeId}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $noticeId);
+
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $resident->id,
+            'title' => 'Reservation approved',
+        ]);
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $resident->id,
+            'title' => 'Booking bill available',
+        ]);
+
+        $bodies = DB::table('app_notifications')->where('user_id', $resident->id)->pluck('body');
+        foreach ($bodies as $body) {
+            $this->assertStringNotContainsString('1900', (string) $body);
+        }
     }
 }

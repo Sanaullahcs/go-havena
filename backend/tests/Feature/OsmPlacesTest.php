@@ -187,6 +187,70 @@ class OsmPlacesTest extends TestCase
             ->assertJsonPath('data.longitude', -71.04185);
     }
 
+    public function test_nearby_places_orders_entries_with_phone_before_those_without(): void
+    {
+        config(['osm.geocode_in_tests' => true]);
+
+        Http::fake([
+            'overpass-api.de/*' => Http::response([
+                'elements' => [
+                    [
+                        'type' => 'node',
+                        'id' => 901,
+                        'lat' => 42.35001,
+                        'lon' => -71.04185,
+                        'tags' => [
+                            'name' => 'Close No Phone Cafe',
+                            'amenity' => 'cafe',
+                        ],
+                    ],
+                    [
+                        'type' => 'node',
+                        'id' => 902,
+                        'lat' => 42.35050,
+                        'lon' => -71.04185,
+                        'tags' => [
+                            'name' => 'Far With Phone Cafe',
+                            'amenity' => 'cafe',
+                            'phone' => '+16175550999',
+                        ],
+                    ],
+                ],
+            ]),
+            'overpass.kumi.systems/*' => Http::response(['elements' => []]),
+            'overpass.private.coffee/*' => Http::response(['elements' => []]),
+        ]);
+
+        $region = $this->activeRegion();
+        $community = Community::query()->create([
+            'name' => 'Harbor Homes',
+            'region_id' => $region->id,
+            'region' => $region->title,
+            'address' => '1 Seaport Blvd',
+            'latitude' => 42.34955,
+            'longitude' => -71.04185,
+            'status' => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        $resident = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        CommunityMembership::query()->create([
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+        ]);
+
+        Sanctum::actingAs($resident);
+
+        $this->getJson('/api/v1/nearby-places?category=cafes')
+            ->assertOk()
+            ->assertJsonPath('data.0.name', 'Far With Phone Cafe')
+            ->assertJsonPath('data.0.phone', '+16175550999')
+            ->assertJsonPath('data.1.name', 'Close No Phone Cafe')
+            ->assertJsonPath('data.1.phone', null);
+    }
+
     public function test_nearby_places_filters_results_beyond_3km(): void
     {
         $this->fakeOsmApis();

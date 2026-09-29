@@ -10,9 +10,31 @@ function isHtmlOrServerNoise(message) {
   );
 }
 
+function isDatabaseOrSqlLeak(message) {
+  if (!message) return false;
+  const text = String(message);
+  return (
+    /SQLSTATE\[/i.test(text) ||
+    /Connection: mysql/i.test(text) ||
+    /Connection refused/i.test(text) ||
+    /Base table or view not found/i.test(text) ||
+    /Integrity constraint violation/i.test(text) ||
+    /PDOException/i.test(text) ||
+    /Illuminate\\Database/i.test(text) ||
+    /SQL:\s*select/i.test(text) ||
+    /SQL:\s*insert/i.test(text) ||
+    /SQL:\s*update/i.test(text) ||
+    /SQL:\s*delete/i.test(text)
+  );
+}
+
 function friendlyValidationMessage(message) {
   if (!message) return message;
   const text = String(message).trim();
+
+  if (isDatabaseOrSqlLeak(text) || isHtmlOrServerNoise(text)) {
+    return "We could not complete that request. Please try again in a moment.";
+  }
 
   if (/selected region id is invalid/i.test(text)) {
     return "That region is no longer available. Pull to refresh and choose again.";
@@ -46,6 +68,13 @@ export function getApiErrorMessage(error, field) {
   }
 
   const message = error?.message;
+  if (message && isDatabaseOrSqlLeak(message)) {
+    if (error?.status >= 500 || !error?.status) {
+      return "We could not reach the local database. Make sure MySQL is running, then try again.";
+    }
+    return "We could not complete that request. Please try again in a moment.";
+  }
+
   if (message && !isHtmlOrServerNoise(message)) {
     return friendlyValidationMessage(message);
   }
