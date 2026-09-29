@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AuthShellSkeleton } from "@/components/shared/loaders";
 import { getToken } from "@/lib/auth/session";
+import { consumeWebHandoffIfPresent } from "@/lib/auth/web-handoff";
 import { PortalSidebar } from "@/components/portal/sidebar";
 import { PortalTopBar } from "@/components/portal/top-bar";
 import { WebPushProvider } from "@/components/push/web-push-provider";
@@ -33,11 +34,19 @@ export default function ResidentPortalLayout({ children }: { children: React.Rea
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    if (!getToken()) {
-      router.replace("/resident-login");
-    } else {
-      setChecked(true);
-    }
+    let cancelled = false;
+    (async () => {
+      await consumeWebHandoffIfPresent();
+      if (cancelled) return;
+      if (!getToken()) {
+        router.replace("/resident-login");
+      } else {
+        setChecked(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   useEffect(() => {
@@ -52,13 +61,13 @@ export default function ResidentPortalLayout({ children }: { children: React.Rea
 
   return (
     <ForegroundNotificationProvider>
-      <div className="min-h-screen bg-[#F4F8FD]">
+      <div className="min-h-dvh overflow-x-hidden bg-[#F4F8FD]">
         <WebPushProvider />
         <PortalSidebar open={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
-        <div className="flex min-w-0 flex-col min-h-screen md:ml-60">
+        <div className="flex min-h-dvh min-w-0 flex-col overflow-x-hidden md:ml-60">
           <PortalTopBar title={title} onMenuOpen={() => setDrawerOpen(true)} />
-          <main className="mx-auto min-w-0 w-full max-w-[1680px] flex-1 px-3 py-4 sm:px-5 sm:py-6 lg:px-6">
+          <main className="mx-auto w-full min-w-0 max-w-[1680px] flex-1 overflow-x-hidden px-3 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-6 lg:px-6">
             {children}
           </main>
         </div>

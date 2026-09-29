@@ -58,6 +58,10 @@ function patchFile(file) {
 }
 
 function main() {
+  if (process.env.EAS_BUILD || process.env.CI) {
+    console.log("[havena] skip Expo Go manifest patch during CI/EAS.");
+    return;
+  }
   const root = path.resolve(__dirname, "..");
   const files = findMiddlewareFiles(root);
   if (files.length === 0) {
@@ -67,7 +71,8 @@ function main() {
   for (const file of files) {
     const result = patchFile(file);
     if (result === "unexpected-source") {
-      throw new Error(`[havena] Expo Go manifest handler changed; update scripts/patch-expo-go-manifest.cjs (${file})`);
+      console.warn(`[havena] Expo Go manifest handler changed; skip patch (${file})`);
+      continue;
     }
     console.log(`[havena] Expo Go manifest ${result}: ${path.relative(root, file)}`);
   }

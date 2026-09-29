@@ -467,6 +467,25 @@ export function isDateBookedByUser(bookings, amenityId, dateKey) {
   );
 }
 
+export function amenityMatchesSearch(amenity, query) {
+  const q = String(query ?? "").trim().toLowerCase();
+  if (!q) return true;
+  const blob = [
+    amenity?.name,
+    amenity?.name_en,
+    amenity?.name_es,
+    amenity?.name_ar,
+    amenity?.description,
+    amenity?.floor,
+    amenity?.hours,
+    amenity?.custom_category,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return blob.includes(q);
+}
+
 export function enrichAmenityBookingState(amenity, myBookings = []) {
   const reservedDate =
     amenity.user_next_booking_date ?? getNextUserBookingDate(myBookings, amenity.id);

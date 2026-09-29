@@ -1,6 +1,6 @@
 /**
  * Havena official color scheme — Harbor Trust
- * Professional navy for community / HOA platforms.
+ * Navy brand chrome + warm orange for primary actions.
  */
 
 /** @type {const} */
@@ -14,10 +14,17 @@ export const HavenaColors = {
     canvas: "#F6F8FB",
   },
 
+  accent: {
+    main: "#E8782E",
+    deep: "#CF6518",
+    soft: "#FFF1E6",
+  },
+
   secondary: {
     navy: "#1B4F8A",
     darkTeal: "#163A66",
     green: "#059669",
+    orange: "#E8782E",
   },
 
   neutral: {

@@ -5,8 +5,10 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Linking,
+  AppState,
 } from "react-native";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -18,9 +20,12 @@ import { sw, sf } from "../../../../../../utils/responsive";
 import { PropertyManagementRoutes, amenityFlowRoutes } from "../../../../../../constants/property-management-routes";
 import {
   bookAmenity,
+  fetchAchCapability,
   fetchAmenitySlots,
   fetchMyBookings,
 } from "../../../../../../services/amenity-api";
+import { resolveAdminPortalBaseUrl } from "../../../../../../constants/api-config";
+import { createWebHandoff } from "../../../../../../services/auth-api";
 import {
   buildUpcomingDates,
   formatLongDate,
@@ -30,6 +35,7 @@ import {
 } from "../../../../../../utils/amenity-display";
 import { useApiAction } from "../../../../../../hooks/use-api-action";
 import { useSubmitLock } from "../../../../../../hooks/use-submit-lock";
+import { SkeletonLine } from "../../../../../../components/ui/skeleton-loader";
 
 const DATES = buildUpcomingDates(14);
 
@@ -46,11 +52,13 @@ export default function ReservationCalender() {
   const [selectedDate, setSelectedDate] = useState(DATES[0]?.key ?? null);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [slots, setSlots] = useState([]);
-  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [resolvedSlotKey, setResolvedSlotKey] = useState("");
   const [slotsMessage, setSlotsMessage] = useState("");
   const [userAlreadyBooked, setUserAlreadyBooked] = useState(false);
   const [myBookings, setMyBookings] = useState([]);
-  const { runAction } = useApiAction();
+  const [achCapability, setAchCapability] = useState(null);
+  const resumePaidBookingRef = useRef(false);
+  const { runAction, dialog } = useApiAction();
   const { submitting, run } = useSubmitLock();
 
   useFocusEffect(
@@ -71,20 +79,26 @@ export default function ReservationCalender() {
     router.replace(PropertyManagementRoutes.ADMIN_BOOKINGS);
   }, [ownedByMe, router]);
 
+  const slotKey =
+    !ownedByMe && amenityId && selectedDate && !isOpenMode ? `${amenityId}:${selectedDate}` : "";
+  const slotsLoading = slotKey !== "" && resolvedSlotKey !== slotKey;
+
   const loadSlots = useCallback(async () => {
     if (ownedByMe || !amenityId || !selectedDate || isOpenMode) {
       setSlots([]);
       setSlotsMessage("");
       setUserAlreadyBooked(false);
+      setResolvedSlotKey("");
       return;
     }
+    const key = `${amenityId}:${selectedDate}`;
     if (isDateBookedByUser(myBookings, amenityId, selectedDate)) {
       setSlots([]);
       setUserAlreadyBooked(true);
       setSlotsMessage(t("propertyMgmt.reservationForDate"));
+      setResolvedSlotKey(key);
       return;
     }
-    setSlotsLoading(true);
     try {
       const result = await fetchAmenitySlots(amenityId, selectedDate);
       setSlots(result.slots ?? []);
@@ -96,12 +110,12 @@ export default function ReservationCalender() {
             ? result.message || t("propertyMgmt.closedThisDay")
             : "",
       );
+      setResolvedSlotKey(key);
     } catch {
       setSlots([]);
       setUserAlreadyBooked(false);
       setSlotsMessage(t("propertyMgmt.couldNotLoadSlots"));
-    } finally {
-      setSlotsLoading(false);
+      setResolvedSlotKey(key);
     }
   }, [amenityId, selectedDate, isOpenMode, ownedByMe, myBookings, t]);
 
@@ -109,27 +123,45 @@ export default function ReservationCalender() {
     loadSlots();
   }, [loadSlots]);
 
-  const confirmBooking = () => {
-    if (ownedByMe || !selectedDate || submitting) return;
-    if (!isOpenMode && !selectedSlot) return;
-    run(async () => {
-      await runAction({
-        action: async () => {
-          const result = await bookAmenity({
-            amenity_id: amenityId,
-            date: selectedDate,
-            time_slot: isOpenMode ? undefined : selectedSlot,
-          });
-          return result;
-        },
-        successTitle:
-          t("propertyMgmt.requestSubmitted"),
+  const plaidOn = Boolean(achCapability?.plaid_available && achCapability?.ach_enabled);
+  const needsPlaidLink = fee > 0 && plaidOn && !achCapability?.resident?.connected;
+  const waitingOnCommunityBank = fee > 0 && plaidOn && Boolean(achCapability?.resident?.connected) && !achCapability?.community?.bank_connected;
+  const canChargeBank = fee > 0 && plaidOn && Boolean(achCapability?.can_pay_with_bank);
+
+  const loadCapability = useCallback(async () => {
+    if (fee <= 0) return null;
+    try {
+      const next = await fetchAchCapability();
+      setAchCapability(next);
+      return next;
+    } catch {
+      return null;
+    }
+  }, [fee]);
+
+  useEffect(() => {
+    void loadCapability();
+  }, [loadCapability]);
+
+  const submitReservation = useCallback((paymentMethod) => {
+    return runAction({
+        action: async () => bookAmenity({
+          amenity_id: amenityId,
+          date: selectedDate,
+          time_slot: isOpenMode ? undefined : selectedSlot,
+          paymentMethod,
+        }),
+        successTitle: t("propertyMgmt.requestSubmitted"),
         successMessage: (result) => {
-          const confirmed = result?.data?.status === "confirmed";
+          if (result?.payment_method === "bank_ach") {
+            return t("propertyMgmt.bankPaymentSent");
+          }
+          const confirmed = result?.status === "confirmed";
           if (confirmed) {
-            return isOpenMode
-              ? t("propertyMgmt.reservationConfirmed", { name, date: formatLongDate(selectedDate) })
-              : t("propertyMgmt.reservationConfirmed", { name, date: `${formatLongDate(selectedDate)} (${selectedSlot})` });
+            return t("propertyMgmt.reservationConfirmed", {
+              name,
+              date: isOpenMode ? formatLongDate(selectedDate) : `${formatLongDate(selectedDate)} (${selectedSlot})`,
+            });
           }
           return isOpenMode
             ? t("propertyMgmt.accessRequestSent", { name, date: formatLongDate(selectedDate) })
@@ -138,6 +170,63 @@ export default function ReservationCalender() {
         errorTitle: t("propertyMgmt.couldNotBook"),
         onSuccess: () => router.replace(amenityFlowRoutes(pathname).myBooking),
       });
+  }, [amenityId, isOpenMode, name, pathname, router, runAction, selectedDate, selectedSlot, t]);
+
+  const openPlaid = useCallback(async () => {
+    let url = `${resolveAdminPortalBaseUrl()}/payments?connect=1&from=app`;
+    try {
+      const code = await createWebHandoff();
+      if (code) url += `&handoff=${encodeURIComponent(code)}`;
+    } catch {
+      // The payments page can still ask them to sign in.
+    }
+    resumePaidBookingRef.current = true;
+    try {
+      await Linking.openURL(url);
+    } catch {
+      resumePaidBookingRef.current = false;
+      await dialog.showError(t("propertyMgmt.couldNotBook"), t("propertyMgmt.couldNotOpenPlaid"));
+    }
+  }, [dialog, t]);
+
+  const resumeAfterPlaid = useCallback(async () => {
+    const capability = await loadCapability();
+    if (capability?.can_pay_with_bank) {
+      await run(async () => {
+        await submitReservation("bank_ach");
+      });
+    }
+  }, [loadCapability, run, submitReservation]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active" || !resumePaidBookingRef.current) return;
+      resumePaidBookingRef.current = false;
+      void resumeAfterPlaid();
+    });
+    return () => sub.remove();
+  }, [resumeAfterPlaid]);
+
+  const confirmBooking = () => {
+    if (ownedByMe || !selectedDate || submitting) return;
+    if (!isOpenMode && !selectedSlot) return;
+    void run(async () => {
+      if (fee > 0) {
+        const capability = achCapability ?? await loadCapability();
+        const ready = Boolean(capability?.plaid_available && capability?.ach_enabled);
+        if (ready && !capability?.resident?.connected) return "plaid";
+        if (ready && capability?.resident?.connected && !capability?.community?.bank_connected) {
+          return null;
+        }
+        if (ready && capability?.can_pay_with_bank) {
+          await submitReservation("bank_ach");
+          return null;
+        }
+      }
+      await submitReservation();
+      return null;
+    }).then((result) => {
+      if (result === "plaid") void openPlaid();
     });
   };
 
@@ -146,7 +235,8 @@ export default function ReservationCalender() {
     Boolean(selectedDate) &&
     !selectedDateBooked &&
     !userAlreadyBooked &&
-    (isOpenMode || Boolean(selectedSlot)) &&
+    (isOpenMode || (Boolean(selectedSlot) && !slotsLoading)) &&
+    !waitingOnCommunityBank &&
     !submitting;
 
   return (
@@ -246,11 +336,29 @@ export default function ReservationCalender() {
             </View>
 
             {slotsLoading ? (
-              <ActivityIndicator color="#1B4F8A" style={{ marginVertical: sw(20) }} />
+              <View style={styles.slotGrid} accessibilityLabel={t("propertyMgmt.loadingSlots")}>
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <SkeletonLine
+                    key={index}
+                    width="47.5%"
+                    height={sw(52)}
+                    delay={index * 50}
+                    style={styles.slotSkeleton}
+                  />
+                ))}
+              </View>
             ) : slotsMessage ? (
-              <Text style={styles.emptySlots}>{slotsMessage}</Text>
+              <View style={styles.emptyCard}>
+                <Feather name="clock" size={sf(18)} color="#B45309" />
+                <Text style={styles.emptyTitle}>{t("propertyMgmt.timesUnavailable")}</Text>
+                <Text style={styles.emptyCopy}>{slotsMessage}</Text>
+              </View>
             ) : slots.length === 0 ? (
-              <Text style={styles.emptySlots}>{t("propertyMgmt.noSlotsConfigured")}</Text>
+              <View style={styles.emptyCard}>
+                <Feather name="calendar" size={sf(18)} color="#64748B" />
+                <Text style={styles.emptyTitle}>{t("propertyMgmt.noOpenSlots")}</Text>
+                <Text style={styles.emptyCopy}>{t("propertyMgmt.noOpenSlotsBody")}</Text>
+              </View>
             ) : (
               <View style={styles.slotGrid}>
                 {slots.map((slot) => {
@@ -296,7 +404,9 @@ export default function ReservationCalender() {
           </Text>
           <Text style={styles.summaryFee}>
             {t("propertyMgmt.bookingFee")}: {formatUsdAmount(fee)}
-            {fee > 0 ? ` · ${t("propertyMgmt.bookingFeeAfterApproval")}` : ""}
+            {fee > 0
+              ? ` · ${plaidOn ? t("propertyMgmt.bookingFeePayWithPlaid") : t("propertyMgmt.bookingFeeAfterApproval")}`
+              : ""}
           </Text>
         </View>
 
@@ -304,6 +414,12 @@ export default function ReservationCalender() {
       </ScrollView>
 
       <View style={styles.footer}>
+        {waitingOnCommunityBank ? (
+          <View style={styles.bankNotice}>
+            <Text style={styles.bankNoticeTitle}>{t("propertyMgmt.yourBankConnected")}</Text>
+            <Text style={styles.bankNoticeBody}>{t("propertyMgmt.receivingAccountMissingBody")}</Text>
+          </View>
+        ) : null}
         <TouchableOpacity
           activeOpacity={0.9}
           disabled={!canConfirm}
@@ -318,13 +434,21 @@ export default function ReservationCalender() {
               <Text style={styles.confirmText}>
                 {selectedDateBooked || userAlreadyBooked
                   ? t("propertyMgmt.alreadyBookedSection")
-                  : isOpenMode
-                    ? selectedDate
-                      ? t("propertyMgmt.requestDate", { date: formatLongDate(selectedDate) })
-                      : t("propertyMgmt.selectADate")
-                    : selectedSlot
-                      ? t("propertyMgmt.requestSlotBtn", { slot: selectedSlot })
-                      : t("propertyMgmt.selectTimeSlot")}
+                  : waitingOnCommunityBank
+                    ? t("propertyMgmt.receivingAccountNeeded")
+                    : needsPlaidLink
+                      ? t("propertyMgmt.continueToPlaid")
+                      : canChargeBank
+                      ? t("propertyMgmt.payWithBank", { amount: formatUsdAmount(fee) })
+                      : isOpenMode
+                        ? selectedDate
+                          ? t("propertyMgmt.requestDate", { date: formatLongDate(selectedDate) })
+                          : t("propertyMgmt.selectADate")
+                        : slotsLoading
+                          ? t("propertyMgmt.loadingSlots")
+                        : selectedSlot
+                          ? t("propertyMgmt.requestSlotBtn", { slot: selectedSlot })
+                          : t("propertyMgmt.selectTimeSlot")}
               </Text>
             </>
           )}
@@ -372,6 +496,30 @@ const styles = StyleSheet.create({
     fontSize: sf(12),
     color: "#64748B",
     marginBottom: sw(12),
+  },
+  emptyCard: {
+    marginTop: sw(4),
+    marginBottom: sw(12),
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: sw(14),
+    padding: sw(16),
+    gap: sw(6),
+  },
+  emptyTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(14),
+    color: "#334155",
+  },
+  emptyCopy: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(12),
+    color: "#64748B",
+    lineHeight: sf(18),
+  },
+  slotSkeleton: {
+    borderRadius: sw(14),
   },
 
   dateRow: { gap: sw(10), paddingBottom: sw(4) },
@@ -494,6 +642,27 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
   },
 
+  bankNotice: {
+    marginBottom: sw(10),
+    borderRadius: sw(14),
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    backgroundColor: "#FFFBEB",
+    paddingHorizontal: sw(12),
+    paddingVertical: sw(10),
+  },
+  bankNoticeTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(13),
+    color: "#92400E",
+  },
+  bankNoticeBody: {
+    marginTop: sw(4),
+    fontFamily: Fonts.regular,
+    fontSize: sf(12),
+    lineHeight: sf(18),
+    color: "#78350F",
+  },
   footer: {
     paddingHorizontal: Layout.screenPadding,
     paddingTop: sw(10),
@@ -580,9 +749,11 @@ const styles = StyleSheet.create({
   },
   confirmBtnDisabled: { opacity: 0.4 },
   confirmText: {
+    flexShrink: 1,
     fontFamily: Fonts.bold,
     fontWeight: "700",
     fontSize: sf(15),
     color: "#FFFFFF",
+    textAlign: "center",
   },
 });

@@ -9,11 +9,11 @@ import {
 import { Fonts } from "../../constants/font";
 import { HavenaColors as C } from "../../constants/color-scheme";
 
-const DEFAULT_SOLID = C.primary.main;
-const DEFAULT_LOADING = "rgba(20, 184, 166, 0.88)";
+const DEFAULT_SOLID = C.accent.main;
+const DEFAULT_LOADING = "rgba(232, 120, 46, 0.88)";
 
 /**
- * Primary CTA for auth/onboarding screens — solid Havena teal, no gradients.
+ * Primary CTA for auth/onboarding screens — warm orange accent.
  */
 export default function AuthSubmitButton({
   label,
@@ -95,4 +95,3 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semiBold,
   },
 });
-

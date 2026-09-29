@@ -326,6 +326,7 @@ class AmenityController extends Controller
             'payment_date' => 'nullable|date|before_or_equal:today',
             'payment_reference' => 'nullable|string|max:100',
             'payment_note' => 'nullable|string|max:1000',
+            'payment_method' => 'nullable|string|in:bank_ach,proof',
         ]);
 
         $user = $request->user();
@@ -446,20 +447,29 @@ class AmenityController extends Controller
         }
 
         $bookingFee = ($amenity->shared_billing_enabled ?? false) ? 0.0 : $this->amenityBookingFee($amenity);
+        $payWithBank = $bookingFee > 0 && $request->input('payment_method') === 'bank_ach';
         $now = now();
-        $id = DB::table('bookings')->insertGetId([
-            'amenity_id' => $request->amenity_id,
-            'user_id' => $user->id,
-            'date' => $date,
-            'time_slot' => $timeSlot,
-            'guests' => $guests,
-            'booking_fee' => $bookingFee,
-            'status' => 'pending',
-            'payment_verification_status' => self::PAYMENT_NOT_REQUIRED,
-            'notes' => $request->notes,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
+        $id = DB::transaction(function () use ($request, $user, $date, $timeSlot, $guests, $bookingFee, $payWithBank, $now) {
+            $bookingId = DB::table('bookings')->insertGetId([
+                'amenity_id' => $request->amenity_id,
+                'user_id' => $user->id,
+                'date' => $date,
+                'time_slot' => $timeSlot,
+                'guests' => $guests,
+                'booking_fee' => $bookingFee,
+                'status' => 'pending',
+                'payment_verification_status' => self::PAYMENT_NOT_REQUIRED,
+                'notes' => $request->notes,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+
+            if ($payWithBank) {
+                app(PlaidAchService::class)->payBooking($user, (int) $bookingId);
+            }
+
+            return $bookingId;
+        });
 
         ActivityLogService::user(
             'amenity_booking_requested',
@@ -485,7 +495,9 @@ class AmenityController extends Controller
 
         return response()->json([
             'data' => $this->formatResidentBooking($booking),
-            'message' => 'Reservation requested. The amenity owner will review your request.',
+            'message' => $payWithBank
+                ? 'Bank payment submitted. The amenity owner will review your request.'
+                : 'Reservation requested. The amenity owner will review your request.',
         ], 201);
     }
 

@@ -44,12 +44,12 @@ export function DashboardPanel({
       >
         <div className="flex min-w-0 items-start gap-2.5">
           {Icon ? toneIcon(Icon, tone, compact ? "sm" : "md") : null}
-          <div>
-            <h3 className={`font-bold ${compact ? "text-[13px]" : "text-[15px]"}`} style={{ color: NL.textPrimary }}>
+          <div className="min-w-0">
+            <h3 className={`break-words font-bold ${compact ? "text-[13px]" : "text-[15px]"}`} style={{ color: NL.textPrimary }}>
               {title}
             </h3>
             {description ? (
-              <p className={`${compact ? "text-[11px] leading-snug" : "mt-0.5 text-[13px]"}`} style={{ color: NL.textSecondary }}>
+              <p className={`break-words ${compact ? "text-[11px] leading-snug" : "mt-0.5 text-[13px]"}`} style={{ color: NL.textSecondary }}>
                 {description}
               </p>
             ) : null}

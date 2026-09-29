@@ -5,8 +5,11 @@ import { API_BASE_URL } from "../constants/api-config";
 import { getCommunityId, getToken } from "./auth-session";
 import { guessImageMeta, uploadMultipartFile } from "../utils/upload-form-data";
 import { HOME_SECTION_CARD_LIMIT } from "../constants/home-sections";
+import { parseApiDate } from "../utils/parse-api-date";
 import i18n, { localizedField } from "../i18n";
 import { getLocaleForLang } from "../hooks/use-app-locale";
+
+export { parseApiDate };
 
 export const FEED_TOPICS = [
   "Recommendations",
@@ -52,44 +55,6 @@ export const POST_TYPE_OPTIONS = FEED_TOPICS.map((label) => ({
     border: "#E5E7EB",
   }),
 }));
-
-/**
- * Parse Laravel/MySQL datetime strings reliably across iOS & Android.
- * API timestamps are UTC (APP_TIMEZONE=UTC). Naive values are treated as UTC;
- * strings with Z / ±offset use the native ISO parser.
- */
-export function parseApiDate(dateStr) {
-  if (!dateStr) return null;
-  if (dateStr instanceof Date) {
-    return Number.isNaN(dateStr.getTime()) ? null : dateStr;
-  }
-
-  const str = String(dateStr).trim();
-  if (!str) return null;
-
-  // Explicit timezone (e.g. 2026-07-23T13:39:25+00:00 or ...Z) — do not strip the offset.
-  if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(str)) {
-    const withZone = new Date(str);
-    if (!Number.isNaN(withZone.getTime())) return withZone;
-  }
-
-  // Naive MySQL/Laravel datetime → UTC (matches backend APP_TIMEZONE=UTC).
-  const mysqlMatch = str.match(
-    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?$/,
-  );
-
-  if (mysqlMatch) {
-    const [, y, mo, d, h, mi, s = "0"] = mysqlMatch;
-    const utc = new Date(
-      Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s)),
-    );
-    if (!Number.isNaN(utc.getTime())) return utc;
-  }
-
-  const iso = str.includes("T") ? str : str.replace(" ", "T");
-  const parsed = new Date(iso.endsWith("Z") || /[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
 
 export function timeAgo(dateStr, now = Date.now()) {
   const date = parseApiDate(dateStr);

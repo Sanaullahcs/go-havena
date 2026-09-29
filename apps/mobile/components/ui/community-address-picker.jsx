@@ -8,6 +8,7 @@ import { reverseAddress, suggestAddress } from "../../services/geo-api";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { LIMITS } from "../../utils/form-validation";
+import { rnShadow } from "../../utils/shadow";
 
 const FIELD_BOX_HEIGHT = 52;
 const FIELD_FONT_SIZE = 14;
@@ -397,11 +398,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: T.border,
     backgroundColor: "#DCE7F2",
-    shadowColor: "#0B1F3A",
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
+    ...rnShadow({ color: "#0B1F3A", offset: { width: 0, height: 6 }, opacity: 0.08, radius: 12, elevation: 2 }),
   },
   map: {
     flex: 1,

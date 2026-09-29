@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import {
   createBooking,
@@ -10,10 +10,12 @@ import {
 } from "@/lib/api/amenities";
 import { apiError } from "@/lib/api/client";
 import { toastError, toastSuccess } from "@/lib/alert";
-import {
-  BookingPaymentSummary,
-  bookingFeeAmount,
-} from "@/components/property/booking-payment-fields";
+import { BookingPaymentSummary, bookingFeeAmount } from "@/components/property/booking-payment-fields";
+import { formatUsdAmount } from "@/lib/admin/amenity-bill-validation";
+import { useResidentPlaidConnect } from "@/components/plaid/use-resident-plaid-connect";
+import { fetchAchCapability, type AchCapability, type PlaidExchangePayload } from "@/lib/api/resident-plaid";
+import { COMMUNITY_BANK_MISSING_MESSAGE, paidBookingPlaidStep } from "@/lib/plaid/paid-booking";
+import { AmenitySlotPicker } from "@/components/property/amenity-slot-picker";
 
 function tomorrowIso() {
   const d = new Date();
@@ -34,10 +36,13 @@ export function AmenityBookModal({
   const [slot, setSlot] = useState("");
   const [guests, setGuests] = useState("1");
   const [slots, setSlots] = useState<Array<AmenitySlot & { available?: boolean }>>([]);
-  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [resolvedSlotKey, setResolvedSlotKey] = useState("");
   const [slotsMessage, setSlotsMessage] = useState<string | null>(null);
   const [alreadyBooked, setAlreadyBooked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [capability, setCapability] = useState<AchCapability | null>(null);
+  const amenityRef = useRef(amenity);
+  amenityRef.current = amenity;
 
   useEffect(() => {
     if (!amenity) return;
@@ -47,14 +52,89 @@ export function AmenityBookModal({
   }, [amenity]);
 
   useEffect(() => {
+    if (!amenity) return;
+    let cancelled = false;
+    void fetchAchCapability()
+      .then((next) => {
+        if (!cancelled) setCapability(next);
+      })
+      .catch(() => {
+        if (!cancelled) setCapability(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [amenity]);
+
+  const submitBankBooking = async (currentAmenity: Amenity) => {
+    if (!date) {
+      toastError("Choose a date.");
+      return;
+    }
+    if (currentAmenity.status === "bookable" && !slot) {
+      toastError("Choose an available time slot.");
+      return;
+    }
+    const guestCount = parseInt(guests, 10) || 1;
+    setSubmitting(true);
+    try {
+      await createBooking({
+        amenity_id: currentAmenity.id,
+        date,
+        ...(currentAmenity.status === "bookable" ? { time_slot: slot } : {}),
+        guests: guestCount,
+        payment_method: "bank_ach",
+      });
+      toastSuccess(`Bank payment sent for ${currentAmenity.name}. The amenity owner will review the request.`);
+      onBooked?.();
+      onClose();
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const startPlaidRef = useRef<() => Promise<void>>(async () => {});
+  const { start: startPlaid, busy: plaidBusy, launcher: plaidLauncher } = useResidentPlaidConnect(
+    async (resident: PlaidExchangePayload) => {
+      const current = capability;
+      const next: AchCapability | null = current
+        ? {
+            ...current,
+            resident,
+            can_pay_with_bank: Boolean(current.community.bank_connected && resident.connected),
+            requires_resident_link: !resident.connected,
+          }
+        : null;
+      setCapability(next);
+      const currentAmenity = amenityRef.current;
+      if (!currentAmenity || !next) return;
+      const fee = currentAmenity.shared_billing_enabled ? 0 : bookingFeeAmount(currentAmenity.booking_fee);
+      if (paidBookingPlaidStep(fee, next) === "community_bank") {
+        toastError(COMMUNITY_BANK_MISSING_MESSAGE);
+        return;
+      }
+      if (paidBookingPlaidStep(fee, next) === "charge") {
+        await submitBankBooking(currentAmenity);
+      }
+    },
+  );
+  startPlaidRef.current = startPlaid;
+
+  const slotKey = amenity?.status === "bookable" && date ? `${amenity.id}:${date}` : "";
+  const slotsLoading = slotKey !== "" && resolvedSlotKey !== slotKey;
+
+  useEffect(() => {
     if (!amenity || amenity.status !== "bookable" || !date) {
       setSlots([]);
       setSlotsMessage(null);
       setAlreadyBooked(false);
+      setResolvedSlotKey("");
       return;
     }
+    const key = `${amenity.id}:${date}`;
     let cancelled = false;
-    setSlotsLoading(true);
     setSlotsMessage(null);
     setAlreadyBooked(false);
     void fetchAmenitySlots(amenity.id, date)
@@ -72,15 +152,14 @@ export function AmenityBookModal({
         setSlot((prev) =>
           res.slots.some((s) => s.value === prev && s.available !== false) ? prev : "",
         );
+        setResolvedSlotKey(key);
       })
       .catch((err) => {
         if (!cancelled) {
           setSlots([]);
           setSlotsMessage(apiError(err));
+          setResolvedSlotKey(key);
         }
-      })
-      .finally(() => {
-        if (!cancelled) setSlotsLoading(false);
       });
     return () => {
       cancelled = true;
@@ -108,7 +187,7 @@ export function AmenityBookModal({
   }
 
   const maxGuests = Math.max(1, Number(amenity.capacity) || 50);
-  const fee = bookingFeeAmount(amenity.booking_fee);
+  const fee = amenity.shared_billing_enabled ? 0 : bookingFeeAmount(amenity.booking_fee);
 
   const handleSubmit = async () => {
     if (!date) {
@@ -126,6 +205,20 @@ export function AmenityBookModal({
     const guestCount = parseInt(guests, 10) || 1;
     if (guestCount > maxGuests) {
       toastError(`This amenity allows up to ${maxGuests} guests.`);
+      return;
+    }
+
+    const step = paidBookingPlaidStep(fee, capability);
+    if (step === "link") {
+      await startPlaidRef.current();
+      return;
+    }
+    if (step === "community_bank") {
+      toastError(COMMUNITY_BANK_MISSING_MESSAGE);
+      return;
+    }
+    if (step === "charge") {
+      await submitBankBooking(amenity);
       return;
     }
 
@@ -147,8 +240,11 @@ export function AmenityBookModal({
     }
   };
 
+  const bookStep = paidBookingPlaidStep(fee, capability);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+      {plaidLauncher}
       <div className="flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-start justify-between border-b border-slate-100 px-5 py-4">
           <div>
@@ -157,7 +253,7 @@ export function AmenityBookModal({
             </h3>
             <p className="mt-0.5 text-xs text-slate-500">
               The amenity creator will review your request
-              {fee > 0 ? ". Payment proof is requested after they approve." : "."}
+              {fee > 0 ? ". Paid amenities open Plaid before the reservation is saved." : "."}
             </p>
           </div>
           <button
@@ -184,39 +280,13 @@ export function AmenityBookModal({
           {amenity.status === "bookable" ? (
             <div>
               <label className="nl-label">Available slots</label>
-              {slotsLoading ? (
-                <p className="mt-2 text-sm text-slate-400">Loading slots…</p>
-              ) : slotsMessage ? (
-                <p className="mt-2 text-sm text-amber-700">{slotsMessage}</p>
-              ) : slots.length === 0 ? (
-                <p className="mt-2 text-sm text-slate-400">No open slots for this date.</p>
-              ) : (
-                <div className="mt-2 grid max-h-48 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
-                  {slots.map((item) => {
-                    const taken = item.available === false;
-                    const active = slot === item.value;
-                    return (
-                      <button
-                        key={item.value}
-                        type="button"
-                        disabled={taken}
-                        onClick={() => setSlot(item.value)}
-                        className={[
-                          "rounded-xl border px-3 py-2 text-left text-[12.5px] font-semibold transition",
-                          taken
-                            ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-400"
-                            : active
-                              ? "border-[#1B4F8A] bg-[#E8F0F7] text-[#1B4F8A]"
-                              : "border-slate-200 text-slate-700 hover:border-slate-300",
-                        ].join(" ")}
-                      >
-                        {item.value}
-                        {taken ? " · Taken" : ""}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              <AmenitySlotPicker
+                loading={slotsLoading}
+                slots={slots}
+                message={slotsMessage}
+                selected={slot}
+                onSelect={setSlot}
+              />
             </div>
           ) : null}
 
@@ -233,6 +303,11 @@ export function AmenityBookModal({
             <p className="mt-1 text-xs text-slate-400">Max {maxGuests} guests</p>
           </div>
 
+          {bookStep === "community_bank" ? (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+              Your bank is connected. This community has not connected a receiving account, so this paid amenity cannot be booked yet.
+            </p>
+          ) : null}
           <BookingPaymentSummary
             amenityName={amenity.name}
             date={date}
@@ -241,17 +316,31 @@ export function AmenityBookModal({
           />
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">
-          <button type="button" onClick={onClose} className="nl-btn-secondary">
+        <div className="flex flex-col-reverse gap-2 border-t border-slate-100 px-4 py-3 sm:flex-row sm:justify-end sm:px-5 sm:py-4">
+          <button type="button" onClick={onClose} className="nl-btn-secondary w-full sm:w-auto">
             Cancel
           </button>
           <button
             type="button"
-            disabled={submitting || alreadyBooked}
+                disabled={submitting || plaidBusy || alreadyBooked || bookStep === "community_bank" || (amenity.status === "bookable" && slotsLoading)}
             onClick={() => void handleSubmit()}
-            className="nl-btn-primary disabled:opacity-60"
+            className="nl-btn-primary w-full disabled:opacity-60 sm:w-auto"
           >
-            {submitting ? "Submitting…" : amenity.status === "open" ? "Submit request" : "Book now"}
+            {plaidBusy
+              ? "Opening Plaid…"
+              : submitting
+                ? "Submitting…"
+                : bookStep === "link"
+                  ? "Continue to Plaid"
+                  : bookStep === "charge"
+                    ? `Pay ${formatUsdAmount(fee)} with bank`
+                    : bookStep === "community_bank"
+                      ? "Receiving account needed"
+                      : amenity.status === "bookable" && slotsLoading
+                        ? "Loading slots…"
+                      : amenity.status === "open"
+                      ? "Submit request"
+                      : "Book now"}
           </button>
         </div>
       </div>

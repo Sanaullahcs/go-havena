@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { confirmAction, toastSuccess, toastError } from "@/lib/alert";
 import {
   fetchAmenities,
@@ -28,7 +28,10 @@ import {
   type BookingPaymentForm,
 } from "@/components/property/booking-payment-fields";
 import { formatUsdAmount, todayIsoDate, validatePaymentProofForm } from "@/lib/admin/amenity-bill-validation";
-import { bankAccountLabel, fetchAchCapability, type AchCapability } from "@/lib/api/resident-plaid";
+import { bankAccountLabel, fetchAchCapability, type AchCapability, type PlaidExchangePayload } from "@/lib/api/resident-plaid";
+import { useResidentPlaidConnect } from "@/components/plaid/use-resident-plaid-connect";
+import { COMMUNITY_BANK_MISSING_MESSAGE, paidBookingPlaidStep } from "@/lib/plaid/paid-booking";
+import { AmenitySlotPicker } from "@/components/property/amenity-slot-picker";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; label: string; dot: string }> = {
@@ -69,11 +72,12 @@ export default function PropertyPage() {
   const { showError, touch, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
   const paymentErrors = useMemo(() => validatePaymentProofForm(payment), [payment]);
   const [slots, setSlots] = useState<Array<AmenitySlot & { available?: boolean }>>([]);
-  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [resolvedSlotKey, setResolvedSlotKey] = useState("");
   const [slotsMessage, setSlotsMessage] = useState<string | null>(null);
   const [alreadyBookedDate, setAlreadyBookedDate] = useState(false);
 
   const [amenities, setAmenities] = useState<Amenity[]>([]);
+  const [amenityQuery, setAmenityQuery] = useState("");
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [inbox, setInbox] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,15 +106,20 @@ export default function PropertyPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const slotKey =
+    bookModal?.status === "bookable" && bookForm.date ? `${bookModal.id}:${bookForm.date}` : "";
+  const slotsLoading = slotKey !== "" && resolvedSlotKey !== slotKey;
+
   useEffect(() => {
     if (!bookModal || bookModal.status !== "bookable" || !bookForm.date) {
       setSlots([]);
       setSlotsMessage(null);
       setAlreadyBookedDate(false);
+      setResolvedSlotKey("");
       return;
     }
+    const key = `${bookModal.id}:${bookForm.date}`;
     let cancelled = false;
-    setSlotsLoading(true);
     setSlotsMessage(null);
     setAlreadyBookedDate(false);
     void fetchAmenitySlots(bookModal.id, bookForm.date)
@@ -129,15 +138,14 @@ export default function PropertyPage() {
           ...f,
           slot: res.slots.some((s) => s.value === f.slot && s.available !== false) ? f.slot : "",
         }));
+        setResolvedSlotKey(key);
       })
       .catch((err) => {
         if (!cancelled) {
           setSlots([]);
           setSlotsMessage(apiError(err));
+          setResolvedSlotKey(key);
         }
-      })
-      .finally(() => {
-        if (!cancelled) setSlotsLoading(false);
       });
     return () => {
       cancelled = true;
@@ -162,7 +170,13 @@ export default function PropertyPage() {
     setBookModal(amenity);
   };
 
-  const handleBook = async (amenity: Amenity) => {
+  const bookAmenityRef = useRef<Amenity | null>(null);
+
+  const placeBooking = useCallback(async (
+    amenity: Amenity,
+    capability: AchCapability | null,
+    options?: { skipConfirm?: boolean },
+  ) => {
     if (amenity.is_mine) {
       toastError("You cannot book an amenity you created.");
       return;
@@ -187,26 +201,39 @@ export default function PropertyPage() {
     }
 
     const fee = amenity.shared_billing_enabled ? 0 : bookingFeeAmount(amenity.booking_fee);
-    const payWithBank = fee > 0 && payment.method === "bank_ach" && Boolean(achCapability?.can_pay_with_bank);
-    if (fee > 0 && !payWithBank && !validateOnSubmit(paymentErrors)) {
+    const step = paidBookingPlaidStep(fee, capability);
+    if (step === "link") {
+      bookAmenityRef.current = amenity;
+      await startPlaidRef.current();
+      return;
+    }
+    if (step === "community_bank") {
+      toastError(COMMUNITY_BANK_MISSING_MESSAGE);
+      return;
+    }
+    if (step === "proof" && !validateOnSubmit(paymentErrors)) {
       toastError(paymentErrors.file || paymentErrors.payment_date || "Add payment proof to continue.");
       return;
     }
-    const slotLabel =
-      amenity.status === "bookable" ? bookForm.slot : "Open access request";
-    const r = await confirmAction({
-      title: `Request ${amenity.name}?`,
-      text: `Date: ${bookForm.date}${amenity.status === "bookable" ? ` · ${slotLabel}` : ""}${
-        fee > 0
-          ? ` · Booking fee ${formatUsdAmount(fee)} will be billed after approval.`
-          : amenity.shared_billing_enabled
-            ? ` · Shared fee ${formatUsdAmount(amenity.display_fee ?? amenity.shared_billing_amount)} must already be paid.`
-            : ""
-      } The amenity creator will review your request.`,
-      confirmText: "Submit request",
-      color: "green",
-    });
-    if (!r.isConfirmed) return;
+
+    const slotLabel = amenity.status === "bookable" ? bookForm.slot : "Open access request";
+    if (!options?.skipConfirm) {
+      const feeLine =
+        step === "charge"
+          ? ` Pay ${formatUsdAmount(fee)} from your linked bank through Plaid now.`
+          : fee > 0
+            ? ` Include payment proof for ${formatUsdAmount(fee)}.`
+            : amenity.shared_billing_enabled
+              ? ` Shared fee ${formatUsdAmount(amenity.display_fee ?? amenity.shared_billing_amount)} must already be paid.`
+              : "";
+      const r = await confirmAction({
+        title: step === "charge" ? `Pay for ${amenity.name}?` : `Request ${amenity.name}?`,
+        text: `Date: ${bookForm.date}${amenity.status === "bookable" ? ` · ${slotLabel}` : ""}.${feeLine} The amenity creator will review your request.`,
+        confirmText: step === "charge" ? `Pay ${formatUsdAmount(fee)} with bank` : "Submit request",
+        color: "green",
+      });
+      if (!r.isConfirmed) return;
+    }
 
     setSubmitting(true);
     try {
@@ -215,27 +242,52 @@ export default function PropertyPage() {
         date: bookForm.date,
         ...(amenity.status === "bookable" ? { time_slot: bookForm.slot } : {}),
         guests: guestCount,
-        ...(fee > 0
-          ? payWithBank
-            ? { payment_method: "bank_ach" as const }
-            : {
+        ...(step === "charge"
+          ? { payment_method: "bank_ach" as const }
+          : step === "proof"
+            ? {
                 payment_method: "proof" as const,
                 payment_proof: payment.file,
                 payment_date: payment.payment_date,
                 payment_reference: payment.payment_reference.trim() || undefined,
                 payment_note: payment.payment_note.trim() || undefined,
               }
-          : {}),
+            : {}),
       });
       setBookModal(null);
-      toastSuccess(`Request submitted for ${amenity.name}.`);
+      toastSuccess(
+        step === "charge"
+          ? `Bank payment sent for ${amenity.name}. The amenity owner will review the request.`
+          : `Request submitted for ${amenity.name}.`,
+      );
       loadData();
     } catch (err) {
       toastError(apiError(err));
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [alreadyBookedDate, bookForm.date, bookForm.guests, bookForm.slot, loadData, payment, paymentErrors, validateOnSubmit]);
+
+  const startPlaidRef = useRef<() => Promise<void>>(async () => {});
+  const { start: startPlaid, busy: plaidBusy, launcher: plaidLauncher } = useResidentPlaidConnect(
+    async (resident: PlaidExchangePayload) => {
+      const current = achCapability;
+      const next: AchCapability | null = current
+        ? {
+            ...current,
+            resident,
+            can_pay_with_bank: Boolean(current.community.bank_connected && resident.connected),
+            requires_resident_link: !resident.connected,
+          }
+        : null;
+      setAchCapability(next);
+      const amenity = bookAmenityRef.current;
+      if (amenity) await placeBooking(amenity, next, { skipConfirm: true });
+    },
+  );
+  startPlaidRef.current = startPlaid;
+
+  const handleBook = (amenity: Amenity) => placeBooking(amenity, achCapability);
 
   const handleCancelBooking = async (booking: Booking) => {
     const r = await confirmAction({ title: "Cancel booking?", text: `Your ${booking.amenity_name} booking will be cancelled. This cannot be undone.`, confirmText: "Cancel Booking", icon: "warning", color: "red" });
@@ -252,8 +304,12 @@ export default function PropertyPage() {
 
   if (loading) return <PageLoader variant="cards" />;
 
+  const bookFee = bookModal && !bookModal.shared_billing_enabled ? bookingFeeAmount(bookModal.booking_fee) : 0;
+  const bookStep = paidBookingPlaidStep(bookFee, achCapability);
+
   return (
     <div className="space-y-5">
+      {plaidLauncher}
 
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -299,9 +355,32 @@ export default function PropertyPage() {
       {/* ── Amenities ── */}
       {tab === "amenities" && (
         <div className="space-y-6">
+          {amenities.length > 0 ? (
+            <div className="relative max-w-md">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 [&_svg]:h-4 [&_svg]:w-4">
+                <IcoSearch />
+              </span>
+              <input
+                type="search"
+                value={amenityQuery}
+                onChange={(e) => setAmenityQuery(e.target.value)}
+                placeholder="Search amenities…"
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white py-2 pr-3 text-[13px] shadow-sm outline-none placeholder:text-slate-400 focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                style={{ paddingLeft: "2.25rem" }}
+              />
+            </div>
+          ) : null}
           {(() => {
-            const mine = amenities.filter((a) => a.is_mine);
-            const others = amenities.filter((a) => !a.is_mine);
+            const q = amenityQuery.trim().toLowerCase();
+            const matches = (a: Amenity) =>
+              !q ||
+              [a.name, a.description, a.floor, a.hours]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase()
+                .includes(q);
+            const mine = amenities.filter((a) => a.is_mine && matches(a));
+            const others = amenities.filter((a) => !a.is_mine && matches(a));
             const renderCard = (a: Amenity, idx: number, owned: boolean) => {
               const statusKey = a.status?.toLowerCase() ?? "open";
               const st = STATUS_STYLE[statusKey] ?? STATUS_STYLE.open;
@@ -408,6 +487,14 @@ export default function PropertyPage() {
               return (
                 <div className="rounded-2xl border border-slate-200 bg-white py-12 text-center text-sm text-slate-400">
                   No facilities published yet. Your community admin will add amenities here.
+                </div>
+              );
+            }
+
+            if (mine.length === 0 && others.length === 0) {
+              return (
+                <div className="rounded-2xl border border-slate-200 bg-white py-12 text-center text-sm text-slate-400">
+                  No amenities match your search.
                 </div>
               );
             }
@@ -630,39 +717,14 @@ export default function PropertyPage() {
               {bookModal.status === "bookable" ? (
                 <div>
                   <label className="nl-label">Available slots</label>
-                  {slotsLoading ? (
-                    <p className="mt-2 text-sm text-slate-400">Loading slots…</p>
-                  ) : slotsMessage ? (
-                    <p className="mt-2 text-sm text-amber-700">{slotsMessage}</p>
-                  ) : slots.length === 0 ? (
-                    <p className="mt-2 text-sm text-slate-400">No open slots for this date.</p>
-                  ) : (
-                    <div className="mt-2 grid max-h-48 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
-                      {slots.map((slot) => {
-                        const taken = slot.available === false;
-                        const active = bookForm.slot === slot.value;
-                        return (
-                          <button
-                            key={slot.value}
-                            type="button"
-                            disabled={taken}
-                            onClick={() => setBookForm((f) => ({ ...f, slot: slot.value }))}
-                            className={[
-                              "rounded-xl border px-3 py-2 text-left text-[12.5px] font-semibold transition",
-                              taken
-                                ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-400"
-                                : active
-                                  ? "border-teal-500 bg-teal-50 text-[#0A2A43]"
-                                  : "border-slate-200 text-slate-700 hover:border-slate-300",
-                            ].join(" ")}
-                          >
-                            {slot.value}
-                            {taken ? " · Taken" : ""}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                  <AmenitySlotPicker
+                    loading={slotsLoading}
+                    slots={slots}
+                    message={slotsMessage}
+                    selected={bookForm.slot}
+                    onSelect={(value) => setBookForm((f) => ({ ...f, slot: value }))}
+                    tone="teal"
+                  />
                 </div>
               ) : null}
               <div>
@@ -680,6 +742,11 @@ export default function PropertyPage() {
                   Max {Math.max(1, Number(bookModal.capacity) || 50)} guests
                 </p>
               </div>
+              {bookStep === "community_bank" ? (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+                  Your bank is connected. This community has not connected a receiving account, so this paid amenity cannot be booked yet.
+                </p>
+              ) : null}
               <BookingPaymentSummary
                 amenityName={bookModal.name}
                 date={bookForm.date}
@@ -687,7 +754,7 @@ export default function PropertyPage() {
                 fee={bookingFeeAmount(bookModal.booking_fee)}
               />
               <BookingPaymentFields
-                fee={bookingFeeAmount(bookModal.booking_fee)}
+                fee={bookStep === "proof" ? bookingFeeAmount(bookModal.booking_fee) : 0}
                 form={payment}
                 errors={paymentErrors}
                 showError={showError}
@@ -698,14 +765,26 @@ export default function PropertyPage() {
                 bankLabel={bankAccountLabel(achCapability?.resident.account, achCapability?.resident.institution_name)}
               />
             </div>
-            <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
-              <button onClick={() => setBookModal(null)} className="nl-btn-secondary">Cancel</button>
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-end sm:px-6 sm:py-4">
+              <button onClick={() => setBookModal(null)} className="nl-btn-secondary w-full sm:w-auto">Cancel</button>
               <button
-                disabled={submitting || alreadyBookedDate}
+                disabled={submitting || plaidBusy || alreadyBookedDate || bookStep === "community_bank" || (bookModal.status === "bookable" && slotsLoading)}
                 onClick={() => handleBook(bookModal)}
-                className="nl-btn-primary disabled:opacity-60"
+                className="nl-btn-primary w-full disabled:opacity-60 sm:w-auto"
               >
-                {submitting ? "Submitting…" : "Submit request"}
+                {plaidBusy
+                  ? "Opening Plaid…"
+                  : submitting
+                    ? "Submitting…"
+                    : bookStep === "link"
+                      ? "Continue to Plaid"
+                      : bookStep === "charge"
+                        ? `Pay ${formatUsdAmount(bookFee)} with bank`
+                        : bookStep === "community_bank"
+                          ? "Receiving account needed"
+                          : bookModal.status === "bookable" && slotsLoading
+                            ? "Loading slots…"
+                          : "Submit request"}
               </button>
             </div>
           </div>
@@ -716,6 +795,14 @@ export default function PropertyPage() {
 }
 
 /* ─── Icons ─── */
+function IcoSearch() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden>
+      <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M10.5 10.5l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
 function IcoClock()    { return <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8"/><path d="M12 7v5l3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>; }
 function IcoCalendar() { return <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="17" rx="2" stroke="currentColor" strokeWidth="1.8"/><path d="M8 2v4M16 2v4M3 10h18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>; }
 function IcoPlus()     { return <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>; }

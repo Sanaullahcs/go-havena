@@ -82,16 +82,21 @@ class PlaidService
             $this->environment(),
         );
 
+        $curl = [
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+        ];
+        if (defined('CURL_SSLVERSION_TLSv1_2')) {
+            $curl[CURLOPT_SSLVERSION] = CURL_SSLVERSION_TLSv1_2;
+        }
         $caBundle = TlsCaBundle::path();
         if ($caBundle) {
-            $this->client->setHttpClient(new Shuttle(
-                handler: new CurlHandler([
-                    CURLOPT_CAINFO => $caBundle,
-                    CURLOPT_SSL_VERIFYPEER => true,
-                    CURLOPT_SSL_VERIFYHOST => 2,
-                ]),
-            ));
+            $curl[CURLOPT_CAINFO] = $caBundle;
+            $curl[CURLOPT_SSL_VERIFYPEER] = true;
+            $curl[CURLOPT_SSL_VERIFYHOST] = 2;
         }
+        $this->client->setHttpClient(new Shuttle(
+            handler: new CurlHandler($curl),
+        ));
 
         return $this->client;
     }

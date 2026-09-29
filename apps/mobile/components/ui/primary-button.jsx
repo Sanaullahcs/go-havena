@@ -49,7 +49,7 @@ export default function PrimaryButton({
 const styles = StyleSheet.create({
   pressable: { width: "100%" },
   primaryBtn: {
-    backgroundColor: Colors.brandPrimary,
+    backgroundColor: Colors.brandAccent,
   },
   loadingBtn: { opacity: 0.95 },
   loadingRow: {

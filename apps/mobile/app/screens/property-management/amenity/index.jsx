@@ -27,8 +27,10 @@ import {
   getAmenityVisual,
   getAmenityStatus,
   enrichAmenityBookingState,
+  amenityMatchesSearch,
   formatLongDate,
 } from "../../../../utils/amenity-display";
+import SearchInput from "../../../../components/ui/search-input";
 import { chevronForward } from "../../../../utils/rtl";
 import { localizedField } from "../../../../i18n";
 import { rnShadow } from "../../../../utils/shadow";
@@ -118,6 +120,7 @@ export default function Amenity() {
   const pathname = usePathname();
   const [amenities, setAmenities] = useState([]);
   const [myBookings, setMyBookings] = useState([]);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -147,8 +150,13 @@ export default function Amenity() {
     load(true);
   }, [load]);
 
+  const visibleAmenities = useMemo(
+    () => amenities.filter((amenity) => amenityMatchesSearch(amenity, search)),
+    [amenities, search],
+  );
+
   const { mine, openAccess, bookable, alreadyBooked, others } = useMemo(() => {
-    const enriched = amenities.map((a) => enrichAmenityBookingState(a, myBookings));
+    const enriched = visibleAmenities.map((a) => enrichAmenityBookingState(a, myBookings));
     const mineOnes = enriched.filter((a) => a.is_mine);
     const notMine = enriched.filter((a) => !a.is_mine && a.review_status !== "pending");
     const reserved = notMine.filter(
@@ -165,7 +173,7 @@ export default function Amenity() {
       alreadyBooked: reserved,
       others: notMine,
     };
-  }, [amenities, myBookings]);
+  }, [visibleAmenities, myBookings]);
 
   const openDetail = (amenity) => {
     router.push({
@@ -180,7 +188,7 @@ export default function Amenity() {
         layout="inline"
         titleAlign="center"
         title={t("propertyMgmt.amenityTitle")}
-        subtitle={loading ? " " : t("propertyMgmt.facilitiesAvailable", { count: amenities.length })}
+        subtitle={loading ? " " : t("propertyMgmt.facilitiesAvailable", { count: search.trim() ? visibleAmenities.length : amenities.length })}
         iconOnly
       />
 
@@ -189,6 +197,7 @@ export default function Amenity() {
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={[styles.scroll, pageStyles.scrollBottom]}
           refreshControl={
             <RefreshControl
@@ -198,6 +207,14 @@ export default function Amenity() {
             />
           }
         >
+          {amenities.length > 0 ? (
+            <SearchInput
+              placeholder={t("propertyMgmt.searchAmenities")}
+              value={search}
+              onChangeText={setSearch}
+            />
+          ) : null}
+
           {amenities.length === 0 ? (
             <View style={styles.empty}>
               <View style={styles.emptyIcon}>
@@ -207,6 +224,13 @@ export default function Amenity() {
               <Text style={styles.emptyText}>
                 {t("propertyMgmt.noFacilitiesDesc")}
               </Text>
+            </View>
+          ) : visibleAmenities.length === 0 ? (
+            <View style={styles.empty}>
+              <View style={styles.emptyIcon}>
+                <Feather name="search" size={sf(28)} color="#94A3B8" />
+              </View>
+              <Text style={styles.emptyTitle}>{t("propertyMgmt.noAmenitiesMatch")}</Text>
             </View>
           ) : (
             <>

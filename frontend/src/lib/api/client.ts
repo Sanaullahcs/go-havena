@@ -164,12 +164,17 @@ export function apiError(err: unknown): string {
     const data = err.response?.data as { message?: string; errors?: Record<string, string[]> } | undefined;
     const genericValidation = "The given data was invalid.";
     const message = data?.message ?? "";
-    const isInternalDbError = /SQLSTATE|Unknown column|SQL:/i.test(message);
-    if (data?.errors && !isInternalDbError) {
+    const isInternalDbError = /SQLSTATE|Unknown column|\bSQL:/i.test(message);
+    const isPhpInternal =
+      /Class ["'][^"']+["'] not found|ErrorException|Stack trace|syntax error,|Undefined (property|variable|constant)|Allowed memory size/i.test(
+        message,
+      );
+    const isInternal = isInternalDbError || isPhpInternal;
+    if (data?.errors && !isInternal) {
       const first = Object.values(data.errors)[0];
       if (Array.isArray(first) && first[0]) return first[0] as string;
     }
-    if (message && message !== genericValidation && !isInternalDbError) return message;
+    if (message && message !== genericValidation && !isInternal) return message;
     if (err.response?.status === 413) {
       return "This image is too large for the server. Use a JPG or PNG under 5 MB.";
     }
@@ -179,10 +184,13 @@ export function apiError(err: unknown): string {
       }
       return "You do not have permission to do that.";
     }
-    if (err.response?.status === 500 || isInternalDbError) {
+    if (err.response?.status === 500 || isInternal) {
       const url = String(err.config?.url ?? "");
       if (url.includes("notices") || url.includes("upload-image")) {
         return "Could not save this notice. Please try again, or use a smaller image.";
+      }
+      if (url.includes("/me")) {
+        return "We couldn't save your profile. Please try again.";
       }
       return "Server error — please try again or contact support.";
     }

@@ -94,7 +94,7 @@ export function BookingPaymentFields({
                 : "border-slate-200 bg-white/70 text-slate-600",
             ].join(" ")}
           >
-            Pay with bank
+            Pay {formatUsdAmount(fee)} with bank
             {bankLabel ? <span className="mt-0.5 block font-medium text-slate-500">{bankLabel}</span> : null}
           </button>
           <button

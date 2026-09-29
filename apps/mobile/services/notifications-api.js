@@ -1,5 +1,5 @@
 import { apiRequest } from "./api-client";
-import { parseApiDate } from "./feed-api";
+import { parseApiDate } from "../utils/parse-api-date";
 import { getNoticeDetailRoute } from "./notices-api";
 import { getNotificationIconSource } from "../utils/notification-visual";
 import i18n from "../i18n";

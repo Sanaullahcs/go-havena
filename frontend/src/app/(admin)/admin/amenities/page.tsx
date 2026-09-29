@@ -926,10 +926,19 @@ export default function AdminAmenitiesPage() {
               </p>
             </div>
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-4">
-              {bookableForAdmin.length === 0 ? (
-                <p className="py-8 text-center text-sm text-slate-400">
-                  No bookable amenities available right now.
-                </p>
+              {loading && bookableForAdmin.length === 0 ? (
+                <div className="space-y-2" aria-busy="true" aria-label="Loading amenities">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <div key={index} className="h-16 animate-skeleton rounded-xl bg-slate-100" />
+                  ))}
+                </div>
+              ) : bookableForAdmin.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
+                  <p className="text-sm font-semibold text-slate-800">No amenities to book</p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                    Timed-slot and open amenities you don&apos;t manage will show up here.
+                  </p>
+                </div>
               ) : (
                 bookableForAdmin.map((amenity) => {
                   const status = getAmenityStatusMeta(amenity.status);

@@ -526,6 +526,55 @@ class ActonContentSeeder extends Seeder
             ],
         ];
 
+        // Most facilities are paid timed slots so bank payment can be tested.
+        // A few public ways stay open access.
+        $stayOpen = [
+            'Bruce Freeman Rail Trail',
+            'Assabet River Rail Trail',
+            'Little Free Library, West Acton',
+            'Line of March of the Acton Minutemen',
+        ];
+        $paidFees = [
+            'Acton Town Hall' => 40,
+            'Acton Memorial Library' => 15,
+            "West Acton Citizens' Library" => 10,
+            'NARA Park' => 35,
+            'Acton Arboretum' => 12,
+            'Great Hill Conservation Land' => 10,
+            'South Acton Station' => 8,
+            'Gardner Field' => 20,
+            'Elm Street Playground' => 15,
+            'Transfer Station & Recycling Center' => 10,
+            'Faulkner Homestead' => 25,
+            'Acton Centre Firehouse' => 20,
+            'Main Street, Acton Centre' => 15,
+            'Recreation Office' => 15,
+            'Nashoba Brook' => 10,
+            'Great Hill Athletic Field' => 25,
+            'Great Hill Skating Pond' => 15,
+            'East Acton Village Green' => 10,
+            'Acton Plaza' => 12,
+        ];
+
+        foreach ($rows as &$row) {
+            if (in_array($row['name'], $stayOpen, true)) {
+                $row['status'] = 'open';
+                $row['booking_fee'] = 0;
+                continue;
+            }
+
+            $row['status'] = 'bookable';
+            $row['booking_fee'] = $paidFees[$row['name']] ?? 20;
+            if (empty($row['slot_duration_minutes'])) {
+                $row['slot_duration_minutes'] = 60;
+            }
+            if (($row['start_time'] ?? '') === '00:00:00') {
+                $row['start_time'] = '09:00:00';
+                $row['end_time'] = '17:00:00';
+            }
+        }
+        unset($row);
+
         $ids = [];
 
         foreach ($rows as $row) {

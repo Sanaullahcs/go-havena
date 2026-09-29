@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import AuthLogo from "../ui/auth-logo";
 import { Fonts } from "../../constants/font";
 import { Colors } from "../../constants/tokens";
+import { rnShadow } from "../../utils/shadow";
 import ScreenStatusBar from "../layout/screen-status-bar";
 import { isCommunityAdminRole } from "../../services/community-access";
 import { getProfileFields } from "../../utils/profile-display";
@@ -416,7 +417,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   ltr: {
-    direction: "ltr",
+    writingDirection: "ltr",
   },
   topBar: {
     flexDirection: "row",
@@ -438,11 +439,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#1B4F8A",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 2,
+    ...rnShadow({ color: "#1B4F8A", offset: { width: 0, height: 2 }, opacity: 0.12, radius: 6, elevation: 2 }),
   },
   brandName: {
     fontFamily: Fonts.semiBold,
@@ -490,22 +487,14 @@ const styles = StyleSheet.create({
     position: "absolute",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    elevation: 8,
+    ...rnShadow({ color: "#000", offset: { width: 0, height: 10 }, opacity: 0.18, radius: 18, elevation: 8 }),
   },
   orbit: {
     position: "absolute",
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#0B1C2E",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
+    ...rnShadow({ color: "#0B1C2E", offset: { width: 0, height: 6 }, opacity: 0.1, radius: 12, elevation: 4 }),
   },
   pulse: {
     position: "absolute",
@@ -517,11 +506,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#1B4F8A",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 8,
+    ...rnShadow({ color: "#1B4F8A", offset: { width: 0, height: 10 }, opacity: 0.2, radius: 20, elevation: 8 }),
   },
   copy: {
     alignItems: "center",
@@ -589,11 +574,7 @@ const styles = StyleSheet.create({
   },
   ctaShadow: {
     borderRadius: 16,
-    shadowColor: "#1B4F8A",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.28,
-    shadowRadius: 12,
-    elevation: 5,
+    ...rnShadow({ color: "#1B4F8A", offset: { width: 0, height: 6 }, opacity: 0.28, radius: 12, elevation: 5 }),
   },
   cta: {
     height: 54,

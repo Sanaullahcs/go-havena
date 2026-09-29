@@ -64,12 +64,18 @@ export async function fetchBookingInbox({ status } = {}) {
   return res.data ?? [];
 }
 
+export async function fetchAchCapability() {
+  const res = await apiRequest("/plaid/resident/capability");
+  return res.data ?? null;
+}
+
 export async function bookAmenity({
   amenity_id,
   date,
   time_slot,
   notes,
   guests,
+  paymentMethod,
   paymentProof,
   paymentDate,
   paymentReference,
@@ -126,6 +132,7 @@ export async function bookAmenity({
   if (time_slot) body.time_slot = time_slot;
   if (notes) body.notes = notes;
   if (guests != null) body.guests = guests;
+  if (paymentMethod) body.payment_method = paymentMethod;
   const res = await apiRequest("/bookings", { method: "POST", body });
   return res.data;
 }

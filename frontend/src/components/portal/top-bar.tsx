@@ -75,9 +75,9 @@ export function PortalTopBar({
   };
 
   return (
-    <header className="sticky top-0 z-30 shrink-0 border-b border-slate-200/70 bg-[#f4f6fb]/95 backdrop-blur-sm">
-      <div className="relative mx-auto w-full max-w-[1680px] px-4 sm:px-5 lg:px-6">
-        <div className="flex min-h-[52px] items-center gap-3 py-1.5 sm:gap-4">
+    <header className="sticky top-0 z-30 shrink-0 border-b border-slate-200/70 bg-[#f4f6fb]/95 pt-[env(safe-area-inset-top)] backdrop-blur-sm">
+      <div className="relative mx-auto w-full max-w-[1680px] px-3 sm:px-5 lg:px-6">
+        <div className="flex min-h-[52px] items-center gap-2 py-1.5 sm:gap-4">
           {/* Hamburger — mobile only */}
           <button
             type="button"
@@ -124,7 +124,7 @@ export function PortalTopBar({
 
               {/* Dropdown panel */}
               <div
-                className="absolute right-0 top-[calc(100%+8px)] z-50 w-60 origin-top-right"
+                className="absolute right-0 top-[calc(100%+8px)] z-50 w-[min(15rem,calc(100vw-1.25rem))] origin-top-right"
                 style={{
                   transform: open ? "scale(1) translateY(0)" : "scale(0.95) translateY(-6px)",
                   opacity: open ? 1 : 0,

@@ -22,8 +22,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web --clear",
     "lint": "expo lint",
-    "test:validation": "node scripts/test-form-validation.mjs",
-    "eas-build-pre-install": "node -e \"try { require('fs').unlinkSync('package-lock.json') } catch (_) {}\""
+    "test:validation": "node scripts/test-form-validation.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/noto-sans-arabic": "^0.4.3",

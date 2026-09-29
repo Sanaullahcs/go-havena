@@ -213,9 +213,10 @@ class PlaidAchService
             $this->syncPayable($transfer);
             throw $e;
         } catch (\Throwable $e) {
-            $this->markFailed($transfer, 'PLAID_TRANSFER_FAILED', $e->getMessage());
+            $message = $this->publicTransferError($e);
+            $this->markFailed($transfer, 'PLAID_TRANSFER_FAILED', $message);
             $this->syncPayable($transfer);
-            throw PlaidException::transferFailed($e->getMessage());
+            throw PlaidException::transferFailed($message);
         }
 
         $transfer->refresh();
@@ -407,6 +408,7 @@ class PlaidAchService
             'user' => [
                 'legal_name' => $this->legalName($user),
             ],
+            'idempotency_key' => $this->plaidIdempotencyKey((string) $transfer->idempotency_key),
         ]);
 
         $debitAuthId = (string) data_get($debitAuth, 'authorization.id', '');
@@ -683,9 +685,22 @@ class PlaidAchService
         $message = strtolower($e->getMessage());
 
         return in_array($e->codeKey, self::FALLBACK_CODES, true)
+            || $e->codeKey === 'PLAID_CONNECT_FAILED'
+            || str_contains($message, 'curl error 35')
+            || str_contains($message, 'ssl connect')
             || str_contains($message, 'not enabled')
             || str_contains($message, 'not ready')
             || str_contains($message, 'product not');
+    }
+
+    protected function publicTransferError(\Throwable $exception): string
+    {
+        $message = $exception->getMessage();
+        if (preg_match('/cURL error|SSL connect|OpenSSL SSL_/i', $message)) {
+            return 'Could not reach the bank network from this computer. Try the payment again.';
+        }
+
+        return $message !== '' ? $message : 'Unable to send this bank payment.';
     }
 
     protected function achDescription(string $text): string

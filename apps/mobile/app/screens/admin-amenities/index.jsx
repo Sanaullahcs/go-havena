@@ -46,7 +46,9 @@ import {
   generateAmenitySlots,
   parseHoursToApiTimes,
   formatAmenityFeeLabel,
+  amenityMatchesSearch,
 } from "../../../utils/amenity-display";
+import SearchInput from "../../../components/ui/search-input";
 import { useApiAction } from "../../../hooks/use-api-action";
 import useOverlayChrome from "../../../hooks/use-overlay-chrome";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
@@ -385,6 +387,7 @@ export default function AdminAmenitiesScreen() {
   const [amenities, setAmenities] = useState([]);
   const [pendingReview, setPendingReview] = useState(0);
   const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [viewing, setViewing] = useState(null);
@@ -464,12 +467,18 @@ export default function AdminAmenitiesScreen() {
   }, [amenities, pendingReview, pendingBookingRequests]);
 
   const filtered = useMemo(() => {
-    if (filter === "all") return amenities;
-    if (filter === "mine") return amenities.filter((a) => a.is_mine);
-    if (filter === "my_bookings") return amenities.filter((a) => a.user_has_upcoming_booking);
-    if (filter === "pending") return amenities.filter((a) => a.review_status === "pending");
-    return amenities.filter((a) => a.status === filter);
-  }, [amenities, filter]);
+    const byFilter =
+      filter === "all"
+        ? amenities
+        : filter === "mine"
+          ? amenities.filter((a) => a.is_mine)
+          : filter === "my_bookings"
+            ? amenities.filter((a) => a.user_has_upcoming_booking)
+            : filter === "pending"
+              ? amenities.filter((a) => a.review_status === "pending")
+              : amenities.filter((a) => a.status === filter);
+    return byFilter.filter((amenity) => amenityMatchesSearch(amenity, search));
+  }, [amenities, filter, search]);
 
   const openCreate = () => {
     setEditing(null);
@@ -695,6 +704,12 @@ export default function AdminAmenitiesScreen() {
                 <StatChip label={t("admin.openShort")} value={stats.open} tone="open" />
               </View>
 
+              <SearchInput
+                placeholder={t("propertyMgmt.searchAmenities")}
+                value={search}
+                onChangeText={setSearch}
+              />
+
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -763,22 +778,26 @@ export default function AdminAmenitiesScreen() {
                 <Building2 size={sf(28)} color={AdminTheme.accent} strokeWidth={1.75} />
               </View>
               <Text style={styles.emptyTitle}>
-                {filter === "all"
-                  ? t("admin.noAmenitiesYet")
-                  : filter === "pending"
-                    ? t("admin.noAmenitiesWaiting")
-                    : filter === "my_bookings"
-                      ? t("admin.noUpcomingBookings")
-                      : t("admin.noFilterFacilities", { filter })}
+                {search.trim()
+                  ? t("propertyMgmt.noAmenitiesMatch")
+                  : filter === "all"
+                    ? t("admin.noAmenitiesYet")
+                    : filter === "pending"
+                      ? t("admin.noAmenitiesWaiting")
+                      : filter === "my_bookings"
+                        ? t("admin.noUpcomingBookings")
+                        : t("admin.noFilterFacilities", { filter })}
               </Text>
               <Text style={styles.emptyText}>
-                {filter === "all"
-                  ? t("admin.addAmenitiesHint")
-                  : filter === "my_bookings"
-                    ? t("admin.bookFacilityHint")
-                    : t("admin.tryAnotherFilter")}
+                {search.trim()
+                  ? t("admin.tryAnotherFilter")
+                  : filter === "all"
+                    ? t("admin.addAmenitiesHint")
+                    : filter === "my_bookings"
+                      ? t("admin.bookFacilityHint")
+                      : t("admin.tryAnotherFilter")}
               </Text>
-              {filter === "all" ? (
+              {filter === "all" && !search.trim() ? (
                 <TouchableOpacity style={styles.emptyBtn} onPress={openCreate} activeOpacity={0.9}>
                   <Feather name="plus" size={sf(16)} color="#FFFFFF" />
                   <Text style={styles.emptyBtnText}>{t("admin.addFirstFacility")}</Text>

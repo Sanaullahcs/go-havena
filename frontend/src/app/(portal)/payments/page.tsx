@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Building2,
@@ -53,6 +53,8 @@ export default function ResidentPaymentsPage() {
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [linkMode, setLinkMode] = useState<LinkMode>("create");
   const [busy, setBusy] = useState(false);
+  const capabilityRef = useRef<AchCapability | null>(null);
+  capabilityRef.current = capability;
 
   const load = useCallback(async () => {
     const [nextCapability, nextPayments] = await Promise.all([
@@ -91,7 +93,14 @@ export default function ResidentPaymentsPage() {
       replace,
     });
     setCapability((current) => current ? { ...current, resident: payload, can_pay_with_bank: Boolean(current.community.bank_connected && payload.connected), requires_resident_link: !payload.connected } : current);
-    toastSuccess(replace ? "Bank account replaced." : "Bank connected. Amenity fees can now debit this account.");
+    const communityReady = Boolean(capabilityRef.current?.community.bank_connected);
+    toastSuccess(
+      replace
+        ? "Your bank account was replaced."
+        : communityReady
+          ? "Your bank is connected. Amenity fees can be paid from this account."
+          : "Your bank is connected. This community still has no receiving account, so a paid amenity cannot be charged yet.",
+    );
     await load();
   }, [load]);
 
@@ -102,7 +111,11 @@ export default function ResidentPaymentsPage() {
       void reconnectResidentPlaid()
         .then((payload) => {
           setCapability((current) => current ? { ...current, resident: payload, can_pay_with_bank: Boolean(current.community.bank_connected && payload.connected) } : current);
-          toastSuccess("Bank reconnection completed.");
+          toastSuccess(
+            capabilityRef.current?.community.bank_connected
+              ? "Bank reconnection completed."
+              : "Your bank is reconnected. This community still has no receiving account, so a paid amenity cannot be charged yet.",
+          );
         })
         .catch((err) => toastError(apiError(err)))
         .finally(() => setBusy(false));
@@ -118,6 +131,8 @@ export default function ResidentPaymentsPage() {
       .finally(() => setBusy(false));
   }, [completeExchange, linkMode]);
 
+  const autoConnectRef = useRef(false);
+
   const startLink = async (mode: LinkMode) => {
     setBusy(true);
     setLinkMode(mode);
@@ -130,6 +145,16 @@ export default function ResidentPaymentsPage() {
       toastError(apiError(err));
     }
   };
+
+  useEffect(() => {
+    if (autoConnectRef.current || loading || !capability) return;
+    if (typeof window === "undefined") return;
+    if (new URLSearchParams(window.location.search).get("connect") !== "1") return;
+    if (!capability.plaid_available || !capability.ach_enabled) return;
+    if (capability.resident?.connected) return;
+    autoConnectRef.current = true;
+    void startLink(capability.resident?.needs_reconnect ? "update" : "create");
+  }, [loading, capability]);
 
   const handleDisconnect = async () => {
     const confirmed = await confirmAction({
@@ -175,13 +200,29 @@ export default function ResidentPaymentsPage() {
         eyebrow="Resident payments"
         title="Bank & amenity ACH"
         description={
-          available
-            ? "Pay amenity fees and shared bills from your bank to the community account. Havena never charges residents."
-            : "Bank payments are not available for this community. You can still upload payment proof on Property."
+          !available
+            ? "Bank payments are not available for this community. You can still upload payment proof on Property."
+            : community?.bank_connected
+              ? "Pay amenity fees from your bank to the community account. Havena never charges residents."
+              : "Your bank and the community receiving account are separate. A paid amenity can be charged only after both are connected."
         }
         variant="community"
-        compact
       />
+
+      {available ? (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <StatusPill
+            ok={connected}
+            label="Your bank"
+            detail={connected ? "Connected" : needsReconnect ? "Needs reconnect" : "Not connected"}
+          />
+          <StatusPill
+            ok={Boolean(community?.bank_connected)}
+            label="Community receiving account"
+            detail={community?.bank_connected ? "Connected" : "Not connected"}
+          />
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-stretch">
         <DashboardPanel title="Your bank" description="The account we debit for community charges" icon={Landmark} tone="blue">
@@ -191,6 +232,7 @@ export default function ResidentPaymentsPage() {
             <ResidentBankCard
               connection={resident ?? null}
               busy={busy}
+              communityReady={Boolean(community?.bank_connected)}
               sandbox={capability?.environment === "sandbox"}
               onConnect={() => void startLink(connected || needsReconnect ? "replace" : "create")}
               onReconnect={needsReconnect ? () => void startLink("update") : undefined}
@@ -216,8 +258,8 @@ export default function ResidentPaymentsPage() {
             </div>
           ) : (
             <DashboardEmptyState
-              title="Community bank not connected yet"
-              description="Ask your community admin to connect a receiving bank on Plaid. Until then, upload payment proof."
+              title="No receiving account"
+              description="Your own bank can be connected, but this amenity still cannot be paid. A community admin must connect the receiving account on Plaid first."
             />
           )}
         </DashboardPanel>
@@ -280,9 +322,19 @@ export default function ResidentPaymentsPage() {
   );
 }
 
+function StatusPill({ ok, label, detail }: { ok: boolean; label: string; detail: string }) {
+  return (
+    <div className={`min-w-0 rounded-2xl border px-3 py-3 ${ok ? "border-teal-200 bg-[#D1FAF5]/70" : "border-amber-200 bg-amber-50"}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className={`mt-1 break-words text-sm font-bold ${ok ? "text-[#0A2A43]" : "text-amber-900"}`}>{detail}</p>
+    </div>
+  );
+}
+
 function ResidentBankCard({
   connection,
   busy,
+  communityReady,
   sandbox,
   onConnect,
   onReconnect,
@@ -290,6 +342,7 @@ function ResidentBankCard({
 }: {
   connection: PlaidExchangePayload | null;
   busy: boolean;
+  communityReady?: boolean;
   sandbox?: boolean;
   onConnect: () => void;
   onReconnect?: () => void;
@@ -308,16 +361,18 @@ function ResidentBankCard({
       >
         <div className="flex items-start gap-3">
           {connected ? <CheckCircle2 className="mt-0.5 h-5 w-5 text-[#0D9488]" /> : needsReconnect ? <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-600" /> : <Landmark className="mt-0.5 h-5 w-5 text-slate-500" />}
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-semibold text-slate-900">
-              {connected ? "Bank connected" : needsReconnect ? "Reconnect your bank" : "No bank linked"}
+              {connected ? "Your bank is connected" : needsReconnect ? "Reconnect your bank" : "No bank linked"}
             </p>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 break-words text-sm text-slate-600">
               {connected
-                ? bankAccountLabel(connection?.account, connection?.institution_name)
+                ? communityReady
+                  ? bankAccountLabel(connection?.account, connection?.institution_name)
+                  : `${bankAccountLabel(connection?.account, connection?.institution_name)}. Amenity fees stay blocked until the community connects a receiving account.`
                 : needsReconnect
                   ? connection?.error_message || "Plaid needs you to sign in again."
-                  : "Connect once, then pay amenity fees without uploading a screenshot."}
+                  : "Connect your bank here. A paid amenity can be charged only after the community receiving account is connected too."}
             </p>
           </div>
         </div>

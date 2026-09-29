@@ -2364,6 +2364,16 @@ input.nl-member-check:focus-visible {
 .nl-dashboard-hero--compact {
   padding: 0.75rem 1rem;
 }
+@media (max-width: 640px) {
+  .nl-dashboard-hero {
+    padding: 0.875rem;
+    border-radius: 1rem;
+  }
+  .nl-dashboard-empty {
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+  }
+}
 .nl-dashboard-hero--system,
 .nl-dashboard-hero--community {
   background: #fff;

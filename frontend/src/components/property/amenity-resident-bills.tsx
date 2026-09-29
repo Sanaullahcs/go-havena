@@ -7,6 +7,7 @@ import {
   billStatusTone,
   formatBillAmount,
   formatBillDate,
+  formatUsdAmount,
 } from "@/lib/admin/amenity-bill-validation";
 import { toastError, toastSuccess } from "@/lib/alert";
 import { apiError } from "@/lib/api/client";
@@ -200,7 +201,9 @@ export function AmenityResidentBills({ amenity }: { amenity: Amenity }) {
                     className="w-full rounded-lg py-1.5 text-[12px] font-bold text-white disabled:opacity-60"
                     style={{ background: "#0D9488" }}
                   >
-                    {payingId === bill.resident_bill_id ? "Sending ACH…" : "Pay with bank"}
+                    {payingId === bill.resident_bill_id
+                      ? "Sending ACH…"
+                      : `Pay ${formatUsdAmount(bill.amount ?? bill.amount_per_resident)} with bank`}
                   </button>
                 ) : null}
                 <button

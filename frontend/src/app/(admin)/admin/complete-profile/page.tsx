@@ -3,6 +3,7 @@
 import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FileText, Home, Upload, User } from "lucide-react";
+import { RingSpinner, ShimmerBlock } from "@/components/shared/loaders";
 import { OnboardingField } from "@/components/admin/onboarding/onboarding-ui";
 import { AdminPhoneInput } from "@/components/admin/phone-input";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
@@ -27,7 +28,7 @@ import {
   validateCompleteProfileForm,
   type UtilityFileInput,
 } from "@/lib/admin/complete-profile-validation";
-import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
+import { hasFieldErrors, inputClass, type FieldErrors } from "@/lib/admin/form-validation-utils";
 import {
   fetchMe,
   meToSessionUser,
@@ -35,7 +36,7 @@ import {
   uploadUtilityBill,
   type MeProfile,
 } from "@/lib/api/profile";
-import { apiError } from "@/lib/api/client";
+import { apiError, apiFieldErrors } from "@/lib/api/client";
 import { COMPLETE_PROFILE_SIGN_OUT_MESSAGE, confirmAdminSignOutAndRedirect } from "@/lib/auth/sign-out";
 import {
   canAccessCommunityDashboard,

@@ -6,7 +6,6 @@ import {
   ScrollView,
   ActivityIndicator,
   Pressable,
-  Platform,
   useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -25,16 +24,15 @@ import { HomeTheme as T } from "../../../constants/home-theme";
 import { useApiAction } from "../../../hooks/use-api-action";
 import { sf, sw } from "../../../utils/responsive";
 import { arrowBack, arrowForward } from "../../../utils/rtl";
+import { rnShadow } from "../../../utils/shadow";
 import { useTranslation } from "react-i18next";
 
-const cardShadow = Platform.select({
-  ios: {
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-  },
-  android: { elevation: 2 },
+const cardShadow = rnShadow({
+  color: "#0F172A",
+  offset: { width: 0, height: 2 },
+  opacity: 0.06,
+  radius: 10,
+  elevation: 2,
 });
 
 export default function LessonVedio() {

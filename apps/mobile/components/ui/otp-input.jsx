@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Keyboard, Platform, View, StyleSheet, useWindowDimensions } from "react-native";
+import { Keyboard, Platform, Pressable, Text, View, StyleSheet, useWindowDimensions } from "react-native";
 import LocaleTextInput from "./locale-text-input";
 import { Colors, Shadows } from "../../constants/tokens";
 import { Fonts } from "../../constants/font";
@@ -28,6 +28,12 @@ function useOtpCellMetrics(length, splitAt) {
   }, [windowWidth, length, splitAt]);
 }
 
+/**
+ * One real text field, drawn as separate cells.
+ * Per-cell inputs restart the Android IME on every digit (and SMS autofill
+ * truncates each box to one character), so the same code that works on iOS
+ * is dropped or submitted wrong on Android.
+ */
 export default function OTPInput({
   length = 6,
   onOTPChange,
@@ -40,50 +46,30 @@ export default function OTPInput({
   /** Increment after an error dialog closes to restore keyboard focus. */
   refocusToken = 0,
 }) {
-  const [otp, setOtp] = useState(Array(length).fill(""));
-  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const [value, setValue] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
   const [locked, setLocked] = useState(false);
-  const inputRefs = useRef(Array(length).fill(null));
+  const inputRef = useRef(null);
   const didAutoFocusRef = useRef(false);
   const completedRef = useRef(false);
-  const prevEditableRef = useRef(editable);
-  /** Bumps to cancel stale dismissKeyboardHard callbacks after unlock/refocus. */
-  const dismissGenRef = useRef(0);
+  const prevLengthRef = useRef(0);
   const { cellWidth, cellHeight, gap, separatorWidth } = useOtpCellMetrics(length, splitAt);
 
-  const canEdit = editable && !locked;
-
-  const cancelPendingDismiss = () => {
-    dismissGenRef.current += 1;
+  const focusInput = () => {
+    inputRef.current?.focus?.();
   };
 
-  const dismissKeyboard = () => {
-    inputRefs.current.forEach((ref) => ref?.blur?.());
-    setFocusedIndex(-1);
+  const blurInput = () => {
+    inputRef.current?.blur?.();
+    setIsFocused(false);
     Keyboard.dismiss();
   };
 
-  /** Dismiss now and once more after interactions — blocks the one-frame keyboard flash. */
-  const dismissKeyboardHard = () => {
-    const gen = ++dismissGenRef.current;
-    dismissKeyboard();
-    requestAnimationFrame(() => {
-      if (gen !== dismissGenRef.current) return;
-      dismissKeyboard();
-    });
-    setTimeout(() => {
-      if (gen !== dismissGenRef.current) return;
-      dismissKeyboard();
-    }, 48);
-  };
-
   const unlockForCorrection = () => {
-    cancelPendingDismiss();
     completedRef.current = false;
     setLocked(false);
   };
 
-  // Autofocus only once on first mount — never again when `editable` toggles during verify.
   useEffect(() => {
     if (!autoFocus || !editable || didAutoFocusRef.current || completedRef.current) {
       return undefined;
@@ -91,202 +77,141 @@ export default function OTPInput({
     didAutoFocusRef.current = true;
     const timer = setTimeout(() => {
       if (completedRef.current || !editable) return;
-      inputRefs.current[0]?.focus();
-      setFocusedIndex(0);
+      focusInput();
     }, 120);
     return () => clearTimeout(timer);
   }, [autoFocus, editable]);
 
-  // If parent disables editing mid-entry (submit), keep keyboard down.
   useEffect(() => {
-    if (!editable) {
-      dismissKeyboardHard();
-    }
+    if (!editable) blurInput();
   }, [editable]);
 
-  // After verify finishes (editable false → true), unlock for corrections — do not autofocus
-  // (success overlays / error dialogs own the screen; user tap reopens the keyboard).
-  useEffect(() => {
-    const wasEditable = prevEditableRef.current;
-    prevEditableRef.current = editable;
-    if (!wasEditable && editable && (locked || completedRef.current)) {
-      unlockForCorrection();
-    }
-  }, [editable, locked]);
-
-  // Wrong-code validation from parent should unlock so cells accept focus again.
   useEffect(() => {
     if (hasError && (locked || completedRef.current)) {
       unlockForCorrection();
     }
   }, [hasError, locked]);
 
-  // Parent bumps this after the error dialog closes so the keyboard returns.
   useEffect(() => {
     if (!refocusToken || !editable) return undefined;
     unlockForCorrection();
     const timer = setTimeout(() => {
-      if (!editable || completedRef.current) return;
-      const firstEmpty = otp.findIndex((digit) => !digit);
-      const target = firstEmpty >= 0 ? firstEmpty : Math.max(length - 1, 0);
-      inputRefs.current[target]?.focus?.();
-      setFocusedIndex(target);
+      if (!editable) return;
+      focusInput();
     }, 60);
     return () => clearTimeout(timer);
-  }, [refocusToken, editable, length]);
+  }, [refocusToken, editable]);
 
-  const isComplete = (nextOtp) =>
-    nextOtp.join("").length === length && !nextOtp.includes("");
-
-  const emitChange = (nextOtp) => {
-    const otpString = nextOtp.join("");
-    onOTPChange?.(otpString);
-
-    if (isComplete(nextOtp)) {
-      completedRef.current = true;
-      setLocked(true);
-      dismissKeyboardHard();
-      // Defer parent verify so blur/dismiss settles before submitting state flips.
-      requestAnimationFrame(() => {
-        onComplete?.(otpString);
-      });
-      return;
-    }
-
-    completedRef.current = false;
-    setLocked(false);
-  };
-
-  const handleChangeText = (text, index) => {
+  const handleChangeText = (text) => {
     if (!editable) return;
 
-    // User started typing again after a failed verify — unlock without waiting for effects.
     if (locked || completedRef.current) {
       unlockForCorrection();
     }
 
-    const numericText = text.replace(/[^0-9]/g, "");
+    const digits = String(text).replace(/[^0-9]/g, "").slice(0, length);
+    const wasComplete = prevLengthRef.current >= length;
+    prevLengthRef.current = digits.length;
+    setValue(digits);
+    onOTPChange?.(digits);
 
-    if (numericText.length > 1) {
-      const digits = numericText.slice(0, length - index).split("");
-      const newOtp = [...otp];
-
-      digits.forEach((digit, i) => {
-        if (index + i < length) {
-          newOtp[index + i] = digit;
-        }
-      });
-
-      setOtp(newOtp);
-      emitChange(newOtp);
-
-      if (!isComplete(newOtp)) {
-        const nextIndex = Math.min(index + digits.length, length - 1);
-        inputRefs.current[nextIndex]?.focus();
-        setFocusedIndex(nextIndex);
-      }
+    if (digits.length < length) {
+      completedRef.current = false;
+      setLocked(false);
       return;
     }
 
-    const newOtp = [...otp];
-    newOtp[index] = numericText;
-    setOtp(newOtp);
-    emitChange(newOtp);
-
-    if (numericText && index < length - 1 && !isComplete(newOtp)) {
-      inputRefs.current[index + 1]?.focus();
-      setFocusedIndex(index + 1);
-    }
+    // Android can re-emit the same 6 digits on focus. Do not verify twice.
+    if (wasComplete || completedRef.current) return;
+    completedRef.current = true;
+    setLocked(true);
+    blurInput();
+    requestAnimationFrame(() => {
+      onComplete?.(digits);
+    });
   };
 
-  const handleKeyPress = (e, index) => {
-    if (e.nativeEvent.key !== "Backspace") return;
-    if (!editable) return;
-
-    // Unlock after backspace so the user can correct a wrong code.
-    if (locked || completedRef.current) {
-      unlockForCorrection();
-    }
-
-    if (otp[index]) {
-      const newOtp = [...otp];
-      newOtp[index] = "";
-      setOtp(newOtp);
-      onOTPChange?.(newOtp.join(""));
-      return;
-    }
-
-    if (index > 0) {
-      inputRefs.current[index - 1]?.focus();
-      setFocusedIndex(index - 1);
-    }
-  };
-
-  const handleFocus = (index) => {
-    // Parent still submitting — reject focus.
+  const handleFocus = () => {
     if (!editable) {
-      inputRefs.current[index]?.blur?.();
-      Keyboard.dismiss();
-      setFocusedIndex(-1);
+      blurInput();
       return;
     }
-
-    // User tapped a cell after a failed/locked verify — unlock and keep focus so the keyboard opens.
-    // Also cancel any delayed dismissKeyboardHard from the prior submit.
     if (locked || completedRef.current) {
       unlockForCorrection();
-    } else {
-      cancelPendingDismiss();
     }
-
-    setFocusedIndex(index);
+    setIsFocused(true);
   };
+
+  const activeIndex = value.length < length ? value.length : -1;
 
   const getCellStyle = (index) => {
-    const filled = Boolean(otp[index]);
-    const active = editable && focusedIndex === index && !filled;
-    const sizeStyle = { width: cellWidth, height: cellHeight, fontSize: cellWidth >= 44 ? 22 : 20 };
+    const filled = Boolean(value[index]);
+    const active = editable && isFocused && !locked && index === activeIndex;
+    const sizeStyle = { width: cellWidth, height: cellHeight };
 
-    if (hasError) return [styles.input, sizeStyle, styles.inputError];
-    if (filled) return [styles.input, sizeStyle, styles.inputFilled];
-    if (active) return [styles.input, sizeStyle, styles.inputActive];
-    return [styles.input, sizeStyle];
+    if (hasError) return [styles.cell, sizeStyle, styles.inputError];
+    if (filled) return [styles.cell, sizeStyle, styles.inputFilled];
+    if (active) return [styles.cell, sizeStyle, styles.inputActive];
+    return [styles.cell, sizeStyle];
+  };
+
+  const digitColor = (index) => {
+    if (hasError) return Colors.error;
+    if (value[index]) return Colors.brandPrimaryDeep;
+    return Colors.textPrimary;
   };
 
   return (
     <View style={[styles.container, { gap }, containerStyle]}>
-      {Array.from({ length }).map((_, index) => (
-        <React.Fragment key={index}>
-          {splitAt > 0 && index === splitAt ? (
-            <View style={[styles.separator, { width: separatorWidth }]} />
-          ) : null}
-          <LocaleTextInput
-            ref={(ref) => {
-              inputRefs.current[index] = ref;
-            }}
-            style={getCellStyle(index)}
-            maxLength={1}
-            forceLtr
-            textAlign="center"
-            keyboardType="number-pad"
-            textContentType="oneTimeCode"
-            autoComplete="sms-otp"
-            onChangeText={(text) => handleChangeText(text, index)}
-            onKeyPress={(e) => handleKeyPress(e, index)}
-            onFocus={() => handleFocus(index)}
-            onBlur={() => setFocusedIndex((current) => (current === index ? -1 : current))}
-            value={otp[index]}
-            // Keep focusable whenever parent allows edits — local `locked` only blocks input logic, not taps.
-            editable={editable}
-            showSoftInputOnFocus={editable}
-            selectTextOnFocus={editable}
-            caretHidden={!canEdit}
-            {...(Platform.OS === "ios"
-              ? { inputAccessoryViewID: PHONE_KEYBOARD_ACCESSORY_ID }
-              : {})}
-          />
-        </React.Fragment>
-      ))}
+      <Pressable
+        accessibilityRole="button"
+        disabled={!editable}
+        onPress={focusInput}
+        style={[styles.cells, { gap }]}
+      >
+        {Array.from({ length }).map((_, index) => (
+          <React.Fragment key={index}>
+            {splitAt > 0 && index === splitAt ? (
+              <View style={[styles.separator, { width: separatorWidth }]} />
+            ) : null}
+            <View style={getCellStyle(index)}>
+              <Text
+                style={[
+                  styles.digit,
+                  { fontSize: cellWidth >= 44 ? 22 : 20, color: digitColor(index) },
+                ]}
+              >
+                {value[index] || ""}
+              </Text>
+            </View>
+          </React.Fragment>
+        ))}
+      </Pressable>
+      <LocaleTextInput
+        ref={inputRef}
+        imeSync={false}
+        forceLtr
+        value={value}
+        onChangeText={handleChangeText}
+        onFocus={handleFocus}
+        onBlur={() => setIsFocused(false)}
+        editable={editable}
+        showSoftInputOnFocus={editable}
+        caretHidden
+        maxLength={length}
+        keyboardType="number-pad"
+        autoCapitalize="none"
+        autoCorrect={false}
+        spellCheck={false}
+        textContentType={Platform.OS === "ios" ? "oneTimeCode" : "none"}
+        autoComplete={Platform.OS === "android" ? "sms-otp" : "off"}
+        {...(Platform.OS === "android" ? { importantForAutofill: "yes" } : {})}
+        selectionColor="transparent"
+        style={styles.capture}
+        {...(Platform.OS === "ios"
+          ? { inputAccessoryViewID: PHONE_KEYBOARD_ACCESSORY_ID }
+          : {})}
+      />
       <PhoneKeyboardAccessory mode="hidden" />
     </View>
   );
@@ -294,13 +219,17 @@ export default function OTPInput({
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
     width: "100%",
     maxWidth: 360,
     alignSelf: "center",
     paddingHorizontal: 4,
+    position: "relative",
+  },
+  cells: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
   },
   separator: {
     height: 2,
@@ -308,18 +237,32 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(148, 163, 184, 0.55)",
     flexShrink: 0,
   },
-  input: {
+  cell: {
     borderWidth: 2,
     borderColor: "rgba(226, 232, 240, 1)",
     borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  digit: {
     fontWeight: "700",
     fontFamily: Fonts.bold,
     textAlign: "center",
-    textAlignVertical: "center",
-    color: Colors.textPrimary,
-    backgroundColor: "#FFFFFF",
     padding: 0,
-    flexShrink: 0,
+  },
+  capture: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    opacity: 0,
+    left: -2000,
+    top: 0,
+    color: "transparent",
+    backgroundColor: "transparent",
+    fontSize: 1,
+    padding: 0,
   },
   inputActive: {
     borderColor: Colors.brandPrimary,
@@ -329,11 +272,9 @@ const styles = StyleSheet.create({
   inputFilled: {
     borderColor: Colors.brandPrimaryDeep,
     backgroundColor: "rgba(209, 250, 245, 0.85)",
-    color: Colors.brandPrimaryDeep,
   },
   inputError: {
     borderColor: Colors.error,
     backgroundColor: "rgba(254, 242, 242, 0.6)",
-    color: Colors.error,
   },
 });

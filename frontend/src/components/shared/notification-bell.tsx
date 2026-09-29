@@ -161,7 +161,7 @@ export function NotificationBell({
 
       {open ? (
         <div
-          className="absolute right-0 top-10 z-50 w-[22rem] overflow-hidden rounded-2xl border bg-white shadow-2xl"
+          className="absolute right-0 top-10 z-50 w-[min(22rem,calc(100vw-1.25rem))] overflow-hidden rounded-2xl border bg-white shadow-2xl"
           style={{
             borderColor: NL.borderCard,
             boxShadow: "0 20px 50px rgba(15, 23, 42, 0.14)",

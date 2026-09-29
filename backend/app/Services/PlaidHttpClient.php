@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Exceptions\PlaidException;
 use App\Support\TlsCaBundle;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -23,18 +24,67 @@ class PlaidHttpClient
             'secret' => (string) config('plaid.secret'),
         ], $payload);
 
-        $request = Http::acceptJson()
-            ->asJson()
-            ->timeout(30);
+        try {
+            return $this->decode($path, $this->send($url, $body, true));
+        } catch (ConnectionException $first) {
+            if (! $this->isTlsFailure($first)) {
+                throw $this->connectionFailed($first);
+            }
 
-        $caBundle = TlsCaBundle::path();
-        if ($caBundle) {
-            $request = $request->withOptions(['verify' => $caBundle]);
+            try {
+                return $this->decode($path, $this->send($url, $body, false));
+            } catch (ConnectionException $retry) {
+                throw $this->connectionFailed($retry);
+            }
+        }
+    }
+
+    /**
+     * WAMP's curl often resets the TLS handshake (cURL error 35) on HTTP/2.
+     * Force HTTP/1.1, then retry once without a custom CA file.
+     *
+     * @param  array<string, mixed>  $body
+     */
+    protected function send(string $url, array $body, bool $useCaBundle): Response
+    {
+        $curl = [
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+        ];
+        if (defined('CURL_SSLVERSION_TLSv1_2')) {
+            $curl[CURLOPT_SSLVERSION] = CURL_SSLVERSION_TLSv1_2;
         }
 
-        $response = $request->post($url, $body);
+        $options = ['curl' => $curl];
+        $caBundle = $useCaBundle ? TlsCaBundle::path() : null;
+        if ($caBundle) {
+            $options['verify'] = $caBundle;
+            $curl[CURLOPT_CAINFO] = $caBundle;
+            $options['curl'] = $curl;
+        }
 
-        return $this->decode($path, $response);
+        return Http::acceptJson()
+            ->asJson()
+            ->timeout(30)
+            ->withOptions($options)
+            ->post($url, $body);
+    }
+
+    protected function isTlsFailure(ConnectionException $exception): bool
+    {
+        return (bool) preg_match('/cURL error (35|51|60)|SSL connect|SSL certificate|certificate verify/i', $exception->getMessage());
+    }
+
+    protected function connectionFailed(ConnectionException $exception): PlaidException
+    {
+        Log::warning('Plaid HTTPS connection failed', [
+            'message' => $exception->getMessage(),
+        ]);
+
+        return new PlaidException(
+            'Could not reach the bank network from this computer. Try the payment again.',
+            'PLAID_CONNECT_FAILED',
+            502,
+        );
     }
 
     /**
