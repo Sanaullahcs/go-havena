@@ -48,7 +48,8 @@ credentials.json
 
 .env
 .env*.local
-google-services.json
+# google-services.json is intentionally NOT ignored here (root .easignore
+# also allows it). Keep it gitignored; inject via EAS file env or local disk.
 GoogleService-Info.plist
 .ngrok-token
 expo-qr.png

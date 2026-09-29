@@ -6,6 +6,7 @@ import { ChevronDown, Clock3 } from "lucide-react";
 import { useAnchoredPopover } from "@/components/ui/use-anchored-popover";
 import {
   formatTimeDisplay,
+  NOTICE_FUTURE_TIME_MESSAGE,
   parseFlexibleTime,
   parseTimeMinutes,
 } from "@/lib/admin/notice-schedule-utils";
@@ -39,6 +40,14 @@ function partsToValue(parts: TimeParts): string {
   let hour = parts.hour12 % 12;
   if (parts.period === "PM") hour += 12;
   return `${String(hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
+}
+
+function isBeforeMinTime(value: string, minTime?: string): boolean {
+  if (!minTime) return false;
+  const selected = parseTimeMinutes(value);
+  const minimum = parseTimeMinutes(minTime);
+  if (selected == null || minimum == null) return false;
+  return selected < minimum;
 }
 
 function usePopoverDismiss(
@@ -76,6 +85,9 @@ type ThemedTimePickerProps = {
   fieldKey?: string;
   error?: string;
   icon?: ReactNode;
+  /** When set (HH:MM), times earlier than this cannot be selected or typed. */
+  minTime?: string;
+  minTimeMessage?: string;
 };
 
 export function ThemedTimePicker({
@@ -87,6 +99,8 @@ export function ThemedTimePicker({
   fieldKey,
   error,
   icon,
+  minTime,
+  minTimeMessage = NOTICE_FUTURE_TIME_MESSAGE,
 }: ThemedTimePickerProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -138,17 +152,26 @@ export function ThemedTimePicker({
   }, [open, parts.hour12, parts.minute]);
 
   const applyParts = (next: TimeParts) => {
-    setParts(next);
     const nextValue = partsToValue(next);
+    if (isBeforeMinTime(nextValue, minTime)) {
+      setManualError(minTimeMessage);
+      return false;
+    }
+    setParts(next);
     onChange(nextValue);
     setManual(formatTimeDisplay(nextValue));
     setManualError(null);
+    return true;
   };
 
   const applyManual = (raw = manual) => {
     const parsed = parseFlexibleTime(raw);
     if (!parsed) {
       if (raw.trim()) setManualError("Enter a valid time, like 2:20 PM.");
+      return false;
+    }
+    if (isBeforeMinTime(parsed, minTime)) {
+      setManualError(minTimeMessage);
       return false;
     }
     applyParts(partsFromValue(parsed));
@@ -167,7 +190,10 @@ export function ThemedTimePicker({
     if (manual.trim() && parseFlexibleTime(manual) !== partsToValue(parts)) {
       if (!applyManual()) return;
     } else if (!value) {
-      applyParts(parts);
+      if (!applyParts(parts)) return;
+    } else if (isBeforeMinTime(value, minTime)) {
+      setManualError(minTimeMessage);
+      return;
     }
     close();
   };
@@ -236,63 +262,90 @@ export function ThemedTimePicker({
                     <div>
                       <p className="nl-time-group-label">Hour</p>
                       <div ref={hourListRef} className="nl-time-column" role="listbox" aria-label="Hour">
-                        {HOURS_12.map((hour) => (
-                          <button
-                            key={hour}
-                            type="button"
-                            data-hour={hour}
-                            role="option"
-                            aria-selected={parts.hour12 === hour}
-                            onClick={() => applyParts({ ...parts, hour12: hour })}
-                            className={[
-                              "nl-time-option nl-time-wheel-option",
-                              parts.hour12 === hour ? "nl-time-option-selected" : "",
-                            ].join(" ")}
-                          >
-                            {hour}
-                          </button>
-                        ))}
+                        {HOURS_12.map((hour) => {
+                          const candidate = { ...parts, hour12: hour };
+                          const disabled = isBeforeMinTime(partsToValue(candidate), minTime);
+                          return (
+                            <button
+                              key={hour}
+                              type="button"
+                              data-hour={hour}
+                              role="option"
+                              aria-selected={parts.hour12 === hour}
+                              aria-disabled={disabled}
+                              disabled={disabled}
+                              onClick={() => {
+                                if (!disabled) applyParts(candidate);
+                              }}
+                              className={[
+                                "nl-time-option nl-time-wheel-option",
+                                parts.hour12 === hour ? "nl-time-option-selected" : "",
+                                disabled ? "nl-time-option-disabled" : "",
+                              ].join(" ")}
+                            >
+                              {hour}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                     <div>
                       <p className="nl-time-group-label">Minute</p>
                       <div ref={minuteListRef} className="nl-time-column" role="listbox" aria-label="Minute">
-                        {MINUTES.map((minute) => (
-                          <button
-                            key={minute}
-                            type="button"
-                            data-minute={minute}
-                            role="option"
-                            aria-selected={parts.minute === minute}
-                            onClick={() => applyParts({ ...parts, minute })}
-                            className={[
-                              "nl-time-option nl-time-wheel-option",
-                              parts.minute === minute ? "nl-time-option-selected" : "",
-                            ].join(" ")}
-                          >
-                            {String(minute).padStart(2, "0")}
-                          </button>
-                        ))}
+                        {MINUTES.map((minute) => {
+                          const candidate = { ...parts, minute };
+                          const disabled = isBeforeMinTime(partsToValue(candidate), minTime);
+                          return (
+                            <button
+                              key={minute}
+                              type="button"
+                              data-minute={minute}
+                              role="option"
+                              aria-selected={parts.minute === minute}
+                              aria-disabled={disabled}
+                              disabled={disabled}
+                              onClick={() => {
+                                if (!disabled) applyParts(candidate);
+                              }}
+                              className={[
+                                "nl-time-option nl-time-wheel-option",
+                                parts.minute === minute ? "nl-time-option-selected" : "",
+                                disabled ? "nl-time-option-disabled" : "",
+                              ].join(" ")}
+                            >
+                              {String(minute).padStart(2, "0")}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                     <div>
                       <p className="nl-time-group-label">Period</p>
                       <div className="nl-time-column nl-time-column-period" role="listbox" aria-label="AM or PM">
-                        {PERIODS.map((period) => (
-                          <button
-                            key={period}
-                            type="button"
-                            role="option"
-                            aria-selected={parts.period === period}
-                            onClick={() => applyParts({ ...parts, period })}
-                            className={[
-                              "nl-time-option nl-time-wheel-option",
-                              parts.period === period ? "nl-time-option-selected" : "",
-                            ].join(" ")}
-                          >
-                            {period}
-                          </button>
-                        ))}
+                        {PERIODS.map((period) => {
+                          const candidate = { ...parts, period };
+                          const disabled = isBeforeMinTime(partsToValue(candidate), minTime);
+                          return (
+                            <button
+                              key={period}
+                              type="button"
+                              role="option"
+                              aria-selected={parts.period === period}
+                              aria-disabled={disabled}
+                              disabled={disabled}
+                              onClick={() => {
+                                if (!disabled) applyParts(candidate);
+                              }}
+                              className={[
+                                "nl-time-option nl-time-wheel-option",
+                                parts.period === period ? "nl-time-option-selected" : "",
+                                disabled ? "nl-time-option-disabled" : "",
+                              ].join(" ")}
+                            >
+                              {period}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>

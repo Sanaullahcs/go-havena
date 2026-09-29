@@ -81,6 +81,7 @@ function CompleteProfileInner() {
   const [utilityFile, setUtilityFile] = useState<File | null>(null);
   const [existingUtilityBillUrl, setExistingUtilityBillUrl] = useState<string | null>(null);
   const [communityName, setCommunityName] = useState<string | null>(null);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { touch, clearError, showError, validateOnSubmit } = useTouchedFieldErrors();
@@ -144,6 +145,8 @@ function CompleteProfileInner() {
         requireResidenceType: fields.showResidenceType,
         requireUnitNumber: fields.showUnitNumber,
         requireOfficeAddress: fields.showOfficeAddress,
+        requireAcceptedTerms: true,
+        acceptedTerms,
         guestMode: fields.isGuestProfile,
         communityAdmin: isCommunityAdminProfile,
       }),
@@ -158,6 +161,7 @@ function CompleteProfileInner() {
       officeAddress,
       utilityFile,
       existingUtilityBillUrl,
+      acceptedTerms,
       fields.showUtilityBill,
       fields.showResidenceType,
       fields.showUnitNumber,
@@ -262,6 +266,7 @@ function CompleteProfileInner() {
   const officeErr = showError("officeAddress", liveErrors);
   const residenceErr = showError("residenceType", liveErrors);
   const utilityErr = showError("utilityFile", liveErrors);
+  const termsErr = showError("acceptedTerms", liveErrors);
 
   return (
     <div className="w-full min-w-0">
@@ -641,9 +646,53 @@ function CompleteProfileInner() {
             {busy ? "Saving profile…" : useSimpleSubmitLabel ? "Submit" : "Save & continue"}
           </button>
         </div>
-        <p className="text-center text-[11px] leading-relaxed text-slate-500 sm:text-left">
-          By continuing, you agree to Havena&apos;s Terms of Service and Privacy Policy.
-        </p>
+        <div className="space-y-1.5">
+          <label className="flex cursor-pointer items-start gap-2.5">
+            <input
+              type="checkbox"
+              checked={acceptedTerms}
+              onChange={(e) => {
+                setAcceptedTerms(e.target.checked);
+                clearError("acceptedTerms");
+                if (!e.target.checked) touch("acceptedTerms");
+              }}
+              onBlur={() => touch("acceptedTerms")}
+              className={`mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-[#1B4F8A] focus:ring-[#1B4F8A]/30 ${
+                termsErr ? "border-rose-400" : ""
+              }`}
+              aria-invalid={Boolean(termsErr)}
+              aria-describedby={termsErr ? "accepted-terms-error" : undefined}
+            />
+            <span className="text-[11px] leading-relaxed text-slate-500">
+              By continuing, you agree to Havena&apos;s{" "}
+              <a
+                href="/terms-and-conditions"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-[#1B4F8A] underline underline-offset-2 hover:text-[#163A66]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Terms of Service
+              </a>{" "}
+              and{" "}
+              <a
+                href="/privacy-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-[#1B4F8A] underline underline-offset-2 hover:text-[#163A66]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Privacy Policy
+              </a>
+              .
+            </span>
+          </label>
+          {termsErr ? (
+            <p id="accepted-terms-error" className="pl-6 text-[11px] text-rose-600">
+              {termsErr}
+            </p>
+          ) : null}
+        </div>
       </form>
       </div>
     </div>

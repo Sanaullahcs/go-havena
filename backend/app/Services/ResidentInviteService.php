@@ -36,14 +36,37 @@ class ResidentInviteService
             ]);
         }
 
-        ContactIdentityService::assertAvailableForRegistration($email, $normalizedPhone);
-
-        $password = \Illuminate\Support\Str::random(12);
         $billing = app(CommunityBillingService::class);
         if ($role !== 'admin') {
             $billing->releaseExpiredReservations($communityId);
             $billing->assertCanAllocateSeat($communityId);
         }
+
+        $existingUser = ContactIdentityService::findUserByEmail($email);
+        if ($existingUser) {
+            $inactiveMembership = DB::table('community_memberships')
+                ->where('user_id', $existingUser->id)
+                ->where('community_id', $communityId)
+                ->where('status', 'inactive')
+                ->first();
+
+            if ($inactiveMembership) {
+                return $this->reactivateInactiveMember(
+                    $actor,
+                    $communityId,
+                    $existingUser,
+                    $name,
+                    $normalizedPhone,
+                    $unitNumber,
+                    $residenceType,
+                    $role,
+                );
+            }
+        }
+
+        ContactIdentityService::assertAvailableForRegistration($email, $normalizedPhone);
+
+        $password = \Illuminate\Support\Str::random(12);
 
         try {
             $userId = DB::table('users')->insertGetId([
@@ -151,6 +174,87 @@ class ResidentInviteService
             ]);
         }
 
+        $existingUser = ContactIdentityService::findUserByEmail($email);
+        if ($existingUser) {
+            $inactiveMembership = DB::table('community_memberships')
+                ->where('user_id', $existingUser->id)
+                ->where('community_id', $communityId)
+                ->where('status', 'inactive')
+                ->first();
+
+            if ($inactiveMembership) {
+                ContactIdentityService::assertAvailableForRegistration(
+                    null,
+                    $normalizedPhone,
+                    (int) $existingUser->id,
+                );
+
+                $billing = app(CommunityBillingService::class);
+                $billing->releaseExpiredReservations($communityId);
+                $billing->assertCanAllocateSeat($communityId);
+
+                DB::table('users')->where('id', $existingUser->id)->update([
+                    'name' => $name,
+                    'phone' => $normalizedPhone,
+                    'status' => 'active',
+                    'deleted_at' => null,
+                    'suspension_reason' => null,
+                    'updated_at' => now(),
+                ]);
+
+                $profileUpdate = [
+                    'display_name' => $name,
+                    'unit_number' => $unitNumber,
+                    'updated_at' => now(),
+                ];
+                if ($residenceType !== null && $residenceType !== '') {
+                    $profileUpdate['residence_type'] = $residenceType;
+                }
+
+                $hasProfile = DB::table('profiles')->where('user_id', $existingUser->id)->exists();
+                if ($hasProfile) {
+                    DB::table('profiles')->where('user_id', $existingUser->id)->update($profileUpdate);
+                } else {
+                    DB::table('profiles')->insert(array_merge($profileUpdate, [
+                        'user_id' => $existingUser->id,
+                        'created_at' => now(),
+                    ]));
+                }
+
+                DB::table('community_memberships')
+                    ->where('user_id', $existingUser->id)
+                    ->where('community_id', $communityId)
+                    ->update([
+                        'status' => 'not_invited',
+                        'role' => 'member',
+                        'rejection_reason' => null,
+                        'rejected_by' => null,
+                        'updated_at' => now(),
+                    ]);
+
+                $billing->reserveSeatForInvite($communityId, $existingUser->id, null);
+
+                ActivityLogService::recordStatusChange(
+                    'member_reactivated',
+                    'User',
+                    $existingUser->id,
+                    'inactive',
+                    'not_invited',
+                    'Status',
+                    $name,
+                    $existingUser->id,
+                    ['related_item' => $name, 'via' => 'batch_prepare'],
+                );
+
+                return [
+                    'id' => $existingUser->id,
+                    'member_name' => $name,
+                    'member_email' => $existingUser->email,
+                    'reactivated' => true,
+                ];
+            }
+        }
+
         ContactIdentityService::assertAvailableForRegistration($email, $normalizedPhone);
 
         $billing = app(CommunityBillingService::class);
@@ -216,6 +320,125 @@ class ResidentInviteService
             'id' => $userId,
             'member_name' => $name,
             'member_email' => $email,
+        ];
+    }
+
+    /**
+     * Reuse an inactive community membership instead of creating a duplicate user.
+     *
+     * @return array<string, mixed>
+     */
+    private function reactivateInactiveMember(
+        User $actor,
+        int $communityId,
+        User $existingUser,
+        string $name,
+        string $normalizedPhone,
+        string $unitNumber,
+        ?string $residenceType,
+        string $role,
+    ): array {
+        ContactIdentityService::assertAvailableForRegistration(
+            null,
+            $normalizedPhone,
+            (int) $existingUser->id,
+        );
+
+        $billing = app(CommunityBillingService::class);
+        if ($role !== 'admin') {
+            $billing->releaseExpiredReservations($communityId);
+            $billing->assertCanAllocateSeat($communityId);
+        }
+
+        DB::table('users')->where('id', $existingUser->id)->update([
+            'name' => $name,
+            'phone' => $normalizedPhone,
+            'status' => 'active',
+            'deleted_at' => null,
+            'suspension_reason' => null,
+            'updated_at' => now(),
+        ]);
+
+        $profileUpdate = [
+            'display_name' => $name,
+            'unit_number' => $unitNumber,
+            'updated_at' => now(),
+        ];
+        if ($residenceType !== null && $residenceType !== '') {
+            $profileUpdate['residence_type'] = $residenceType;
+        }
+
+        $hasProfile = DB::table('profiles')->where('user_id', $existingUser->id)->exists();
+        if ($hasProfile) {
+            DB::table('profiles')->where('user_id', $existingUser->id)->update($profileUpdate);
+        } else {
+            DB::table('profiles')->insert(array_merge($profileUpdate, [
+                'user_id' => $existingUser->id,
+                'created_at' => now(),
+            ]));
+        }
+
+        DB::table('community_memberships')
+            ->where('user_id', $existingUser->id)
+            ->where('community_id', $communityId)
+            ->update([
+                'status' => 'approved',
+                'role' => $role === 'admin' ? 'admin' : 'member',
+                'rejection_reason' => null,
+                'rejected_by' => null,
+                'updated_at' => now(),
+            ]);
+
+        $invite = InviteCodeService::createForCommunity(
+            communityId: $communityId,
+            createdBy: $actor->id,
+            maxUses: 1,
+            expiresAt: now()->addDays(30),
+            invitedUserId: $existingUser->id,
+        );
+
+        if ($role !== 'admin') {
+            $billing->reserveSeatForInvite($communityId, $existingUser->id, $invite);
+        }
+
+        $communityName = Community::query()->where('id', $communityId)->value('name') ?? 'your community';
+        NotificationService::send(
+            $existingUser->id,
+            'success',
+            'Membership restored',
+            "Your membership in {$communityName} has been restored. You can sign in with your existing account.",
+        );
+
+        ActivityLogService::recordStatusChange(
+            'member_reactivated',
+            'User',
+            $existingUser->id,
+            'inactive',
+            'approved',
+            'Status',
+            $name,
+            $existingUser->id,
+            ['related_item' => $name, 'via' => 'invite'],
+        );
+
+        $community = Community::query()->find($communityId);
+        $invitee = User::query()->find($existingUser->id);
+        $emailSent = false;
+        if ($community && $invitee) {
+            $emailSent = app(LifecycleMailService::class)->residentApproved($invitee, $community);
+        }
+
+        return [
+            'id' => $existingUser->id,
+            'temp_password' => null,
+            'invite_code' => $invite->code,
+            'invite_qr_value' => InviteCodeService::qrPayload($invite->code),
+            'community_name' => $communityName,
+            'expires_at' => $invite->expires_at?->toIso8601String(),
+            'member_name' => $name,
+            'member_email' => $existingUser->email,
+            'email_sent' => $emailSent,
+            'reactivated' => true,
         ];
     }
 

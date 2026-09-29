@@ -78,6 +78,8 @@ class ActivityActionCatalog
         'member_provisioned' => 'Provisioned a member',
         'member_invite_resent' => 'Resent member invitation',
         'member_invite_cancelled' => 'Cancelled member invitation',
+        'member_deactivated' => 'Deactivated a member',
+        'member_reactivated' => 'Reactivated a member',
         'member_deleted' => 'Deleted a member',
         'account_deleted' => 'Deleted account',
         'community_created' => 'Created a community',

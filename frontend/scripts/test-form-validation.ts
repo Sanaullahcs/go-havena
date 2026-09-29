@@ -728,6 +728,69 @@ console.log("\nNotice form validation");
   );
   assertNoErrors(scheduleReady, "schedule later ready");
 
+  const today = new Date();
+  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const pastHour = Math.max(0, today.getHours() - 1);
+  const pastTime = `${String(pastHour).padStart(2, "0")}:00`;
+  const futureHour = Math.min(23, today.getHours() + 1);
+  // If near midnight, use current minute as allowed and skip future-hour case separately.
+  const futureTime =
+    futureHour > today.getHours()
+      ? `${String(futureHour).padStart(2, "0")}:00`
+      : `${String(today.getHours()).padStart(2, "0")}:${String(today.getMinutes()).padStart(2, "0")}`;
+
+  const pastTimeToday = validateNoticeForm(
+    {
+      title: "Pool maintenance",
+      body: "The pool will be closed for cleaning this weekend.",
+      category: "maintenance",
+      location: "",
+      event_date: todayIso,
+      event_time: pastTime,
+      event_time_end: "23:59",
+      event_capacity: "",
+    },
+    { kind: "notice", publishNow: true, now: today },
+  );
+  if (pastHour < today.getHours() || (pastHour === today.getHours() && today.getMinutes() > 0)) {
+    assertHasError(pastTimeToday, "event_time", "rejects past start time when notice date is today");
+    assert(pastTimeToday.event_time === "Please select a future time for this notice.", "past time uses exact message");
+  }
+
+  const futureTimeToday = validateNoticeForm(
+    {
+      title: "Pool maintenance",
+      body: "The pool will be closed for cleaning this weekend.",
+      category: "maintenance",
+      location: "",
+      event_date: todayIso,
+      event_time: futureTime,
+      event_time_end: "23:59",
+      event_capacity: "",
+    },
+    { kind: "notice", publishNow: true, now: today },
+  );
+  assertNoErrors(futureTimeToday, "allows current or future time when notice date is today");
+
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowIso = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
+  const earlyTomorrow = validateNoticeForm(
+    {
+      title: "Pool maintenance",
+      body: "The pool will be closed for cleaning this weekend.",
+      category: "maintenance",
+      location: "",
+      event_date: tomorrowIso,
+      event_time: "01:00",
+      event_time_end: "02:00",
+      event_capacity: "",
+    },
+    { kind: "notice", publishNow: true, now: today },
+  );
+  assertNoErrors(earlyTomorrow, "allows any valid time on a future notice date");
+
+
   const eventScheduleReady = validateNoticeForm(
     {
       title: "Future BBQ",
@@ -1156,6 +1219,42 @@ console.log("\nComplete profile form validation");
     communityAdmin: true,
   });
   assert(!withinLimit.name && !withinLimit.officeAddress, "community admin profile accepts the limits");
+
+  const termsRequired = validateCompleteProfileForm({
+    name: "Jane Doe",
+    email: "jane@example.com",
+    phoneDigits: "4155552671",
+    phoneCountry: "US",
+    bio: "",
+    unitNumber: "",
+    residenceType: "",
+    officeAddress: "100 Management Office, Oak Valley",
+    utilityFile: null,
+    requireUtilityFile: false,
+    requireResidenceType: false,
+    communityAdmin: true,
+    requireAcceptedTerms: true,
+    acceptedTerms: false,
+  });
+  assertHasError(termsRequired, "acceptedTerms", "requires terms acceptance when enabled");
+
+  const termsAccepted = validateCompleteProfileForm({
+    name: "Jane Doe",
+    email: "jane@example.com",
+    phoneDigits: "4155552671",
+    phoneCountry: "US",
+    bio: "",
+    unitNumber: "",
+    residenceType: "",
+    officeAddress: "100 Management Office, Oak Valley",
+    utilityFile: null,
+    requireUtilityFile: false,
+    requireResidenceType: false,
+    communityAdmin: true,
+    requireAcceptedTerms: true,
+    acceptedTerms: true,
+  });
+  assertNoErrors(termsAccepted, "accepts form when terms are checked");
 
   const residentUnit = validateCompleteProfileForm({
     name: "Jane Doe",

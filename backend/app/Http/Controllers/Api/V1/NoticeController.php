@@ -14,6 +14,7 @@ use App\Services\ScheduledNoticeService;
 use App\Services\AmenitySharedBillService;
 use App\Services\UnitServiceBillService;
 use App\Services\UserBlockService;
+use App\Support\ActivityActionCatalog;
 use App\Support\MediaUrl;
 use App\Support\NoticeExpiry;
 use App\Support\NoticeSchedule;
@@ -972,6 +973,10 @@ class NoticeController extends Controller
             return response()->json(['message' => 'Community not found. Please contact support.'], 422);
         }
 
+        if ($response = $this->assertContentScheduleNotInPast($validated, $communityId)) {
+            return $response;
+        }
+
         if ($platformCreate) {
             $reviewStatus = 'approved';
             $status       = $validated['status'] ?? 'published';
@@ -1129,18 +1134,19 @@ class NoticeController extends Controller
             'review_status'    => $notice->review_status ?? 'approved',
             'is_global'        => (bool) ($notice->is_global ?? false),
             'approved_by'      => $notice->approved_by ? (int) $notice->approved_by : null,
-            'approved_at'      => $notice->approved_at,
+            'approved_at'      => ActivityActionCatalog::utcIsoTimestamp($notice->approved_at ?? null),
             'rejection_reason' => $notice->rejection_reason,
-            'published_at'     => $notice->published_at,
-            'scheduled_at'     => $notice->scheduled_at ?? null,
+            // UTC ISO-8601 so clients convert to device local time correctly.
+            'published_at'     => ActivityActionCatalog::utcIsoTimestamp($notice->published_at ?? null),
+            'scheduled_at'     => ActivityActionCatalog::utcIsoTimestamp($notice->scheduled_at ?? null),
             'is_pinned'        => (bool) ($notice->is_pinned ?? false),
             'is_pinned_active' => $this->isPinActive($notice),
             'requires_rsvp'    => (bool) ($notice->requires_rsvp ?? false),
             'audience_type'    => $audienceType,
             'recipient_user_ids' => array_column($recipients, 'id'),
             'recipients'       => $recipients,
-            'created_at'       => $notice->created_at,
-            'updated_at'       => $notice->updated_at,
+            'created_at'       => ActivityActionCatalog::utcIsoTimestamp($notice->created_at ?? null),
+            'updated_at'       => ActivityActionCatalog::utcIsoTimestamp($notice->updated_at ?? null),
             'author_name'      => $notice->author_name,
             'author_avatar'    => MediaUrl::toPublic($notice->author_avatar ?? null, request()),
             'can_report'       => $this->canReportNotice($notice, $user),
@@ -1585,6 +1591,85 @@ class NoticeController extends Controller
                 'message' => $message,
                 'errors'  => $missing,
             ], 422);
+        }
+
+        return null;
+    }
+
+    /**
+     * When the notice date is today (community/app timezone), times must be current or future.
+     */
+    private function assertContentScheduleNotInPast(array $validated, int $communityId): ?\Illuminate\Http\JsonResponse
+    {
+        $date = isset($validated['event_date']) ? trim((string) $validated['event_date']) : '';
+        if ($date === '') {
+            return null;
+        }
+
+        $now = NoticeExpiry::nowInTimezone($communityId);
+        if ($now->toDateString() !== $date) {
+            return null;
+        }
+
+        $message = 'Please select a future time for this notice.';
+        $errors = [];
+        $nowMinutes = ((int) $now->format('H')) * 60 + (int) $now->format('i');
+
+        foreach (['event_time', 'event_time_end'] as $field) {
+            $raw = isset($validated[$field]) ? trim((string) $validated[$field]) : '';
+            if ($raw === '') {
+                continue;
+            }
+
+            $minutes = $this->parseScheduleTimeToMinutes($raw);
+            if ($minutes !== null && $minutes < $nowMinutes) {
+                $errors[$field] = [$message];
+            }
+        }
+
+        if ($errors === []) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => $message,
+            'errors'  => $errors,
+        ], 422);
+    }
+
+    private function parseScheduleTimeToMinutes(string $value): ?int
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('/^(\d{1,2}):(\d{2})(?::\d{2})?$/', $value, $m)) {
+            $h = (int) $m[1];
+            $min = (int) $m[2];
+            if ($h >= 0 && $h <= 23 && $min >= 0 && $min <= 59) {
+                return $h * 60 + $min;
+            }
+
+            return null;
+        }
+
+        if (preg_match('/^(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])$/', $value, $m)) {
+            $h = (int) $m[1];
+            $min = isset($m[2]) && $m[2] !== '' ? (int) $m[2] : 0;
+            $period = strtoupper($m[3]);
+            if ($h < 1 || $h > 12 || $min < 0 || $min > 59) {
+                return null;
+            }
+            if ($period === 'AM') {
+                if ($h === 12) {
+                    $h = 0;
+                }
+            } elseif ($h !== 12) {
+                $h += 12;
+            }
+
+            return $h * 60 + $min;
         }
 
         return null;

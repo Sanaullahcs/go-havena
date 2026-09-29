@@ -28,7 +28,7 @@ import {
   shouldSkipUtilityBill,
   shouldUseSimpleCompleteProfileSubmit,
 } from "../../../services/community-access";
-import { showApiFailure } from "../../../utils/auth-errors";
+import { isNetworkLikeError, showApiFailure } from "../../../utils/auth-errors";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
 import { confirmLeaveOnboarding } from "../../../services/sign-out";
 import AuthSuccessOverlay from "../../../components/ui/auth-success-overlay";
@@ -111,6 +111,19 @@ const bioFieldTextStyle = {
 export default function CompleteProfile() {
   const { t, i18n } = useTranslation();
   const dialog = useAppDialog();
+  const router = useRouter();
+  const {
+    role = "resident",
+    regionId,
+    communityId,
+    communityName = "Oak Valley Residences",
+    communityRequest,
+    mode,
+    familyMode: familyModeParam,
+    invited: invitedParam,
+  } = useLocalSearchParams();
+  const isEditMode = mode === "edit";
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phoneDigits, setPhoneDigits] = useState("");
@@ -123,9 +136,12 @@ export default function CompleteProfile() {
   const [familyNumberError, setFamilyNumberError] = useState(null);
   const [familyNumberChecking, setFamilyNumberChecking] = useState(false);
   const [familyNumberLoading, setFamilyNumberLoading] = useState(false);
+  // Edit Profile: true until /families/mine hydrates — does not hide option cards.
+  const [familyStatusHydrating, setFamilyStatusHydrating] = useState(() => isEditMode);
   const [familyNumberLocked, setFamilyNumberLocked] = useState(false);
   /** @type {['create' | 'join' | 'skip', Function]} */
-  const [familyMode, setFamilyMode] = useState("create");
+  // Edit Profile: provisional "skip" until /families/mine hydrates (avoid defaulting to Create).
+  const [familyMode, setFamilyMode] = useState(() => (isEditMode ? "skip" : "create"));
   const [residenceType, setResidenceType] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
   const { touch, clearError, showError, validateOnSubmit } = useTouchedFieldErrors();
@@ -139,23 +155,10 @@ export default function CompleteProfile() {
   const [savedUser, setSavedUser] = useState(null);
   const [generatedFamilyNumber, setGeneratedFamilyNumber] = useState(null);
   const [familyJoinPending, setFamilyJoinPending] = useState(false);
-  const router = useRouter();
-  const {
-    role = "resident",
-    regionId,
-    communityId,
-    communityName = "Oak Valley Residences",
-    communityRequest,
-    mode,
-    familyMode: familyModeParam,
-    invited: invitedParam,
-  } = useLocalSearchParams();
   const [skipUtilityBill, setSkipUtilityBill] = useState(false);
   const [hideUtilityVerificationDelay, setHideUtilityVerificationDelay] = useState(
     invitedParam === "1",
   );
-
-  const isEditMode = mode === "edit";
   const isCommunityRequest = communityRequest === "1";
   const isCommunityAdminProfile =
     role === "admin" ||
@@ -234,17 +237,60 @@ export default function CompleteProfile() {
   }, [familyModeParam]);
 
   useEffect(() => {
-    if (!showFamilyNumberField || isGuestProfile) return undefined;
+    if (!showFamilyNumberField || isGuestProfile) {
+      if (isEditMode) setFamilyStatusHydrating(false);
+      return undefined;
+    }
 
     let cancelled = false;
 
     (async () => {
-      setFamilyNumberLoading(true);
+      if (isEditMode) setFamilyStatusHydrating(true);
+      else setFamilyNumberLoading(true);
       try {
         const mine = await fetchMyFamily();
         if (cancelled) return;
 
-        if (mine.state === "pending") {
+        const applyEditFamilyFromMine = () => {
+          if (mine.state === "pending" || mine.state === "awaiting_admin") {
+            setFamilyMode("join");
+            setFamilyNumber(mine.pending_request?.family?.family_number ?? "");
+            setFamilyNumberLocked(true);
+            setFamilyJoinPending(true);
+            return;
+          }
+
+          if (mine.state === "member" || mine.state === "suspended") {
+            const membershipRole = mine.membership?.role;
+            setFamilyMode(membershipRole === "head" ? "create" : "join");
+            setFamilyNumber(mine.family?.family_number ?? "");
+            setFamilyNumberLocked(true);
+            setFamilyJoinPending(false);
+            return;
+          }
+
+          if (mine.state === "rejected") {
+            // Prior join was rejected — unlock so they can choose again; do not invent Create.
+            setFamilyMode("join");
+            setFamilyNumber("");
+            setFamilyNumberLocked(false);
+            setFamilyJoinPending(false);
+            return;
+          }
+
+          // state === "none" | "blocked" | unknown → saved Skip / no family
+          setFamilyMode("skip");
+          setFamilyNumber("");
+          setFamilyNumberLocked(false);
+          setFamilyJoinPending(false);
+        };
+
+        if (isEditMode) {
+          applyEditFamilyFromMine();
+          return;
+        }
+
+        if (mine.state === "pending" || mine.state === "awaiting_admin") {
           setFamilyMode("join");
           setFamilyNumber(mine.pending_request?.family?.family_number ?? "");
           setFamilyNumberLocked(true);
@@ -263,19 +309,22 @@ export default function CompleteProfile() {
           return;
         }
 
-        if (mine.family?.family_number) {
-          setFamilyMode("create");
-          setFamilyNumber(mine.family.family_number);
-          if (isEditMode) {
-            setFamilyNumberLocked(true);
-          }
-          if (isEditMode) return;
+        if (mine.family?.family_number || mine.state === "member" || mine.state === "suspended") {
+          const membershipRole = mine.membership?.role;
+          setFamilyMode(membershipRole === "head" ? "create" : "join");
+          setFamilyNumber(mine.family?.family_number ?? "");
+          setFamilyNumberLocked(true);
+          return;
         }
-
-        if (isEditMode) return;
 
         if (familyModeParam === "join") {
           setFamilyMode("join");
+          setFamilyNumber("");
+          return;
+        }
+
+        if (familyModeParam === "skip") {
+          setFamilyMode("skip");
           setFamilyNumber("");
           return;
         }
@@ -286,7 +335,12 @@ export default function CompleteProfile() {
           setFamilyNumber(suggested.family_number);
         }
       } catch {
-        if (!cancelled && !isEditMode) {
+        if (!cancelled && isEditMode) {
+          // Keep provisional skip — do not invent Create My Family on load failure.
+          setFamilyMode("skip");
+          setFamilyNumber("");
+          setFamilyNumberLocked(false);
+        } else if (!cancelled && !isEditMode) {
           try {
             const suggested = await fetchSuggestedFamilyNumber();
             if (suggested.family_number) {
@@ -298,7 +352,10 @@ export default function CompleteProfile() {
           }
         }
       } finally {
-        if (!cancelled) setFamilyNumberLoading(false);
+        if (!cancelled) {
+          if (!isEditMode) setFamilyNumberLoading(false);
+          setFamilyStatusHydrating(false);
+        }
       }
     })();
 
@@ -395,7 +452,11 @@ export default function CompleteProfile() {
   };
 
   const selectFamilyMode = async (mode) => {
-    if (familyNumberLocked || mode === familyMode) return;
+    if (familyNumberLocked || mode === familyMode || familyNumberLoading || familyStatusHydrating) {
+      return;
+    }
+    const previousMode = familyMode;
+    const previousNumber = familyNumber;
     setFamilyMode(mode);
     setFamilyNumberError(null);
     clearError("familyNumber");
@@ -416,8 +477,17 @@ export default function CompleteProfile() {
       if (suggested.family_number) {
         setFamilyNumber(suggested.family_number);
       }
-    } catch {
-      setFamilyNumberError(t("onboarding.couldNotGenerateFamily"));
+    } catch (err) {
+      if (__DEV__) {
+        console.warn("[complete-profile] suggest family number failed", err);
+      }
+      setFamilyMode(previousMode);
+      setFamilyNumber(previousNumber);
+      setFamilyNumberError(null);
+      await dialog.showError(
+        t("onboarding.couldNotGenerateFamily"),
+        t("common.tryAgain", { defaultValue: "Please try again." }),
+      );
     } finally {
       setFamilyNumberLoading(false);
     }
@@ -537,6 +607,20 @@ export default function CompleteProfile() {
     familyNumberError,
   ]);
 
+  const showProfileSubmitFailure = async (err, fallbackTitleKey = "onboarding.unableToCompleteProfile") => {
+    if (__DEV__) {
+      console.warn("[complete-profile] submit failed", err);
+    }
+    if (isNetworkLikeError(err)) {
+      await dialog.showError(
+        t("onboarding.noInternetConnection"),
+        t("onboarding.unableToCompleteProfileOffline"),
+      );
+      return;
+    }
+    await showApiFailure(dialog, t(fallbackTitleKey), err);
+  };
+
   const handleJoinCommunity = () => {
     if (submitting) return;
     if (
@@ -577,12 +661,14 @@ export default function CompleteProfile() {
 
         const profileResult = await updateProfile({
           display_name: name.trim(),
-          email: email.trim().toLowerCase(),
+          ...(isEditMode ? {} : { email: email.trim().toLowerCase() }),
           phone: toE164(phoneDigits, phoneCountry),
           bio: bio.trim(),
           ...(showOfficeAddress
             ? { office_address: officeAddress.trim() }
-            : { unit_number: unitNumber.trim() }),
+            : isEditMode
+              ? {}
+              : { unit_number: unitNumber.trim() }),
           ...(showResidenceType
             ? {
                 residence_type: residenceType,
@@ -631,7 +717,7 @@ export default function CompleteProfile() {
               const family = await ensureMyFamily(numberToSave);
               savedFamilyNumber = family?.family_number ?? numberToSave;
             } catch (err) {
-              await showApiFailure(dialog, t("onboarding.couldNotVerifyFamily"), err);
+              await showProfileSubmitFailure(err, "onboarding.couldNotVerifyFamily");
               return;
             }
           } else {
@@ -654,7 +740,7 @@ export default function CompleteProfile() {
               savedFamilyNumber = numberToSave;
               joinPending = true;
             } catch (err) {
-              await showApiFailure(dialog, t("onboarding.couldNotVerifyFamily"), err);
+              await showProfileSubmitFailure(err, "onboarding.couldNotVerifyFamily");
               return;
             }
           }
@@ -684,7 +770,7 @@ export default function CompleteProfile() {
         setSavedUser(user);
         setShowSuccess(true);
       } catch (err) {
-        await showApiFailure(dialog, t("onboarding.unableToCompleteProfile"), err);
+        await showProfileSubmitFailure(err);
       }
     });
 
@@ -927,22 +1013,40 @@ export default function CompleteProfile() {
               <Text style={styles.inputText}>
                 {t("onboarding.emailAddress")} <Text style={styles.requiredMark}>*</Text>
               </Text>
-              <View style={[styles.inputBox, showError("email", liveErrors) && styles.inputError]}>
+              <View
+                style={[
+                  styles.inputBox,
+                  isEditMode && styles.inputBoxDisabled,
+                  !isEditMode && showError("email", liveErrors) && styles.inputError,
+                ]}
+                pointerEvents={isEditMode ? "none" : "auto"}
+              >
                 <LocaleTextInput
-                  style={fieldTextStyle}
+                  style={[fieldTextStyle, isEditMode && styles.inputTextDisabled]}
                   placeholder={t("onboarding.emailPlaceholder")}
                   placeholderTextColor={PLACEHOLDER_COLOR}
-                  value={email}
+                  value={String(email ?? "")}
                   onChangeText={(text) => {
+                    if (isEditMode) return;
                     setEmail(text);
                     clearError("email");
                   }}
-                  onBlur={() => touch("email")}
-                  onFocus={() => handleFieldFocus(emailFieldRef)}
+                  onBlur={() => {
+                    if (isEditMode) return;
+                    touch("email");
+                  }}
+                  onFocus={() => {
+                    if (isEditMode) return;
+                    handleFieldFocus(emailFieldRef);
+                  }}
+                  editable={!isEditMode}
+                  selectTextOnFocus={false}
                   autoCapitalize="none"
                   autoCorrect={false}
-                  autoComplete="email"
-                  textContentType="emailAddress"
+                  // Autofill + disabled email fields can SIGABRT on iOS; strip when read-only.
+                  autoComplete={isEditMode ? "off" : "email"}
+                  textContentType={isEditMode ? "none" : "emailAddress"}
+                  importantForAutofill={isEditMode ? "no" : "yes"}
                   keyboardType="email-address"
                   maxLength={LIMITS.profileEmail}
                   forceLtr
@@ -951,7 +1055,9 @@ export default function CompleteProfile() {
                   textAlignVertical="center"
                 />
               </View>
-              {showError("email", liveErrors) ? <Text style={styles.errorText}>{showError("email", liveErrors)}</Text> : null}
+              {!isEditMode && showError("email", liveErrors) ? (
+                <Text style={styles.errorText}>{showError("email", liveErrors)}</Text>
+              ) : null}
             </View>
 
             <View ref={phoneFieldRef} collapsable={false} style={styles.fieldGroup}>
@@ -1041,25 +1147,52 @@ export default function CompleteProfile() {
                 {t("onboarding.unitNumber")}
                 {!isGuestProfile ? <Text style={styles.requiredMark}> *</Text> : null}
               </Text>
-              <View style={[styles.inputBox, showError("unitNumber", liveErrors) && styles.inputError]}>
+              <View
+                style={[
+                  styles.inputBox,
+                  isEditMode && styles.inputBoxDisabled,
+                  !isEditMode && showError("unitNumber", liveErrors) && styles.inputError,
+                ]}
+                pointerEvents={isEditMode ? "none" : "auto"}
+              >
                 <LocaleTextInput
-                  style={fieldTextStyle}
+                  style={[fieldTextStyle, isEditMode && styles.inputTextDisabled]}
                   placeholder={t("onboarding.unitPlaceholder")}
                   placeholderTextColor={PLACEHOLDER_COLOR}
-                  value={unitNumber}
+                  value={String(unitNumber ?? "")}
                   onChangeText={(text) => {
+                    if (isEditMode) return;
                     setUnitNumber(applyCharacterLimit(unitNumber, text, unitMax));
                     clearError("unitNumber");
                   }}
-                  onBlur={() => touch("unitNumber")}
-                  onFocus={() => handleFieldFocus(unitFieldRef)}
-                  maxLength={unitNumber.length > unitMax ? undefined : unitMax}
+                  onBlur={() => {
+                    if (isEditMode) return;
+                    touch("unitNumber");
+                  }}
+                  onFocus={() => {
+                    if (isEditMode) return;
+                    handleFieldFocus(unitFieldRef);
+                  }}
+                  editable={!isEditMode}
+                  selectTextOnFocus={false}
+                  maxLength={
+                    isEditMode
+                      ? undefined
+                      : String(unitNumber ?? "").length > unitMax
+                        ? undefined
+                        : unitMax
+                  }
+                  autoComplete="off"
+                  textContentType="none"
+                  importantForAutofill="no"
                   underlineColorAndroid="transparent"
                   textAlignVertical="center"
                 />
               </View>
-              {showError("unitNumber", liveErrors) ? <Text style={styles.errorText}>{showError("unitNumber", liveErrors)}</Text> : null}
-              {existingUnits.length > 0 ? (
+              {!isEditMode && showError("unitNumber", liveErrors) ? (
+                <Text style={styles.errorText}>{showError("unitNumber", liveErrors)}</Text>
+              ) : null}
+              {!isEditMode && existingUnits.length > 0 ? (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
                   {existingUnits.slice(0, 12).map((unit) => (
                     <TouchableOpacity
@@ -1085,15 +1218,22 @@ export default function CompleteProfile() {
                   ))}
                 </View>
               ) : null}
-              <Text style={styles.helperText}>
-                First resident on a new unit becomes the billing contact. Joining an existing unit does not change the contact.
-              </Text>
+              {!isEditMode ? (
+                <Text style={styles.helperText}>
+                  First resident on a new unit becomes the billing contact. Joining an existing unit does not change the contact.
+                </Text>
+              ) : null}
             </View>
             ) : null}
 
             {showFamilyNumberField && !isGuestProfile ? (
               <View style={styles.fieldGroup}>
-                <Text style={styles.inputText}>{t("onboarding.family")}</Text>
+                <View style={styles.familyLabelRow}>
+                  <Text style={styles.inputText}>{t("onboarding.family")}</Text>
+                  {familyStatusHydrating || (familyNumberLoading && !familyNumberLocked) ? (
+                    <ActivityIndicator size="small" color={T.navy} />
+                  ) : null}
+                </View>
                 <Text style={styles.fieldHint}>
                   {t("onboarding.familyHint")}
                 </Text>
@@ -1103,9 +1243,11 @@ export default function CompleteProfile() {
                     <View style={styles.familyModeRow}>
                       <TouchableOpacity
                         activeOpacity={0.85}
+                        disabled={familyNumberLoading}
                         style={[
                           styles.familyModeCard,
                           familyMode === "create" && styles.familyModeCardActive,
+                          familyNumberLoading && familyMode !== "create" && { opacity: 0.7 },
                         ]}
                         onPress={() => selectFamilyMode("create")}
                       >
@@ -1115,11 +1257,15 @@ export default function CompleteProfile() {
                             familyMode === "create" && styles.familyModeIconWrapActive,
                           ]}
                         >
-                          <Users
-                            size={20}
-                            color={familyMode === "create" ? T.teal : T.gray}
-                            strokeWidth={2}
-                          />
+                          {familyMode === "create" && familyNumberLoading ? (
+                            <ActivityIndicator size="small" color={T.teal} />
+                          ) : (
+                            <Users
+                              size={20}
+                              color={familyMode === "create" ? T.teal : T.gray}
+                              strokeWidth={2}
+                            />
+                          )}
                         </View>
                         <Text style={styles.typeTitle}>{t("onboarding.createMyFamily")}</Text>
                         <Text style={styles.typeSubTitle}>{t("onboarding.becomeFamilyHead")}</Text>
@@ -1127,9 +1273,11 @@ export default function CompleteProfile() {
 
                       <TouchableOpacity
                         activeOpacity={0.85}
+                        disabled={familyNumberLoading}
                         style={[
                           styles.familyModeCard,
                           familyMode === "join" && styles.familyModeCardActive,
+                          familyNumberLoading && familyMode !== "join" && { opacity: 0.7 },
                         ]}
                         onPress={() => selectFamilyMode("join")}
                       >
@@ -1152,9 +1300,11 @@ export default function CompleteProfile() {
 
                     <TouchableOpacity
                       activeOpacity={0.85}
+                      disabled={familyNumberLoading}
                       style={[
                         styles.familySkipCard,
                         familyMode === "skip" && styles.familySkipCardActive,
+                        familyNumberLoading && familyMode !== "skip" && { opacity: 0.7 },
                       ]}
                       onPress={() => selectFamilyMode("skip")}
                     >
@@ -1247,7 +1397,7 @@ export default function CompleteProfile() {
                       autoCapitalize="characters"
                       autoCorrect={false}
                       maxLength={30}
-                      editable={!familyNumberLocked}
+                      editable={!familyNumberLocked && !familyNumberLoading}
                       underlineColorAndroid="transparent"
                       textAlignVertical="center"
                     />
@@ -1624,6 +1774,13 @@ const styles = StyleSheet.create({
     backgroundColor: T.white,
     paddingHorizontal: 16,
     justifyContent: "center",
+  },
+  inputBoxDisabled: {
+    backgroundColor: T.canvas,
+    borderColor: T.border,
+  },
+  inputTextDisabled: {
+    color: T.gray,
   },
   familyNumberSection: {
     marginTop: 14,

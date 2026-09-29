@@ -14,7 +14,7 @@ class NoticeExpiryTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_event_is_past_only_after_its_scheduled_start_minute(): void
+    public function test_event_is_past_only_after_its_scheduled_end_minute(): void
     {
         config(['app.schedule_timezone' => 'America/New_York']);
         Carbon::setTestNow(Carbon::parse('2026-09-24 15:00:00', 'America/New_York'));
@@ -25,11 +25,17 @@ class NoticeExpiryTest extends TestCase
             'event_time' => '16:30',
             'event_time_end' => '17:30',
         ];
-        $earlierToday = (object) [
+        $ongoingToday = (object) [
             'category' => 'event',
             'event_date' => '2026-09-24',
             'event_time' => '14:00',
             'event_time_end' => '18:00',
+        ];
+        $endedToday = (object) [
+            'category' => 'event',
+            'event_date' => '2026-09-24',
+            'event_time' => '10:00',
+            'event_time_end' => '14:30',
         ];
         $dateOnlyToday = (object) [
             'category' => 'event',
@@ -45,7 +51,8 @@ class NoticeExpiryTest extends TestCase
         ];
 
         $this->assertFalse(NoticeExpiry::isEventSchedulePast($laterToday));
-        $this->assertTrue(NoticeExpiry::isEventSchedulePast($earlierToday));
+        $this->assertFalse(NoticeExpiry::isEventSchedulePast($ongoingToday));
+        $this->assertTrue(NoticeExpiry::isEventSchedulePast($endedToday));
         $this->assertFalse(NoticeExpiry::isEventSchedulePast($dateOnlyToday));
         $this->assertTrue(NoticeExpiry::isEventSchedulePast($yesterday));
         $this->assertFalse(NoticeExpiry::isEventSchedulePast((object) [

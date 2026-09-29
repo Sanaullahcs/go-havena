@@ -50,13 +50,12 @@ export async function confirmSignOut(dialog) {
     i18n.t("auth.logOutConfirmMsg"),
     {
       confirmLabel: i18n.t("settings.logOut"),
-      cancelLabel: i18n.t("auth.staySignedIn"),
+      cancelLabel: i18n.t("common.cancel"),
       destructive: true,
     },
   );
 
   if (result === "confirm") {
     await performSignOut();
-    await dialog.showSuccess(i18n.t("auth.loggedOut"), i18n.t("auth.loggedOutMessage"));
   }
 }

@@ -190,3 +190,69 @@ export function toScheduleApiDateTime(date: string, time: string): string | unde
   if (Number.isNaN(local.getTime())) return undefined;
   return local.toISOString();
 }
+
+export const NOTICE_FUTURE_TIME_MESSAGE = "Please select a future time for this notice.";
+
+/** Calendar date + minute-of-day in a timezone (defaults to the browser local zone). */
+export function zonedNowParts(now: Date = new Date(), timeZone?: string): { date: string; minutes: number } {
+  if (!timeZone) {
+    return {
+      date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`,
+      minutes: now.getHours() * 60 + now.getMinutes(),
+    };
+  }
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "0";
+
+  const year = get("year");
+  const month = get("month");
+  const day = get("day");
+  const hour = Number(get("hour"));
+  const minute = Number(get("minute"));
+
+  return {
+    date: `${year}-${month}-${day}`,
+    minutes: hour * 60 + minute,
+  };
+}
+
+/** Minimum selectable HH:MM when `date` is today; otherwise null (all times allowed). */
+export function minTimeForNoticeDate(
+  date: string,
+  now: Date = new Date(),
+  timeZone?: string,
+): string | null {
+  const trimmed = date.trim();
+  if (!trimmed) return null;
+  const { date: today, minutes } = zonedNowParts(now, timeZone);
+  if (trimmed !== today) return null;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/** True when date is today and time is strictly before the current minute. */
+export function isNoticeTimeInPast(
+  date: string,
+  time: string,
+  now: Date = new Date(),
+  timeZone?: string,
+): boolean {
+  const minTime = minTimeForNoticeDate(date, now, timeZone);
+  if (!minTime) return false;
+  const selected = parseTimeMinutes(parseFlexibleTime(time) ?? time);
+  const minimum = parseTimeMinutes(minTime);
+  if (selected == null || minimum == null) return false;
+  return selected < minimum;
+}

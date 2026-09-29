@@ -38,12 +38,12 @@ class DemoContentSeeder extends Seeder
     public function run(): void
     {
         if ($this->seedFoundationalCatalogs) {
-            $this->call([
-                RegionSeeder::class,
-                CommunitySeeder::class,
+        $this->call([
+            RegionSeeder::class,
+            CommunitySeeder::class,
                 BostonDemoSeeder::class,
-                WellnessHubSeeder::class,
-            ]);
+            WellnessHubSeeder::class,
+        ]);
         }
 
         $community = $this->resolveCommunity();
@@ -60,15 +60,15 @@ class DemoContentSeeder extends Seeder
         $regionId = $community->region_id ?: ($boston->id ?? $region->id ?? null);
 
         if (! $this->preserveCommunityIdentity) {
-            DB::table('communities')->where('id', $cid)->update([
+        DB::table('communities')->where('id', $cid)->update([
                 'name' => BostonDemoSeeder::COMMUNITY_NAME,
                 'description' => 'Waterfront residences in Boston’s Seaport District. Residents share a fitness studio, courtyard garden, lounge, and 24-hour concierge along the Harborwalk.',
                 'address' => BostonDemoSeeder::COMMUNITY_ADDRESS,
                 'region' => $boston->title ?? 'Massachusetts - Boston',
                 'region_id' => $boston->id ?? $regionId,
-                'timezone' => 'America/New_York',
-                'updated_at' => now(),
-            ]);
+            'timezone' => 'America/New_York',
+            'updated_at' => now(),
+        ]);
             $this->copyName = BostonDemoSeeder::COMMUNITY_NAME;
             $regionId = $boston->id ?? $regionId;
         } else {
@@ -95,7 +95,7 @@ class DemoContentSeeder extends Seeder
         $this->seedNearbyDiscovery($cid, $regionId, $residents, $adminId);
         $this->seedWellnessImages();
         if (! $this->preserveCommunityIdentity) {
-            $this->call(NoticeAndDealTranslationSeeder::class);
+        $this->call(NoticeAndDealTranslationSeeder::class);
         }
         $this->seedRules($cid, $adminId, $residents);
         $this->seedDocuments($cid, $adminId);
@@ -105,9 +105,9 @@ class DemoContentSeeder extends Seeder
         $this->seedModeration($cid, $residents, $adminId);
 
         if ($this->seedSystemScope) {
-            $this->seedContactSubmissions();
-            $this->seedAdminApplicants($regionId);
-            $this->seedActivityLogs($residents, $adminId);
+        $this->seedContactSubmissions();
+        $this->seedAdminApplicants($regionId);
+        $this->seedActivityLogs($residents, $adminId);
         }
 
         $this->command?->info('DemoContentSeeder: demo content ready for community #'.$cid.'.');
@@ -229,12 +229,12 @@ class DemoContentSeeder extends Seeder
             if (! $existingAvatar || str_starts_with((string) $existingAvatar, '/storage/seed/')) {
                 $payload['avatar_url'] = "{$this->img}/{$avatarFile}";
             }
-            DB::table('profiles')->updateOrInsert(
-                ['user_id' => $uid],
+                DB::table('profiles')->updateOrInsert(
+                    ['user_id' => $uid],
                 $payload
-            );
+                );
             $map[$lookup] = $uid;
-            $map[$email] = $uid;
+                $map[$email] = $uid;
         }
 
         return $map;
@@ -631,12 +631,12 @@ class DemoContentSeeder extends Seeder
             }
             $hours = 2;
             foreach ($rows as [$email, $body]) {
-                $uid = $u($email);
-                if (! $uid) {
-                    continue;
-                }
-                DB::table('post_comments')->updateOrInsert(
-                    ['post_id' => $postId, 'user_id' => $uid, 'body' => $body],
+            $uid = $u($email);
+            if (! $uid) {
+                continue;
+            }
+            DB::table('post_comments')->updateOrInsert(
+                ['post_id' => $postId, 'user_id' => $uid, 'body' => $body],
                     [
                         'updated_at' => now()->subHours($hours),
                         'created_at' => now()->subHours($hours),
@@ -657,8 +657,8 @@ class DemoContentSeeder extends Seeder
             foreach (array_slice($likeEmails, 0, $take) as $email) {
                 $uid = $u($email);
                 if (! $uid) {
-                    continue;
-                }
+                continue;
+            }
                 DB::table('post_likes')->updateOrInsert(['user_id' => $uid, 'post_id' => $postId], []);
             }
         }
@@ -1595,7 +1595,7 @@ class DemoContentSeeder extends Seeder
     {
         $ownerId = $owner($shop['owner']);
 
-        DB::table('businesses')->updateOrInsert(
+            DB::table('businesses')->updateOrInsert(
             ['community_id' => $communityId, 'name' => $shop['name']],
             [
                 'owner_id' => $ownerId,
@@ -1606,9 +1606,9 @@ class DemoContentSeeder extends Seeder
                 'hours' => $shop['hours'],
                 'amenities' => $shop['amenities'],
                 'image_url' => "{$this->img}/{$shop['image']}.jpg",
-                'status' => 'approved',
+                    'status' => 'approved',
                 'approved_at' => now()->subDays(20),
-                'approved_by' => $adminId,
+                    'approved_by' => $adminId,
                 'updated_at' => now()->subDays(20),
                 'created_at' => now()->subDays(40),
             ]

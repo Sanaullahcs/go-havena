@@ -28,6 +28,68 @@ function isDatabaseOrSqlLeak(message) {
   );
 }
 
+/** True when a message looks like a raw connectivity / DNS / socket failure. */
+export function looksLikeNetworkFailureMessage(message) {
+  if (!message) return false;
+  const text = String(message).toLowerCase();
+  return (
+    text.includes("network request failed") ||
+    text.includes("failed to fetch") ||
+    text.includes("fetch failed") ||
+    text.includes("could not connect") ||
+    text.includes("failed to connect") ||
+    text.includes("connection refused") ||
+    text.includes("connection reset") ||
+    text.includes("connection timed out") ||
+    text.includes("timed out") ||
+    text.includes("timeout") ||
+    text.includes("enotfound") ||
+    text.includes("econnrefused") ||
+    text.includes("econnreset") ||
+    text.includes("eai_again") ||
+    text.includes("socket") ||
+    text.includes("dns") ||
+    text.includes("unreachable") ||
+    text.includes("offline") ||
+    text.includes("internet connection appears to be offline") ||
+    text.includes("fetch request has been cancelled") ||
+    text.includes("network is unreachable") ||
+    text.includes("no address associated") ||
+    text.includes("name resolution") ||
+    text.includes("getaddrinfo") ||
+    text.includes("unable to resolve host") ||
+    text.includes("unknown host") ||
+    // e.g. Failed to connect to apis.example.com/1.2.3.4:443
+    /failed to connect to .+:\d+/i.test(String(message)) ||
+    /\b\d{1,3}(?:\.\d{1,3}){3}:\d+\b/.test(String(message)) ||
+    /https?:\/\/\S+/i.test(String(message))
+  );
+}
+
+/**
+ * Detect offline / timeout / DNS / connection failures for UI fallbacks.
+ * Does not treat successful ApiError business codes as network failures.
+ */
+export function isNetworkLikeError(error) {
+  if (!error) return false;
+
+  const code = getApiErrorCode(error);
+  if (code === "NETWORK_ERROR" || code === "TIMEOUT") return true;
+  if (code) return false;
+
+  const name = String(error?.name ?? "").toLowerCase();
+  if (name === "aborterror") return true;
+
+  const causeMessage = error?.cause?.message ?? error?.cause;
+  return (
+    looksLikeNetworkFailureMessage(error?.message) ||
+    looksLikeNetworkFailureMessage(causeMessage)
+  );
+}
+
+const GENERIC_NETWORK_USER_MESSAGE =
+  "Could not reach the server. Check your connection and try again.";
+
 function friendlyValidationMessage(message) {
   if (!message) return message;
   const text = String(message).trim();
@@ -44,13 +106,8 @@ function friendlyValidationMessage(message) {
     return "The file could not be uploaded. Please take or choose the photo again, then retry.";
   }
 
-  if (
-    /fetch failed/i.test(text) ||
-    /could not connect/i.test(text) ||
-    /network request failed/i.test(text) ||
-    /failed to fetch/i.test(text)
-  ) {
-    return "Could not reach the server. Check your connection and try again.";
+  if (looksLikeNetworkFailureMessage(text)) {
+    return GENERIC_NETWORK_USER_MESSAGE;
   }
 
   return text;
@@ -58,6 +115,10 @@ function friendlyValidationMessage(message) {
 
 /** Map Laravel validation / API errors to user-facing messages. */
 export function getApiErrorMessage(error, field) {
+  if (isNetworkLikeError(error)) {
+    return GENERIC_NETWORK_USER_MESSAGE;
+  }
+
   if (field && error?.errors?.[field]?.[0]) {
     return friendlyValidationMessage(error.errors[field][0]);
   }

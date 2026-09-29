@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Check, X } from "lucide-react";
 import { AmenityIcon } from "@/components/admin/amenity-icon";
 import { BusinessHoursInput } from "@/components/admin/business-hours-input";
@@ -185,6 +185,7 @@ export function AmenityFormModal({
   const [form, setForm] = useState<AmenityForm>(EMPTY_FORM);
   const [step, setStep] = useState<AmenityFormStep>("details");
   const { touch, clearError, showError, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -206,6 +207,18 @@ export function AmenityFormModal({
       setStep(visibleSteps.includes("review") ? "review" : visibleSteps[visibleSteps.length - 1]);
     }
   }, [step, visibleSteps]);
+
+  useLayoutEffect(() => {
+    if (!open || step !== "details") return;
+    const el = descriptionRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const maxHeight = Number.parseFloat(getComputedStyle(el).maxHeight);
+    const border = el.offsetHeight - el.clientHeight;
+    const contentHeight = el.scrollHeight + border;
+    const next = Number.isFinite(maxHeight) ? Math.min(contentHeight, maxHeight) : contentHeight;
+    el.style.height = `${Math.max(next, 88)}px`;
+  }, [open, step, form.description]);
 
   if (!open) return null;
 
@@ -340,7 +353,9 @@ export function AmenityFormModal({
               <div>
                 <label className="mb-1.5 block text-xs font-semibold text-slate-600">Description</label>
                 <textarea
-                  className={`${inputClass(showError("description", liveErrors.description))} min-h-[88px] resize-y`}
+                  ref={descriptionRef}
+                  rows={3}
+                  className={`${inputClass(showError("description", liveErrors.description))} min-h-[88px] max-h-[min(16rem,40vh)] resize-none overflow-y-auto`}
                   value={form.description}
                   onChange={(e) => setField("description", e.target.value)}
                   onBlur={() => touch("description")}

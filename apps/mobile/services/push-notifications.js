@@ -40,6 +40,24 @@ export function isRemotePushSupported() {
   return true;
 }
 
+/** Stable codes for Settings UI — never put stack/vendor details in `message`. */
+export const PUSH_ERROR = {
+  UNSUPPORTED: "unsupported",
+  PERMISSION_DENIED: "permission_denied",
+  REGISTRATION_FAILED: "registration_failed",
+};
+
+function createPushError(code, technicalDetail) {
+  const error = new Error(
+    typeof technicalDetail === "string" && technicalDetail.trim()
+      ? technicalDetail.trim()
+      : code,
+  );
+  error.code = code;
+  return error;
+}
+
+/** Dev/ops detail only — callers must not show this string in production UI. */
 export function getRemotePushUnavailableMessage() {
   if (!Device.isDevice) {
     return i18n.t("push.requiresDevice");
@@ -135,25 +153,25 @@ export async function requestNotificationPermission() {
 
 export async function getExpoPushToken() {
   if (!isRemotePushSupported()) {
-    throw new Error(getRemotePushUnavailableMessage());
+    throw createPushError(PUSH_ERROR.UNSUPPORTED, getRemotePushUnavailableMessage());
   }
 
   const Notifications = await loadNotificationsModule();
   if (!Notifications) {
-    throw new Error(getRemotePushUnavailableMessage());
+    throw createPushError(PUSH_ERROR.UNSUPPORTED, getRemotePushUnavailableMessage());
   }
 
   const projectId = getProjectId();
   if (!projectId) {
-    throw new Error(i18n.t("push.missingProjectId"));
+    throw createPushError(PUSH_ERROR.REGISTRATION_FAILED, i18n.t("push.missingProjectId"));
   }
 
   const status = await requestNotificationPermission();
   if (status === "unsupported") {
-    throw new Error(getRemotePushUnavailableMessage());
+    throw createPushError(PUSH_ERROR.UNSUPPORTED, getRemotePushUnavailableMessage());
   }
   if (status !== "granted") {
-    throw new Error(i18n.t("push.permissionDenied"));
+    throw createPushError(PUSH_ERROR.PERMISSION_DENIED, i18n.t("push.permissionDenied"));
   }
 
   await ensureAndroidChannel(Notifications);
@@ -163,14 +181,18 @@ export async function getExpoPushToken() {
     tokenResult = await Notifications.getExpoPushTokenAsync({ projectId });
   } catch (err) {
     const raw = String(err?.message ?? err ?? "");
+    console.warn("[push] getExpoPushTokenAsync failed", err);
     if (/firebase messaging|google-services|Default FirebaseApp/i.test(raw)) {
-      throw new Error(i18n.t("push.firebaseUnavailable"));
+      throw createPushError(PUSH_ERROR.REGISTRATION_FAILED, i18n.t("push.firebaseUnavailable"));
     }
-    throw err instanceof Error ? err : new Error(raw || i18n.t("push.couldNotGetToken"));
+    throw createPushError(
+      PUSH_ERROR.REGISTRATION_FAILED,
+      raw || i18n.t("push.couldNotGetToken"),
+    );
   }
   const token = tokenResult?.data?.trim();
   if (!token) {
-    throw new Error(i18n.t("push.couldNotGetToken"));
+    throw createPushError(PUSH_ERROR.REGISTRATION_FAILED, i18n.t("push.couldNotGetToken"));
   }
 
   return token;
@@ -178,8 +200,9 @@ export async function getExpoPushToken() {
 
 export async function enablePushNotifications() {
   if (!isRemotePushSupported()) {
-    await setPushNotificationsEnabled(true);
-    return null;
+    const detail = getRemotePushUnavailableMessage();
+    console.warn("[push] remote push unsupported; not enabling", detail);
+    throw createPushError(PUSH_ERROR.UNSUPPORTED, detail);
   }
 
   try {
@@ -192,13 +215,17 @@ export async function enablePushNotifications() {
 
     return token;
   } catch (err) {
-    const raw = String(err?.message ?? err ?? "");
-    if (/firebase messaging|google-services|Default FirebaseApp|firebaseUnavailable/i.test(raw)) {
-      console.warn("[push] remote token unavailable; enabling in-app alerts only", err);
-      await setPushNotificationsEnabled(true);
-      return null;
+    if (err?.code === PUSH_ERROR.PERMISSION_DENIED || err?.code === PUSH_ERROR.UNSUPPORTED) {
+      throw err;
     }
-    throw err;
+    console.warn("[push] enable failed", err);
+    if (err?.code === PUSH_ERROR.REGISTRATION_FAILED) {
+      throw err;
+    }
+    throw createPushError(
+      PUSH_ERROR.REGISTRATION_FAILED,
+      String(err?.message ?? err ?? "registration_failed"),
+    );
   }
 }
 

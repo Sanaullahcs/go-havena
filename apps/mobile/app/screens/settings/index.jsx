@@ -14,7 +14,7 @@ import { deleteAccount } from "../../../services/auth-api";
 import { getApiErrorMessage } from "../../../utils/auth-errors";
 import { setCurrentRole } from "../../../constants/role-session";
 import {
-  CONTACT_URL,
+  HELP_CENTER_URL,
   PRIVACY_POLICY_URL,
   SUPPORT_EMAIL,
   TERMS_OF_SERVICE_URL,
@@ -89,7 +89,7 @@ export default function ProfileSetting() {
     const result = await setPush(nextValue);
     if (result.ok) return;
 
-    if (nextValue && /denied|permission/i.test(result.message ?? "")) {
+    if (nextValue && result.reason === "permission_denied") {
       const choice = await dialog.showConfirm(
         t("settings.notificationsBlocked"),
         t("settings.notificationsBlockedMsg"),
@@ -101,7 +101,15 @@ export default function ProfileSetting() {
       return;
     }
 
-    await dialog.showError(t("settings.pushError"), result.message ?? t("settings.pushErrorMsg"));
+    if (nextValue) {
+      await dialog.showError(
+        t("settings.pushEnableFailedTitle"),
+        t("settings.pushEnableFailedMsg"),
+      );
+      return;
+    }
+
+    await dialog.showError(t("settings.pushError"), t("settings.pushErrorMsg"));
   };
 
   const handleEmailToggle = async (nextValue) => {
@@ -212,10 +220,10 @@ export default function ProfileSetting() {
   ];
 
   const support = [
-    { id: 1, title: t("settings.helpCenter"), subTitle: t("settings.helpCenterSub"), icon: "help-circle", iconColor: "#1B4F8A", iconBg: "#D1FAF5", chevron: true, onPress: () => openLegalUrl(CONTACT_URL) },
+    { id: 1, title: t("settings.helpCenter"), subTitle: t("settings.helpCenterSub"), icon: "help-circle", iconColor: "#1B4F8A", iconBg: "#D1FAF5", chevron: true, onPress: () => openLegalUrl(HELP_CENTER_URL) },
     { id: 2, title: t("settings.privacyPolicy"), subTitle: t("settings.privacyPolicySub"), icon: "shield", iconColor: "#1B4F8A", iconBg: "#D1FAF5", chevron: true, onPress: () => openLegalUrl(PRIVACY_POLICY_URL) },
     { id: 3, title: t("settings.termsOfService"), subTitle: t("settings.termsOfServiceSub"), icon: "file-text", iconColor: "#1B4F8A", iconBg: "#D1FAF5", chevron: true, onPress: () => openLegalUrl(TERMS_OF_SERVICE_URL) },
-    { id: 4, title: t("settings.aboutHavena"), subTitle: t("common.version", { version: appVersion }), icon: "info", iconColor: "#6B7280", iconBg: "#F3F4F6", chevron: true, onPress: () => dialog.showSuccess(t("settings.aboutHavena"), t("settings.aboutHavenaMsg", { email: SUPPORT_EMAIL })) },
+    { id: 4, title: t("settings.aboutHavena"), subTitle: t("common.version", { version: appVersion }), icon: "info", iconColor: "#6B7280", iconBg: "#F3F4F6", chevron: true, onPress: () => dialog.showSuccess(t("settings.aboutHavena"), t("settings.aboutHavenaMsg", { email: SUPPORT_EMAIL }), [{ label: t("common.close"), variant: "primary" }]) },
     { id: 5, title: t("settings.logOut"), subTitle: t("settings.logOutSub"), icon: "log-out", iconColor: "#DC2626", iconBg: "#FEF2F2", danger: true, onPress: handleLogout },
     { id: 6, title: t("settings.deleteAccount"), subTitle: t("settings.deleteAccountSub"), icon: "trash-2", iconColor: "#DC2626", iconBg: "#FEF2F2", danger: true, onPress: handleDeleteAccount },
   ];

@@ -17,7 +17,7 @@ import {
   approveMember,
   rejectMember,
   suspendMember,
-  deleteMember,
+  deactivateMember,
   getAdminCommunityId,
   roleLabel,
   statusLabel,
@@ -61,6 +61,7 @@ const STATUS_META: Record<MembershipStatus, { tone: "green" | "amber" | "slate" 
   onboarding:       { tone: "blue",  label: "Onboarding" },
   banned:           { tone: "red",   label: "Suspended" },
   rejected:         { tone: "slate", label: "Rejected" },
+  inactive:         { tone: "slate", label: "Inactive" },
 };
 
 const ROLE_STYLE: Record<string, string> = {
@@ -72,7 +73,7 @@ const ROLE_STYLE: Record<string, string> = {
 
 type Filter = "all" | MembershipStatus;
 
-const EMPTY_STATS: MemberStats = { total: 0, approved: 0, pending: 0, banned: 0, rejected: 0, onboarding: 0, invitation_sent: 0, not_invited: 0 };
+const EMPTY_STATS: MemberStats = { total: 0, approved: 0, pending: 0, banned: 0, rejected: 0, onboarding: 0, invitation_sent: 0, not_invited: 0, inactive: 0 };
 
 function isCancellableInvitation(m: Member) {
   return !m.membership_id && (m.status === "invitation_sent" || m.status === "onboarding");
@@ -110,7 +111,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
   const searchParams = useSearchParams();
   const initialFilter = (searchParams.get("status") as Filter | null) ?? "all";
   const [filter, setFilter] = useState<Filter>(
-    ["all", "approved", "pending", "banned", "rejected", "onboarding", "invitation_sent"].includes(initialFilter)
+    ["all", "approved", "pending", "banned", "rejected", "inactive", "onboarding", "invitation_sent"].includes(initialFilter)
       ? initialFilter
       : "all",
   );
@@ -241,9 +242,10 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
     { label: "Invitation Sent", value: String(stats.invitation_sent ?? 0), hint: "Awaiting signup", tone: "slate" as const, icon: <IcoUser /> },
     { label: "Onboarding", value: String(stats.onboarding ?? 0), hint: "Signup started", tone: "cyan" as const, icon: <IcoUser /> },
     { label: "Suspended", value: String(stats.banned), hint: "Banned from community", tone: "slate" as const, icon: <IcoBanStat /> },
+    { label: "Inactive", value: String(stats.inactive ?? 0), hint: "Former members", tone: "slate" as const, icon: <IcoUser /> },
   ], [stats, isSystemResidents]);
 
-  const filters = (["all", "approved", "pending", "invitation_sent", "onboarding", "banned", "rejected"] as Filter[]).map((f) => ({
+  const filters = (["all", "approved", "pending", "invitation_sent", "onboarding", "banned", "rejected", "inactive"] as Filter[]).map((f) => ({
     key: f,
     label: f === "all" ? "All" : STATUS_META[f as MembershipStatus]?.label ?? f,
     count: f === "all" ? stats.total : stats[f as keyof MemberStats],
@@ -473,6 +475,13 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
     !isOwnCommunityAdminRecord(viewing, currentUser?.id) &&
     canApproveRejectedMember(viewing);
 
+  const showProfileReactivate =
+    viewing &&
+    !viewLoading &&
+    !isOwnCommunityAdminRecord(viewing, currentUser?.id) &&
+    viewing.status === "inactive" &&
+    Boolean(viewing.membership_id);
+
   const handleExport = async () => {
     setExporting(true);
     try {
@@ -670,7 +679,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
               return (
                 <DtRow
                   key={`${m.id}-${m.membership_id ?? "onboarding"}`}
-                  muted={m.status === "banned"}
+                  muted={m.status === "banned" || m.status === "inactive"}
                   className={selected ? "bg-blue-50/70" : undefined}
                 >
                   <DtCell first>
@@ -770,6 +779,32 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                                   },
                                 },
                                 {
+                                  label: "Reactivate",
+                                  icon: "approve",
+                                  tone: "primary",
+                                  hidden: m.status !== "inactive" || !m.membership_id,
+                                  onClick: async () => {
+                                    const r = await confirmAction({
+                                      title: `Reactivate ${m.name}?`,
+                                      text: "Their existing member record will be restored. Historical activity stays intact.",
+                                      confirmText: "Reactivate",
+                                      color: "green",
+                                    });
+                                    if (r.isConfirmed) {
+                                      setProfileActionLoading(true);
+                                      try {
+                                        await approveMember(m.id, memberCommunityId(m));
+                                        toastSuccess(`${m.name} has been reactivated.`);
+                                        await load(true);
+                                      } catch (err) {
+                                        toastError(apiError(err));
+                                      } finally {
+                                        setProfileActionLoading(false);
+                                      }
+                                    }
+                                  },
+                                },
+                                {
                                   label: "Resend Invite",
                                   icon: "view",
                                   hidden: !isCancellableInvitation(m) || m.status !== "invitation_sent",
@@ -786,27 +821,27 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                                   },
                                 },
                                 {
-                                  label: isCancellableInvitation(m) ? "Cancel invitation" : "Delete member",
+                                  label: isCancellableInvitation(m) ? "Cancel invitation" : "Remove member",
                                   icon: "delete",
                                   tone: "danger",
-                                  hidden: isSystemResidents || m.role === "admin",
+                                  hidden: isSystemResidents || m.role === "admin" || m.status === "inactive",
                                   onClick: async () => {
                                     const canCancelInvite = isCancellableInvitation(m);
                                     const r = await confirmDelete({
-                                      title: canCancelInvite ? `Cancel invitation for ${m.name}?` : `Delete ${m.name}?`,
+                                      title: canCancelInvite ? `Cancel invitation for ${m.name}?` : `Remove ${m.name}?`,
                                       text: canCancelInvite
                                         ? "This cancels the pending invite. They will not be able to join with this code."
-                                        : "Are you sure you want to delete this member? This member will be removed from the community.",
-                                      confirmText: canCancelInvite ? "Cancel invitation" : "Delete",
+                                        : "They will be marked inactive and lose access. Their history is kept so you can reactivate them later with the same email.",
+                                      confirmText: canCancelInvite ? "Cancel invitation" : "Remove",
                                     });
                                     if (r.isConfirmed) {
                                       setProfileActionLoading(true);
                                       try {
-                                        await deleteMember(m.id, memberCommunityId(m));
+                                        await deactivateMember(m.id, memberCommunityId(m));
                                         toastSuccess(
                                           canCancelInvite
                                             ? "Invitation cancelled successfully."
-                                            : "Member removed successfully.",
+                                            : "Member deactivated successfully.",
                                         );
                                         if (viewing?.id === m.id) setViewing(null);
                                         await load(true);
@@ -1105,7 +1140,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                 </>
               )}
             </div>
-            {(showProfileApproveReject || showProfileReapprove) ? (
+            {(showProfileApproveReject || showProfileReapprove || showProfileReactivate) ? (
               <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:px-6">
                 {showProfileApproveReject ? (
                   <>
@@ -1124,6 +1159,44 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                       onClick={() => runRejectMember(viewing, { closeProfile: true })}
                     >
                       {profileActionLoading ? "Working…" : "Reject"}
+                    </button>
+                    <button
+                      type="button"
+                      className="nl-btn-secondary w-full sm:w-auto"
+                      disabled={profileActionLoading}
+                      onClick={() => setViewing(null)}
+                    >
+                      Close
+                    </button>
+                  </>
+                ) : showProfileReactivate ? (
+                  <>
+                    <button
+                      type="button"
+                      className="nl-btn-primary w-full sm:w-auto"
+                      disabled={profileActionLoading}
+                      onClick={async () => {
+                        const r = await confirmAction({
+                          title: `Reactivate ${viewing.name}?`,
+                          text: "Their existing member record will be restored. Historical activity stays intact.",
+                          confirmText: "Reactivate",
+                          color: "green",
+                        });
+                        if (!r.isConfirmed) return;
+                        setProfileActionLoading(true);
+                        try {
+                          await approveMember(viewing.id, memberCommunityId(viewing));
+                          toastSuccess(`${viewing.name} has been reactivated.`);
+                          setViewing(null);
+                          await load(true);
+                        } catch (err) {
+                          toastError(apiError(err));
+                        } finally {
+                          setProfileActionLoading(false);
+                        }
+                      }}
+                    >
+                      {profileActionLoading ? "Working…" : "Reactivate"}
                     </button>
                     <button
                       type="button"

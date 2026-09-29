@@ -162,16 +162,20 @@ function AppDialogModal({ config, onClose }) {
   const icon = ICONS[config.type] ?? ICONS.info;
   const isStatusLayout = config.layout === "status";
   const isPromptLayout = config.layout === "prompt";
+  const actions = config.actions ?? [];
+  // Two-action confirms (e.g. Cancel | Log Out) sit side-by-side without truncating labels.
+  const isInlineActions = !isStatusLayout && !isPromptLayout && actions.length === 2;
 
   return (
     <AppModal visible={config?.visible} onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <View style={styles.overlay} collapsable={false}>
         <View
           style={[
             styles.sheet,
             isStatusLayout && styles.sheetStatus,
             isPromptLayout && styles.sheetPrompt,
           ]}
+          collapsable={false}
         >
           {isStatusLayout ? (
             <StatusDialogBody config={config} icon={icon} />
@@ -191,14 +195,15 @@ function AppDialogModal({ config, onClose }) {
           <View
             style={[
               styles.actions,
+              isInlineActions && styles.actionsInline,
               isStatusLayout && styles.actionsStatus,
               isPromptLayout && styles.actionsPrompt,
             ]}
           >
-            {(config.actions ?? []).map((action, index) => {
+            {actions.map((action, index) => {
               const isPrimary =
                 action.variant === "primary" ||
-                (!action.variant && index === (config.actions?.length ?? 1) - 1);
+                (!action.variant && index === actions.length - 1);
               const isDestructive = action.variant === "destructive";
               const isSecondary = action.variant === "secondary";
               const useTealPrimary = isPrimary && isPromptLayout;
@@ -209,6 +214,7 @@ function AppDialogModal({ config, onClose }) {
                   key={action.key ?? `${action.label}-${index}`}
                   style={[
                     styles.actionBtn,
+                    isInlineActions && styles.actionBtnInline,
                     isPrimary && styles.actionPrimary,
                     useTealPrimary && styles.actionPrimaryPrompt,
                     isSecondary && !usePromptGhostCancel && styles.actionSecondary,
@@ -219,6 +225,8 @@ function AppDialogModal({ config, onClose }) {
                   activeOpacity={usePromptGhostCancel ? 0.6 : 0.85}
                   disabled={action.loading}
                   onPress={() => action.onPress?.()}
+                  accessibilityRole="button"
+                  accessibilityLabel={action.label}
                 >
                   {action.loading ? (
                     <ActivityIndicator
@@ -228,6 +236,7 @@ function AppDialogModal({ config, onClose }) {
                     <Text
                       style={[
                         styles.actionText,
+                        isInlineActions && styles.actionTextInline,
                         (isPrimary || isDestructive) && styles.actionTextLight,
                         isSecondary && !usePromptGhostCancel && styles.actionTextSecondary,
                         usePromptGhostCancel && styles.actionTextGhost,
@@ -615,6 +624,10 @@ const styles = StyleSheet.create({
     width: "100%",
     gap: 10,
   },
+  actionsInline: {
+    flexDirection: "row",
+    alignItems: "stretch",
+  },
   actionsStatus: {
     marginTop: 16,
   },
@@ -638,7 +651,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: "#F3F4F6",
+    width: "100%",
+  },
+  actionBtnInline: {
+    flex: 1,
+    width: undefined,
+    minWidth: 0,
+    paddingHorizontal: 10,
   },
   actionPrimary: {
     backgroundColor: "#1B4F8A",
@@ -660,8 +681,13 @@ const styles = StyleSheet.create({
   actionText: {
     fontFamily: Fonts.semiBold,
     fontSize: 15,
+    lineHeight: 20,
     color: "#364153",
     fontWeight: "600",
+    textAlign: "center",
+  },
+  actionTextInline: {
+    textAlign: "center",
   },
   actionTextLight: {
     color: "#FFFFFF",

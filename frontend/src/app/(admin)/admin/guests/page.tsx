@@ -525,7 +525,7 @@ export default function GuestsPage() {
     setActionId(guest.id);
     try {
       const updated = await rejectGuest(guest.id, String(r.value ?? "").trim() || undefined);
-      toastSuccess(`${guest.guest_name}'s guest access was rejected`);
+      toastSuccess(`Guest access request for ${guest.guest_name} has been rejected.`);
       if (opts?.closeModal) setViewing(null);
       else if (viewing?.id === guest.id) setViewing(updated);
       await load();

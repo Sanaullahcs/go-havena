@@ -11,8 +11,14 @@ import {
 } from "../utils/notice-home-expiry";
 import i18n, { localizedField } from "../i18n";
 import { getLocaleForLang } from "../hooks/use-app-locale";
+import { parseApiDate } from "./feed-api";
 
 export { isNoticeExpiredForHome, isCarouselNotice };
+
+/** Published/created instant only — never scheduled_at or event schedule fields. */
+function noticePublishedInstant(raw) {
+  return raw?.published_at ?? raw?.publishedAt ?? raw?.created_at ?? raw?.createdAt ?? null;
+}
 
 export function getNoticeCategories() {
   return [
@@ -94,12 +100,14 @@ export function getCategoryTheme(category) {
 export function formatNoticeDate(dateStr) {
   if (!dateStr) return "";
   try {
-    const date = new Date(dateStr);
+    const date = parseApiDate(dateStr);
+    if (!date) return "";
     const now = new Date();
     const diffMs = now - date;
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
     const locale = getLocaleForLang(i18n.language);
+    // toLocale* uses the device timezone — correct local wall time from a UTC instant.
     if (diffDays === 0) {
       return date.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
     }
@@ -112,7 +120,7 @@ export function formatNoticeDate(dateStr) {
       year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
     });
   } catch {
-    return dateStr;
+    return typeof dateStr === "string" ? dateStr : "";
   }
 }
 
@@ -237,8 +245,8 @@ export function normalizeNotice(raw) {
     eventTimeEnd: raw.event_time_end ?? null,
     eventSchedule: formatEventSchedule(raw),
     status: raw.status ?? "published",
-    publishedAt: raw.published_at ?? raw.created_at,
-    createdAt: raw.created_at,
+    publishedAt: noticePublishedInstant(raw),
+    createdAt: raw.created_at ?? null,
     authorName: raw.author_name ?? i18n.t("auth.communityAdmin"),
     authorAvatar: resolveMediaUrl(raw.author_avatar) ?? null,
     authorId: raw.author_id ?? null,
@@ -267,7 +275,7 @@ export function normalizeNotice(raw) {
     isPinned: Boolean(raw.is_pinned_active ?? raw.is_pinned),
     requiresRsvp: Boolean(raw.requires_rsvp),
     scheduledAt: raw.scheduled_at ?? null,
-    timeLabel: formatNoticeDate(raw.published_at ?? raw.created_at),
+    timeLabel: formatNoticeDate(noticePublishedInstant(raw)),
     theme,
     isEvent: isEventNotice({ category: raw.category }),
     isAlert: isAlertNotice({ category: raw.category }),
@@ -313,8 +321,8 @@ export function sortNotices(notices) {
     if (aEvent && !bEvent) return -1;
     if (!aEvent && bEvent) return 1;
 
-    const aTime = new Date(a.publishedAt ?? a.createdAt ?? 0).getTime();
-    const bTime = new Date(b.publishedAt ?? b.createdAt ?? 0).getTime();
+    const aTime = parseApiDate(a.publishedAt ?? a.createdAt)?.getTime() ?? 0;
+    const bTime = parseApiDate(b.publishedAt ?? b.createdAt)?.getTime() ?? 0;
     return bTime - aTime;
   });
 }
@@ -387,8 +395,8 @@ export function pickNeighborhoodCarousel(notices, limit = HOME_SECTION_CARD_LIMI
       const bPin = b.isPinned ? 1 : 0;
       if (aPin !== bPin) return bPin - aPin;
 
-      const aTime = new Date(a.publishedAt ?? a.createdAt ?? 0).getTime();
-      const bTime = new Date(b.publishedAt ?? b.createdAt ?? 0).getTime();
+      const aTime = parseApiDate(a.publishedAt ?? a.createdAt)?.getTime() ?? 0;
+      const bTime = parseApiDate(b.publishedAt ?? b.createdAt)?.getTime() ?? 0;
       return bTime - aTime;
     })
     .slice(0, limit);

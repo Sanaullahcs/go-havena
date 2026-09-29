@@ -1901,6 +1901,17 @@ body {
   background: #f8fafc;
   border-color: #e2e8f0;
 }
+.nl-time-option:disabled,
+.nl-time-option-disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  color: #94a3b8;
+}
+.nl-time-option:disabled:hover,
+.nl-time-option-disabled:hover {
+  background: transparent;
+  border-color: transparent;
+}
 .nl-time-option-selected {
   background: var(--brand-primary-lighter);
   border-color: rgba(27, 79, 138, 0.25);

@@ -435,6 +435,8 @@ Route::prefix('v1')->group(function () {
                 Route::match(['patch', 'post'], '/members/{id}/approve',  [MemberController::class, 'approve']);
                 Route::match(['patch', 'post'], '/members/{id}/reject',   [MemberController::class, 'reject']);
                 Route::match(['patch', 'post'], '/members/{id}/suspend',  [MemberController::class, 'suspend']);
+                Route::match(['patch', 'post'], '/members/{id}/deactivate', [MemberController::class, 'deactivate']);
+                // Soft-remove only (no hard delete). Legacy delete routes map to deactivate.
                 Route::delete('/members/{id}',      [MemberController::class, 'destroy']);
                 Route::post('/members/{id}/delete', [MemberController::class, 'destroy']);
 

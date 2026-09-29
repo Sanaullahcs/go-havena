@@ -504,11 +504,37 @@ class MemberController extends Controller
             ]);
         }
 
-        ContactIdentityService::assertAvailableForRegistration($request->email, $phone);
-
         $communityId = AdminRoleService::requireManagedCommunityId($request->user(), $request);
 
         if (AdminRoleService::isSystemAdmin($request->user())) {
+            $existingUser = ContactIdentityService::findUserByEmail((string) $request->email);
+            if ($existingUser) {
+                $inactiveMembership = DB::table('community_memberships')
+                    ->where('user_id', $existingUser->id)
+                    ->where('community_id', $communityId)
+                    ->where('status', 'inactive')
+                    ->first();
+
+                if ($inactiveMembership) {
+                    $sent = app(ResidentInviteService::class)->send(
+                        $request->user(),
+                        $communityId,
+                        (string) $request->name,
+                        (string) $request->email,
+                        $phone,
+                        (string) $request->unit_number,
+                        null,
+                        (string) ($request->role ?? 'member'),
+                    );
+
+                    return response()->json([
+                        'data' => $sent,
+                        'message' => 'Existing member reactivated successfully.',
+                    ], 201);
+                }
+            }
+
+            ContactIdentityService::assertAvailableForRegistration($request->email, $phone);
             return $this->provisionResidentForSystemAdmin($request, $phone, $communityId);
         }
 
@@ -525,9 +551,11 @@ class MemberController extends Controller
 
         return response()->json([
             'data' => $sent,
-            'message' => ($sent['email_sent'] ?? false)
-                ? 'Member invited successfully. An invitation email was sent.'
-                : 'Member invited successfully. Share the invite code or QR with the resident — the invitation email could not be sent.',
+            'message' => ($sent['reactivated'] ?? false)
+                ? 'Existing member reactivated successfully.'
+                : (($sent['email_sent'] ?? false)
+                    ? 'Member invited successfully. An invitation email was sent.'
+                    : 'Member invited successfully. Share the invite code or QR with the resident — the invitation email could not be sent.'),
         ], 201);
     }
 
@@ -608,7 +636,7 @@ class MemberController extends Controller
             abort(403, 'Batch upload is available to community admins.');
         }
 
-        AdminRoleService::requireManagedCommunityId($request->user(), $request);
+        $communityId = AdminRoleService::requireManagedCommunityId($request->user(), $request);
 
         $request->validate([
             'file' => 'required|file|mimes:csv,txt|max:1024',
@@ -619,7 +647,7 @@ class MemberController extends Controller
         ]);
 
         $contents = (string) file_get_contents($request->file('file')->getRealPath());
-        $inspected = app(MemberBatchInviteService::class)->inspect($contents);
+        $inspected = app(MemberBatchInviteService::class)->inspect($contents, $communityId);
         $valid = 0;
         $invalid = 0;
         foreach ($inspected['rows'] as $row) {
@@ -1056,7 +1084,7 @@ class MemberController extends Controller
         }
 
         ActivityLogService::recordStatusChange(
-            'member_approved',
+            ($membership->status ?? '') === 'inactive' ? 'member_reactivated' : 'member_approved',
             'User',
             $id,
             $membership->status,
@@ -1066,7 +1094,11 @@ class MemberController extends Controller
             $id,
             ['related_item' => $user->name ?? null],
         );
-        NotificationService::send($id, 'success', 'Membership Approved', 'Your membership has been approved. Welcome to the community!');
+        if (($membership->status ?? '') === 'inactive') {
+            NotificationService::send($id, 'success', 'Membership Restored', 'Your community membership has been reactivated. Welcome back!');
+        } else {
+            NotificationService::send($id, 'success', 'Membership Approved', 'Your membership has been approved. Welcome to the community!');
+        }
 
         if (($membership->status ?? '') !== 'approved') {
             $community = Community::query()->find($communityId);
@@ -1076,7 +1108,11 @@ class MemberController extends Controller
             }
         }
 
-        return response()->json(['message' => 'Member approved']);
+        return response()->json([
+            'message' => ($membership->status ?? '') === 'inactive'
+                ? 'Member reactivated'
+                : 'Member approved',
+        ]);
     }
 
     /** PATCH /v1/admin/members/{id}/reject */
@@ -1226,8 +1262,22 @@ class MemberController extends Controller
         return response()->json(['message' => 'Member suspended']);
     }
 
-    /** DELETE /v1/admin/members/{id} */
+    /** PATCH /v1/admin/members/{id}/deactivate — soft-remove; keeps user + history. */
+    public function deactivate(int $id, Request $request): JsonResponse
+    {
+        return $this->deactivateOrCancelInvitation($id, $request);
+    }
+
+    /**
+     * Legacy DELETE / POST delete routes — same soft-remove lifecycle (no hard delete).
+     * Invitation-only rows still cancel the pending invite.
+     */
     public function destroy(int $id, Request $request): JsonResponse
+    {
+        return $this->deactivateOrCancelInvitation($id, $request);
+    }
+
+    private function deactivateOrCancelInvitation(int $id, Request $request): JsonResponse
     {
         $communityId = AdminRoleService::requireManagedCommunityIdForMember($request->user(), $request, $id);
 
@@ -1267,10 +1317,57 @@ class MemberController extends Controller
             return response()->json(['message' => 'Invitation cancelled successfully.']);
         }
 
-        DB::table('users')->where('id', $id)->update(['status' => 'deleted', 'deleted_at' => now()]);
-        ActivityLogService::user('member_deleted', "Deleted account of {$user->name}", 'User', $id, 'warning');
+        if (($membership->role ?? '') === 'admin') {
+            return response()->json(['message' => 'Community administrators cannot be removed from this list.'], 422);
+        }
 
-        return response()->json(['message' => 'Member deleted']);
+        if (($membership->status ?? '') === 'inactive') {
+            return response()->json(['message' => 'Member is already inactive.']);
+        }
+
+        $previousStatus = (string) ($membership->status ?? 'approved');
+
+        DB::transaction(function () use ($id, $communityId, $user) {
+            DB::table('community_memberships')
+                ->where('user_id', $id)
+                ->where('community_id', $communityId)
+                ->update([
+                    'status' => 'inactive',
+                    'updated_at' => now(),
+                ]);
+
+            // Keep the user account alive so the same email can rejoin later.
+            // If they were suspended via Suspend, restore so login/re-invite works.
+            $userModel = User::query()->find($id);
+            if ($userModel) {
+                app(CommunityLifecycleService::class)->restoreSuspendedMember($userModel);
+            }
+
+            app(CommunityBillingService::class)->releaseReservationsForUser($communityId, $id);
+            InviteCodeService::cancelPendingInvitesForUser($communityId, $id);
+        });
+
+        ActivityLogService::recordStatusChange(
+            'member_deactivated',
+            'User',
+            $id,
+            $previousStatus,
+            'inactive',
+            'Status',
+            $user->name,
+            $id,
+            ['related_item' => $user->name],
+            'warning',
+        );
+
+        NotificationService::send(
+            $id,
+            'warning',
+            'Membership removed',
+            'Your community membership has been deactivated. Contact your community admin if you need access again.',
+        );
+
+        return response()->json(['message' => 'Member deactivated']);
     }
 
     private function formatMember(object $member, bool $detailed = false): array
@@ -1398,15 +1495,17 @@ class MemberController extends Controller
         $pending  = (int) ($rows['pending'] ?? 0);
         $banned   = (int) ($rows['banned'] ?? 0);
         $rejected = (int) ($rows['rejected'] ?? 0);
+        $inactive = (int) ($rows['inactive'] ?? 0);
         $notInvited = (int) ($rows['not_invited'] ?? 0);
 
         return [
-            'total'            => $approved + $pending + $banned + $rejected + $onboarding + $invitationSent + $notInvited,
+            'total'            => $approved + $pending + $banned + $rejected + $inactive + $onboarding + $invitationSent + $notInvited,
             'not_invited'      => $notInvited,
             'approved'         => $approved,
             'pending'          => $pending,
             'banned'           => $banned,
             'rejected'         => $rejected,
+            'inactive'         => $inactive,
             'onboarding'       => $onboarding,
             'invitation_sent'  => $invitationSent,
         ];

@@ -18,6 +18,7 @@ import { NoticeCoverMedia } from "../../../components/notices/notice-cover-thumb
 import { Fonts } from "../../../constants/font";
 import { Colors, Layout, Shadows } from "../../../constants/tokens";
 import { fetchNotice, getCategoryTheme, formatDisplayTime12h, formatShortDate } from "../../../services/notices-api";
+import { parseApiDate } from "../../../services/feed-api";
 import { billingFrequencyLabel } from "../../../services/property-services-api";
 import { PropertyManagementRoutes } from "../../../constants/property-management-routes";
 import { navigateAppRoute } from "../../../utils/app-navigation";
@@ -30,9 +31,12 @@ import { chevronBack } from "../../../utils/rtl";
 const HERO_HEIGHT = hp(28);
 
 function formatPublishedLabel(notice) {
-  if (!notice?.publishedAt && !notice?.createdAt) return "";
+  // Creation/publish only — never scheduled_at or event schedule.
+  const instant = notice?.publishedAt ?? notice?.createdAt;
+  if (!instant) return "";
   try {
-    const date = new Date(notice.publishedAt ?? notice.createdAt);
+    const date = parseApiDate(instant);
+    if (!date) return notice.timeLabel ?? "";
     return date.toLocaleDateString(getLocaleForLang(i18n.language), {
       weekday: "long",
       month: "long",

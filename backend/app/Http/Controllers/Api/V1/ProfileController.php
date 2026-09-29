@@ -224,9 +224,20 @@ class ProfileController extends Controller
             $user->update(['phone' => $phone]);
         }
         if ($request->filled('email')) {
-            $email = strtolower(trim($request->email));
-            ContactIdentityService::assertAvailableForRegistration($email, null, $user->id, 'email');
-            $user->update(['email' => $email]);
+            $email = strtolower(trim((string) $request->email));
+            $current = strtolower(trim((string) ($user->email ?? '')));
+
+            // Established account emails are identifiers — not editable via profile update.
+            if ($current !== '' && ! User::isPhonePlaceholderEmail($current) && $email !== $current) {
+                throw ValidationException::withMessages([
+                    'email' => ['Email address cannot be changed from your profile.'],
+                ]);
+            }
+
+            if ($email !== $current) {
+                ContactIdentityService::assertAvailableForRegistration($email, null, $user->id, 'email');
+                $user->update(['email' => $email]);
+            }
         }
 
         $profileData = array_filter([
@@ -240,7 +251,19 @@ class ProfileController extends Controller
             }
         } else {
             if ($request->has('unit_number')) {
-                $profileData['unit_number'] = $request->unit_number;
+                $incoming = trim((string) $request->input('unit_number', ''));
+                $current = trim((string) ($user->profile?->unit_number ?? ''));
+
+                // Assigned units are managed by community admins — residents cannot change them here.
+                if ($current !== '' && strcasecmp($incoming, $current) !== 0) {
+                    throw ValidationException::withMessages([
+                        'unit_number' => ['Unit / apartment cannot be changed from your profile. Contact your community admin if you need an update.'],
+                    ]);
+                }
+
+                if ($current === '' || strcasecmp($incoming, $current) === 0) {
+                    $profileData['unit_number'] = $incoming !== '' ? $incoming : $current;
+                }
             }
             if ($request->has('residence_type')) {
                 $profileData['residence_type'] = $request->residence_type;

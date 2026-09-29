@@ -12,7 +12,7 @@ import {
 import { guestPermissionDialogTitle, resolveGuestFeatureError } from "./guest-permission-errors";
 import { isGuestAccessRejectedError, navigateToGuestRejectedStatus } from "./guest-access-schedule";
 
-export { getApiErrorCode, getApiErrorMessage } from "./api-error-core";
+export { getApiErrorCode, getApiErrorMessage, isNetworkLikeError } from "./api-error-core";
 export {
   ACCOUNT_SUSPENDED_MESSAGE,
   ACCOUNT_SUSPENDED_TITLE,

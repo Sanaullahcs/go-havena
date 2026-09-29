@@ -131,8 +131,9 @@ SQL;
     }
 
     /**
-     * An event is past once its scheduled start (or the only clock time, or the
-     * calendar day when no time is stored) is behind community-local now.
+     * An event is past once its end time (or calendar day when no end time is
+     * stored) is behind community-local now. Start time alone must not hide Edit
+     * for same-day upcoming or ongoing events.
      */
     public static function isEventSchedulePast(object $notice, ?int $communityId = null): bool
     {
@@ -140,31 +141,7 @@ SQL;
             return false;
         }
 
-        $eventDate = $notice->event_date ?? null;
-        if ($eventDate === null || trim((string) $eventDate) === '') {
-            return false;
-        }
-
-        $communityId ??= isset($notice->community_id) ? (int) $notice->community_id : null;
-        $moment = self::nowInTimezone($communityId);
-        $eventDay = substr((string) $eventDate, 0, 10);
-        $clock = trim((string) ($notice->event_time ?? ''));
-        if ($clock === '') {
-            $clock = trim((string) ($notice->event_time_end ?? ''));
-        }
-
-        if ($clock === '') {
-            return $eventDay < $moment->toDateString();
-        }
-
-        [$hour, $minute] = self::parseClockTime($clock);
-        if ($hour === null) {
-            return $eventDay < $moment->toDateString();
-        }
-
-        $scheduled = Carbon::parse($eventDay, self::resolveTimezone($communityId))->setTime($hour, $minute, 59);
-
-        return $moment->greaterThan($scheduled);
+        return self::isExpired($notice, null, $communityId);
     }
 
     /** @return array{0: ?int, 1: ?int} hour and minute, or nulls when invalid */

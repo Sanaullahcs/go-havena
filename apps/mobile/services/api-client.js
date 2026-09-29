@@ -7,6 +7,7 @@ import {
   createLocalAccountRestrictedError,
   isUserLocallyRestricted,
 } from "../utils/guest-permission-errors";
+import { looksLikeNetworkFailureMessage } from "../utils/api-error-core";
 
 import { ApiError } from "./api-error";
 
@@ -16,21 +17,10 @@ function isNetworkFailure(err) {
   if (!err) return false;
   if (err instanceof ApiError) return false;
   const name = String(err.name ?? "").toLowerCase();
-  const msg = String(err.message ?? "").toLowerCase();
-  const cause = String(err.cause?.message ?? err.cause ?? "").toLowerCase();
-  const text = `${name} ${msg} ${cause}`;
-  return (
-    name === "aborterror" ||
-    text.includes("network request failed") ||
-    text.includes("failed to fetch") ||
-    text.includes("fetch failed") ||
-    text.includes("could not connect") ||
-    text.includes("connection refused") ||
-    text.includes("internet connection appears to be offline") ||
-    text.includes("fetch request has been cancelled") ||
-    text.includes("cancelled") ||
-    text.includes("timeout")
-  );
+  const msg = String(err.message ?? "");
+  const cause = String(err.cause?.message ?? err.cause ?? "");
+  if (name === "aborterror") return true;
+  return looksLikeNetworkFailureMessage(msg) || looksLikeNetworkFailureMessage(cause);
 }
 
 async function invalidateGuestSessionIfNeeded(status, code) {

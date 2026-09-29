@@ -7,11 +7,13 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "channel": "development"
+      "channel": "development",
+      "environment": "development"
     },
     "preview": {
       "distribution": "internal",
       "channel": "preview",
+      "environment": "preview",
       "android": {
         "buildType": "apk"
       }
@@ -20,6 +22,7 @@
       "channel": "production",
       "autoIncrement": true,
       "credentialsSource": "local",
+      "environment": "production",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://apis.gohavena.com/api/v1",
         "EXPO_PUBLIC_ADMIN_URL": "https://gohavena.com"
@@ -35,6 +38,7 @@
       "channel": "preview",
       "distribution": "internal",
       "credentialsSource": "local",
+      "environment": "preview",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://apis.gohavena.com/api/v1",
         "EXPO_PUBLIC_ADMIN_URL": "https://gohavena.com"

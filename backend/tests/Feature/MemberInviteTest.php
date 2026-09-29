@@ -650,4 +650,87 @@ class MemberInviteTest extends TestCase
             'community_id' => $community->id,
         ]);
     }
+
+    public function test_deactivate_member_preserves_record_and_allows_email_reactivation(): void
+    {
+        config(['billing.enabled' => true, 'billing.enforce' => true, 'billing.driver' => 'manual']);
+
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        app(CommunityBillingService::class)->activateManualSubscription($community, 'growth');
+
+        $resident = User::factory()->create([
+            'role' => 'resident',
+            'email' => 'former.member@example.com',
+            'phone' => '+12025550999',
+            'status' => 'active',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+        ]);
+
+        $adminToken = $admin->createToken('test')->plainTextToken;
+
+        $this->withToken($adminToken)
+            ->postJson("/api/v1/admin/members/{$resident->id}/deactivate")
+            ->assertOk()
+            ->assertJsonPath('message', 'Member deactivated');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $resident->id,
+            'email' => 'former.member@example.com',
+            'status' => 'active',
+        ]);
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'status' => 'inactive',
+        ]);
+        $this->assertDatabaseMissing('users', [
+            'id' => $resident->id,
+            'status' => 'deleted',
+        ]);
+
+        $this->withToken($adminToken)
+            ->getJson('/api/v1/admin/members?status=inactive')
+            ->assertOk()
+            ->assertJsonPath('meta.stats.inactive', 1);
+
+        $this->withToken($adminToken)
+            ->postJson("/api/v1/admin/members/{$resident->id}/approve")
+            ->assertOk()
+            ->assertJsonPath('message', 'Member reactivated');
+
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'status' => 'approved',
+        ]);
+
+        $this->withToken($adminToken)
+            ->postJson("/api/v1/admin/members/{$resident->id}/deactivate")
+            ->assertOk();
+
+        $reinvite = $this->withToken($adminToken)
+            ->postJson('/api/v1/admin/members/invite', [
+                'name' => 'Former Member',
+                'email' => 'former.member@example.com',
+                'phone' => '+12025550999',
+                'unit_number' => 'A-1',
+            ])
+            ->assertCreated();
+
+        $this->assertTrue((bool) $reinvite->json('data.reactivated'));
+        $this->assertSame($resident->id, $reinvite->json('data.id'));
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'status' => 'approved',
+        ]);
+        $this->assertSame(1, User::query()->where('email', 'former.member@example.com')->count());
+    }
 }

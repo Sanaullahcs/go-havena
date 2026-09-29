@@ -1310,4 +1310,69 @@ class NoticeBoardTest extends TestCase
             'title'   => 'Event Cancelled',
         ]);
     }
+
+    public function test_create_notice_rejects_past_time_when_date_is_today(): void
+    {
+        config(['billing.enabled' => false, 'billing.enforce' => false]);
+
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunityWithAdmin();
+        $community->update(['timezone' => 'America/New_York']);
+
+        \Carbon\Carbon::setTestNow(\Carbon\Carbon::parse('2026-09-28 15:30:00', 'America/New_York'));
+
+        try {
+            Sanctum::actingAs($admin);
+
+            $this->postJson('/api/v1/admin/notices', [
+                'title'    => 'Too late',
+                'body'     => 'This notice uses a time that already passed today.',
+                'category' => 'general',
+                'status'   => 'published',
+                'event_date' => '2026-09-28',
+                'event_time' => '14:00',
+                'event_time_end' => '17:00',
+            ])
+                ->assertStatus(422)
+                ->assertJsonPath('message', 'Please select a future time for this notice.')
+                ->assertJsonPath('errors.event_time.0', 'Please select a future time for this notice.');
+        } finally {
+            \Carbon\Carbon::setTestNow();
+        }
+    }
+
+    public function test_create_notice_allows_future_time_today_and_any_time_tomorrow(): void
+    {
+        config(['billing.enabled' => false, 'billing.enforce' => false]);
+
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunityWithAdmin();
+        $community->update(['timezone' => 'America/New_York']);
+
+        \Carbon\Carbon::setTestNow(\Carbon\Carbon::parse('2026-09-28 15:30:00', 'America/New_York'));
+
+        try {
+            Sanctum::actingAs($admin);
+
+            $this->postJson('/api/v1/admin/notices', [
+                'title'    => 'Later today',
+                'body'     => 'This notice uses a future time on the same day.',
+                'category' => 'general',
+                'status'   => 'published',
+                'event_date' => '2026-09-28',
+                'event_time' => '16:00',
+                'event_time_end' => '17:00',
+            ])->assertCreated();
+
+            $this->postJson('/api/v1/admin/notices', [
+                'title'    => 'Tomorrow early',
+                'body'     => 'Future dates keep all valid time options available.',
+                'category' => 'general',
+                'status'   => 'published',
+                'event_date' => '2026-09-29',
+                'event_time' => '01:00',
+                'event_time_end' => '02:00',
+            ])->assertCreated();
+        } finally {
+            \Carbon\Carbon::setTestNow();
+        }
+    }
 }

@@ -17,6 +17,8 @@ import { hasFieldErrors, inputClass, type FieldErrors } from "@/lib/admin/form-v
 import {
   addMinutesToTime,
   buildSchedulePreview,
+  minTimeForNoticeDate,
+  NOTICE_FUTURE_TIME_MESSAGE,
   parseScheduledAtForForm,
   toScheduleApiDateTime,
   type SchedulePreview,
@@ -206,6 +208,11 @@ export default function NoticeFormModal({
       : "Event date, start time, and end time are required.";
 
   const formKind: NoticeFormKind = isEventForm ? "event" : isAlertForm ? "alert" : "notice";
+  const enforceFutureTimes = mode === "create";
+  const noticeMinTime = useMemo(
+    () => (enforceFutureTimes ? minTimeForNoticeDate(form.event_date) ?? undefined : undefined),
+    [enforceFutureTimes, form.event_date],
+  );
 
   const showError = (field: string) => Boolean((submitAttempted || touched[field]) && errors[field]);
 
@@ -225,11 +232,12 @@ export default function NoticeFormModal({
       kind: formKind,
       lockedCategory,
       publishNow,
+      enforceFutureTimes,
     });
 
   const canPublishNow = useMemo(
     () => !hasFieldErrors(runValidation(true)),
-    [form, formKind, lockedCategory],
+    [form, formKind, lockedCategory, enforceFutureTimes],
   );
 
   const focusFirstError = (nextErrors: FieldErrors) => {
@@ -554,6 +562,9 @@ export default function NoticeFormModal({
                   icon={<IcoClock />}
                   value={form.event_time}
                   fieldKey="event_time"
+                  minTime={noticeMinTime}
+                  minTimeMessage={NOTICE_FUTURE_TIME_MESSAGE}
+                  error={showError("event_time") ? errors.event_time : undefined}
                   onChange={(v) => {
                     set("event_time", v);
                     if (!isAlertForm && v && !form.event_time_end.trim()) {
@@ -563,6 +574,7 @@ export default function NoticeFormModal({
                       const next = runValidation(false);
                       setErrors((prev) => ({
                         ...prev,
+                        event_time: next.event_time,
                         event_time_end: next.event_time_end,
                       }));
                       if (next.event_time_end) touch("event_time_end");
@@ -584,6 +596,8 @@ export default function NoticeFormModal({
                   icon={<IcoClock />}
                   value={form.event_time_end}
                   fieldKey="event_time_end"
+                  minTime={noticeMinTime}
+                  minTimeMessage={NOTICE_FUTURE_TIME_MESSAGE}
                   error={showError("event_time_end") ? errors.event_time_end : undefined}
                   onBlur={() => {
                     touch("event_time_end");
@@ -591,6 +605,7 @@ export default function NoticeFormModal({
                     setErrors((prev) => ({
                       ...prev,
                       event_time_end: next.event_time_end,
+                      event_time: next.event_time,
                       event_date: next.event_date,
                     }));
                   }}
@@ -600,6 +615,9 @@ export default function NoticeFormModal({
 
               {showError("event_date") && errors.event_date ? (
                 <FieldError>{errors.event_date}</FieldError>
+              ) : null}
+              {showError("event_time") && errors.event_time ? (
+                <FieldError>{errors.event_time}</FieldError>
               ) : null}
               {showError("event_time_end") && errors.event_time_end ? (
                 <FieldError>{errors.event_time_end}</FieldError>

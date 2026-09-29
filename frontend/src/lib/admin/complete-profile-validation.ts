@@ -114,6 +114,8 @@ export function validateCompleteProfileForm(input: {
   requireResidenceType?: boolean;
   requireUnitNumber?: boolean;
   requireOfficeAddress?: boolean;
+  requireAcceptedTerms?: boolean;
+  acceptedTerms?: boolean;
   guestMode?: boolean;
   communityAdmin?: boolean;
 }): FieldErrors {
@@ -132,6 +134,8 @@ export function validateCompleteProfileForm(input: {
     requireResidenceType = true,
     requireUnitNumber,
     requireOfficeAddress,
+    requireAcceptedTerms = false,
+    acceptedTerms = false,
     guestMode = false,
     communityAdmin = false,
   } = input;
@@ -172,6 +176,9 @@ export function validateCompleteProfileForm(input: {
     const unitText = String(unitNumber ?? "").trim();
     if (unitNumber.length > unitMax || unitText.length > unitMax) {
       errors.unitNumber = `Unit number must be ${unitMax} characters or less.`;
+    }
+    if (requireAcceptedTerms && !acceptedTerms) {
+      errors.acceptedTerms = "Please agree to the Terms of Service and Privacy Policy.";
     }
     return errors;
   }
@@ -221,6 +228,10 @@ export function validateCompleteProfileForm(input: {
     if (utilityFile.file.size > COMPLETE_PROFILE_LIMITS.utilityBillMaxBytes) {
       errors.utilityFile = "File must be 10 MB or smaller.";
     }
+  }
+
+  if (requireAcceptedTerms && !acceptedTerms) {
+    errors.acceptedTerms = "Please agree to the Terms of Service and Privacy Policy.";
   }
 
   return errors;

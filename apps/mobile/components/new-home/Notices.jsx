@@ -411,9 +411,7 @@ export default function Notices({ items = [] }) {
       ) : (
         <View style={styles.heroEmptyWrap}>
           <View style={{ paddingHorizontal: frame.sideInset }}>
-            <HomeSectionEmpty
-              message={t("home.noNotices")}
-            />
+            <HomeSectionEmpty message={t("home.noNotices")} />
           </View>
         </View>
       )}

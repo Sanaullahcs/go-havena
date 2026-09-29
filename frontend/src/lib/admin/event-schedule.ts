@@ -29,36 +29,40 @@ function zoneParts(instant: Date, timeZone: string) {
   };
 }
 
-function zoneOffsetMs(utcMs: number, timeZone: string) {
-  const parts = zoneParts(new Date(utcMs), timeZone);
-  const asUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
-  return asUtc - utcMs;
+function parseClockTime(value: string): { hour: number; minute: number } | null {
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return null;
+  return { hour, minute };
 }
 
-function zonedWallTime(day: string, hour: number, minute: number, second: number, timeZone: string) {
-  const [year, month, date] = day.split("-").map(Number);
-  const utcGuess = Date.UTC(year, month - 1, date, hour, minute, second);
-  const corrected = utcGuess - zoneOffsetMs(utcGuess, timeZone);
-  return new Date(utcGuess - zoneOffsetMs(corrected, timeZone));
-}
-
-/** True once the event's scheduled start is behind community-local now. */
+/**
+ * True once the event has ended in the community timezone.
+ * Uses event_date + event_time_end (not start time / date-only).
+ * Same-day events without an end time stay editable until the local day ends.
+ */
 export function isEventSchedulePast(notice: ScheduledEvent, now = new Date()) {
   if ((notice.category ?? "").toLowerCase() !== "event") return false;
   const day = String(notice.event_date ?? "").slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
 
   const timeZone = notice.schedule_timezone || "UTC";
-  const clock = (notice.event_time || notice.event_time_end || "").trim();
-  const match = clock.match(/^(\d{1,2}):(\d{2})/);
-  if (!match) {
-    const today = zoneParts(now, timeZone);
-    const todayKey = `${today.year}-${String(today.month).padStart(2, "0")}-${String(today.day).padStart(2, "0")}`;
-    return day < todayKey;
+  const localNow = zoneParts(now, timeZone);
+  const todayKey = `${localNow.year}-${String(localNow.month).padStart(2, "0")}-${String(localNow.day).padStart(2, "0")}`;
+
+  if (day < todayKey) return true;
+  if (day > todayKey) return false;
+
+  const endClock = parseClockTime(String(notice.event_time_end ?? ""));
+  if (!endClock) {
+    // No end time on the same local day → still editable.
+    return false;
   }
 
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (hour > 23 || minute > 59) return false;
-  return now.getTime() > zonedWallTime(day, hour, minute, 59, timeZone).getTime();
+  return (
+    localNow.hour > endClock.hour ||
+    (localNow.hour === endClock.hour && localNow.minute > endClock.minute)
+  );
 }

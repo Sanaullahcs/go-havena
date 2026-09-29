@@ -1,5 +1,9 @@
 import { type FieldErrors } from "@/lib/admin/form-validation-utils";
-import { parseTimeMinutes } from "@/lib/admin/notice-schedule-utils";
+import {
+  isNoticeTimeInPast,
+  NOTICE_FUTURE_TIME_MESSAGE,
+  parseTimeMinutes,
+} from "@/lib/admin/notice-schedule-utils";
 
 export type NoticeFormLike = {
   title: string;
@@ -29,10 +33,16 @@ export function validateNoticeForm(
     kind?: NoticeFormKind;
     lockedCategory?: string;
     publishNow?: boolean;
+    /** Enforce current/future times when notice date is today (create flow). */
+    enforceFutureTimes?: boolean;
+    now?: Date;
+    timeZone?: string;
   } = {},
 ): FieldErrors {
   const errors: FieldErrors = {};
   const kind = opts.kind ?? (opts.lockedCategory === "event" ? "event" : opts.lockedCategory === "emergency" ? "alert" : "notice");
+  const now = opts.now ?? new Date();
+  const enforceFutureTimes = opts.enforceFutureTimes !== false;
 
   const title = form.title.trim();
   if (!title) {
@@ -76,7 +86,19 @@ export function validateNoticeForm(
     }
   }
 
-  if (form.event_time.trim() && form.event_time_end.trim()) {
+  if (enforceFutureTimes && form.event_date.trim()) {
+    if (form.event_time.trim() && isNoticeTimeInPast(form.event_date, form.event_time, now, opts.timeZone)) {
+      errors.event_time = NOTICE_FUTURE_TIME_MESSAGE;
+    }
+    if (
+      form.event_time_end.trim() &&
+      isNoticeTimeInPast(form.event_date, form.event_time_end, now, opts.timeZone)
+    ) {
+      errors.event_time_end = NOTICE_FUTURE_TIME_MESSAGE;
+    }
+  }
+
+  if (form.event_time.trim() && form.event_time_end.trim() && !errors.event_time_end) {
     const startMin = parseTimeMinutes(form.event_time);
     const endMin = parseTimeMinutes(form.event_time_end);
     if (startMin != null && endMin != null && startMin >= endMin) {

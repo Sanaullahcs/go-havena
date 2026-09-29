@@ -83,7 +83,7 @@ function WaitlistSection({ entries }: { entries: EventWaitlistEntry[] }) {
   }
 
   return (
-    <div className="mt-5">
+    <div className="mt-5 min-w-0">
       <p className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-slate-500">
         Waiting List ({entries.length})
       </p>
@@ -92,7 +92,7 @@ function WaitlistSection({ entries }: { entries: EventWaitlistEntry[] }) {
           <div
             key={entry.id}
             className={[
-              "flex items-center gap-3 px-4 py-3",
+              "flex min-w-0 items-center gap-3 px-4 py-3",
               index > 0 ? "border-t border-slate-100" : "",
             ].join(" ")}
           >
@@ -168,11 +168,11 @@ export default function NoticeViewModal({ notice, onClose, onEdit }: Props) {
   const waitlist = detail.waitlist ?? [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden bg-slate-900/45 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[92vh] w-full max-w-2xl min-w-0 flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="shrink-0 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-5">
           <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 overflow-hidden">
               <div className="flex flex-wrap items-center gap-2">
                 <span
                   className="inline-flex h-6 items-center rounded-full px-3 text-[11px] font-semibold text-white"
@@ -187,8 +187,10 @@ export default function NoticeViewModal({ notice, onClose, onEdit }: Props) {
                   <AdminBadge tone="amber">Pending review</AdminBadge>
                 ) : null}
               </div>
-              <h3 className="mt-2 text-xl font-bold text-slate-900">{detail.title}</h3>
-              <p className="mt-1 text-[13px] text-slate-500">
+              <h3 className="mt-2 break-words text-xl font-bold text-slate-900 [overflow-wrap:anywhere]">
+                {detail.title}
+              </h3>
+              <p className="mt-1 break-words text-[13px] text-slate-500 [overflow-wrap:anywhere]">
                 By {detail.author_name}
                 {detail.published_at
                   ? ` · Published ${new Date(detail.published_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
@@ -205,27 +207,29 @@ export default function NoticeViewModal({ notice, onClose, onEdit }: Props) {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-6 py-5">
           {detail.review_status === "rejected" && detail.rejection_reason ? (
             <div className="mb-5 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-500">
                 Rejection reason
               </p>
-              <p className="mt-1 text-sm leading-relaxed text-rose-800">{detail.rejection_reason}</p>
+              <p className="mt-1 break-words text-sm leading-relaxed text-rose-800 [overflow-wrap:anywhere]">
+                {detail.rejection_reason}
+              </p>
             </div>
           ) : null}
 
           {detail.image_url ? (
-            <div className="mb-5 flex max-h-80 items-center justify-center overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200">
+            <div className="mb-5 flex max-h-80 max-w-full items-center justify-center overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200">
               <img
                 src={detail.image_url}
                 alt=""
-                className="max-h-80 w-full object-contain"
+                className="max-h-80 max-w-full object-contain"
               />
             </div>
           ) : null}
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid min-w-0 gap-4 sm:grid-cols-2">
             {schedule ? (
               <DetailItem icon={<IcoCalendar />} label="Schedule" value={schedule} />
             ) : null}
@@ -258,7 +262,7 @@ export default function NoticeViewModal({ notice, onClose, onEdit }: Props) {
             loadingDetail && !(detail.recipients?.length) ? (
               <p className="mt-5 text-[13px] text-slate-500">Loading recipients…</p>
             ) : (detail.recipients?.length ?? 0) > 0 ? (
-              <div className="mt-5">
+              <div className="mt-5 min-w-0">
                 <p className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-slate-500">
                   Recipients ({detail.recipients!.length})
                 </p>
@@ -267,17 +271,17 @@ export default function NoticeViewModal({ notice, onClose, onEdit }: Props) {
                     <div
                       key={recipient.id}
                       className={[
-                        "flex items-center gap-3 px-4 py-3",
+                        "flex min-w-0 items-center gap-3 px-4 py-3",
                         index > 0 ? "border-t border-slate-100" : "",
                       ].join(" ")}
                     >
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-50 text-[12px] font-semibold text-violet-700">
                         {(recipient.name || "?").charAt(0).toUpperCase()}
                       </span>
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-0 flex-1 overflow-hidden">
                         <p className="truncate text-[13px] font-semibold text-slate-900">{recipient.name}</p>
                         {recipient.unit_number ? (
-                          <p className="text-[11px] text-slate-500">Unit {recipient.unit_number}</p>
+                          <p className="truncate text-[11px] text-slate-500">Unit {recipient.unit_number}</p>
                         ) : null}
                       </div>
                     </div>
@@ -295,13 +299,15 @@ export default function NoticeViewModal({ notice, onClose, onEdit }: Props) {
             )
           ) : null}
 
-          <div className="mt-5">
+          <div className="mt-5 min-w-0">
             <p className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-slate-500">Description</p>
-            <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-slate-700">{detail.body}</p>
+            <p className="max-w-full whitespace-pre-wrap break-words text-[14px] leading-relaxed text-slate-700 [overflow-wrap:anywhere]">
+              {detail.body}
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4">
           <button type="button" onClick={onClose} className="nl-btn-secondary">
             Close
           </button>
@@ -334,13 +340,15 @@ function DetailItem({
   value: string;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3">
+    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3">
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-slate-500 ring-1 ring-slate-200">
         {icon}
       </span>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1 overflow-hidden">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-        <p className="mt-0.5 text-[13px] font-medium text-slate-800">{value}</p>
+        <p className="mt-0.5 break-words text-[13px] font-medium text-slate-800 [overflow-wrap:anywhere]">
+          {value}
+        </p>
       </div>
     </div>
   );

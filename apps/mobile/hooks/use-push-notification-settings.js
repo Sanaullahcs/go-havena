@@ -7,6 +7,7 @@ import {
   getNotificationPermissionStatus,
   getRemotePushUnavailableMessage,
   isRemotePushSupported,
+  PUSH_ERROR,
 } from "../services/push-notifications";
 import {
   getEmailNotificationsEnabled,
@@ -32,9 +33,8 @@ export function usePushNotificationSettings() {
         getNotificationPermissionStatus(),
       ]);
 
-      setPushEnabled(
-        storedPush && (pushSupported ? permission === "granted" : true),
-      );
+      // Only show enabled when remote push is supported and OS permission is granted.
+      setPushEnabled(Boolean(storedPush && pushSupported && permission === "granted"));
       setEmailEnabled(storedEmail);
     } finally {
       setLoading(false);
@@ -46,7 +46,7 @@ export function usePushNotificationSettings() {
   }, [refresh]);
 
   const setPush = useCallback(async (nextValue) => {
-    if (pushBusy) return { ok: false, message: i18n.t("settings.pleaseWait") };
+    if (pushBusy) return { ok: false, reason: "busy", message: i18n.t("settings.pleaseWait") };
 
     setPushBusy(true);
     try {
@@ -60,9 +60,17 @@ export function usePushNotificationSettings() {
       setPushEnabled(false);
       return { ok: true };
     } catch (err) {
-      const message = err?.message ?? i18n.t("settings.pushUpdateFailed");
+      console.warn("[push] settings toggle failed", err);
       setPushEnabled(false);
-      return { ok: false, message };
+
+      if (
+        err?.code === PUSH_ERROR.PERMISSION_DENIED ||
+        /denied|permission/i.test(String(err?.message ?? ""))
+      ) {
+        return { ok: false, reason: "permission_denied" };
+      }
+
+      return { ok: false, reason: "enable_failed" };
     } finally {
       setPushBusy(false);
     }

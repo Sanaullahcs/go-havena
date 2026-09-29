@@ -41,7 +41,10 @@ out/
 apps/mobile/modules/**/android/build/
 apps/mobile/modules/**/ios/build/
 
-# Secrets and local credentials (EAS uploads these separately)
+# Secrets and local credentials (EAS uploads these separately).
+# google-services.json stays gitignored but must NOT be easignored — Android
+# FCM needs it in the build archive. Prefer EAS file env GOOGLE_SERVICES_JSON
+# (see app.config.js); local file is also uploaded when present on the builder machine.
 *.jks
 *.p8
 *.p12
@@ -51,7 +54,6 @@ apps/mobile/modules/**/ios/build/
 apps/mobile/apple-secrets/
 apps/mobile/android-secrets/
 apps/mobile/credentials.json
-apps/mobile/google-services.json
 apps/mobile/GoogleService-Info.plist
 apps/mobile/.ngrok-token
 .env

@@ -13,7 +13,7 @@ class MemberBatchInviteService
     /**
      * @return array{rows: list<array{row: int, name: string, email: string, phone: string, unit: string, residence_type: string, errors: list<string>}>}
      */
-    public function inspect(string $contents): array
+    public function inspect(string $contents, ?int $communityId = null): array
     {
         $parsed = $this->parse($contents);
         $rows = [];
@@ -21,7 +21,7 @@ class MemberBatchInviteService
         $seenPhones = [];
 
         foreach ($parsed as $entry) {
-            $issues = $this->rowIssues($entry, $seenEmails, $seenPhones);
+            $issues = $this->rowIssues($entry, $seenEmails, $seenPhones, $communityId);
             $errors = array_column($issues, 'message');
             $emailKey = strtolower(trim($entry['email']));
             $phone = PhoneNormalizer::accept($entry['phone']);
@@ -159,7 +159,7 @@ class MemberBatchInviteService
      * @param array<string, true> $seenPhones
      * @return list<array{field: string, message: string}>
      */
-    private function rowIssues(array $entry, array $seenEmails, array $seenPhones): array
+    private function rowIssues(array $entry, array $seenEmails, array $seenPhones, ?int $communityId = null): array
     {
         $issues = [];
         $add = function (string $field, string $message) use (&$issues): void {
@@ -205,17 +205,34 @@ class MemberBatchInviteService
         }
 
         if ($issues === [] && $phone) {
+            $existingUser = ContactIdentityService::findUserByEmail($entry['email']);
+            $inactiveInCommunity = $communityId && $existingUser
+                ? \Illuminate\Support\Facades\DB::table('community_memberships')
+                    ->where('user_id', $existingUser->id)
+                    ->where('community_id', $communityId)
+                    ->where('status', 'inactive')
+                    ->exists()
+                : false;
+
             try {
-                ContactIdentityService::assertAvailableForRegistration($entry['email'], $phone);
+                if ($inactiveInCommunity) {
+                    ContactIdentityService::assertAvailableForRegistration(
+                        null,
+                        $phone,
+                        (int) $existingUser->id,
+                    );
+                } else {
+                    ContactIdentityService::assertAvailableForRegistration($entry['email'], $phone);
+                }
             } catch (ValidationException $e) {
                 $flat = strtolower(implode(' ', collect($e->errors())->flatten()->all()));
-                if (str_contains($flat, 'email')) {
+                if (! $inactiveInCommunity && str_contains($flat, 'email')) {
                     $add('Email', 'Email already exists');
                 }
                 if (str_contains($flat, 'phone')) {
                     $add('Phone Number', 'Phone number already exists');
                 }
-                if ($issues === []) {
+                if ($issues === [] && ! $inactiveInCommunity) {
                     $add('Email', 'Email already exists');
                 }
             }

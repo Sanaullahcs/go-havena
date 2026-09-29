@@ -2,7 +2,7 @@ import api, { isProxyMethodBlocked } from "./client";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { getManagedCommunityId, getUser, isSystemAdminUser } from "@/lib/auth/session";
 
-export type MembershipStatus = "approved" | "pending" | "banned" | "rejected" | "onboarding" | "invitation_sent" | "not_invited";
+export type MembershipStatus = "approved" | "pending" | "banned" | "rejected" | "inactive" | "onboarding" | "invitation_sent" | "not_invited";
 export type MembershipRole = "member" | "moderator" | "admin";
 
 export interface Member {
@@ -36,6 +36,7 @@ export interface MemberStats {
   pending: number;
   banned: number;
   rejected: number;
+  inactive?: number;
   onboarding?: number;
   invitation_sent?: number;
   not_invited?: number;
@@ -100,6 +101,8 @@ export function statusLabel(status: MembershipStatus): string {
       return "Onboarding";
     case "banned":
       return "Suspended";
+    case "inactive":
+      return "Inactive";
     case "rejected":
       return "Rejected";
     default:
@@ -339,16 +342,21 @@ export async function suspendMember(userId: number, communityId?: number) {
   return api.post(`/v1/admin/members/${userId}/suspend`, communityId ? { community_id: communityId } : {});
 }
 
-export async function deleteMember(id: number, communityId?: number) {
+export async function deactivateMember(id: number, communityId?: number) {
   const config = { params: communityId ? { community_id: communityId } : undefined };
   try {
-    return await api.delete(`/v1/admin/members/${id}`, config);
+    return await api.post(`/v1/admin/members/${id}/deactivate`, {}, config);
   } catch (err: unknown) {
     if (isProxyMethodBlocked(err)) {
       return api.post(`/v1/admin/members/${id}/delete`, {}, config);
     }
     throw err;
   }
+}
+
+/** @deprecated Use deactivateMember — hard delete is no longer supported. */
+export async function deleteMember(id: number, communityId?: number) {
+  return deactivateMember(id, communityId);
 }
 
 export function membersToCsv(rows: Member[]): string {
