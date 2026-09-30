@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "../constants/api-config";
-import { apiRequest, ApiError } from "./api-client";
+import { apiRequest, ApiError, safeApiMessage } from "./api-client";
 import { getCommunityId, getToken } from "./auth-session";
 import { HOME_SECTION_CARD_LIMIT } from "../constants/home-sections";
 import { guessImageMeta, persistUploadAsset, uploadMultipartFile } from "../utils/upload-form-data";
@@ -124,7 +124,7 @@ export async function bookAmenity({
       }
     }
     if (!response.ok) {
-      throw new ApiError(body?.message ?? i18n.t("propertyMgmt.couldNotBook"), {
+      throw new ApiError(safeApiMessage(body?.message) || i18n.t("propertyMgmt.couldNotBook"), {
         status: response.status,
         errors: body?.errors,
       });

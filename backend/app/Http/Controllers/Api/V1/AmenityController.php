@@ -20,6 +20,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class AmenityController extends Controller
@@ -442,8 +443,10 @@ class AmenityController extends Controller
         $guests = $capacityService->storedGuestCount($amenity, $requestedSeats, $timedSlot);
         $bookingFee = $capacityService->bookingFee($amenity, $requestedSeats, $timedSlot);
         $payWithBank = $bookingFee > 0 && $request->input('payment_method') === 'bank_ach';
+        $draftBookingId = null;
 
-        $id = DB::transaction(function () use (
+        try {
+            $id = DB::transaction(function () use (
             $amenity,
             $request,
             $user,
@@ -458,6 +461,7 @@ class AmenityController extends Controller
             $validSlots,
             $capacityService,
             $payWithBank,
+            &$draftBookingId,
         ) {
             DB::table('amenities')->where('id', $amenity->id)->lockForUpdate()->first();
 
@@ -519,6 +523,7 @@ class AmenityController extends Controller
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
+            $draftBookingId = (int) $bookingId;
 
             if ($payWithBank) {
                 app(PlaidAchService::class)->payBooking($user, (int) $bookingId);
@@ -528,6 +533,13 @@ class AmenityController extends Controller
 
             return $bookingId;
         });
+        } catch (\Throwable $e) {
+            if ($draftBookingId) {
+                $this->discardFailedBookingAttempt($draftBookingId);
+            }
+
+            throw $e;
+        }
 
         ActivityLogService::user(
             'amenity_booking_requested',
@@ -557,6 +569,34 @@ class AmenityController extends Controller
                 ? 'Bank payment submitted. The amenity owner will review your request.'
                 : 'Reservation requested. The amenity owner will review your request.',
         ], 201);
+    }
+
+    /**
+     * A failed bank charge must not keep the reservation. InnoDB rolls the insert
+     * back; MyISAM does not, so this removes the attempt when payment never settled.
+     */
+    private function discardFailedBookingAttempt(int $bookingId): void
+    {
+        $booking = DB::table('bookings')->where('id', $bookingId)->first();
+        if (! $booking || ($booking->payment_verification_status ?? '') === 'accepted') {
+            return;
+        }
+
+        if (Schema::hasTable('booking_slot_allocations')) {
+            DB::table('booking_slot_allocations')->where('booking_id', $bookingId)->delete();
+        }
+
+        DB::table('plaid_transfers')
+            ->where('payable_type', PlaidTransfer::PAYABLE_BOOKING)
+            ->where('payable_id', $bookingId)
+            ->whereNotIn('status', [
+                PlaidTransfer::STATUS_POSTED,
+                PlaidTransfer::STATUS_SETTLED,
+                PlaidTransfer::STATUS_PROCESSING,
+            ])
+            ->delete();
+
+        DB::table('bookings')->where('id', $bookingId)->delete();
     }
 
     /** DELETE /v1/bookings/{id} */
@@ -610,7 +650,9 @@ class AmenityController extends Controller
             && $fee > 0
             && AdminRoleService::isCommunityAdminRole($booker);
 
-        $nextStatus = $adminPaysAfterApproval ? 'awaiting_payment' : 'confirmed';
+        $paidByBank = ($booking->payment_method ?? null) === 'bank_ach'
+            && ($booking->payment_verification_status ?? '') === 'accepted';
+        $nextStatus = $adminPaysAfterApproval && ! $paidByBank ? 'awaiting_payment' : 'confirmed';
 
         DB::table('bookings')->where('id', $id)->update([
             'status' => $nextStatus,
@@ -618,7 +660,7 @@ class AmenityController extends Controller
             'updated_at' => now(),
         ]);
 
-        if ($amenity && ! ($amenity->shared_billing_enabled ?? false) && $fee > 0) {
+        if ($amenity && ! ($amenity->shared_billing_enabled ?? false) && $fee > 0 && ! $paidByBank) {
             $booking->status = $nextStatus;
             app(AmenitySharedBillService::class)->createBookingBill($booking, $amenity, (int) $request->user()->id, $request);
             NotificationService::send(
@@ -635,7 +677,15 @@ class AmenityController extends Controller
         }
 
         ActivityLogService::user('booking_approved', "Approved {$booking->amenity_name} booking #{$id}", 'Booking', $id);
-        if ($adminPaysAfterApproval) {
+        if ($paidByBank) {
+            NotificationService::send(
+                $booking->user_id,
+                'success',
+                'Reservation approved',
+                "Your bank payment for {$booking->amenity_name} on {$booking->date}".($booking->time_slot ? " ({$booking->time_slot})" : '').' is confirmed.',
+                '/screens/property-management/my-booking',
+            );
+        } elseif ($adminPaysAfterApproval) {
             NotificationService::send(
                 $booking->user_id,
                 'info',

@@ -166,7 +166,7 @@ export function apiError(err: unknown): string {
     const message = data?.message ?? "";
     const isInternalDbError = /SQLSTATE|Unknown column|\bSQL:/i.test(message);
     const isPhpInternal =
-      /Class ["'][^"']+["'] not found|ErrorException|Stack trace|syntax error,|Undefined (property|variable|constant)|Allowed memory size/i.test(
+      /Class ["'][^"']+["'] not found|ErrorException|Stack trace|syntax error,|Undefined (property|variable|constant|method)|Call to undefined|Allowed memory size/i.test(
         message,
       );
     const isInternal = isInternalDbError || isPhpInternal;

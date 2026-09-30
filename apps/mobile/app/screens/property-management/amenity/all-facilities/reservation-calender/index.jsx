@@ -166,6 +166,10 @@ export default function ReservationCalender() {
   const needsPlaidLink = fee > 0 && plaidOn && !achCapability?.resident?.connected;
   const waitingOnCommunityBank = fee > 0 && plaidOn && Boolean(achCapability?.resident?.connected) && !achCapability?.community?.bank_connected;
   const canChargeBank = fee > 0 && plaidOn && Boolean(achCapability?.can_pay_with_bank);
+  const bankAccountLabel = [
+    achCapability?.resident?.institution_name,
+    achCapability?.resident?.account?.mask ? `••${achCapability.resident.account.mask}` : null,
+  ].filter(Boolean).join(" ");
 
   const loadCapability = useCallback(async () => {
     if (fee <= 0) return null;
@@ -490,17 +494,37 @@ export default function ReservationCalender() {
               </View>
             )
           ) : null}
-          <Text style={styles.summaryFee}>
-            {t("propertyMgmt.bookingFee")}: {formatUsdAmount(fee)}
-            {unitFee > 0 && fullSlot
-              ? ` (${formatUsdAmount(unitFee)}${t("propertyMgmt.perSlotSuffix")})`
-              : unitFee > 0 && !fullSlot
-                ? ` (${formatUsdAmount(unitFee)} × ${guests})`
-                : ""}
-            {fee > 0
-              ? ` · ${plaidOn ? t("propertyMgmt.bookingFeePayWithPlaid") : t("propertyMgmt.bookingFeeAfterApproval")}`
-              : ""}
-          </Text>
+          {fee > 0 ? (
+            <View style={styles.feePanel}>
+              <View style={styles.feePanelTop}>
+                <Text style={styles.feeEyebrow}>{t("propertyMgmt.reservationTotal")}</Text>
+                <Text style={styles.feeAmount}>{formatUsdAmount(fee)}</Text>
+              </View>
+              <Text style={styles.feeDetail}>
+                {fullSlot
+                  ? t("propertyMgmt.feeForFullSlot", { amount: formatUsdAmount(unitFee) })
+                  : guests > 1
+                    ? t("propertyMgmt.feePerGuest", {
+                        amount: formatUsdAmount(unitFee),
+                        count: guests,
+                      })
+                    : t("propertyMgmt.feeForOneGuest")}
+              </Text>
+              <Text style={styles.feeNote}>
+                {canChargeBank
+                  ? t("propertyMgmt.feeBankAccountNote", {
+                      account: bankAccountLabel || t("propertyMgmt.yourBank"),
+                    })
+                  : needsPlaidLink
+                    ? t("propertyMgmt.feeConnectNote")
+                    : plaidOn
+                      ? t("propertyMgmt.feeBankNote")
+                      : t("propertyMgmt.feeApprovalNote")}
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.feeComplimentary}>{t("propertyMgmt.complimentaryReservation")}</Text>
+          )}
         </View>
 
         <View style={{ height: sw(24) }} />
@@ -530,9 +554,9 @@ export default function ReservationCalender() {
                   : waitingOnCommunityBank
                     ? t("propertyMgmt.receivingAccountNeeded")
                     : needsPlaidLink
-                      ? t("propertyMgmt.continueToPlaid")
+                      ? t("propertyMgmt.connectBankToReserve")
                       : canChargeBank
-                      ? t("propertyMgmt.payWithBank", { amount: formatUsdAmount(fee) })
+                      ? t("propertyMgmt.confirmReservationAmount", { amount: formatUsdAmount(fee) })
                       : isOpenMode
                         ? selectedDate
                           ? t("propertyMgmt.requestDate", { date: formatLongDate(selectedDate) })
@@ -838,6 +862,49 @@ const styles = StyleSheet.create({
     fontSize: sf(14),
     color: Colors.textPrimary,
     marginTop: sw(4),
+  },
+  feePanel: {
+    marginTop: sw(8),
+    backgroundColor: "#F4F7FB",
+    borderRadius: sw(12),
+    paddingHorizontal: sw(12),
+    paddingVertical: sw(12),
+    gap: sw(4),
+  },
+  feePanelTop: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: sw(12),
+  },
+  feeEyebrow: {
+    fontFamily: Fonts.medium,
+    fontSize: sf(12),
+    letterSpacing: 0.4,
+    color: "#5B6B7C",
+    textTransform: "uppercase",
+  },
+  feeAmount: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(20),
+    color: "#1B4F8A",
+  },
+  feeDetail: {
+    fontFamily: Fonts.medium,
+    fontSize: sf(13),
+    color: Colors.textPrimary,
+  },
+  feeNote: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(12),
+    lineHeight: sf(17),
+    color: "#5B6B7C",
+  },
+  feeComplimentary: {
+    marginTop: sw(6),
+    fontFamily: Fonts.medium,
+    fontSize: sf(13),
+    color: "#1B4F8A",
   },
   guestRow: {
     marginTop: sw(4),

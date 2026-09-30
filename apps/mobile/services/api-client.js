@@ -115,19 +115,30 @@ async function parseResponse(response) {
   return body;
 }
 
+export function safeApiMessage(message) {
+  const text = String(message ?? "").trim();
+  if (!text || text.includes("<!DOCTYPE") || /<[^>]+>/.test(text)) return "";
+  if (/SQLSTATE|Unknown column|\bSQL:|Class ["'][^"']+["'] not found|ErrorException|Stack trace|syntax error,|Undefined (property|variable|constant|method)|Call to undefined|Allowed memory size/i.test(text)) {
+    return "";
+  }
+  return text;
+}
+
 function apiErrorMessage(body, response) {
-  const fieldMessage =
+  const fieldMessage = safeApiMessage(
     body?.errors?.region_id?.[0] ??
     (body?.errors && Object.keys(body.errors)[0]
       ? body.errors[Object.keys(body.errors)[0]]?.[0]
-      : null);
+      : null),
+  );
 
-  if (fieldMessage && !String(fieldMessage).includes("<!DOCTYPE")) {
+  if (fieldMessage) {
     return fieldMessage;
   }
 
-  if (body?.message && !String(body.message).includes("<!DOCTYPE") && !/<[^>]+>/.test(String(body.message))) {
-    return body.message;
+  const message = safeApiMessage(body?.message);
+  if (message) {
+    return message;
   }
 
   if (response.status === 401) {

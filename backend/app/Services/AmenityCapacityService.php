@@ -304,6 +304,12 @@ class AmenityCapacityService
             return false;
         }
 
+        // A bank charge taken at request time can still be refunded until the owner confirms.
+        if ((string) ($booking->status ?? '') === 'pending'
+            && (string) ($booking->payment_method ?? '') === 'bank_ach') {
+            return true;
+        }
+
         return ! $this->paymentCompleted($booking);
     }
 

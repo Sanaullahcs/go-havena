@@ -28,7 +28,7 @@ class NearbyPlaceController extends Controller
         $communityId = $this->resolveCommunityId($request, $request->user());
         $coords = NearbyDiscovery::resolveCommunityCoordinates($communityId, $geocoder);
         if (function_exists('set_time_limit')) {
-            set_time_limit(45);
+            set_time_limit(20);
         }
 
         if (! $coords) {

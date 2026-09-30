@@ -118,7 +118,10 @@ class PlaidTransfer extends Model
 
     public function canRefund(): bool
     {
-        return $this->isSuccessful() && ! filled($this->refund_transfer_id);
+        $paid = $this->isSuccessful()
+            || ($this->status === self::STATUS_NEEDS_PAYOUT && filled($this->debit_transfer_id));
+
+        return $paid && ! filled($this->refund_transfer_id);
     }
 
     /**

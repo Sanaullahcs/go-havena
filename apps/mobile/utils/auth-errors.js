@@ -222,13 +222,15 @@ export async function handleAuthApiError(error, dialog, router, { phone, email }
   }
 
   if (code === "TIMEOUT" || code === "NETWORK_ERROR") {
+    const hint = describeApiConnectionHint();
     const devHint =
       __DEV__ && ((email && isDevTestEmail(email)) || (phone && isDevTestPhone(phone)))
         ? "\n\nEnsure `npm run backend` is running. Android emulator uses http://10.0.2.2:8000 automatically."
         : "";
+    const detail = [message, hint].filter(Boolean).join("\n\n");
     await dialog.showError(
       i18n.t("auth.connectionProblem"),
-      `${message}\n\n${describeApiConnectionHint()}${devHint}`,
+      `${detail}${devHint}`,
     );
     return;
   }

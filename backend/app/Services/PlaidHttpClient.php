@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Exceptions\PlaidException;
 use App\Support\TlsCaBundle;
-use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -26,14 +25,24 @@ class PlaidHttpClient
 
         try {
             return $this->decode($path, $this->send($url, $body, true));
-        } catch (ConnectionException $first) {
+        } catch (PlaidException $e) {
+            throw $e;
+        } catch (\Throwable $first) {
             if (! $this->isTlsFailure($first)) {
-                throw $this->connectionFailed($first);
+                throw $first;
             }
 
+            Log::warning('Plaid TLS failed, retrying', ['message' => $first->getMessage()]);
+
             try {
-                return $this->decode($path, $this->send($url, $body, false));
-            } catch (ConnectionException $retry) {
+                return $this->decode($path, $this->send($url, $body, true));
+            } catch (PlaidException $e) {
+                throw $e;
+            } catch (\Throwable $retry) {
+                if (! $this->isTlsFailure($retry)) {
+                    throw $retry;
+                }
+
                 throw $this->connectionFailed($retry);
             }
         }
@@ -69,12 +78,12 @@ class PlaidHttpClient
             ->post($url, $body);
     }
 
-    protected function isTlsFailure(ConnectionException $exception): bool
+    protected function isTlsFailure(\Throwable $exception): bool
     {
-        return (bool) preg_match('/cURL error (35|51|60)|SSL connect|SSL certificate|certificate verify/i', $exception->getMessage());
+        return (bool) preg_match('/cURL error (35|51|60)|SSL connect|SSL certificate|certificate verify|unable to get local issuer/i', $exception->getMessage());
     }
 
-    protected function connectionFailed(ConnectionException $exception): PlaidException
+    protected function connectionFailed(\Throwable $exception): PlaidException
     {
         Log::warning('Plaid HTTPS connection failed', [
             'message' => $exception->getMessage(),

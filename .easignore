@@ -8,9 +8,9 @@
 frontend/
 backend/
 landing-page/
-docs/
-design/
-scripts/
+/docs/
+/design/
+/scripts/
 .cursor/
 .claude/
 .vscode/
@@ -31,13 +31,10 @@ expo-env.d.ts
 **/.next/
 out/
 
-# Generated native projects. Keep the custom locale native module.
-**/ios/
-!apps/mobile/modules/**/ios/
-!apps/mobile/modules/**/ios/**
-**/android/
-!apps/mobile/modules/**/android/
-!apps/mobile/modules/**/android/**
+# Generated native projects only. A broad **/android or **/ios pattern also
+# drops apps/mobile/modules/app-locale and breaks Gradle.
+apps/mobile/android/
+apps/mobile/ios/
 apps/mobile/modules/**/android/build/
 apps/mobile/modules/**/ios/build/
 

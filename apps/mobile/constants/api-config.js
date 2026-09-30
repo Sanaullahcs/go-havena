@@ -251,6 +251,9 @@ export function isRemoteApi() {
 }
 
 export function describeApiConnectionHint() {
+  if (!__DEV__) {
+    return "";
+  }
   if (isDevTunnelApiUrl(API_BASE_URL)) {
     return "Using API tunnel. If login fails, run start-lan.ps1 (same Wi-Fi) or restart start-api-tunnel.ps1.";
   }

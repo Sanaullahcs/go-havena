@@ -10,6 +10,7 @@ use App\Models\PlaidTransfer;
 use App\Models\Region;
 use App\Models\ResidentPlaidConnection;
 use App\Models\User;
+use App\Services\PlaidHttpClient;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
@@ -108,6 +109,100 @@ class PlaidAchPaymentTest extends TestCase
 
         $this->assertDatabaseMissing('bookings', ['amenity_id' => $courtId]);
         $this->assertSame(0, PlaidTransfer::query()->where('user_id', $resident->id)->count());
+    }
+
+    public function test_live_charge_books_without_sending_idempotency_key(): void
+    {
+        config(['plaid.transfer.simulate' => false]);
+
+        $this->mock(PlaidHttpClient::class, function ($mock) {
+            $mock->shouldReceive('post')->andReturnUsing(function (string $path, array $payload) {
+                if (array_key_exists('idempotency_key', $payload)) {
+                    throw new \RuntimeException('the following fields are not recognized by this endpoint: idempotency_key');
+                }
+
+                if ($path === '/transfer/authorization/create') {
+                    return [
+                        'authorization' => [
+                            'id' => 'auth-'.$payload['type'],
+                            'decision' => 'approved',
+                        ],
+                    ];
+                }
+
+                if ($path === '/transfer/create') {
+                    return [
+                        'transfer' => [
+                            'id' => 'transfer-'.$payload['authorization_id'],
+                            'status' => 'posted',
+                        ],
+                    ];
+                }
+
+                throw new \RuntimeException('Unexpected Plaid path '.$path);
+            });
+        });
+
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedReadyBanks();
+        $arboretumId = $this->createAmenity($community->id, $admin->id, 15, 'Acton Arboretum', 'Walking trails', [
+            'status' => 'bookable',
+            'capacity' => 120,
+            'hours' => '8:00 AM - 6:00 PM',
+            'start_time' => '08:00:00',
+            'end_time' => '18:00:00',
+            'slot_duration_minutes' => 60,
+            'capacity_booking_type' => 'per_seat',
+        ]);
+        $date = now()->addDay()->toDateString();
+        $slot = '8:00 AM - 9:00 AM';
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/bookings', [
+            'amenity_id' => $arboretumId,
+            'date' => $date,
+            'time_slot' => $slot,
+            'guests' => 1,
+            'payment_method' => 'bank_ach',
+        ])->assertCreated()
+            ->assertJsonPath('data.payment_method', 'bank_ach')
+            ->assertJsonPath('data.payment_verification_status', 'accepted')
+            ->assertJsonMissing(['message' => 'the following fields are not recognized by this endpoint: idempotency_key']);
+
+        $this->assertSame(1, DB::table('bookings')->where('amenity_id', $arboretumId)->whereNotIn('status', ['cancelled', 'rejected'])->count());
+        $this->assertSame(1, DB::table('booking_slot_allocations')->where('amenity_id', $arboretumId)->count());
+    }
+
+    public function test_sandbox_ssl_failure_still_completes_the_booking(): void
+    {
+        config([
+            'plaid.transfer.simulate' => null,
+            'plaid.environment' => 'sandbox',
+        ]);
+
+        $this->mock(PlaidHttpClient::class, function ($mock) {
+            $mock->shouldReceive('post')->once()->andThrow(new \RuntimeException(
+                'cURL error 60: SSL certificate problem: unable to get local issuer certificate for https://sandbox.plaid.com/transfer/authorization/create'
+            ));
+        });
+
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedReadyBanks();
+        $amenityId = $this->createAmenity($community->id, $admin->id, 12, 'Acton Arboretum', 'Walking trails');
+
+        Sanctum::actingAs($resident);
+        $this->postJson('/api/v1/bookings', [
+            'amenity_id' => $amenityId,
+            'date' => now()->addDay()->toDateString(),
+            'payment_method' => 'bank_ach',
+        ])->assertCreated()
+            ->assertJsonPath('data.payment_method', 'bank_ach')
+            ->assertJsonPath('data.payment_verification_status', 'accepted');
+
+        $this->assertDatabaseHas('plaid_transfers', [
+            'user_id' => $resident->id,
+            'payable_type' => PlaidTransfer::PAYABLE_BOOKING,
+            'status' => PlaidTransfer::STATUS_POSTED,
+            'simulated' => 1,
+        ]);
     }
 
     public function test_gym_monthly_shared_bill_can_be_paid_by_bank(): void
@@ -261,7 +356,7 @@ class PlaidAchPaymentTest extends TestCase
             ->assertJsonPath('data.resident.connected', true);
     }
 
-    public function test_proof_booking_still_requires_file(): void
+    public function test_paid_request_without_bank_is_not_charged(): void
     {
         ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedReadyBanks();
         $amenityId = $this->createAmenity($community->id, $admin->id, 20, 'Guest suite', 'Overnight stay');
@@ -270,7 +365,16 @@ class PlaidAchPaymentTest extends TestCase
         $this->postJson('/api/v1/bookings', [
             'amenity_id' => $amenityId,
             'date' => now()->addDay()->toDateString(),
-        ])->assertStatus(422);
+        ])->assertCreated()
+            ->assertJsonPath('data.status', 'pending')
+            ->assertJsonPath('data.payment_verification_status', 'not_required')
+            ->assertJsonPath('data.payment_method', null);
+
+        $this->assertSame(0, PlaidTransfer::query()->where('user_id', $resident->id)->count());
+        $this->assertDatabaseMissing('bookings', [
+            'amenity_id' => $amenityId,
+            'payment_method' => 'bank_ach',
+        ]);
     }
 
     /**
@@ -374,9 +478,9 @@ class PlaidAchPaymentTest extends TestCase
         ]);
     }
 
-    private function createAmenity(int $communityId, int $creatorId, float $fee, string $name = 'Pool', string $description = 'Shared pool'): int
+    private function createAmenity(int $communityId, int $creatorId, float $fee, string $name = 'Pool', string $description = 'Shared pool', array $overrides = []): int
     {
-        return (int) DB::table('amenities')->insertGetId([
+        return (int) DB::table('amenities')->insertGetId(array_merge([
             'community_id' => $communityId,
             'created_by' => $creatorId,
             'name' => $name,
@@ -389,7 +493,7 @@ class PlaidAchPaymentTest extends TestCase
             'booking_fee' => $fee,
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ], $overrides));
     }
 
     private function createSharedBill(

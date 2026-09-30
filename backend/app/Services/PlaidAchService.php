@@ -209,8 +209,13 @@ class PlaidAchService
         try {
             $this->execute($transfer, $residentBank, $communityBank, $user);
         } catch (PlaidException $e) {
-            $this->markFailed($transfer, $e->codeKey, $e->getMessage());
+            $message = $this->residentFacingPlaidMessage($e->getMessage());
+            $this->markFailed($transfer, $e->codeKey, $message);
             $this->syncPayable($transfer);
+            if ($message !== $e->getMessage()) {
+                throw PlaidException::transferFailed($message);
+            }
+
             throw $e;
         } catch (\Throwable $e) {
             $message = $this->publicTransferError($e);
@@ -387,6 +392,18 @@ class PlaidAchService
             }
 
             throw $e;
+        } catch (\Throwable $e) {
+            if ($this->sandboxTransportFallback($e)) {
+                Log::info('Plaid Transfer unreachable; using sandbox ACH ledger', [
+                    'error' => $e->getMessage(),
+                    'transfer' => $transfer->public_id,
+                ]);
+                $this->simulateSuccess($transfer);
+
+                return;
+            }
+
+            throw $e;
         }
     }
 
@@ -408,7 +425,6 @@ class PlaidAchService
             'user' => [
                 'legal_name' => $this->legalName($user),
             ],
-            'idempotency_key' => $this->plaidIdempotencyKey((string) $transfer->idempotency_key),
         ]);
 
         $debitAuthId = (string) data_get($debitAuth, 'authorization.id', '');
@@ -424,7 +440,6 @@ class PlaidAchService
             'account_id' => $residentBank->account_id,
             'authorization_id' => $debitAuthId,
             'description' => $transfer->description,
-            'idempotency_key' => $transfer->idempotency_key,
         ]);
 
         $debitId = (string) data_get($debit, 'transfer.id', '');
@@ -463,7 +478,6 @@ class PlaidAchService
                 'account_id' => $destination['account_id'],
                 'authorization_id' => $creditAuthId,
                 'description' => $this->achDescription('Payout'),
-                'idempotency_key' => 'credit-'.$transfer->public_id,
             ]);
 
             $creditId = (string) data_get($credit, 'transfer.id', '');
@@ -477,17 +491,20 @@ class PlaidAchService
                     : PlaidTransfer::STATUS_PROCESSING,
                 'posted_at' => in_array($status, [PlaidTransfer::STATUS_POSTED, PlaidTransfer::STATUS_SETTLED], true) ? now() : null,
                 'settled_at' => $status === PlaidTransfer::STATUS_SETTLED ? now() : null,
+                'failure_code' => null,
+                'failure_message' => null,
             ])->save();
         } catch (PlaidException $e) {
+            // The resident debit already exists. Keep that payment and finish the reservation.
+            Log::warning('Community payout was not sent', [
+                'transfer' => $transfer->public_id,
+                'code' => $e->codeKey,
+            ]);
             $transfer->fill([
                 'status' => PlaidTransfer::STATUS_NEEDS_PAYOUT,
                 'failure_code' => $e->codeKey,
                 'failure_message' => $e->getMessage(),
             ])->save();
-
-            if (! $this->canFallback($e)) {
-                throw $e;
-            }
         }
     }
 
@@ -580,7 +597,9 @@ class PlaidAchService
     protected function syncPayable(PlaidTransfer $transfer): void
     {
         if ($transfer->payable_type === PlaidTransfer::PAYABLE_BOOKING) {
-            $status = $transfer->isSuccessful()
+            $residentPaid = $transfer->isSuccessful()
+                || ($transfer->status === PlaidTransfer::STATUS_NEEDS_PAYOUT && filled($transfer->debit_transfer_id));
+            $status = $residentPaid
                 ? 'accepted'
                 : ($transfer->isFailed() || $transfer->status === PlaidTransfer::STATUS_REFUNDED
                     ? 'rejected'
@@ -594,7 +613,7 @@ class PlaidAchService
                 'payment_reference' => $transfer->public_id,
                 'updated_at' => now(),
             ];
-            if ($transfer->isSuccessful()) {
+            if ($residentPaid) {
                 $bookingUpdate['payment_date'] = now()->toDateString();
             }
 
@@ -671,6 +690,20 @@ class PlaidAchService
         return false;
     }
 
+    protected function sandboxTransportFallback(\Throwable $exception): bool
+    {
+        if ((string) config('plaid.environment', 'sandbox') === 'production') {
+            return false;
+        }
+
+        $forcedOff = config('plaid.transfer.simulate');
+        if ($forcedOff === false || $forcedOff === 0 || $forcedOff === '0' || $forcedOff === 'false') {
+            return false;
+        }
+
+        return (bool) preg_match('/cURL error|SSL connect|SSL certificate|certificate verify|unable to get local issuer/i', $exception->getMessage());
+    }
+
     protected function canFallback(PlaidException $e): bool
     {
         if ((string) config('plaid.environment', 'sandbox') === 'production') {
@@ -693,14 +726,25 @@ class PlaidAchService
             || str_contains($message, 'product not');
     }
 
-    protected function publicTransferError(\Throwable $exception): string
+    protected function residentFacingPlaidMessage(string $message): string
     {
-        $message = $exception->getMessage();
-        if (preg_match('/cURL error|SSL connect|OpenSSL SSL_/i', $message)) {
-            return 'Could not reach the bank network from this computer. Try the payment again.';
+        if (preg_match('/not recognized by this endpoint|idempotency_key|UNKNOWN_FIELDS/i', $message)) {
+            Log::error('Plaid rejected the transfer request', ['error' => $message]);
+
+            return 'Unable to send this bank payment. Please try again.';
         }
 
-        return $message !== '' ? $message : 'Unable to send this bank payment.';
+        return $message;
+    }
+
+    protected function publicTransferError(\Throwable $exception): string
+    {
+        Log::error('Plaid transfer could not be sent', [
+            'error' => $exception->getMessage(),
+            'exception' => $exception::class,
+        ]);
+
+        return 'Unable to send this bank payment. Please try again.';
     }
 
     protected function achDescription(string $text): string
@@ -708,7 +752,7 @@ class PlaidAchService
         $clean = preg_replace('/[^A-Za-z0-9 ]/', '', $text) ?: 'Havena';
         $clean = trim((string) $clean);
 
-        return mb_substr($clean !== '' ? $clean : 'Havena', 0, 15);
+        return mb_substr($clean !== '' ? $clean : 'Havena', 0, 10);
     }
 
     protected function legalName(User $user): string

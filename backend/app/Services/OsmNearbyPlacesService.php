@@ -95,6 +95,12 @@ class OsmNearbyPlacesService
 
         $cached = Cache::get($cacheKey);
         if (is_array($cached)) {
+            if (($cached['__failed'] ?? false) === true) {
+                $this->bundleFailed = true;
+
+                return [];
+            }
+
             $this->bundleFailed = false;
 
             return $cached;
@@ -103,6 +109,8 @@ class OsmNearbyPlacesService
         $places = $this->fetchPlaces($lat, $lng);
         if ($places === null) {
             $this->bundleFailed = true;
+            // Stop a slow Overpass outage from pinning every PHP worker.
+            Cache::put($cacheKey, ['__failed' => true], 180);
 
             return [];
         }
@@ -165,6 +173,7 @@ class OsmNearbyPlacesService
     private function overpassQuery(float $lat, float $lng): string
     {
         $radius = (int) config('osm.radius_meters', 3000);
+        $timeout = $this->overpassBudgetSeconds();
         $filters = [];
 
         foreach (OsmPlaceCategories::overpassRegexByKey() as $key => $regex) {
@@ -173,7 +182,6 @@ class OsmNearbyPlacesService
         }
 
         $union = implode("\n", $filters);
-        $timeout = (int) config('osm.overpass_timeout', 25);
 
         return <<<QL
 [out:json][timeout:{$timeout}];
@@ -192,25 +200,25 @@ QL;
             return null;
         }
 
-        $timeout = (int) config('osm.overpass_timeout', 25);
+        $timeout = $this->overpassBudgetSeconds();
         $headers = [
             'User-Agent' => (string) config('osm.user_agent'),
             'Accept' => 'application/json',
         ];
         $lastEmpty = null;
         $anyFailure = false;
-        $started = microtime(true);
+        $deadline = microtime(true) + ($timeout + 4);
 
-        foreach ($urls as $url) {
-            if ((microtime(true) - $started) > ($timeout + 12)) {
+        foreach (array_slice($urls, 0, 2) as $url) {
+            if (microtime(true) >= $deadline) {
                 break;
             }
 
             try {
                 $response = Http::withHeaders($headers)
                     ->asForm()
-                    ->connectTimeout(5)
-                    ->timeout($timeout + 5)
+                    ->connectTimeout(3)
+                    ->timeout($timeout)
                     ->post((string) $url, [
                         'data' => $query,
                     ]);
@@ -250,6 +258,14 @@ QL;
         Log::warning('All Overpass mirrors failed for nearby places.');
 
         return null;
+    }
+
+    /** Wall-clock budget for one Overpass call. Kept short so the API stays responsive. */
+    private function overpassBudgetSeconds(): int
+    {
+        $configured = (int) config('osm.overpass_timeout', 8);
+
+        return min(8, max(4, $configured));
     }
 
     /**
