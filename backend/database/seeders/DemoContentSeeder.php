@@ -33,6 +33,8 @@ class DemoContentSeeder extends Seeder
     /** @var array<string, string> */
     public array $emailAliases = [];
 
+    public ?string $preferredAdminEmail = null;
+
     private string $copyName = 'Florida Main Street';
 
     public function run(): void
@@ -242,6 +244,13 @@ class DemoContentSeeder extends Seeder
 
     private function resolveAdminAuthor(int $cid): int
     {
+        if ($this->preferredAdminEmail) {
+            $preferred = DB::table('users')->where('email', $this->preferredAdminEmail)->value('id');
+            if ($preferred) {
+                return (int) $preferred;
+            }
+        }
+
         $showcaseAdmin = DB::table('users')->where('email', BostonDemoSeeder::ADMIN_EMAIL)->value('id');
         if ($showcaseAdmin) {
             return (int) $showcaseAdmin;

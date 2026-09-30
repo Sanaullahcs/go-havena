@@ -245,6 +245,8 @@ export function normalizeNotice(raw) {
     eventTimeEnd: raw.event_time_end ?? null,
     eventSchedule: formatEventSchedule(raw),
     status: raw.status ?? "published",
+    reviewStatus: raw.review_status ?? "approved",
+    rejectionReason: raw.rejection_reason ?? null,
     publishedAt: noticePublishedInstant(raw),
     createdAt: raw.created_at ?? null,
     authorName: raw.author_name ?? i18n.t("auth.communityAdmin"),
@@ -429,8 +431,10 @@ export async function fetchNotices({
   search,
   perPage = 50,
   includeExpired = false,
+  mine = false,
 } = {}) {
   const params = new URLSearchParams();
+  if (mine) params.set("mine", "1");
   if (categoryGroup) params.set("category_group", categoryGroup);
   if (category) params.set("category", category);
   if (search?.trim()) params.set("search", search.trim());
@@ -445,7 +449,7 @@ export async function fetchNotices({
       .filter(Boolean)
       // Home callers leave includeExpired false so past schedules stay off the banner.
       // Community Updates passes includeExpired true to keep the full history.
-      .filter((n) => includeExpired || !isNoticeExpiredForHome(n));
+      .filter((n) => mine || includeExpired || !isNoticeExpiredForHome(n));
     return {
       notices: sortNotices(items),
       meta: res.meta ?? {},

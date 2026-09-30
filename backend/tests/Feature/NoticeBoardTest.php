@@ -17,6 +17,12 @@ class NoticeBoardTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['billing.enabled' => false, 'billing.enforce' => false]);
+    }
+
     private function seedCommunityWithAdmin(): array
     {
         $region = Region::query()->create([
@@ -299,6 +305,128 @@ class NoticeBoardTest extends TestCase
             ->assertJsonPath('data.0.id', $eventId)
             ->assertJsonPath('data.0.title', 'Block Party')
             ->assertJsonPath('data.0.community_id', $community->id);
+    }
+
+    public function test_resident_can_list_own_events_in_mine_tab(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        $other = User::factory()->create([
+            'role'   => 'resident',
+            'status' => 'active',
+            'phone'  => '+201700000099',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $other->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+
+        Sanctum::actingAs($resident);
+
+        $create = $this->postJson('/api/v1/events', [
+            'title'          => 'My Courtyard Party',
+            'body'           => 'Potluck.',
+            'location'       => 'Courtyard',
+            'event_date'     => now()->addDays(4)->toDateString(),
+            'event_time'     => '18:00',
+            'event_time_end' => '21:00',
+        ])->assertCreated();
+
+        $eventId = $create->json('data.id');
+
+        $this->getJson('/api/v1/notices?mine=1&include_expired=1')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $eventId)
+            ->assertJsonPath('data.0.review_status', 'pending');
+
+        Sanctum::actingAs($other);
+
+        $this->getJson('/api/v1/notices?mine=1')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        Sanctum::actingAs($admin);
+
+        $this->patchJson('/api/v1/admin/notices/'.$eventId.'/approve')->assertOk();
+
+        Sanctum::actingAs($resident);
+
+        $this->getJson('/api/v1/notices?mine=1')
+            ->assertOk()
+            ->assertJsonPath('data.0.review_status', 'approved');
+
+        $this->getJson('/api/v1/notices/'.$eventId)
+            ->assertOk()
+            ->assertJsonPath('data.id', $eventId);
+    }
+
+    public function test_author_can_view_pending_event_other_residents_cannot(): void
+    {
+        ['community' => $community, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        $neighbor = User::factory()->create([
+            'role'   => 'resident',
+            'status' => 'active',
+            'phone'  => '+201700000098',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $neighbor->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+
+        Sanctum::actingAs($resident);
+
+        $eventId = $this->postJson('/api/v1/events', [
+            'title'          => 'Private Until Approved',
+            'body'           => 'Details',
+            'location'       => 'Clubhouse',
+            'event_date'     => now()->addDays(2)->toDateString(),
+            'event_time'     => '10:00',
+            'event_time_end' => '12:00',
+        ])->assertCreated()
+            ->json('data.id');
+
+        Sanctum::actingAs($neighbor);
+
+        $this->getJson('/api/v1/notices/'.$eventId)->assertNotFound();
+    }
+
+    public function test_community_admin_can_rsvp_to_resident_created_event(): void
+    {
+        ['admin' => $admin, 'resident' => $resident] = $this->seedCommunityWithAdmin();
+
+        Sanctum::actingAs($resident);
+
+        $create = $this->postJson('/api/v1/events', [
+            'title'          => 'Resident Block Party',
+            'body'           => 'Potluck in the courtyard.',
+            'location'       => 'Courtyard',
+            'event_date'     => now()->addDays(3)->toDateString(),
+            'event_time'     => '18:00',
+            'event_time_end' => '21:00',
+            'requires_rsvp'  => true,
+        ])->assertCreated();
+
+        $eventId = $create->json('data.id');
+
+        Sanctum::actingAs($admin);
+
+        $this->patchJson('/api/v1/admin/notices/'.$eventId.'/approve')->assertOk();
+
+        $this->postJson('/api/v1/notices/'.$eventId.'/rsvp', [
+            'status' => 'going',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.is_joined', true)
+            ->assertJsonPath('data.is_organizer', false)
+            ->assertJsonPath('data.rsvp_count', 1);
     }
 
     public function test_admin_can_reapprove_rejected_event(): void

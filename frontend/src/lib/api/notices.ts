@@ -40,7 +40,10 @@ export interface Notice {
   created_at: string;
   updated_at?: string;
   author_name: string;
+  author_id?: number;
   author_avatar?: string | null;
+  is_joined?: boolean;
+  is_organizer?: boolean;
   community_id: number;
   community_name?: string | null;
   audience_type?: "all" | "selected";
@@ -126,6 +129,13 @@ export async function fetchNotices(params?: Record<string, unknown>) {
 
 export async function fetchNotice(id: number) {
   const res = await api.get(`/v1/notices/${id}`);
+  return res.data.data as Notice;
+}
+
+export type EventRsvpStatus = "going" | "maybe" | "not_going";
+
+export async function rsvpNotice(id: number, status: EventRsvpStatus) {
+  const res = await api.post(`/v1/notices/${id}/rsvp`, { status });
   return res.data.data as Notice;
 }
 

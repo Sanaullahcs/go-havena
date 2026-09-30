@@ -637,6 +637,10 @@ export default function AdminContentBoard({ kind }: { kind: ContentBoardKind }) 
       <NoticeViewModal
         notice={viewing}
         onClose={() => setViewing(null)}
+        onNoticeUpdated={(updated) => {
+          setViewing(updated);
+          setNotices((rows) => rows.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)));
+        }}
         onEdit={
           viewing && kind === "events" && isEventSchedulePast(viewing)
             ? undefined

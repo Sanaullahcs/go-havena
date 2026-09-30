@@ -508,6 +508,7 @@ export default function AdminDashboardScreen() {
     { icon: "users", label: t("admin.residents"), badge: stats?.pending_members, color: "#14B8A6", route: "/screens/admin-members" },
     { icon: "user-plus", label: t("admin.inviteMember"), color: "#4F46E5", route: { pathname: "/screens/admin-members", params: { invite: "1" } } },
     { icon: "users", label: t("admin.guestUsers"), color: "#0EA5E9", route: "/screens/admin-guests" },
+    { icon: "calendar", label: t("admin.communityEvents"), color: "#7C3AED", route: "/screens/admin-community-events" },
     { icon: "grid", label: t("admin.amenities"), color: "#0891B2", route: "/screens/admin-amenities" },
     { icon: "calendar", label: t("admin.amenityBookings"), badge: stats?.pending_bookings, color: "#7C3AED", route: "/screens/admin-bookings" },
     { icon: "shopping-bag", label: t("admin.marketplaceListings"), badge: stats?.pending_listings, color: "#059669", route: "/screens/admin-listings" },

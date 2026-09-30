@@ -15,10 +15,12 @@ import { confirmAction, toastError, toastSuccess } from "@/lib/alert";
 import { apiError } from "@/lib/api/client";
 import {
   createAdminUnit,
+  deleteAdminUnit,
   fetchAdminUnits,
   transferUnitBillingContact,
   type CommunityUnit,
 } from "@/lib/api/property-services";
+import { DUPLICATE_UNIT_MESSAGE, normalizeUnitNumber } from "@/lib/admin/unit-number";
 
 const UNITS_PAGE_SIZE = 6;
 
@@ -60,6 +62,7 @@ export default function AdminUnitsPage() {
   const [transferring, setTransferring] = useState<CommunityUnit | null>(null);
   const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
   const [transferringBusy, setTransferringBusy] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebouncedValue(searchInput, 400);
   const [contactFilter, setContactFilter] = useState<ContactFilter>("all");
@@ -167,10 +170,21 @@ export default function AdminUnitsPage() {
   }
 
   async function handleCreate() {
-    if (!unitNumber.trim()) return;
+    const trimmed = unitNumber.trim();
+    if (!trimmed) return;
+
+    const normalized = normalizeUnitNumber(trimmed);
+    const duplicate = residentialUnits.some(
+      (unit) => normalizeUnitNumber(unit.unit_number) === normalized,
+    );
+    if (duplicate) {
+      toastError(DUPLICATE_UNIT_MESSAGE);
+      return;
+    }
+
     setSaving(true);
     try {
-      await createAdminUnit({ unit_number: unitNumber.trim() });
+      await createAdminUnit({ unit_number: trimmed });
       toastSuccess("Unit created.");
       setCreating(false);
       setUnitNumber("");
@@ -185,6 +199,36 @@ export default function AdminUnitsPage() {
   function openTransfer(unit: CommunityUnit) {
     setSelectedContactId(unit.billing_contact_user_id);
     setTransferring(unit);
+  }
+
+  function unitCanDelete(unit: CommunityUnit) {
+    return unit.kind !== "office" && (unit.resident_count ?? 0) === 0;
+  }
+
+  async function handleDelete(unit: CommunityUnit) {
+    if (!unitCanDelete(unit) || deletingId) return;
+
+    const ok = await confirmAction({
+      title: "Delete unit?",
+      text: `Unit <strong>${unit.unit_number}</strong> will be removed from the community. This cannot be undone.`,
+      confirmText: "Delete unit",
+      icon: "warning",
+      color: "red",
+    });
+    if (!ok.isConfirmed) return;
+
+    setDeletingId(unit.id);
+    try {
+      await deleteAdminUnit(unit.id);
+      toastSuccess("Unit deleted.");
+      if (viewing?.id === unit.id) setViewing(null);
+      if (highlightedId === unit.id) setHighlightedId(null);
+      await load();
+    } catch (err) {
+      toastError(apiError(err));
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   async function handleTransfer() {
@@ -361,8 +405,11 @@ export default function AdminUnitsPage() {
                       unit={unit}
                       index={index}
                       highlighted={highlightedId === unit.id}
+                      canDelete={unitCanDelete(unit)}
+                      deleting={deletingId === unit.id}
                       onView={() => setViewing(unit)}
                       onTransfer={() => openTransfer(unit)}
+                      onDelete={() => void handleDelete(unit)}
                     />
                   ))}
                 </div>
@@ -497,6 +544,16 @@ export default function AdminUnitsPage() {
             </div>
 
             <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/80 px-6 py-4 sm:flex-row sm:justify-end">
+              {unitCanDelete(viewing) ? (
+                <button
+                  type="button"
+                  disabled={deletingId === viewing.id}
+                  onClick={() => void handleDelete(viewing)}
+                  className="nl-btn-secondary w-full border-red-200 text-red-700 hover:bg-red-50 sm:mr-auto sm:w-auto"
+                >
+                  {deletingId === viewing.id ? "Deleting…" : "Delete unit"}
+                </button>
+              ) : null}
               <button type="button" onClick={() => setViewing(null)} className="nl-btn-secondary w-full sm:w-auto">Close</button>
               <button
                 type="button"
@@ -607,14 +664,20 @@ function UnitCard({
   unit,
   index,
   highlighted = false,
+  canDelete = false,
+  deleting = false,
   onView,
   onTransfer,
+  onDelete,
 }: {
   unit: CommunityUnit;
   index: number;
   highlighted?: boolean;
+  canDelete?: boolean;
+  deleting?: boolean;
   onView: () => void;
   onTransfer: () => void;
+  onDelete: () => void;
 }) {
   const hasContact = Boolean(unit.billing_contact?.name);
   const residents = unit.residents ?? [];
@@ -652,6 +715,14 @@ function UnitCard({
                 icon: "edit",
                 onClick: onTransfer,
                 disabled: residents.length === 0,
+              },
+              {
+                label: deleting ? "Deleting…" : "Delete unit",
+                icon: "delete",
+                tone: "danger",
+                onClick: onDelete,
+                hidden: !canDelete,
+                disabled: deleting,
               },
             ]}
           />

@@ -73,18 +73,11 @@ class GeographyLocationsTest extends TestCase
 
     public function test_resolve_location_opens_a_city_region(): void
     {
-        $country = Country::query()->create([
-            'code' => 'ZX',
-            'name' => 'United States',
-            'billing_policy' => 'required',
-            'sort_order' => 1,
-            'status' => 'active',
-        ]);
-        $state = State::query()->create([
-            'country_id' => $country->id,
-            'name' => 'Delaware',
-            'status' => 'active',
-        ]);
+        $country = Country::query()->where('code', 'US')->firstOrFail();
+        $state = State::query()->firstOrCreate(
+            ['country_id' => $country->id, 'name' => 'Delaware'],
+            ['status' => 'active'],
+        );
 
         $this->postJson('/api/v1/locations/resolve', [
             'country_id' => $country->id,
@@ -100,6 +93,32 @@ class GeographyLocationsTest extends TestCase
             'title' => 'Delaware - Wilmington',
             'status' => 'active',
         ]);
+    }
+
+    public function test_resolve_location_reuses_seeded_pakistan_city_region(): void
+    {
+        $country = Country::query()->where('code', 'PK')->firstOrFail();
+        $state = State::query()->where('country_id', $country->id)->where('name', 'Punjab')->firstOrFail();
+        $seeded = Region::query()->create([
+            'state_id' => $state->id,
+            'title' => 'Pakistan - Lahore',
+            'area' => 'Lahore',
+            'state' => 'Punjab',
+            'users_label' => 'Open',
+            'sort_order' => 23,
+            'status' => 'active',
+        ]);
+
+        $this->postJson('/api/v1/locations/resolve', [
+            'country_id' => $country->id,
+            'state_id' => $state->id,
+            'city' => 'Lahore',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.id', $seeded->id)
+            ->assertJsonPath('data.title', 'Pakistan - Lahore');
+
+        $this->assertSame(1, Region::query()->where('state_id', $state->id)->where('area', 'Lahore')->count());
     }
 
     public function test_regions_index_creates_statewide_location_when_filtered(): void

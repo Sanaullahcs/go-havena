@@ -16,6 +16,12 @@ import {
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
 import { emptyPhoneField, type PhoneFieldState } from "@/lib/phone/format";
 import { toastError, toastSuccess } from "@/lib/alert";
+import { UnitPickerField } from "@/components/admin/unit-picker-field";
+import {
+  createAdminUnit,
+  fetchAdminUnits,
+} from "@/lib/api/property-services";
+import { inviteMemberUnitFieldError } from "@/lib/admin/invite-member-validation";
 
 const EMPTY_FORM: InviteMemberForm = { name: "", email: "", unit: "" };
 
@@ -220,21 +226,40 @@ export function MemberInviteModal({
           </Field>
 
           <Field label="Unit / Apartment" required error={inviteMemberUnitLiveError(form.unit) || (showError("unit") ? errors.unit : undefined)}>
-            <input
-              data-field="unit"
-              className={inputClass(inviteMemberUnitLiveError(form.unit) || (showError("unit") ? errors.unit : undefined))}
+            <UnitPickerField
+              dataField="unit"
               value={form.unit}
+              placeholder="Select unit"
+              unitMax={20}
+              error={inviteMemberUnitLiveError(form.unit) || (showError("unit") ? errors.unit : undefined)}
+              validateNewUnit={(unit) => inviteMemberUnitFieldError(unit)}
+              loadUnits={async () => {
+                const rows = await fetchAdminUnits();
+                return rows
+                  .filter((row) => row.kind !== "office")
+                  .map((row) => ({
+                    id: row.id,
+                    unit_number: row.unit_number,
+                    resident_count: row.resident_count ?? 0,
+                  }));
+              }}
+              createUnit={async (unitNumber) => {
+                const created = await createAdminUnit({ unit_number: unitNumber });
+                return {
+                  id: created.id,
+                  unit_number: created.unit_number,
+                  resident_count: created.resident_count ?? 0,
+                };
+              }}
               onBlur={() => {
                 touch("unit");
                 const next = validateInviteMemberForm(form, phone);
                 setErrors((prev) => ({ ...prev, unit: next.unit }));
               }}
-              onChange={(e) => {
-                touch("unit");
+              onChange={(unit) => {
                 clearFieldError("unit");
-                setForm((f) => ({ ...f, unit: e.target.value }));
+                setForm((f) => ({ ...f, unit }));
               }}
-              placeholder="e.g. 12B"
             />
           </Field>
 

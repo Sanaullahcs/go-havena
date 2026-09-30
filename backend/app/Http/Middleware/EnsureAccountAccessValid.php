@@ -107,6 +107,11 @@ class EnsureAccountAccessValid
             return true;
         }
 
+        if (in_array($request->getMethod(), ['GET', 'POST'], true)
+            && (bool) preg_match('#(?:^|/)v1/communities/\d+/units$#', $path)) {
+            return true;
+        }
+
         return false;
     }
 }

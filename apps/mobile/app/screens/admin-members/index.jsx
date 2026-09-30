@@ -17,6 +17,9 @@ import { useRequireCommunityAdmin } from "../../../hooks/use-require-community-a
 import { FormPhoneInput } from "../../../components/ui/phone-input";
 import { DEFAULT_PHONE_COUNTRY } from "../../../constants/phone-countries";
 import { toE164 } from "../../../utils/phone";
+import UnitPickerField from "../../../components/ui/unit-picker-field";
+import { createAdminUnit, fetchAdminUnits } from "../../../services/property-services-api";
+import { LIMITS } from "../../../utils/form-validation";
 
 const FILTERS = [
   { key: "pending", labelKey: "admin.pending" },
@@ -402,18 +405,29 @@ export default function AdminMembersScreen() {
                     showError={Boolean(showError("phone", inviteLiveErrors))}
                   />
                   {showError("phone", inviteLiveErrors) ? <Text style={styles.errorText}>{showError("phone", inviteLiveErrors)}</Text> : null}
-                  <Text style={styles.label}>{t("admin.unitOptional")}</Text>
-                  <LocaleTextInput
+                  <UnitPickerField
+                    label={t("admin.unitOptional")}
                     value={inviteForm.unit}
-                    onChangeText={(v) => {
+                    placeholder={t("admin.unitPlaceholder")}
+                    unitMax={LIMITS.inviteUnit}
+                    error={showError("unit", inviteLiveErrors) ? showError("unit", inviteLiveErrors) : undefined}
+                    onBlur={() => touch("unit")}
+                    onChange={(v) => {
                       setInviteForm((f) => ({ ...f, unit: v }));
                       clearError("unit");
                     }}
-                    onBlur={() => touch("unit")}
-                    style={[styles.input, showError("unit", inviteLiveErrors) && styles.inputError]}
-                    placeholder={t("admin.unitPlaceholder")}
+                    loadUnits={async () => {
+                      const rows = await fetchAdminUnits();
+                      return (rows ?? [])
+                        .filter((row) => row.kind !== "office")
+                        .map((row) => ({
+                          id: row.id,
+                          unit_number: row.unit_number,
+                          resident_count: row.resident_count ?? 0,
+                        }));
+                    }}
+                    createUnit={async (unit_number) => createAdminUnit(unit_number)}
                   />
-                  {showError("unit", inviteLiveErrors) ? <Text style={styles.errorText}>{showError("unit", inviteLiveErrors)}</Text> : null}
                   <TouchableOpacity
                     style={[styles.primaryBtn, (!canInvite || inviting) && { opacity: 0.45 }]}
                     disabled={!canInvite || inviting}

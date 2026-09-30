@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { AdminBadge } from "@/components/admin/ui";
 import { categoryLabel, fetchNotice, type EventWaitlistEntry, type Notice } from "@/lib/api/notices";
+import EventRsvpPanel from "@/components/admin/event-rsvp-panel";
 
 const STATUS_META: Record<string, { tone: "green" | "amber" | "blue" | "slate"; label: string }> = {
   published: { tone: "green", label: "Published" },
@@ -125,9 +126,10 @@ type Props = {
   notice: Notice | null;
   onClose: () => void;
   onEdit?: (notice: Notice) => void;
+  onNoticeUpdated?: (notice: Notice) => void;
 };
 
-export default function NoticeViewModal({ notice, onClose, onEdit }: Props) {
+export default function NoticeViewModal({ notice, onClose, onEdit, onNoticeUpdated }: Props) {
   const [detail, setDetail] = useState<Notice | null>(notice);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
@@ -297,6 +299,16 @@ export default function NoticeViewModal({ notice, onClose, onEdit }: Props) {
             ) : (
               <WaitlistSection entries={waitlist} />
             )
+          ) : null}
+
+          {detail.category === "event" && !loadingDetail ? (
+            <EventRsvpPanel
+              notice={detail}
+              onUpdated={(updated) => {
+                setDetail(updated);
+                onNoticeUpdated?.(updated);
+              }}
+            />
           ) : null}
 
           <div className="mt-5 min-w-0">

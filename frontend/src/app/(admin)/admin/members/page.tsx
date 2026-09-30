@@ -47,9 +47,12 @@ import type { MemberInviteResult } from "@/lib/api/members";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
 import {
   inviteMemberNameLiveError,
+  inviteMemberUnitFieldError,
   inviteMemberUnitLiveError,
   validateSystemMemberInviteForm,
 } from "@/lib/admin/invite-member-validation";
+import { UnitPickerField } from "@/components/admin/unit-picker-field";
+import { createAdminUnit, fetchAdminUnits } from "@/lib/api/property-services";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
 import { emptyPhoneField, type PhoneFieldState } from "@/lib/phone/format";
 
@@ -935,16 +938,39 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                   <label className="nl-label">
                     Unit / Apartment <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    value={form.unit}
-                    onChange={(e) => {
-                      touch("unit");
-                      setForm((f) => ({ ...f, unit: e.target.value }));
-                    }}
-                    onBlur={() => touch("unit")}
-                    className={inputClass(unitShownError, "nl-input mt-1.5")}
-                    placeholder="e.g. B-12"
-                  />
+                  <div className="mt-1.5">
+                    <UnitPickerField
+                      dataField="unit"
+                      value={form.unit}
+                      placeholder="Select unit"
+                      unitMax={20}
+                      error={unitShownError}
+                      validateNewUnit={(unit) => inviteMemberUnitFieldError(unit)}
+                      loadUnits={async () => {
+                        const rows = await fetchAdminUnits();
+                        return rows
+                          .filter((row) => row.kind !== "office")
+                          .map((row) => ({
+                            id: row.id,
+                            unit_number: row.unit_number,
+                            resident_count: row.resident_count ?? 0,
+                          }));
+                      }}
+                      createUnit={async (unitNumber) => {
+                        const created = await createAdminUnit({ unit_number: unitNumber });
+                        return {
+                          id: created.id,
+                          unit_number: created.unit_number,
+                          resident_count: created.resident_count ?? 0,
+                        };
+                      }}
+                      onBlur={() => touch("unit")}
+                      onChange={(unit) => {
+                        clearError("unit");
+                        setForm((f) => ({ ...f, unit }));
+                      }}
+                    />
+                  </div>
                   {unitShownError ? (
                     <p className="mt-1 text-xs text-red-600">{unitShownError}</p>
                   ) : null}

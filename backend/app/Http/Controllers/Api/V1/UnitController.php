@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class UnitController extends Controller
 {
@@ -21,12 +22,36 @@ class UnitController extends Controller
     /** GET /v1/communities/{id}/units — complete-profile picker. */
     public function communityIndex(Request $request, int $id): JsonResponse
     {
+        $this->assertCommunityUnitsAccess($request, $id);
         $includeOffice = AdminRoleService::isCommunityAdminRole($request->user())
             || AdminRoleService::isSystemAdmin($request->user());
 
         return response()->json([
             'data' => $this->units->listCommunityUnits($id, $includeOffice),
         ]);
+    }
+
+    /** POST /v1/communities/{id}/units — onboarding / profile unit catalog. */
+    public function communityStore(Request $request, int $id): JsonResponse
+    {
+        $this->assertCommunityUnitsAccess($request, $id);
+        $data = $request->validate([
+            'unit_number' => 'required|string|max:50',
+        ]);
+
+        $unitNumber = trim($data['unit_number']);
+        if ($this->units->unitNumberExistsInCommunity($id, $unitNumber)) {
+            throw ValidationException::withMessages([
+                'unit_number' => [UnitAssignmentService::DUPLICATE_UNIT_MESSAGE],
+            ]);
+        }
+
+        $unit = $this->units->createUnit($id, $unitNumber);
+
+        return response()->json([
+            'data' => $this->units->formatUnit($unit),
+            'message' => 'Unit created.',
+        ], 201);
     }
 
     /** GET /v1/units/mine */
@@ -121,7 +146,14 @@ class UnitController extends Controller
             'kind' => ['nullable', Rule::in(['residential', 'office'])],
         ]);
 
-        $unit = $this->units->createUnit($communityId, $data['unit_number'], $data['kind'] ?? 'residential');
+        $unitNumber = trim($data['unit_number']);
+        if ($this->units->unitNumberExistsInCommunity($communityId, $unitNumber)) {
+            throw ValidationException::withMessages([
+                'unit_number' => [UnitAssignmentService::DUPLICATE_UNIT_MESSAGE],
+            ]);
+        }
+
+        $unit = $this->units->createUnit($communityId, $unitNumber, $data['kind'] ?? 'residential');
 
         return response()->json([
             'data' => $this->units->formatAdminUnit($unit),
@@ -144,6 +176,17 @@ class UnitController extends Controller
         return response()->json([
             'data' => $this->units->formatAdminUnit($unit),
             'message' => 'Unit updated.',
+        ]);
+    }
+
+    /** DELETE /v1/admin/units/{id} */
+    public function adminDestroy(Request $request, int $id): JsonResponse
+    {
+        $communityId = $this->resolveAdminCommunityId($request);
+        $this->units->deleteUnit($communityId, $id);
+
+        return response()->json([
+            'message' => 'Unit deleted.',
         ]);
     }
 
@@ -186,5 +229,21 @@ class UnitController extends Controller
         abort_if(! $scope, 422, 'No community scope available.');
 
         return (int) $scope;
+    }
+
+    private function assertCommunityUnitsAccess(Request $request, int $communityId): void
+    {
+        $user = $request->user();
+        if (AdminRoleService::canManageCommunity($user, $communityId)) {
+            return;
+        }
+
+        $allowed = DB::table('community_memberships')
+            ->where('user_id', $user->id)
+            ->where('community_id', $communityId)
+            ->whereIn('status', ['approved', 'pending'])
+            ->exists();
+
+        abort_if(! $allowed, 403, 'You cannot access units for this community.');
     }
 }

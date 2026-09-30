@@ -39,6 +39,13 @@ class CommunityController extends Controller
                 $query->where(function ($w) use ($region) {
                     $w->where('region_id', $region->id)
                         ->orWhere('region', 'like', '%'.$region->title.'%');
+                    if ($region->state_id && filled($region->area)) {
+                        $city = mb_strtolower(trim($region->area));
+                        $w->orWhereHas('regionRecord', function ($r) use ($region, $city) {
+                            $r->where('state_id', $region->state_id)
+                                ->whereRaw('LOWER(TRIM(area)) = ?', [$city]);
+                        });
+                    }
                 });
             }
         } elseif ($region = $request->string('region')->trim()->toString()) {
@@ -83,7 +90,20 @@ class CommunityController extends Controller
                 $w->whereNull('review_status')
                     ->orWhere('review_status', 'approved');
             })
-            ->findOrFail($id);
+            ->find($id);
+
+        if (! $community) {
+            $region = Region::query()->where('status', 'active')->find($id);
+            if ($region) {
+                $label = trim($region->area ?: $region->title);
+                throw ValidationException::withMessages([
+                    'community_id' => ["{$label} is a location, not a community. Choose a community from the list."],
+                ]);
+            }
+
+            abort(404, 'Community not found.');
+        }
+
         $user = $request->user()->load('profile');
         $isCommunityAdmin = AdminRoleService::isCommunityAdminRole($user);
 

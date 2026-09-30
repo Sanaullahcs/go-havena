@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\DemoNearbyPlaces;
 use App\Support\NearbyDiscovery;
 use App\Support\OsmPlaceCategories;
 use Illuminate\Support\Facades\Cache;
@@ -87,7 +88,7 @@ class OsmNearbyPlacesService
 
         $ttl = (int) config('osm.cache_seconds', 3600);
         $cacheKey = sprintf(
-            'osm_nearby:v6:%s:%s:%s',
+            'osm_nearby:v7:%s:%s:%s',
             $communityId ?: 'none',
             round($lat, 4),
             round($lng, 4),
@@ -107,9 +108,19 @@ class OsmNearbyPlacesService
         }
 
         $places = $this->fetchPlaces($lat, $lng);
+        if ($places === null || $places === []) {
+            $fallback = DemoNearbyPlaces::forCommunity($communityId, $lat, $lng);
+            if ($fallback !== []) {
+                $this->bundleFailed = false;
+                Cache::put($cacheKey, $fallback, $ttl);
+
+                return $fallback;
+            }
+        }
+
         if ($places === null) {
             $this->bundleFailed = true;
-            // Stop a slow Overpass outage from pinning every PHP worker.
+            // Stop a slow Overpass outage from pinning every API worker.
             Cache::put($cacheKey, ['__failed' => true], 180);
 
             return [];

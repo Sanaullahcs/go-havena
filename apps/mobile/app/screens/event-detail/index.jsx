@@ -287,6 +287,8 @@ export default function EventDetailScreen() {
     (currentUserId != null && event?.authorId != null && Number(currentUserId) === Number(event.authorId));
   const canReport = Boolean(event?.canReport) && !isOrganizer;
   const requiresRsvp = Boolean(event?.requiresRsvp);
+  const reviewStatus = event?.reviewStatus ?? "approved";
+  const isLiveEvent = reviewStatus === "approved" && (event?.status ?? "published") === "published";
   const isJoined = Boolean(event?.isJoined);
   const isWaitlisted = Boolean(event?.isWaitlisted);
   const hasCapacityLimit = event?.eventCapacity != null && event.eventCapacity > 0;
@@ -473,9 +475,11 @@ export default function EventDetailScreen() {
     return null;
   }, [event, hasCapacityLimit, hasEventEnded, isAtCapacity, isJoined, isOrganizer, isWaitlisted, leavePending, t]);
 
-  const canChangeRsvp = !hasEventEnded;
+  const canChangeRsvp = !hasEventEnded && isLiveEvent;
   const showRsvpFooter =
-    requiresRsvp && (canChangeRsvp || isJoined || isWaitlisted || leavePending);
+    isLiveEvent &&
+    requiresRsvp &&
+    (canChangeRsvp || isJoined || isWaitlisted || leavePending);
 
   if (loading) {
     return (
@@ -556,6 +560,23 @@ export default function EventDetailScreen() {
           ) : null}
         </View>
 
+        {reviewStatus === "pending" ? (
+          <View style={styles.reviewBannerPending}>
+            <Text style={styles.reviewBannerTitle}>{t("notices.statusPending")}</Text>
+            <Text style={styles.reviewBannerBody}>{t("notices.eventPendingReviewHint")}</Text>
+          </View>
+        ) : null}
+        {reviewStatus === "rejected" ? (
+          <View style={styles.reviewBannerRejected}>
+            <Text style={styles.reviewBannerTitle}>{t("notices.statusRejected")}</Text>
+            <Text style={styles.reviewBannerBody}>
+              {event.rejectionReason?.trim()
+                ? `${t("notices.eventRejectedHint")} ${event.rejectionReason.trim()}`
+                : t("notices.eventRejectedHint")}
+            </Text>
+          </View>
+        ) : null}
+
         {scheduleItems.length > 0 ? (
           <View style={styles.eventDetailContainer}>
             {scheduleItems.map((item) => (
@@ -576,7 +597,7 @@ export default function EventDetailScreen() {
           </View>
         ) : null}
 
-        {requiresRsvp ? (
+        {requiresRsvp && isLiveEvent ? (
           <View style={styles.section}>
             <View style={styles.attendeeHeader}>
               <Text style={styles.attendeeTitle}>{t('events.whosGoing')}</Text>
@@ -992,6 +1013,37 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#101828",
     fontFamily: Fonts.bold,
+  },
+  reviewBannerPending: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+  reviewBannerRejected: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  reviewBannerTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(13),
+    fontWeight: "700",
+    color: "#1E293B",
+  },
+  reviewBannerBody: {
+    marginTop: 4,
+    fontFamily: Fonts.regular,
+    fontSize: sf(12),
+    lineHeight: sf(17),
+    color: "#475569",
   },
   eventSubtitle: {
     marginTop: 6,

@@ -401,6 +401,10 @@ export default function RootLayout() {
           options={{ headerShown: false, contentStyle: styles.screen }}
         />
         <Stack.Screen
+          name="screens/admin-community-events/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="screens/admin-bookings/index"
           options={{ headerShown: false }}
         />

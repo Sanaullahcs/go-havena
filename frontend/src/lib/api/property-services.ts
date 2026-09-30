@@ -224,6 +224,11 @@ export async function fetchCommunityUnits(communityId: number) {
   return (data.data ?? []) as CommunityUnit[];
 }
 
+export async function createCommunityUnit(communityId: number, unit_number: string) {
+  const { data } = await api.post(`/v1/communities/${communityId}/units`, { unit_number });
+  return data.data as CommunityUnit;
+}
+
 export async function fetchMyUnit() {
   const { data } = await api.get("/v1/units/mine");
   return (data.data ?? null) as CommunityUnit | null;
@@ -242,6 +247,10 @@ export async function createAdminUnit(payload: { unit_number: string; kind?: "re
 export async function updateAdminUnit(id: number, payload: Partial<{ unit_number: string; status: string; kind: string }>) {
   const { data } = await api.patch(`/v1/admin/units/${id}`, payload, { params: communityParams() });
   return data.data as CommunityUnit;
+}
+
+export async function deleteAdminUnit(id: number) {
+  await api.delete(`/v1/admin/units/${id}`, { params: communityParams() });
 }
 
 export async function transferUnitBillingContact(id: number, userId: number) {

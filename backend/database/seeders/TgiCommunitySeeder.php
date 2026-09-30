@@ -27,7 +27,7 @@ class TgiCommunitySeeder extends Seeder
 {
     public const COMMUNITY_NAME = 'TGI';
 
-    public const COMMUNITY_ADDRESS = 'TGI Community, Lahore, Punjab, Pakistan';
+    public const COMMUNITY_ADDRESS = 'DHA Phase 5, Lahore, Punjab 54000, Pakistan';
 
     public const INVITE_CODE = 'TGI-2026';
 
@@ -101,7 +101,7 @@ class TgiCommunitySeeder extends Seeder
                 'region' => $region->title,
                 'region_id' => $region->id,
                 'address' => self::COMMUNITY_ADDRESS,
-                'description' => 'TGI residential community in Lahore for local testing.',
+                'description' => 'Gated residential community in DHA Lahore with clubhouse, pool, fitness studio, and 24/7 security. Residents use Havena for notices, amenities, marketplace, and neighborhood connections.',
                 'timezone' => 'Asia/Karachi',
                 'status' => 'active',
                 'review_status' => 'approved',

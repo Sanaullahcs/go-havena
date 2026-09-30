@@ -133,6 +133,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/communities/self-serve',     [CommunityController::class, 'selfServeCreate']);
         Route::post('/communities/{id}/join',      [CommunityController::class, 'join']);
         Route::get('/communities/{id}/units',      [UnitController::class, 'communityIndex'])->whereNumber('id');
+        Route::post('/communities/{id}/units',     [UnitController::class, 'communityStore'])->whereNumber('id');
         Route::get('/units/mine',                  [UnitController::class, 'mine']);
         Route::post('/units/mine/billing-contact-transfers', [UnitController::class, 'requestTransfer']);
         Route::patch('/billing-contact-transfers/{id}/accept', [UnitController::class, 'acceptTransfer'])->whereNumber('id');
@@ -477,6 +478,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('/units',                          [UnitController::class, 'adminIndex']);
                 Route::post('/units',                         [UnitController::class, 'adminStore']);
                 Route::patch('/units/{id}',                   [UnitController::class, 'adminUpdate'])->whereNumber('id');
+                Route::delete('/units/{id}',                  [UnitController::class, 'adminDestroy'])->whereNumber('id');
                 Route::patch('/units/{id}/billing-contact',   [UnitController::class, 'adminTransfer'])->whereNumber('id');
                 Route::get('/property-services',              [PropertyServiceController::class, 'adminIndex']);
                 Route::post('/property-services',             [PropertyServiceController::class, 'store']);

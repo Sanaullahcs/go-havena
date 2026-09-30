@@ -46,6 +46,8 @@ import {
   updateUser,
 } from "@/lib/auth/session";
 import { emptyPhoneField, phoneFieldFromE164, type PhoneFieldState } from "@/lib/phone/format";
+import { UnitPickerField } from "@/components/admin/unit-picker-field";
+import { createAdminUnit, fetchAdminUnits } from "@/lib/api/property-services";
 
 function isPdfFile(file: File | string | null): boolean {
   if (!file) return false;
@@ -455,23 +457,37 @@ function CompleteProfileInner() {
           error={unitErr}
           hint="Your unit or office identifier within the community"
         >
-          <input
+          <UnitPickerField
             id="profile-unit"
-            type="text"
-            maxLength={unitNumber.length > unitMax ? undefined : unitMax}
-            className={inputClass(
-              unitErr,
-              "h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-600/20",
-            )}
+            dataField="unitNumber"
             value={unitNumber}
-            onChange={(e) => {
-              setUnitNumber(applyCharacterLimit(unitNumber, e.target.value, unitMax));
+            placeholder="Select unit"
+            unitMax={unitMax}
+            error={unitErr}
+            loadUnits={async () => {
+              const rows = await fetchAdminUnits();
+              return rows
+                .filter((row) => row.kind !== "office")
+                .map((row) => ({
+                  id: row.id,
+                  unit_number: row.unit_number,
+                  resident_count: row.resident_count ?? 0,
+                }));
+            }}
+            createUnit={async (num) => {
+              const created = await createAdminUnit({ unit_number: num });
+              return {
+                id: created.id,
+                unit_number: created.unit_number,
+                resident_count: created.resident_count ?? 0,
+              };
+            }}
+            onChange={(num) => {
+              setUnitNumber(applyCharacterLimit(unitNumber, num, unitMax));
               clearError("unitNumber");
               setFormError(null);
             }}
             onBlur={() => touch("unitNumber")}
-            placeholder="e.g. 101 or Admin Office"
-            aria-invalid={Boolean(unitErr)}
           />
         </OnboardingField>
         ) : null}

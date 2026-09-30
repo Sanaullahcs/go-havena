@@ -35,18 +35,47 @@ import { resolveLoadRestriction } from "../../utils/account-access-sync";
 import { useTranslation } from "react-i18next";
 import { localizedField } from "../../i18n";
 import { rnShadow } from "../../utils/shadow";
+import { getUser } from "../../services/auth-session";
+import { isCommunityAdminRole, isGuestUser, isResidentMode } from "../../services/community-access";
 
 
-const TABS = [
+const BASE_TABS = [
   { id: "all", labelKey: "notices.tabAll" },
   { id: "events", labelKey: "notices.tabEvents", categoryGroup: "events" },
+  { id: "yours", labelKey: "notices.tabYours", mineOnly: true, residentOnly: true },
   { id: "alerts", labelKey: "notices.tabAlerts", categoryGroup: "alerts" },
   { id: "notices", labelKey: "notices.tabNotice", categoryGroup: "notices" },
   { id: "saved", labelKey: "notices.tabSaved", savedOnly: true },
 ];
 
+function reviewStatusMeta(notice, t) {
+  const status = notice.reviewStatus ?? "approved";
+  if (status === "pending") {
+    return {
+      bg: "#FEF3C7",
+      dot: "#F59E0B",
+      color: "#B45309",
+      label: t("notices.statusPending"),
+    };
+  }
+  if (status === "rejected") {
+    return {
+      bg: "#FEF2F2",
+      dot: "#EF4444",
+      color: "#B91C1C",
+      label: t("notices.statusRejected"),
+    };
+  }
+  return {
+    bg: "#ECFDF5",
+    dot: "#059669",
+    color: "#047857",
+    label: t("notices.statusApproved"),
+  };
+}
+
 function noticePermissionFeature(tab) {
-  if (tab?.categoryGroup === "events") return "events";
+  if (tab?.categoryGroup === "events" || tab?.mineOnly) return "events";
   return "notices";
 }
 
@@ -70,16 +99,42 @@ export default function Notifications() {
   const [error, setError] = useState(null);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [showYoursTab, setShowYoursTab] = useState(false);
   const { unread: unreadNotifications } = useNotificationUnread();
   const hasLoadedRef = useRef(false);
   const listRef = useRef(null);
+
+  const tabs = useMemo(
+    () => BASE_TABS.filter((tab) => !tab.residentOnly || showYoursTab),
+    [showYoursTab],
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query.trim()), 350);
     return () => clearTimeout(timer);
   }, [query]);
 
-  const currentTab = TABS.find((t) => t.id === selectedTab);
+  const currentTab = tabs.find((tab) => tab.id === selectedTab) ?? tabs[0];
+
+  useEffect(() => {
+    getUser()
+      .then((user) =>
+        setShowYoursTab(
+          Boolean(
+            user &&
+              !isGuestUser(user) &&
+              (!isCommunityAdminRole(user) || isResidentMode(user)),
+          ),
+        ),
+      )
+      .catch(() => setShowYoursTab(false));
+  }, []);
+
+  useEffect(() => {
+    if (!tabs.some((tab) => tab.id === selectedTab)) {
+      setSelectedTab("all");
+    }
+  }, [tabs, selectedTab]);
 
   const load = useCallback(
     async (silent = false) => {
@@ -95,10 +150,11 @@ export default function Notifications() {
         }
 
         const isSavedTab = currentTab?.savedOnly;
+        const isMineTab = currentTab?.mineOnly;
         const apiCategoryGroup =
-          currentTab?.categoryGroup && !isSavedTab ? currentTab.categoryGroup : undefined;
+          currentTab?.categoryGroup && !isSavedTab && !isMineTab ? currentTab.categoryGroup : undefined;
         const apiCategory =
-          currentTab?.category && !isSavedTab && !apiCategoryGroup
+          currentTab?.category && !isSavedTab && !apiCategoryGroup && !isMineTab
             ? currentTab.category
             : undefined;
 
@@ -111,6 +167,7 @@ export default function Notifications() {
           search: debouncedQuery || undefined,
           perPage: isSavedTab ? 100 : 50,
           includeExpired: true,
+          mine: isMineTab,
         });
 
         let items = data;
@@ -183,6 +240,8 @@ export default function Notifications() {
       const rsvpLabel = isEventNotice(notice) ? formatEventRsvpLabel(notice) : null;
       const cardDate = formatCardDate(notice);
       const categoryLabel = t(`categories.${notice.category ?? "general"}`, { defaultValue: notice.categoryLabel || notice.theme?.label || t("notices.notice") });
+      const showReviewStatus = selectedTab === "yours" && isEventNotice(notice);
+      const reviewPill = showReviewStatus ? reviewStatusMeta(notice, t) : null;
 
       return (
         <TouchableOpacity
@@ -200,10 +259,20 @@ export default function Notifications() {
 
             <View style={styles.cardContent}>
               <View style={styles.cardTopRow}>
-                <View style={styles.categoryChip}>
-                  <Text style={styles.categoryChipText} numberOfLines={1}>
-                    {String(categoryLabel).toUpperCase()}
-                  </Text>
+                <View style={styles.cardTopChips}>
+                  <View style={styles.categoryChip}>
+                    <Text style={styles.categoryChipText} numberOfLines={1}>
+                      {String(categoryLabel).toUpperCase()}
+                    </Text>
+                  </View>
+                  {reviewPill ? (
+                    <View style={[styles.reviewPill, { backgroundColor: reviewPill.bg }]}>
+                      <View style={[styles.reviewPillDot, { backgroundColor: reviewPill.dot }]} />
+                      <Text style={[styles.reviewPillText, { color: reviewPill.color }]} numberOfLines={1}>
+                        {reviewPill.label}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
                 <TouchableOpacity
                   onPress={() => toggleSaved(notice.id)}
@@ -259,7 +328,7 @@ export default function Notifications() {
         </TouchableOpacity>
       );
     },
-    [openNotice, savedIds, toggleSaved, t],
+    [openNotice, savedIds, selectedTab, toggleSaved, t],
   );
 
   const listEmpty = useMemo(() => {
@@ -331,6 +400,13 @@ export default function Notifications() {
             title: t("notices.emptyTitleSaved", { defaultValue: "Nothing saved yet" }),
             hint: t("notices.emptyHintSaved", {
               defaultValue: "Notices you save will appear here.",
+            }),
+          };
+        case "yours":
+          return {
+            title: t("notices.emptyTitleYours", { defaultValue: "No events submitted yet" }),
+            hint: t("notices.emptyHintYours", {
+              defaultValue: "Events you create will appear here with Pending, Approved, or Rejected status.",
             }),
           };
         default:
@@ -423,7 +499,7 @@ export default function Notifications() {
           style={styles.tabsList}
           contentContainerStyle={styles.tabsContainer}
         >
-          {TABS.map((tab) => (
+          {tabs.map((tab) => (
             <TouchableOpacity
               key={tab.id}
               style={[styles.tab, selectedTab === tab.id && styles.activeTab]}
@@ -592,8 +668,16 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: sw(8),
   },
+  cardTopChips: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: sw(6),
+  },
   categoryChip: {
-    maxWidth: "80%",
+    maxWidth: "100%",
     paddingHorizontal: sw(8),
     paddingVertical: sw(3),
     borderRadius: 999,
@@ -606,6 +690,27 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.4,
     color: "#1B4F8A",
+  },
+  reviewPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(4),
+    paddingHorizontal: sw(7),
+    paddingVertical: sw(3),
+    borderRadius: 999,
+    maxWidth: "100%",
+  },
+  reviewPillDot: {
+    width: sw(5),
+    height: sw(5),
+    borderRadius: sw(3),
+  },
+  reviewPillText: {
+    fontFamily: Fonts.semibold,
+    fontSize: sf(9),
+    lineHeight: sf(12),
+    fontWeight: "600",
+    flexShrink: 1,
   },
   cardTitle: {
     fontFamily: Fonts.semibold,

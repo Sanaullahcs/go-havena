@@ -45,6 +45,22 @@ export async function fetchCommunityUnits(communityId) {
   return res.data ?? [];
 }
 
+export async function createCommunityUnit(communityId, unit_number) {
+  const res = await apiRequest(`/communities/${communityId}/units`, {
+    method: "POST",
+    body: { unit_number },
+  });
+  return res.data;
+}
+
+export async function createAdminUnit(unit_number) {
+  const res = await apiRequest("/admin/units", {
+    method: "POST",
+    body: { unit_number },
+  });
+  return res.data;
+}
+
 export async function fetchMyUnit() {
   const res = await apiRequest("/units/mine");
   return res.data ?? null;

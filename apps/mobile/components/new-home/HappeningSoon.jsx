@@ -24,6 +24,9 @@ import { localizedField } from "../../i18n";
 
 const PEEK = sw(28);
 const CARD_RADIUS = sw(16);
+/** Fixed text block so every carousel card matches (image height + this). */
+const EVENT_BODY_H = sw(96);
+const META_ROW_H = sw(17);
 
 function mapEventToCard(notice, lang) {
   return {
@@ -42,16 +45,23 @@ function mapEventToCard(notice, lang) {
 }
 
 function EventCard({ item, width, imageH, onPress }) {
+  const cardH = imageH + EVENT_BODY_H;
+  const metaLines = [
+    { icon: "clock", text: item.time },
+    { icon: "map-pin", text: item.location },
+    { icon: "users", text: item.rsvp },
+  ];
+
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
-        { width },
+        { width, height: cardH },
         pressed && styles.cardPressed,
       ]}
     >
-      <View style={styles.cardInner}>
+      <View style={[styles.cardInner, { height: cardH }]}>
         <View style={[styles.imageWrap, { height: imageH }]}>
           <NoticeCoverMedia
             fill
@@ -63,39 +73,31 @@ function EventCard({ item, width, imageH, onPress }) {
           {item.date ? (
             <View style={styles.dateBadge}>
               <Feather name="calendar" size={sf(10)} color={T.navy} />
-              <Text style={styles.dateBadgeText}>{item.date}</Text>
+              <Text style={styles.dateBadgeText} numberOfLines={1}>
+                {item.date}
+              </Text>
             </View>
           ) : null}
         </View>
 
         <View style={styles.body}>
-          <Text style={styles.title} numberOfLines={2}>
+          <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
             {item.title}
           </Text>
-          {item.time ? (
-            <View style={styles.metaRow}>
-              <Feather name="clock" size={sf(12)} color={T.teal} />
-              <Text style={styles.metaText} numberOfLines={1}>
-                {item.time}
-              </Text>
-            </View>
-          ) : null}
-          {item.location ? (
-            <View style={styles.metaRow}>
-              <Feather name="map-pin" size={sf(12)} color={T.teal} />
-              <Text style={styles.metaText} numberOfLines={1}>
-                {item.location}
-              </Text>
-            </View>
-          ) : null}
-          {item.rsvp ? (
-            <View style={styles.metaRow}>
-              <Feather name="users" size={sf(12)} color={T.teal} />
-              <Text style={styles.metaText} numberOfLines={1}>
-                {item.rsvp}
-              </Text>
-            </View>
-          ) : null}
+          <View style={styles.metaBlock}>
+            {metaLines.map(({ icon, text }) => (
+              <View key={icon} style={styles.metaRow}>
+                {text ? (
+                  <>
+                    <Feather name={icon} size={sf(12)} color={T.teal} />
+                    <Text style={styles.metaText} numberOfLines={1} ellipsizeMode="tail">
+                      {text}
+                    </Text>
+                  </>
+                ) : null}
+              </View>
+            ))}
+          </View>
         </View>
       </View>
     </Pressable>
@@ -144,7 +146,7 @@ export default function HappeningSoon({ items = [] }) {
 
   const renderItem = useCallback(
     ({ item }) => (
-      <View style={{ width: layout.cardWidth, flexShrink: 0 }}>
+      <View style={{ width: layout.cardWidth, height: layout.imageH + EVENT_BODY_H, flexShrink: 0 }}>
         <EventCard
           item={item}
           width={layout.cardWidth}
@@ -185,7 +187,7 @@ export default function HappeningSoon({ items = [] }) {
         <FlatList
           data={events}
           horizontal
-          style={[styles.carousel, { minHeight: layout.imageH + sw(96) }]}
+          style={[styles.carousel, { height: layout.imageH + EVENT_BODY_H }]}
           showsHorizontalScrollIndicator={false}
           decelerationRate="fast"
           snapToInterval={layout.snap}
@@ -252,24 +254,30 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   body: {
+    height: EVENT_BODY_H,
     paddingHorizontal: sw(10),
     paddingTop: sw(10),
     paddingBottom: sw(12),
+    overflow: "hidden",
   },
   title: {
     fontFamily: Fonts.bold,
     fontSize: sf(13),
     lineHeight: sf(17),
+    height: sf(17),
     color: T.navy,
     fontWeight: "700",
     marginBottom: sw(6),
     writingDirection: "auto",
   },
+  metaBlock: {
+    height: META_ROW_H * 3,
+  },
   metaRow: {
+    height: META_ROW_H,
     flexDirection: "row",
     alignItems: "center",
     gap: sw(5),
-    marginTop: sw(3),
   },
   metaText: {
     fontFamily: Fonts.regular,

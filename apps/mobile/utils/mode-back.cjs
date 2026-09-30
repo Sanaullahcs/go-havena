@@ -32,23 +32,37 @@ function isResidentOrAuthRoute(name) {
   );
 }
 
+/** Screens opened from both resident home and admin hub — always pop the stack when possible. */
+function isSharedScreenRoute(name) {
+  const n = routeName(name);
+  return (
+    n.includes("notification") ||
+    n.includes("screens/settings") ||
+    n.includes("screens/messages")
+  );
+}
+
 /**
- * Decide Back without throwing or leaving Community Admin Mode.
+ * Decide Back without throwing or leaving Community Admin Mode on admin-only screens.
  * previousRouteName empty means we could not inspect the stack.
  */
 function resolveBackAction({ canGoBack, previousRouteName, currentRouteName, isAdminMode }) {
   const prev = routeName(previousRouteName);
   const current = routeName(currentRouteName);
 
-  if (isAdminMode && prev && isResidentOrAuthRoute(prev)) {
-    if (current.includes("admin-dashboard")) return { type: "stay" };
-    return { type: "replace", path: "/screens/admin-dashboard" };
+  if (isSharedScreenRoute(current) && canGoBack) {
+    return { type: "back" };
   }
 
   if (canGoBack) return { type: "back" };
 
   if (isAdminMode) {
-    if (current.includes("admin-dashboard")) return { type: "stay" };
+    if (current.includes("admin-dashboard")) {
+      return { type: "replace", path: "/(tabs)/home" };
+    }
+    if (prev && isResidentOrAuthRoute(prev)) {
+      return { type: "replace", path: "/screens/admin-dashboard" };
+    }
     return { type: "replace", path: "/screens/admin-dashboard" };
   }
 
@@ -73,6 +87,7 @@ function currentRouteNameFromState(state) {
 const modeBack = {
   isAdminStackRoute,
   isResidentOrAuthRoute,
+  isSharedScreenRoute,
   resolveBackAction,
   previousRouteNameFromState,
   currentRouteNameFromState,

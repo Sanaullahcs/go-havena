@@ -40,7 +40,21 @@ class LocationCatalog
         }
 
         $state->loadMissing('country');
-        $title = $state->name.' - '.$cityName;
+        $normalizedCity = mb_strtolower($cityName);
+
+        $existing = Region::query()
+            ->where('state_id', $state->id)
+            ->where('status', 'active')
+            ->whereRaw('LOWER(TRIM(area)) = ?', [$normalizedCity])
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        $title = $this->cityRegionTitle($state, $cityName);
 
         return Region::query()->updateOrCreate(
             [
@@ -109,5 +123,16 @@ class LocationCatalog
         $countryName = $country?->name ?: 'Worldwide';
 
         return Str::limit($countryName.' - '.$state->name, 150, '');
+    }
+
+    private function cityRegionTitle(State $state, string $cityName): string
+    {
+        if ($state->country?->code === 'US') {
+            return Str::limit($state->name.' - '.$cityName, 150, '');
+        }
+
+        $countryName = $state->country?->name ?: 'Worldwide';
+
+        return Str::limit($countryName.' - '.$cityName, 150, '');
     }
 }

@@ -12,7 +12,8 @@ import { FormPhoneInput } from "../../../components/ui/phone-input";
 import { Image } from "expo-image";
 import { pickImage } from "../../../utils/pickImage";
 import { updateProfile, joinCommunity, fetchMe } from "../../../services/auth-api";
-import { fetchCommunityUnits } from "../../../services/property-services-api";
+import { createCommunityUnit, fetchCommunityUnits } from "../../../services/property-services-api";
+import UnitPickerField from "../../../components/ui/unit-picker-field";
 import {
   checkFamilyNumberAvailability,
   ensureMyFamily,
@@ -131,7 +132,6 @@ export default function CompleteProfile() {
   const [bio, setBio] = useState("");
   const [unitNumber, setUnitNumber] = useState("");
   const [officeAddress, setOfficeAddress] = useState("");
-  const [existingUnits, setExistingUnits] = useState([]);
   const [familyNumber, setFamilyNumber] = useState("");
   const [familyNumberError, setFamilyNumberError] = useState(null);
   const [familyNumberChecking, setFamilyNumberChecking] = useState(false);
@@ -533,11 +533,6 @@ export default function CompleteProfile() {
         setBio(fields.bio ?? "");
         setUnitNumber(isPlaceholderUnitNumber(fields.unitNumber) ? "" : (fields.unitNumber ?? ""));
         setOfficeAddress(fields.officeAddress ?? user.profile?.office_address ?? "");
-        if (communityId && !isCommunityAdminProfile) {
-          fetchCommunityUnits(Number(communityId))
-            .then((rows) => { if (!cancelled) setExistingUnits(Array.isArray(rows) ? rows : []); })
-            .catch(() => { if (!cancelled) setExistingUnits([]); });
-        }
         const rawResidence = user.profile?.residence_type ?? user.residence_type ?? "";
         setResidenceType(isPlaceholderResidenceType(rawResidence) ? "" : rawResidence);
         setExistingUtilityBillUrl(fields.utilityBillUrl);
@@ -1143,81 +1138,43 @@ export default function CompleteProfile() {
 
             {showUnitNumber ? (
             <View ref={unitFieldRef} collapsable={false} style={styles.fieldGroup}>
-              <Text style={styles.inputText}>
-                {t("onboarding.unitNumber")}
-                {!isGuestProfile ? <Text style={styles.requiredMark}> *</Text> : null}
-              </Text>
-              <View
-                style={[
-                  styles.inputBox,
-                  isEditMode && styles.inputBoxDisabled,
-                  !isEditMode && showError("unitNumber", liveErrors) && styles.inputError,
-                ]}
-                pointerEvents={isEditMode ? "none" : "auto"}
-              >
-                <LocaleTextInput
-                  style={[fieldTextStyle, isEditMode && styles.inputTextDisabled]}
-                  placeholder={t("onboarding.unitPlaceholder")}
-                  placeholderTextColor={PLACEHOLDER_COLOR}
-                  value={String(unitNumber ?? "")}
-                  onChangeText={(text) => {
-                    if (isEditMode) return;
-                    setUnitNumber(applyCharacterLimit(unitNumber, text, unitMax));
-                    clearError("unitNumber");
-                  }}
-                  onBlur={() => {
-                    if (isEditMode) return;
-                    touch("unitNumber");
-                  }}
-                  onFocus={() => {
-                    if (isEditMode) return;
-                    handleFieldFocus(unitFieldRef);
-                  }}
-                  editable={!isEditMode}
-                  selectTextOnFocus={false}
-                  maxLength={
-                    isEditMode
-                      ? undefined
-                      : String(unitNumber ?? "").length > unitMax
-                        ? undefined
-                        : unitMax
-                  }
-                  autoComplete="off"
-                  textContentType="none"
-                  importantForAutofill="no"
-                  underlineColorAndroid="transparent"
-                  textAlignVertical="center"
-                />
-              </View>
-              {!isEditMode && showError("unitNumber", liveErrors) ? (
-                <Text style={styles.errorText}>{showError("unitNumber", liveErrors)}</Text>
-              ) : null}
-              {!isEditMode && existingUnits.length > 0 ? (
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-                  {existingUnits.slice(0, 12).map((unit) => (
-                    <TouchableOpacity
-                      key={unit.id}
-                      onPress={() => {
-                        setUnitNumber(unit.unit_number);
-                        clearError("unitNumber");
-                      }}
-                      style={{
-                        borderWidth: 1,
-                        borderColor: unitNumber === unit.unit_number ? T.teal : "#CBD5E1",
-                        backgroundColor: unitNumber === unit.unit_number ? "#CCFBF1" : "#fff",
-                        borderRadius: 999,
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
-                      }}
-                    >
-                      <Text style={{ color: T.navy, fontSize: 12, fontFamily: Fonts.bold }}>
-                        {unit.unit_number}
-                        {unit.billing_contact?.name ? ` · ${unit.billing_contact.name}` : ""}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              ) : null}
+              <UnitPickerField
+                label={
+                  isGuestProfile
+                    ? t("onboarding.unitNumber")
+                    : `${t("onboarding.unitNumber")} *`
+                }
+                value={String(unitNumber ?? "")}
+                disabled={isEditMode}
+                placeholder={t("onboarding.unitPlaceholder")}
+                unitMax={unitMax}
+                error={!isEditMode && showError("unitNumber", liveErrors) ? showError("unitNumber", liveErrors) : undefined}
+                onBlur={() => {
+                  if (!isEditMode) touch("unitNumber");
+                }}
+                onChange={(text) => {
+                  if (isEditMode) return;
+                  setUnitNumber(applyCharacterLimit(unitNumber, text, unitMax));
+                  clearError("unitNumber");
+                }}
+                loadUnits={
+                  communityId && !isCommunityAdminProfile
+                    ? async () => {
+                        const rows = await fetchCommunityUnits(Number(communityId));
+                        return (rows ?? []).map((unit) => ({
+                          id: unit.id,
+                          unit_number: unit.unit_number,
+                          resident_count: unit.resident_count ?? 0,
+                        }));
+                      }
+                    : async () => []
+                }
+                createUnit={
+                  communityId && !isCommunityAdminProfile
+                    ? async (num) => createCommunityUnit(Number(communityId), num)
+                    : undefined
+                }
+              />
               {!isEditMode ? (
                 <Text style={styles.helperText}>
                   First resident on a new unit becomes the billing contact. Joining an existing unit does not change the contact.

@@ -63,6 +63,14 @@ class NoticeController extends Controller
         }
 
         $isAdmin = $this->isCommunityAdmin($user);
+        $mine = $request->boolean('mine');
+
+        if ($mine) {
+            app(\App\Services\CommunityFeatureService::class)->assertResidentCanAccess(
+                $user,
+                'events',
+            );
+        }
 
         $query = $this->baseQuery();
 
@@ -79,43 +87,63 @@ class NoticeController extends Controller
             });
         }
 
-        // Resident-facing list: only super-admin-approved, published notices.
-        $query->where('notices.status', 'published')
-            ->where('notices.review_status', 'approved');
+        if ($mine) {
+            $query->where('notices.author_id', (int) $user->id)
+                ->where('notices.category', 'event');
+        } else {
+            // Resident-facing list: only super-admin-approved, published notices.
+            $query->where('notices.status', 'published')
+                ->where('notices.review_status', 'approved');
 
-        // Default resident feed hides ended schedules (home). Community Updates can
-        // pass include_expired=1 to keep past notices/events/alerts in the archive list.
-        if (! $request->boolean('include_expired')) {
-            NoticeExpiry::applyVisibleScheduleFilter($query, 'notices', $communityId);
+            // Default resident feed hides ended schedules (home). Community Updates can
+            // pass include_expired=1 to keep past notices/events/alerts in the archive list.
+            if (! $request->boolean('include_expired')) {
+                NoticeExpiry::applyVisibleScheduleFilter($query, 'notices', $communityId);
+            }
+
+            if (! $this->isPlatformAdmin($user)) {
+                NoticeAudienceService::applyResidentVisibilityFilter($query, (int) $user->id);
+            }
         }
 
-        if (! $this->isPlatformAdmin($user)) {
-            NoticeAudienceService::applyResidentVisibilityFilter($query, (int) $user->id);
-        }
-
-        if ($request->filled('status') && $request->status !== 'all') {
+        if (! $mine && $request->filled('status') && $request->status !== 'all') {
             $query->where('notices.status', $request->status);
         }
         if ($request->filled('review_status') && $request->review_status !== 'all') {
             $query->where('notices.review_status', $request->review_status);
         }
-        if ($request->filled('category_group')) {
+        if ($mine) {
+            if ($request->filled('search')) {
+                $s = $request->search;
+                $query->where(function ($q) use ($s) {
+                    $q->where('notices.title', 'like', "%{$s}%")
+                        ->orWhere('notices.body', 'like', "%{$s}%")
+                        ->orWhere('notices.location', 'like', "%{$s}%");
+                });
+            }
+        } elseif ($request->filled('category_group')) {
             $this->applyCategoryGroupFilter($query, $request->input('category_group'), $request->input('category'));
         } elseif ($request->filled('category') && $request->category !== 'all') {
             $query->where('notices.category', $this->normalizeCategory($request->category));
         }
-        $allowedNoticeCategories = app(\App\Services\CommunityFeatureService::class)
-            ->allowedNoticeCategories($user, $communityId);
-        if (is_array($allowedNoticeCategories)) {
-            $query->whereIn('notices.category', $allowedNoticeCategories);
+        if (! $mine) {
+            $allowedNoticeCategories = app(\App\Services\CommunityFeatureService::class)
+                ->allowedNoticeCategories($user, $communityId);
+            if (is_array($allowedNoticeCategories)) {
+                $query->whereIn('notices.category', $allowedNoticeCategories);
+            }
         }
-        if ($request->filled('search')) {
+        if (! $mine && $request->filled('search')) {
             $s = $request->search;
             $query->where(function ($q) use ($s) {
                 $q->where('notices.title', 'like', "%{$s}%")
                     ->orWhere('notices.body', 'like', "%{$s}%")
                     ->orWhere('notices.location', 'like', "%{$s}%");
             });
+        }
+
+        if ($mine && ! $request->boolean('include_expired')) {
+            NoticeExpiry::applyVisibleScheduleFilter($query, 'notices', $communityId);
         }
 
         $notices = $this->applyNoticeOrdering($query, $communityId)
@@ -239,19 +267,26 @@ class NoticeController extends Controller
         }
 
         $user = auth()->user();
+        $isAuthor = $user && (int) $notice->author_id === (int) $user->id;
 
         if ($notice->status !== 'published' || $notice->review_status !== 'approved') {
-            if (! $this->isPlatformAdmin($user)) {
+            if (! $this->isPlatformAdmin($user) && ! $isAuthor) {
                 return response()->json(['message' => 'Notice not found'], 404);
             }
-        } elseif (! $notice->is_global) {
+        }
+
+        if (! $notice->is_global) {
             $communityId = $this->resolveCommunityId(request(), $user);
             if ((int) $notice->community_id !== $communityId) {
                 return response()->json(['message' => 'Notice not found'], 404);
             }
         }
 
-        if (! $this->isPlatformAdmin($user) && ! NoticeAudienceService::canUserViewNotice($notice, (int) $user->id)) {
+        if (
+            ! $this->isPlatformAdmin($user)
+            && ! $isAuthor
+            && ! NoticeAudienceService::canUserViewNotice($notice, (int) $user->id)
+        ) {
             return response()->json(['message' => 'Notice not found'], 404);
         }
 

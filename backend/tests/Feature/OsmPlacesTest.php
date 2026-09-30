@@ -251,6 +251,45 @@ class OsmPlacesTest extends TestCase
             ->assertJsonPath('data.1.phone', null);
     }
 
+    public function test_nearby_places_uses_demo_fallback_for_tgi_when_overpass_fails(): void
+    {
+        config(['osm.geocode_in_tests' => true]);
+
+        Http::fake([
+            'overpass-api.de/*' => Http::response(['elements' => []], 503),
+            'overpass.osm.ch/*' => Http::response(['elements' => []], 503),
+            'overpass.kumi.systems/*' => Http::response(['elements' => []], 503),
+        ]);
+
+        $region = $this->activeRegion();
+        $community = Community::query()->create([
+            'name' => \Database\Seeders\TgiCommunitySeeder::COMMUNITY_NAME,
+            'region_id' => $region->id,
+            'region' => $region->title,
+            'address' => 'DHA Phase 5, Lahore',
+            'latitude' => 31.4754244,
+            'longitude' => 74.4014853,
+            'status' => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        $resident = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        CommunityMembership::query()->create([
+            'user_id' => $resident->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+        ]);
+
+        Sanctum::actingAs($resident);
+
+        $this->getJson('/api/v1/nearby-places?all=1&community_id='.$community->id)
+            ->assertOk()
+            ->assertJsonPath('meta.overpass_failed', false)
+            ->assertJsonPath('data.cafes.0.name', 'Espresso Zone DHA')
+            ->assertJsonPath('data.pharmacies.0.phone', '+92 300 765 4321');
+    }
+
     public function test_nearby_places_filters_results_beyond_3km(): void
     {
         $this->fakeOsmApis();

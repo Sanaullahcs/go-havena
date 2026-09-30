@@ -29,6 +29,10 @@ import { sw, sf } from "../../../utils/responsive";
 const ICON_SIZE = sw(36);
 const UNREAD_DOT = sw(8);
 const PAGE_SIZE = 15;
+const TITLE_LINE_H = sf(18);
+const DESC_LINE_H = sf(18);
+const DESC_LINES = 2;
+const TIME_LINE_H = sf(14);
 
 function NotificationRow({ item, onPress }) {
   return (
@@ -39,9 +43,23 @@ function NotificationRow({ item, onPress }) {
             <Image source={item.icon} style={styles.itemIcon} />
           </View>
           <View style={styles.itemBody}>
-            <Text style={styles.notificationTitle}>{item.title}</Text>
-            <Text style={styles.notificationDescription}>{item.description}</Text>
-            <Text style={styles.notificationTime}>{item.time}</Text>
+            <Text
+              style={styles.notificationTitle}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {item.title}
+            </Text>
+            <Text
+              style={styles.notificationDescription}
+              numberOfLines={DESC_LINES}
+              ellipsizeMode="tail"
+            >
+              {item.description?.trim() ? item.description : " "}
+            </Text>
+            <Text style={styles.notificationTime} numberOfLines={1} ellipsizeMode="tail">
+              {item.time}
+            </Text>
           </View>
         </View>
         {!item.read ? (
@@ -340,10 +358,11 @@ const styles = StyleSheet.create({
     borderRadius: sw(14),
     padding: sw(14),
     flexDirection: "row",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     overflow: "hidden",
     marginBottom: sw(10),
-    flex: 1,
+    minHeight: ICON_SIZE + sw(4),
   },
   notificationItemRead: {
     borderColor: "rgba(148, 163, 184, 1)",
@@ -368,7 +387,8 @@ const styles = StyleSheet.create({
   notificationTitle: {
     fontFamily: Fonts.bold,
     fontSize: sf(13),
-    lineHeight: sf(18),
+    lineHeight: TITLE_LINE_H,
+    height: TITLE_LINE_H,
     color: "rgba(15, 23, 42, 1)",
     fontWeight: "700",
     flexShrink: 1,
@@ -376,7 +396,8 @@ const styles = StyleSheet.create({
   notificationDescription: {
     fontFamily: Fonts.medium,
     fontSize: sf(12),
-    lineHeight: sf(18),
+    lineHeight: DESC_LINE_H,
+    height: DESC_LINE_H * DESC_LINES,
     color: "rgba(54, 65, 83, 1)",
     fontWeight: "500",
     flexShrink: 1,
@@ -385,7 +406,8 @@ const styles = StyleSheet.create({
   notificationTime: {
     fontFamily: Fonts.medium,
     fontSize: sf(11),
-    lineHeight: sf(14),
+    lineHeight: TIME_LINE_H,
+    height: TIME_LINE_H,
     color: "rgba(74, 85, 101, 1)",
     fontWeight: "500",
     marginTop: sw(4),

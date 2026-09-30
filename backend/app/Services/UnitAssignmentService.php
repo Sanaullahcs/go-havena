@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -23,6 +24,12 @@ class UnitAssignmentService
 
     public const PLACEHOLDER_UNITS = ['office', 'management office'];
 
+    public const DUPLICATE_UNIT_MESSAGE = 'This unit already exists in the community.';
+
+    public const CANNOT_DELETE_ASSIGNED_UNIT_MESSAGE = 'Remove all residents from this unit before deleting it.';
+
+    public const CANNOT_DELETE_OFFICE_UNIT_MESSAGE = 'Office units cannot be deleted.';
+
     public function normalizeUnitNumber(string $value): string
     {
         $trimmed = trim(preg_replace('/\s+/', ' ', $value) ?? $value);
@@ -35,6 +42,33 @@ class UnitAssignmentService
         $normalized = $this->normalizeUnitNumber((string) $value);
 
         return $normalized === '' || in_array($normalized, self::PLACEHOLDER_UNITS, true);
+    }
+
+    /** Case-insensitive lookup (matches admin create / update validation). */
+    public function findUnitByNormalizedNumber(int $communityId, string $normalized, ?int $exceptUnitId = null): ?object
+    {
+        $query = DB::table('units')
+            ->where('community_id', $communityId)
+            ->where(function ($builder) use ($normalized) {
+                $builder->where('unit_number_normalized', $normalized)
+                    ->orWhereRaw('LOWER(TRIM(unit_number)) = ?', [$normalized]);
+            });
+
+        if ($exceptUnitId) {
+            $query->where('id', '!=', $exceptUnitId);
+        }
+
+        return $query->first();
+    }
+
+    public function unitNumberExistsInCommunity(int $communityId, string $unitNumber, ?int $exceptUnitId = null): bool
+    {
+        $normalized = $this->normalizeUnitNumber($unitNumber);
+        if ($normalized === '') {
+            return false;
+        }
+
+        return $this->findUnitByNormalizedNumber($communityId, $normalized, $exceptUnitId) !== null;
     }
 
     public function listCommunityUnits(int $communityId, bool $includeOffice = false): array
@@ -201,29 +235,29 @@ class UnitAssignmentService
         }
 
         $normalized = $this->normalizeUnitNumber($unitNumber);
-        $existing = DB::table('units')
-            ->where('community_id', $communityId)
-            ->where('unit_number_normalized', $normalized)
-            ->first();
 
-        if ($existing) {
-            throw ValidationException::withMessages([
-                'unit_number' => 'This unit already exists in the community.',
-            ]);
-        }
+        return DB::transaction(function () use ($communityId, $unitNumber, $normalized, $kind) {
+            if ($this->findUnitByNormalizedNumber($communityId, $normalized)) {
+                $this->throwDuplicateUnitNumber();
+            }
 
-        $id = DB::table('units')->insertGetId([
-            'community_id' => $communityId,
-            'unit_number' => $unitNumber,
-            'unit_number_normalized' => $normalized,
-            'kind' => $kind === self::KIND_OFFICE ? self::KIND_OFFICE : self::KIND_RESIDENTIAL,
-            'status' => self::STATUS_ACTIVE,
-            'billing_contact_user_id' => null,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+            try {
+                $id = DB::table('units')->insertGetId([
+                    'community_id' => $communityId,
+                    'unit_number' => $unitNumber,
+                    'unit_number_normalized' => $normalized,
+                    'kind' => $kind === self::KIND_OFFICE ? self::KIND_OFFICE : self::KIND_RESIDENTIAL,
+                    'status' => self::STATUS_ACTIVE,
+                    'billing_contact_user_id' => null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            } catch (UniqueConstraintViolationException) {
+                $this->throwDuplicateUnitNumber();
+            }
 
-        return DB::table('units')->find($id);
+            return DB::table('units')->find($id);
+        });
     }
 
     public function updateUnit(int $communityId, int $unitId, array $data): object
@@ -236,15 +270,8 @@ class UnitAssignmentService
         if (isset($data['unit_number'])) {
             $unitNumber = trim((string) $data['unit_number']);
             $normalized = $this->normalizeUnitNumber($unitNumber);
-            $duplicate = DB::table('units')
-                ->where('community_id', $communityId)
-                ->where('unit_number_normalized', $normalized)
-                ->where('id', '!=', $unitId)
-                ->exists();
-            if ($duplicate) {
-                throw ValidationException::withMessages([
-                    'unit_number' => 'This unit already exists in the community.',
-                ]);
+            if ($this->findUnitByNormalizedNumber($communityId, $normalized, $unitId)) {
+                $this->throwDuplicateUnitNumber();
             }
             $updates['unit_number'] = $unitNumber;
             $updates['unit_number_normalized'] = $normalized;
@@ -272,6 +299,33 @@ class UnitAssignmentService
         }
 
         return DB::table('units')->find($unitId);
+    }
+
+    public function deleteUnit(int $communityId, int $unitId): void
+    {
+        $unit = DB::table('units')
+            ->where('id', $unitId)
+            ->where('community_id', $communityId)
+            ->first();
+
+        abort_if(! $unit, 404, 'Unit not found.');
+
+        if (($unit->kind ?? '') === self::KIND_OFFICE) {
+            throw ValidationException::withMessages([
+                'unit_id' => self::CANNOT_DELETE_OFFICE_UNIT_MESSAGE,
+            ]);
+        }
+
+        if ($this->residentMembersQuery($unitId)->exists()) {
+            throw ValidationException::withMessages([
+                'unit_id' => self::CANNOT_DELETE_ASSIGNED_UNIT_MESSAGE,
+            ]);
+        }
+
+        DB::transaction(function () use ($unitId) {
+            app(BillingContactTransferService::class)->cancelPendingForUnit($unitId, 'Unit was deleted.');
+            DB::table('units')->where('id', $unitId)->delete();
+        });
     }
 
     public function transferBillingContact(int $communityId, int $unitId, int $userId, bool $cancelPending = true): object
@@ -749,5 +803,12 @@ class UnitAssignmentService
             ->value('community_id');
 
         return $id ? (int) $id : null;
+    }
+
+    private function throwDuplicateUnitNumber(): never
+    {
+        throw ValidationException::withMessages([
+            'unit_number' => self::DUPLICATE_UNIT_MESSAGE,
+        ]);
     }
 }
