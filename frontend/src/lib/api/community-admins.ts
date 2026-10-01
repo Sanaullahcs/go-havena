@@ -52,6 +52,7 @@ export type CommunityAdminApplicant = {
   created_at?: string;
   profile?: {
     display_name?: string;
+    office_address?: string;
     unit_number?: string;
     residence_type?: string;
     avatar_url?: string | null;
@@ -168,8 +169,7 @@ export type UpdateCommunityAdminPayload = {
   email?: string;
   phone?: string | null;
   display_name?: string;
-  unit_number?: string;
-  residence_type?: "" | "homeowner" | "tenant";
+  office_address?: string;
 };
 
 export async function updateCommunityAdmin(
@@ -181,8 +181,7 @@ export async function updateCommunityAdmin(
     const form = new FormData();
     if (payload.name != null) form.append("name", payload.name);
     if (payload.phone != null) form.append("phone", payload.phone);
-    if (payload.unit_number != null) form.append("unit_number", payload.unit_number);
-    if (payload.residence_type) form.append("residence_type", payload.residence_type);
+    if (payload.office_address != null) form.append("office_address", payload.office_address);
     if (payload.display_name != null) form.append("display_name", payload.display_name);
     form.append("utility_bill", utilityBill);
     const res = await api.post(`/v1/admin/community-admins/${id}`, form);

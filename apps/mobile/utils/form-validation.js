@@ -6,6 +6,8 @@
 import { getPhoneValidationError } from "./phone";
 import { normalizeGuestPermissions } from "../constants/guest-permissions";
 import i18n from "../i18n";
+import { noticePlainTextError } from "./notice-text-validation";
+import { isScheduleEndBeforeStart, resolveEffectiveEndDate } from "./notice-schedule-window";
 
 export const LIMITS = {
   noticeTitle: 200,
@@ -149,6 +151,10 @@ export function validateNoticeForm(form, opts = {}) {
     max: LIMITS.noticeTitle,
   });
   if (titleErr) errors.title = titleErr;
+  else if (kind === "event") {
+    const plain = noticePlainTextError(form.title, i18n.t("validation.fields.eventName"), { i18n });
+    if (plain) errors.title = plain;
+  }
 
   const bodyErr = requiredText(form.body, "validation.fields.description", {
     min: LIMITS.noticeBodyMin,
@@ -162,6 +168,9 @@ export function validateNoticeForm(form, opts = {}) {
   }
   if (opts.requireLocation && !location) {
     errors.location = i18n.t("validation.locationRequired");
+  } else if (kind === "event" && location) {
+    const plain = noticePlainTextError(location, i18n.t("validation.fields.location"), { i18n });
+    if (plain) errors.location = plain;
   }
 
   if (kind === "notice") {
@@ -177,6 +186,9 @@ export function validateNoticeForm(form, opts = {}) {
       errors.event_date = i18n.t("validation.dateRequiredSchedule");
     }
     if (kind !== "alert") {
+      if (!resolveEffectiveEndDate(form.event_date, form.event_end_date).trim()) {
+        errors.event_end_date = i18n.t("validation.endDateRequired");
+      }
       if (!String(form.event_time ?? "").trim()) {
         errors.event_time = i18n.t("validation.startTimeRequiredSchedule");
       }
@@ -198,11 +210,18 @@ export function validateNoticeForm(form, opts = {}) {
   const scheduleKinds = ["notice", "event", "alert"];
   if (opts.publishNow && scheduleKinds.includes(kind)) {
     const dateLabelKey =
-      kind === "event" ? "validation.fields.eventDate" : kind === "alert" ? "validation.fields.alertDate" : "validation.fields.noticeDate";
+      kind === "event"
+        ? "validation.fields.startDate"
+        : kind === "alert"
+          ? "validation.fields.alertDate"
+          : "validation.fields.startDate";
     if (!String(form.event_date ?? "").trim()) {
       errors.event_date = i18n.t("validation.required", { field: i18n.t(dateLabelKey) });
     }
     if (kind !== "alert") {
+      if (!resolveEffectiveEndDate(form.event_date, form.event_end_date).trim()) {
+        errors.event_end_date = i18n.t("validation.endDateRequired");
+      }
       if (!String(form.event_time ?? "").trim()) {
         errors.event_time = i18n.t("validation.startTimeRequired");
       }
@@ -212,24 +231,28 @@ export function validateNoticeForm(form, opts = {}) {
     }
   }
 
-  if (form.event_time?.trim() && form.event_time_end?.trim()) {
-    const startMin = parseTimeMinutes(form.event_time);
-    const endMin = parseTimeMinutes(form.event_time_end);
-    if (startMin != null && endMin != null && startMin >= endMin) {
-      errors.event_time_end = i18n.t("validation.endAfterStart");
-    }
+  const effectiveEndDate = resolveEffectiveEndDate(form.event_date, form.event_end_date);
+  if (
+    form.event_date?.trim() &&
+    effectiveEndDate &&
+    effectiveEndDate < String(form.event_date).trim().slice(0, 10)
+  ) {
+    errors.event_end_date = i18n.t("validation.endDateBeforeStart");
   }
 
   if (
-    (kind === "event" || kind === "notice") &&
-    String(form.event_date ?? "").trim() &&
-    String(form.event_time_end ?? "").trim()
+    form.event_time?.trim() &&
+    form.event_time_end?.trim() &&
+    isScheduleEndBeforeStart(form.event_date, form.event_time, form.event_end_date, form.event_time_end)
   ) {
-    const day = String(form.event_date).trim().slice(0, 10);
+    errors.event_time_end = i18n.t("validation.endAfterStart");
+  }
+
+  if ((kind === "event" || kind === "notice") && effectiveEndDate && String(form.event_time_end ?? "").trim()) {
     const endMin = parseTimeMinutes(form.event_time_end);
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    if (day === today && endMin != null) {
+    if (effectiveEndDate === today && endMin != null) {
       const nowMin = now.getHours() * 60 + now.getMinutes();
       if (endMin <= nowMin) {
         errors.event_time_end = i18n.t("validation.endAfterNow");

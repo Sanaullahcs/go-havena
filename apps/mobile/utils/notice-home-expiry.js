@@ -4,6 +4,13 @@ function noticeDayKey(dateStr) {
   return /^\d{4}-\d{2}-\d{2}$/.test(key) ? key : null;
 }
 
+export function effectiveEndDayKey(notice) {
+  const start = noticeDayKey(notice?.eventDate ?? notice?.event_date);
+  if (!start) return null;
+  const end = noticeDayKey(notice?.eventEndDate ?? notice?.event_end_date);
+  return end ?? start;
+}
+
 function todayDayKey(now = new Date()) {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
@@ -27,9 +34,10 @@ export function isNoticeExpiredForHome(notice, now = new Date()) {
     return true;
   }
 
+  const endDayKey = effectiveEndDayKey(notice);
   const todayKey = todayDayKey(now);
-  if (dayKey < todayKey) return true;
-  if (dayKey > todayKey) return false;
+  if (endDayKey < todayKey) return true;
+  if (endDayKey > todayKey) return false;
 
   const endTime = notice.eventTimeEnd ?? notice.event_time_end;
   const clock = parseClockTime(endTime);

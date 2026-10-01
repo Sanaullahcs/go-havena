@@ -420,18 +420,6 @@ export default function NoticeDetailScreen() {
                     </View>
                   </Pressable>
                 </View>
-              ) : notice.category === "finance" && !notice.serviceBill ? (
-                <Pressable
-                  onPress={() => navigateAppRoute(router, PropertyManagementRoutes.AMENITY_BILLS)}
-                  accessibilityRole="button"
-                  accessibilityLabel={t("notices.viewAmenityBill")}
-                  style={({ pressed }) => [styles.billActionPressable, pressed && styles.billActionPressed]}
-                >
-                  <View style={styles.billAction}>
-                    <Feather name="credit-card" size={sf(15)} color="#FFFFFF" />
-                    <Text style={styles.billActionText}>{t("notices.viewAmenityBill")}</Text>
-                  </View>
-                </Pressable>
               ) : null}
 
               {(showScheduleDate || startTimeLabel || endTimeLabel || notice.location) && (

@@ -138,6 +138,31 @@ const EMPTY_FORM = {
   max_subscribers: "",
 };
 
+const SERVICE_FIELD_MAX = {
+  name: 120,
+  custom_category: 80,
+  description: 500,
+  payment_instructions: 2000,
+  notice_title: 200,
+  notice_body: 4000,
+};
+
+function FieldMeta({ error, value, max }) {
+  const text = value ?? "";
+  const showCounter = max != null && text.length > 0;
+  if (!error && !showCounter) return null;
+  return (
+    <View style={styles.fieldFooter}>
+      {error ? <Text style={styles.errorText}>{error}</Text> : <View style={styles.fieldFooterSpacer} />}
+      {showCounter ? (
+        <Text style={[styles.charCounter, text.length > max && styles.charCounterError]}>
+          {text.length}/{max}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 function RequiredLabel({ children, required = true }) {
   return (
     <Text style={styles.label}>
@@ -165,12 +190,33 @@ const singleLineInputStyle = {
 
 function validateServiceForm(form, step, t) {
   const errors = {};
+  if (String(form.name ?? "").length > SERVICE_FIELD_MAX.name) {
+    errors.name = t("services.createServiceNameMax");
+  }
+  if (String(form.custom_category ?? "").length > SERVICE_FIELD_MAX.custom_category) {
+    errors.custom_category = t("services.createServiceCustomCategoryMax");
+  }
+  if (String(form.description ?? "").length > SERVICE_FIELD_MAX.description) {
+    errors.description = t("services.createServiceDescriptionMax");
+  }
+  if (String(form.payment_instructions ?? "").length > SERVICE_FIELD_MAX.payment_instructions) {
+    errors.payment_instructions = t("services.createServicePaymentInstructionsMax");
+  }
+  if (!isNoticeTemplate(form.notice_title) && String(form.notice_title ?? "").length > SERVICE_FIELD_MAX.notice_title) {
+    errors.notice_title = t("services.createServiceNoticeTitleMax");
+  }
+  if (!isNoticeTemplate(form.notice_body) && String(form.notice_body ?? "").length > SERVICE_FIELD_MAX.notice_body) {
+    errors.notice_body = t("services.createServiceNoticeBodyMax");
+  }
+
   if (step >= 1) {
     const name = String(form.name ?? "").trim();
-    if (!name) errors.name = t("services.createServiceNameRequired");
-    else if (name.length < 2) errors.name = t("services.createServiceNameShort");
+    if (!errors.name) {
+      if (!name) errors.name = t("services.createServiceNameRequired");
+      else if (name.length < 2) errors.name = t("services.createServiceNameShort");
+    }
     if (!form.category) errors.category = t("services.createServiceCategoryRequired");
-    else if (form.category === "other" && !String(form.custom_category ?? "").trim()) {
+    else if (!errors.custom_category && form.category === "other" && !String(form.custom_category ?? "").trim()) {
       errors.custom_category = t("services.createServiceCustomCategoryRequired");
     }
   }
@@ -345,6 +391,12 @@ export default function AdminServiceFormScreen() {
   }
 
   const liveErrors = useMemo(() => validateServiceForm(form, step, t), [form, step, t]);
+  const fieldError = (key, value, max) => {
+    const message = liveErrors[key];
+    if (!message) return null;
+    if (max != null && String(value ?? "").length > max) return message;
+    return showError(key, liveErrors);
+  };
 
   const setF = (key, value) => {
     setForm((prev) => {
@@ -382,8 +434,10 @@ export default function AdminServiceFormScreen() {
 
   const goNext = () => {
     const stepKeys = step === 1
-      ? ["name", "category", "custom_category"]
-      : ["application_type", "billing_frequency", "amount", "due_day", "first_billing_month", "due_month"];
+      ? ["name", "category", "custom_category", "description"]
+      : step === 3
+        ? ["notice_title", "notice_body"]
+        : ["application_type", "billing_frequency", "amount", "due_day", "first_billing_month", "due_month", "payment_instructions"];
     stepKeys.forEach((key) => touch(key));
     if (hasFieldErrors(validateServiceForm(form, step, t))) return;
     setReviewed(false);
@@ -511,16 +565,15 @@ export default function AdminServiceFormScreen() {
             <View ref={nameFieldRef} collapsable={false} style={styles.field}>
               <RequiredLabel>{t("services.createServiceName")}</RequiredLabel>
               <LocaleTextInput
-                style={[styles.input, singleLineInputStyle, showError("name", liveErrors) && styles.inputError]}
+                style={[styles.input, singleLineInputStyle, fieldError("name", form.name, SERVICE_FIELD_MAX.name) && styles.inputError]}
                 value={form.name}
                 onChangeText={(value) => setF("name", value)}
                 onBlur={() => touch("name")}
                 onFocus={() => scrollIntoView(nameFieldRef)}
                 placeholder={t("services.createServiceNamePlaceholder")}
                 placeholderTextColor="#94A3B8"
-                maxLength={120}
               />
-              {showError("name", liveErrors) ? <Text style={styles.errorText}>{showError("name", liveErrors)}</Text> : null}
+              <FieldMeta error={fieldError("name", form.name, SERVICE_FIELD_MAX.name)} value={form.name} max={SERVICE_FIELD_MAX.name} />
             </View>
 
             <View style={styles.field}>
@@ -541,17 +594,18 @@ export default function AdminServiceFormScreen() {
               <View style={styles.field}>
                 <RequiredLabel>{t("propertyMgmt.customCategoryLabel")}</RequiredLabel>
                 <LocaleTextInput
-                  style={[styles.input, singleLineInputStyle, showError("custom_category", liveErrors) && styles.inputError]}
+                  style={[styles.input, singleLineInputStyle, fieldError("custom_category", form.custom_category, SERVICE_FIELD_MAX.custom_category) && styles.inputError]}
                   value={form.custom_category}
                   onChangeText={(value) => setF("custom_category", value)}
                   onBlur={() => touch("custom_category")}
                   placeholder={t("propertyMgmt.customCategoryPlaceholder")}
                   placeholderTextColor="#94A3B8"
-                  maxLength={80}
                 />
-                {showError("custom_category", liveErrors) ? (
-                  <Text style={styles.errorText}>{showError("custom_category", liveErrors)}</Text>
-                ) : null}
+                <FieldMeta
+                  error={fieldError("custom_category", form.custom_category, SERVICE_FIELD_MAX.custom_category)}
+                  value={form.custom_category}
+                  max={SERVICE_FIELD_MAX.custom_category}
+                />
               </View>
             ) : null}
 
@@ -570,13 +624,17 @@ export default function AdminServiceFormScreen() {
             <View style={styles.field}>
               <RequiredLabel required={false}>{t("services.createServiceDescription")}</RequiredLabel>
               <LocaleTextInput
-                style={[styles.input, styles.textArea]}
+                style={[styles.input, styles.textArea, fieldError("description", form.description, SERVICE_FIELD_MAX.description) && styles.inputError]}
                 value={form.description}
                 onChangeText={(value) => setF("description", value)}
                 placeholder={t("services.createServiceDescriptionPlaceholder")}
                 placeholderTextColor="#94A3B8"
                 multiline
-                maxLength={2000}
+              />
+              <FieldMeta
+                error={fieldError("description", form.description, SERVICE_FIELD_MAX.description)}
+                value={form.description}
+                max={SERVICE_FIELD_MAX.description}
               />
             </View>
           </>
@@ -700,13 +758,17 @@ export default function AdminServiceFormScreen() {
             <View style={styles.field}>
               <RequiredLabel required={false}>{t("services.createServicePaymentInstructions")}</RequiredLabel>
               <LocaleTextInput
-                style={[styles.input, styles.textArea]}
+                style={[styles.input, styles.textArea, fieldError("payment_instructions", form.payment_instructions, SERVICE_FIELD_MAX.payment_instructions) && styles.inputError]}
                 value={form.payment_instructions}
                 onChangeText={(value) => setF("payment_instructions", value)}
                 placeholder={t("services.createServicePaymentInstructionsPlaceholder")}
                 placeholderTextColor="#94A3B8"
                 multiline
-                maxLength={2000}
+              />
+              <FieldMeta
+                error={fieldError("payment_instructions", form.payment_instructions, SERVICE_FIELD_MAX.payment_instructions)}
+                value={form.payment_instructions}
+                max={SERVICE_FIELD_MAX.payment_instructions}
               />
             </View>
           </>
@@ -717,12 +779,16 @@ export default function AdminServiceFormScreen() {
             <View style={styles.field}>
               <RequiredLabel required={false}>{t("services.createServiceNoticeTitle")}</RequiredLabel>
               <LocaleTextInput
-                style={[styles.input, singleLineInputStyle]}
+                style={[styles.input, singleLineInputStyle, fieldError("notice_title", form.notice_title, SERVICE_FIELD_MAX.notice_title) && styles.inputError]}
                 value={isNoticeTemplate(form.notice_title) ? noticeTitleDisplay(form) : form.notice_title}
                 onChangeText={(value) => setF("notice_title", value)}
                 placeholder={`${String(form.name).trim() || "Service"} — Unit ${NOTICE_PREVIEW_UNIT}`}
                 placeholderTextColor="#94A3B8"
-                maxLength={200}
+              />
+              <FieldMeta
+                error={fieldError("notice_title", form.notice_title, SERVICE_FIELD_MAX.notice_title)}
+                value={isNoticeTemplate(form.notice_title) ? "" : form.notice_title}
+                max={SERVICE_FIELD_MAX.notice_title}
               />
               <Text style={styles.hintText}>
                 {t("services.createServiceNoticeTitleHint", { unit: NOTICE_PREVIEW_UNIT })}
@@ -732,13 +798,17 @@ export default function AdminServiceFormScreen() {
             <View style={styles.field}>
               <RequiredLabel required={false}>{t("services.createServiceNoticeBody")}</RequiredLabel>
               <LocaleTextInput
-                style={[styles.input, styles.textArea]}
+                style={[styles.input, styles.textArea, fieldError("notice_body", form.notice_body, SERVICE_FIELD_MAX.notice_body) && styles.inputError]}
                 value={isNoticeTemplate(form.notice_body) ? noticeBodyDisplay(form) : form.notice_body}
                 onChangeText={(value) => setF("notice_body", value)}
                 placeholder={t("services.createServiceNoticeBodyPlaceholder")}
                 placeholderTextColor="#94A3B8"
                 multiline
-                maxLength={4000}
+              />
+              <FieldMeta
+                error={fieldError("notice_body", form.notice_body, SERVICE_FIELD_MAX.notice_body)}
+                value={isNoticeTemplate(form.notice_body) ? "" : form.notice_body}
+                max={SERVICE_FIELD_MAX.notice_body}
               />
             </View>
 
@@ -906,11 +976,29 @@ const styles = StyleSheet.create({
     padding: sw(6),
   },
   errorText: {
+    flex: 1,
     fontFamily: Fonts.regular,
     fontSize: sf(12),
     color: "#DC2626",
     marginTop: sw(6),
+    marginRight: sw(8),
   },
+  fieldFooter: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+  },
+  fieldFooterSpacer: {
+    flex: 1,
+  },
+  charCounter: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(11),
+    color: "#94A3B8",
+    marginTop: sw(6),
+    fontVariant: ["tabular-nums"],
+  },
+  charCounterError: { color: "#DC2626" },
   hintText: {
     fontFamily: Fonts.regular,
     fontSize: sf(12),

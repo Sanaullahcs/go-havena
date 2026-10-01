@@ -40,6 +40,7 @@ import {
 } from "@/lib/admin/community-setup-validation";
 import { inputClass } from "@/lib/admin/form-validation-utils";
 import { CommunityAddressPicker } from "@/components/admin/community-address-picker";
+import { formatRegionPlaceLabel } from "@/lib/admin/region-display";
 
 type SetupView = "regions" | "communities" | "add";
 
@@ -232,16 +233,58 @@ function SetupInner() {
     }
   };
 
+  const nameOverLimit = name.length > COMMUNITY_SETUP_NAME_MAX;
   const nameErr =
-    name.length >= COMMUNITY_SETUP_NAME_MAX
-      ? COMMUNITY_SETUP_NAME_MAX_MESSAGE
-      : showError("name", liveErrors);
+    showError("name", liveErrors) ??
+    (nameOverLimit ? COMMUNITY_SETUP_NAME_MAX_MESSAGE : undefined);
   const addressErr = showError("address", liveErrors);
-  const regionLabel = selectedRegion?.title ?? "your region";
+  const regionPlaceLabel = formatRegionPlaceLabel(selectedRegion);
 
-  if (view === "regions") {
-    return (
-      <div className="w-full min-w-0">
+  const openRegionEditor = () => {
+    setFormError(null);
+    if (selectedRegion) {
+      if (
+        selectedRegion.country_id
+        && (!countryFilter || countryFilter.id !== selectedRegion.country_id)
+      ) {
+        setCountryFilter({
+          id: selectedRegion.country_id,
+          code: "",
+          name: selectedRegion.country_name ?? "",
+          billing_policy: "required",
+          billing_exempt: false,
+          sort_order: 0,
+          status: "active",
+        });
+      }
+      if (
+        selectedRegion.state_id
+        && (!stateFilter || stateFilter.id !== selectedRegion.state_id)
+      ) {
+        setStateFilter({
+          id: selectedRegion.state_id,
+          country_id: selectedRegion.country_id ?? countryFilter?.id ?? 0,
+          name: selectedRegion.state_name ?? selectedRegion.state ?? "",
+          code: null,
+          sort_order: 0,
+          status: "active",
+        });
+      }
+      const cityName = cityFilter?.name?.trim() || selectedRegion.area?.trim();
+      if (cityName && (!cityFilter || cityFilter.name !== cityName)) {
+        setCityFilter({
+          id: cityFilter?.id ?? 0,
+          state_id: selectedRegion.state_id ?? stateFilter?.id ?? 0,
+          name: cityName,
+        });
+      }
+    }
+    setView("regions");
+  };
+
+  return (
+    <div className="w-full min-w-0">
+      <div className={view === "regions" ? "" : "hidden"} aria-hidden={view !== "regions"}>
         <section className="mx-auto w-full max-w-[26rem] overflow-hidden rounded-[1.4rem] border border-slate-200 bg-white">
           <header className="px-6 pb-1 pt-6">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
@@ -255,7 +298,7 @@ function SetupInner() {
             </p>
           </header>
           <div className="px-6 pb-6 pt-5">
-            {formError ? (
+            {view === "regions" && formError ? (
               <div
                 className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700"
                 role="alert"
@@ -280,11 +323,8 @@ function SetupInner() {
           </div>
         </section>
       </div>
-    );
-  }
 
-  return (
-    <div className="w-full min-w-0">
+      <div className={view !== "regions" ? "" : "hidden"} aria-hidden={view === "regions"}>
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)] lg:gap-10">
         <aside className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#1B4F8A]">
@@ -295,20 +335,17 @@ function SetupInner() {
           </h1>
           <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-600 sm:text-[15px]">
             {view === "communities"
-              ? `Communities in ${regionLabel}. Choose one without an admin, or request to add a new one.`
-              : `Tell us the community name and address for ${regionLabel}. We’ll submit it for review.`}
+              ? `Communities available in ${regionPlaceLabel}. Select a community without an assigned admin or request to add a new community.`
+              : `Tell us the community name and address for ${regionPlaceLabel}. We’ll submit it for review.`}
           </p>
           {selectedRegion ? (
             <button
               type="button"
-              onClick={() => {
-                setView("regions");
-                setFormError(null);
-              }}
+              onClick={openRegionEditor}
               className="mt-5 inline-flex items-center gap-2 rounded-full border border-[#1B4F8A]/15 bg-[#E8F0F7] px-3 py-1.5 text-[12px] font-semibold text-[#1B4F8A]"
             >
               <MapPin className="h-3.5 w-3.5" aria-hidden />
-              {selectedRegion.title}
+              {regionPlaceLabel}
               <span className="font-medium text-slate-500">Change</span>
             </button>
           ) : null}
@@ -327,7 +364,7 @@ function SetupInner() {
 
           {view === "communities" && selectedRegion ? (
             <CommunityList
-              regionTitle={selectedRegion.title}
+              regionTitle={regionPlaceLabel}
               query={communityQuery}
               onQueryChange={setCommunityQuery}
               loading={!communitiesLoaded}
@@ -372,9 +409,9 @@ function SetupInner() {
                     "h-12 w-full rounded-xl border border-slate-200 px-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1B4F8A] focus:ring-2 focus:ring-[#1B4F8A]/20",
                   )}
                   value={name}
-                  maxLength={COMMUNITY_SETUP_NAME_MAX}
+                  maxLength={nameOverLimit ? undefined : COMMUNITY_SETUP_NAME_MAX}
                   onChange={(e) => {
-                    setName(e.target.value.slice(0, COMMUNITY_SETUP_NAME_MAX));
+                    setName(e.target.value);
                     clearError("name");
                     setFormError(null);
                   }}
@@ -382,6 +419,15 @@ function SetupInner() {
                   placeholder="e.g. Palm Court HOA"
                   aria-invalid={Boolean(nameErr)}
                 />
+                {name.length > 0 ? (
+                  <p
+                    className={`text-right text-[11px] tabular-nums ${
+                      name.length > COMMUNITY_SETUP_NAME_MAX ? "text-red-600" : "text-slate-500"
+                    }`}
+                  >
+                    {name.length} / {COMMUNITY_SETUP_NAME_MAX}
+                  </p>
+                ) : null}
               </OnboardingField>
 
               <OnboardingField
@@ -427,9 +473,11 @@ function SetupInner() {
                   }}
                   placeholder="Optional notes about this community"
                 />
-                <p className="text-right text-[11px] tabular-nums text-slate-500">
-                  {description.length} / 1000
-                </p>
+                {description.length > 0 ? (
+                  <p className="text-right text-[11px] tabular-nums text-slate-500">
+                    {description.length} / 1000
+                  </p>
+                ) : null}
               </OnboardingField>
 
               <div className="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
@@ -454,6 +502,7 @@ function SetupInner() {
           ) : null}
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
@@ -499,6 +548,10 @@ function SearchField({
   );
 }
 
+let cachedPublicCountries: Country[] | null = null;
+const statesCache = new Map<number, State[]>();
+const citiesCache = new Map<number, City[]>();
+
 function RegionList({
   loading,
   regions,
@@ -516,19 +569,31 @@ function RegionList({
   onApplyFilter: (next: { country: Country | null; state: State | null; city: City | null }) => void;
   onSelect: (region: PublicRegion) => void;
 }) {
-  const [countries, setCountries] = useState<Country[]>([]);
-  const [states, setStates] = useState<State[]>([]);
-  const [cities, setCities] = useState<City[]>([]);
-  const [loadingCountries, setLoadingCountries] = useState(true);
+  const [countries, setCountries] = useState<Country[]>(() => cachedPublicCountries ?? []);
+  const [states, setStates] = useState<State[]>(() =>
+    country?.id ? statesCache.get(country.id) ?? [] : [],
+  );
+  const [cities, setCities] = useState<City[]>(() =>
+    state?.id ? citiesCache.get(state.id) ?? [] : [],
+  );
+  const [loadingCountries, setLoadingCountries] = useState(() => !cachedPublicCountries?.length);
   const [loadingStates, setLoadingStates] = useState(false);
   const [loadingCities, setLoadingCities] = useState(false);
 
   useEffect(() => {
+    if (cachedPublicCountries?.length) {
+      setCountries(cachedPublicCountries);
+      setLoadingCountries(false);
+      return undefined;
+    }
     let cancelled = false;
     setLoadingCountries(true);
     void fetchPublicCountries()
       .then((res) => {
-        if (!cancelled) setCountries(res.data ?? []);
+        if (cancelled) return;
+        const list = res.data ?? [];
+        cachedPublicCountries = list;
+        setCountries(list);
       })
       .catch(() => {
         if (!cancelled) setCountries([]);
@@ -544,13 +609,24 @@ function RegionList({
   useEffect(() => {
     if (!country?.id) {
       setStates([]);
+      setLoadingStates(false);
       return;
     }
+    const cached = statesCache.get(country.id);
+    if (cached?.length) {
+      setStates(cached);
+      setLoadingStates(false);
+      return undefined;
+    }
     let cancelled = false;
+    setStates([]);
     setLoadingStates(true);
     void fetchPublicCountryStates(country.id)
       .then((res) => {
-        if (!cancelled) setStates(res.data ?? []);
+        if (cancelled) return;
+        const list = res.data ?? [];
+        statesCache.set(country.id, list);
+        setStates(list);
       })
       .catch(() => {
         if (!cancelled) setStates([]);
@@ -566,13 +642,24 @@ function RegionList({
   useEffect(() => {
     if (!state?.id) {
       setCities([]);
+      setLoadingCities(false);
       return;
     }
+    const cached = citiesCache.get(state.id);
+    if (cached?.length) {
+      setCities(cached);
+      setLoadingCities(false);
+      return undefined;
+    }
     let cancelled = false;
+    setCities([]);
     setLoadingCities(true);
     void fetchPublicStateCities(state.id)
       .then((res) => {
-        if (!cancelled) setCities(res.data ?? []);
+        if (cancelled) return;
+        const list = res.data ?? [];
+        citiesCache.set(state.id, list);
+        setCities(list);
       })
       .catch(() => {
         if (!cancelled) setCities([]);
@@ -585,18 +672,30 @@ function RegionList({
     };
   }, [state?.id]);
 
-  const countryOptions = useMemo(
-    () => countries.map((item) => ({ value: String(item.id), label: item.name })),
-    [countries],
-  );
-  const stateOptions = useMemo(
-    () => states.map((item) => ({ value: String(item.id), label: item.name })),
-    [states],
-  );
-  const cityOptions = useMemo(
-    () => cities.map((item) => ({ value: item.name, label: item.name })),
-    [cities],
-  );
+  const countryOptions = useMemo(() => {
+    const base = countries.map((item) => ({ value: String(item.id), label: item.name }));
+    if (country && !base.some((opt) => opt.value === String(country.id))) {
+      return [{ value: String(country.id), label: country.name }, ...base];
+    }
+    return base;
+  }, [countries, country]);
+
+  const stateOptions = useMemo(() => {
+    const base = states.map((item) => ({ value: String(item.id), label: item.name }));
+    if (state && !base.some((opt) => opt.value === String(state.id))) {
+      return [{ value: String(state.id), label: state.name }, ...base];
+    }
+    return base;
+  }, [states, state]);
+
+  const cityOptions = useMemo(() => {
+    const base = cities.map((item) => ({ value: item.name, label: item.name }));
+    const cityName = city?.name?.trim();
+    if (cityName && !base.some((opt) => opt.value === cityName)) {
+      return [{ value: cityName, label: cityName }, ...base];
+    }
+    return base;
+  }, [cities, city]);
 
   const applyLocation = (nextCountryId: string, nextStateId: string, nextCity: string) => {
     const nextCountry =
@@ -629,11 +728,12 @@ function RegionList({
       key: "country",
       label: "Country",
       value: country ? String(country.id) : "",
+      valueLabel: country?.name,
       options: countryOptions,
       placeholder: loadingCountries ? "Loading…" : "Where in the world?",
       searchPlaceholder: "Search countries…",
       emptyMessage: "No countries match.",
-      disabled: loadingCountries,
+      disabled: loadingCountries && !country,
       allowCustom: false,
       onChange: (value: string) => applyLocation(value, "", ""),
       done: Boolean(country),
@@ -643,11 +743,12 @@ function RegionList({
       key: "state",
       label: "State",
       value: state ? String(state.id) : "",
+      valueLabel: state?.name,
       options: stateOptions,
       placeholder: !country ? "Pick a country first" : loadingStates ? "Loading…" : "Which state?",
       searchPlaceholder: "Search states…",
       emptyMessage: "No states match.",
-      disabled: !country || loadingStates,
+      disabled: !country || (loadingStates && !state),
       allowCustom: false,
       onChange: (value: string) => applyLocation(country ? String(country.id) : "", value, ""),
       done: Boolean(state),
@@ -657,11 +758,12 @@ function RegionList({
       key: "city",
       label: "City",
       value: city?.name ?? "",
+      valueLabel: city?.name,
       options: cityOptions,
       placeholder: !state ? "Pick a state first" : loadingCities ? "Loading…" : "Which city?",
       searchPlaceholder: "Search cities…",
       emptyMessage: "No cities match.",
-      disabled: !state || loadingCities,
+      disabled: !state || (loadingCities && !city),
       allowCustom: true,
       onChange: (value: string) => applyLocation(country ? String(country.id) : "", state ? String(state.id) : "", value),
       done: Boolean(city),
@@ -692,6 +794,7 @@ function RegionList({
               <SearchableSelect
                 className="nl-picker-compact"
                 value={field.value}
+                valueLabel={field.valueLabel}
                 onChange={field.onChange}
                 options={field.options}
                 placeholder={field.placeholder}

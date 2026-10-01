@@ -18,13 +18,12 @@ import { getCurrentRole } from "../../../../constants/role-session";
 import { sw, sf } from "../../../../utils/responsive";
 import {
   AMENITY_ICON_CATALOG,
-  SLOT_DURATION_OPTIONS,
   validateAmenityForm,
   buildAmenityPayload,
   generateAmenitySlots,
   parseHoursToApiTimes,
 } from "../../../../utils/amenity-display";
-import { hasFieldErrors } from "../../../../utils/form-validation";
+import SlotDurationPicker from "../../../../components/property/slot-duration-picker";
 import { submitAmenity, createAmenity } from "../../../../services/amenity-api";
 import { useApiAction } from "../../../../hooks/use-api-action";
 import { useTouchedFieldErrors } from "../../../../hooks/use-touched-field-errors";
@@ -65,6 +64,29 @@ function RequiredLabel({ children }) {
   );
 }
 
+const AMENITY_FIELD_MAX = {
+  name: 100,
+  description: 500,
+  floor: 40,
+  custom_category: 80,
+};
+
+function FieldMeta({ error, value, max }) {
+  const text = value ?? "";
+  const showCounter = max != null && text.length > 0;
+  if (!error && !showCounter) return null;
+  return (
+    <View style={styles.fieldFooter}>
+      {error ? <Text style={styles.errorText}>{error}</Text> : <View style={styles.fieldFooterSpacer} />}
+      {showCounter ? (
+        <Text style={[styles.charCounter, text.length > max && styles.charCounterError]}>
+          {text.length}/{max}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 /**
  * Keep this a plain object (not StyleSheet.create). The global text-metrics
  * patch adds lineHeight to StyleSheet text styles, and iOS TextInput then
@@ -99,7 +121,6 @@ export default function AmenityFormScreen() {
   const { touch, clearError, showError, validateOnSubmit } = useTouchedFieldErrors();
 
   const liveErrors = useMemo(() => validateAmenityForm(form), [form]);
-  const canSubmit = useMemo(() => !hasFieldErrors(liveErrors), [liveErrors]);
 
   const previewSlots = useMemo(() => {
     if (form.status !== "bookable") return [];
@@ -114,8 +135,13 @@ export default function AmenityFormScreen() {
 
   const setF = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
-    touch(key);
     clearError(key);
+    touch(key);
+  };
+
+  const setChoice = (key, value) => {
+    setF(key, value);
+    touch(key);
   };
 
   const setPricing = (type) => {
@@ -161,15 +187,22 @@ export default function AmenityFormScreen() {
     t,
   ]);
 
-  const nameError = showError("name", liveErrors);
-  const descriptionError = showError("description", liveErrors);
+  const fieldError = (field, value, max) => {
+    const message = liveErrors[field];
+    if (!message) return null;
+    if (max != null && String(value ?? "").length > max) return message;
+    return showError(field, liveErrors);
+  };
+  const nameError = fieldError("name", form.name, AMENITY_FIELD_MAX.name);
+  const descriptionError = fieldError("description", form.description, AMENITY_FIELD_MAX.description);
   const iconError = showError("icon_key", liveErrors);
   const statusError = showError("status", liveErrors);
   const hoursError = showError("hours", liveErrors);
   const slotError = showError("slot_duration_minutes", liveErrors);
   const capacityError = showError("capacity", liveErrors);
+  const capacityBookingTypeError = showError("capacity_booking_type", liveErrors);
   const pricingError = showError("pricing_type", liveErrors);
-  const floorError = showError("floor", liveErrors);
+  const floorError = fieldError("floor", form.floor, AMENITY_FIELD_MAX.floor);
 
   const scrollRef = useRef(null);
   const nameFieldRef = useRef(null);
@@ -213,9 +246,8 @@ export default function AmenityFormScreen() {
             onFocus={() => handleFieldFocus(nameFieldRef)}
             placeholder={t("propertyMgmt.namePlaceholder")}
             placeholderTextColor="#94A3B8"
-            maxLength={100}
           />
-          {nameError ? <Text style={styles.errorText}>{nameError}</Text> : null}
+          <FieldMeta error={nameError} value={form.name} max={AMENITY_FIELD_MAX.name} />
         </View>
 
         <View style={styles.field}>
@@ -228,11 +260,8 @@ export default function AmenityFormScreen() {
             placeholder={t("propertyMgmt.descriptionPlaceholder")}
             placeholderTextColor="#94A3B8"
             multiline
-            maxLength={2000}
           />
-          {descriptionError ? (
-            <Text style={styles.errorText}>{descriptionError}</Text>
-          ) : null}
+          <FieldMeta error={descriptionError} value={form.description} max={AMENITY_FIELD_MAX.description} />
         </View>
 
         <View style={styles.field}>
@@ -243,7 +272,10 @@ export default function AmenityFormScreen() {
               return (
                 <Pressable
                   key={item.key}
-                  onPress={() => setF("icon_key", item.key)}
+                  onPress={() => {
+                    setChoice("icon_key", item.key);
+                    if (item.key !== "other") setF("custom_category", "");
+                  }}
                   style={[styles.iconChip, selected && styles.iconChipActive]}
                 >
                   <AmenityIcon
@@ -268,18 +300,19 @@ export default function AmenityFormScreen() {
             <LocaleTextInput
               style={[
                 styles.input,
-                showError("custom_category", liveErrors) && styles.inputError,
+                fieldError("custom_category", form.custom_category, AMENITY_FIELD_MAX.custom_category) && styles.inputError,
               ]}
               value={form.custom_category}
               onChangeText={(v) => setF("custom_category", v)}
               onBlur={() => touch("custom_category")}
               placeholder={t("propertyMgmt.customCategoryPlaceholder")}
               placeholderTextColor="#94A3B8"
-              maxLength={80}
             />
-            {showError("custom_category", liveErrors) ? (
-              <Text style={styles.errorText}>{liveErrors.custom_category}</Text>
-            ) : null}
+            <FieldMeta
+              error={fieldError("custom_category", form.custom_category, AMENITY_FIELD_MAX.custom_category)}
+              value={form.custom_category}
+              max={AMENITY_FIELD_MAX.custom_category}
+            />
           </View>
         ) : null}
 
@@ -290,7 +323,7 @@ export default function AmenityFormScreen() {
             return (
               <Pressable
                 key={opt.id}
-                onPress={() => setF("status", opt.id)}
+                onPress={() => setChoice("status", opt.id)}
                 style={[
                   styles.modeCard,
                   selected && styles.modeCardActive,
@@ -312,7 +345,11 @@ export default function AmenityFormScreen() {
 
         {form.status !== "open" ? (
           <View ref={capacityFieldRef} collapsable={false} style={styles.field}>
-            <Text style={styles.label}>{t("admin.capacity")}</Text>
+            {form.status === "bookable" ? (
+              <RequiredLabel>{t("admin.capacity")}</RequiredLabel>
+            ) : (
+              <Text style={styles.label}>{t("admin.capacity")}</Text>
+            )}
             <LocaleTextInput
               style={[
                 styles.input,
@@ -349,8 +386,12 @@ export default function AmenityFormScreen() {
               return (
                 <Pressable
                   key={opt.id}
-                  onPress={() => setF("capacity_booking_type", opt.id)}
-                  style={[styles.modeCard, selected && styles.modeCardActive]}
+                  onPress={() => setChoice("capacity_booking_type", opt.id)}
+                  style={[
+                    styles.modeCard,
+                    selected && styles.modeCardActive,
+                    capacityBookingTypeError && styles.inputError,
+                  ]}
                 >
                   <View style={styles.modeCopy}>
                     <Text style={styles.modeTitle}>{t(opt.titleKey)}</Text>
@@ -362,6 +403,9 @@ export default function AmenityFormScreen() {
                 </Pressable>
               );
             })}
+            {capacityBookingTypeError ? (
+              <Text style={styles.errorText}>{capacityBookingTypeError}</Text>
+            ) : null}
           </View>
         ) : null}
 
@@ -369,7 +413,10 @@ export default function AmenityFormScreen() {
           <RequiredLabel>{t("propertyMgmt.dailyHours")}</RequiredLabel>
           <BusinessHoursInput
             value={form.hours}
-            onChange={(v) => setF("hours", v)}
+            onChange={(v) => {
+              setF("hours", v);
+              if (v.trim()) touch("hours");
+            }}
             showError={Boolean(hoursError)}
           />
           {hoursError ? <Text style={styles.errorText}>{hoursError}</Text> : null}
@@ -391,25 +438,11 @@ export default function AmenityFormScreen() {
         {form.status === "bookable" ? (
           <View style={styles.field}>
             <RequiredLabel>{t("propertyMgmt.slotDuration")}</RequiredLabel>
-            <View style={[styles.durationRow, slotError && styles.groupError]}>
-              {SLOT_DURATION_OPTIONS.map((opt) => {
-                const selected = Number(form.slot_duration_minutes) === opt.value;
-                return (
-                  <Pressable
-                    key={opt.value}
-                    onPress={() => setF("slot_duration_minutes", opt.value)}
-                    style={[styles.durationChip, selected && styles.durationChipActive]}
-                  >
-                    <Text
-                      style={[styles.durationText, selected && styles.durationTextActive]}
-                    >
-                      {opt.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            {slotError ? <Text style={styles.errorText}>{slotError}</Text> : null}
+            <SlotDurationPicker
+              minutes={form.slot_duration_minutes}
+              onChangeMinutes={(value) => setChoice("slot_duration_minutes", value)}
+              error={slotError}
+            />
 
             {previewSlots.length > 0 ? (
               <View style={styles.previewCard}>
@@ -504,7 +537,7 @@ export default function AmenityFormScreen() {
                   return (
                     <Pressable
                       key={opt.id}
-                      onPress={() => setF("shared_billing_frequency", opt.id)}
+                      onPress={() => setChoice("shared_billing_frequency", opt.id)}
                       style={[styles.durationChip, selected && styles.durationChipActive]}
                     >
                       <Text style={[styles.durationText, selected && styles.durationTextActive]}>
@@ -565,15 +598,14 @@ export default function AmenityFormScreen() {
             onFocus={() => handleFieldFocus(locationFieldRef)}
             placeholder={t("propertyMgmt.locationPlaceholder")}
             placeholderTextColor="#94A3B8"
-            maxLength={40}
           />
-          {floorError ? <Text style={styles.errorText}>{floorError}</Text> : null}
+          <FieldMeta error={floorError} value={form.floor} max={AMENITY_FIELD_MAX.floor} />
         </View>
 
         <Pressable
-          style={[styles.submit, (!canSubmit || submitting) && styles.submitDisabled]}
+          style={[styles.submit, submitting && styles.submitDisabled]}
           onPress={onSubmit}
-          disabled={!canSubmit || submitting}
+          disabled={submitting}
         >
           {submitting ? (
             <ActivityIndicator color="#FFFFFF" />
@@ -633,11 +665,36 @@ const styles = StyleSheet.create({
     padding: sw(6),
   },
   errorText: {
+    flex: 1,
     fontFamily: Fonts.regular,
     fontSize: sf(12),
     color: "#DC2626",
     marginTop: sw(6),
+    marginRight: sw(8),
   },
+  fieldHint: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(11),
+    color: "#64748B",
+    marginTop: -sw(4),
+    marginBottom: sw(8),
+  },
+  fieldFooter: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+  },
+  fieldFooterSpacer: {
+    flex: 1,
+  },
+  charCounter: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(11),
+    color: "#94A3B8",
+    marginTop: sw(6),
+    fontVariant: ["tabular-nums"],
+  },
+  charCounterError: { color: "#DC2626" },
   iconGrid: { flexDirection: "row", flexWrap: "wrap", gap: sw(8) },
   iconChip: {
     width: "23%",

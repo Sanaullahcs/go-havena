@@ -17,6 +17,7 @@ export interface Notice {
   location: string | null;
   image_url: string | null;
   event_date: string | null;
+  event_end_date?: string | null;
   event_time: string | null;
   event_time_end: string | null;
   schedule_timezone?: string | null;
@@ -75,6 +76,7 @@ export interface NoticeFormData {
   location?: string;
   image_url?: string | null;
   event_date?: string;
+  event_end_date?: string;
   event_time?: string;
   event_time_end?: string;
   event_capacity?: number | null;

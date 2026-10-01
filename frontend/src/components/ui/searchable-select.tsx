@@ -26,6 +26,8 @@ type SearchableSelectProps = {
   disabled?: boolean;
   error?: string | null;
   className?: string;
+  /** Shown when `value` is set but not yet present in `options` (e.g. while options load). */
+  valueLabel?: string;
 };
 
 export function SearchableSelect({
@@ -41,6 +43,7 @@ export function SearchableSelect({
   disabled = false,
   error,
   className,
+  valueLabel,
 }: SearchableSelectProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -51,8 +54,13 @@ export function SearchableSelect({
   const [query, setQuery] = useState("");
   const { style: popoverStyle, ready } = useAnchoredPopover(open, triggerRef, { popoverRef });
 
-  const selected = options.find((opt) => opt.value === value)
-    ?? (value ? { value, label: value } : undefined);
+  const selected = useMemo(() => {
+    if (!value) return undefined;
+    if (valueLabel) {
+      return { value, label: valueLabel };
+    }
+    return options.find((opt) => opt.value === value) ?? { value, label: value };
+  }, [value, valueLabel, options]);
 
   const filtered = useMemo(() => {
     if (!searchable) return options;

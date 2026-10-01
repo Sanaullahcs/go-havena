@@ -96,21 +96,50 @@ export type SchedulePreview = {
   overnight: boolean;
 };
 
+export function resolveEffectiveEndDate(startDate: string, endDate: string): string {
+  const start = startDate.trim().slice(0, 10);
+  const end = endDate.trim().slice(0, 10);
+  return end || start;
+}
+
+export function isScheduleEndBeforeStart(
+  startDate: string,
+  startTime: string,
+  endDate: string,
+  endTime: string,
+): boolean {
+  const startDay = startDate.trim().slice(0, 10);
+  const endDay = resolveEffectiveEndDate(startDate, endDate);
+  if (!startDay || !endDay) return false;
+  if (endDay < startDay) return true;
+  if (endDay > startDay) return false;
+  const startMin = parseTimeMinutes(startTime);
+  const endMin = parseTimeMinutes(endTime);
+  if (startMin == null || endMin == null) return false;
+  return endMin <= startMin;
+}
+
 export function buildSchedulePreview(
-  date: string,
+  startDate: string,
   timeFrom: string,
   timeTo: string,
+  endDate = "",
 ): SchedulePreview | null {
-  if (!date && !timeFrom && !timeTo) return null;
+  if (!startDate && !endDate && !timeFrom && !timeTo) return null;
 
-  const dateLabel = date
-    ? new Date(`${date}T12:00:00`).toLocaleDateString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
-    : null;
+  const formatDay = (date: string) =>
+    date
+      ? new Date(`${date.slice(0, 10)}T12:00:00`).toLocaleDateString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : null;
+
+  const startLabel = formatDay(startDate);
+  const effectiveEnd = resolveEffectiveEndDate(startDate, endDate);
+  const endLabel = effectiveEnd && effectiveEnd !== startDate.trim().slice(0, 10) ? formatDay(effectiveEnd) : null;
 
   const timeParts: string[] = [];
   if (timeFrom) timeParts.push(formatTimeDisplay(timeFrom));
@@ -123,13 +152,22 @@ export function buildSchedulePreview(
     timeRange = timeParts[0] ?? null;
   }
 
-  const overnight = Boolean(timeFrom && timeTo && isOvernightSchedule(timeFrom, timeTo));
+  const overnight = Boolean(
+    timeFrom &&
+      timeTo &&
+      (isOvernightSchedule(timeFrom, timeTo) ||
+        (endLabel && effectiveEnd > startDate.trim().slice(0, 10))),
+  );
   const durationMinutes =
     timeFrom && timeTo ? scheduleDurationMinutes(timeFrom, timeTo) : null;
   const duration =
-    durationMinutes != null && durationMinutes > 0
+    durationMinutes != null && durationMinutes > 0 && !endLabel
       ? formatDurationLabel(durationMinutes)
       : null;
+
+  let dateLabel: string | null = null;
+  if (startLabel && endLabel) dateLabel = `${startLabel} – ${endLabel}`;
+  else dateLabel = startLabel ?? endLabel;
 
   let headline: string | null = null;
   if (dateLabel && timeRange) headline = `${dateLabel} · ${timeRange}`;

@@ -1,8 +1,10 @@
 import { type FieldErrors } from "@/lib/admin/form-validation-utils";
+import { noticePlainTextError } from "@/lib/admin/notice-text-validation";
 import {
   isNoticeTimeInPast,
+  isScheduleEndBeforeStart,
   NOTICE_FUTURE_TIME_MESSAGE,
-  parseTimeMinutes,
+  resolveEffectiveEndDate,
 } from "@/lib/admin/notice-schedule-utils";
 
 export type NoticeFormLike = {
@@ -11,6 +13,7 @@ export type NoticeFormLike = {
   category: string;
   location: string;
   event_date: string;
+  event_end_date: string;
   event_time: string;
   event_time_end: string;
   event_capacity?: string;
@@ -51,6 +54,9 @@ export function validateNoticeForm(
     errors.title = "Title must be at least 3 characters.";
   } else if (title.length > 200) {
     errors.title = "Title must be 200 characters or less.";
+  } else if (kind === "event") {
+    const plain = noticePlainTextError(form.title, "Event name");
+    if (plain) errors.title = plain;
   }
 
   const body = form.body.trim();
@@ -68,15 +74,21 @@ export function validateNoticeForm(
   }
   if (kind === "event" && !location) {
     errors.location = "Location is required.";
+  } else if (kind === "event" && location) {
+    const plain = noticePlainTextError(form.location, "Location");
+    if (plain) errors.location = plain;
   }
 
   if (opts.publishNow && SCHEDULE_KINDS.includes(kind)) {
     const dateLabel =
-      kind === "event" ? "Event date" : kind === "alert" ? "Alert date" : "Notice date";
+      kind === "event" ? "Start date" : kind === "alert" ? "Alert date" : "Start date";
     if (!form.event_date.trim()) {
       errors.event_date = `${dateLabel} is required.`;
     }
     if (kind !== "alert") {
+      if (!resolveEffectiveEndDate(form.event_date, form.event_end_date).trim()) {
+        errors.event_end_date = "End date is required.";
+      }
       if (!form.event_time.trim()) {
         errors.event_time = "Start time is required.";
       }
@@ -86,24 +98,36 @@ export function validateNoticeForm(
     }
   }
 
+  const effectiveEndDate = resolveEffectiveEndDate(form.event_date, form.event_end_date);
+
   if (enforceFutureTimes && form.event_date.trim()) {
     if (form.event_time.trim() && isNoticeTimeInPast(form.event_date, form.event_time, now, opts.timeZone)) {
       errors.event_time = NOTICE_FUTURE_TIME_MESSAGE;
     }
     if (
       form.event_time_end.trim() &&
-      isNoticeTimeInPast(form.event_date, form.event_time_end, now, opts.timeZone)
+      effectiveEndDate &&
+      isNoticeTimeInPast(effectiveEndDate, form.event_time_end, now, opts.timeZone)
     ) {
       errors.event_time_end = NOTICE_FUTURE_TIME_MESSAGE;
     }
   }
 
-  if (form.event_time.trim() && form.event_time_end.trim() && !errors.event_time_end) {
-    const startMin = parseTimeMinutes(form.event_time);
-    const endMin = parseTimeMinutes(form.event_time_end);
-    if (startMin != null && endMin != null && startMin >= endMin) {
-      errors.event_time_end = "End time must be after start time.";
-    }
+  if (
+    form.event_date.trim() &&
+    effectiveEndDate &&
+    effectiveEndDate < form.event_date.trim().slice(0, 10)
+  ) {
+    errors.event_end_date = "End date must be on or after the start date.";
+  }
+
+  if (
+    form.event_time.trim() &&
+    form.event_time_end.trim() &&
+    !errors.event_time_end &&
+    isScheduleEndBeforeStart(form.event_date, form.event_time, form.event_end_date, form.event_time_end)
+  ) {
+    errors.event_time_end = "End time must be after start time.";
   }
 
   if (kind === "event" && String(form.event_capacity ?? "").trim()) {

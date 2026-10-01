@@ -17,8 +17,10 @@ use App\Services\UserBlockService;
 use App\Support\ActivityActionCatalog;
 use App\Support\MediaUrl;
 use App\Support\NoticeExpiry;
+use App\Support\NoticePlainText;
 use App\Support\NoticeSchedule;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -516,9 +518,10 @@ class NoticeController extends Controller
             'body'           => 'required|string',
             'location'       => 'nullable|string|max:255',
             'image_url'      => 'nullable|string|max:2048',
-            'event_date'     => 'required|date',
-            'event_time'     => 'required|string|max:20',
-            'event_time_end' => 'required|string|max:20',
+            'event_date'      => 'required|date',
+            'event_end_date'  => 'nullable|date',
+            'event_time'      => 'required|string|max:20',
+            'event_time_end'  => 'required|string|max:20',
             'event_capacity' => 'nullable|integer|min:1|max:100000',
             'requires_rsvp'  => 'nullable|boolean',
         ]);
@@ -543,6 +546,13 @@ class NoticeController extends Controller
             return response()->json(['message' => 'Community not found. Please contact support.'], 422);
         }
 
+        $this->assertEventPlainTextFields($validated, true);
+        $this->normalizeEventEndDate($validated);
+
+        if ($response = $this->assertContentScheduleWindow($validated)) {
+            return $response;
+        }
+
         $id = DB::table('notices')->insertGetId([
             'community_id'   => $communityId,
             'author_id'      => auth()->id(),
@@ -552,6 +562,7 @@ class NoticeController extends Controller
             'location'       => $validated['location'] ?? null,
             'image_url'      => MediaUrl::normalize($validated['image_url'] ?? null),
             'event_date'     => $validated['event_date'],
+            'event_end_date' => $validated['event_end_date'] ?? null,
             'event_time'     => $validated['event_time'],
             'event_time_end' => $validated['event_time_end'] ?? null,
             'event_capacity' => $this->parseEventCapacity($validated['event_capacity'] ?? null),
@@ -647,11 +658,12 @@ class NoticeController extends Controller
             'body'           => 'sometimes|string',
             'location'       => 'nullable|string|max:255',
             'image_url'      => 'nullable|string|max:2048',
-            'event_date'     => 'nullable|date',
-            'event_time'     => 'nullable|string|max:20',
-            'event_time_end' => 'nullable|string|max:20',
-            'event_capacity' => 'nullable|integer|min:1|max:100000',
-            'status'         => 'sometimes|in:draft,published,archived',
+            'event_date'      => 'nullable|date',
+            'event_end_date'  => 'nullable|date',
+            'event_time'      => 'nullable|string|max:20',
+            'event_time_end'  => 'nullable|string|max:20',
+            'event_capacity'  => 'nullable|integer|min:1|max:100000',
+            'status'          => 'sometimes|in:draft,published,archived',
             'is_global'      => 'sometimes|boolean',
             'is_pinned'      => 'sometimes|boolean',
             'scheduled_at'   => 'nullable|date',
@@ -663,10 +675,29 @@ class NoticeController extends Controller
 
         $data = [];
 
-        foreach (['title', 'body', 'location', 'event_date', 'event_time', 'event_time_end', 'status'] as $field) {
+        foreach (['title', 'body', 'location', 'event_date', 'event_end_date', 'event_time', 'event_time_end', 'status'] as $field) {
             if (array_key_exists($field, $validated)) {
                 $data[$field] = $validated[$field];
             }
+        }
+
+        if (
+            array_key_exists('event_date', $validated)
+            || array_key_exists('event_end_date', $validated)
+            || array_key_exists('event_time', $validated)
+            || array_key_exists('event_time_end', $validated)
+        ) {
+            $scheduleCheck = [
+                'event_date'     => $data['event_date'] ?? $notice->event_date,
+                'event_end_date' => $data['event_end_date'] ?? $notice->event_end_date ?? null,
+                'event_time'     => $data['event_time'] ?? $notice->event_time,
+                'event_time_end' => $data['event_time_end'] ?? $notice->event_time_end,
+            ];
+            $this->normalizeEventEndDate($scheduleCheck);
+            if ($response = $this->assertContentScheduleWindow($scheduleCheck)) {
+                return $response;
+            }
+            $data['event_end_date'] = $scheduleCheck['event_end_date'] ?? null;
         }
 
         if (array_key_exists('image_url', $validated)) {
@@ -755,6 +786,12 @@ class NoticeController extends Controller
         }
 
         $effectiveCategory = $data['category'] ?? $notice->category;
+        if ($effectiveCategory === 'event') {
+            $this->assertEventPlainTextFields([
+                'title' => $data['title'] ?? $notice->title,
+                'location' => $data['location'] ?? $notice->location,
+            ], true);
+        }
         $audienceType = NoticeAudienceService::normalizeAudienceType(
             $validated['audience_type'] ?? $notice->audience_type ?? NoticeAudienceService::TYPE_ALL,
         );
@@ -796,7 +833,7 @@ class NoticeController extends Controller
         }
 
         $fresh = $this->baseQuery()->where('notices.id', $id)->first();
-        $noticeFields = ['title', 'body', 'category', 'location', 'image_url', 'event_date', 'event_time', 'event_time_end', 'event_capacity', 'status', 'is_global', 'is_pinned', 'scheduled_at', 'requires_rsvp', 'audience_type'];
+        $noticeFields = ['title', 'body', 'category', 'location', 'image_url', 'event_date', 'event_end_date', 'event_time', 'event_time_end', 'event_capacity', 'status', 'is_global', 'is_pinned', 'scheduled_at', 'requires_rsvp', 'audience_type'];
         ActivityLogService::recordUpdate(
             'notice_updated',
             'Notice',
@@ -958,6 +995,7 @@ class NoticeController extends Controller
             'location'           => 'nullable|string|max:255',
             'image_url'          => 'nullable|string|max:2048',
             'event_date'         => 'nullable|date',
+            'event_end_date'     => 'nullable|date',
             'event_time'         => 'nullable|string|max:20',
             'event_time_end'     => 'nullable|string|max:20',
             'event_capacity'     => 'nullable|integer|min:1|max:100000',
@@ -979,7 +1017,17 @@ class NoticeController extends Controller
             return response()->json(['message' => 'Invalid category'], 422);
         }
 
+        if ($category === 'event') {
+            $this->assertEventPlainTextFields($validated, true);
+        }
+
+        $this->normalizeEventEndDate($validated);
+
         if ($response = $this->assertContentSchedulePresent($validated, $category, $validated['status'] ?? 'published')) {
+            return $response;
+        }
+
+        if ($response = $this->assertContentScheduleWindow($validated)) {
             return $response;
         }
 
@@ -1076,6 +1124,7 @@ class NoticeController extends Controller
             'location'         => $validated['location'] ?? null,
             'image_url'        => MediaUrl::normalize($validated['image_url'] ?? null),
             'event_date'       => $validated['event_date'] ?? null,
+            'event_end_date'   => $validated['event_end_date'] ?? null,
             'event_time'       => $validated['event_time'] ?? null,
             'event_time_end'   => $validated['event_time_end'] ?? null,
             'event_capacity'   => $category === 'event'
@@ -1160,6 +1209,7 @@ class NoticeController extends Controller
             'location'         => $notice->location,
             'image_url'        => MediaUrl::toPublic($notice->image_url, request()),
             'event_date'       => $notice->event_date,
+            'event_end_date'   => $notice->event_end_date ?? null,
             'event_time'       => $notice->event_time,
             'event_time_end'   => $notice->event_time_end ?? null,
             'schedule_timezone' => $notice->category === 'event'
@@ -1189,11 +1239,12 @@ class NoticeController extends Controller
 
         if (($notice->category ?? '') === 'finance') {
             $payload['service_bill'] = app(UnitServiceBillService::class)->findBillForNotice((int) $notice->id);
-            $payload['amenity_bill'] = $payload['service_bill']
+            $viewerId = $user ? (int) $user->id : 0;
+            $payload['amenity_bill'] = $payload['service_bill'] || $viewerId < 1
                 ? null
                 : app(AmenitySharedBillService::class)->findBillForNotice(
                     (int) $notice->id,
-                    (int) $user->id,
+                    $viewerId,
                 );
         }
 
@@ -1606,9 +1657,12 @@ class NoticeController extends Controller
 
         $missing = [];
         if (empty($validated['event_date'])) {
-            $missing['event_date'] = ['Date is required.'];
+            $missing['event_date'] = ['Start date is required.'];
         }
         if ($this->normalizeCategory($category) !== 'emergency') {
+            if (empty($validated['event_end_date'])) {
+                $missing['event_end_date'] = ['End date is required.'];
+            }
             if (empty($validated['event_time'])) {
                 $missing['event_time'] = ['Start time is required.'];
             }
@@ -1619,8 +1673,8 @@ class NoticeController extends Controller
 
         if ($missing !== []) {
             $message = array_key_exists('event_time', $missing) || array_key_exists('event_time_end', $missing)
-                ? 'Date, start time, and end time are required.'
-                : 'Date is required.';
+                ? 'Start/end date and start/end time are required.'
+                : 'Start date is required.';
 
             return response()->json([
                 'message' => $message,
@@ -1636,29 +1690,38 @@ class NoticeController extends Controller
      */
     private function assertContentScheduleNotInPast(array $validated, int $communityId): ?\Illuminate\Http\JsonResponse
     {
-        $date = isset($validated['event_date']) ? trim((string) $validated['event_date']) : '';
-        if ($date === '') {
+        $startDate = isset($validated['event_date']) ? trim((string) $validated['event_date']) : '';
+        if ($startDate === '') {
             return null;
         }
+
+        $endDate = isset($validated['event_end_date']) && trim((string) $validated['event_end_date']) !== ''
+            ? trim((string) $validated['event_end_date'])
+            : $startDate;
 
         $now = NoticeExpiry::nowInTimezone($communityId);
-        if ($now->toDateString() !== $date) {
-            return null;
-        }
-
+        $today = $now->toDateString();
         $message = 'Please select a future time for this notice.';
         $errors = [];
         $nowMinutes = ((int) $now->format('H')) * 60 + (int) $now->format('i');
 
-        foreach (['event_time', 'event_time_end'] as $field) {
-            $raw = isset($validated[$field]) ? trim((string) $validated[$field]) : '';
-            if ($raw === '') {
-                continue;
+        if ($today === $startDate) {
+            $raw = isset($validated['event_time']) ? trim((string) $validated['event_time']) : '';
+            if ($raw !== '') {
+                $minutes = $this->parseScheduleTimeToMinutes($raw);
+                if ($minutes !== null && $minutes < $nowMinutes) {
+                    $errors['event_time'] = [$message];
+                }
             }
+        }
 
-            $minutes = $this->parseScheduleTimeToMinutes($raw);
-            if ($minutes !== null && $minutes < $nowMinutes) {
-                $errors[$field] = [$message];
+        if ($today === substr($endDate, 0, 10)) {
+            $raw = isset($validated['event_time_end']) ? trim((string) $validated['event_time_end']) : '';
+            if ($raw !== '') {
+                $minutes = $this->parseScheduleTimeToMinutes($raw);
+                if ($minutes !== null && $minutes < $nowMinutes) {
+                    $errors['event_time_end'] = [$message];
+                }
             }
         }
 
@@ -1670,6 +1733,59 @@ class NoticeController extends Controller
             'message' => $message,
             'errors'  => $errors,
         ], 422);
+    }
+
+    /** Default end date to start date when omitted (legacy clients). */
+    private function normalizeEventEndDate(array &$validated): void
+    {
+        $start = isset($validated['event_date']) ? trim((string) $validated['event_date']) : '';
+        if ($start === '') {
+            return;
+        }
+
+        $end = isset($validated['event_end_date']) ? trim((string) $validated['event_end_date']) : '';
+        if ($end === '') {
+            $validated['event_end_date'] = $start;
+        }
+    }
+
+    private function assertContentScheduleWindow(array $validated): ?\Illuminate\Http\JsonResponse
+    {
+        $startDate = isset($validated['event_date']) ? trim((string) $validated['event_date']) : '';
+        if ($startDate === '') {
+            return null;
+        }
+
+        $this->normalizeEventEndDate($validated);
+        $endDate = trim((string) $validated['event_end_date']);
+        $startTime = isset($validated['event_time']) ? trim((string) $validated['event_time']) : '';
+        $endTime = isset($validated['event_time_end']) ? trim((string) $validated['event_time_end']) : '';
+
+        if ($endDate !== '' && $endDate < substr($startDate, 0, 10)) {
+            return response()->json([
+                'message' => 'End date must be on or after the start date.',
+                'errors'  => ['event_end_date' => ['End date must be on or after the start date.']],
+            ], 422);
+        }
+
+        if ($startTime === '' || $endTime === '') {
+            return null;
+        }
+
+        $startMinutes = $this->parseScheduleTimeToMinutes($startTime);
+        $endMinutes = $this->parseScheduleTimeToMinutes($endTime);
+        if ($startMinutes === null || $endMinutes === null) {
+            return null;
+        }
+
+        if ($endDate === substr($startDate, 0, 10) && $endMinutes <= $startMinutes) {
+            return response()->json([
+                'message' => 'End time must be after start time.',
+                'errors'  => ['event_time_end' => ['End time must be after start time.']],
+            ], 422);
+        }
+
+        return null;
     }
 
     private function parseScheduleTimeToMinutes(string $value): ?int
@@ -1991,5 +2107,24 @@ class NoticeController extends Controller
 
         return $viewerId !== $authorId
             && UserBlockService::canBlock($viewerId, $authorId, (int) $notice->community_id);
+    }
+
+    /** @param  array<string, mixed>  $fields */
+    private function assertEventPlainTextFields(array $fields, bool $requireLocation): void
+    {
+        $errors = [];
+
+        if ($msg = NoticePlainText::validateField(isset($fields['title']) ? (string) $fields['title'] : null, true)) {
+            $errors['title'] = ["Event name: {$msg}"];
+        }
+
+        $location = isset($fields['location']) ? (string) $fields['location'] : '';
+        if ($msg = NoticePlainText::validateField($location, $requireLocation)) {
+            $errors['location'] = ["Location: {$msg}"];
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
     }
 }

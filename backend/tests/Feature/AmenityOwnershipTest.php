@@ -399,7 +399,7 @@ class AmenityOwnershipTest extends TestCase
 
         $response = $this->postJson('/api/v1/amenities', [
             'name' => 'Resident Gym',
-            'description' => 'Small gym',
+            'description' => 'Small gym area',
             'status' => 'bookable',
             'capacity' => 10,
             'icon_key' => 'gym',

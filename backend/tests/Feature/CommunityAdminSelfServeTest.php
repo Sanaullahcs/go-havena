@@ -174,4 +174,29 @@ class CommunityAdminSelfServeTest extends TestCase
             'description' => 'Gated community near the waterfront.',
         ]);
     }
+
+    public function test_self_serve_rejects_community_name_over_one_hundred_characters(): void
+    {
+        $region = Region::query()->create([
+            'title' => 'Florida',
+            'area' => 'FL',
+            'users_label' => '0 users',
+            'sort_order' => 1,
+            'status' => 'active',
+        ]);
+
+        $admin = User::factory()->create([
+            'role' => 'community_admin',
+            'community_admin_status' => 'pending',
+            'status' => 'active',
+            'name' => '',
+        ]);
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/v1/communities/self-serve', [
+            'community_name' => str_repeat('A', 101),
+            'address' => '100 Palm Ave, Miami, FL',
+            'region_id' => $region->id,
+        ])->assertStatus(422)
+            ->assertJsonPath('errors.community_name.0', 'Community name must be 100 characters or less.');
+    }
 }

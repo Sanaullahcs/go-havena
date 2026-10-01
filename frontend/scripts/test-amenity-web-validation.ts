@@ -67,8 +67,17 @@ console.log("\nWeb amenity form validation");
     booking_fee: "",
   });
   assert(Boolean(empty.name), "requires name");
+  assert(!empty.description, "description is optional");
   assert(Boolean(empty.hours), "requires hours");
   assert(Boolean(empty.icon_key), "requires icon_key");
+  assert(
+    Boolean(validateAmenityForm({ ...valid, description: "x".repeat(501) }).description),
+    "rejects description over 500 characters",
+  );
+  assert(
+    Boolean(validateAmenityForm({ ...valid, name: "x".repeat(101) }).name),
+    "rejects name over 100 characters",
+  );
 
   const ok = validateAmenityForm(valid);
   assert(!hasFieldErrors(ok), "accepts valid form");
@@ -87,6 +96,22 @@ console.log("\nWeb amenity form validation");
     "payload stores full-slot capacity booking",
   );
   assert(payload.slot_duration_minutes === 60, "payload includes slot duration");
+  assert(
+    !hasFieldErrors(validateAmenityForm({ ...valid, slot_duration_minutes: "240" })),
+    "accepts custom slot duration (4 hours)",
+  );
+  assert(
+    amenityFormToPayload({ ...valid, slot_duration_minutes: "240" }).slot_duration_minutes === 240,
+    "payload stores custom slot duration",
+  );
+  assert(
+    Boolean(validateAmenityForm({ ...valid, slot_duration_minutes: "10" }).slot_duration_minutes),
+    "rejects slot duration under 15 minutes",
+  );
+  assert(
+    Boolean(validateAmenityForm({ ...valid, slot_duration_minutes: "500" }).slot_duration_minutes),
+    "rejects slot duration over 8 hours",
+  );
   assert(payload.shared_billing_enabled === false, "shared billing defaults off");
   assert(payload.shared_billing_amount === null, "shared billing amount is null when off");
   assert(payload.booking_fee === 0, "booking fee defaults to 0");

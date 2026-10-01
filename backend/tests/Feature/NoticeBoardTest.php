@@ -74,10 +74,13 @@ class NoticeBoardTest extends TestCase
     /** Default relevance schedule fields required for notice/event/alert creates. */
     private function scheduleFields(?string $date = null): array
     {
+        $day = $date ?? now()->addDay()->toDateString();
+
         return [
-            'event_date'     => $date ?? now()->addDay()->toDateString(),
-            'event_time'     => '09:00',
-            'event_time_end' => '17:00',
+            'event_date'      => $day,
+            'event_end_date'  => $day,
+            'event_time'      => '09:00',
+            'event_time_end'  => '17:00',
         ];
     }
 
@@ -132,6 +135,25 @@ class NoticeBoardTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.image_url', $imageUrl)
             ->assertJsonPath('data.title', 'Community BBQ');
+    }
+
+    public function test_event_create_rejects_invalid_characters_in_title_and_location(): void
+    {
+        ['admin' => $admin] = $this->seedCommunityWithAdmin();
+
+        Sanctum::actingAs($admin);
+
+        $payload = array_merge([
+            'title' => 'DSGFKJASD,EWR/?',
+            'body' => 'Join us in the courtyard for food and fun.',
+            'location' => 'Clubhouse ???',
+            'event_time' => '18:00',
+            'event_time_end' => '21:00',
+        ], $this->scheduleFields(now()->addDays(2)->toDateString()));
+
+        $this->postJson('/api/v1/admin/events', $payload)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['title', 'location']);
     }
 
     public function test_long_notice_body_still_creates_and_notifies_residents(): void

@@ -9,6 +9,7 @@ use DateTimeInterface;
  * Hide resident-facing notices after their scheduled window ends.
  *
  * Schedule times are community-local wall clock values (see NoticeSchedule).
+ * Start: event_date + event_time. End: event_end_date (or event_date) + event_time_end.
  */
 class NoticeExpiry
 {
@@ -31,6 +32,22 @@ class NoticeExpiry
         return Carbon::now(self::resolveTimezone($communityId));
     }
 
+    /** @return string|null YYYY-MM-DD */
+    public static function effectiveEndDate(object $notice): ?string
+    {
+        $start = isset($notice->event_date) ? trim((string) $notice->event_date) : '';
+        if ($start === '') {
+            return null;
+        }
+
+        $end = isset($notice->event_end_date) ? trim((string) $notice->event_end_date) : '';
+        if ($end !== '') {
+            return substr($end, 0, 10);
+        }
+
+        return substr($start, 0, 10);
+    }
+
     public static function applyVisibleScheduleFilter($query, string $table = 'notices', ?int $communityId = null): void
     {
         $now = self::nowInTimezone($communityId);
@@ -50,11 +67,13 @@ class NoticeExpiry
     /** @param  \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder  $query */
     public static function applyActiveScheduleConstraints($query, string $table, string $today, string $time): void
     {
+        $endDateSql = "COALESCE({$table}.event_end_date, {$table}.event_date)";
+
         $query->whereNotNull("{$table}.event_date")
-            ->where(function ($q) use ($table, $today, $time) {
-                $q->where("{$table}.event_date", '>', $today)
-                    ->orWhere(function ($q2) use ($table, $today, $time) {
-                        $q2->where("{$table}.event_date", $today)
+            ->where(function ($q) use ($table, $today, $time, $endDateSql) {
+                $q->whereRaw("{$endDateSql} > ?", [$today])
+                    ->orWhere(function ($q2) use ($table, $today, $time, $endDateSql) {
+                        $q2->whereRaw("DATE({$endDateSql}) = ?", [$today])
                             ->where(function ($q3) use ($table, $time) {
                                 $q3->whereNull("{$table}.event_time_end")
                                     ->orWhere("{$table}.event_time_end", '')
@@ -69,13 +88,14 @@ class NoticeExpiry
     {
         $todayQ = addslashes($today);
         $timeQ = addslashes($time);
+        $endDateSql = "COALESCE({$table}.event_end_date, {$table}.event_date)";
 
         return <<<SQL
 CASE WHEN {$table}.is_pinned = 1 AND (
     ({$table}.event_date IS NULL AND {$table}.category = 'emergency')
-    OR {$table}.event_date > '{$todayQ}'
+    OR {$endDateSql} > '{$todayQ}'
     OR (
-        {$table}.event_date = '{$todayQ}'
+        DATE({$endDateSql}) = '{$todayQ}'
         AND (
             {$table}.event_time_end IS NULL
             OR {$table}.event_time_end = ''
@@ -90,7 +110,6 @@ SQL;
     public static function isExpired(object $notice, ?DateTimeInterface $now = null, ?int $communityId = null): bool
     {
         $communityId ??= isset($notice->community_id) ? (int) $notice->community_id : null;
-        $category = strtolower((string) ($notice->category ?? ''));
         $eventDate = $notice->event_date ?? null;
 
         if ($eventDate === null || trim((string) $eventDate) === '') {
@@ -104,13 +123,16 @@ SQL;
                 : self::nowInTimezone($communityId));
 
         $today = $moment->toDateString();
-        $eventDay = substr((string) $eventDate, 0, 10);
+        $endDay = self::effectiveEndDate($notice);
+        if ($endDay === null) {
+            return false;
+        }
 
-        if ($eventDay < $today) {
+        if ($endDay < $today) {
             return true;
         }
 
-        if ($eventDay > $today) {
+        if ($endDay > $today) {
             return false;
         }
 

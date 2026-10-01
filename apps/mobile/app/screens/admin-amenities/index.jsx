@@ -35,9 +35,9 @@ import {
   rejectAmenity,
 } from "../../../services/amenity-api";
 import AmenityPaymentProofModal from "../../../components/property/amenity-payment-proof-modal";
+import SlotDurationPicker from "../../../components/property/slot-duration-picker";
 import {
   AMENITY_ICON_CATALOG,
-  SLOT_DURATION_OPTIONS,
   getAmenityVisual,
   getAmenityStatus,
   validateAmenityForm,
@@ -1007,29 +1007,11 @@ export default function AdminAmenitiesScreen() {
                 {form.status === "bookable" ? (
                   <>
                     <FieldLabel required>{t("admin.slotDuration")}</FieldLabel>
-                    <View style={styles.durationRow}>
-                      {SLOT_DURATION_OPTIONS.map((opt) => {
-                        const active = Number(form.slot_duration_minutes) === opt.value;
-                        return (
-                          <TouchableOpacity
-                            key={opt.value}
-                            style={[styles.durationChip, active && styles.durationChipActive]}
-                            onPress={() => setField("slot_duration_minutes", opt.value)}
-                            activeOpacity={0.88}
-                          >
-                            <Text
-                              style={[
-                                styles.durationChipText,
-                                active && styles.durationChipTextActive,
-                              ]}
-                            >
-                              {opt.label}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                    <FieldError message={errorFor("slot_duration_minutes")} />
+                    <SlotDurationPicker
+                      minutes={form.slot_duration_minutes}
+                      onChangeMinutes={(value) => setField("slot_duration_minutes", value)}
+                      error={errorFor("slot_duration_minutes")}
+                    />
                     {previewSlots.length > 0 ? (
                       <View style={styles.previewCard}>
                         <Text style={styles.previewTitle}>{t("admin.generatedSlotsPreview")}</Text>

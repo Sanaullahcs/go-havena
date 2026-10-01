@@ -153,6 +153,17 @@ assert(
   }),
 );
 
+assert(
+  "multi-day notice stays visible before end date",
+  !isNoticeExpiredForHome({
+    category: "general",
+    event_date: yesterdayKey(),
+    event_end_date: tomorrowKey(),
+    event_time: "09:00",
+    event_time_end: "17:00",
+  }),
+);
+
 console.log("\n=== pickNeighborhoodCarousel filters expired ===");
 const carousel = pickNeighborhoodCarousel([
   { id: 1, category: "general", title: "Active", event_date: tomorrowKey() },

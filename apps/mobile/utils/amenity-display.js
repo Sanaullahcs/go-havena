@@ -100,12 +100,44 @@ export function getAmenityStatus(status) {
   }
 }
 
+export const AMENITY_SLOT_MIN_MINUTES = 15;
+export const AMENITY_SLOT_MAX_MINUTES = 480;
+
 export const SLOT_DURATION_OPTIONS = [
   { value: 30, get label() { return i18n.t("amenities.slot30min"); } },
   { value: 60, get label() { return i18n.t("amenities.slot1hr"); } },
   { value: 90, get label() { return i18n.t("amenities.slot1_5hr"); } },
   { value: 120, get label() { return i18n.t("amenities.slot2hr"); } },
 ];
+
+export function isPresetSlotDurationMinutes(minutes) {
+  return SLOT_DURATION_OPTIONS.some((opt) => opt.value === Number(minutes));
+}
+
+export function splitSlotDurationMinutes(totalMinutes) {
+  const total = Math.max(0, Math.floor(Number(totalMinutes) || 0));
+  return { hours: Math.floor(total / 60), minutes: total % 60 };
+}
+
+export function combineSlotDurationMinutes(hoursRaw, minutesRaw) {
+  const hours = Math.max(0, Math.floor(Number(hoursRaw) || 0));
+  const minutes = Math.max(0, Math.min(59, Math.floor(Number(minutesRaw) || 0)));
+  return hours * 60 + minutes;
+}
+
+export function isValidAmenitySlotDurationMinutes(minutes) {
+  const n = Number(minutes);
+  return Number.isInteger(n) && n >= AMENITY_SLOT_MIN_MINUTES && n <= AMENITY_SLOT_MAX_MINUTES;
+}
+
+export function formatSlotDurationLabel(minutes) {
+  const preset = SLOT_DURATION_OPTIONS.find((opt) => opt.value === Number(minutes));
+  if (preset) return preset.label;
+  const { hours, mins } = splitSlotDurationMinutes(minutes);
+  if (hours && mins) return i18n.t("amenities.slotDurationHoursMinutes", { hours, minutes: mins });
+  if (hours) return hours === 1 ? i18n.t("amenities.slot1hr") : i18n.t("amenities.slotDurationHours", { hours });
+  return i18n.t("amenities.slotDurationMinutesOnly", { minutes: mins });
+}
 
 /** Parse "9:00 AM - 5:00 PM" into { start_time: "09:00", end_time: "17:00" }. */
 export function parseHoursToApiTimes(hours) {
@@ -187,7 +219,6 @@ export function generateAmenitySlots(startTime, endTime, durationMinutes) {
 export function validateAmenityForm(form) {
   const errors = {};
   const name = String(form.name ?? "").trim();
-  const description = String(form.description ?? "").trim();
   const capacityRaw = String(form.capacity ?? "").trim();
   const floor = String(form.floor ?? "").trim();
   const hours = String(form.hours ?? "").trim();
@@ -196,11 +227,13 @@ export function validateAmenityForm(form) {
   const weekends = form.weekends_available;
   const slotDuration = Number(form.slot_duration_minutes);
 
-  if (!name) errors.name = i18n.t("amenities.validation.nameRequired");
+  if (String(form.name ?? "").length > 100) errors.name = i18n.t("amenities.validation.nameMaxLength");
+  else if (!name) errors.name = i18n.t("amenities.validation.nameRequired");
   else if (name.length < 2) errors.name = i18n.t("amenities.validation.nameMinLength");
-  else if (name.length > 100) errors.name = i18n.t("amenities.validation.nameMaxLength");
 
-  if (description.length > 2000) errors.description = i18n.t("amenities.validation.descriptionTooLong");
+  if (String(form.description ?? "").length > 500) {
+    errors.description = i18n.t("amenities.validation.descriptionTooLong");
+  }
 
   if (!["open", "bookable", "closed"].includes(status)) {
     errors.status = i18n.t("amenities.validation.statusRequired");
@@ -225,8 +258,8 @@ export function validateAmenityForm(form) {
     }
   }
 
-  if (!floor) errors.floor = i18n.t("amenities.validation.locationRequired");
-  else if (floor.length > 40) errors.floor = i18n.t("amenities.validation.locationMaxLength");
+  if (String(form.floor ?? "").length > 40) errors.floor = i18n.t("amenities.validation.locationMaxLength");
+  else if (!floor) errors.floor = i18n.t("amenities.validation.locationRequired");
 
   if (!hours) errors.hours = i18n.t("amenities.validation.hoursRequired");
   else if (!parseHoursToApiTimes(hours)) errors.hours = i18n.t("amenities.validation.hoursInvalid");
@@ -236,8 +269,8 @@ export function validateAmenityForm(form) {
   }
 
   if (status === "bookable") {
-    if (![30, 60, 90, 120].includes(slotDuration)) {
-      errors.slot_duration_minutes = i18n.t("amenities.validation.slotDurationRequired");
+    if (!isValidAmenitySlotDurationMinutes(slotDuration)) {
+      errors.slot_duration_minutes = i18n.t("amenities.validation.slotDurationRange");
     } else {
       const times = parseHoursToApiTimes(hours);
       if (times && generateAmenitySlots(times.start_time, times.end_time, slotDuration).length === 0) {
@@ -246,10 +279,14 @@ export function validateAmenityForm(form) {
     }
   }
 
-  if (!iconKey || !AMENITY_ICON_KEYS.includes(iconKey)) {
-    errors.icon_key = i18n.t("amenities.validation.categoryRequired");
+  if (String(form.custom_category ?? "").length > 80) {
+    errors.custom_category = i18n.t("amenities.validation.customCategoryMaxLength");
   } else if (iconKey === "other" && !String(form.custom_category ?? "").trim()) {
     errors.custom_category = i18n.t("amenities.validation.customCategoryRequired");
+  }
+
+  if (!iconKey || !AMENITY_ICON_KEYS.includes(iconKey)) {
+    errors.icon_key = i18n.t("amenities.validation.categoryRequired");
   }
 
   if ((status === "bookable" || status === "open") && !form.shared_billing_enabled) {

@@ -195,7 +195,7 @@ class PropertyServiceController extends Controller
             'name' => "$required|string|max:120",
             'category' => [$required, Rule::in(PropertyServiceCatalogService::allowedCategories())],
             'custom_category' => 'nullable|string|max:80',
-            'description' => 'nullable|string|max:2000',
+            'description' => 'nullable|string|max:500',
             'icon_key' => 'nullable|string|max:40',
             'status' => ['sometimes', Rule::in(['active', 'inactive'])],
             'application_type' => [$required, Rule::in(['automatic', 'optional'])],

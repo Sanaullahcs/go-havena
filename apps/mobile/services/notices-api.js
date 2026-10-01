@@ -131,23 +131,31 @@ export function formatEventTimeRange(raw) {
   return from || to || "";
 }
 
+function formatNoticeDayLabel(dateStr) {
+  if (!dateStr) return null;
+  try {
+    return new Date(dateStr).toLocaleDateString(getLocaleForLang(i18n.language), {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return String(dateStr);
+  }
+}
+
 export function formatEventSchedule(notice) {
   if (!notice?.event_date && !notice?.event_time && !notice?.event_time_end) return null;
 
   const parts = [];
-  if (notice.event_date) {
-    try {
-      parts.push(
-        new Date(notice.event_date).toLocaleDateString(getLocaleForLang(i18n.language), {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-        }),
-      );
-    } catch {
-      parts.push(notice.event_date);
-    }
-  }
+  const startLabel = formatNoticeDayLabel(notice.event_date);
+  const endRaw = notice.event_end_date ?? notice.eventEndDate;
+  const endLabel =
+    endRaw && String(endRaw).slice(0, 10) !== String(notice.event_date ?? "").slice(0, 10)
+      ? formatNoticeDayLabel(endRaw)
+      : null;
+  if (startLabel && endLabel) parts.push(`${startLabel} – ${endLabel}`);
+  else if (startLabel) parts.push(startLabel);
   const timeRange = formatEventTimeRange(notice);
   if (timeRange) parts.push(timeRange);
   return parts.join(" · ");
@@ -241,6 +249,7 @@ export function normalizeNotice(raw) {
     location: raw.location ?? null,
     imageUrl: resolveMediaUrl(resolveNoticeImageUrl(raw.image_url)),
     eventDate: raw.event_date ?? null,
+    eventEndDate: raw.event_end_date ?? null,
     eventTime: raw.event_time ?? null,
     eventTimeEnd: raw.event_time_end ?? null,
     eventSchedule: formatEventSchedule(raw),
@@ -590,6 +599,7 @@ export async function createNotice({
   location,
   image_url,
   event_date,
+  event_end_date,
   event_time,
   event_time_end,
   status = "published",
@@ -607,6 +617,7 @@ export async function createNotice({
       location,
       image_url,
       event_date,
+      event_end_date,
       event_time,
       event_time_end,
       status,
@@ -625,6 +636,7 @@ export async function createEvent({
   location,
   image_url,
   event_date,
+  event_end_date,
   event_time,
   event_time_end,
   event_capacity,
@@ -640,6 +652,7 @@ export async function createEvent({
       location,
       image_url,
       event_date,
+      event_end_date,
       event_time,
       event_time_end,
       event_capacity,
@@ -658,6 +671,7 @@ export async function submitResidentEvent({
   location,
   image_url,
   event_date,
+  event_end_date,
   event_time,
   event_time_end,
   event_capacity,
@@ -671,6 +685,7 @@ export async function submitResidentEvent({
       location,
       image_url,
       event_date,
+      event_end_date,
       event_time,
       event_time_end,
       event_capacity,

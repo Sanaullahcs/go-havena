@@ -971,7 +971,9 @@ body {
 }
 @media (min-width: 640px) {
   .nl-notice-schedule-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 0.75rem;
+    row-gap: 0.625rem;
   }
 }
 .nl-notice-picker-field {
@@ -1144,6 +1146,192 @@ body {
   align-items: center;
   gap: 0.5rem;
 }
+
+/* Notice / event view modal (read-only detail) */
+.nl-notice-view-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+.nl-notice-view-byline {
+  margin-top: 0.375rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: #64748b;
+}
+.nl-notice-view-grid {
+  display: grid;
+  gap: 0.625rem;
+}
+@media (min-width: 640px) {
+  .nl-notice-view-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.nl-notice-view-tile {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.625rem;
+  border-radius: 0.625rem;
+  border: 1px solid #e8edf3;
+  background: #fff;
+  padding: 0.75rem;
+}
+.nl-notice-view-tile-icon {
+  display: flex;
+  height: 2rem;
+  width: 2rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  background: #d1faf5;
+  color: #0a2a43;
+}
+.nl-notice-view-tile-icon svg {
+  flex-shrink: 0;
+}
+.nl-notice-view-tile-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+.nl-notice-view-tile-value {
+  margin-top: 0.125rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.nl-notice-view-image {
+  display: flex;
+  max-height: 20rem;
+  max-width: 100%;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  margin-bottom: 1rem;
+  border-radius: 0.625rem;
+  border: 1px solid #e8edf3;
+  background: #f8fafc;
+}
+.nl-notice-view-image img {
+  max-height: 20rem;
+  max-width: 100%;
+  object-fit: contain;
+}
+.nl-notice-view-section {
+  margin-top: 1.25rem;
+  min-width: 0;
+}
+.nl-notice-view-section-title {
+  margin-bottom: 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+.nl-notice-view-body {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: rgba(10, 42, 67, 0.88);
+}
+.nl-notice-view-empty {
+  margin-top: 1.25rem;
+  border-radius: 0.625rem;
+  border: 1px dashed #e2e8f0;
+  background: #f8fafc;
+  padding: 1rem 1.125rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #64748b;
+}
+.nl-notice-view-list {
+  overflow: hidden;
+  border-radius: 0.625rem;
+  border: 1px solid #e8edf3;
+  background: #fff;
+}
+.nl-notice-view-list-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+}
+.nl-notice-view-list-row + .nl-notice-view-list-row {
+  border-top: 1px solid #f1f5f9;
+}
+.nl-notice-view-avatar {
+  display: flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: #d1faf5;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #0a2a43;
+}
+.nl-notice-view-avatar--sm {
+  height: 1.75rem;
+  width: 1.75rem;
+  font-size: 0.6875rem;
+}
+.nl-notice-view-callout {
+  margin-top: 1.25rem;
+  border-radius: 0.625rem;
+  border: 1px solid rgba(20, 184, 166, 0.28);
+  background: rgba(209, 250, 245, 0.45);
+  padding: 0.75rem 1rem;
+}
+.nl-notice-view-callout-title {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #0a2a43;
+}
+.nl-notice-view-callout-body {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: rgba(10, 42, 67, 0.72);
+}
+.nl-notice-view-reject {
+  margin-bottom: 1rem;
+  border-radius: 0.625rem;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  padding: 0.75rem 1rem;
+}
+.nl-notice-view-reject-title {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #dc2626;
+}
+.nl-notice-view-reject-body {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #991b1b;
+  overflow-wrap: anywhere;
+}
+
 .nl-notice-modal .nl-input {
   padding: 0.5rem 0.75rem;
   font-size: 0.8125rem;

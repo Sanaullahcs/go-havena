@@ -248,6 +248,8 @@ class ProfileController extends Controller
         if ($isCommunityAdmin) {
             if ($request->has('office_address')) {
                 $profileData['office_address'] = trim((string) $request->input('office_address', ''));
+                $profileData['unit_number'] = null;
+                $profileData['residence_type'] = null;
             }
         } else {
             if ($request->has('unit_number')) {

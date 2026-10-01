@@ -679,8 +679,14 @@ function CommunityAdminDetailModal({
               <ProfileRow label="Email" value={formatDisplayEmail(item.email) ?? "—"} />
               <ProfileRow label="Phone" value={item.phone ? <PhoneDisplay value={item.phone} /> : formatAccountContact(item) || "—"} />
               <ProfileRow label="Display name" value={formatAccountDisplayName(item, "—")} />
-              <ProfileRow label="Unit" value={item.profile?.unit_number ?? "—"} />
-              <ProfileRow label="Residence" value={capitalize(item.profile?.residence_type)} />
+              <ProfileRow
+                label="Office address"
+                value={
+                  item.profile?.office_address?.trim()
+                  || item.profile?.unit_number?.trim()
+                  || "—"
+                }
+              />
             </>
           ) : null}
 

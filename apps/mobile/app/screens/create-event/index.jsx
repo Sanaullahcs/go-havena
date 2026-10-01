@@ -29,6 +29,9 @@ import { fetchMe } from "../../../services/profile-api";
 import { getUser } from "../../../services/auth-session";
 import { isCommunityAdmin } from "../../../services/community-access";
 import { useTranslation } from 'react-i18next';
+import { selectionChipStyles as chipTheme } from "../../../constants/selection-chip-styles";
+import { buildQuickDate, buildQuickStartInHours } from "../../../utils/schedule-shortcut-helpers";
+import { isScheduleEndBeforeStart } from "../../../utils/notice-schedule-window";
 
 export default function CreateEventScreen() {
   const router = useRouter();
@@ -39,6 +42,7 @@ export default function CreateEventScreen() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
   const [time, setTime] = useState(null);
   const [timeEnd, setTimeEnd] = useState(null);
   const [location, setLocation] = useState("");
@@ -50,9 +54,12 @@ export default function CreateEventScreen() {
   const [schedulePublishTime, setSchedulePublishTime] = useState(null);
   const [coverImage, setCoverImage] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [dateShortcut, setDateShortcut] = useState(null);
+  const [timeShortcut, setTimeShortcut] = useState(null);
   const { errors, setErrors, touch, clearError, showError, validateOnSubmit } = useTouchedFieldErrors();
 
-  const applyStartTime = (start) => {
+  const applyStartTime = (start, shortcut = null) => {
+    if (shortcut !== null) setTimeShortcut(shortcut);
     setTime(start);
     touch("event_time");
     clearError("event_time");
@@ -65,33 +72,54 @@ export default function CreateEventScreen() {
     }
   };
 
-  const applyQuickDate = (daysFromToday) => {
-    const next = new Date();
-    next.setHours(12, 0, 0, 0);
-    next.setDate(next.getDate() + daysFromToday);
+  const syncEndDate = (startDate, currentEnd) => {
+    const startKey = toApiDate(startDate);
+    const endKey = toApiDate(currentEnd);
+    if (!startKey) return;
+    if (!endKey || endKey < startKey) {
+      setEndDate(startDate);
+      touch("event_end_date");
+      clearError("event_end_date");
+    }
+  };
+
+  const applyQuickDate = (daysFromToday, shortcut) => {
+    setDateShortcut(shortcut);
+    const next = buildQuickDate(daysFromToday);
     setDate(next);
+    setEndDate(next);
     touch("event_date");
+    touch("event_end_date");
     clearError("event_date");
+    clearError("event_end_date");
     // Same-day quick pick should land on a still-upcoming window.
     if (daysFromToday === 0 && !time) {
       const start = new Date();
       start.setMinutes(0, 0, 0);
       start.setHours(start.getHours() + 1);
-      applyStartTime(start);
+      applyStartTime(start, null);
     }
   };
 
-  const applyQuickStartInHours = (hoursFromNow) => {
-    const start = new Date(Date.now() + hoursFromNow * 60 * 60 * 1000);
-    start.setSeconds(0, 0);
-    applyStartTime(start);
+  const applyQuickStartInHours = (hoursFromNow, shortcut) => {
+    if (shortcut) setTimeShortcut(shortcut);
+    const start = buildQuickStartInHours(hoursFromNow);
+    applyStartTime(start, null);
     if (!date) {
+      setDateShortcut((current) => current ?? "today");
       const d = new Date(start);
       d.setHours(12, 0, 0, 0);
       setDate(d);
       touch("event_date");
       clearError("event_date");
     }
+  };
+
+  const applyFillSchedule = () => {
+    setDateShortcut("fill");
+    setTimeShortcut("in1h");
+    applyQuickDate(0, "fill");
+    applyQuickStartInHours(1, "in1h");
   };
 
   useEffect(() => {
@@ -118,12 +146,13 @@ export default function CreateEventScreen() {
       body: description,
       location,
       event_date: toApiDate(date) ?? "",
+      event_end_date: toApiDate(endDate) ?? toApiDate(date) ?? "",
       event_time: toApiTime(time) ?? "",
       event_time_end: toApiTime(timeEnd) ?? "",
       scheduled_date: scheduleLater ? toApiDate(schedulePublishDate) ?? "" : "",
       scheduled_time: scheduleLater ? toApiTime(schedulePublishTime) ?? "" : "",
     }),
-    [title, description, location, date, time, timeEnd, scheduleLater, schedulePublishDate, schedulePublishTime],
+    [title, description, location, date, endDate, time, timeEnd, scheduleLater, schedulePublishDate, schedulePublishTime],
   );
 
   const validationOpts = useMemo(
@@ -145,16 +174,22 @@ export default function CreateEventScreen() {
 
   useEffect(() => {
     if (!time || !timeEnd) return;
+    const invalid = isScheduleEndBeforeStart(
+      formValues.event_date,
+      formValues.event_time,
+      formValues.event_end_date,
+      formValues.event_time_end,
+    );
     setErrors((prev) => {
-      if (timeEnd.getTime() > time.getTime()) {
+      if (!invalid) {
         if (!prev.event_time_end) return prev;
         const next = { ...prev };
         delete next.event_time_end;
         return next;
       }
-      return { ...prev, event_time_end: t('events.endTimeAfterStart') };
+      return { ...prev, event_time_end: t("events.endTimeAfterStart") };
     });
-  }, [time, timeEnd, setErrors]);
+  }, [time, timeEnd, formValues.event_date, formValues.event_time, formValues.event_end_date, formValues.event_time_end, setErrors, t]);
 
   const handlePublish = () => {
     if (submitting || uploadingImage) return;
@@ -177,6 +212,7 @@ export default function CreateEventScreen() {
                 body: description.trim(),
                 location: location.trim(),
                 event_date: toApiDate(date),
+                event_end_date: toApiDate(endDate) ?? toApiDate(date),
                 event_time: toApiTime(time),
                 event_time_end: toApiTime(timeEnd),
                 event_capacity: capacity.trim() ? Number(capacity.trim()) : undefined,
@@ -294,31 +330,44 @@ export default function CreateEventScreen() {
           />
 
           <View style={styles.sectionGap}>
-            {renderFieldLabel("calendar-outline", t('events.date'), true)}
+            {renderFieldLabel("calendar-outline", t("events.startDate"), true)}
           </View>
-          <View style={styles.chipRow}>
-            <TouchableOpacity style={styles.chip} onPress={() => applyQuickDate(0)} activeOpacity={0.85}>
-              <Text style={styles.chipText}>{t('events.today')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.chip} onPress={() => applyQuickDate(1)} activeOpacity={0.85}>
-              <Text style={styles.chipText}>{t('events.tomorrow')}</Text>
-            </TouchableOpacity>
+          <View style={chipTheme.chipRow}>
             <TouchableOpacity
-              style={styles.chip}
-              onPress={() => {
-                applyQuickDate(0);
-                applyQuickStartInHours(1);
-              }}
+              style={[chipTheme.chip, dateShortcut === "today" && chipTheme.chipActive]}
+              onPress={() => applyQuickDate(0, "today")}
               activeOpacity={0.85}
             >
-              <Text style={styles.chipText}>{t('events.fillSchedule')}</Text>
+              <Text style={[chipTheme.chipText, dateShortcut === "today" && chipTheme.chipTextActive]}>
+                {t('events.today')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[chipTheme.chip, dateShortcut === "tomorrow" && chipTheme.chipActive]}
+              onPress={() => applyQuickDate(1, "tomorrow")}
+              activeOpacity={0.85}
+            >
+              <Text style={[chipTheme.chipText, dateShortcut === "tomorrow" && chipTheme.chipTextActive]}>
+                {t('events.tomorrow')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[chipTheme.chip, dateShortcut === "fill" && chipTheme.chipActive]}
+              onPress={applyFillSchedule}
+              activeOpacity={0.85}
+            >
+              <Text style={[chipTheme.chipText, dateShortcut === "fill" && chipTheme.chipTextActive]}>
+                {t('events.fillSchedule')}
+              </Text>
             </TouchableOpacity>
           </View>
           <SchedulePickerField
             mode="date"
             value={date}
             onChange={(v) => {
+              setDateShortcut(null);
               setDate(v);
+              syncEndDate(v, endDate);
               touch("event_date");
               clearError("event_date");
             }}
@@ -330,22 +379,55 @@ export default function CreateEventScreen() {
           <View style={styles.sectionGap}>
             {renderFieldLabel("time-outline", t('events.timeFrom'), true)}
           </View>
-          <View style={styles.chipRow}>
-            <TouchableOpacity style={styles.chip} onPress={() => applyQuickStartInHours(0)} activeOpacity={0.85}>
-              <Text style={styles.chipText}>{t('events.now')}</Text>
+          <View style={chipTheme.chipRow}>
+            <TouchableOpacity
+              style={[chipTheme.chip, timeShortcut === "now" && chipTheme.chipActive]}
+              onPress={() => applyQuickStartInHours(0, "now")}
+              activeOpacity={0.85}
+            >
+              <Text style={[chipTheme.chipText, timeShortcut === "now" && chipTheme.chipTextActive]}>
+                {t('events.now')}
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.chip} onPress={() => applyQuickStartInHours(1)} activeOpacity={0.85}>
-              <Text style={styles.chipText}>{t('events.inOneHour')}</Text>
+            <TouchableOpacity
+              style={[chipTheme.chip, timeShortcut === "in1h" && chipTheme.chipActive]}
+              onPress={() => applyQuickStartInHours(1, "in1h")}
+              activeOpacity={0.85}
+            >
+              <Text style={[chipTheme.chipText, timeShortcut === "in1h" && chipTheme.chipTextActive]}>
+                {t('events.inOneHour')}
+              </Text>
             </TouchableOpacity>
           </View>
           <SchedulePickerField
             mode="time"
             value={time}
-            onChange={(v) => applyStartTime(v)}
+            onChange={(v) => {
+              setTimeShortcut(null);
+              applyStartTime(v, null);
+            }}
             placeholder={t('events.startTimePlaceholder')}
             inputStyle={[styles.input, showError("event_time", fieldErrorsLive) && styles.inputError]}
           />
           {showError("event_time", fieldErrorsLive) ? <Text style={styles.errorText}>{showError("event_time", fieldErrorsLive)}</Text> : null}
+
+          <View style={styles.sectionGap}>
+            {renderFieldLabel("calendar-outline", t("events.endDate"), true)}
+          </View>
+          <SchedulePickerField
+            mode="date"
+            value={endDate}
+            onChange={(v) => {
+              setEndDate(v);
+              touch("event_end_date");
+              clearError("event_end_date");
+            }}
+            placeholder="mm/dd/yyyy"
+            inputStyle={[styles.input, showError("event_end_date", fieldErrorsLive) && styles.inputError]}
+          />
+          {showError("event_end_date", fieldErrorsLive) ? (
+            <Text style={styles.errorText}>{showError("event_end_date", fieldErrorsLive)}</Text>
+          ) : null}
 
           <View style={styles.sectionGap}>
             {renderFieldLabel("time-outline", t('events.timeTo'), true)}
@@ -653,27 +735,6 @@ const styles = StyleSheet.create({
   },
   toggleThumbOn: {
     alignSelf: "flex-end",
-  },
-  chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: 12,
-    marginBottom: 4,
-  },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 999,
-    backgroundColor: "#D1FAF5",
-    borderWidth: 1,
-    borderColor: "rgba(20, 184, 166, 0.28)",
-    marginEnd: 10,
-    marginBottom: 8,
-  },
-  chipText: {
-    fontFamily: Fonts.medium,
-    fontSize: 12,
-    color: "#1B4F8A",
   },
   publishWrap: {
     paddingHorizontal: 24,

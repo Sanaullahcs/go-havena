@@ -56,9 +56,9 @@ export default function EventRsvpPanel({ notice, onUpdated }: Props) {
 
   if (isOrganizer) {
     return (
-      <div className="mt-5 rounded-xl border border-violet-100 bg-violet-50/80 px-4 py-3">
-        <p className="text-[13px] font-semibold text-violet-900">Your event</p>
-        <p className="mt-1 text-[12px] leading-relaxed text-violet-800/90">
+      <div className="nl-notice-view-callout">
+        <p className="nl-notice-view-callout-title">Your event</p>
+        <p className="nl-notice-view-callout-body">
           Organizers cannot RSVP to their own event. Residents can join from the mobile app or
           community notices.
         </p>
@@ -87,10 +87,8 @@ export default function EventRsvpPanel({ notice, onUpdated }: Props) {
   };
 
   return (
-    <div className="mt-5 rounded-xl border border-teal-100 bg-teal-50/60 px-4 py-4">
-      <p className="text-[12px] font-semibold uppercase tracking-wide text-teal-800">
-        Your RSVP
-      </p>
+    <div className="nl-notice-view-callout">
+      <p className="nl-notice-view-section-title !mb-0">Your RSVP</p>
 
       {isJoined ? (
         <p className="mt-2 flex items-center gap-2 text-[13px] font-medium text-emerald-800">
@@ -100,7 +98,7 @@ export default function EventRsvpPanel({ notice, onUpdated }: Props) {
       ) : null}
 
       {isWaitlisted ? (
-        <p className="mt-2 text-[13px] font-medium text-violet-800">
+        <p className="mt-2 text-[13px] font-medium text-[#0a2a43]">
           {notice.waitlist_position
             ? `On the waiting list (#${notice.waitlist_position})`
             : "On the waiting list"}
@@ -148,10 +146,8 @@ export default function EventRsvpPanel({ notice, onUpdated }: Props) {
           disabled={busy}
           onClick={handlePrimary}
           className={[
-            "mt-3 w-full rounded-xl px-4 py-2.5 text-[14px] font-semibold transition disabled:opacity-60",
-            isJoined || isWaitlisted
-              ? "border border-rose-200 bg-white text-rose-700 hover:bg-rose-50"
-              : "bg-teal-600 text-white hover:bg-teal-700",
+            "mt-3 w-full disabled:opacity-60",
+            isJoined || isWaitlisted ? "nl-btn-secondary" : "nl-btn-primary",
           ].join(" ")}
         >
           {busy ? "Please wait…" : joinLabel}

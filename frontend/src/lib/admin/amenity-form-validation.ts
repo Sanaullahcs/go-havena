@@ -1,4 +1,8 @@
 import { AMENITY_ICON_KEYS } from "@/lib/admin/amenity-display";
+import {
+  amenityHoursFitSlotDuration,
+  isValidAmenitySlotDurationMinutes,
+} from "@/lib/admin/amenity-slot-duration";
 import { parseHoursRange } from "@/lib/admin/hours-range-utils";
 
 export const SHARED_BILLING_TYPE = "all_residents";
@@ -47,6 +51,13 @@ export type AmenityForm = {
   shared_billing_due_day: string;
   booking_fee: string;
 };
+
+export const AMENITY_FIELD_MAX = {
+  name: 100,
+  description: 500,
+  floor: 40,
+  custom_category: 80,
+} as const;
 
 export const AMENITY_FORM_STEPS = ["details", "availability", "billing", "review"] as const;
 export type AmenityFormStep = (typeof AMENITY_FORM_STEPS)[number];
@@ -136,17 +147,18 @@ export function visibleAmenityFormSteps(showSharedBilling: boolean, _billingEnab
 export function validateAmenityForm(form: AmenityForm): Record<string, string> {
   const errors: Record<string, string> = {};
   const name = form.name.trim();
-  const description = form.description.trim();
   const capacityRaw = form.capacity.trim();
   const floor = form.floor.trim();
   const hours = form.hours.trim();
   const slotDuration = Number(form.slot_duration_minutes);
 
-  if (!name) errors.name = "Name is required.";
+  if (form.name.length > AMENITY_FIELD_MAX.name) errors.name = "Keep the name under 100 characters.";
+  else if (!name) errors.name = "Name is required.";
   else if (name.length < 2) errors.name = "Use at least 2 characters.";
-  else if (name.length > 100) errors.name = "Keep the name under 100 characters.";
 
-  if (description.length > 2000) errors.description = "Description is too long.";
+  if (form.description.length > AMENITY_FIELD_MAX.description) {
+    errors.description = "Description must be 500 characters or fewer.";
+  }
 
   if (!["open", "bookable", "closed"].includes(form.status)) {
     errors.status = "Choose an availability option.";
@@ -170,8 +182,14 @@ export function validateAmenityForm(form: AmenityForm): Record<string, string> {
     }
   }
 
-  if (!floor) errors.floor = "Location is required.";
-  else if (floor.length > 40) errors.floor = "Keep location under 40 characters.";
+  if (form.floor.length > AMENITY_FIELD_MAX.floor) errors.floor = "Keep location under 40 characters.";
+  else if (!floor) errors.floor = "Location is required.";
+
+  if (form.custom_category.length > AMENITY_FIELD_MAX.custom_category) {
+    errors.custom_category = "Keep the custom category under 80 characters.";
+  } else if (form.icon_key === "other" && !form.custom_category.trim()) {
+    errors.custom_category = "Enter a custom category name.";
+  }
 
   if (!hours) errors.hours = "Open and close times are required.";
   else {
@@ -181,14 +199,19 @@ export function validateAmenityForm(form: AmenityForm): Record<string, string> {
     }
   }
 
-  if (form.status === "bookable" && ![30, 60, 90, 120].includes(slotDuration)) {
-    errors.slot_duration_minutes = "Choose a slot duration.";
+  if (form.status === "bookable") {
+    if (!isValidAmenitySlotDurationMinutes(slotDuration)) {
+      errors.slot_duration_minutes = "Enter a duration between 15 minutes and 8 hours.";
+    } else {
+      const range = parseHoursRange(form.hours);
+      if (range.open && range.close && !amenityHoursFitSlotDuration(range.open, range.close, slotDuration)) {
+        errors.slot_duration_minutes = "No slots fit within these hours — choose a shorter duration.";
+      }
+    }
   }
 
   if (!form.icon_key || !AMENITY_ICON_KEYS.includes(form.icon_key)) {
     errors.icon_key = "Category is required.";
-  } else if (form.icon_key === "other" && !form.custom_category.trim()) {
-    errors.custom_category = "Enter a custom category name.";
   }
 
   const feeRaw = form.charge_model === "monthly" || form.shared_billing_enabled ? "0" : form.booking_fee.trim();

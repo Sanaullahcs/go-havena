@@ -34,6 +34,7 @@ export type NoticeFormValues = {
   category: string;
   location: string;
   event_date: string;
+  event_end_date: string;
   event_time: string;
   event_time_end: string;
   event_capacity: string;
@@ -63,6 +64,7 @@ const EMPTY_FORM: NoticeFormValues = {
   category: "general",
   location: "",
   event_date: "",
+  event_end_date: "",
   event_time: "",
   event_time_end: "",
   event_capacity: "",
@@ -95,6 +97,11 @@ function noticeToForm(notice: Notice): NoticeFormValues {
     category: notice.category ?? "general",
     location: notice.location ?? "",
     event_date: notice.event_date ? notice.event_date.slice(0, 10) : "",
+    event_end_date: notice.event_end_date
+      ? notice.event_end_date.slice(0, 10)
+      : notice.event_date
+        ? notice.event_date.slice(0, 10)
+        : "",
     event_time: notice.event_time ? normalizeTimeValue(notice.event_time) : "",
     event_time_end: notice.event_time_end ? normalizeTimeValue(notice.event_time_end) : "",
     event_capacity: notice.event_capacity != null ? String(notice.event_capacity) : "",
@@ -178,8 +185,8 @@ export default function NoticeFormModal({
   }, [open, initial, defaultCategory, lockedCategory]);
 
   const schedulePreview = useMemo(
-    () => buildSchedulePreview(form.event_date, form.event_time, form.event_time_end),
-    [form.event_date, form.event_time, form.event_time_end],
+    () => buildSchedulePreview(form.event_date, form.event_time, form.event_time_end, form.event_end_date),
+    [form.event_date, form.event_end_date, form.event_time, form.event_time_end],
   );
 
   const applyDurationFromStart = (hours: number) => {
@@ -204,8 +211,8 @@ export default function NoticeFormModal({
   const scheduleOptionalNote = isAlertForm
     ? "Alert date is required. Start and end times are optional."
     : isNoticeForm
-      ? "Notice date, start time, and end time are required."
-      : "Event date, start time, and end time are required.";
+      ? "Start/end date and start/end time are required."
+      : "Start/end date and start/end time are required.";
 
   const formKind: NoticeFormKind = isEventForm ? "event" : isAlertForm ? "alert" : "notice";
   const enforceFutureTimes = mode === "create";
@@ -213,8 +220,11 @@ export default function NoticeFormModal({
     () => (enforceFutureTimes ? minTimeForNoticeDate(form.event_date) ?? undefined : undefined),
     [enforceFutureTimes, form.event_date],
   );
-
-  const showError = (field: string) => Boolean((submitAttempted || touched[field]) && errors[field]);
+  const noticeEndMinTime = useMemo(() => {
+    if (!enforceFutureTimes) return undefined;
+    const endDay = form.event_end_date.trim() || form.event_date.trim();
+    return minTimeForNoticeDate(endDay) ?? undefined;
+  }, [enforceFutureTimes, form.event_date, form.event_end_date]);
 
   const touch = (field: string) => setTouched((prev) => ({ ...prev, [field]: true }));
 
@@ -234,6 +244,16 @@ export default function NoticeFormModal({
       publishNow,
       enforceFutureTimes,
     });
+
+  const liveErrors = useMemo(
+    () => runValidation(false),
+    [form, formKind, lockedCategory, enforceFutureTimes],
+  );
+
+  const showError = (field: string) => {
+    if (!(submitAttempted || touched[field])) return undefined;
+    return errors[field] || liveErrors[field];
+  };
 
   const canPublishNow = useMemo(
     () => !hasFieldErrors(runValidation(true)),
@@ -320,6 +340,7 @@ export default function NoticeFormModal({
           location: isAlertForm ? undefined : form.location.trim() || undefined,
           image_url: imageUrl,
           event_date: form.event_date || undefined,
+          event_end_date: form.event_end_date.trim() || form.event_date || undefined,
           event_time: form.event_time.trim() || undefined,
           event_time_end: form.event_time_end.trim() || undefined,
           event_capacity:
@@ -403,12 +424,15 @@ export default function NoticeFormModal({
                   const next = runValidation(false);
                   setErrors((prev) => ({ ...prev, title: next.title }));
                 }}
-                onChange={(e) => set("title", e.target.value)}
-                className={inputClass(showError("title") ? errors.title : undefined, "nl-input w-full")}
+                onChange={(e) => {
+                  touch("title");
+                  set("title", e.target.value);
+                }}
+                className={inputClass(showError("title"), "nl-input w-full")}
                 placeholder="Community BBQ this Saturday"
               />
-              {showError("title") && errors.title ? (
-                <FieldError>{errors.title}</FieldError>
+              {showError("title") ? (
+                <FieldError>{showError("title")}</FieldError>
               ) : null}
             </div>
 
@@ -497,13 +521,16 @@ export default function NoticeFormModal({
                     const next = runValidation(false);
                     setErrors((prev) => ({ ...prev, location: next.location }));
                   }}
-                  onChange={(e) => set("location", e.target.value)}
-                  className={inputClass(showError("location") ? errors.location : undefined, "nl-input w-full nl-notice-input-with-icon")}
+                  onChange={(e) => {
+                    touch("location");
+                    set("location", e.target.value);
+                  }}
+                  className={inputClass(showError("location"), "nl-input w-full nl-notice-input-with-icon")}
                   placeholder="Courtyard, Block A, Pool area…"
                 />
               </div>
-              {showError("location") && errors.location ? (
-                <FieldError>{errors.location}</FieldError>
+              {showError("location") ? (
+                <FieldError>{showError("location")}</FieldError>
               ) : null}
             </div>
             ) : null}
@@ -518,18 +545,27 @@ export default function NoticeFormModal({
                   <ScheduleShortcut
                     label="Today"
                     active={form.event_date === todayIso()}
-                    onClick={() => set("event_date", todayIso())}
+                    onClick={() => {
+                      const day = todayIso();
+                      set("event_date", day);
+                      if (!isAlertForm) set("event_end_date", day);
+                    }}
                   />
                   <ScheduleShortcut
                     label="Tomorrow"
                     active={form.event_date === tomorrowIso()}
-                    onClick={() => set("event_date", tomorrowIso())}
+                    onClick={() => {
+                      const day = tomorrowIso();
+                      set("event_date", day);
+                      if (!isAlertForm) set("event_end_date", day);
+                    }}
                   />
                   <ScheduleShortcut
                     label="Clear"
                     muted
                     onClick={() => {
                       set("event_date", "");
+                      set("event_end_date", "");
                       set("event_time", "");
                       set("event_time_end", "");
                     }}
@@ -543,7 +579,7 @@ export default function NoticeFormModal({
 
               <div className="nl-notice-schedule-grid">
                 <ThemedDatePicker
-                  label={isAlertForm ? "Alert date" : isNoticeForm ? "Notice date" : "Event date"}
+                  label={isAlertForm ? "Alert date" : "Start date"}
                   placeholder="Select date"
                   icon={<IcoCalendarSmall />}
                   value={form.event_date}
@@ -554,10 +590,18 @@ export default function NoticeFormModal({
                     const next = runValidation(false);
                     setErrors((prev) => ({ ...prev, event_date: next.event_date }));
                   }}
-                  onChange={(v) => set("event_date", v)}
+                  onChange={(v) => {
+                    set("event_date", v);
+                    if (!isAlertForm) {
+                      const endDay = form.event_end_date.trim();
+                      if (!endDay || endDay < v) {
+                        set("event_end_date", v);
+                      }
+                    }
+                  }}
                 />
                 <ThemedTimePicker
-                  label={isAlertForm ? "Start time (optional)" : isNoticeForm ? "Start time" : "Time from"}
+                  label={isAlertForm ? "Start time (optional)" : "Start time"}
                   placeholder={isAlertForm ? "Optional" : "Start time"}
                   icon={<IcoClock />}
                   value={form.event_time}
@@ -590,13 +634,29 @@ export default function NoticeFormModal({
                     }));
                   }}
                 />
+                {!isAlertForm ? (
+                  <ThemedDatePicker
+                    label="End date"
+                    placeholder="Select date"
+                    icon={<IcoCalendarSmall />}
+                    value={form.event_end_date}
+                    fieldKey="event_end_date"
+                    error={showError("event_end_date") ? errors.event_end_date : undefined}
+                    onBlur={() => {
+                      touch("event_end_date");
+                      const next = runValidation(false);
+                      setErrors((prev) => ({ ...prev, event_end_date: next.event_end_date }));
+                    }}
+                    onChange={(v) => set("event_end_date", v)}
+                  />
+                ) : null}
                 <ThemedTimePicker
-                  label={isAlertForm ? "End time (optional)" : isNoticeForm ? "End time" : "Time to"}
+                  label={isAlertForm ? "End time (optional)" : "End time"}
                   placeholder={isAlertForm ? "Optional" : "End time"}
                   icon={<IcoClock />}
                   value={form.event_time_end}
                   fieldKey="event_time_end"
-                  minTime={noticeMinTime}
+                  minTime={isAlertForm ? noticeMinTime : noticeEndMinTime}
                   minTimeMessage={NOTICE_FUTURE_TIME_MESSAGE}
                   error={showError("event_time_end") ? errors.event_time_end : undefined}
                   onBlur={() => {
@@ -607,6 +667,7 @@ export default function NoticeFormModal({
                       event_time_end: next.event_time_end,
                       event_time: next.event_time,
                       event_date: next.event_date,
+                      event_end_date: next.event_end_date,
                     }));
                   }}
                   onChange={(v) => set("event_time_end", v)}
@@ -615,6 +676,9 @@ export default function NoticeFormModal({
 
               {showError("event_date") && errors.event_date ? (
                 <FieldError>{errors.event_date}</FieldError>
+              ) : null}
+              {!isAlertForm && showError("event_end_date") && errors.event_end_date ? (
+                <FieldError>{errors.event_end_date}</FieldError>
               ) : null}
               {showError("event_time") && errors.event_time ? (
                 <FieldError>{errors.event_time}</FieldError>

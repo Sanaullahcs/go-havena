@@ -61,4 +61,20 @@ class NoticeExpiryTest extends TestCase
             'event_time' => '09:00',
         ]));
     }
+
+    public function test_multi_day_notice_stays_active_until_end_date(): void
+    {
+        config(['app.schedule_timezone' => 'America/New_York']);
+        Carbon::setTestNow(Carbon::parse('2026-09-24 15:00:00', 'America/New_York'));
+
+        $spanning = (object) [
+            'category' => 'general',
+            'event_date' => '2026-09-23',
+            'event_end_date' => '2026-09-25',
+            'event_time' => '09:00',
+            'event_time_end' => '17:00',
+        ];
+
+        $this->assertFalse(NoticeExpiry::isExpired($spanning));
+    }
 }

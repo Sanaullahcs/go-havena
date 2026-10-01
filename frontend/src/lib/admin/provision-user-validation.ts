@@ -2,8 +2,8 @@ import { getPhoneValidationError, type PhoneFieldState } from "@/lib/phone/forma
 import {
   COMMUNITY_ADMIN_NAME_MAX,
   COMMUNITY_ADMIN_NAME_MAX_MESSAGE,
-  COMMUNITY_ADMIN_UNIT_MAX,
-  COMMUNITY_ADMIN_UNIT_MAX_MESSAGE,
+  COMMUNITY_ADMIN_OFFICE_MAX,
+  COMMUNITY_ADMIN_OFFICE_MAX_MESSAGE,
   exceedsCharacterLimit,
 } from "@/lib/admin/community-admin-field-limits";
 import {
@@ -134,8 +134,7 @@ export function validateResidentForm(
 export function validateCommunityAdminEditForm(
   name: string,
   phone: PhoneFieldState,
-  unitNumber: string,
-  residenceType: string,
+  officeAddress: string,
 ): ProvisionFieldErrors {
   const errors: ProvisionFieldErrors = {};
 
@@ -151,17 +150,11 @@ export function validateCommunityAdminEditForm(
   const phoneError = validateProvisionPhone(phone);
   if (phoneError) errors.phone = phoneError;
 
-  const unit = unitNumber.trim();
-  if (!unit) {
-    errors.unitNumber = "Unit number is required.";
-  } else if (exceedsCharacterLimit(unitNumber, COMMUNITY_ADMIN_UNIT_MAX)) {
-    errors.unitNumber = COMMUNITY_ADMIN_UNIT_MAX_MESSAGE;
-  }
-
-  if (!residenceType) {
-    errors.residenceType = "Residence type is required.";
-  } else if (!["homeowner", "tenant"].includes(residenceType)) {
-    errors.residenceType = "Select homeowner or tenant.";
+  const office = officeAddress.trim();
+  if (!office) {
+    errors.officeAddress = "Office address is required.";
+  } else if (exceedsCharacterLimit(officeAddress, COMMUNITY_ADMIN_OFFICE_MAX)) {
+    errors.officeAddress = COMMUNITY_ADMIN_OFFICE_MAX_MESSAGE;
   }
 
   return errors;

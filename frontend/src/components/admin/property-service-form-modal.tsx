@@ -119,13 +119,57 @@ function FieldLabel({ children, required }: { children: string; required?: boole
   );
 }
 
+const SERVICE_FIELD_MAX = {
+  name: 120,
+  custom_category: 80,
+  description: 500,
+  payment_instructions: 2000,
+  notice_title: 200,
+  notice_body: 4000,
+} as const;
+
+function FieldMeta({ error, value, max }: { error?: string; value?: string; max?: number }) {
+  const text = value ?? "";
+  const showCounter = max != null && text.length > 0;
+  if (!error && !showCounter) return null;
+  return (
+    <div className="mt-1 flex items-start justify-end gap-2">
+      {error ? <p className="mr-auto text-xs text-red-600">{error}</p> : <span className="mr-auto" />}
+      {showCounter ? (
+        <p className={`shrink-0 text-[11px] tabular-nums ${text.length > max ? "text-red-600" : "text-slate-400"}`}>
+          {text.length}/{max}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function validateServiceForm(form: PropertyServiceForm, step: number): Record<string, string> {
   const errors: Record<string, string> = {};
+  if (form.name.length > SERVICE_FIELD_MAX.name) errors.name = "Service name must be 120 characters or fewer.";
+  if (String(form.custom_category ?? "").length > SERVICE_FIELD_MAX.custom_category) {
+    errors.custom_category = "Custom category must be 80 characters or fewer.";
+  }
+  if (String(form.description ?? "").length > SERVICE_FIELD_MAX.description) {
+    errors.description = "Description must be 500 characters or fewer.";
+  }
+  if (String(form.payment_instructions ?? "").length > SERVICE_FIELD_MAX.payment_instructions) {
+    errors.payment_instructions = "Payment instructions must be 2,000 characters or fewer.";
+  }
+  if (!isNoticeTemplate(form.notice_title) && String(form.notice_title ?? "").length > SERVICE_FIELD_MAX.notice_title) {
+    errors.notice_title = "Notice title must be 200 characters or fewer.";
+  }
+  if (!isNoticeTemplate(form.notice_body) && String(form.notice_body ?? "").length > SERVICE_FIELD_MAX.notice_body) {
+    errors.notice_body = "Notice body must be 4,000 characters or fewer.";
+  }
+
   if (step >= 1) {
-    if (!form.name.trim()) errors.name = "Service name is required.";
-    else if (form.name.trim().length < 2) errors.name = "Service name must be at least 2 characters.";
+    if (!errors.name) {
+      if (!form.name.trim()) errors.name = "Service name is required.";
+      else if (form.name.trim().length < 2) errors.name = "Service name must be at least 2 characters.";
+    }
     if (!form.category) errors.category = "Category is required.";
-    else if (form.category === "other" && !String(form.custom_category ?? "").trim()) {
+    else if (!errors.custom_category && form.category === "other" && !String(form.custom_category ?? "").trim()) {
       errors.custom_category = "Enter a custom category name.";
     }
   }
@@ -174,7 +218,12 @@ export function PropertyServiceFormModal({
   const [touched, setTouched] = useState<Touched>({});
   const [reviewed, setReviewed] = useState(false);
   const liveErrors = useMemo(() => validateServiceForm(form, step), [form, step]);
-  const showError = (key: string) => Boolean(touched[key] && liveErrors[key]);
+  const fieldError = (key: string, value?: string, max?: number) => {
+    const message = liveErrors[key];
+    if (!message) return undefined;
+    if (max != null && String(value ?? "").length > max) return message;
+    return touched[key] ? message : undefined;
+  };
 
   useEffect(() => {
     if (step !== 4) setReviewed(false);
@@ -186,12 +235,15 @@ export function PropertyServiceFormModal({
 
   function setField<K extends keyof PropertyServiceForm>(key: K, value: PropertyServiceForm[K]) {
     setForm({ ...form, [key]: value });
+    touch(key);
   }
 
   function goNext() {
     const stepKeys = step === 1
-      ? ["name", "category", "custom_category"]
-      : ["application_type", "billing_frequency", "amount", "due_day", "first_billing_month", "due_month"];
+      ? ["name", "category", "custom_category", "description"]
+      : step === 3
+        ? ["notice_title", "notice_body"]
+        : ["application_type", "billing_frequency", "amount", "due_day", "first_billing_month", "due_month", "payment_instructions"];
     setTouched((current) => ({
       ...current,
       ...Object.fromEntries(stepKeys.map((key) => [key, true])),
@@ -304,14 +356,18 @@ export function PropertyServiceFormModal({
               <div>
                 <FieldLabel required>Service name</FieldLabel>
                 <input
-                  className={inputClass(showError("name") ? liveErrors.name : undefined)}
+                  className={inputClass(fieldError("name", form.name, SERVICE_FIELD_MAX.name))}
                   value={form.name}
                   onChange={(e) => setField("name", e.target.value)}
                   onFocus={() => touch("name")}
                   onBlur={() => touch("name")}
                   placeholder="e.g. Parking dues"
                 />
-                {showError("name") ? <p className="mt-1 text-xs text-red-600">{liveErrors.name}</p> : null}
+                <FieldMeta
+                  error={fieldError("name", form.name, SERVICE_FIELD_MAX.name)}
+                  value={form.name}
+                  max={SERVICE_FIELD_MAX.name}
+                />
               </div>
               <div>
                 <FieldLabel required>Category</FieldLabel>
@@ -325,28 +381,30 @@ export function PropertyServiceFormModal({
                       category: next,
                       custom_category: next === "other" ? (form.custom_category ?? "") : "",
                     });
+                    touch("category");
                   }}
                   onFocus={() => touch("category")}
                   onBlur={() => touch("category")}
-                  error={showError("category") ? liveErrors.category : undefined}
+                  error={fieldError("category") ? liveErrors.category : undefined}
                 />
-                {showError("category") ? <p className="mt-1 text-xs text-red-600">{liveErrors.category}</p> : null}
+                {fieldError("category") ? <p className="mt-1 text-xs text-red-600">{liveErrors.category}</p> : null}
               </div>
               {form.category === "other" ? (
                 <div>
                   <FieldLabel required>Custom category</FieldLabel>
                   <input
-                    className={inputClass(showError("custom_category") ? liveErrors.custom_category : undefined)}
+                    className={inputClass(fieldError("custom_category", form.custom_category ?? "", SERVICE_FIELD_MAX.custom_category))}
                     value={form.custom_category ?? ""}
                     onChange={(e) => setField("custom_category", e.target.value)}
                     onFocus={() => touch("custom_category")}
                     onBlur={() => touch("custom_category")}
                     placeholder="e.g. Concierge"
-                    maxLength={80}
                   />
-                  {showError("custom_category") ? (
-                    <p className="mt-1 text-xs text-red-600">{liveErrors.custom_category}</p>
-                  ) : null}
+                  <FieldMeta
+                    error={fieldError("custom_category", form.custom_category ?? "", SERVICE_FIELD_MAX.custom_category)}
+                    value={form.custom_category ?? ""}
+                    max={SERVICE_FIELD_MAX.custom_category}
+                  />
                 </div>
               ) : null}
               <div>
@@ -363,10 +421,15 @@ export function PropertyServiceFormModal({
               <div>
                 <FieldLabel>Description</FieldLabel>
                 <textarea
-                  className={`${inputClass()} min-h-[88px] resize-y`}
+                  className={`${inputClass(fieldError("description", form.description, SERVICE_FIELD_MAX.description))} min-h-[88px] resize-y`}
                   value={form.description}
                   onChange={(e) => setField("description", e.target.value)}
                   placeholder="Optional details for residents"
+                />
+                <FieldMeta
+                  error={fieldError("description", form.description, SERVICE_FIELD_MAX.description)}
+                  value={form.description}
+                  max={SERVICE_FIELD_MAX.description}
                 />
               </div>
             </div>
@@ -397,7 +460,7 @@ export function PropertyServiceFormModal({
                   }}
                   onFocus={() => touch("application_type")}
                   onBlur={() => touch("application_type")}
-                  error={showError("application_type") ? liveErrors.application_type : undefined}
+                  error={fieldError("application_type") ? liveErrors.application_type : undefined}
                 />
               </div>
               <div>
@@ -419,9 +482,9 @@ export function PropertyServiceFormModal({
                   }}
                   onFocus={() => touch("billing_frequency")}
                   onBlur={() => touch("billing_frequency")}
-                  error={showError("billing_frequency") ? liveErrors.billing_frequency : undefined}
+                  error={fieldError("billing_frequency") ? liveErrors.billing_frequency : undefined}
                 />
-                {showError("billing_frequency") ? <p className="mt-1 text-xs text-red-600">{liveErrors.billing_frequency}</p> : null}
+                {fieldError("billing_frequency") ? <p className="mt-1 text-xs text-red-600">{liveErrors.billing_frequency}</p> : null}
               </div>
               {form.application_type === "automatic" ? (
                 <div>
@@ -442,14 +505,14 @@ export function PropertyServiceFormModal({
                   type="number"
                   min="0.01"
                   step="0.01"
-                  className={inputClass(showError("amount") ? liveErrors.amount : undefined)}
+                  className={inputClass(fieldError("amount") ? liveErrors.amount : undefined)}
                   value={form.amount ?? ""}
                   onChange={(e) => setField("amount", e.target.value ? Number(e.target.value) : null)}
                   onFocus={() => touch("amount")}
                   onBlur={() => touch("amount")}
                   placeholder="e.g. 200"
                 />
-                {showError("amount") ? (
+                {fieldError("amount") ? (
                   <p className="mt-1 text-xs text-red-600">{liveErrors.amount}</p>
                 ) : (
                   <p className="mt-1 text-xs text-slate-400">
@@ -469,9 +532,9 @@ export function PropertyServiceFormModal({
                     }}
                     onBlur={() => touch("first_billing_month")}
                     placeholder="Select due date month"
-                    error={showError("first_billing_month") ? liveErrors.first_billing_month : undefined}
+                    error={fieldError("first_billing_month") ? liveErrors.first_billing_month : undefined}
                   />
-                  {showError("first_billing_month") ? (
+                  {fieldError("first_billing_month") ? (
                     <p className="mt-1 text-xs text-red-600">{liveErrors.first_billing_month}</p>
                   ) : (
                     <p className="text-xs text-slate-400">
@@ -492,9 +555,9 @@ export function PropertyServiceFormModal({
                     }}
                     onBlur={() => touch("first_billing_month")}
                     placeholder="Select due date"
-                    error={showError("first_billing_month") || showError("due_day") ? liveErrors.first_billing_month || liveErrors.due_day : undefined}
+                    error={fieldError("first_billing_month") || fieldError("due_day") ? liveErrors.first_billing_month || liveErrors.due_day : undefined}
                   />
-                  {showError("first_billing_month") || showError("due_day") ? (
+                  {fieldError("first_billing_month") || fieldError("due_day") ? (
                     <p className="mt-1 text-xs text-red-600">{liveErrors.first_billing_month || liveErrors.due_day}</p>
                   ) : (
                     <p className="text-xs text-slate-400">
@@ -529,10 +592,15 @@ export function PropertyServiceFormModal({
               <div>
                 <FieldLabel>Payment instructions</FieldLabel>
                 <textarea
-                  className={`${inputClass()} min-h-[88px] resize-y`}
+                  className={`${inputClass(fieldError("payment_instructions", form.payment_instructions, SERVICE_FIELD_MAX.payment_instructions))} min-h-[88px] resize-y`}
                   value={form.payment_instructions}
                   onChange={(e) => setField("payment_instructions", e.target.value)}
                   placeholder="How residents should pay"
+                />
+                <FieldMeta
+                  error={fieldError("payment_instructions", form.payment_instructions, SERVICE_FIELD_MAX.payment_instructions)}
+                  value={form.payment_instructions}
+                  max={SERVICE_FIELD_MAX.payment_instructions}
                 />
               </div>
             </div>
@@ -543,10 +611,15 @@ export function PropertyServiceFormModal({
               <div>
                 <FieldLabel>Notice title</FieldLabel>
                 <input
-                  className={inputClass()}
+                  className={inputClass(fieldError("notice_title", form.notice_title ?? "", SERVICE_FIELD_MAX.notice_title))}
                   value={isNoticeTemplate(form.notice_title) ? noticeTitleDisplay(form) : (form.notice_title ?? "")}
                   onChange={(e) => setField("notice_title", e.target.value)}
                   placeholder={`${form.name.trim() || "Service"} — Unit ${NOTICE_PREVIEW_UNIT}`}
+                />
+                <FieldMeta
+                  error={fieldError("notice_title", form.notice_title ?? "", SERVICE_FIELD_MAX.notice_title)}
+                  value={isNoticeTemplate(form.notice_title) ? "" : (form.notice_title ?? "")}
+                  max={SERVICE_FIELD_MAX.notice_title}
                 />
                 <p className="mt-1.5 text-xs text-slate-500">
                   Each billed unit gets this notice with its own unit number. Preview uses unit {NOTICE_PREVIEW_UNIT}.
@@ -555,10 +628,15 @@ export function PropertyServiceFormModal({
               <div>
                 <FieldLabel>Notice body</FieldLabel>
                 <textarea
-                  className={`${inputClass()} min-h-[88px] resize-y`}
+                  className={`${inputClass(fieldError("notice_body", form.notice_body ?? "", SERVICE_FIELD_MAX.notice_body))} min-h-[88px] resize-y`}
                   value={isNoticeTemplate(form.notice_body) ? noticeBodyDisplay(form) : (form.notice_body ?? "")}
                   onChange={(e) => setField("notice_body", e.target.value)}
                   placeholder="Shown on the resident Home notice."
+                />
+                <FieldMeta
+                  error={fieldError("notice_body", form.notice_body ?? "", SERVICE_FIELD_MAX.notice_body)}
+                  value={isNoticeTemplate(form.notice_body) ? "" : (form.notice_body ?? "")}
+                  max={SERVICE_FIELD_MAX.notice_body}
                 />
               </div>
               <label className="flex items-center gap-2 text-sm text-slate-700">

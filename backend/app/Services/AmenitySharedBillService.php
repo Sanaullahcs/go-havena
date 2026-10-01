@@ -702,7 +702,7 @@ class AmenitySharedBillService
             }
         }
 
-        return $this->findBillForUnlinkedFinanceNotice($noticeId, $userId);
+        return null;
     }
 
     private function noticeBillBaseQuery(int $userId)
@@ -739,49 +739,6 @@ class AmenitySharedBillService
             'status' => (string) $row->status,
             'status_label' => $this->statusLabel((string) $row->status),
         ];
-    }
-
-    private function findBillForUnlinkedFinanceNotice(int $noticeId, int $userId): ?array
-    {
-        $notice = DB::table('notices')->where('id', $noticeId)->where('category', 'finance')->first();
-        if (! $notice) {
-            return null;
-        }
-
-        $isRecipient = DB::table('notice_recipients')
-            ->where('notice_id', $noticeId)
-            ->where('user_id', $userId)
-            ->exists();
-        if (! $isRecipient && ($notice->audience_type ?? '') === 'selected') {
-            return null;
-        }
-
-        $rows = $this->noticeBillBaseQuery($userId)
-            ->where('rb.community_id', (int) $notice->community_id)
-            ->orderByDesc('mb.billing_month')
-            ->orderByDesc('rb.id')
-            ->get();
-
-        if ($rows->isEmpty()) {
-            return null;
-        }
-
-        $title = trim((string) $notice->title);
-        $matched = $rows->first(function ($row) use ($title) {
-            $name = trim((string) ($row->amenity_name ?? ''));
-            if ($name === '' || $title === '') {
-                return false;
-            }
-            if (! str_starts_with(mb_strtolower($title), mb_strtolower($name))) {
-                return false;
-            }
-
-            $month = $this->displayBillingMonth($row);
-
-            return str_contains($title, $month->format('F Y')) || str_contains($title, $month->format('Y'));
-        });
-
-        return $matched ? $this->formatNoticeBill($matched) : null;
     }
 
     /** @param  \Illuminate\Support\Collection<int, object>  $rows */

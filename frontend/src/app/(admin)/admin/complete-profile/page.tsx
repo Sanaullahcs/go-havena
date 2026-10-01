@@ -333,7 +333,7 @@ function CompleteProfileInner() {
             placeholder="Jane Doe"
             aria-invalid={Boolean(nameErr)}
           />
-          {isCommunityAdminProfile ? (
+          {isCommunityAdminProfile && name.length > 0 ? (
             <p className={`text-right text-[11px] tabular-nums ${name.length > nameMax ? "text-red-600" : "text-slate-500"}`}>
               {name.length} / {nameMax}
             </p>
@@ -412,9 +412,11 @@ function CompleteProfileInner() {
             placeholder="Community manager for Palm Court HOA…"
             aria-invalid={Boolean(bioErr)}
           />
-          <p className="text-[11px] text-slate-500">
-            {bio.length} / {COMPLETE_PROFILE_LIMITS.profileBio} characters
-          </p>
+          {bio.length > 0 ? (
+            <p className="text-[11px] text-slate-500">
+              {bio.length} / {COMPLETE_PROFILE_LIMITS.profileBio} characters
+            </p>
+          ) : null}
         </OnboardingField>
 
         {fields.showOfficeAddress ? (
@@ -443,9 +445,11 @@ function CompleteProfileInner() {
               placeholder="e.g. 100 Management Office, Oak Valley"
               aria-invalid={Boolean(officeErr)}
             />
-            <p className={`text-right text-[11px] tabular-nums ${officeAddress.length > officeMax ? "text-red-600" : "text-slate-500"}`}>
-              {officeAddress.length} / {officeMax}
-            </p>
+            {officeAddress.length > 0 ? (
+              <p className={`text-right text-[11px] tabular-nums ${officeAddress.length > officeMax ? "text-red-600" : "text-slate-500"}`}>
+                {officeAddress.length} / {officeMax}
+              </p>
+            ) : null}
           </OnboardingField>
         ) : null}
 

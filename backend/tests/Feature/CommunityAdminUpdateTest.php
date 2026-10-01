@@ -55,8 +55,9 @@ class CommunityAdminUpdateTest extends TestCase
         Profile::query()->create([
             'user_id' => $admin->id,
             'display_name' => 'Old Display',
-            'unit_number' => 'A-1',
-            'residence_type' => 'homeowner',
+            'office_address' => 'Building A, office 1',
+            'unit_number' => null,
+            'residence_type' => null,
         ]);
 
         CommunityMembership::query()->create([
@@ -78,16 +79,16 @@ class CommunityAdminUpdateTest extends TestCase
             'name' => 'Updated Admin',
             'phone' => '+14155552671',
             'display_name' => 'Updated Display',
-            'unit_number' => 'B-12',
-            'residence_type' => 'tenant',
+            'office_address' => 'Building B, suite 12',
         ])
             ->assertOk()
             ->assertJsonPath('data.name', 'Updated Admin')
             ->assertJsonPath('data.email', 'old.admin@example.com')
             ->assertJsonPath('data.phone', '+14155552671')
             ->assertJsonPath('data.profile.display_name', 'Updated Display')
-            ->assertJsonPath('data.profile.unit_number', 'B-12')
-            ->assertJsonPath('data.profile.residence_type', 'tenant');
+            ->assertJsonPath('data.profile.office_address', 'Building B, suite 12')
+            ->assertJsonPath('data.profile.unit_number', null)
+            ->assertJsonPath('data.profile.residence_type', null);
 
         $this->assertDatabaseHas('users', [
             'id' => $admin->id,
@@ -125,7 +126,7 @@ class CommunityAdminUpdateTest extends TestCase
             ->assertJsonPath('data.email', 'old.admin@example.com');
     }
 
-    public function test_update_rejects_name_and_unit_over_character_limits(): void
+    public function test_update_rejects_name_and_office_address_over_character_limits(): void
     {
         Sanctum::actingAs($this->systemAdmin());
         $admin = $this->communityAdmin();
@@ -138,18 +139,18 @@ class CommunityAdminUpdateTest extends TestCase
             ->assertJsonPath('errors.name.0', 'Full name cannot exceed 50 characters.');
 
         $this->patchJson("/api/v1/admin/community-admins/{$admin->id}", [
-            'unit_number' => str_repeat('1', 21),
+            'office_address' => str_repeat('1', 256),
         ])
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['unit_number'])
-            ->assertJsonPath('errors.unit_number.0', 'Unit / apartment cannot exceed 20 characters.');
+            ->assertJsonValidationErrors(['office_address'])
+            ->assertJsonPath('errors.office_address.0', 'Office address cannot exceed 255 characters.');
 
         $this->patchJson("/api/v1/admin/community-admins/{$admin->id}", [
             'name' => str_repeat('A', 50),
-            'unit_number' => str_repeat('1', 20),
+            'office_address' => str_repeat('1', 255),
         ])->assertOk()
             ->assertJsonPath('data.name', str_repeat('A', 50))
-            ->assertJsonPath('data.profile.unit_number', str_repeat('1', 20));
+            ->assertJsonPath('data.profile.office_address', str_repeat('1', 255));
     }
 
     public function test_community_admin_profile_update_enforces_the_same_limits(): void
@@ -165,11 +166,11 @@ class CommunityAdminUpdateTest extends TestCase
             ->assertJsonPath('errors.name.0', 'Full name cannot exceed 50 characters.');
 
         $this->putJson('/api/v1/me', [
-            'unit_number' => str_repeat('2', 21),
+            'office_address' => str_repeat('2', 256),
         ])
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['unit_number'])
-            ->assertJsonPath('errors.unit_number.0', 'Unit / apartment cannot exceed 20 characters.');
+            ->assertJsonValidationErrors(['office_address'])
+            ->assertJsonPath('errors.office_address.0', 'Office address cannot exceed 255 characters.');
     }
 
     public function test_utility_bill_is_optional_and_unchanged_when_omitted(): void

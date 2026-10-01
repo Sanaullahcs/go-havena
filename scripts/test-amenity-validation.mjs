@@ -30,7 +30,7 @@ function assert(cond, msg) {
 
 const validForm = {
   name: "Test Pool",
-  description: "Nice pool",
+  description: "Nice pool area",
   status: "bookable",
   capacity: "10",
   floor: "Ground",
@@ -52,6 +52,7 @@ console.log("\nMobile amenity validation");
     icon_key: "",
   });
   assert(empty.name, "requires name");
+  assert(!empty.description, "description is optional");
   assert(empty.capacity, "requires capacity");
   assert(empty.floor, "requires floor");
   assert(empty.hours, "requires hours");

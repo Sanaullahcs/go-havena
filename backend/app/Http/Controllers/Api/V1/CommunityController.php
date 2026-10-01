@@ -330,13 +330,15 @@ class CommunityController extends Controller
     public function selfServeCreate(Request $request, OsmGeocodingService $geocoding): JsonResponse
     {
         $validated = $request->validate([
-            'community_name' => ['required', 'string', 'min:2', 'max:25'],
+            'community_name' => ['required', 'string', 'min:2', 'max:100'],
             'address' => ['required', 'string', 'min:5', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'region_id' => ['required', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
             'city' => ['nullable', 'string', 'min:2', 'max:150'],
             'estimated_residents' => ['nullable', 'integer', 'min:1', 'max:100000'],
             ...CommunityLocation::coordinateRules(),
+        ], [
+            'community_name.max' => 'Community name must be 100 characters or less.',
         ]);
         $validated = CommunityLocation::applyOnCreate($validated, $geocoding);
 
@@ -433,13 +435,15 @@ class CommunityController extends Controller
     public function requestCommunity(Request $request, OsmGeocodingService $geocoding): JsonResponse
     {
         $validated = $request->validate([
-            'community_name' => ['required', 'string', 'min:2', 'max:25'],
+            'community_name' => ['required', 'string', 'min:2', 'max:100'],
             'address' => ['required', 'string', 'min:5', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'region_id' => ['required', 'integer', Rule::exists('regions', 'id')->where('status', 'active')],
             'city' => ['nullable', 'string', 'min:2', 'max:150'],
             'estimated_residents' => ['nullable', 'integer', 'min:1', 'max:100000'],
             ...CommunityLocation::coordinateRules(),
+        ], [
+            'community_name.max' => 'Community name must be 100 characters or less.',
         ]);
         $validated = CommunityLocation::applyOnCreate($validated, $geocoding);
 

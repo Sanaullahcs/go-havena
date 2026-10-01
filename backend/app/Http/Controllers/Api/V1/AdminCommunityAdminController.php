@@ -90,13 +90,12 @@ class AdminCommunityAdminController extends Controller
                 },
             ],
             'display_name' => 'sometimes|nullable|string|max:50',
-            'unit_number' => 'sometimes|required|string|max:20',
-            'residence_type' => 'sometimes|required|string|in:homeowner,tenant',
+            'office_address' => 'sometimes|required|string|max:255',
             'utility_bill' => 'sometimes|nullable|'.UtilityBillStorage::RULE,
         ], [
             'name.max' => 'Full name cannot exceed 50 characters.',
             'display_name.max' => 'Full name cannot exceed 50 characters.',
-            'unit_number.max' => 'Unit / apartment cannot exceed 20 characters.',
+            'office_address.max' => 'Office address cannot exceed 255 characters.',
             'utility_bill.mimes' => 'Upload a JPG, PNG, HEIC, or PDF file.',
             'utility_bill.file' => 'Upload a JPG, PNG, HEIC, or PDF file.',
             'utility_bill.max' => 'File must be 10 MB or smaller.',
@@ -108,8 +107,7 @@ class AdminCommunityAdminController extends Controller
             'email' => $user->email,
             'phone' => $user->phone,
             'display_name' => $user->profile?->display_name,
-            'unit_number' => $user->profile?->unit_number,
-            'residence_type' => $user->profile?->residence_type,
+            'office_address' => $user->profile?->office_address,
             'utility_bill_url' => $user->profile?->utility_bill_url,
         ];
 
@@ -133,11 +131,10 @@ class AdminCommunityAdminController extends Controller
         if ($request->has('display_name')) {
             $profileData['display_name'] = trim((string) $request->input('display_name'));
         }
-        if ($request->has('unit_number')) {
-            $profileData['unit_number'] = trim((string) $request->input('unit_number'));
-        }
-        if ($request->has('residence_type')) {
-            $profileData['residence_type'] = $request->input('residence_type');
+        if ($request->has('office_address')) {
+            $profileData['office_address'] = trim((string) $request->input('office_address'));
+            $profileData['unit_number'] = null;
+            $profileData['residence_type'] = null;
         }
         if ($request->hasFile('utility_bill')) {
             $profileData['utility_bill_url'] = app(UtilityBillStorage::class)->store($request->file('utility_bill'));
@@ -158,8 +155,7 @@ class AdminCommunityAdminController extends Controller
                 'email' => $fresh->email,
                 'phone' => $fresh->phone,
                 'display_name' => $fresh->profile?->display_name,
-                'unit_number' => $fresh->profile?->unit_number,
-                'residence_type' => $fresh->profile?->residence_type,
+                'office_address' => $fresh->profile?->office_address,
                 'utility_bill_url' => $fresh->profile?->utility_bill_url,
             ],
             [],
@@ -677,8 +673,7 @@ class AdminCommunityAdminController extends Controller
             'created_at'             => $user->created_at?->toIso8601String(),
             'profile'                => $user->profile ? [
                 'display_name'     => $user->profile->display_name,
-                'unit_number'      => $user->profile->unit_number,
-                'residence_type'   => $user->profile->residence_type,
+                'office_address'   => $user->profile->office_address,
                 'avatar_url'       => $this->resolveMediaUrl($user->profile->avatar_url),
                 'utility_bill_url' => $this->resolveMediaUrl($user->profile->utility_bill_url),
                 'utility_bill_review_status' => $user->profile->utility_bill_review_status,

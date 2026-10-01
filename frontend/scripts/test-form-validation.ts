@@ -132,19 +132,19 @@ console.log("\nCommunity setup name length");
     regionsLoaded: true,
   };
   const under = validateCommunitySetupForm({ ...base, name: "Palm Court HOA" });
-  assertNoErrors(under, "accepts a community name under 25 characters");
+  assertNoErrors(under, "accepts a community name under 100 characters");
 
   const exactly = validateCommunitySetupForm({
     ...base,
     name: "A".repeat(COMMUNITY_SETUP_NAME_MAX),
   });
-  assertNoErrors(exactly, "accepts a community name of exactly 25 characters");
+  assertNoErrors(exactly, "accepts a community name of exactly 100 characters");
 
   const over = validateCommunitySetupForm({
     ...base,
     name: "A".repeat(COMMUNITY_SETUP_NAME_MAX + 1),
   });
-  assert(over.name === COMMUNITY_SETUP_NAME_MAX_MESSAGE, "rejects more than 25 characters");
+  assert(over.name === COMMUNITY_SETUP_NAME_MAX_MESSAGE, "rejects more than 100 characters");
 }
 
 console.log("\nCommunity admin OTP challenge persistence");
@@ -522,6 +522,35 @@ console.log("\nNotice form validation");
   assertHasError(eventPublish, "event_time", "event publish requires start");
   assertHasError(eventPublish, "event_time_end", "event publish requires end");
   assertHasError(eventPublish, "location", "event publish requires location");
+
+  const eventBadChars = validateNoticeForm(
+    {
+      title: "DSGFKJASD,EWR/?",
+      body: "Join us in the courtyard for food and fun.",
+      category: "event",
+      location: "JDSHFJHDSJHFDS.",
+      event_date: "2026-09-30",
+      event_time: "22:00",
+      event_time_end: "23:00",
+    },
+    { kind: "event", publishNow: true },
+  );
+  assertHasError(eventBadChars, "title", "event title rejects special chars");
+  assert(!eventBadChars.location, "valid location punctuation allowed");
+
+  const eventBadLocation = validateNoticeForm(
+    {
+      title: "Community BBQ",
+      body: "Join us in the courtyard for food and fun.",
+      category: "event",
+      location: "Room 101 ???",
+      event_date: "2026-09-30",
+      event_time: "22:00",
+      event_time_end: "23:00",
+    },
+    { kind: "event", publishNow: true },
+  );
+  assertHasError(eventBadLocation, "location", "event location rejects question marks");
 
   const noticePublish = validateNoticeForm(
     {
@@ -1274,12 +1303,12 @@ console.log("\nComplete profile form validation");
 console.log("\nCommunity admin edit validation");
 {
   const phone = { digits: "4155552671", country: "US", valid: true, e164: "+14155552671" };
-  const tooLong = validateCommunityAdminEditForm("A".repeat(51), phone, "1".repeat(21), "homeowner");
+  const tooLong = validateCommunityAdminEditForm("A".repeat(51), phone, "1".repeat(256));
   assert(tooLong.name === COMMUNITY_ADMIN_NAME_MAX_MESSAGE, "edit name limit");
-  assert(tooLong.unitNumber === COMMUNITY_ADMIN_UNIT_MAX_MESSAGE, "edit unit limit");
+  assert(tooLong.officeAddress === COMMUNITY_ADMIN_OFFICE_MAX_MESSAGE, "edit office address limit");
 
-  const atLimit = validateCommunityAdminEditForm("A".repeat(50), phone, "1".repeat(20), "homeowner");
-  assert(!atLimit.name && !atLimit.unitNumber, "edit accepts the limits");
+  const atLimit = validateCommunityAdminEditForm("A".repeat(50), phone, "1".repeat(255));
+  assert(!atLimit.name && !atLimit.officeAddress, "edit accepts the limits");
 
   assert(applyCharacterLimit("Hello", "Hello world pasted", 5) === "Hello", "paste does not grow past the limit");
   assert(applyCharacterLimit("Hello", "Hel", 5) === "Hel", "shorter input is kept");

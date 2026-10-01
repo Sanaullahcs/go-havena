@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Check, X } from "lucide-react";
 import { AmenityIcon } from "@/components/admin/amenity-icon";
 import { BusinessHoursInput } from "@/components/admin/business-hours-input";
+import { SlotDurationField } from "@/components/admin/slot-duration-field";
 import {
   AMENITY_ICON_CATALOG,
   AMENITY_STATUS_OPTIONS,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/admin/amenity-display";
 import { formatBillAmount, formatUsdAmount } from "@/lib/admin/amenity-bill-validation";
 import {
+  AMENITY_FIELD_MAX,
   amenityChargeModel,
   amenityFormStepErrors,
   amenityFormToPayload,
@@ -27,6 +29,7 @@ import {
 } from "@/lib/admin/amenity-form-validation";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
+import { formatSlotDurationLabel } from "@/lib/admin/amenity-slot-duration";
 import type { Amenity } from "@/lib/api/amenities";
 
 const EMPTY_FORM: AmenityForm = {
@@ -48,13 +51,6 @@ const EMPTY_FORM: AmenityForm = {
   shared_billing_due_day: "",
   booking_fee: "",
 };
-
-const SLOT_OPTIONS = [
-  { value: "30", label: "30 min" },
-  { value: "60", label: "1 hour" },
-  { value: "90", label: "1.5 hours" },
-  { value: "120", label: "2 hours" },
-];
 
 const STEP_COPY: Record<AmenityFormStep, { label: string; title: string; hint: string }> = {
   details: {
@@ -161,6 +157,31 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function FormLabel({ required, children }: { required?: boolean; children: ReactNode }) {
+  return (
+    <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+      {children}
+      {required ? <span className="text-red-500"> *</span> : null}
+    </label>
+  );
+}
+
+function FieldMeta({ error, value, max }: { error?: string; value?: string; max?: number }) {
+  const text = value ?? "";
+  const showCounter = max != null && text.length > 0;
+  if (!error && !showCounter) return null;
+  return (
+    <div className="mt-1 flex items-start justify-end gap-2">
+      {error ? <p className="mr-auto text-xs text-red-600">{error}</p> : <span className="mr-auto" />}
+      {showCounter ? (
+        <p className={`shrink-0 text-[11px] tabular-nums ${text.length > max ? "text-red-600" : "text-slate-400"}`}>
+          {text.length}/{max}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function AmenityFormModal({
   open,
   mode,
@@ -201,6 +222,12 @@ export function AmenityFormModal({
   );
   const chargeModel = amenityChargeModel(form);
   const bookingFeeFullSlot = form.capacity_booking_type === "full_slot";
+  const fieldError = (field: string, value?: string, max?: number) => {
+    const message = liveErrors[field];
+    if (!message) return undefined;
+    if (max != null && String(value ?? "").length > max) return message;
+    return showError(field, liveErrors);
+  };
 
   useEffect(() => {
     if (!visibleSteps.includes(step)) {
@@ -225,14 +252,21 @@ export function AmenityFormModal({
   const setField = <K extends keyof AmenityForm>(key: K, value: AmenityForm[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     clearError(key);
+    touch(key);
   };
 
   const setChargeModel = (model: AmenityChargeModel) => {
     setForm((prev) => applyAmenityChargeModel(prev, model));
+    touch("charge_model");
     clearError("charge_model");
     clearError("booking_fee");
     clearError("shared_billing_amount");
     clearError("shared_billing_due_day");
+  };
+
+  const setChoice = <K extends keyof AmenityForm>(key: K, value: AmenityForm[K]) => {
+    setField(key, value);
+    touch(key);
   };
 
   const currentIndex = Math.max(0, visibleSteps.indexOf(step));
@@ -336,54 +370,57 @@ export function AmenityFormModal({
           {step === "details" ? (
             <div className="space-y-4">
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-600">Name *</label>
+                <FormLabel required>Name</FormLabel>
                 <input
-                  className={inputClass(showError("name", liveErrors.name))}
+                  className={inputClass(fieldError("name", form.name, AMENITY_FIELD_MAX.name))}
                   value={form.name}
                   onChange={(e) => setField("name", e.target.value)}
                   onBlur={() => touch("name")}
                   placeholder="e.g. Swimming Pool"
-                  maxLength={100}
                 />
-                {showError("name", liveErrors.name) ? (
-                  <p className="mt-1 text-xs text-red-600">{liveErrors.name}</p>
-                ) : null}
+                <FieldMeta
+                  error={fieldError("name", form.name, AMENITY_FIELD_MAX.name)}
+                  value={form.name}
+                  max={AMENITY_FIELD_MAX.name}
+                />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-600">Description</label>
+                <FormLabel>Description</FormLabel>
                 <textarea
                   ref={descriptionRef}
                   rows={3}
-                  className={`${inputClass(showError("description", liveErrors.description))} min-h-[88px] max-h-[min(16rem,40vh)] resize-none overflow-y-auto`}
+                  className={`${inputClass(fieldError("description", form.description, AMENITY_FIELD_MAX.description))} min-h-[88px] max-h-[min(16rem,40vh)] resize-none overflow-y-auto`}
                   value={form.description}
                   onChange={(e) => setField("description", e.target.value)}
                   onBlur={() => touch("description")}
                   placeholder="Optional details for residents"
-                  maxLength={2000}
                 />
-                {showError("description", liveErrors.description) ? (
-                  <p className="mt-1 text-xs text-red-600">{liveErrors.description}</p>
-                ) : null}
+                <FieldMeta
+                  error={fieldError("description", form.description, AMENITY_FIELD_MAX.description)}
+                  value={form.description}
+                  max={AMENITY_FIELD_MAX.description}
+                />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-600">Location *</label>
+                <FormLabel required>Location</FormLabel>
                 <input
-                  className={inputClass(showError("floor", liveErrors.floor))}
+                  className={inputClass(fieldError("floor", form.floor, AMENITY_FIELD_MAX.floor))}
                   value={form.floor}
                   onChange={(e) => setField("floor", e.target.value)}
                   onBlur={() => touch("floor")}
                   placeholder="e.g. Ground floor"
-                  maxLength={40}
                 />
-                {showError("floor", liveErrors.floor) ? (
-                  <p className="mt-1 text-xs text-red-600">{liveErrors.floor}</p>
-                ) : null}
+                <FieldMeta
+                  error={fieldError("floor", form.floor, AMENITY_FIELD_MAX.floor)}
+                  value={form.floor}
+                  max={AMENITY_FIELD_MAX.floor}
+                />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-600">Category *</label>
+                <FormLabel required>Category</FormLabel>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {AMENITY_ICON_CATALOG.map((icon) => {
                     const active = form.icon_key === icon.key;
@@ -392,11 +429,10 @@ export function AmenityFormModal({
                         key={icon.key}
                         type="button"
                         onClick={() => {
-                          setField("icon_key", icon.key);
+                          setChoice("icon_key", icon.key);
                           if (icon.key !== "other") {
                             setField("custom_category", "");
                           }
-                          touch("icon_key");
                         }}
                         className={[
                           "flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-medium transition",
@@ -417,30 +453,24 @@ export function AmenityFormModal({
                     );
                   })}
                 </div>
-                {showError("icon_key", liveErrors.icon_key) ? (
-                  <p className="mt-1 text-xs text-red-600">{liveErrors.icon_key}</p>
+                {fieldError("icon_key") ? (
+                  <p className="mt-1 text-xs text-red-600">{fieldError("icon_key")}</p>
                 ) : null}
                 {form.icon_key === "other" ? (
                   <div className="mt-3">
-                    <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                      Custom category *
-                    </label>
+                    <FormLabel required>Custom category</FormLabel>
                     <input
-                      className={[
-                        "w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition",
-                        showError("custom_category", liveErrors.custom_category)
-                          ? "border-red-300 focus:border-red-400"
-                          : "border-slate-200 focus:border-[#1B4F8A]",
-                      ].join(" ")}
+                      className={inputClass(fieldError("custom_category", form.custom_category, AMENITY_FIELD_MAX.custom_category))}
                       value={form.custom_category}
                       onChange={(e) => setField("custom_category", e.target.value)}
                       onBlur={() => touch("custom_category")}
                       placeholder="e.g. Rooftop garden"
-                      maxLength={80}
                     />
-                    {showError("custom_category", liveErrors.custom_category) ? (
-                      <p className="mt-1 text-xs text-red-600">{liveErrors.custom_category}</p>
-                    ) : null}
+                    <FieldMeta
+                      error={fieldError("custom_category", form.custom_category, AMENITY_FIELD_MAX.custom_category)}
+                      value={form.custom_category}
+                      max={AMENITY_FIELD_MAX.custom_category}
+                    />
                   </div>
                 ) : null}
               </div>
@@ -450,7 +480,7 @@ export function AmenityFormModal({
           {step === "availability" ? (
             <div className="space-y-4">
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-600">Availability *</label>
+                <FormLabel required>Availability</FormLabel>
                 <div className="flex flex-wrap gap-2">
                   {AMENITY_STATUS_OPTIONS.map((opt) => {
                     const active = form.status === opt.key;
@@ -458,7 +488,7 @@ export function AmenityFormModal({
                       <button
                         key={opt.key}
                         type="button"
-                        onClick={() => setField("status", opt.key)}
+                        onClick={() => setChoice("status", opt.key)}
                         className={[
                           "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
                           active
@@ -471,16 +501,19 @@ export function AmenityFormModal({
                     );
                   })}
                 </div>
+                {fieldError("status") ? (
+                  <p className="mt-1 text-xs text-red-600">{liveErrors.status}</p>
+                ) : null}
               </div>
 
               {form.status !== "open" ? (
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                    {form.status === "bookable" ? "People per time slot *" : "Capacity / Limit"}
-                  </label>
+                  <FormLabel required={form.status === "bookable"}>
+                    {form.status === "bookable" ? "People per time slot" : "Capacity / Limit"}
+                  </FormLabel>
                   <input
                     className={[
-                      inputClass(showError("capacity", liveErrors.capacity)),
+                      inputClass(fieldError("capacity")),
                       form.status === "closed" ? "cursor-not-allowed bg-slate-50 text-slate-400" : "",
                     ].join(" ")}
                     value={form.capacity}
@@ -497,7 +530,7 @@ export function AmenityFormModal({
                         : "Several residents can book the same slot until this many seats are reserved."
                       : "Capacity is required when Slots is selected."}
                   </p>
-                  {showError("capacity", liveErrors.capacity) ? (
+                  {fieldError("capacity") ? (
                     <p className="mt-1 text-xs text-red-600">{liveErrors.capacity}</p>
                   ) : null}
                 </div>
@@ -505,9 +538,7 @@ export function AmenityFormModal({
 
               {form.status === "bookable" ? (
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                    Capacity booking type *
-                  </label>
+                  <FormLabel required>Capacity booking type</FormLabel>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {([
                       {
@@ -526,7 +557,7 @@ export function AmenityFormModal({
                         <button
                           key={opt.key}
                           type="button"
-                          onClick={() => setField("capacity_booking_type", opt.key)}
+                          onClick={() => setChoice("capacity_booking_type", opt.key)}
                           className={[
                             "rounded-xl border px-3 py-2.5 text-left transition",
                             active
@@ -540,24 +571,21 @@ export function AmenityFormModal({
                       );
                     })}
                   </div>
-                  {showError("capacity_booking_type", liveErrors.capacity_booking_type) ? (
+                  {fieldError("capacity_booking_type") ? (
                     <p className="mt-1 text-xs text-red-600">{liveErrors.capacity_booking_type}</p>
                   ) : null}
                 </div>
               ) : null}
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-600">Hours *</label>
+                <FormLabel required>Hours</FormLabel>
                 <BusinessHoursInput
                   value={form.hours}
-                  error={showError("hours", liveErrors.hours) ?? undefined}
-                  onChange={(value) => {
-                    setField("hours", value);
-                    touch("hours");
-                  }}
+                  error={fieldError("hours") ?? undefined}
+                  onChange={(value) => setField("hours", value)}
                   onBlur={() => touch("hours")}
                 />
-                {showError("hours", liveErrors.hours) ? (
+                {fieldError("hours") ? (
                   <p className="mt-1 text-xs text-red-600">{liveErrors.hours}</p>
                 ) : null}
               </div>
@@ -578,9 +606,7 @@ export function AmenityFormModal({
               {!showSharedBilling && !form.shared_billing_enabled && (form.status === "open" || form.status === "bookable") ? (
                 <div className="space-y-3">
                   <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                      How residents pay *
-                    </label>
+                    <FormLabel required>How residents pay</FormLabel>
                     <div className="flex flex-wrap gap-2">
                       {(
                         [
@@ -609,17 +635,17 @@ export function AmenityFormModal({
                     <p className="mt-1 text-xs text-slate-500">
                       Choose a type to continue. Reservation fee is only needed for per-booking amenities.
                     </p>
-                    {showError("charge_model", liveErrors.charge_model) ? (
+                    {fieldError("charge_model") ? (
                       <p className="mt-1 text-xs text-red-600">{liveErrors.charge_model}</p>
                     ) : null}
                   </div>
                   {chargeModel === "booking" ? (
                     <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                        {bookingFeeFullSlot ? "Reservation fee per slot *" : "Reservation fee per person *"}
-                      </label>
+                      <FormLabel required>
+                        {bookingFeeFullSlot ? "Reservation fee per slot" : "Reservation fee per person"}
+                      </FormLabel>
                       <input
-                        className={inputClass(showError("booking_fee", liveErrors.booking_fee))}
+                        className={inputClass(fieldError("booking_fee"))}
                         value={form.booking_fee}
                         onChange={(e) => setField("booking_fee", e.target.value.replace(/[^0-9.]/g, ""))}
                         onBlur={() => touch("booking_fee")}
@@ -631,7 +657,7 @@ export function AmenityFormModal({
                           ? "Flat fee for the whole slot at booking. Billed after the owner approves."
                           : "Charged after approval. Two guests at $10 each pay $20."}
                       </p>
-                      {showError("booking_fee", liveErrors.booking_fee) ? (
+                      {fieldError("booking_fee") ? (
                         <p className="mt-1 text-xs text-red-600">{liveErrors.booking_fee}</p>
                       ) : null}
                     </div>
@@ -641,35 +667,13 @@ export function AmenityFormModal({
 
               {form.status === "bookable" ? (
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                    Slot duration *
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {SLOT_OPTIONS.map((opt) => {
-                      const active = form.slot_duration_minutes === opt.value;
-                      return (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => {
-                            setField("slot_duration_minutes", opt.value);
-                            touch("slot_duration_minutes");
-                          }}
-                          className={[
-                            "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
-                            active
-                              ? "border-[#1B4F8A] bg-[#E8F0F7] text-[#1B4F8A]"
-                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
-                          ].join(" ")}
-                        >
-                          {opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {showError("slot_duration_minutes", liveErrors.slot_duration_minutes) ? (
-                    <p className="mt-1 text-xs text-red-600">{liveErrors.slot_duration_minutes}</p>
-                  ) : null}
+                  <FormLabel required>Slot duration</FormLabel>
+                  <SlotDurationField
+                    minutes={form.slot_duration_minutes}
+                    onChangeMinutes={(value) => setChoice("slot_duration_minutes", value)}
+                    onBlur={() => touch("slot_duration_minutes")}
+                    error={fieldError("slot_duration_minutes") ? liveErrors.slot_duration_minutes : null}
+                  />
                 </div>
               ) : null}
             </div>
@@ -699,17 +703,17 @@ export function AmenityFormModal({
                 })}
               </div>
 
-              {showError("charge_model", liveErrors.charge_model) ? (
+              {fieldError("charge_model") ? (
                 <p className="text-xs text-red-600">{liveErrors.charge_model}</p>
               ) : null}
 
               {chargeModel === "booking" ? (
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                    {bookingFeeFullSlot ? "Reservation fee per slot *" : "Reservation fee per person *"}
-                  </label>
+                  <FormLabel required>
+                    {bookingFeeFullSlot ? "Reservation fee per slot" : "Reservation fee per person"}
+                  </FormLabel>
                   <input
-                    className={inputClass(showError("booking_fee", liveErrors.booking_fee))}
+                    className={inputClass(fieldError("booking_fee"))}
                     value={form.booking_fee}
                     onChange={(e) => setField("booking_fee", e.target.value.replace(/[^0-9.]/g, ""))}
                     onBlur={() => touch("booking_fee")}
@@ -721,7 +725,7 @@ export function AmenityFormModal({
                       ? "Flat fee for the whole slot at booking. Billed after the owner approves."
                       : "Total at booking is this amount × number of guests. Billed after the owner approves."}
                   </p>
-                  {showError("booking_fee", liveErrors.booking_fee) ? (
+                  {fieldError("booking_fee") ? (
                     <p className="mt-1 text-xs text-red-600">{liveErrors.booking_fee}</p>
                   ) : null}
                 </div>
@@ -747,7 +751,7 @@ export function AmenityFormModal({
                             <button
                               key={opt.value}
                               type="button"
-                              onClick={() => setField("shared_billing_frequency", opt.value)}
+                              onClick={() => setChoice("shared_billing_frequency", opt.value)}
                               className={[
                                 "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
                                 active
@@ -760,35 +764,33 @@ export function AmenityFormModal({
                           );
                         })}
                       </div>
+                      {fieldError("shared_billing_frequency") ? (
+                        <p className="mt-1 text-xs text-red-600">{liveErrors.shared_billing_frequency}</p>
+                      ) : null}
                     </div>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                        Amount per resident *
-                      </label>
+                      <FormLabel required>Amount per resident</FormLabel>
                       <input
-                        className={inputClass(showError("shared_billing_amount", liveErrors.shared_billing_amount))}
+                        className={inputClass(fieldError("shared_billing_amount"))}
                         value={form.shared_billing_amount}
                         onChange={(e) => setField("shared_billing_amount", e.target.value.replace(/[^0-9.]/g, ""))}
                         onBlur={() => touch("shared_billing_amount")}
                         placeholder="e.g. 25"
                         inputMode="decimal"
                       />
-                      {showError("shared_billing_amount", liveErrors.shared_billing_amount) ? (
+                      {fieldError("shared_billing_amount") ? (
                         <p className="mt-1 text-xs text-red-600">{liveErrors.shared_billing_amount}</p>
                       ) : null}
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-slate-600">Due day *</label>
+                      <FormLabel required>Due day</FormLabel>
                       <select
-                        className={inputClass(showError("shared_billing_due_day", liveErrors.shared_billing_due_day))}
+                        className={inputClass(fieldError("shared_billing_due_day"))}
                         value={form.shared_billing_due_day}
-                        onChange={(e) => {
-                          setField("shared_billing_due_day", e.target.value);
-                          touch("shared_billing_due_day");
-                        }}
+                        onChange={(e) => setChoice("shared_billing_due_day", e.target.value)}
                         onBlur={() => touch("shared_billing_due_day")}
                       >
                         <option value="">Select day</option>
@@ -798,7 +800,7 @@ export function AmenityFormModal({
                           </option>
                         ))}
                       </select>
-                      {showError("shared_billing_due_day", liveErrors.shared_billing_due_day) ? (
+                      {fieldError("shared_billing_due_day") ? (
                         <p className="mt-1 text-xs text-red-600">{liveErrors.shared_billing_due_day}</p>
                       ) : null}
                     </div>
@@ -854,7 +856,7 @@ export function AmenityFormModal({
                 label="Slot duration"
                 value={
                   form.status === "bookable"
-                    ? SLOT_OPTIONS.find((opt) => opt.value === form.slot_duration_minutes)?.label || "—"
+                    ? formatSlotDurationLabel(Number(form.slot_duration_minutes) || 0)
                     : "Not used"
                 }
               />
