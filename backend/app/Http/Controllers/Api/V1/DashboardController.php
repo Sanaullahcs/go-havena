@@ -59,7 +59,8 @@ class DashboardController extends Controller
             ->count();
         $invitationSentMembers = MemberLifecycleStatus::countInvitationSent($communityId);
         $onboardingMembers = MemberLifecycleStatus::countOnboarding($communityId);
-        $totalMembers = $approvedMembers + $pendingMembers + $bannedMembers + $rejectedMembers + $onboardingMembers + $invitationSentMembers;
+        // Joined residents with approved membership only (excludes invites, onboarding, pending, etc.).
+        $totalMembers = $approvedMembers;
         $openReports = (clone $reportsQuery)->whereIn('status', ['open', 'in_review', 'escalated'])->count();
         $listingCounts = (clone $listingsQuery)
             ->selectRaw('status, COUNT(*) as aggregate')

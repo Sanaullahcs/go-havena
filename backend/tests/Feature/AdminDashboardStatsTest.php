@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Community;
 use App\Models\CommunityMembership;
+use App\Models\InviteCode;
 use App\Models\Region;
 use App\Models\User;
 use Database\Seeders\SystemAdminSeeder;
@@ -282,7 +283,7 @@ class AdminDashboardStatsTest extends TestCase
         $stats = $response->json('data.stats');
 
         $this->assertSame($community->id, $response->json('data.scope.community_id'));
-        $this->assertSame(2, $stats['total_members']);
+        $this->assertSame(1, $stats['total_members']);
         $this->assertSame(1, $stats['pending_members']);
         $this->assertSame(0, $stats['invitation_sent_members']);
         $this->assertSame(0, $stats['onboarding_members']);
@@ -293,6 +294,71 @@ class AdminDashboardStatsTest extends TestCase
         $this->assertSame(1, (int) $status->get('pending'));
         $this->assertSame(0, (int) $status->get('invitation_sent'));
         $this->assertSame(0, (int) $status->get('onboarding'));
+    }
+
+    public function test_dashboard_total_members_excludes_invitation_sent_residents(): void
+    {
+        config(['billing.enabled' => false, 'billing.enforce' => false]);
+
+        $region = Region::query()->create([
+            'title'       => 'Invite Metro',
+            'area'        => 'Area',
+            'state'       => 'EG',
+            'users_label' => '0 users',
+            'sort_order'  => 1,
+            'status'      => 'active',
+        ]);
+
+        $community = Community::query()->create([
+            'name'          => 'Invite Valley',
+            'region_id'     => $region->id,
+            'region'        => $region->title,
+            'status'        => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        $admin = User::factory()->create([
+            'role'                   => 'community_admin',
+            'community_admin_status' => 'approved',
+            'status'                 => 'active',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id'      => $admin->id,
+            'community_id' => $community->id,
+            'role'         => 'admin',
+            'status'       => 'approved',
+        ]);
+
+        $active = User::factory()->create(['role' => 'resident', 'status' => 'active']);
+        CommunityMembership::query()->create([
+            'user_id'      => $active->id,
+            'community_id' => $community->id,
+            'role'         => 'member',
+            'status'       => 'approved',
+        ]);
+
+        for ($i = 0; $i < 6; $i++) {
+            $invited = User::factory()->unverified()->create([
+                'role'   => 'resident',
+                'status' => 'active',
+            ]);
+            InviteCode::query()->create([
+                'community_id'     => $community->id,
+                'code'             => 'INVITE'.$i.str_repeat('X', 4),
+                'created_by'       => $admin->id,
+                'invited_user_id'  => $invited->id,
+                'max_uses'         => 1,
+                'used_count'       => 0,
+            ]);
+        }
+
+        Sanctum::actingAs($admin);
+        $response = $this->getJson('/api/v1/admin/dashboard/stats');
+        $response->assertOk();
+        $stats = $response->json('data.stats');
+
+        $this->assertSame(1, $stats['total_members']);
+        $this->assertSame(6, $stats['invitation_sent_members']);
     }
 
     public function test_mobile_dashboard_returns_lightweight_payload(): void

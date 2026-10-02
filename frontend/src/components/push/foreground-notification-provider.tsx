@@ -7,6 +7,7 @@ import type { WebPushMessagePayload } from "@/lib/firebase/display-web-push-noti
 import { resolvePushLink } from "@/lib/firebase/display-web-push-notification";
 import { subscribeForegroundMessages } from "@/lib/firebase/web-push";
 import { subscribeForegroundNotification } from "@/lib/notifications/foreground-notification-events";
+import { notificationPreviewText } from "@/lib/notifications/notification-preview";
 
 const MAX_ITEMS = 20;
 
@@ -117,7 +118,7 @@ export function ForegroundNotificationProvider({ children }: { children: React.R
                       <span className="block truncate text-sm font-semibold text-slate-900">{item.title}</span>
                       {item.body ? (
                         <span className="mt-0.5 block text-xs leading-relaxed text-slate-600 line-clamp-3">
-                          {item.body}
+                          {notificationPreviewText(item.body)}
                         </span>
                       ) : null}
                     </button>

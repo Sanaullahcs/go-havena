@@ -14,6 +14,7 @@ import {
 import { fetchNotifications, markNotificationRead, markAllRead } from "@/lib/api/notifications";
 import { confirmMarkAllNotificationsRead } from "@/lib/admin/dashboard-confirmations";
 import { resolveAdminNotificationHref } from "@/lib/notifications/resolve-admin-notification-href";
+import { notificationPreviewText } from "@/lib/notifications/notification-preview";
 import { NL } from "@/lib/design-tokens";
 
 export type AppNotification = {
@@ -222,8 +223,8 @@ export function NotificationBell({
                       {n.title}
                     </p>
                     {n.body ? (
-                      <p className="mt-0.5 line-clamp-2 text-[11.5px]" style={{ color: NL.textSecondary }}>
-                        {n.body}
+                      <p className="mt-0.5 line-clamp-3 text-[11.5px]" style={{ color: NL.textSecondary }}>
+                        {notificationPreviewText(n.body)}
                       </p>
                     ) : null}
                     <p className="mt-1 text-[10.5px]" style={{ color: NL.textMuted }}>

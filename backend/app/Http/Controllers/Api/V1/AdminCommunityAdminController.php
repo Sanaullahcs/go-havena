@@ -11,7 +11,7 @@ use App\Services\CommunityLifecycleService;
 use App\Services\ContactIdentityService;
 use App\Services\NotificationService;
 use App\Services\ReferralService;
-use App\Services\UtilityBillStorage;
+use App\Services\UtilityBillUploadService;
 use App\Support\CommunityAdminRecordStatus;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
@@ -137,7 +137,9 @@ class AdminCommunityAdminController extends Controller
             $profileData['residence_type'] = null;
         }
         if ($request->hasFile('utility_bill')) {
-            $profileData['utility_bill_url'] = app(UtilityBillStorage::class)->store($request->file('utility_bill'));
+            $upload = app(UtilityBillUploadService::class)->storeVerified($request->file('utility_bill'));
+            $profileData['utility_bill_url'] = $upload['url'];
+            $profileData['utility_bill_review_status'] = $upload['utility_bill_review_status'];
         }
 
         if ($profileData !== []) {

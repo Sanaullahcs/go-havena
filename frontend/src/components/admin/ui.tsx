@@ -53,7 +53,7 @@ export function StatTile({
 }: {
   label: string;
   value: ReactNode;
-  hint?: string;
+  hint?: ReactNode;
   tone?: Tone;
   icon: ReactNode;
   href?: string;
@@ -61,6 +61,7 @@ export function StatTile({
   const tile = TONE_TILE[tone] ?? TONE_TILE.green;
   const accent = TONE_ACCENT[tone] ?? tile.accent;
   const percent = parsePercent(value);
+  const hintMultiline = hint != null && typeof hint !== "string";
 
   const inner = (
     <>
@@ -87,16 +88,25 @@ export function StatTile({
         <p className="truncate text-[1.35rem] font-bold tabular-nums leading-tight tracking-tight" style={{ color: tile.value }}>
           {value}
         </p>
-        {hint && (
-          <p className="truncate text-[11px] leading-tight" style={{ color: NL.textSecondary }}>{hint}</p>
-        )}
+        {hint ? (
+          hintMultiline ? (
+            <div className="pt-0.5" style={{ color: NL.textSecondary }}>
+              {hint}
+            </div>
+          ) : (
+            <p className="truncate text-[11px] leading-tight" style={{ color: NL.textSecondary }}>
+              {hint}
+            </p>
+          )
+        ) : null}
       </div>
     </>
   );
 
   const className = [
-    "group relative flex min-h-[4.25rem] items-center gap-3 overflow-hidden rounded-xl",
-    "border p-3.5 transition duration-200 hover:-translate-y-0.5 hover:shadow-md",
+    "group relative flex min-h-[4.25rem] gap-3 overflow-hidden rounded-xl border p-3.5",
+    hintMultiline ? "items-start" : "items-center",
+    "transition duration-200 hover:-translate-y-0.5 hover:shadow-md",
   ].join(" ");
 
   const cardStyle = {
@@ -255,7 +265,7 @@ export function DataTable<K extends string>({
               value={search}
               hideClear={showProgress}
               onChange={(e) => onSearch(e.target.value)}
-              className="h-8 w-52 rounded-lg border border-slate-200 bg-slate-50 py-1.5 pr-8 text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition"
+              className="h-8 w-full min-w-[14rem] max-w-[18rem] rounded-lg border border-slate-200 bg-slate-50 py-1.5 pr-8 text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition sm:w-64"
               style={{ paddingLeft: "1.875rem" }}
             />
             {showProgress ? (

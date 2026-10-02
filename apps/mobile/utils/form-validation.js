@@ -13,6 +13,8 @@ export const LIMITS = {
   noticeTitle: 200,
   eventTitle: 80,
   noticeBody: 5000,
+  /** Resident notice & event create (mobile). */
+  noticeDescription: 1000,
   noticeBodyMin: 10,
   noticeTitleMin: 3,
   location: 255,
@@ -161,9 +163,10 @@ export function validateNoticeForm(form, opts = {}) {
     if (plain) errors.title = plain;
   }
 
+  const bodyMax = kind === "alert" ? LIMITS.noticeBody : LIMITS.noticeDescription;
   const bodyErr = requiredText(form.body, "validation.fields.description", {
     min: LIMITS.noticeBodyMin,
-    max: LIMITS.noticeBody,
+    max: bodyMax,
   });
   if (bodyErr) errors.body = bodyErr;
 

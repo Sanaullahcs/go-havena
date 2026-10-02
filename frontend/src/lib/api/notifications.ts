@@ -9,6 +9,11 @@ export type NotificationListMeta = {
   total_all: number;
   warning: number;
   message: number;
+  system?: number;
+  events?: number;
+  notices?: number;
+  amenities?: number;
+  others?: number;
 };
 
 export type NotificationListResponse = {
@@ -21,6 +26,7 @@ export async function fetchNotifications(params?: {
   page?: number;
   per_page?: number;
   type?: string;
+  module?: string;
   unread_only?: boolean;
 }): Promise<NotificationListResponse> {
   const res = await api.get("/v1/notifications", {

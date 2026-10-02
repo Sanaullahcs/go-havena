@@ -23,6 +23,7 @@ import {
   sortNotifications,
 } from "../../../services/notifications-api";
 import { mergeNotifications } from "../../../utils/notification-pagination";
+import { notificationPreviewText } from "../../../utils/notification-preview";
 import { useApiAction } from "../../../hooks/use-api-action";
 import { sw, sf } from "../../../utils/responsive";
 
@@ -31,10 +32,11 @@ const UNREAD_DOT = sw(8);
 const PAGE_SIZE = 15;
 const TITLE_LINE_H = sf(18);
 const DESC_LINE_H = sf(18);
-const DESC_LINES = 2;
+const DESC_LINES = 3;
 const TIME_LINE_H = sf(14);
 
 function NotificationRow({ item, onPress }) {
+  const preview = notificationPreviewText(item.description);
   return (
     <TouchableOpacity activeOpacity={0.9} onPress={() => onPress(item)}>
       <View style={[styles.notificationItem, item.read && styles.notificationItemRead]}>
@@ -55,7 +57,7 @@ function NotificationRow({ item, onPress }) {
               numberOfLines={DESC_LINES}
               ellipsizeMode="tail"
             >
-              {item.description?.trim() ? item.description : " "}
+              {preview || " "}
             </Text>
             <Text style={styles.notificationTime} numberOfLines={1} ellipsizeMode="tail">
               {item.time}

@@ -142,6 +142,46 @@ console.log("\nNotice / event / alert validation");
   );
   assertNoErrors(ok, "valid notice");
 
+  const noticeBodyTooLong = validateNoticeForm(
+    {
+      title: "Pool hours",
+      body: "x".repeat(1001),
+      category: "general",
+      location: "",
+      event_date: "",
+      event_time: "",
+      event_time_end: "",
+    },
+    { kind: "notice" },
+  );
+  assertHasError(noticeBodyTooLong, "body", "notice description max 1000");
+
+  const eventBodyTooLong = validateNoticeForm(
+    {
+      title: "Block Party",
+      body: "x".repeat(1001),
+      location: "Courtyard",
+      event_date: "2026-07-20",
+      event_time: "18:00",
+      event_time_end: "20:00",
+    },
+    { kind: "event" },
+  );
+  assertHasError(eventBodyTooLong, "body", "event description max 1000");
+
+  const alertLongBody = validateNoticeForm(
+    {
+      title: "Power outage",
+      body: "x".repeat(2000),
+      location: "",
+      event_date: "2026-07-20",
+      event_time: "",
+      event_time_end: "",
+    },
+    { kind: "alert", publishNow: true },
+  );
+  assertNoErrors(alertLongBody, "alert body may exceed 1000 up to noticeBody limit");
+
   const noticeReady = validateNoticeForm(
     {
       title: "Pool hours",

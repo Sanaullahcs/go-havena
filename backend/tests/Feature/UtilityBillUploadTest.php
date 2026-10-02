@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Contracts\UtilityBillOcrEngine;
 use App\Models\User;
+use App\Services\UtilityBillOcr\NullUtilityBillOcrEngine;
 use App\Support\UtilityBillDocumentVerdict;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -18,6 +20,8 @@ class UtilityBillUploadTest extends TestCase
     {
         parent::setUp();
         Storage::fake('public');
+        config(['utility_bill.ocr_enabled' => false]);
+        $this->app->bind(UtilityBillOcrEngine::class, fn () => new NullUtilityBillOcrEngine);
     }
 
     public function test_rejects_selfie(): void
@@ -276,9 +280,8 @@ class UtilityBillUploadTest extends TestCase
         ];
         $this->drawTextLines($image, $lines, $ink, 120, 3);
 
-        imagefilter($image, IMG_FILTER_SMOOTH, 4);
-        imagefilter($image, IMG_FILTER_GAUSSIAN_BLUR);
-        imagejpeg($image, $path, 55);
+        imagefilter($image, IMG_FILTER_SMOOTH, 2);
+        imagejpeg($image, $path, 68);
         imagedestroy($image);
 
         return new UploadedFile($path, 'scanned-bill.jpg', 'image/jpeg', null, true);

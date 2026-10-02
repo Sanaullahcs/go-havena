@@ -15,6 +15,7 @@ use App\Services\MembershipService;
 use App\Services\PointsRewardService;
 use App\Services\UserBlockService;
 use App\Services\UtilityBillStorage;
+use App\Services\UtilityBillUploadService;
 use App\Support\MediaUrl;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\JsonResponse;
@@ -560,15 +561,22 @@ class ProfileController extends Controller
     {
         $request->validate(['utility_bill' => 'required|'.UtilityBillStorage::RULE]);
 
-        $stored = app(UtilityBillStorage::class)->store($request->file('utility_bill'));
+        $upload = app(UtilityBillUploadService::class)->storeVerified($request->file('utility_bill'));
 
         $request->user()->profile()->updateOrCreate(
             ['user_id' => $request->user()->id],
-            ['utility_bill_url' => $stored]
+            [
+                'utility_bill_url' => $upload['url'],
+                'utility_bill_review_status' => $upload['utility_bill_review_status'],
+            ]
         );
 
         return response()->json([
-            'data' => ['utility_bill_url' => MediaUrl::toPublic($stored, $request)],
+            'data' => [
+                'utility_bill_url' => MediaUrl::toPublic($upload['url'], $request),
+                'utility_bill_review_status' => $upload['utility_bill_review_status'],
+                'utility_bill_verified' => $upload['utility_bill_verified'],
+            ],
             'message' => 'Utility bill uploaded for verification',
         ]);
     }

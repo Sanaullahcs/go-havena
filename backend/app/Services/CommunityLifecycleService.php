@@ -617,6 +617,11 @@ class CommunityLifecycleService
         }
 
         if (($user->role ?? '') === 'resident') {
+            $inviteBlock = InviteCodeService::inactiveMemberInviteAuthenticationBlock($user);
+            if ($inviteBlock) {
+                return $this->withBlockDetails($inviteBlock);
+            }
+
             $hasBannedMembership = $user->memberships()
                 ->where('status', 'banned')
                 ->exists();

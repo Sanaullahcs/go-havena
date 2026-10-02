@@ -3,33 +3,15 @@
 namespace App\Services;
 
 use App\Support\UtilityBillDocumentVerdict;
+use App\Support\UtilityBillTextScorer;
 use Illuminate\Http\UploadedFile;
 
+/** Heuristic middleware validation (layout + embedded PDF/metadata text). */
 class UtilityBillDocumentValidator
 {
-    /** @var list<string> */
-    private const UTILITY_TERMS = [
-        'utility', 'electric', 'electricity', 'gas', 'water', 'sewer', 'internet',
-        'broadband', 'cable', 'telecom', 'energy', 'power company', 'kwh', 'therm',
-        'meter', 'account number', 'account no', 'acct #', 'amount due', 'due date',
-        'billing period', 'billing date', 'service address', 'statement', 'invoice',
-        'bill', 'provider', 'usage', 'past due', 'kilowatt',
-    ];
-
-    /** @var list<string> */
-    private const LEASE_TERMS = [
-        'lease', 'rental agreement', 'tenancy', 'tenant', 'landlord', 'lessor',
-        'lessee', 'rent', 'security deposit', 'premises', 'property address',
-        'lease term', 'commencement', 'expiration', 'signature', 'agreement',
-        'property management', 'resident', 'occupancy',
-    ];
-
-    /** @var list<string> */
-    private const UNRELATED_TERMS = [
-        'selfie', 'vacation', 'instagram', 'facebook', 'tiktok', 'portrait',
-        'scenery', 'landscape', 'product photo', 'screenshot of chat',
-        'my cat', 'my dog', 'birthday party',
-    ];
+    public function __construct(
+        private readonly UtilityBillTextExtractor $textExtractor,
+    ) {}
 
     public function validate(UploadedFile $file): UtilityBillDocumentVerdict
     {
@@ -54,8 +36,8 @@ class UtilityBillDocumentValidator
             return UtilityBillDocumentVerdict::reject('corrupted_file');
         }
 
-        $text = $this->extractPdfText($raw);
-        $signals = $this->scoreText($text);
+        $text = $this->textExtractor->extractPdfText($raw);
+        $signals = UtilityBillTextScorer::score($text);
 
         if ($signals['document'] >= 2) {
             return UtilityBillDocumentVerdict::likely('pdf_document_terms');
@@ -99,7 +81,7 @@ class UtilityBillDocumentValidator
         $features = $this->analyzeImage($image);
         imagedestroy($image);
 
-        $embedded = $this->scoreText($this->extractImageMetadataText($path));
+        $embedded = UtilityBillTextScorer::score($this->textExtractor->extractImageMetadataText($path));
 
         if ($embedded['unrelated'] >= 1 && $embedded['document'] === 0) {
             return UtilityBillDocumentVerdict::reject('image_unrelated_metadata');
@@ -273,8 +255,10 @@ class UtilityBillDocumentValidator
 
         $looksLikeAmbiguousDocument = ! $looksLikeDocument
             && $hasDocumentStructure
-            && $documentScore >= 0.44
-            && $meanSaturation <= 0.38
+            && $documentScore >= 0.48
+            && $textLikeRows >= 10
+            && $textBandCount >= 3
+            && $meanSaturation <= 0.35
             && ! $looksLikeScreenshot
             && ! $looksLikeProduct
             && ! $looksLikePortrait
@@ -429,76 +413,4 @@ class UtilityBillDocumentValidator
         return $hueOk && $satOk && $valOk && $r > $g && $g > $b - 15;
     }
 
-    /**
-     * @return array{document: int, unrelated: int, words: int}
-     */
-    private function scoreText(string $text): array
-    {
-        $normalized = strtolower(preg_replace('/\s+/', ' ', $text) ?? '');
-        $document = 0;
-        foreach ([...self::UTILITY_TERMS, ...self::LEASE_TERMS] as $term) {
-            if (str_contains($normalized, $term)) {
-                $document++;
-            }
-        }
-
-        $unrelated = 0;
-        foreach (self::UNRELATED_TERMS as $term) {
-            if (str_contains($normalized, $term)) {
-                $unrelated++;
-            }
-        }
-
-        return [
-            'document' => $document,
-            'unrelated' => $unrelated,
-            'words' => str_word_count($normalized),
-        ];
-    }
-
-    private function extractPdfText(string $raw): string
-    {
-        $chunks = [];
-
-        if (preg_match_all('/\((?:\\\\.|[^\\\\)])*\)/', $raw, $matches)) {
-            foreach ($matches[0] as $match) {
-                $chunks[] = stripcslashes(trim($match, '()'));
-            }
-        }
-
-        if (preg_match_all('/\[(.*?)\]\s*TJ/s', $raw, $arrayMatches)) {
-            foreach ($arrayMatches[1] as $block) {
-                if (preg_match_all('/\((?:\\\\.|[^\\\\)])*\)/', $block, $inner)) {
-                    foreach ($inner[0] as $match) {
-                        $chunks[] = stripcslashes(trim($match, '()'));
-                    }
-                }
-            }
-        }
-
-        return trim(implode(' ', $chunks));
-    }
-
-    private function extractImageMetadataText(string $path): string
-    {
-        $chunks = [];
-
-        if (function_exists('exif_read_data')) {
-            $exif = @exif_read_data($path, null, true);
-            if (is_array($exif)) {
-                foreach (['IFD0', 'EXIF', 'COMMENT', 'WINXP'] as $section) {
-                    if (! isset($exif[$section]) || ! is_array($exif[$section])) {
-                        continue;
-                    }
-                    foreach ($exif[$section] as $value) {
-                        if (is_string($value) && trim($value) !== '') {
-                            $chunks[] = $value;
-                        }
-                    }
-                }
-            }
-        }
-
-        return trim(implode(' ', $chunks));
-    }
 }
