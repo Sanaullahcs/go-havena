@@ -7,11 +7,15 @@ export function ResidentFeatureToggles({
   values,
   onChange,
   disabled,
+  reasons,
+  onReasonChange,
 }: {
   catalog: ResidentFeatureItem[];
   values: Record<string, boolean>;
   onChange: (key: string, enabled: boolean) => void;
   disabled?: boolean;
+  reasons?: Record<string, string>;
+  onReasonChange?: (key: string, reason: string) => void;
 }) {
   const groups = groupedCatalog(catalog);
 
@@ -26,10 +30,11 @@ export function ResidentFeatureToggles({
             {group.features.map((feature) => {
               const enabled = values[feature.key] !== false;
               return (
-                <label
+                <div
                   key={feature.key}
-                  className="flex h-full items-start justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+                  className="flex h-full flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
                 >
+                <label className="flex items-start justify-between gap-4">
                   <span className="min-w-0">
                     <span className="block text-[13.5px] font-semibold text-slate-900">{feature.label}</span>
                     <span className="mt-0.5 block text-[12.5px] leading-snug text-slate-500">
@@ -57,6 +62,18 @@ export function ResidentFeatureToggles({
                     />
                   </button>
                 </label>
+                {onReasonChange && !enabled ? (
+                  <textarea
+                    value={reasons?.[feature.key] ?? ""}
+                    onChange={(event) => onReasonChange(feature.key, event.target.value)}
+                    rows={3}
+                    maxLength={1000}
+                    disabled={disabled}
+                    placeholder="Reason for disabling this feature"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#1B4F8A]"
+                  />
+                ) : null}
+                </div>
               );
             })}
           </div>

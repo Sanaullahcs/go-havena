@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { UserPlus, Users, X } from "lucide-react";
 import { AdminPhoneInput } from "@/components/admin/phone-input";
@@ -535,7 +537,7 @@ export function ProvisionUserModal({
           <>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Full name (optional)" error={showError("name") ? errors.name : undefined}>
-              <input
+              <ClearableInput
                 data-field="name"
                 className={provisionInputClass(showError("name") ? errors.name : undefined)}
                 value={nameValue}
@@ -560,7 +562,7 @@ export function ProvisionUserModal({
               />
             </Field>
             <Field label="Email address" required error={showError("email") ? errors.email : undefined}>
-              <input
+              <ClearableInput
                 data-field="email"
                 type="email"
                 className={provisionInputClass(showError("email") ? errors.email : undefined)}
@@ -714,7 +716,7 @@ export function ProvisionUserModal({
                   className="sm:col-span-2"
                   error={showError("community_name") ? errors.community_name : undefined}
                 >
-                  <input
+                  <ClearableInput
                     data-field="community_name"
                     className={provisionInputClass(showError("community_name") ? errors.community_name : undefined)}
                     value={adminForm.community_name}
@@ -770,7 +772,7 @@ export function ProvisionUserModal({
                   error={showError("community_description") ? errors.community_description : undefined}
                   hint={`${adminForm.community_description.length}/1000`}
                 >
-                  <textarea
+                  <ClearableTextarea
                     data-field="community_description"
                     rows={3}
                     maxLength={1000}
@@ -887,7 +889,7 @@ function ExistingAdminPicker({
         Admins already managing a community stay unavailable.
       </p>
       {admins.length > 0 ? (
-        <input
+        <ClearableInput
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}

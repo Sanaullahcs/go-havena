@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useNavigation, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
@@ -20,6 +20,7 @@ import { createAdminPropertyService } from "../../../services/property-services-
 import { useApiAction } from "../../../hooks/use-api-action";
 import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { dateOnly, formatDisplayDate, toApiDate } from "../../../utils/form-datetime";
+import { safeGoBack } from "../../../utils/app-navigation";
 
 const CATEGORIES = [
   "electricity",
@@ -355,6 +356,7 @@ function DateField({ value, placeholder, error, onPress }) {
 
 export default function AdminServiceFormScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { t } = useTranslation();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -446,7 +448,7 @@ export default function AdminServiceFormScreen() {
 
   const goBack = () => {
     if (step === 1) {
-      router.back();
+      safeGoBack(router, navigation);
       return;
     }
     setStep(step - 1);

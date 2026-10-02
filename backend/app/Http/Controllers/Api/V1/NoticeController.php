@@ -514,7 +514,7 @@ class NoticeController extends Controller
         }
 
         $validated = $request->validate([
-            'title'          => 'required|string|max:200',
+            'title'          => 'required|string|max:80',
             'body'           => 'required|string',
             'location'       => 'nullable|string|max:255',
             'image_url'      => 'nullable|string|max:2048',
@@ -524,6 +524,8 @@ class NoticeController extends Controller
             'event_time_end'  => 'required|string|max:20',
             'event_capacity' => 'nullable|integer|min:1|max:100000',
             'requires_rsvp'  => 'nullable|boolean',
+        ], [
+            'title.max' => 'Event name must be 80 characters or less.',
         ]);
 
         if ($request->hasAny(['is_pinned', 'scheduled_at'])) {

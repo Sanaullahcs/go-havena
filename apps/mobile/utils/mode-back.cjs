@@ -2,19 +2,11 @@ function routeName(value) {
   return String(value ?? "").toLowerCase();
 }
 
+/** Community Admin stack screens only. Shared resident flows must not match. */
 function isAdminStackRoute(name) {
   const n = routeName(name);
-  return (
-    n.includes("admin-") ||
-    n.includes("admin-dashboard") ||
-    n.includes("create-notice") ||
-    n.includes("create-event") ||
-    n.includes("create-alert") ||
-    n.includes("create-post") ||
-    n.includes("property-management") ||
-    n.includes("invite-guest-admin") ||
-    n.includes("resident-features")
-  );
+  if (!n) return false;
+  return n.includes("admin-") || n.includes("invite-guest-admin");
 }
 
 function isResidentOrAuthRoute(name) {
@@ -32,47 +24,55 @@ function isResidentOrAuthRoute(name) {
   );
 }
 
-/** Screens opened from both resident home and admin hub — always pop the stack when possible. */
-function isSharedScreenRoute(name) {
-  const n = routeName(name);
-  return (
-    n.includes("notification") ||
-    n.includes("screens/settings") ||
-    n.includes("screens/messages")
-  );
+function isSameDestination(currentRouteName, path) {
+  const current = routeName(currentRouteName);
+  const target = routeName(path);
+  if (!current || !target) return false;
+  if (target.includes("admin-dashboard") && current.includes("admin-dashboard")) return true;
+  if (
+    (target.includes("(tabs)/home") || target.endsWith("/home")) &&
+    (current === "(tabs)" || current === "home" || current === "index" || current.includes("(tabs)"))
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /**
- * Decide Back without throwing or leaving Community Admin Mode on admin-only screens.
- * previousRouteName empty means we could not inspect the stack.
+ * Back follows the screen that opened this one.
+ * Resident screens are never sent to Community Admin.
+ * Admin screens pop inside the admin stack, and the dashboard pops back to
+ * whatever opened it. A missing history falls back inside the current mode.
  */
-function resolveBackAction({ canGoBack, previousRouteName, currentRouteName, isAdminMode }) {
-  const prev = routeName(previousRouteName);
+function resolveBackAction({
+  canGoBack,
+  previousRouteName,
+  currentRouteName,
+  isAdminMode,
+  fallbackPath,
+}) {
   const current = routeName(currentRouteName);
-
-  if (isSharedScreenRoute(current) && canGoBack) {
-    return { type: "back" };
-  }
+  const onAdminScreen = isAdminStackRoute(current);
 
   if (canGoBack) return { type: "back" };
 
-  if (isAdminMode) {
-    if (current.includes("admin-dashboard")) {
-      return { type: "replace", path: "/(tabs)/home" };
-    }
-    if (prev && isResidentOrAuthRoute(prev)) {
-      return { type: "replace", path: "/screens/admin-dashboard" };
-    }
-    return { type: "replace", path: "/screens/admin-dashboard" };
+  if (onAdminScreen) {
+    if (current.includes("admin-dashboard")) return { type: "stay" };
+    if (isAdminMode) return { type: "replace", path: "/screens/admin-dashboard" };
   }
 
-  return { type: "replace", path: "/(tabs)/home" };
+  const home = fallbackPath || "/(tabs)/home";
+  if (isSameDestination(current, home)) return { type: "stay" };
+  return { type: "replace", path: home };
 }
 
 function previousRouteNameFromState(state) {
+  // Tab and drawer routes are siblings, not a back stack.
+  if (state?.type === "tab" || state?.type === "drawer") return "";
   const routes = state?.routes;
   if (!Array.isArray(routes) || routes.length === 0) return "";
   const index = Number.isInteger(state.index) ? state.index : routes.length - 1;
+  if (index <= 0) return "";
   const prev = routes[index - 1];
   return prev?.name ?? "";
 }
@@ -84,13 +84,46 @@ function currentRouteNameFromState(state) {
   return routes[index]?.name ?? "";
 }
 
+/**
+ * The navigator Back will actually pop. Nested stacks are preferred so a
+ * drill-in returns to its parent before the root history is considered.
+ */
+function backContextFromNavigation(navigation) {
+  let current = navigation ?? null;
+  const seen = new Set();
+  let leafName = "";
+
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    const state = typeof current.getState === "function" ? current.getState() : null;
+    const currentRouteName = currentRouteNameFromState(state);
+    if (!leafName && currentRouteName) leafName = currentRouteName;
+    const previousRouteName = previousRouteNameFromState(state);
+    if (previousRouteName) {
+      return {
+        canGoBack: true,
+        previousRouteName,
+        currentRouteName: leafName || currentRouteName,
+      };
+    }
+    current = typeof current.getParent === "function" ? current.getParent() : null;
+  }
+
+  return {
+    canGoBack: false,
+    previousRouteName: "",
+    currentRouteName: leafName,
+  };
+}
+
 const modeBack = {
   isAdminStackRoute,
   isResidentOrAuthRoute,
-  isSharedScreenRoute,
+  isSameDestination,
   resolveBackAction,
   previousRouteNameFromState,
   currentRouteNameFromState,
+  backContextFromNavigation,
 };
 
 module.exports = modeBack;

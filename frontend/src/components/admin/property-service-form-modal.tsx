@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { ThemedDatePicker } from "@/components/ui/themed-date-picker";
@@ -501,7 +503,7 @@ export function PropertyServiceFormModal({
               ) : null}
               <div>
                 <FieldLabel required>Amount</FieldLabel>
-                <input
+                <ClearableInput
                   type="number"
                   min="0.01"
                   step="0.01"
@@ -569,7 +571,7 @@ export function PropertyServiceFormModal({
               {form.application_type === "optional" ? (
                 <>
                   <label className="flex items-center gap-2 text-sm text-slate-700">
-                    <input
+                    <ClearableInput
                       type="checkbox"
                       checked={!!form.requires_admin_approval}
                       onChange={(e) => setField("requires_admin_approval", e.target.checked)}
@@ -578,7 +580,7 @@ export function PropertyServiceFormModal({
                   </label>
                   <div>
                     <FieldLabel>Max subscribers</FieldLabel>
-                    <input
+                    <ClearableInput
                       type="number"
                       min="1"
                       className={inputClass()}
@@ -640,19 +642,19 @@ export function PropertyServiceFormModal({
                 />
               </div>
               <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" checked={!!form.send_notice} onChange={(e) => setField("send_notice", e.target.checked)} />
+                <ClearableInput type="checkbox" checked={!!form.send_notice} onChange={(e) => setField("send_notice", e.target.checked)} />
                 Send as notice
               </label>
               <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" checked={!!form.send_notification} onChange={(e) => setField("send_notification", e.target.checked)} />
+                <ClearableInput type="checkbox" checked={!!form.send_notification} onChange={(e) => setField("send_notification", e.target.checked)} />
                 Send push notification
               </label>
               <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" checked={!!form.require_acknowledgement} onChange={(e) => setField("require_acknowledgement", e.target.checked)} />
+                <ClearableInput type="checkbox" checked={!!form.require_acknowledgement} onChange={(e) => setField("require_acknowledgement", e.target.checked)} />
                 Require acknowledgement
               </label>
               <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" checked={!!form.require_payment_proof} onChange={(e) => setField("require_payment_proof", e.target.checked)} />
+                <ClearableInput type="checkbox" checked={!!form.require_payment_proof} onChange={(e) => setField("require_payment_proof", e.target.checked)} />
                 Require payment proof
               </label>
             </div>
@@ -689,7 +691,7 @@ export function PropertyServiceFormModal({
                 Billed to the unit billing contact. Residents of the same unit are not notified.
               </p>
               <label className="flex items-start gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700">
-                <input
+                <ClearableInput
                   type="checkbox"
                   className="mt-0.5"
                   checked={reviewed}

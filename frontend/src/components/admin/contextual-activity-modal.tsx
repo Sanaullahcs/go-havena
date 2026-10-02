@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Search, X } from "lucide-react";
@@ -88,7 +90,7 @@ export function ContextualActivityModal({
             <span className="nl-search-icon">
               <Search className="h-3.5 w-3.5" />
             </span>
-            <input
+            <ClearableInput
               type="search"
               value={search}
               onChange={(event) => {

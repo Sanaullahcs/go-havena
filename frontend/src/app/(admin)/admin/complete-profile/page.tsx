@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FileText, Home, Upload, User } from "lucide-react";
@@ -314,7 +316,7 @@ function CompleteProfileInner() {
           error={nameErr}
           hint="Your name as it appears to residents and system administrators"
         >
-          <input
+          <ClearableInput
             id="profile-name"
             type="text"
             autoComplete="name"
@@ -347,7 +349,7 @@ function CompleteProfileInner() {
           error={emailErr}
           hint="Used for important account notifications."
         >
-          <input
+          <ClearableInput
             id="profile-email"
             type="email"
             autoComplete="email"
@@ -395,7 +397,7 @@ function CompleteProfileInner() {
           error={bioErr}
           hint="Optional — a short introduction for your community"
         >
-          <textarea
+          <ClearableTextarea
             id="profile-bio"
             rows={3}
             maxLength={COMPLETE_PROFILE_LIMITS.profileBio}
@@ -427,7 +429,7 @@ function CompleteProfileInner() {
             error={officeErr}
             hint="The community office address residents can use to reach you"
           >
-            <input
+            <ClearableInput
               id="profile-office"
               type="text"
               maxLength={officeAddress.length > officeMax ? undefined : officeMax}
@@ -567,7 +569,7 @@ function CompleteProfileInner() {
             error={utilityErr}
             hint="Used to verify you live in this community. JPG, PNG, or PDF — 10 MB max."
           >
-            <input
+            <ClearableInput
               ref={fileInputRef}
               id="profile-utility"
               type="file"
@@ -668,7 +670,7 @@ function CompleteProfileInner() {
         </div>
         <div className="space-y-1.5">
           <label className="flex cursor-pointer items-start gap-2.5">
-            <input
+            <ClearableInput
               type="checkbox"
               checked={acceptedTerms}
               onChange={(e) => {

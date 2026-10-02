@@ -1,6 +1,7 @@
 import { type FieldErrors } from "@/lib/admin/form-validation-utils";
 import { noticePlainTextError } from "@/lib/admin/notice-text-validation";
 import {
+  EVENT_PAST_TIME_MESSAGE,
   isNoticeTimeInPast,
   isScheduleEndBeforeStart,
   NOTICE_FUTURE_TIME_MESSAGE,

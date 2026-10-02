@@ -25,11 +25,13 @@ import { sf, sw } from "../../../utils/responsive";
 import { chevronForward } from "../../../utils/rtl";
 import { fetchAdminStats, approveMember } from "../../../services/admin-api";
 import { getCommunityId, getUser, setCommunityId } from "../../../services/auth-session";
+import { fetchMe } from "../../../services/auth-api";
 import { currentCommunityId, getAdminMembership, isCommunityAdmin } from "../../../services/community-access";
 import { useRequireCommunityAdmin } from "../../../hooks/use-require-community-admin";
 import { MarketplaceRoutes, withMarketplaceRole } from "../../../constants/marketplace-routes";
 import { PropertyManagementRoutes } from "../../../constants/property-management-routes";
-import { isResidentFeatureEnabled } from "../../../constants/resident-features";
+import { isResidentFeatureEnabled, isReviewActionEnabled } from "../../../constants/resident-features";
+import { useSessionUser } from "../../../hooks/use-session-user";
 import { useApiAction } from "../../../hooks/use-api-action";
 import { AdminDashboardSkeleton } from "../../../components/ui/skeleton-loader";
 
@@ -335,6 +337,7 @@ function CreateRow({ icon, title, subtitle, accent, onPress, isLast = false }) {
 
 export default function AdminDashboardScreen() {
   useRequireCommunityAdmin();
+  const sessionUser = useSessionUser();
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -355,7 +358,7 @@ export default function AdminDashboardScreen() {
     if (!silent && !hasStatsRef.current) setLoading(true);
     setLoadError(null);
     try {
-      const user = await getUser();
+      const user = (await fetchMe().catch(() => null)) ?? (await getUser());
       if (!isCommunityAdmin(user)) {
         router.replace("/(tabs)/home");
         return;
@@ -411,16 +414,17 @@ export default function AdminDashboardScreen() {
     return () => loop.stop();
   }, [refreshing, spinAnim]);
 
+  const featureOn = (key) => !key || isResidentFeatureEnabled(sessionUser, key);
+
   const pendingTotal = useMemo(() => {
-    if (stats?.pending_approval_total != null) return stats.pending_approval_total;
-    return (
-      (stats?.pending_members ?? 0) +
-      (stats?.pending_listings ?? 0) +
-      (stats?.pending_posts ?? 0) +
-      (stats?.pending_bookings ?? 0) +
-      (stats?.pending_businesses ?? 0)
-    );
-  }, [stats]);
+    let total = Number(stats?.pending_members ?? 0);
+    if (featureOn("marketplace")) {
+      total += Number(stats?.pending_listings ?? 0) + Number(stats?.pending_businesses ?? 0);
+    }
+    if (featureOn("feed")) total += Number(stats?.pending_posts ?? 0);
+    if (featureOn("bookings")) total += Number(stats?.pending_bookings ?? 0);
+    return total;
+  }, [sessionUser, stats]);
 
   const handleApprove = async (action) => {
     if (action.type !== "membership" || !action.user_id) return;
@@ -485,6 +489,7 @@ export default function AdminDashboardScreen() {
       },
       {
         key: "listings",
+        feature: "marketplace",
         value: Number(stats?.active_listings ?? stats?.pending_listings ?? 0),
         label: t("admin.listings"),
         icon: "shopping-bag",
@@ -494,6 +499,7 @@ export default function AdminDashboardScreen() {
       },
       {
         key: "bookings",
+        feature: "bookings",
         value: Number(stats?.pending_bookings ?? 0),
         label: t("admin.bookings"),
         icon: "calendar",
@@ -501,31 +507,32 @@ export default function AdminDashboardScreen() {
         highlight: Number(stats?.pending_bookings ?? 0) > 0,
         onPress: () => router.push("/screens/admin-bookings"),
       },
-    ];
-  }, [router, stats, t]);
+    ].filter((item) => featureOn(item.feature));
+  }, [featureOn, router, stats, t]);
 
   const manageLinks = [
     { icon: "users", label: t("admin.residents"), badge: stats?.pending_members, color: "#14B8A6", route: "/screens/admin-members" },
     { icon: "user-plus", label: t("admin.inviteMember"), color: "#4F46E5", route: { pathname: "/screens/admin-members", params: { invite: "1" } } },
-    { icon: "users", label: t("admin.guestUsers"), color: "#0EA5E9", route: "/screens/admin-guests" },
-    { icon: "calendar", label: t("admin.communityEvents"), color: "#7C3AED", route: "/screens/admin-community-events" },
-    { icon: "grid", label: t("admin.amenities"), color: "#0891B2", route: "/screens/admin-amenities" },
-    { icon: "calendar", label: t("admin.amenityBookings"), badge: stats?.pending_bookings, color: "#7C3AED", route: "/screens/admin-bookings" },
-    { icon: "shopping-bag", label: t("admin.marketplaceListings"), badge: stats?.pending_listings, color: "#059669", route: "/screens/admin-listings" },
-    { icon: "briefcase", label: t("admin.businesses"), badge: stats?.pending_businesses, color: "#D97706", route: { pathname: MarketplaceRoutes.ALL_BUSINESSES, params: withMarketplaceRole("admin", { tab: "businesses" }) } },
-    { icon: "tag", label: t("admin.deals"), color: "#E11D48", route: { pathname: MarketplaceRoutes.ALL_BUSINESSES, params: withMarketplaceRole("admin", { tab: "deals" }) } },
-    { icon: "award", label: t("admin.referAndEarn"), color: "#0F766E", route: "/screens/admin-refer-and-earn" },
-  ].filter((item) => item.route !== "/screens/admin-refer-and-earn" || isResidentFeatureEnabled(getUser(), "refer_and_earn"));
+    { icon: "users", label: t("admin.guestUsers"), color: "#0EA5E9", route: "/screens/admin-guests", feature: "guest_invites" },
+    { icon: "calendar", label: t("admin.communityEvents"), color: "#7C3AED", route: "/screens/admin-community-events", feature: "events" },
+    { icon: "grid", label: t("admin.amenities"), color: "#0891B2", route: "/screens/admin-amenities", feature: "amenities" },
+    { icon: "calendar", label: t("admin.amenityBookings"), badge: stats?.pending_bookings, color: "#7C3AED", route: "/screens/admin-bookings", feature: "bookings" },
+    { icon: "shopping-bag", label: t("admin.marketplaceListings"), badge: stats?.pending_listings, color: "#059669", route: "/screens/admin-listings", feature: "marketplace" },
+    { icon: "briefcase", label: t("admin.businesses"), badge: stats?.pending_businesses, color: "#D97706", route: { pathname: MarketplaceRoutes.ALL_BUSINESSES, params: withMarketplaceRole("admin", { tab: "businesses" }) }, feature: "marketplace" },
+    { icon: "tag", label: t("admin.deals"), color: "#E11D48", route: { pathname: MarketplaceRoutes.ALL_BUSINESSES, params: withMarketplaceRole("admin", { tab: "deals" }) }, feature: "marketplace" },
+    { icon: "award", label: t("admin.referAndEarn"), color: "#0F766E", route: "/screens/admin-refer-and-earn", feature: "refer_and_earn" },
+  ].filter((item) => featureOn(item.feature));
 
   const reviewItems = useMemo(() => {
     const seen = new Set();
     return pendingActions.filter((action) => {
+      if (!isReviewActionEnabled(sessionUser, action.type)) return false;
       const key = `${action.type}-${action.id}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     }).slice(0, 5);
-  }, [pendingActions]);
+  }, [pendingActions, sessionUser]);
 
   const scrollBottom = Math.max(insets.bottom, 16) + sw(16);
 
@@ -646,6 +653,7 @@ export default function AdminDashboardScreen() {
           <View style={[styles.block, styles.blockLast]}>
             <SectionLabel title={t("admin.create")} hint={t("admin.publishToResidents")} />
             <View style={styles.createList}>
+              {featureOn("notices") ? (
               <CreateRow
                 icon="clipboard"
                 title={t("admin.notice")}
@@ -653,6 +661,8 @@ export default function AdminDashboardScreen() {
                 accent="#1B4F8A"
                 onPress={() => router.push("/screens/create-notice")}
               />
+              ) : null}
+              {featureOn("events") ? (
               <CreateRow
                 icon="calendar"
                 title={t("admin.event")}
@@ -660,6 +670,8 @@ export default function AdminDashboardScreen() {
                 accent="#7C3AED"
                 onPress={() => router.push("/screens/create-event")}
               />
+              ) : null}
+              {featureOn("alerts") ? (
               <CreateRow
                 icon="alert-triangle"
                 title={t("admin.alert")}
@@ -667,6 +679,8 @@ export default function AdminDashboardScreen() {
                 accent="#DC2626"
                 onPress={() => router.push("/screens/create-alert")}
               />
+              ) : null}
+              {featureOn("community_rules") ? (
               <CreateRow
                 icon="book-open"
                 title={t("admin.addRule")}
@@ -674,6 +688,8 @@ export default function AdminDashboardScreen() {
                 accent="#0F766E"
                 onPress={() => router.push(PropertyManagementRoutes.RULE_FORM)}
               />
+              ) : null}
+              {featureOn("documents") ? (
               <CreateRow
                 icon="file-text"
                 title={t("admin.addDocument")}
@@ -681,6 +697,8 @@ export default function AdminDashboardScreen() {
                 accent="#C2410C"
                 onPress={() => router.push(PropertyManagementRoutes.DOCUMENT_FORM)}
               />
+              ) : null}
+              {featureOn("marketplace") ? (
               <CreateRow
                 icon="shopping-bag"
                 title={t("admin.addListing")}
@@ -688,6 +706,8 @@ export default function AdminDashboardScreen() {
                 accent="#059669"
                 onPress={() => router.push(MarketplaceRoutes.CREATE_LISTING)}
               />
+              ) : null}
+              {featureOn("feed") ? (
               <CreateRow
                 icon="edit-3"
                 title={t("admin.createPost")}
@@ -696,6 +716,7 @@ export default function AdminDashboardScreen() {
                 onPress={() => router.push("/screens/create-post")}
                 isLast
               />
+              ) : null}
             </View>
           </View>
         </ScrollView>

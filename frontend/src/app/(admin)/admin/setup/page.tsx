@@ -1,8 +1,10 @@
 "use client";
 
+import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Building2, ChevronLeft, ChevronRight, Lock, MapPin, Plus, Search, X } from "lucide-react";
+import { Building2, ChevronLeft, ChevronRight, Lock, MapPin, Plus, Search } from "lucide-react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   fetchPublicCountries,
@@ -400,7 +402,7 @@ function SetupInner() {
                 error={nameErr}
                 hint="Enter the community name your residents will recognize."
               >
-                <input
+                <ClearableInput
                   id="community-name"
                   type="text"
                   autoComplete="organization"
@@ -461,7 +463,7 @@ function SetupInner() {
                 label="Description"
                 hint="Optional notes about this community"
               >
-                <textarea
+                <ClearableTextarea
                   id="community-description"
                   rows={3}
                   maxLength={1000}
@@ -525,24 +527,16 @@ function SearchField({
         className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
         aria-hidden
       />
-      <input
+      <ClearableInput
         type="search"
         value={value}
+        hideClear={searching}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50/70 py-0 pl-10 pr-10 text-sm leading-[48px] text-slate-900 outline-none placeholder:leading-[48px] placeholder:text-slate-400 [appearance:textfield] [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none"
       />
       {searching ? (
         <span className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin rounded-full border-2 border-slate-200 border-t-[#1B4F8A]" />
-      ) : value ? (
-        <button
-          type="button"
-          onClick={() => onChange("")}
-          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 hover:text-slate-700"
-          aria-label="Clear search"
-        >
-          <X className="h-4 w-4" />
-        </button>
       ) : null}
     </label>
   );

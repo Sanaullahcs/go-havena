@@ -19,6 +19,7 @@ export const SYSTEM_ADMIN_ROUTE_PREFIXES = [
   "/admin/users",
   "/admin/community-requests",
   "/admin/activity",
+  "/admin/feature-requests",
 ] as const;
 
 /** Routes reserved for community administrators (single-community scope). */
@@ -43,6 +44,7 @@ export const COMMUNITY_ADMIN_ROUTE_PREFIXES = [
   "/admin/marketplace",
   "/admin/businesses",
   "/admin/refer-and-earn",
+  "/admin/feature-settings",
 ] as const;
 
 const SHARED_ADMIN_ROUTES = new Set([

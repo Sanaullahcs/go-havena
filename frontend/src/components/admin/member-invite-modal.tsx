@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Mail, X } from "lucide-react";
 import { AdminPhoneInput } from "@/components/admin/phone-input";
@@ -171,7 +173,7 @@ export function MemberInviteModal({
 
         <form ref={formRef} onSubmit={handleSubmit} noValidate className="space-y-4 px-6 py-5">
           <Field label="Full name" required error={inviteMemberNameLiveError(form.name) || (showError("name") ? errors.name : undefined)}>
-            <input
+            <ClearableInput
               data-field="name"
               className={inputClass(inviteMemberNameLiveError(form.name) || (showError("name") ? errors.name : undefined))}
               value={form.name}
@@ -189,7 +191,7 @@ export function MemberInviteModal({
           </Field>
 
           <Field label="Email" required error={showError("email") ? errors.email : undefined}>
-            <input
+            <ClearableInput
               data-field="email"
               type="email"
               className={inputClass(showError("email") ? errors.email : undefined)}

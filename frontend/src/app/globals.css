@@ -565,6 +565,50 @@ body {
   box-shadow: 0 0 0 3px rgba(27, 79, 138, 0.12);
   outline: none;
 }
+.nl-clearable-control::-webkit-search-cancel-button,
+.nl-clearable-control::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.nl-clear-button {
+  position: absolute;
+  right: 0.45rem;
+  top: 50%;
+  z-index: 2;
+  display: inline-flex;
+  height: 1.5rem;
+  width: 1.5rem;
+  transform: translateY(-50%);
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: #94a3b8;
+  transition: background-color 150ms, color 150ms;
+}
+.nl-clear-button:hover {
+  background: #f1f5f9;
+  color: #334155;
+}
+.nl-clear-button:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 1px;
+}
+.nl-clear-button-top {
+  top: 0.55rem;
+  transform: none;
+}
+.nl-clear-button-number {
+  right: 1.65rem;
+}
+.nl-clear-button > svg {
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+  width: 0.875rem;
+  height: 0.875rem;
+  transform: none !important;
+  pointer-events: none;
+}
 
 /* Fixed-height controls for single-row admin forms */
 .nl-inline-field {
@@ -1384,6 +1428,13 @@ body {
 .nl-picker-trigger.has-value {
   border-color: rgba(27, 79, 138, 0.9);
   background: #f8fbff;
+}
+.nl-picker-trigger.nl-picker-trigger-invalid,
+.nl-picker-trigger.nl-picker-trigger-invalid:hover,
+.nl-picker-trigger.has-value.nl-picker-trigger-invalid {
+  border-color: #f87171;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
 }
 .nl-picker-icon {
   display: flex;

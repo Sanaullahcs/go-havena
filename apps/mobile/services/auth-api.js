@@ -62,6 +62,18 @@ async function applyCommunityFromUser(user, { preferStored = false } = {}) {
   return nextId;
 }
 
+let meSyncSeq = 0;
+
+/** Later /me responses win. An older in-flight response must not restore previous feature flags. */
+export function beginMeSync() {
+  meSyncSeq += 1;
+  return meSyncSeq;
+}
+
+export function isLatestMeSync(seq) {
+  return seq === meSyncSeq;
+}
+
 async function syncSessionFromMe(data) {
   const token = await getToken();
   if (!token || !data) return;
@@ -180,7 +192,9 @@ export async function deleteAccount() {
 }
 
 export async function fetchMe() {
-  const result = await apiRequest("/me", { community: false });
+  const seq = beginMeSync();
+  const result = await apiRequest("/me", { community: false, cache: "no-store" });
+  if (!isLatestMeSync(seq)) return (await getUser()) ?? result.data;
   await syncSessionFromMe(result.data);
   return result.data;
 }

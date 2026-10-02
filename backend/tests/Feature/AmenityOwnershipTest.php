@@ -671,11 +671,11 @@ class AmenityOwnershipTest extends TestCase
         ]);
     }
 
-    public function test_admin_can_create_amenity_with_40_character_location(): void
+    public function test_admin_can_create_amenity_with_25_character_location(): void
     {
         ['community' => $community, 'admin' => $admin] = $this->seedCommunity();
         Sanctum::actingAs($admin);
-        $floor = str_repeat('A', 40);
+        $floor = str_repeat('A', 25);
 
         $this->postJson('/api/v1/admin/amenities', [
             'name' => 'Clubhouse',
@@ -699,13 +699,150 @@ class AmenityOwnershipTest extends TestCase
             'name' => 'Too Long Location',
             'status' => 'open',
             'capacity' => 10,
-            'floor' => str_repeat('B', 41),
+            'floor' => str_repeat('B', 26),
             'icon_key' => 'hall',
             'start_time' => '06:00',
             'end_time' => '22:00',
         ], [
             'X-Community-Id' => (string) $community->id,
         ])->assertUnprocessable()->assertJsonValidationErrors(['floor']);
+    }
+
+    public function test_admin_cannot_create_amenity_with_invalid_name_or_location(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity();
+        Sanctum::actingAs($admin);
+
+        $base = [
+            'status' => 'open',
+            'capacity' => 10,
+            'icon_key' => 'hall',
+            'start_time' => '06:00',
+            'end_time' => '22:00',
+        ];
+
+        $this->postJson('/api/v1/admin/amenities', array_merge($base, [
+            'name' => '  Pool & Spa  ',
+            'floor' => '  Bldg A, #4  ',
+        ]), [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.name', 'Pool & Spa')
+            ->assertJsonPath('data.floor', 'Bldg A, #4');
+
+        $this->postJson('/api/v1/admin/amenities', array_merge($base, [
+            'name' => 'Pool?',
+            'floor' => 'Ground',
+        ]), [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.name.0', 'Please enter a valid amenity name.');
+
+        $this->postJson('/api/v1/admin/amenities', array_merge($base, [
+            'name' => 'Clubhouse',
+            'floor' => ', Floor 2',
+        ]), [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.floor.0', 'Please enter a valid location.');
+
+        $this->postJson('/api/v1/admin/amenities', array_merge($base, [
+            'name' => 'A',
+        ]), [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.name.0', 'Amenity Name must contain at least 2 characters.');
+
+        $this->postJson('/api/v1/admin/amenities', array_merge($base, [
+            'name' => str_repeat('A', 100),
+        ]), [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.name', str_repeat('A', 100));
+
+        $this->postJson('/api/v1/admin/amenities', array_merge($base, [
+            'name' => str_repeat('B', 101),
+        ]), [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.name.0', 'Amenity Name must not exceed 100 characters.');
+    }
+
+    public function test_description_must_be_between_10_and_1000_characters_when_provided(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity();
+        Sanctum::actingAs($admin);
+
+        $base = [
+            'name' => 'Clubhouse',
+            'status' => 'open',
+            'capacity' => 10,
+            'icon_key' => 'hall',
+            'start_time' => '06:00',
+            'end_time' => '22:00',
+        ];
+
+        $this->postJson('/api/v1/admin/amenities', array_merge($base, [
+            'description' => 'Too short',
+        ]), [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.description.0', 'Description must be at least 10 characters.');
+
+        $this->postJson('/api/v1/admin/amenities', array_merge($base, [
+            'description' => str_repeat('A', 1001),
+        ]), [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.description.0', 'Description must not exceed 1,000 characters.');
+
+        $this->postJson('/api/v1/admin/amenities', array_merge($base, [
+            'description' => '  '.str_repeat('B', 10).'  ',
+        ]), [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.description', str_repeat('B', 10));
+    }
+
+    public function test_capacity_must_be_at_least_one(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity();
+        Sanctum::actingAs($admin);
+
+        $base = [
+            'status' => 'bookable',
+            'icon_key' => 'hall',
+            'start_time' => '06:00',
+            'end_time' => '22:00',
+            'slot_duration_minutes' => 60,
+        ];
+
+        $this->postJson('/api/v1/admin/amenities', array_merge($base, [
+            'name' => 'Zero Capacity Hall',
+            'capacity' => 0,
+        ]), [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.capacity.0', 'Capacity must be at least 1.');
+
+        $this->postJson('/api/v1/admin/amenities', array_merge($base, [
+            'name' => 'Two Seat Hall',
+            'capacity' => 2,
+        ]), [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.capacity', 2);
     }
 
     public function test_shared_billing_defaults_off_when_omitted(): void

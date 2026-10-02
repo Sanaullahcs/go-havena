@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, X } from "lucide-react";
 import { CategoryImageField, FormField } from "@/components/admin/wellness-form-fields";
@@ -136,7 +138,7 @@ export function WellnessCourseFormModal({
             required
             error={fieldsEnabled ? validation.showError("title", liveErrors) : null}
           >
-            <input
+            <ClearableInput
               className={inputClass(
                 fieldsEnabled ? validation.showError("title", liveErrors) : null,
                 "nl-input w-full",
@@ -181,7 +183,7 @@ export function WellnessCourseFormModal({
                 : "Select a category to continue."
             }
           >
-            <textarea
+            <ClearableTextarea
               className={inputClass(
                 fieldsEnabled ? validation.showError("description", liveErrors) : null,
                 "nl-input min-h-[100px] w-full resize-y",

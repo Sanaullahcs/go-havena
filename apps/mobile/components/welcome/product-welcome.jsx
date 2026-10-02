@@ -209,8 +209,8 @@ export default function ProductWelcome({ onContinue, onCreateAccount, user = nul
   const firstName = String(displayName ?? "").trim().split(/\s+/)[0] || t("intro.neighbor");
   const isAdmin = signedIn && isCommunityAdminRole(user);
   const { width, height } = useWindowDimensions();
-  const compact = height < 720;
-  const artSize = Math.min(width * 0.62, compact ? 210 : 260);
+  const compact = height < 740;
+  const artSize = Math.min(width * 0.52, compact ? 150 : 230);
 
   const listRef = useRef(null);
   const scrollX = useState(() => new Animated.Value(0))[0];
@@ -304,11 +304,11 @@ export default function ProductWelcome({ onContinue, onCreateAccount, user = nul
         <Animated.View style={[styles.copy, { opacity: textFade, transform: [{ translateX: textShift }] }]}>
           <View style={[styles.eyebrowPill, !item.intro && styles.eyebrowPillLight]}>
             {item.intro && signedIn ? <Ionicons name="location" size={13} color={Colors.brandPrimaryDeep} /> : null}
-            <Text style={[styles.eyebrow, { color: item.ink ?? Colors.brandPrimaryDeep }]} numberOfLines={1}>
+            <Text style={[styles.eyebrow, { color: item.ink ?? Colors.brandPrimaryDeep }]}>
               {item.eyebrow}
             </Text>
           </View>
-          <Text style={[styles.title, compact && styles.titleCompact]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.85}>
+          <Text style={[styles.title, compact && styles.titleCompact]}>
             {item.title}
           </Text>
           <Text style={[styles.body, compact && styles.bodyCompact]}>{item.body}</Text>
@@ -426,11 +426,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 6,
     paddingBottom: 4,
+    gap: 8,
   },
   brand: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    flexShrink: 1,
+    minWidth: 0,
   },
   logoPlate: {
     width: 36,
@@ -442,14 +445,20 @@ const styles = StyleSheet.create({
     ...rnShadow({ color: "#1B4F8A", offset: { width: 0, height: 2 }, opacity: 0.12, radius: 6, elevation: 2 }),
   },
   brandName: {
+    flexShrink: 0,
     fontFamily: Fonts.semiBold,
     fontSize: 16,
-    lineHeight: 22,
+    lineHeight: 24,
     color: Colors.textPrimary,
+    includeFontPadding: true,
+    overflow: "visible",
+    paddingHorizontal: 1,
   },
   skip: {
-    paddingHorizontal: 16,
-    height: 34,
+    flexShrink: 0,
+    paddingHorizontal: 14,
+    minHeight: 36,
+    paddingVertical: 6,
     borderRadius: 999,
     backgroundColor: "rgba(255,255,255,0.85)",
     alignItems: "center",
@@ -529,7 +538,9 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     fontFamily: Fonts.semiBold,
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 20,
+    textAlign: "center",
+    includeFontPadding: true,
   },
   title: {
     textAlign: "center",
@@ -577,7 +588,9 @@ const styles = StyleSheet.create({
     ...rnShadow({ color: "#1B4F8A", offset: { width: 0, height: 6 }, opacity: 0.28, radius: 12, elevation: 5 }),
   },
   cta: {
-    height: 54,
+    minHeight: 54,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
@@ -585,10 +598,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   ctaLabel: {
+    flexShrink: 1,
     fontFamily: Fonts.semiBold,
     fontSize: 16,
-    lineHeight: 22,
+    lineHeight: 24,
     color: "#FFFFFF",
+    textAlign: "center",
+    includeFontPadding: true,
   },
   pressed: {
     opacity: 0.7,

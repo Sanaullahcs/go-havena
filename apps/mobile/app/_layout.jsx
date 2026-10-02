@@ -18,6 +18,7 @@ import { ImageSourcePickerProvider } from "../providers/image-source-picker-prov
 import LanguageProvider from "../providers/language-provider";
 import LocationScopeProvider from "../providers/location-scope-provider";
 import GuestSessionGuard from "../components/auth/guest-session-guard";
+import FeatureRouteGuard from "../components/account/feature-route-guard";
 import PushNotificationBootstrap from "../components/notifications/push-notification-bootstrap";
 import InAppNotificationMonitor from "../components/notifications/in-app-notification-monitor";
 import AppUpdateGate from "../components/app-update/app-update-gate";
@@ -38,6 +39,7 @@ import { getSavedLanguage } from "../i18n";
 import { setArabicTextMetricsEnabled } from "../utils/arabic-text-metrics";
 import { isArabicLanguage } from "../constants/font";
 import { isExpoGo } from "../utils/expo-runtime";
+import SafeHardwareBack from "../components/navigation/safe-hardware-back";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -125,6 +127,7 @@ export default function RootLayout() {
     <NotificationBannerProvider>
     <ImageSourcePickerProvider>
     <GuestSessionGuard />
+    <FeatureRouteGuard />
     <AppUpdateGate />
     {/* Expo Go cannot register a production push token. EAS development, preview, and production builds mount this. */}
     {isExpoGo() ? null : <PushNotificationBootstrap />}
@@ -132,6 +135,7 @@ export default function RootLayout() {
     <ThemeProvider value={DefaultTheme}>
       <View style={styles.root}>
         <StatusBar style="dark" />
+        <SafeHardwareBack />
         <Stack
           screenOptions={{
             contentStyle: styles.screen,
@@ -256,6 +260,10 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="screens/complete-billing/index"
+          options={{ headerShown: false, contentStyle: styles.screen }}
+        />
+        <Stack.Screen
+          name="screens/adjust-features/index"
           options={{ headerShown: false, contentStyle: styles.screen }}
         />
         <Stack.Screen

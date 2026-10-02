@@ -115,6 +115,7 @@ const styles = StyleSheet.create({
     paddingEnd: sw(4),
   },
   title: {
+    flexShrink: 1,
     fontFamily: Fonts.bold,
     fontSize: sf(17),
     lineHeight: sf(26),

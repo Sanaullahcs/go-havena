@@ -11,6 +11,7 @@ class CommunityFeatureFlag extends Model
         'community_id',
         'feature_key',
         'enabled',
+        'disabled_by',
         'updated_by_user_id',
     ];
 

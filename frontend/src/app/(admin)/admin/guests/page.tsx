@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Activity, Calendar, Check, ChevronLeft, ChevronRight, Clock, Eye, Info, LogIn, Mail, Phone, Plus, RefreshCw, Shield, UserPlus, X } from "lucide-react";
 import { AdminBadge, DataTable, DtPagination, StatTile } from "@/components/admin/ui";
@@ -769,7 +771,7 @@ export default function GuestsPage() {
                       <UserPlus className="h-3.5 w-3.5 text-slate-400" />
                       Guest Name *
                     </label>
-                    <input
+                    <ClearableInput
                       className={inputClass(nameError, "nl-input")}
                       value={form.guest_name}
                       maxLength={GUEST_NAME_MAX}
@@ -785,7 +787,7 @@ export default function GuestsPage() {
                       <Mail className="h-3.5 w-3.5 text-slate-400" />
                       Email *
                     </label>
-                    <input
+                    <ClearableInput
                       ref={emailInputRef}
                       type="email"
                       className={inputClass(emailError, "nl-input")}
@@ -901,7 +903,7 @@ export default function GuestsPage() {
                           <span className="block text-sm font-semibold text-slate-800">{option.label}</span>
                           <span className="mt-0.5 block text-xs text-slate-500">{option.description}</span>
                         </span>
-                        <input
+                        <ClearableInput
                           type="checkbox"
                           className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                           checked={enabled}

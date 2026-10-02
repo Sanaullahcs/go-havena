@@ -4,13 +4,13 @@ import { useRouter } from "expo-router";
 import BurgerButton from "./burger-button";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
-import React, { useCallback, useState, useRef } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useFocusEffect } from "expo-router";
 import { getProfileFields, getRoleLabel } from "../../utils/profile-display";
 import { isGuestUser } from "../../services/community-access";
 import { fetchMe } from "../../services/profile-api";
-import { getCommunityId, getUser, setCommunityId } from "../../services/auth-session";
+import { getCommunityId, getUser, setCommunityId, subscribeSessionUser } from "../../services/auth-session";
 import { getPrimaryMembership } from "../../services/community-access";
 import { HeaderShell } from "../layout/header-chrome";
 import { sw, sf } from "../../utils/responsive";
@@ -20,6 +20,7 @@ import NotificationCountBadge from "./notification-count-badge";
 import LanguageToggle from "./language-toggle";
 import InboxMenu from "./inbox-menu";
 import LocationPickerSheet from "./location-picker-sheet";
+import { isResidentFeatureEnabled } from "../../constants/resident-features";
 
 export default function TopBar({ onMenuPress }) {
   const router = useRouter();
@@ -34,7 +35,6 @@ export default function TopBar({ onMenuPress }) {
   const [locationFresh, setLocationFresh] = useState(true);
   const [activeCommunityId, setActiveCommunityId] = useState(null);
 
-  const totalUnread = (unread || 0) + (messageUnread || 0);
 
   const navigateFromInbox = useCallback(
     (route) => {
@@ -43,6 +43,10 @@ export default function TopBar({ onMenuPress }) {
     },
     [router],
   );
+
+  useEffect(() => subscribeSessionUser((next) => {
+    if (next) setUser(next);
+  }), []);
 
   useFocusEffect(
     useCallback(() => {
@@ -73,6 +77,9 @@ export default function TopBar({ onMenuPress }) {
   const hasCommunity = Boolean(user?.memberships?.some((m) => m?.community?.name));
   const title = hasCommunity ? communityName : t("topBar.chooseYourCommunity");
   const rangeLabel = t("topBar.compactKm", { count: 3 });
+  const showNearby = isResidentFeatureEnabled(user, "nearby_places");
+  const showMessages = isResidentFeatureEnabled(user, "messages");
+  const inboxUnread = (unread || 0) + (showMessages ? messageUnread || 0 : 0);
 
   return (
     <View ref={headerRef} collapsable={false}>
@@ -85,6 +92,7 @@ export default function TopBar({ onMenuPress }) {
               accessibilityRole="button"
               accessibilityLabel={t("topBar.communityLocation", { name: title })}
               onPress={() => {
+                if (!showNearby) return;
                 setLocationFresh(true);
                 setLocationOpen(true);
               }}
@@ -92,21 +100,21 @@ export default function TopBar({ onMenuPress }) {
               <View style={styles.pinWrap}>
                 <Feather name="map-pin" size={sf(12)} color={T.white} />
               </View>
-              <Text style={styles.locationText} numberOfLines={1} ellipsizeMode="tail">
+              <Text style={styles.locationText}>
                 {title}
               </Text>
               {guestUser ? (
                 <View style={styles.rolePill}>
                   <Text style={styles.rolePillText}>{roleLabel}</Text>
                 </View>
-              ) : (
+              ) : showNearby ? (
                 <View style={styles.rangeChip}>
-                  <Text style={styles.rangeChipText} numberOfLines={1}>
+                  <Text style={styles.rangeChipText}>
                     {rangeLabel}
                   </Text>
                 </View>
-              )}
-              <Feather name="chevron-down" size={sf(15)} color={T.navy} />
+              ) : null}
+              {showNearby ? <Feather name="chevron-down" size={sf(15)} color={T.navy} /> : null}
             </Pressable>
           </View>
 
@@ -120,7 +128,7 @@ export default function TopBar({ onMenuPress }) {
               accessibilityLabel={t("notifications.title")}
             >
               <Feather name="inbox" size={sf(17)} color={T.navy} />
-              <NotificationCountBadge count={totalUnread} size="sm" label="inbox" />
+              <NotificationCountBadge count={inboxUnread} size="sm" label="inbox" />
             </Pressable>
           </View>
         </View>
@@ -139,8 +147,9 @@ export default function TopBar({ onMenuPress }) {
         onClose={() => setInboxOpen(false)}
         headerRef={headerRef}
         triggerRef={inboxBtnRef}
-        messageUnread={messageUnread || 0}
+        messageUnread={showMessages ? messageUnread || 0 : 0}
         notificationUnread={unread || 0}
+        showMessages={showMessages}
         onMessagesPress={() => navigateFromInbox("/screens/messages")}
         onNotificationsPress={() => navigateFromInbox("/screens/notification")}
       />
@@ -187,10 +196,10 @@ const styles = StyleSheet.create({
     minWidth: 0,
     fontFamily: Fonts.bold,
     fontSize: sf(14),
-    lineHeight: sf(18),
+    lineHeight: sf(20),
     color: T.navy,
     fontWeight: "700",
-    includeFontPadding: false,
+    includeFontPadding: true,
   },
   rangeChip: {
     flexShrink: 1,
@@ -201,9 +210,10 @@ const styles = StyleSheet.create({
   },
   rangeChipText: {
     fontFamily: Fonts.semiBold,
-    fontSize: sf(10),
-    lineHeight: sf(14),
+    fontSize: sf(11),
+    lineHeight: sf(16),
     color: T.deepTeal,
+    includeFontPadding: true,
   },
   rolePill: {
     flexShrink: 0,

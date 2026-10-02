@@ -6,7 +6,6 @@ import { PropertyHubTheme, getPropertyServiceMeta } from "../../constants/proper
 import { sf, sw } from "../../utils/responsive";
 
 const ICON_SIZE = sw(36);
-const LABEL_HEIGHT = sf(14);
 
 export default function PropertyQuickTile({ serviceKey, title, onPress, width }) {
   const meta = getPropertyServiceMeta(serviceKey);
@@ -26,14 +25,7 @@ export default function PropertyQuickTile({ serviceKey, title, onPress, width })
         <View style={[styles.iconWrap, { backgroundColor: meta.bg }]}>
           <Feather name={meta.icon} size={sf(16)} color={meta.color} />
         </View>
-        <Text
-          style={styles.title}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.82}
-        >
-          {title}
-        </Text>
+        <Text style={styles.title}>{title}</Text>
       </View>
     </Pressable>
   );
@@ -63,13 +55,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: Fonts.semiBold,
-    fontSize: sf(10),
-    lineHeight: LABEL_HEIGHT,
+    fontSize: sf(11),
+    lineHeight: sf(16),
     fontWeight: "600",
     color: PropertyHubTheme.text,
-    marginTop: sw(10),
+    marginTop: sw(8),
     textAlign: "center",
     width: "100%",
-    height: LABEL_HEIGHT,
+    includeFontPadding: true,
   },
 });

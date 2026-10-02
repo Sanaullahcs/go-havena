@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { useMemo, useState } from "react";
 import { toastSuccess } from "@/lib/alert";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
@@ -177,7 +179,7 @@ export default function AdminSupportPage() {
           <form onSubmit={handleSend} className="space-y-4">
             <div>
               <label className="nl-label mb-1.5">Subject</label>
-              <input
+              <ClearableInput
                 className={inputClass(showError("subject", liveErrors), "nl-input w-full")}
                 placeholder="Brief description of your issue"
                 value={form.subject}
@@ -210,7 +212,7 @@ export default function AdminSupportPage() {
 
             <div>
               <label className="nl-label mb-1.5">Message</label>
-              <textarea
+              <ClearableTextarea
                 className={inputClass(showError("message", liveErrors), "nl-input w-full resize-none")}
                 rows={5}
                 placeholder="Describe your issue in detail..."

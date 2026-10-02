@@ -112,7 +112,6 @@ export default function WellnessDetail() {
         title={displayTitle}
         subtitle={t("wellness.wellsFramework")}
         categoryKey={categoryKey}
-        onBack={() => router.back()}
       />
 
       <View style={styles.body}>

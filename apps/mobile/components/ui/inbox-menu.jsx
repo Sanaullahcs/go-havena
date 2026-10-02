@@ -66,6 +66,7 @@ export default function InboxMenu({
   messageUnread = 0,
   notificationUnread = 0,
   onMessagesPress,
+  showMessages = true,
   onNotificationsPress,
 }) {
   const { t } = useTranslation();
@@ -147,17 +148,19 @@ export default function InboxMenu({
         <View style={styles.headerDivider} />
 
         <View style={styles.body}>
-          <InboxMenuRow
-            icon="message-circle"
-            iconColor={T.deepTeal}
-            iconBg={T.mint}
-            title={t("notifications.messages", "Messages")}
-            subtitle={t("notifications.messagesSub", "Conversations & chats")}
-            count={messageUnread}
-            onPress={onMessagesPress}
-          />
+          {showMessages ? (
+            <InboxMenuRow
+              icon="message-circle"
+              iconColor={T.deepTeal}
+              iconBg={T.mint}
+              title={t("notifications.messages", "Messages")}
+              subtitle={t("notifications.messagesSub", "Conversations & chats")}
+              count={messageUnread}
+              onPress={onMessagesPress}
+            />
+          ) : null}
 
-          <View style={styles.rowDivider} />
+          {showMessages ? <View style={styles.rowDivider} /> : null}
 
           <InboxMenuRow
             icon="bell"

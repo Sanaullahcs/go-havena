@@ -50,7 +50,7 @@ function buildHoursString(openDate, closeDate) {
   return `${formatTime(openDate)} - ${formatTime(closeDate)}`;
 }
 
-export default function BusinessHoursInput({ value = "", onChange, showError = false }) {
+export default function BusinessHoursInput({ value = "", onChange, showError = false, disabled = false }) {
   const { t } = useTranslation();
   const initial = parseInitialTimes(value);
 
@@ -77,6 +77,7 @@ export default function BusinessHoursInput({ value = "", onChange, showError = f
       openTime.getHours() * 60 + openTime.getMinutes();
 
   const openPicker = (which) => {
+    if (disabled) return;
     const existing = which === "open" ? openTime : closeTime;
     setTempDate(existing ?? new Date(new Date().setHours(which === "open" ? 9 : 17, 0, 0, 0)));
     setPicking(which);
@@ -121,9 +122,10 @@ export default function BusinessHoursInput({ value = "", onChange, showError = f
           onPress={() => openPicker("open")}
           filled={!!openTime}
           hasError={shouldShowError}
+          disabled={disabled}
         />
         <View style={styles.dash}>
-          <Ionicons name="arrow-forward" size={14} color="#9CA3AF" />
+          <Ionicons name="arrow-forward" size={16} color={disabled ? "#94A3B8" : "#64748B"} />
         </View>
         <TimeChip
           label={t("businessHours.closes")}
@@ -131,6 +133,7 @@ export default function BusinessHoursInput({ value = "", onChange, showError = f
           onPress={() => openPicker("close")}
           filled={!!closeTime}
           hasError={shouldShowError}
+          disabled={disabled}
         />
       </View>
 
@@ -194,25 +197,34 @@ export default function BusinessHoursInput({ value = "", onChange, showError = f
   );
 }
 
-function TimeChip({ label, value, onPress, filled, hasError }) {
+function TimeChip({ label, value, onPress, filled, hasError, disabled }) {
+  const iconColor = disabled ? "#94A3B8" : hasError && !filled ? "#DC2626" : "#1B4F8A";
+
   return (
     <TouchableOpacity
       onPress={onPress}
-      activeOpacity={0.75}
+      activeOpacity={disabled ? 1 : 0.75}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
       style={[
         styles.chip,
         filled && styles.chipFilled,
         hasError && !filled && styles.chipError,
+        disabled && styles.chipDisabled,
       ]}
     >
-      <Ionicons
-        name="time-outline"
-        size={14}
-        color={filled ? "#1B4F8A" : hasError ? "#F04438" : "#9CA3AF"}
-      />
+      <Ionicons name="time-outline" size={16} color={iconColor} />
       <View style={styles.chipCopy}>
-        <Text style={[styles.chipLabel, filled && styles.chipLabelFilled]}>{label}</Text>
-        <Text style={[styles.chipValue, filled && styles.chipValueFilled, hasError && !filled && styles.chipValueError]}>
+        <Text style={[styles.chipLabel, disabled && styles.chipLabelDisabled]}>{label}</Text>
+        <Text
+          style={[
+            styles.chipValue,
+            filled && styles.chipValueFilled,
+            hasError && !filled && styles.chipValueError,
+            disabled && styles.chipValueDisabled,
+          ]}
+        >
           {value}
         </Text>
       </View>
@@ -234,48 +246,55 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    height: 52,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: "#EEF2F6",
-    backgroundColor: "rgba(249,250,251,1)",
+    minHeight: 56,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 14,
+    paddingVertical: 8,
   },
   chipFilled: {
-    borderColor: "rgba(20, 184, 166, 0.28)",
-    backgroundColor: "#D1FAF5",
+    borderColor: "#E2E8F0",
+    backgroundColor: "#FFFFFF",
   },
   chipError: {
-    borderColor: "#FECACA",
-    backgroundColor: "#FFF5F5",
+    borderColor: "#DC2626",
+    backgroundColor: "#FFFFFF",
+  },
+  chipDisabled: {
+    backgroundColor: "#F1F5F9",
+    borderColor: "#E2E8F0",
   },
   chipCopy: {
     flex: 1,
     justifyContent: "center",
+    minWidth: 0,
   },
   chipLabel: {
-    fontFamily: Fonts.regular,
-    fontSize: 10,
-    lineHeight: 12,
-    color: "#9CA3AF",
-    letterSpacing: 0.3,
-    includeFontPadding: false,
+    fontFamily: Fonts.medium,
+    fontSize: 11,
+    lineHeight: 16,
+    color: "#475569",
   },
-  chipLabelFilled: {
-    color: "#14B8A6",
+  chipLabelDisabled: {
+    color: "#94A3B8",
   },
   chipValue: {
-    fontFamily: Fonts.bold,
-    fontSize: 13,
-    lineHeight: 16,
-    color: "#6B7280",
-    includeFontPadding: false,
+    fontFamily: Fonts.semiBold,
+    fontSize: 14,
+    lineHeight: 21,
+    color: "#1B4F8A",
   },
   chipValueFilled: {
-    color: "#111827",
+    fontFamily: Fonts.bold,
+    color: "#101828",
   },
   chipValueError: {
-    color: "#F04438",
+    color: "#DC2626",
+  },
+  chipValueDisabled: {
+    color: "#94A3B8",
   },
   dash: {
     paddingHorizontal: 2,

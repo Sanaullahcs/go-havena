@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import { useEffect, useMemo, useState } from "react";
 import { fetchMembers, type Member } from "@/lib/api/members";
 import { apiError } from "@/lib/api/client";
@@ -67,7 +69,7 @@ export function NoticeAudienceField({
       <p className="nl-notice-option-title">Send to</p>
       <div className="nl-notice-audience-options">
         <label className="nl-notice-audience-option">
-          <input
+          <ClearableInput
             type="radio"
             name="notice-audience"
             checked={audienceType === "all"}
@@ -76,7 +78,7 @@ export function NoticeAudienceField({
           <span>All Residents</span>
         </label>
         <label className="nl-notice-audience-option">
-          <input
+          <ClearableInput
             type="radio"
             name="notice-audience"
             checked={audienceType === "selected"}
@@ -88,7 +90,7 @@ export function NoticeAudienceField({
 
       {audienceType === "selected" ? (
         <div className="nl-notice-audience-picker">
-          <input
+          <ClearableInput
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -111,7 +113,7 @@ export function NoticeAudienceField({
 
                 return (
                   <label key={member.id} className="nl-notice-audience-row">
-                    <input
+                    <ClearableInput
                       type="checkbox"
                       checked={checked}
                       onChange={() => toggleMember(member.id)}

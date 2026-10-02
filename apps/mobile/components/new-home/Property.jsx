@@ -18,6 +18,8 @@ import { getAmenityVisual, getAmenityStatus } from "../../utils/amenity-display"
 import { rnShadow } from "../../utils/shadow";
 import { sw, sf } from "../../utils/responsive";
 import { useHomeFrame } from "../../hooks/use-home-frame";
+import { useSessionUser } from "../../hooks/use-session-user";
+import { isHomeSectionEnabled } from "../../constants/resident-features";
 import { chevronForward } from "../../utils/rtl";
 import { localizedField } from "../../i18n";
 
@@ -85,6 +87,7 @@ export default function PropertyNew({ items = [] }) {
   const navigation = useNavigation();
   const { t } = useTranslation();
   const frame = useHomeFrame();
+  const sessionUser = useSessionUser();
 
   const layout = useMemo(() => {
     const contentWidth = frame.contentWidth;
@@ -112,8 +115,10 @@ export default function PropertyNew({ items = [] }) {
     </View>
   );
 
+  if (!isHomeSectionEnabled(sessionUser, "amenities")) return null;
+
   return (
-    <View style={[homeStyles.sectionLast, { marginHorizontal: frame.sideInset }]}>
+    <View style={[homeStyles.sectionLast, { alignSelf: "center", marginHorizontal: frame.sideInset, width: frame.contentWidth }]}>
       <HomeSectionHeader
         label={t("home.services")}
         onPress={() => openServicesHub(navigation, router)}
@@ -127,7 +132,7 @@ export default function PropertyNew({ items = [] }) {
         <FlatList
           data={cards}
           horizontal
-          style={styles.carousel}
+          style={[styles.carousel, { width: frame.contentWidth }]}
           showsHorizontalScrollIndicator={false}
           decelerationRate="fast"
           snapToInterval={layout.snap}

@@ -88,6 +88,11 @@ type ThemedTimePickerProps = {
   /** When set (HH:MM), times earlier than this cannot be selected or typed. */
   minTime?: string;
   minTimeMessage?: string;
+  /**
+   * Keep every hour, minute, and AM/PM option selectable.
+   * The composed time is committed when the picker closes, not on each column click.
+   */
+  commitOnDone?: boolean;
 };
 
 export function ThemedTimePicker({
@@ -101,6 +106,7 @@ export function ThemedTimePicker({
   icon,
   minTime,
   minTimeMessage = NOTICE_FUTURE_TIME_MESSAGE,
+  commitOnDone = false,
 }: ThemedTimePickerProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -112,6 +118,7 @@ export function ThemedTimePicker({
   const [parts, setParts] = useState<TimeParts>(DEFAULT_PARTS);
   const [manual, setManual] = useState("");
   const [manualError, setManualError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
   const { style: popoverStyle } = useAnchoredPopover(open, triggerRef, {
     popoverRef,
     width: 288,
@@ -122,10 +129,36 @@ export function ThemedTimePicker({
   const close = () => {
     setOpen(false);
     setManualError(null);
+    setDirty(false);
     onBlur?.();
   };
 
-  usePopoverDismiss(open, close, wrapRef, popoverRef);
+  const commitCurrent = () => {
+    const typed = manual.trim() ? parseFlexibleTime(manual) : null;
+    if (manual.trim() && !typed) {
+      setManualError("Enter a valid time, like 2:20 PM.");
+      return false;
+    }
+    const nextValue = typed ?? partsToValue(parts);
+    if (!commitOnDone && isBeforeMinTime(nextValue, minTime)) {
+      setManualError(minTimeMessage);
+      return false;
+    }
+    onChange(nextValue);
+    setParts(partsFromValue(nextValue));
+    setManual(formatTimeDisplay(nextValue));
+    setManualError(null);
+    return true;
+  };
+
+  const requestClose = (forceCommit: boolean) => {
+    if (commitOnDone && (forceCommit || dirty)) {
+      if (!commitCurrent()) return;
+    }
+    close();
+  };
+
+  usePopoverDismiss(open, () => requestClose(false), wrapRef, popoverRef);
 
   useEffect(() => {
     setMounted(true);
@@ -137,6 +170,7 @@ export function ThemedTimePicker({
     setParts(next);
     setManual(value ? formatTimeDisplay(value) : "");
     setManualError(null);
+    setDirty(false);
   }, [open, value]);
 
   useEffect(() => {
@@ -150,6 +184,17 @@ export function ThemedTimePicker({
     scrollSelected(hourListRef.current, `[data-hour="${parts.hour12}"]`);
     scrollSelected(minuteListRef.current, `[data-minute="${parts.minute}"]`);
   }, [open, parts.hour12, parts.minute]);
+
+  const selectParts = (next: TimeParts) => {
+    if (commitOnDone) {
+      setParts(next);
+      setManual(formatTimeDisplay(partsToValue(next)));
+      setManualError(null);
+      setDirty(true);
+      return;
+    }
+    applyParts(next);
+  };
 
   const applyParts = (next: TimeParts) => {
     const nextValue = partsToValue(next);
@@ -187,6 +232,10 @@ export function ThemedTimePicker({
   };
 
   const done = () => {
+    if (commitOnDone) {
+      requestClose(true);
+      return;
+    }
     if (manual.trim() && parseFlexibleTime(manual) !== partsToValue(parts)) {
       if (!applyManual()) return;
     } else if (!value) {
@@ -212,7 +261,7 @@ export function ThemedTimePicker({
           className={[
             "nl-picker-trigger",
             hasValue ? "has-value" : "",
-            error ? "border-red-300 ring-1 ring-red-100" : "",
+            error ? "nl-picker-trigger-invalid" : "",
             open ? "nl-picker-trigger-open" : "",
           ].join(" ")}
         >
@@ -244,9 +293,11 @@ export function ThemedTimePicker({
                     aria-label="Type a time"
                     onChange={(event) => {
                       setManual(event.target.value);
+                      if (commitOnDone) setDirty(true);
                       if (manualError) setManualError(null);
                     }}
                     onBlur={() => {
+                      if (commitOnDone) return;
                       if (manual.trim()) applyManual();
                     }}
                     onKeyDown={(event) => {
@@ -264,7 +315,7 @@ export function ThemedTimePicker({
                       <div ref={hourListRef} className="nl-time-column" role="listbox" aria-label="Hour">
                         {HOURS_12.map((hour) => {
                           const candidate = { ...parts, hour12: hour };
-                          const disabled = isBeforeMinTime(partsToValue(candidate), minTime);
+                          const disabled = commitOnDone ? false : isBeforeMinTime(partsToValue(candidate), minTime);
                           return (
                             <button
                               key={hour}
@@ -275,7 +326,7 @@ export function ThemedTimePicker({
                               aria-disabled={disabled}
                               disabled={disabled}
                               onClick={() => {
-                                if (!disabled) applyParts(candidate);
+                                if (!disabled) selectParts(candidate);
                               }}
                               className={[
                                 "nl-time-option nl-time-wheel-option",
@@ -294,7 +345,7 @@ export function ThemedTimePicker({
                       <div ref={minuteListRef} className="nl-time-column" role="listbox" aria-label="Minute">
                         {MINUTES.map((minute) => {
                           const candidate = { ...parts, minute };
-                          const disabled = isBeforeMinTime(partsToValue(candidate), minTime);
+                          const disabled = commitOnDone ? false : isBeforeMinTime(partsToValue(candidate), minTime);
                           return (
                             <button
                               key={minute}
@@ -305,7 +356,7 @@ export function ThemedTimePicker({
                               aria-disabled={disabled}
                               disabled={disabled}
                               onClick={() => {
-                                if (!disabled) applyParts(candidate);
+                                if (!disabled) selectParts(candidate);
                               }}
                               className={[
                                 "nl-time-option nl-time-wheel-option",
@@ -324,7 +375,7 @@ export function ThemedTimePicker({
                       <div className="nl-time-column nl-time-column-period" role="listbox" aria-label="AM or PM">
                         {PERIODS.map((period) => {
                           const candidate = { ...parts, period };
-                          const disabled = isBeforeMinTime(partsToValue(candidate), minTime);
+                          const disabled = commitOnDone ? false : isBeforeMinTime(partsToValue(candidate), minTime);
                           return (
                             <button
                               key={period}
@@ -334,7 +385,7 @@ export function ThemedTimePicker({
                               aria-disabled={disabled}
                               disabled={disabled}
                               onClick={() => {
-                                if (!disabled) applyParts(candidate);
+                                if (!disabled) selectParts(candidate);
                               }}
                               className={[
                                 "nl-time-option nl-time-wheel-option",

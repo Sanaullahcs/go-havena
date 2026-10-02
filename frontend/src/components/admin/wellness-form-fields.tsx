@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import { ImagePlus, Plus, X, type ReactNode } from "lucide-react";
 
 export function cleanTakeaways(items: string[]): string[] {
@@ -80,7 +82,7 @@ export function KeyTakeawaysEditor({
               <span className="mt-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-xs font-bold text-blue-700">
                 {index + 1}
               </span>
-              <input
+              <ClearableInput
                 className="nl-input min-w-0 flex-1"
                 placeholder={`Takeaway point ${index + 1}`}
                 value={point}
@@ -146,7 +148,7 @@ export function CategoryImageField({
             </button>
           ) : null}
         </div>
-        <input
+        <ClearableInput
           id={inputId}
           type="file"
           accept="image/*"

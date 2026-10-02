@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { HavenaMark } from "@/components/shared/havena-mark";
+import { FEATURES_UPDATED_EVENT } from "@/components/auth/feature-settings-sync";
 import { canSwitchToAdminMode, getUser, isResidentMode } from "@/lib/auth/session";
 import { ResidentModeBar } from "@/components/portal/resident-mode-bar";
 import { anyResidentFeatureEnabled, isResidentFeatureEnabled } from "@/lib/resident-features";
@@ -115,7 +117,18 @@ function SidebarInner({
   onNavigate?: () => void;
   hideBrand?: boolean;
 }) {
-  const features = getUser()?.resident_features;
+  const [features, setFeatures] = useState(getUser()?.resident_features);
+
+  useEffect(() => {
+    const sync = () => setFeatures(getUser()?.resident_features);
+    sync();
+    window.addEventListener(FEATURES_UPDATED_EVENT, sync);
+    window.addEventListener("nbr-session-updated", sync);
+    return () => {
+      window.removeEventListener(FEATURES_UPDATED_EVENT, sync);
+      window.removeEventListener("nbr-session-updated", sync);
+    };
+  }, []);
   const filteredMain = mainNav.filter((item) => {
     if (item.href === "/notices") return anyResidentFeatureEnabled(features, ["notices", "events", "alerts"]);
     if (item.href === "/feed") return isResidentFeatureEnabled(features, "feed");

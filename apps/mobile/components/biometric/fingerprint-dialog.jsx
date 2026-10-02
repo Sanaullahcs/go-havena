@@ -3,7 +3,7 @@ import { View, Modal, TouchableOpacity, StyleSheet, Text } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { navigateAfterAuth } from "../../constants/onboarding-routes";
+import { openHomeAfterLogin } from "../../constants/onboarding-routes";
 import AuthSuccessOverlay from "../ui/auth-success-overlay";
 import { Fonts } from "../../constants/font";
 import { verifyBiometricLogin, BIOMETRIC_ERROR } from "./biometric-service";
@@ -24,7 +24,7 @@ export default function FingerprintDialog({ visible, onClose }) {
     const user = userRef.current;
     setShowSuccess(false);
     onClose?.();
-    navigateAfterAuth(router, user);
+    openHomeAfterLogin(router, user);
   }, [onClose]);
 
   const runAuth = useCallback(async () => {

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -17,8 +17,9 @@ import { HomeTheme as T } from "../../constants/home-theme";
 import { Colors } from "../../constants/tokens";
 import { sw, sf } from "../../utils/responsive";
 import { homeSize } from "../../constants/home-styles";
-import { getUser } from "../../services/auth-session";
-import { isGuestUser } from "../../services/community-access";
+import { isGuestUser, canAccessDashboard } from "../../services/community-access";
+import { useSessionUser } from "../../hooks/use-session-user";
+import { canOfferCreateAction } from "../../constants/resident-features";
 import { guestCanAccessFeature } from "../../constants/guest-permissions";
 import { navigateAppRoute } from "../../utils/app-navigation";
 import { useKeyboardVisible } from "./keyboard-safe-screen";
@@ -126,7 +127,7 @@ function getActiveTab(segments, pathname) {
 export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = false }) {
   const { t } = useTranslation();
   const keyboardVisible = useKeyboardVisible();
-  const [guestUser, setGuestUser] = useState(null);
+  const sessionUser = useSessionUser();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const fabSize = homeSize(48, screenWidth);
@@ -136,18 +137,7 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
   const segments = useSegments();
   const pathname = usePathname();
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const user = await getUser();
-      if (!cancelled) setGuestUser(user);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [pathname]);
-
-  const isGuest = Boolean(guestUser && isGuestUser(guestUser));
+  const isGuest = Boolean(sessionUser && isGuestUser(sessionUser));
 
   const filterTabs = useCallback(
     (tabs) => {
@@ -158,22 +148,27 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
         }
         if (item.name === "community") {
           return (
-            guestCanAccessFeature(guestUser, "feed") ||
-            guestCanAccessFeature(guestUser, "marketplace")
+            guestCanAccessFeature(sessionUser, "feed") ||
+            guestCanAccessFeature(sessionUser, "marketplace")
           );
         }
         const permissionKey = GUEST_TAB_PERMISSIONS[item.name];
         if (!permissionKey) return true;
-        return guestCanAccessFeature(guestUser, permissionKey);
+        return guestCanAccessFeature(sessionUser, permissionKey);
       });
     },
-    [guestUser, isGuest],
+    [sessionUser, isGuest],
   );
 
   const leftTabs = useMemo(
     () => filterTabs([HOME_TAB, COMMUNITY_TAB]),
     [filterTabs],
   );
+
+  const showCreate = canOfferCreateAction(sessionUser, {
+    isAdmin: isCommunityAdmin,
+    allowResidentEvent: !isCommunityAdmin && canAccessDashboard(sessionUser),
+  });
 
   const rightTabs = useMemo(() => {
     const tabs = isCommunityAdmin
@@ -265,22 +260,24 @@ export default function FloatingNavMenu({ onCreatePress, isCommunityAdmin = fals
           <View key={`left-spacer-${index}`} style={styles.tabSpacer} />
         ))}
 
-        <Pressable
-          style={[styles.fabTab, Platform.OS === "ios" && styles.fabTabIos]}
-          onPress={onCenterPress}
-          hitSlop={Platform.OS === "ios" ? { top: sw(28), left: sw(8), right: sw(8) } : undefined}
-          accessibilityRole="button"
-          accessibilityLabel={t("nav.create")}
-        >
-          {Platform.OS === "ios" ? (
-            <View style={styles.fabSlotIos} pointerEvents="none" collapsable={false}>
-              {renderCreateButton()}
-            </View>
-          ) : (
-            renderCreateButton()
-          )}
-          <Text style={styles.fabLabel}>{t("nav.create")}</Text>
-        </Pressable>
+        {showCreate ? (
+          <Pressable
+            style={[styles.fabTab, Platform.OS === "ios" && styles.fabTabIos]}
+            onPress={onCenterPress}
+            hitSlop={Platform.OS === "ios" ? { top: sw(28), left: sw(8), right: sw(8) } : undefined}
+            accessibilityRole="button"
+            accessibilityLabel={t("nav.create")}
+          >
+            {Platform.OS === "ios" ? (
+              <View style={styles.fabSlotIos} pointerEvents="none" collapsable={false}>
+                {renderCreateButton()}
+              </View>
+            ) : (
+              renderCreateButton()
+            )}
+            <Text style={styles.fabLabel} numberOfLines={1}>{t("nav.create")}</Text>
+          </Pressable>
+        ) : null}
 
         {Array.from({ length: rightSpacerCount }).map((_, index) => (
           <View key={`right-spacer-${index}`} style={styles.tabSpacer} />
@@ -312,28 +309,34 @@ const styles = StyleSheet.create({
   barContent: {
     flexDirection: "row",
     alignItems: "flex-end",
-    justifyContent: "space-around",
+    justifyContent: "space-between",
     paddingTop: sw(8),
+    paddingHorizontal: sw(4),
   },
   tab: {
     flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: sw(5),
   },
   tabSpacer: {
     flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
   },
   label: {
     marginTop: sw(2),
+    maxWidth: "100%",
     fontFamily: Fonts.medium,
     fontSize: LABEL_SIZE,
-    // Noto Arabic clips with Inter-tuned 12px LH on small phones.
-    lineHeight: sf(15),
+    lineHeight: sf(13),
     color: INACTIVE,
     fontWeight: "500",
     textAlign: "center",
     includeFontPadding: true,
+    paddingHorizontal: 1,
   },
   labelActive: {
     color: ACTIVE,
@@ -342,6 +345,8 @@ const styles = StyleSheet.create({
   },
   fabTab: {
     flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
     alignItems: "center",
     justifyContent: "flex-end",
     marginTop: -sw(10),
@@ -407,6 +412,7 @@ const styles = StyleSheet.create({
   },
   fabLabel: {
     marginTop: sw(4),
+    maxWidth: "100%",
     fontFamily: Fonts.bold,
     fontSize: LABEL_SIZE,
     lineHeight: sf(15),

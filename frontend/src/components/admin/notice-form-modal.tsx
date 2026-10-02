@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   type Notice,
@@ -162,6 +164,8 @@ export default function NoticeFormModal({
   lockedCategory,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const cameraFileRef = useRef<HTMLInputElement>(null);
+  const [imageSourceOpen, setImageSourceOpen] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const [form, setForm] = useState<NoticeFormValues>(EMPTY_FORM);
   const [preview, setPreview] = useState<string | null>(null);
@@ -173,7 +177,10 @@ export default function NoticeFormModal({
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setImageSourceOpen(false);
+      return;
+    }
     const base = initial ? noticeToForm(initial) : { ...EMPTY_FORM, category: lockedCategory ?? defaultCategory };
     setForm(base);
     setPreview(initial?.image_url ?? null);
@@ -191,8 +198,10 @@ export default function NoticeFormModal({
 
   const applyDurationFromStart = (hours: number) => {
     if (!form.event_time.trim()) return;
-    set("event_time_end", addMinutesToTime(form.event_time, hours * 60));
+    const end = addMinutesToTime(form.event_time, hours * 60);
+    set("event_time_end", end);
     clearFieldError("event_time_end");
+    applyEventTimeErrors({ event_time_end: end });
   };
 
   const isAlertForm = lockedCategory === "emergency";
@@ -293,6 +302,24 @@ export default function NoticeFormModal({
     setImageFile(file);
     setPreview(URL.createObjectURL(file));
     setLocalError(null);
+    setImageSourceOpen(false);
+  };
+
+  const openCoverPicker = () => {
+    if (busy) return;
+    if (isEventForm) {
+      setImageSourceOpen(true);
+      return;
+    }
+    fileRef.current?.click();
+  };
+
+  const pickCoverFrom = (source: "camera" | "gallery") => {
+    setImageSourceOpen(false);
+    const input = source === "camera" ? cameraFileRef.current : fileRef.current;
+    if (!input) return;
+    input.value = "";
+    input.click();
   };
 
   const handleSubmit = async (publishNow = false, forceStatus?: NoticeFormValues["status"]) => {
@@ -415,7 +442,7 @@ export default function NoticeFormModal({
           <div className="nl-notice-form">
             <div className="nl-notice-field">
               <FieldLabel required>Title</FieldLabel>
-              <input
+              <ClearableInput
                 data-field="title"
                 value={form.title}
                 maxLength={200}
@@ -438,7 +465,7 @@ export default function NoticeFormModal({
 
             <div className="nl-notice-field">
               <FieldLabel required>Description</FieldLabel>
-              <textarea
+              <ClearableTextarea
                 data-field="body"
                 value={form.body}
                 maxLength={5000}
@@ -512,7 +539,7 @@ export default function NoticeFormModal({
                 <span className="nl-notice-input-icon-mark" aria-hidden>
                   <IcoPin />
                 </span>
-                <input
+                <ClearableInput
                   data-field="location"
                   value={form.location}
                   maxLength={255}
@@ -606,13 +633,20 @@ export default function NoticeFormModal({
                   icon={<IcoClock />}
                   value={form.event_time}
                   fieldKey="event_time"
-                  minTime={noticeMinTime}
+                  commitOnDone={isEventForm}
+                  minTime={isEventForm ? undefined : noticeMinTime}
                   minTimeMessage={NOTICE_FUTURE_TIME_MESSAGE}
                   error={showError("event_time") ? errors.event_time : undefined}
                   onChange={(v) => {
+                    const end =
+                      !isAlertForm && v && !form.event_time_end.trim()
+                        ? addMinutesToTime(v, 60)
+                        : form.event_time_end;
                     set("event_time", v);
-                    if (!isAlertForm && v && !form.event_time_end.trim()) {
-                      set("event_time_end", addMinutesToTime(v, 60));
+                    if (end !== form.event_time_end) set("event_time_end", end);
+                    if (isEventForm) {
+                      applyEventTimeErrors({ event_time: v, event_time_end: end });
+                      return;
                     }
                     if (form.event_time_end.trim()) {
                       const next = runValidation(false);
@@ -625,6 +659,7 @@ export default function NoticeFormModal({
                     }
                   }}
                   onBlur={() => {
+                    if (isEventForm) return;
                     touch("event_time");
                     const next = runValidation(false);
                     setErrors((prev) => ({
@@ -660,6 +695,7 @@ export default function NoticeFormModal({
                   minTimeMessage={NOTICE_FUTURE_TIME_MESSAGE}
                   error={showError("event_time_end") ? errors.event_time_end : undefined}
                   onBlur={() => {
+                    if (isEventForm) return;
                     touch("event_time_end");
                     const next = runValidation(false);
                     setErrors((prev) => ({
@@ -670,7 +706,10 @@ export default function NoticeFormModal({
                       event_end_date: next.event_end_date,
                     }));
                   }}
-                  onChange={(v) => set("event_time_end", v)}
+                  onChange={(v) => {
+                    set("event_time_end", v);
+                    if (isEventForm) applyEventTimeErrors({ event_time_end: v });
+                  }}
                 />
               </div>
 
@@ -707,7 +746,7 @@ export default function NoticeFormModal({
               {(isEventForm || form.category === "event") ? (
                 <div className="nl-notice-field nl-notice-field--compact">
                   <FieldLabel>Capacity</FieldLabel>
-                  <input
+                  <ClearableInput
                     data-field="event_capacity"
                     type="number"
                     min={1}
@@ -833,7 +872,7 @@ export default function NoticeFormModal({
                         Full image preview · 16:9 frames best on the event page
                       </p>
                       <div className="nl-notice-image-actions">
-                        <button type="button" onClick={() => fileRef.current?.click()} className="nl-notice-image-btn">
+                        <button type="button" onClick={openCoverPicker} className="nl-notice-image-btn">
                           Change
                         </button>
                         <button
@@ -851,7 +890,7 @@ export default function NoticeFormModal({
                     </div>
                   </div>
                 ) : (
-                  <button type="button" onClick={() => fileRef.current?.click()} className="nl-notice-image-drop">
+                  <button type="button" onClick={openCoverPicker} className="nl-notice-image-drop">
                     <span className="nl-notice-image-drop-icon">
                       <IcoImage />
                     </span>
@@ -861,7 +900,17 @@ export default function NoticeFormModal({
                     </span>
                   </button>
                 )}
-                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleImagePick(e.target.files?.[0] ?? null)} />
+                <ClearableInput ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleImagePick(e.target.files?.[0] ?? null)} />
+                {isEventForm ? (
+                  <input
+                    ref={cameraFileRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(e) => handleImagePick(e.target.files?.[0] ?? null)}
+                  />
+                ) : null}
               </div>
             </div>
 
@@ -903,6 +952,47 @@ export default function NoticeFormModal({
           </div>
         </footer>
       </div>
+      {imageSourceOpen ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-end justify-center p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Cover image"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-900/40"
+            aria-label="Cancel"
+            onClick={() => setImageSourceOpen(false)}
+          />
+          <div className="relative w-full max-w-xs overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+            <p className="px-4 pt-4 text-sm font-semibold text-slate-900">Cover image</p>
+            <div className="flex flex-col gap-1 p-2">
+              <button
+                type="button"
+                className="rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-800 hover:bg-slate-50"
+                onClick={() => pickCoverFrom("camera")}
+              >
+                Camera
+              </button>
+              <button
+                type="button"
+                className="rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-800 hover:bg-slate-50"
+                onClick={() => pickCoverFrom("gallery")}
+              >
+                Gallery
+              </button>
+              <button
+                type="button"
+                className="rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-500 hover:bg-slate-50"
+                onClick={() => setImageSourceOpen(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

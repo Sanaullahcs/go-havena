@@ -16,6 +16,7 @@ import {
 } from "../services/community-access";
 import { hasApprovedMembership, isProfileComplete } from "../services/auth-api";
 import { markFirstHomeVisit } from "./user-session";
+import { hasSeenProductWelcome, markProductWelcomeSeen } from "../services/product-welcome-seen";
 import { prepareAuthScreenChrome } from "../components/layout/chrome-manager";
 
 export const Routes = {
@@ -33,7 +34,6 @@ export const Routes = {
   PENDING_COMMUNITY: "/screens/pending-community",
   PENDING_COMMUNITY_ADMIN: "/screens/pending-community-admin",
   COMPLETE_BILLING: "/screens/complete-billing",
-  CONFIGURE_RESIDENT_FEATURES: "/screens/resident-features",
   PENDING_FAMILY: "/screens/pending-family",
   MY_FAMILY: "/screens/my-family",
   TABS_HOME: "/(tabs)/home",
@@ -183,11 +183,8 @@ export function getPostAuthRoute(user, { role, mode } = {}) {
         },
       };
     }
-    if (nextStep === "complete_billing_web") {
+    if (nextStep === "complete_billing_web" || nextStep === "configure_resident_features") {
       return { pathname: Routes.COMPLETE_BILLING, params: { role: "admin" } };
-    }
-    if (nextStep === "configure_resident_features") {
-      return { pathname: Routes.CONFIGURE_RESIDENT_FEATURES, params: { role: "admin" } };
     }
     if (nextStep === "await_approval") {
       return { pathname: Routes.COMPLETE_BILLING, params: { role: "admin" } };
@@ -275,23 +272,33 @@ export function getPostAuthRoute(user, { role, mode } = {}) {
   };
 }
 
-/** Post-login overview is only for accounts that land straight on home. */
-export function shouldShowCommunityWelcome(user) {
+/**
+ * Product welcome is only for a resident or community admin whose first
+ * successful login lands on Home, and only until they finish or skip it.
+ */
+export async function shouldShowCommunityWelcome(user) {
   if (!user || isGuestUser(user)) return false;
-  return getPostAuthRoute(user, { mode: "login" }).pathname === Routes.TABS_HOME;
+  if (getPostAuthRoute(user, { mode: "login" }).pathname !== Routes.TABS_HOME) return false;
+  return !(await hasSeenProductWelcome(user));
 }
 
 export function openCommunityWelcome(router) {
   router.replace(Routes.COMMUNITY_WELCOME);
 }
 
-/** Leave the overview without popping back to the login stack. */
-export function continueFromCommunityWelcome(router, user) {
-  const route = getPostAuthRoute(user, { mode: "login" });
-  if (route.pathname === Routes.TABS_HOME) {
-    markFirstHomeVisit();
+/** After login: show the one-time welcome, otherwise go straight home. */
+export async function openHomeAfterLogin(router, user) {
+  if (await shouldShowCommunityWelcome(user)) {
+    openCommunityWelcome(router);
+    return;
   }
-  router.replace({ pathname: route.pathname, params: route.params ?? {} });
+  navigateAfterAuth(router, user, { mode: "login" });
+}
+
+/** Leave the overview without popping back to the login stack. */
+export async function continueFromCommunityWelcome(router, user) {
+  await markProductWelcomeSeen(user);
+  navigateAfterAuth(router, user, { mode: "login" });
 }
 
 /** Single entry for post-login, post-signup, splash, and biometric auth. */

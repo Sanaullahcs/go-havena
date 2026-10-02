@@ -863,7 +863,7 @@ export default function CompleteProfile() {
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]} importantForAutofill="no">
       <View style={styles.headerRow}>
         <BackButton iconOnly compact onPress={handleBack} />
-        <Text style={styles.headerTitle} numberOfLines={1}>
+        <Text style={styles.headerTitle}>
           {isEditMode ? t("onboarding.editProfile") : t("onboarding.completeProfile")}
         </Text>
       </View>
@@ -1128,9 +1128,6 @@ export default function CompleteProfile() {
                   textAlignVertical="center"
                 />
               </View>
-              <Text style={[styles.helperText, officeAddress.length > officeMax && styles.errorText]}>
-                {officeAddress.length} / {officeMax}
-              </Text>
               <Text style={styles.helperText}>{t("onboarding.officeAddressHint")}</Text>
               {showError("officeAddress", liveErrors) ? <Text style={styles.errorText}>{showError("officeAddress", liveErrors)}</Text> : null}
             </View>
@@ -1569,8 +1566,9 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontWeight: "700",
     fontSize: 17,
-    lineHeight: 22,
+    lineHeight: 26,
     color: T.navy,
+    includeFontPadding: true,
   },
   backRow: {
     flexDirection: "row",

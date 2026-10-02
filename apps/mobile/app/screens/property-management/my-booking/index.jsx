@@ -13,6 +13,7 @@ import { HeaderIconSlot } from "../../../../components/layout/header-chrome";
 import { pageStyles } from "../../../../constants/page-styles";
 import { Property, propertyStyles } from "../../../../constants/property-styles";
 import { fetchMyBookings, cancelBooking } from "../../../../services/amenity-api";
+import { isUpcomingReservation } from "../../../../utils/property-hub-activity";
 import AmenityPaymentProofModal from "../../../../components/property/amenity-payment-proof-modal";
 import { useApiAction } from "../../../../hooks/use-api-action";
 import { useAppDialog } from "../../../../providers/app-dialog-provider";
@@ -102,14 +103,10 @@ export default function MyBooking() {
     now.getDate(),
   ).padStart(2, "0")}`;
 
-  const categorized = bookings.map((b) => {
-    const dateKey = String(b.date ?? b.starts_at ?? "").slice(0, 10);
-    const isActive = b.status === "pending" || b.status === "awaiting_payment" || b.status === "confirmed";
-    return {
-      ...b,
-      timeframe: isActive && dateKey >= todayKey ? "upcoming" : "past",
-    };
-  });
+  const categorized = bookings.map((b) => ({
+    ...b,
+    timeframe: isUpcomingReservation(b, todayKey) ? "upcoming" : "past",
+  }));
 
   const upcomingCount = categorized.filter((b) => b.timeframe === "upcoming").length;
   const tabs = [

@@ -16,8 +16,9 @@ import i18n from "../../../i18n";
 import { getLocaleForLang } from "../../../hooks/use-app-locale";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
+import { useRouter, useLocalSearchParams, useFocusEffect, useNavigation } from "expo-router";
 import { chevronBack, chevronForward } from "../../../utils/rtl";
+import { safeGoBack } from "../../../utils/app-navigation";
 import { rnShadow } from "../../../utils/shadow";
 import { Fonts } from "../../../constants/font";
 import UserAvatar from "../../../components/ui/user-avatar";
@@ -142,6 +143,7 @@ function SectionHeader({ title, accent = "#14B8A6" }) {
 export default function ListingDetailScreen() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams();
   const { showConfirm, showSuccess, showError } = useAppDialog();
@@ -370,7 +372,7 @@ export default function ListingDetailScreen() {
     return (
       <View style={styles.loadingWrap}>
         <Text style={styles.errorText}>{t("marketplace.listingNotFound")}</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
+        <TouchableOpacity onPress={() => safeGoBack(router, navigation)} style={styles.backLink}>
           <Text style={styles.backLinkText}>{t("marketplace.goBack")}</Text>
         </TouchableOpacity>
       </View>
@@ -591,7 +593,7 @@ export default function ListingDetailScreen() {
           style={[styles.headerScrim, { opacity: headerBgOpacity, pointerEvents: "none" }]}
         />
         <View style={[styles.headerRow, { pointerEvents: "box-none" }]}>
-          <HeaderBtn onPress={() => router.back()}>
+          <HeaderBtn onPress={() => safeGoBack(router, navigation)}>
             <Ionicons name={chevronBack()} size={20} color="#FFFFFF" />
           </HeaderBtn>
 

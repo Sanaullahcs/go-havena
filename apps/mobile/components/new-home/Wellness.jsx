@@ -12,6 +12,8 @@ import { wellnessDetailRouteParams } from "../../constants/wellness-categories";
 import { twoUpCardWidth, snapInterval } from "../../constants/carousel";
 import { sw, sf } from "../../utils/responsive";
 import { useHomeFrame } from "../../hooks/use-home-frame";
+import { useSessionUser } from "../../hooks/use-session-user";
+import { isHomeSectionEnabled } from "../../constants/resident-features";
 import { arrowForward } from "../../utils/rtl";
 import { rnShadow } from "../../utils/shadow";
 import {
@@ -100,6 +102,7 @@ export default function WellnessNew({ items = [] }) {
   const { t } = useTranslation();
   const router = useRouter();
   const frame = useHomeFrame();
+  const sessionUser = useSessionUser();
 
   const layout = useMemo(() => {
     const cardWidth = twoUpCardWidth(frame.screenWidth, frame.sideInset, CARD_GAP, PEEK);
@@ -121,9 +124,11 @@ export default function WellnessNew({ items = [] }) {
     </View>
   );
 
+  if (!isHomeSectionEnabled(sessionUser, "wellness")) return null;
+
   if (!items.length) {
     return (
-      <View style={[homeStyles.section, { marginHorizontal: frame.sideInset }]}>
+      <View style={[homeStyles.section, { alignSelf: "center", marginHorizontal: frame.sideInset, width: frame.contentWidth }]}>
         <HomeSectionHeader label={t("wellness.title")} onPress={() => router.push("/wellness")} />
         <HomeSectionEmpty
           message={t("home.noWellnessPrograms")}
@@ -134,12 +139,12 @@ export default function WellnessNew({ items = [] }) {
   }
 
   return (
-    <View style={[homeStyles.section, { marginHorizontal: frame.sideInset }]}>
+    <View style={[homeStyles.section, { alignSelf: "center", marginHorizontal: frame.sideInset, width: frame.contentWidth }]}>
       <HomeSectionHeader label={t("wellness.title")} onPress={() => router.push("/wellness")} />
       <FlatList
         data={items}
         horizontal
-        style={styles.carousel}
+        style={[styles.carousel, { width: frame.contentWidth }]}
         showsHorizontalScrollIndicator={false}
         decelerationRate="fast"
         snapToInterval={layout.snap}
@@ -161,7 +166,7 @@ export default function WellnessNew({ items = [] }) {
 }
 
 const styles = StyleSheet.create({
-  carousel: { flexGrow: 0, alignSelf: "stretch", overflow: "visible" },
+  carousel: { flexGrow: 0, alignSelf: "stretch", overflow: "hidden" },
   listContent: {
     paddingEnd: PEEK,
     paddingTop: sw(2),

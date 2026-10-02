@@ -37,6 +37,8 @@ import { localizedField } from "../../i18n";
 import { rnShadow } from "../../utils/shadow";
 import { getUser } from "../../services/auth-session";
 import { isCommunityAdminRole, isGuestUser, isResidentMode } from "../../services/community-access";
+import { useSessionUser } from "../../hooks/use-session-user";
+import { isResidentFeatureEnabled } from "../../constants/resident-features";
 
 
 const BASE_TABS = [
@@ -76,6 +78,7 @@ function reviewStatusMeta(notice, t) {
 
 function noticePermissionFeature(tab) {
   if (tab?.categoryGroup === "events" || tab?.mineOnly) return "events";
+  if (tab?.categoryGroup === "alerts") return "alerts";
   return "notices";
 }
 
@@ -91,6 +94,7 @@ function formatCardDate(notice) {
 export default function Notifications() {
   const { t } = useTranslation();
   const router = useRouter();
+  const sessionUser = useSessionUser();
   const [selectedTab, setSelectedTab] = useState("all");
   const [savedIds, setSavedIds] = useState([]);
   const [notices, setNotices] = useState([]);
@@ -105,8 +109,16 @@ export default function Notifications() {
   const listRef = useRef(null);
 
   const tabs = useMemo(
-    () => BASE_TABS.filter((tab) => !tab.residentOnly || showYoursTab),
-    [showYoursTab],
+    () =>
+      BASE_TABS.filter((tab) => !tab.residentOnly || showYoursTab).filter((tab) => {
+        if (tab.categoryGroup) return isResidentFeatureEnabled(sessionUser, tab.categoryGroup);
+        return (
+          isResidentFeatureEnabled(sessionUser, "notices") ||
+          isResidentFeatureEnabled(sessionUser, "events") ||
+          isResidentFeatureEnabled(sessionUser, "alerts")
+        );
+      }),
+    [showYoursTab, sessionUser],
   );
 
   useEffect(() => {
@@ -132,7 +144,7 @@ export default function Notifications() {
 
   useEffect(() => {
     if (!tabs.some((tab) => tab.id === selectedTab)) {
-      setSelectedTab("all");
+      setSelectedTab(tabs[0]?.id ?? "all");
     }
   }, [tabs, selectedTab]);
 
@@ -293,7 +305,7 @@ export default function Notifications() {
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.cardTitle} numberOfLines={2}>
+              <Text style={styles.cardTitle} numberOfLines={2} ellipsizeMode="tail">
                 {localizedField(notice, "title") || notice.title}
               </Text>
               {(localizedField(notice, "body") || notice.body) ? (
@@ -436,7 +448,7 @@ export default function Notifications() {
           <View style={styles.container}>
             <View style={styles.headingContainer}>
               <View style={styles.headingLeft}>
-                <BackButton iconOnly compact onPress={() => router.back()} />
+                <BackButton iconOnly compact />
                 <View style={styles.headingBase}>
                   <Text
                     style={{
@@ -718,6 +730,8 @@ const styles = StyleSheet.create({
     fontSize: sf(14.5),
     lineHeight: sf(19),
     color: "#1B4F8A",
+    flexShrink: 1,
+    width: "100%",
   },
   cardDescription: {
     fontFamily: Fonts.regular,

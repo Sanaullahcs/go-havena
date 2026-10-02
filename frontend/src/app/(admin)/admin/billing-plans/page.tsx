@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import {
@@ -374,7 +376,7 @@ export default function BillingPlansPage() {
 
             <div className="space-y-4 px-6 py-5">
               <Field label="Name" required error={showError("name", liveErrors)}>
-                <input
+                <ClearableInput
                   className={inputClass(showError("name", liveErrors), "nl-input w-full")}
                   placeholder="Growth"
                   value={form.name}
@@ -387,7 +389,7 @@ export default function BillingPlansPage() {
               </Field>
 
               <Field label="Description">
-                <textarea
+                <ClearableTextarea
                   className="nl-input min-h-[72px] w-full resize-y"
                   placeholder="For mid-size neighborhoods and HOAs."
                   value={form.description}
@@ -397,7 +399,7 @@ export default function BillingPlansPage() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Resident limit" required error={showError("seat_limit", liveErrors)}>
-                  <input
+                  <ClearableInput
                     type="number"
                     min={1}
                     className={inputClass(showError("seat_limit", liveErrors), "nl-input w-full")}
@@ -410,7 +412,7 @@ export default function BillingPlansPage() {
                   />
                 </Field>
                 <Field label="Trial period (days)" required error={showError("trial_period_days", liveErrors)}>
-                  <input
+                  <ClearableInput
                     type="number"
                     min={0}
                     max={365}
@@ -427,7 +429,7 @@ export default function BillingPlansPage() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Monthly price (USD)" required error={showError("price_monthly", liveErrors)}>
-                  <input
+                  <ClearableInput
                     inputMode="decimal"
                     className={inputClass(showError("price_monthly", liveErrors), "nl-input w-full")}
                     placeholder="99"
@@ -446,7 +448,7 @@ export default function BillingPlansPage() {
                   />
                 </Field>
                 <Field label="Yearly price (USD)" required error={showError("price_yearly", liveErrors)}>
-                  <input
+                  <ClearableInput
                     inputMode="decimal"
                     className={inputClass(showError("price_yearly", liveErrors), "nl-input w-full")}
                     placeholder="990"
@@ -464,7 +466,7 @@ export default function BillingPlansPage() {
               </p>
 
               <Field label="Display order">
-                <input
+                <ClearableInput
                   type="number"
                   min={0}
                   className="nl-input w-full"
@@ -475,7 +477,7 @@ export default function BillingPlansPage() {
 
               <div className="flex flex-col gap-2.5">
                 <label className="flex items-center gap-2 text-[13px] text-slate-700">
-                  <input
+                  <ClearableInput
                     type="checkbox"
                     checked={form.is_active}
                     onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
@@ -483,7 +485,7 @@ export default function BillingPlansPage() {
                   Active — available for new checkouts
                 </label>
                 <label className="flex items-center gap-2 text-[13px] text-slate-700">
-                  <input
+                  <ClearableInput
                     type="checkbox"
                     checked={form.is_recommended}
                     onChange={(e) => setForm({ ...form, is_recommended: e.target.checked })}

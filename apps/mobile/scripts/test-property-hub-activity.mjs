@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import {
   buildPropertyHubActivity,
+  countUpcomingReservations,
   formatBookingActivityMeta,
+  isUpcomingReservation,
   pickAdminPendingBookings,
   pickResidentRecentBookings,
   pickUnacknowledgedRule,
@@ -139,5 +141,23 @@ const adminNoRules = buildPropertyHubActivity({
   isAdmin: true,
 });
 assert.equal(adminNoRules.items.length, 0);
+
+const today = todayPlus(0);
+const upcomingSample = [
+  { id: 1, status: "confirmed", date: todayPlus(3) },
+  { id: 2, status: "cancelled", date: todayPlus(5) },
+  { id: 3, status: "confirmed", date: todayPlus(-7) },
+  { id: 4, status: "pending", date: todayPlus(1) },
+  { id: 5, status: "awaiting_payment", date: today },
+  { id: 6, status: "rejected", date: todayPlus(2) },
+  { id: 7, status: "completed", date: todayPlus(2) },
+  { id: 8, status: "expired", date: todayPlus(4) },
+];
+assert.equal(countUpcomingReservations(upcomingSample, today), 3);
+assert.equal(isUpcomingReservation(upcomingSample[1], today), false);
+assert.equal(isUpcomingReservation(upcomingSample[2], today), false);
+assert.equal(isUpcomingReservation(upcomingSample[5], today), false);
+assert.equal(isUpcomingReservation(upcomingSample[6], today), false);
+assert.equal(isUpcomingReservation(upcomingSample[7], today), false);
 
 console.log("property-hub-activity: all tests passed");

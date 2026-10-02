@@ -18,6 +18,7 @@ import {
   isSystemAdminUser,
 } from "@/lib/auth/session";
 import { resolveAdminPortalRedirect } from "@/lib/auth/admin-routes";
+import { adminFeatureForPath, isResidentFeatureEnabled } from "@/lib/resident-features";
 import { fetchMe, meToSessionUser } from "@/lib/api/profile";
 import { switchToAdminMode } from "@/lib/auth/resident-mode";
 import { AdminSidebar } from "@/components/admin/sidebar";
@@ -25,6 +26,7 @@ import { AdminTopBar } from "@/components/admin/top-bar";
 import { AdminPushBootstrap } from "@/components/push/admin-push-bootstrap";
 import { ForegroundNotificationProvider } from "@/components/push/foreground-notification-provider";
 import { consumeWebHandoffIfPresent, readHandoffCodeFromLocation } from "@/lib/auth/web-handoff";
+import { FEATURES_UPDATED_EVENT, FeatureSettingsSync } from "@/components/auth/feature-settings-sync";
 
 import {
   communityAdminOnboardingPath,
@@ -55,7 +57,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/billing/done": "Return to app",
   "/admin/setup": "Community setup",
   "/admin/complete-profile": "Complete profile",
-  "/admin/resident-features": "Resident Features",
+  "/admin/feature-settings": "Adjust Features",
+  "/admin/feature-requests": "Feature Requests",
   "/admin/pending-approval": "Pending approval",
   "/admin/guests": "Guest Users",
   "/admin/notices": "Notices",
@@ -210,7 +213,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           (nextStep === "complete_billing_web" &&
             (pathname === "/admin/billing" || pathname.startsWith("/admin/billing/"))) ||
           (nextStep === "configure_resident_features" &&
-            pathname.startsWith("/admin/resident-features")) ||
+            pathname.startsWith("/admin/pending-approval")) ||
           (nextStep === "await_approval" &&
             (pathname.startsWith("/admin/pending-approval") || pathname.startsWith("/admin/billing/"))) ||
           (nextStep === "complete_profile" && pathname.startsWith("/admin/complete-profile")) ||
@@ -247,11 +250,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (!checked || accessBlocked || onboardingOnly) return;
 
-    const user = getUser();
-    const redirect = resolveAdminPortalRedirect(pathname, user);
-    if (redirect && redirect !== pathname) {
-      router.replace(redirect);
-    }
+    const applyFeatureGate = () => {
+      const user = getUser();
+      const redirect = resolveAdminPortalRedirect(pathname, user);
+      if (redirect && redirect !== pathname) {
+        router.replace(redirect);
+        return;
+      }
+
+      if (isCommunityAdminUser(user) && !isSystemAdminUser(user)) {
+        const featureKey = adminFeatureForPath(pathname);
+        if (featureKey && !isResidentFeatureEnabled(user?.resident_features, featureKey) && pathname !== "/admin") {
+          router.replace("/admin");
+        }
+      }
+    };
+
+    applyFeatureGate();
+    window.addEventListener(FEATURES_UPDATED_EVENT, applyFeatureGate);
+    return () => window.removeEventListener(FEATURES_UPDATED_EVENT, applyFeatureGate);
   }, [checked, accessBlocked, onboardingOnly, pathname, router]);
 
   useEffect(() => {
@@ -325,6 +342,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <ForegroundNotificationProvider>
       <div className="min-h-screen bg-[#F6F8FB]">
+        <FeatureSettingsSync />
         <AdminSidebar open={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
         <div className="flex min-w-0 flex-col min-h-screen md:ml-60">

@@ -50,6 +50,12 @@ function fixTextStyle(style) {
     }
   }
 
+  // A fixed text box shorter than the line height crops ascenders and descenders.
+  if (typeof next.height === "number" && typeof next.lineHeight === "number" && next.height < next.lineHeight) {
+    next.minHeight = Math.max(typeof next.minHeight === "number" ? next.minHeight : 0, next.lineHeight);
+    delete next.height;
+  }
+
   return next;
 }
 

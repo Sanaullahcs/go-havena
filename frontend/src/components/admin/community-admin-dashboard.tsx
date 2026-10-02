@@ -56,6 +56,14 @@ import { PageError, PageLoader } from "@/components/shared/page-states";
 import { toastError, toastSuccess } from "@/lib/alert";
 import { getAdminCache, setAdminCache } from "@/lib/admin/navigation-cache";
 import { getUser } from "@/lib/auth/session";
+import { FEATURES_UPDATED_EVENT } from "@/components/auth/feature-settings-sync";
+import { adminFeatureForPath, isResidentFeatureEnabled } from "@/lib/resident-features";
+
+function communityFeatureVisible(href?: string) {
+  if (!href) return true;
+  const key = adminFeatureForPath(href.split("?")[0]);
+  return !key || isResidentFeatureEnabled(getUser()?.resident_features, key);
+}
 import {
   confirmPendingDashboardAction,
   confirmPublishCommunityContent,
@@ -74,6 +82,7 @@ function relTime(ts: string) {
 
 export default function CommunityAdminDashboard() {
   const pathname = usePathname();
+  const [featureRevision, setFeatureRevision] = useState(0);
   const cached = getAdminCache<AdminDashboardData>("dashboard:community-stats");
   const [data, setData] = useState<AdminDashboardData | null>(cached ?? null);
   const [loading, setLoading] = useState(!cached);
@@ -106,6 +115,12 @@ export default function CommunityAdminDashboard() {
     if (pathname !== "/admin") return;
     void load(Boolean(getAdminCache("dashboard:community-stats")));
   }, [pathname, load]);
+
+  useEffect(() => {
+    const sync = () => setFeatureRevision((current) => current + 1);
+    window.addEventListener(FEATURES_UPDATED_EVENT, sync);
+    return () => window.removeEventListener(FEATURES_UPDATED_EVENT, sync);
+  }, []);
 
   const handleAction = useCallback(
     async (action: AdminDashboardPendingAction, verb: PendingVerb) => {
@@ -253,8 +268,8 @@ export default function CommunityAdminDashboard() {
         href: "/admin/feed?status=pending",
         icon: dashIcon(MessageSquare),
       },
-    ];
-  }, [data]);
+    ].filter((item) => communityFeatureVisible(item.href));
+  }, [data, featureRevision]);
 
   const secondaryKpis = useMemo(() => {
     if (!data) return [];
@@ -294,17 +309,17 @@ export default function CommunityAdminDashboard() {
         href: "/admin/members?status=banned",
         icon: dashIcon(Ban),
       },
-    ];
-  }, [data]);
+    ].filter((item) => communityFeatureVisible(item.href));
+  }, [data, featureRevision]);
 
   const quickActions = useMemo(
     () => [
       { ...COMMUNITY_QUICK_ACTIONS.invite, onClick: () => setInviteOpen(true) },
-      { ...COMMUNITY_QUICK_ACTIONS.notice, onClick: () => setCreateKind("notice") },
-      { ...COMMUNITY_QUICK_ACTIONS.event, onClick: () => setCreateKind("event") },
-      { ...COMMUNITY_QUICK_ACTIONS.alert, onClick: () => setCreateKind("alert") },
-    ],
-    [],
+      { ...COMMUNITY_QUICK_ACTIONS.notice, href: "/admin/notices", onClick: () => setCreateKind("notice") },
+      { ...COMMUNITY_QUICK_ACTIONS.event, href: "/admin/events", onClick: () => setCreateKind("event") },
+      { ...COMMUNITY_QUICK_ACTIONS.alert, href: "/admin/alerts", onClick: () => setCreateKind("alert") },
+    ].filter((item) => communityFeatureVisible(item.href)),
+    [featureRevision],
   );
 
   if (loading && !data) return <PageLoader text="Loading community dashboard…" variant="community" />;
@@ -431,7 +446,8 @@ export default function CommunityAdminDashboard() {
       tone: "amber",
       icon: dashIcon(Calendar),
     },
-  ].filter((link) => !(link.href === "/admin/billing" && getUser()?.access?.billing_exempt));
+  ].filter((link) => !(link.href === "/admin/billing" && getUser()?.access?.billing_exempt))
+    .filter((link) => communityFeatureVisible(link.href));
 
   return (
     <div className="space-y-6">

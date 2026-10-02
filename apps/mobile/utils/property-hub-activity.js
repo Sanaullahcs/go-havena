@@ -3,6 +3,8 @@ import i18n, { localizedField } from "../i18n";
 import { getLocaleForLang } from "../hooks/use-app-locale";
 
 const RESIDENT_STATUSES = new Set(["pending", "confirmed", "rejected"]);
+/** Statuses that still occupy an upcoming slot. Past dates are not upcoming. */
+const UPCOMING_STATUSES = new Set(["pending", "awaiting_payment", "confirmed"]);
 export const ACTIVITY_LIMIT = 3;
 
 function todayKey() {
@@ -14,6 +16,22 @@ function todayKey() {
 
 function bookingDateKey(booking) {
   return String(booking?.date ?? booking?.starts_at ?? "").slice(0, 10);
+}
+
+/**
+ * Active reservation still ahead of today.
+ * Cancelled, rejected, completed, and expired bookings are excluded, as are
+ * confirmed bookings whose date has already passed.
+ */
+export function isUpcomingReservation(booking, today = todayKey()) {
+  const status = String(booking?.status ?? "").trim().toLowerCase();
+  if (!UPCOMING_STATUSES.has(status)) return false;
+  const dateKey = bookingDateKey(booking);
+  return Boolean(dateKey) && dateKey >= today;
+}
+
+export function countUpcomingReservations(bookings = [], today = todayKey()) {
+  return (bookings ?? []).filter((booking) => isUpcomingReservation(booking, today)).length;
 }
 
 function bookingSortKey(booking) {
@@ -214,11 +232,7 @@ export function pickNextUpcomingBooking(bookings = []) {
   const today = todayKey();
   return (
     [...bookings]
-      .filter((booking) => {
-        const status = booking?.status;
-        const isActive = status === "pending" || status === "confirmed";
-        return isActive && bookingDateKey(booking) >= today;
-      })
+      .filter((booking) => isUpcomingReservation(booking, today))
       .sort((a, b) => bookingDateKey(a).localeCompare(bookingDateKey(b)))[0] ?? null
   );
 }

@@ -312,7 +312,6 @@ class CommunityAdminAccessService
             $hasCommunity,
             $billingComplete,
             $platformApproved,
-            $this->features->requiresOnboardingConfiguration($communityId),
             $blocking,
         );
 
@@ -424,7 +423,6 @@ class CommunityAdminAccessService
         bool $hasCommunity,
         bool $billingComplete,
         bool $platformApproved,
-        bool $needsResidentFeatures,
         array $blocking,
     ): string {
         if (in_array('admin_revoked', $blocking, true) || in_array('admin_rejected', $blocking, true) || in_array('community_rejected', $blocking, true)) {
@@ -441,10 +439,6 @@ class CommunityAdminAccessService
 
         if (! $billingComplete) {
             return 'complete_billing_web';
-        }
-
-        if ($needsResidentFeatures) {
-            return 'configure_resident_features';
         }
 
         if (! $platformApproved) {

@@ -531,8 +531,9 @@ export default function AdminAmenitiesPage() {
             : "No booking requests match your search."
         }
         isEmpty={inboxVisible.length === 0}
+        contained
       >
-        <DtTable>
+        <DtTable contained>
           <DtHead
             cols={[
               { label: "Facility" },
@@ -553,8 +554,8 @@ export default function AdminAmenitiesPage() {
               const canReview = booking.status === "pending";
               return (
                 <DtRow key={booking.id}>
-                  <DtCell>
-                    <div className="flex items-center gap-3">
+                  <DtCell className="max-w-0 overflow-hidden">
+                    <div className="flex min-w-0 items-center gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50">
                         <AmenityIcon
                           iconKey={booking.amenity_icon_key}
@@ -562,21 +563,27 @@ export default function AdminAmenitiesPage() {
                           size={18}
                         />
                       </div>
-                      <p className="truncate font-semibold text-slate-900">{booking.amenity_name}</p>
+                      <p className="min-w-0 flex-1 truncate font-semibold text-slate-900">{booking.amenity_name}</p>
                     </div>
                   </DtCell>
-                  <DtCell>
-                    <p className="font-medium text-slate-900">{booking.user_name || "Resident"}</p>
-                    <p className="text-xs text-slate-500">{booking.user_unit || "—"}</p>
+                  <DtCell className="max-w-0 overflow-hidden">
+                    <p className="truncate font-medium text-slate-900">{booking.user_name || "Resident"}</p>
+                    <p className="truncate text-xs text-slate-500">{booking.user_unit || "—"}</p>
                   </DtCell>
-                  <DtCell>{formatBookingDate(booking.date)}</DtCell>
-                  <DtCell>{booking.time_slot || "Open access"}</DtCell>
-                  <DtCell>{formatBookingDisplayFee(booking)}</DtCell>
-                  <DtCell>
+                  <DtCell className="max-w-0 overflow-hidden">
+                    <p className="truncate">{formatBookingDate(booking.date)}</p>
+                  </DtCell>
+                  <DtCell className="max-w-0 overflow-hidden">
+                    <p className="truncate">{booking.time_slot || "Open access"}</p>
+                  </DtCell>
+                  <DtCell className="max-w-0 overflow-hidden">
+                    <p className="truncate">{formatBookingDisplayFee(booking)}</p>
+                  </DtCell>
+                  <DtCell className="max-w-0 overflow-hidden">
                     {booking.payment_proof ? (
-                      <div>
-                        <p>{booking.payment_proof.payment_date || "—"}</p>
-                        <p className="text-xs text-slate-500">
+                      <div className="min-w-0">
+                        <p className="truncate">{booking.payment_proof.payment_date || "—"}</p>
+                        <p className="truncate text-xs text-slate-500">
                           {booking.payment_proof.payment_reference || "No reference"}
                         </p>
                         {booking.payment_proof.file_url ? (
@@ -594,7 +601,9 @@ export default function AdminAmenitiesPage() {
                       "—"
                     )}
                   </DtCell>
-                  <DtCell>{formatRequestDate(booking.requested_at ?? booking.created_at)}</DtCell>
+                  <DtCell className="max-w-0 overflow-hidden">
+                    <p className="truncate">{formatRequestDate(booking.requested_at ?? booking.created_at)}</p>
+                  </DtCell>
                   <DtCell>
                     <AdminBadge tone={status.tone}>{status.label}</AdminBadge>
                   </DtCell>
@@ -676,8 +685,9 @@ export default function AdminAmenitiesPage() {
                 : "No amenities match your filters."
         }
         isEmpty={filtered.length === 0}
+        contained
       >
-        <DtTable>
+        <DtTable contained>
           <DtHead
             cols={[
               { label: "Facility" },
@@ -695,12 +705,12 @@ export default function AdminAmenitiesPage() {
               const review = getAmenityReviewMeta(amenity.review_status);
               return (
                 <DtRow key={amenity.id}>
-                  <DtCell>
-                    <div className="flex items-center gap-3">
+                  <DtCell className="max-w-0 overflow-hidden">
+                    <div className="flex min-w-0 items-center gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50">
                         <AmenityIcon iconKey={amenity.icon_key} name={amenity.name} size={18} />
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="truncate font-semibold text-slate-900">{amenity.name}</p>
                         {amenity.description ? (
                           <p className="truncate text-xs text-slate-500">{amenity.description}</p>
@@ -708,8 +718,8 @@ export default function AdminAmenitiesPage() {
                       </div>
                     </div>
                   </DtCell>
-                  <DtCell>
-                    <div className="flex flex-wrap gap-1.5">
+                  <DtCell className="max-w-0 overflow-hidden">
+                    <div className="flex min-w-0 flex-wrap gap-1.5">
                       {tabFilter === "my_bookings" && amenity.user_has_upcoming_booking ? (
                         <AdminBadge tone={bookingStatusBadge(amenity.user_next_booking_status).tone}>
                           {bookingStatusBadge(amenity.user_next_booking_status).label}
@@ -723,22 +733,28 @@ export default function AdminAmenitiesPage() {
                       ) : null}
                     </div>
                   </DtCell>
-                  <DtCell>{amenity.creator_name || "—"}</DtCell>
-                  <DtCell>{formatAmenityFeeLabel(amenity)}</DtCell>
-                  <DtCell>{amenity.capacity}</DtCell>
-                  <DtCell>
+                  <DtCell className="max-w-0 overflow-hidden">
+                    <p className="truncate">{amenity.creator_name || "—"}</p>
+                  </DtCell>
+                  <DtCell className="max-w-0 overflow-hidden">
+                    <p className="truncate">{formatAmenityFeeLabel(amenity)}</p>
+                  </DtCell>
+                  <DtCell className="max-w-0 overflow-hidden">
+                    <p className="truncate">{amenity.capacity}</p>
+                  </DtCell>
+                  <DtCell className="max-w-0 overflow-hidden">
                     <div className="min-w-0">
                       {amenity.user_has_upcoming_booking ? (
-                        <p className="font-medium text-blue-700">
+                        <p className="truncate font-medium text-blue-700">
                           {formatBookingDate(amenity.user_next_booking_date)}
                           {amenity.user_next_booking_time_slot
                             ? ` · ${amenity.user_next_booking_time_slot}`
                             : ""}
                         </p>
                       ) : (
-                        <p>{amenity.hours || "—"}</p>
+                        <p className="truncate">{amenity.hours || "—"}</p>
                       )}
-                      <p className="text-xs text-slate-400">
+                      <p className="truncate text-xs text-slate-400">
                         {bookingHoursHint(amenity)}
                         {!amenity.user_has_upcoming_booking &&
                         amenity.status === "bookable" &&

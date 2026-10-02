@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminPanel, DtPagination, StatTile } from "@/components/admin/ui";
 import { ActivityLogRow, SEV_CONFIG } from "@/components/admin/activity/activity-log-row";
@@ -216,7 +218,7 @@ export default function ActivityLogsPage() {
             <span className="nl-search-icon">
               <IcoSearch />
             </span>
-            <input
+            <ClearableInput
               type="search"
               placeholder="Search actor, community, action, or description…"
               value={search}
@@ -256,7 +258,7 @@ export default function ActivityLogsPage() {
             <option value="guest">Guest</option>
             <option value="system_admin">System Admin</option>
           </select>
-          <input
+          <ClearableInput
             type="text"
             placeholder="Module"
             value={moduleFilter}
@@ -266,7 +268,7 @@ export default function ActivityLogsPage() {
             }}
             className="nl-input h-10 w-[8rem] rounded-xl text-[13px]"
           />
-          <input
+          <ClearableInput
             type="text"
             placeholder="Action"
             value={actionFilter}
@@ -276,7 +278,7 @@ export default function ActivityLogsPage() {
             }}
             className="nl-input h-10 w-[8rem] rounded-xl text-[13px]"
           />
-          <input
+          <ClearableInput
             type="text"
             placeholder="Status"
             value={statusFilter}
@@ -286,7 +288,7 @@ export default function ActivityLogsPage() {
             }}
             className="nl-input h-10 w-[8rem] rounded-xl text-[13px]"
           />
-          <input
+          <ClearableInput
             type="date"
             value={dateFrom}
             onChange={(e) => {
@@ -295,7 +297,7 @@ export default function ActivityLogsPage() {
             }}
             className="nl-input h-10 rounded-xl text-[13px]"
           />
-          <input
+          <ClearableInput
             type="date"
             value={dateTo}
             onChange={(e) => {

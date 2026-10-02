@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { useState } from "react";
 import { X } from "lucide-react";
 import { createPost } from "@/lib/api/feed";
@@ -88,7 +90,7 @@ export function PublishPollModal({
         <div className="space-y-3">
           <label className="block text-sm font-medium text-slate-700">
             Poll question
-            <input
+            <ClearableInput
               value={question}
               maxLength={200}
               onChange={(e) => setQuestion(e.target.value)}
@@ -98,7 +100,7 @@ export function PublishPollModal({
           </label>
           <label className="block text-sm font-medium text-slate-700">
             Short description (optional)
-            <textarea
+            <ClearableTextarea
               value={description}
               maxLength={500}
               onChange={(e) => setDescription(e.target.value)}
@@ -110,7 +112,7 @@ export function PublishPollModal({
             <p className="text-sm font-medium text-slate-700">Options</p>
             {options.map((option, index) => (
               <div key={index} className="flex gap-2">
-                <input
+                <ClearableInput
                   value={option}
                   maxLength={80}
                   onChange={(e) => setOptions((current) => current.map((item, itemIndex) => (itemIndex === index ? e.target.value : item)))}

@@ -76,22 +76,29 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
   },
   button: {
-    height: 48,
+    minHeight: 52,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   row: {
     flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   buttonDisabled: {
     backgroundColor: "#E5E7EB",
   },
   buttonText: {
+    flexShrink: 1,
     fontSize: 16,
+    lineHeight: 24,
     fontWeight: "600",
     color: "#FFFFFF",
     fontFamily: Fonts.semiBold,
+    textAlign: "center",
+    includeFontPadding: true,
   },
 });

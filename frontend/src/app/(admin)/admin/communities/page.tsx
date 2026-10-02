@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import {
@@ -636,7 +638,7 @@ export default function CommunitiesPage() {
               </div>
               <div>
                 <label className="nl-label">Community name <span className="text-red-500">*</span></label>
-                <input
+                <ClearableInput
                   value={form.name}
                   onChange={(e) => {
                     clearError("name");
@@ -675,7 +677,7 @@ export default function CommunitiesPage() {
               </div>
               <div>
                 <label className="nl-label">Description</label>
-                <textarea
+                <ClearableTextarea
                   value={form.description}
                   onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                   rows={3}
@@ -786,7 +788,7 @@ export default function CommunitiesPage() {
 
               <div>
                 <label className="nl-label">Rejection reason (optional)</label>
-                <textarea
+                <ClearableTextarea
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
                   rows={3}

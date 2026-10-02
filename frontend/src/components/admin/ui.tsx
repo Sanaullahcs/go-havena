@@ -1,3 +1,4 @@
+import { ClearableInput } from "@/components/admin/clearable-field";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
@@ -197,6 +198,7 @@ export function DataTable<K extends string>({
   children,
   empty = "No records match your filters.",
   isEmpty = false,
+  contained = false,
 }: {
   title: string;
   totalCount: number;
@@ -219,6 +221,8 @@ export function DataTable<K extends string>({
   children: ReactNode;
   empty?: string;
   isEmpty?: boolean;
+  /** Fit the table to the panel and keep text from scrolling sideways. */
+  contained?: boolean;
 }) {
   // Searching (debounce) = light top bar only. Fetching = bar + spinner overlay.
   const isFetching = Boolean(loading);
@@ -245,10 +249,11 @@ export function DataTable<K extends string>({
                 <path d="M10.5 10.5l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
             </span>
-            <input
+            <ClearableInput
               type="text"
               placeholder={searchPlaceholder}
               value={search}
+              hideClear={showProgress}
               onChange={(e) => onSearch(e.target.value)}
               className="h-8 w-52 rounded-lg border border-slate-200 bg-slate-50 py-1.5 pr-8 text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition"
               style={{ paddingLeft: "1.875rem" }}
@@ -257,17 +262,6 @@ export function DataTable<K extends string>({
               <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">
                 <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
               </span>
-            ) : search ? (
-              <button
-                type="button"
-                aria-label="Clear search"
-                onClick={() => onSearch("")}
-                className="absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded text-slate-400 transition hover:bg-slate-200/70 hover:text-slate-600"
-              >
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden>
-                  <path d="M4 4l8 8M12 4L4 12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
-              </button>
             ) : null}
           </div>
           {toolbar}
@@ -276,7 +270,10 @@ export function DataTable<K extends string>({
 
       {/* ── Primary filter tabs ── */}
       {filters && onFilter && (
-        <div className="flex items-center gap-0 overflow-x-auto border-b border-slate-100 bg-slate-50/50 px-5 scrollbar-none">
+        <div className={[
+          "flex items-center gap-0 border-b border-slate-100 bg-slate-50/50 px-5 scrollbar-none",
+          contained ? "flex-wrap overflow-x-hidden" : "overflow-x-auto",
+        ].join(" ")}>
           {filters.map((f) => (
             <span key={f.key} className="flex shrink-0 items-center">
             {f.key === "all" && filterAccessory ? (
@@ -333,7 +330,7 @@ export function DataTable<K extends string>({
       )}
 
       {/* ── Table area ── */}
-      <div className="relative overflow-x-auto" aria-busy={showProgress || undefined}>
+      <div className={contained ? "relative overflow-x-hidden" : "relative overflow-x-auto"} aria-busy={showProgress || undefined}>
         {showProgress ? (
           isEmpty && showOverlay ? (
             <div className="relative flex min-h-[16rem] flex-col items-center justify-center py-16">
@@ -368,9 +365,11 @@ export function DataTable<K extends string>({
   );
 }
 
-export function DtTable({ children }: { children: ReactNode }) {
+export function DtTable({ children, contained = false }: { children: ReactNode; contained?: boolean }) {
   return (
-    <table className="w-full min-w-[920px] border-collapse text-sm">{children}</table>
+    <table className={contained ? "w-full table-fixed border-collapse text-sm" : "w-full min-w-[920px] border-collapse text-sm"}>
+      {children}
+    </table>
   );
 }
 
@@ -422,6 +421,7 @@ export function DtCell({
   center = false,
   nowrap = false,
   muted = false,
+  className,
 }: {
   children: ReactNode;
   first?: boolean;
@@ -430,6 +430,7 @@ export function DtCell({
   center?: boolean;
   nowrap?: boolean;
   muted?: boolean;
+  className?: string;
 }) {
   return (
     <td
@@ -441,6 +442,7 @@ export function DtCell({
         nowrap ? "whitespace-nowrap" : "",
         muted ? "text-slate-400" : "text-slate-700",
         last && right ? "sticky right-0 z-[1] bg-white group-hover:bg-blue-50/30 shadow-[-8px_0_12px_-8px_rgba(15,23,42,0.12)]" : "",
+        className ?? "",
       ].join(" ")}
     >
       {children}

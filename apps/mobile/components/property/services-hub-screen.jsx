@@ -22,8 +22,9 @@ import PropertyHubLinkCards from "../property/property-hub-link-cards";
 import PropertyHubApprovalQueue from "../property/property-hub-approval-queue";
 import { PropertyManagementRoutes, navigatePropertyHubRoute } from "../../constants/property-management-routes";
 import { getCurrentRole } from "../../constants/role-session";
-import { getCachedUser } from "../../services/auth-session";
-import { isResidentFeatureEnabled } from "../../constants/resident-features";
+import { fetchMe } from "../../services/auth-api";
+import { isServiceRouteEnabled } from "../../constants/resident-features";
+import { useSessionUser } from "../../hooks/use-session-user";
 import { Fonts } from "../../constants/font";
 import { Layout } from "../../constants/tokens";
 import { HOME_SCROLL_BOTTOM_PAD } from "../../constants/home-styles";
@@ -44,6 +45,7 @@ import { rnShadow } from "../../utils/shadow";
 import {
   buildPropertyHubActivity,
   buildResidentHubActivity,
+  countUpcomingReservations,
   ACTIVITY_LIMIT,
 } from "../../utils/property-hub-activity";
 
@@ -99,14 +101,19 @@ export default function PropertyManagment() {
   const isWide = windowWidth >= 768;
   const contentMaxWidth = Math.min(windowWidth, isWide ? 720 : windowWidth);
 
+  const sessionUser = useSessionUser();
   const [isAdmin, setIsAdmin] = useState(() => getCurrentRole() === "admin");
   const [isBillingContact, setIsBillingContact] = useState(false);
   const hubServices = useMemo(() => {
     const services = getPropertyHubServices(isAdmin, t);
-    if (isAdmin) return services;
-    return filterPropertyServicesForViewer(services, { isBillingContact });
-  }, [isAdmin, isBillingContact, t]);
-  const communityServices = useMemo(() => getPropertyCommunityServices(t), [t]);
+    const visible = isAdmin ? services : filterPropertyServicesForViewer(services, { isBillingContact });
+    return visible.filter((item) => isServiceRouteEnabled(sessionUser, item.routeKey));
+  }, [isAdmin, isBillingContact, sessionUser, t]);
+  const communityServices = useMemo(
+    () => getPropertyCommunityServices(t).filter((item) => isServiceRouteEnabled(sessionUser, item.routeKey)),
+    [sessionUser, t],
+  );
+  const showReservations = isServiceRouteEnabled(sessionUser, "MY_BOOKING");
 
   const [refreshing, setRefreshing] = useState(false);
   const [adminActivity, setAdminActivity] = useState({ title: t("services.approvalQueue"), items: [] });
@@ -119,6 +126,7 @@ export default function PropertyManagment() {
   const [activityLoading, setActivityLoading] = useState(true);
 
   const loadActivity = useCallback(async () => {
+    await fetchMe().catch(() => null);
     const admin = getCurrentRole() === "admin";
     setIsAdmin(admin);
     setActivityLoading(true);
@@ -132,9 +140,7 @@ export default function PropertyManagment() {
         ]);
         const pendingAmenities = amenitiesRes?.data ?? [];
         const pendingBookings = bookings ?? [];
-        const upcomingCount = (myBookings ?? []).filter((b) =>
-          ["pending", "confirmed"].includes(b?.status),
-        ).length;
+        const upcomingCount = countUpcomingReservations(myBookings);
         const built = buildPropertyHubActivity({
           bookings: pendingBookings,
           amenities: pendingAmenities,
@@ -173,9 +179,7 @@ export default function PropertyManagment() {
       });
 
       const pendingCount = (inbox ?? []).length;
-      const upcomingCount = (bookings ?? []).filter((b) =>
-        ["pending", "confirmed"].includes(b?.status),
-      ).length;
+      const upcomingCount = countUpcomingReservations(bookings);
 
       setResidentActivity(resident);
       setAdminActivity({ title: t("services.approvalQueue"), items: [] });
@@ -223,15 +227,22 @@ export default function PropertyManagment() {
   };
 
   const incomingApprovals = residentActivity.incoming.items;
-  const approvalItems = isAdmin ? adminActivity.items : incomingApprovals;
+  const approvalItems = (isAdmin ? adminActivity.items : incomingApprovals).filter((item) =>
+    isServiceRouteEnabled(sessionUser, item.routeKey),
+  );
+  const visibleHubStats = hubStats.filter((item) => isServiceRouteEnabled(sessionUser, item.routeKey));
   const approvalTitle = isAdmin ? adminActivity.title : t("services.requestsToApprove");
   const approvalSubtitle = isAdmin
     ? t("services.approvalQueueSub")
     : t("services.bookingRequestsSub");
-  const showApprovalQueue =
+  const approvalsEnabled =
+    isServiceRouteEnabled(sessionUser, "ADMIN_BOOKINGS") ||
+    isServiceRouteEnabled(sessionUser, "ADMIN_AMENITIES");
+  const showApprovalQueue = approvalsEnabled && (
     isAdmin
-      ? adminActivity.items.length > 0 || activityLoading
-      : true;
+      ? approvalItems.length > 0 || activityLoading
+      : isServiceRouteEnabled(sessionUser, "MY_BOOKING")
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
@@ -257,50 +268,56 @@ export default function PropertyManagment() {
           />
         }
       >
-        <View style={styles.heroSection}>
-          <PropertyHubHero
-            isAdmin={isAdmin}
-            onAction={goTo}
-            reservationCount={bookingCounts.myReservationCount}
-          />
-        </View>
+        {showReservations ? (
+          <View style={styles.heroSection}>
+            <PropertyHubHero
+              isAdmin={isAdmin}
+              onAction={goTo}
+              reservationCount={bookingCounts.myReservationCount}
+            />
+          </View>
+        ) : null}
 
-        {isAdmin && hubStats.length > 0 ? (
+        {isAdmin && visibleHubStats.length > 0 ? (
           <View style={styles.section}>
             <PropertyHubSectionHeader
               title={t("services.needsAttention")}
               subtitle={t("services.needsAttentionSub")}
             />
-            <PropertyHubStats items={hubStats} onAction={goTo} />
+            <PropertyHubStats items={visibleHubStats} onAction={goTo} />
           </View>
         ) : null}
 
-        <View style={styles.section}>
-          <PropertyHubSectionHeader
-            title={t("services.explore")}
-            subtitle={
-              isAdmin
-                ? t("services.exploreAdminSub")
-                : t("services.exploreResidentSub")
-            }
-          />
-          <PropertyQuickGrid
-            actions={hubServices}
-            onAction={goTo}
-            badges={{
-              myReservationCount: bookingCounts.myReservationCount,
-              approveRequestCount: bookingCounts.approveRequestCount,
-            }}
-          />
-        </View>
+        {hubServices.length > 0 ? (
+          <View style={styles.section}>
+            <PropertyHubSectionHeader
+              title={t("services.explore")}
+              subtitle={
+                isAdmin
+                  ? t("services.exploreAdminSub")
+                  : t("services.exploreResidentSub")
+              }
+            />
+            <PropertyQuickGrid
+              actions={hubServices}
+              onAction={goTo}
+              badges={{
+                myReservationCount: bookingCounts.myReservationCount,
+                approveRequestCount: bookingCounts.approveRequestCount,
+              }}
+            />
+          </View>
+        ) : null}
 
-        <View style={styles.section}>
-          <PropertyHubSectionHeader
-            title={t("services.rulesSection")}
-            subtitle={t("services.rulesSectionSub")}
-          />
-          <PropertyHubLinkCards items={communityServices} onAction={goTo} />
-        </View>
+        {communityServices.length > 0 ? (
+          <View style={styles.section}>
+            <PropertyHubSectionHeader
+              title={t("services.rulesSection")}
+              subtitle={t("services.rulesSectionSub")}
+            />
+            <PropertyHubLinkCards items={communityServices} onAction={goTo} />
+          </View>
+        ) : null}
 
         {showApprovalQueue ? (
           <View style={styles.lastSection}>

@@ -7,7 +7,7 @@ import {
   Pressable,
 } from "react-native";
 import { Fonts } from "../../../constants/font";
-import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
+import { useNavigation, useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ScrollView } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -23,6 +23,7 @@ import GuestFeatureErrorState from "../../../components/guest/guest-permission-d
 import { isFeatureAccessBlockedError } from "../../../utils/guest-permission-errors";
 import { resolveLoadRestriction } from "../../../utils/account-access-sync";
 import { sf, sw } from "../../../utils/responsive";
+import { safeGoBack } from "../../../utils/app-navigation";
 import { useTranslation } from "react-i18next";
 
 function CourseCompleteBanner({ onSeeNext }) {
@@ -58,6 +59,7 @@ function CourseCompleteBanner({ onSeeNext }) {
 
 export default function Lessons() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { t, i18n } = useTranslation();
   const { title, type, courseId, categoryKey: categoryKeyParam } = useLocalSearchParams();
   const { showFailure } = useApiAction();
@@ -207,8 +209,8 @@ export default function Lessons() {
       });
       return;
     }
-    router.back();
-  }, [nextCourse, router, decodedType, categoryKey]);
+    safeGoBack(router, navigation);
+  }, [nextCourse, router, navigation, decodedType, categoryKey]);
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
@@ -216,7 +218,6 @@ export default function Lessons() {
         title={course?.title ?? title}
         subtitle={`${decodedType || t("wellness.wellness")} · ${t("wellness.wells")}`}
         categoryKey={categoryKey}
-        onBack={() => router.back()}
       />
 
       <View style={styles.body}>

@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, RefreshCw, Save, Send } from "lucide-react";
 import { PageError, PageLoader } from "@/components/shared/page-states";
@@ -74,7 +76,7 @@ function PlatformCard({
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block space-y-1.5">
           <span className="text-sm font-medium text-slate-700">Latest Version</span>
-          <input
+          <ClearableInput
             className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm shadow-sm outline-none transition focus:border-teal-300 focus:ring-2 focus:ring-teal-100"
             value={value.latest_version}
             onChange={(e) => onChange({ ...value, latest_version: e.target.value })}
@@ -84,7 +86,7 @@ function PlatformCard({
         </label>
         <label className="block space-y-1.5">
           <span className="text-sm font-medium text-slate-700">Minimum Supported Version</span>
-          <input
+          <ClearableInput
             className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm shadow-sm outline-none transition focus:border-teal-300 focus:ring-2 focus:ring-teal-100"
             value={value.minimum_version}
             onChange={(e) => onChange({ ...value, minimum_version: e.target.value })}
@@ -96,7 +98,7 @@ function PlatformCard({
 
       <label className="mt-4 block space-y-1.5">
         <span className="text-sm font-medium text-slate-700">{storeLabel}</span>
-        <input
+        <ClearableInput
           className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm shadow-sm outline-none transition focus:border-teal-300 focus:ring-2 focus:ring-teal-100"
           value={value.store_url}
           onChange={(e) => onChange({ ...value, store_url: e.target.value })}

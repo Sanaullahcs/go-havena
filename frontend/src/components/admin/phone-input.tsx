@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import { useEffect, useId, useRef, useState } from "react";
 import {
   PHONE_COUNTRIES,
@@ -246,7 +248,7 @@ export function AdminPhoneInput({
                   <circle cx="9" cy="9" r="5.25" stroke="currentColor" strokeWidth="1.6" />
                   <path d="M13.2 13.2L16.5 16.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
                 </svg>
-                <input
+                <ClearableInput
                   type="search"
                   value={countryQuery}
                   onChange={(event) => setCountryQuery(event.target.value)}
@@ -255,19 +257,6 @@ export function AdminPhoneInput({
                   autoComplete="off"
                   className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/70 py-0 pl-9 pr-9 text-sm text-slate-900 outline-none placeholder:text-slate-400 [appearance:textfield] [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none"
                 />
-                {countryQuery ? (
-                  <button
-                    type="button"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => setCountryQuery("")}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 hover:text-slate-700"
-                    aria-label="Clear search"
-                  >
-                    <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" aria-hidden>
-                      <path d="M6 6l8 8M14 6l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                ) : null}
               </label>
               <div className="min-h-0 flex-1 overflow-auto overscroll-contain py-1.5">
                 {visibleCountries.length === 0 ? (
@@ -319,7 +308,7 @@ export function AdminPhoneInput({
         </div>
 
         <div className="relative flex min-w-0 flex-1 items-center overflow-hidden rounded-r-xl">
-          <input
+          <ClearableInput
             id={inputId}
             type="text"
             inputMode="tel"

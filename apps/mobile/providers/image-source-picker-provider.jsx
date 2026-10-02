@@ -45,13 +45,15 @@ function ImageSourcePickerDialog({
   allowView,
   allowCamera,
   allowFile,
+  cameraFirst = false,
   onSelect,
   onDismiss,
 }) {
+  const camera = allowCamera ? SOURCE_OPTIONS.camera : null;
+  const library = SOURCE_OPTIONS.library;
   const options = [
     allowView ? SOURCE_OPTIONS.view : null,
-    SOURCE_OPTIONS.library,
-    allowCamera ? SOURCE_OPTIONS.camera : null,
+    ...(cameraFirst ? [camera, library] : [library, camera]),
     allowFile ? SOURCE_OPTIONS.file : null,
   ].filter(Boolean);
 
@@ -80,7 +82,7 @@ function ImageSourcePickerDialog({
                 onPress={() => onSelect(option.id)}
               >
                 <Ionicons name={option.icon} size={sf(18)} color={Colors.brandPrimaryDeep} />
-                <Text style={optionLabelStyle} numberOfLines={1}>
+                <Text style={optionLabelStyle}>
                   {i18n.t(option.labelKey)}
                 </Text>
               </TouchableOpacity>
@@ -91,7 +93,7 @@ function ImageSourcePickerDialog({
               activeOpacity={0.88}
               onPress={onDismiss}
             >
-              <Text style={cancelLabelStyle} numberOfLines={1}>
+              <Text style={cancelLabelStyle}>
                 {i18n.t("common.cancel")}
               </Text>
             </TouchableOpacity>
@@ -120,6 +122,7 @@ export function promptImageSourceAsync({
   allowView = false,
   allowCamera = true,
   allowFile = false,
+  cameraFirst = false,
 } = {}) {
   if (!showPickerRef.current) {
     return Promise.resolve(null);
@@ -132,6 +135,7 @@ export function promptImageSourceAsync({
       allowView,
       allowCamera,
       allowFile,
+      cameraFirst,
       resolve,
     });
   });
@@ -163,6 +167,7 @@ export function ImageSourcePickerProvider({ children }) {
         allowView: next.allowView,
         allowCamera: next.allowCamera,
         allowFile: next.allowFile,
+        cameraFirst: next.cameraFirst,
       });
     };
 
@@ -183,6 +188,7 @@ export function ImageSourcePickerProvider({ children }) {
           allowView={config.allowView ?? false}
           allowCamera={config.allowCamera ?? true}
           allowFile={config.allowFile ?? false}
+          cameraFirst={config.cameraFirst ?? false}
           onSelect={(source) => close(source)}
           onDismiss={() => close(null)}
         />
@@ -192,24 +198,25 @@ export function ImageSourcePickerProvider({ children }) {
 }
 
 const optionLabelStyle = {
-  flexShrink: 0,
-  flexGrow: 0,
+  flexShrink: 1,
   fontFamily: Fonts.semiBold,
   fontSize: sf(15),
+  lineHeight: sf(22),
   color: Colors.brandPrimaryDeep,
   fontWeight: "600",
   textAlign: "center",
-  includeFontPadding: false,
+  includeFontPadding: true,
 };
 
 const cancelLabelStyle = {
-  flexShrink: 0,
+  flexShrink: 1,
   fontFamily: Fonts.semiBold,
   fontSize: sf(15),
+  lineHeight: sf(22),
   color: Colors.textSecondary,
   fontWeight: "600",
   textAlign: "center",
-  includeFontPadding: false,
+  includeFontPadding: true,
 };
 
 const styles = StyleSheet.create({

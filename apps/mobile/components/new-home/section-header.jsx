@@ -12,7 +12,9 @@ export default function HomeSectionHeader({ label, onPress, style }) {
 
   return (
     <View style={[homeStyles.sectionHeader, style]}>
-      <Text style={homeStyles.sectionLabel}>{label}</Text>
+      <Text style={[homeStyles.sectionLabel, localStyles.label]} numberOfLines={1}>
+        {label}
+      </Text>
       {onPress ? (
         <Pressable
           onPress={onPress}
@@ -29,9 +31,15 @@ export default function HomeSectionHeader({ label, onPress, style }) {
 }
 
 const localStyles = StyleSheet.create({
+  label: {
+    flex: 1,
+    flexShrink: 1,
+    marginEnd: sw(8),
+  },
   viewAllBtn: {
     flexDirection: "row",
     alignItems: "center",
+    flexShrink: 0,
     gap: sw(2),
     paddingVertical: sw(4),
     paddingStart: sw(8),

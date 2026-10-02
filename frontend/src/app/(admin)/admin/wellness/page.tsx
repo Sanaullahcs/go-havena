@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BookOpen,
@@ -675,7 +677,7 @@ export default function AdminWellnessPage() {
 
           {showCategoryForm ? (
             <div className="mb-3 space-y-2 rounded-xl border border-blue-200 bg-blue-50/40 p-3">
-              <input
+              <ClearableInput
                 className={inputClass(categoryValidation.showError("title", categoryLiveErrors), "nl-input")}
                 placeholder="Category title *"
                 value={categoryForm.title}
@@ -685,13 +687,13 @@ export default function AdminWellnessPage() {
                 }}
                 onBlur={() => categoryValidation.touch("title")}
               />
-              <input
+              <ClearableInput
                 className="nl-input"
                 placeholder="Subtitle (optional)"
                 value={categoryForm.subtitle}
                 onChange={(e) => setCategoryForm((f) => ({ ...f, subtitle: e.target.value }))}
               />
-              <input
+              <ClearableInput
                 className={inputClass(categoryValidation.showError("color", categoryLiveErrors), "nl-input")}
                 placeholder="#1B4F8A"
                 value={categoryForm.color}
@@ -739,18 +741,18 @@ export default function AdminWellnessPage() {
               <div key={cat.id} className="rounded-xl">
                 {editingCategory?.id === cat.id ? (
                   <div className="space-y-2 border border-blue-300 bg-blue-50/30 p-3 rounded-xl">
-                    <input
+                    <ClearableInput
                       className="nl-input"
                       value={editingCategory.title}
                       onChange={(e) => setEditingCategory((f) => (f ? { ...f, title: e.target.value } : f))}
                     />
-                    <input
+                    <ClearableInput
                       className="nl-input"
                       value={editingCategory.subtitle}
                       placeholder="Subtitle"
                       onChange={(e) => setEditingCategory((f) => (f ? { ...f, subtitle: e.target.value } : f))}
                     />
-                    <input
+                    <ClearableInput
                       className="nl-input"
                       value={editingCategory.color}
                       onChange={(e) => setEditingCategory((f) => (f ? { ...f, color: e.target.value } : f))}
@@ -909,7 +911,7 @@ export default function AdminWellnessPage() {
               <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                 <div className="nl-search-field min-w-[12rem] flex-1 sm:max-w-xs">
                   <Search className="nl-search-icon" />
-                  <input
+                  <ClearableInput
                     type="text"
                     className="nl-input w-full"
                     placeholder="Search courses…"
@@ -996,7 +998,7 @@ export default function AdminWellnessPage() {
                   ) : (
                     <div className="space-y-2 rounded-xl border-2 border-blue-400 bg-blue-50/30 p-3">
                       <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Editing course</p>
-                      <input
+                      <ClearableInput
                         className="nl-input"
                         placeholder="Course title *"
                         value={editingCourse.title}
@@ -1032,7 +1034,7 @@ export default function AdminWellnessPage() {
                           })
                         }
                       />
-                      <textarea
+                      <ClearableTextarea
                         className="nl-input min-h-[72px]"
                         placeholder="Course description *"
                         value={editingCourse.description}
@@ -1188,7 +1190,7 @@ export default function AdminWellnessPage() {
                           <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
                             Editing lesson {index + 1}
                           </p>
-                          <input
+                          <ClearableInput
                             className="nl-input"
                             placeholder="Lesson title *"
                             value={editingLesson.title}
@@ -1203,7 +1205,7 @@ export default function AdminWellnessPage() {
                                 <Link2 className="h-4 w-4 text-blue-600" />
                                 Link
                               </div>
-                              <input
+                              <ClearableInput
                                 className="nl-input w-full"
                                 placeholder="https://… (video or resource link)"
                                 value={editingLesson.link_url}
@@ -1221,7 +1223,7 @@ export default function AdminWellnessPage() {
                                 <FileUp className="h-4 w-4 text-blue-600" />
                                 File upload
                               </div>
-                              <input
+                              <ClearableInput
                                 type="file"
                                 className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
                                 onChange={(e) =>
@@ -1275,7 +1277,7 @@ export default function AdminWellnessPage() {
                             </div>
                           </div>
 
-                          <textarea
+                          <ClearableTextarea
                             className="nl-input min-h-[60px]"
                             placeholder="Description (optional)"
                             value={editingLesson.description}

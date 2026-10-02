@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import { useDeferredValue, useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { AlertCircle, Building2, Home, Plus, UserRound, Users, X } from "lucide-react";
@@ -318,10 +320,11 @@ export default function AdminUnitsPage() {
                     <path d="M10.5 10.5l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                   </svg>
                 </span>
-                <input
+                <ClearableInput
                   type="text"
                   placeholder="Search by unit, resident…"
                   value={searchInput}
+                  hideClear={tableBusy}
                   onChange={(event) => startTransition(() => {
                     setSearchInput(event.target.value);
                     setPage(1);
@@ -333,18 +336,6 @@ export default function AdminUnitsPage() {
                   <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">
                     <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
                   </span>
-                ) : searchInput ? (
-                  <button
-                    type="button"
-                    aria-label="Clear search"
-                    onClick={() => startTransition(() => {
-                      setSearchInput("");
-                      setPage(1);
-                    })}
-                    className="absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded text-slate-400 transition hover:bg-slate-200/70 hover:text-slate-600"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
                 ) : null}
               </div>
               <div className="nl-picker-compact w-[196px]">
@@ -462,7 +453,7 @@ export default function AdminUnitsPage() {
             >
               <label className="block text-sm font-medium text-slate-700">
                 Unit number <span className="text-red-500">*</span>
-                <input
+                <ClearableInput
                   autoFocus
                   required
                   value={unitNumber}
@@ -602,7 +593,7 @@ export default function AdminUnitsPage() {
                         selected ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white hover:bg-slate-50"
                       }`}
                     >
-                      <input
+                      <ClearableInput
                         type="radio"
                         name="billing-contact"
                         className="mt-1"

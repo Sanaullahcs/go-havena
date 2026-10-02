@@ -213,6 +213,7 @@ export async function pickImageFile(onSuccess, options = {}) {
  *   promptTitle?: string,
  *   promptMessage?: string,
  *   uploadBaseName?: string,
+ *   cameraFirst?: boolean,
  * }} [options]
  */
 export const pickImage = async (onSuccess, options = {}) => {
@@ -225,6 +226,7 @@ export const pickImage = async (onSuccess, options = {}) => {
     promptTitle,
     promptMessage,
     uploadBaseName = "document",
+    cameraFirst = false,
   } = options;
 
   const pickerOptions = documentPick ? DOCUMENT_PICKER : DEFAULT_PICKER;
@@ -238,6 +240,7 @@ export const pickImage = async (onSuccess, options = {}) => {
         message: promptMessage,
         allowCamera,
         allowFile,
+        cameraFirst,
       });
       if (!source) return null;
       if (source === "camera") {

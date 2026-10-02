@@ -27,11 +27,11 @@ export default function ListRow({
         <Feather name={icon} size={sf(16)} color={iconColor} />
       </View>
       <View style={styles.text}>
-        <Text style={[styles.title, danger && styles.titleDanger]} numberOfLines={1}>
+        <Text style={[styles.title, danger && styles.titleDanger]}>
           {title}
         </Text>
         {subtitle ? (
-          <Text style={styles.subtitle} numberOfLines={1}>
+          <Text style={styles.subtitle}>
             {subtitle}
           </Text>
         ) : null}
@@ -94,16 +94,18 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: Fonts.bold,
     fontSize: internalType.rowTitle,
-    lineHeight: sf(18),
+    lineHeight: sf(22),
     color: "#101828",
     fontWeight: "700",
+    includeFontPadding: true,
   },
   titleDanger: { color: "#DC2626" },
   subtitle: {
     fontFamily: Fonts.regular,
     fontSize: internalType.rowSub,
-    lineHeight: sf(16),
+    lineHeight: sf(18),
     color: "#6A7282",
     marginTop: sw(2),
+    includeFontPadding: true,
   },
 });

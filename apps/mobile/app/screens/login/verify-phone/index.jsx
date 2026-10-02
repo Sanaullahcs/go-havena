@@ -28,9 +28,7 @@ import { extractOtpRateLimitFromResponse } from "../../../../utils/otp-rate-limi
 import { useSubmitLock } from "../../../../hooks/use-submit-lock";
 import AuthSuccessOverlay from "../../../../components/ui/auth-success-overlay";
 import {
-  navigateAfterAuth,
-  openCommunityWelcome,
-  shouldShowCommunityWelcome,
+  openHomeAfterLogin,
 } from "../../../../constants/onboarding-routes";
 import { decodeRouteEmail, paramString } from "../../../../utils/route-params";
 import { ScreenBrand as B } from "../../../../constants/screen-brand";
@@ -223,11 +221,7 @@ export default function VerifyPhoneScreen() {
         subtitle={successSubtitle}
         onComplete={() => {
           setShowSuccess(false);
-          if (shouldShowCommunityWelcome(verifiedUser)) {
-            openCommunityWelcome(router);
-            return;
-          }
-          navigateAfterAuth(router, verifiedUser, { mode: "login" });
+          openHomeAfterLogin(router, verifiedUser);
         }}
       />
 

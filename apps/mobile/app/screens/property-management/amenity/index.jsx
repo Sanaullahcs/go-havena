@@ -23,6 +23,7 @@ import {
   amenityFlowRoutes,
 } from "../../../../constants/property-management-routes";
 import { fetchAmenities, fetchMyBookings } from "../../../../services/amenity-api";
+import { getApiErrorMessage, isNetworkLikeError } from "../../../../utils/api-error-core";
 import {
   getAmenityVisual,
   getAmenityStatus,
@@ -132,16 +133,28 @@ export default function Amenity() {
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [amenityData, bookings] = await Promise.all([
-        fetchAmenities().catch(() => []),
-        fetchMyBookings().catch(() => []),
-      ]);
+      const amenityData = await fetchAmenities();
       setAmenities(amenityData ?? []);
-      setMyBookings(bookings ?? []);
+      setLoadError(null);
+      try {
+        const bookings = await fetchMyBookings();
+        setMyBookings(bookings ?? []);
+      } catch {
+        setMyBookings([]);
+      }
+    } catch (error) {
+      setAmenities([]);
+      setMyBookings([]);
+      setLoadError(
+        isNetworkLikeError(error)
+          ? { kind: "offline" }
+          : { kind: "failed", message: getApiErrorMessage(error) },
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -245,7 +258,9 @@ export default function Amenity() {
         layout="inline"
         titleAlign="center"
         title={t("propertyMgmt.amenityTitle")}
-        subtitle={loading ? " " : t("propertyMgmt.facilitiesAvailable", { count: visibleCount })}
+        subtitle={
+          loading || loadError ? " " : t("propertyMgmt.facilitiesAvailable", { count: visibleCount })
+        }
         iconOnly
       />
 
@@ -304,7 +319,36 @@ export default function Amenity() {
             />
           ) : null}
 
-          {listEmpty ? (
+          {loadError ? (
+            <View style={styles.empty}>
+              <View style={styles.emptyIcon}>
+                <Feather
+                  name={loadError.kind === "offline" ? "wifi-off" : "alert-circle"}
+                  size={sf(28)}
+                  color="#94A3B8"
+                />
+              </View>
+              <Text style={styles.emptyTitle}>
+                {loadError.kind === "offline"
+                  ? t("propertyMgmt.offlineTitle")
+                  : t("propertyMgmt.loadFailed")}
+              </Text>
+              <Text style={styles.emptyText}>
+                {loadError.kind === "offline"
+                  ? t("propertyMgmt.offlineBody")
+                  : loadError.message}
+              </Text>
+              <TouchableOpacity
+                style={styles.retryBtn}
+                activeOpacity={0.85}
+                onPress={() => load(false)}
+                accessibilityRole="button"
+                accessibilityLabel={t("propertyMgmt.retry")}
+              >
+                <Text style={styles.retryText}>{t("propertyMgmt.retry")}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : listEmpty ? (
             <View style={styles.empty}>
               <View style={styles.emptyIcon}>
                 <Feather name="home" size={sf(28)} color="#94A3B8" />
@@ -557,5 +601,18 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     textAlign: "center",
     lineHeight: sf(19),
+  },
+  retryBtn: {
+    marginTop: sw(6),
+    backgroundColor: Colors.brandPrimary,
+    borderRadius: 999,
+    paddingHorizontal: sw(18),
+    paddingVertical: sw(10),
+  },
+  retryText: {
+    fontFamily: Fonts.bold,
+    fontWeight: "700",
+    fontSize: sf(13),
+    color: "#FFFFFF",
   },
 });

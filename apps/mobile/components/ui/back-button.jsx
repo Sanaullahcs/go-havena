@@ -1,11 +1,12 @@
 import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
+import { useNavigation, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Fonts } from "../../constants/font";
 import { sw } from "../../utils/responsive";
 import { useLanguage } from "../../providers/language-provider";
+import { safeGoBack } from "../../utils/app-navigation";
 
 const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
 
@@ -18,6 +19,7 @@ export default function BackButton({
   style,
 }) {
   const router = useRouter();
+  const navigation = useNavigation();
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
   const resolvedLabel = label ?? t("common.back");
@@ -25,11 +27,7 @@ export default function BackButton({
 
   const handlePress = (e) => {
     if (onPress) return onPress(e);
-    if (router.canGoBack?.()) {
-      router.back();
-      return;
-    }
-    router.replace("/");
+    safeGoBack(router, navigation);
   };
 
   return (

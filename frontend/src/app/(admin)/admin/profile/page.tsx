@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -43,7 +45,6 @@ import {
   type AdminNotificationPrefs,
 } from "@/lib/admin/profile-utils";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
-import { AdjustFeatureSetModal } from "@/components/admin/adjust-feature-set-modal";
 import { DashboardHero } from "@/components/admin/dashboard/dashboard-shared";
 import { DashboardPanel } from "@/components/admin/dashboard/dashboard-panel";
 import { AdminBadge } from "@/components/admin/ui";
@@ -100,7 +101,6 @@ export default function AdminProfilePage() {
   const [profileSubmitAttempted, setProfileSubmitAttempted] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const profileFormRef = useRef<HTMLFormElement>(null);
-  const [featureTarget, setFeatureTarget] = useState<{ id: number; name: string } | null>(null);
 
   const applyMe = useCallback((data: MeProfile) => {
     const next = profileFormFromMe(data);
@@ -256,20 +256,19 @@ export default function AdminProfilePage() {
         className="overflow-hidden rounded-2xl border bg-white"
         style={{ borderColor: NL.borderCard, boxShadow: NL.shadowCard }}
       >
-        <div className="h-20 w-full" style={{ background: "linear-gradient(135deg, #F6F8FB 0%, #E8F0F7 100%)" }} />
-        <div className="px-5 pb-5 sm:px-6">
-          <div className="-mt-10 flex flex-wrap items-end gap-4">
+        <div className="bg-white px-5 py-5 sm:px-6">
+          <div className="flex flex-wrap items-end gap-4">
             <div className="relative shrink-0">
               {form.avatarUrl ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
                   src={resolveMediaUrl(form.avatarUrl) ?? form.avatarUrl}
                   alt={name}
-                  className="h-20 w-20 rounded-2xl border-4 border-white object-cover shadow-md"
+                  className="h-20 w-20 rounded-2xl border border-slate-200 object-cover shadow-sm"
                 />
               ) : (
                 <div
-                  className="flex h-20 w-20 items-center justify-center rounded-2xl border-4 border-white text-2xl font-bold text-white shadow-md"
+                  className="flex h-20 w-20 items-center justify-center rounded-2xl border border-slate-200 text-2xl font-bold text-white shadow-sm"
                   style={{ background: NL.fillCta }}
                 >
                   {initials || "A"}
@@ -289,7 +288,7 @@ export default function AdminProfilePage() {
                   <Camera className="h-3.5 w-3.5" strokeWidth={2.25} />
                 )}
               </button>
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+              <ClearableInput ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
             </div>
 
             <div className="min-w-0 flex-1 pb-1">
@@ -344,7 +343,7 @@ export default function AdminProfilePage() {
                     <label className="nl-label mb-1.5">
                       Full Name <span className="text-red-500">*</span>
                     </label>
-                    <input
+                    <ClearableInput
                       data-field="name"
                       className={inputClass(showProfileError("name") ? profileErrors.name : undefined, "nl-input w-full")}
                       value={form.name}
@@ -392,7 +391,7 @@ export default function AdminProfilePage() {
                         Read only
                       </span>
                     </div>
-                    <input
+                    <ClearableInput
                       className="nl-input w-full cursor-not-allowed"
                       style={{
                         background: NL.surfaceMuted,
@@ -436,7 +435,7 @@ export default function AdminProfilePage() {
                 </div>
                 <div>
                   <label className="nl-label mb-1.5">Bio</label>
-                  <textarea
+                  <ClearableTextarea
                     data-field="bio"
                     className={inputClass(showProfileError("bio") ? profileErrors.bio : undefined, "nl-input w-full resize-none")}
                     rows={3}
@@ -549,13 +548,12 @@ export default function AdminProfilePage() {
                           {statusLabel(c.status as MembershipStatus)}
                         </AdminBadge>
                         {c.status === "approved" ? (
-                          <button
-                            type="button"
-                            onClick={() => setFeatureTarget({ id: c.id, name: c.name })}
+                          <Link
+                            href="/admin/feature-settings"
                             className="font-semibold text-blue-700 underline-offset-2 transition hover:text-blue-800 hover:underline"
                           >
-                            Adjust Feature Set
-                          </button>
+                            Adjust Features
+                          </Link>
                         ) : null}
                       </span>
                     </li>
@@ -602,13 +600,6 @@ export default function AdminProfilePage() {
         </div>
       </div>
 
-      {featureTarget ? (
-        <AdjustFeatureSetModal
-          communityId={featureTarget.id}
-          communityName={featureTarget.name}
-          onClose={() => setFeatureTarget(null)}
-        />
-      ) : null}
     </div>
   );
 }
@@ -686,7 +677,7 @@ function PasswordSection() {
                 {field === "current" ? "Current password" : field === "next" ? "New password" : "Confirm new password"}{" "}
                 <span className="text-red-500">*</span>
               </label>
-              <input
+              <ClearableInput
                 data-field={field}
                 type="password"
                 className={inputClass(showError(field) ? errors[field] : undefined, "nl-input w-full")}

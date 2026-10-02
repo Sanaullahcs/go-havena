@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { useEffect, useMemo, useState } from "react";
 import { Flag, Send, X } from "lucide-react";
 import type { AdminPost } from "@/lib/api/posts";
@@ -109,7 +111,7 @@ export function FeedPostReportModal({
             <label htmlFor="report-details" className="mb-2 block text-xs font-semibold text-slate-600">
               Details
             </label>
-            <textarea
+            <ClearableTextarea
               id="report-details"
               value={description}
               onChange={(event) => setDescription(event.target.value)}

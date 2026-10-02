@@ -18,7 +18,7 @@ export default function PropertyHubSectionHeader({
       <View style={styles.topRow}>
         <View style={styles.titleBlock}>
           <View style={styles.titleRow}>
-            <Text style={styles.title} numberOfLines={1}>
+            <Text style={styles.title}>
               {title}
             </Text>
             {count != null && Number(count) > 0 ? (
@@ -68,22 +68,25 @@ const styles = StyleSheet.create({
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
+    gap: sw(6),
   },
   title: {
+    flexShrink: 1,
     fontFamily: Fonts.bold,
     fontSize: sf(13),
-    lineHeight: sf(18),
+    lineHeight: sf(20),
     fontWeight: "700",
     color: PropertyHubTheme.text,
     letterSpacing: 0.4,
     textTransform: "uppercase",
-    flexShrink: 1,
+    includeFontPadding: true,
   },
   countBadge: {
-    marginStart: sw(6),
     minWidth: sw(18),
-    height: sw(18),
+    minHeight: sw(18),
     paddingHorizontal: sw(5),
+    paddingVertical: 1,
     borderRadius: sw(9),
     backgroundColor: PropertyHubTheme.mint,
     alignItems: "center",

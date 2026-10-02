@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import dynamic from "next/dynamic";
 import { useEffect, useId, useRef, useState } from "react";
 import { reverseAddress, suggestAddress, type AddressSuggestion } from "@/lib/api/geo";
@@ -179,7 +181,7 @@ export function CommunityAddressPicker({
 
   return (
     <div ref={rootRef} className="relative space-y-2.5">
-      <input
+      <ClearableInput
         id={id}
         value={query}
         autoComplete="off"

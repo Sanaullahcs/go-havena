@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { ThemedSelect } from "@/components/ui/themed-select";
@@ -353,7 +355,7 @@ export default function BillingCouponsPage() {
 
             <div className="space-y-4 px-6 py-5">
               <Field label="Code" required error={showError("code", liveErrors)}>
-                <input
+                <ClearableInput
                   className={inputClass(
                     showError("code", liveErrors),
                     editing
@@ -381,7 +383,7 @@ export default function BillingCouponsPage() {
               )}
 
               <Field label="Name" required error={showError("name", liveErrors)}>
-                <input
+                <ClearableInput
                   className={inputClass(showError("name", liveErrors), "nl-input w-full")}
                   placeholder="Launch promotion"
                   value={form.name}
@@ -394,7 +396,7 @@ export default function BillingCouponsPage() {
               </Field>
 
               <Field label="Description">
-                <textarea
+                <ClearableTextarea
                   className="nl-input min-h-[72px] w-full resize-y"
                   placeholder="Optional internal note for admins."
                   value={form.description}
@@ -422,7 +424,7 @@ export default function BillingCouponsPage() {
 
                 {form.discount_type === "percent" ? (
                   <Field label="Percent off" required error={showError("percent_off", liveErrors)}>
-                    <input
+                    <ClearableInput
                       type="number"
                       min={1}
                       max={100}
@@ -438,7 +440,7 @@ export default function BillingCouponsPage() {
                   </Field>
                 ) : (
                   <Field label="Amount off (USD)" required error={showError("amount_off", liveErrors)}>
-                    <input
+                    <ClearableInput
                       inputMode="decimal"
                       className={inputClass(showError("amount_off", liveErrors), "nl-input w-full")}
                       placeholder="100"
@@ -476,7 +478,7 @@ export default function BillingCouponsPage() {
 
                 {form.discount_duration === "repeating" ? (
                   <Field label="Billing cycles" required error={showError("discount_months", liveErrors)}>
-                    <input
+                    <ClearableInput
                       type="number"
                       min={1}
                       max={120}
@@ -495,7 +497,7 @@ export default function BillingCouponsPage() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Valid from" error={showError("valid_from", liveErrors)}>
-                  <input
+                  <ClearableInput
                     type="datetime-local"
                     className={inputClass(showError("valid_from", liveErrors), "nl-input w-full")}
                     value={form.valid_from}
@@ -508,7 +510,7 @@ export default function BillingCouponsPage() {
                   />
                 </Field>
                 <Field label="Valid until" error={showError("valid_until", liveErrors)}>
-                  <input
+                  <ClearableInput
                     type="datetime-local"
                     className={inputClass(showError("valid_until", liveErrors), "nl-input w-full")}
                     value={form.valid_until}
@@ -525,7 +527,7 @@ export default function BillingCouponsPage() {
               </p>
 
               <Field label="Max redemptions" error={showError("max_redemptions", liveErrors)}>
-                <input
+                <ClearableInput
                   type="number"
                   min={1}
                   className={inputClass(showError("max_redemptions", liveErrors), "nl-input w-full")}
@@ -540,7 +542,7 @@ export default function BillingCouponsPage() {
               </Field>
 
               <Field label="Plan slugs (comma-separated)">
-                <input
+                <ClearableInput
                   className="nl-input w-full"
                   placeholder="starter, growth"
                   value={form.applicable_plan_slugs}

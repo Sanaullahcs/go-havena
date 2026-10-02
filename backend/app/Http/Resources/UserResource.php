@@ -78,6 +78,9 @@ class UserResource extends JsonResource
     {
         $features = app(\App\Services\CommunityFeatureService::class);
 
-        return $features->payloadForCommunity($features->communityIdForUser($this->resource));
+        return $features->payloadForCommunity(
+            $features->communityIdForUser($this->resource),
+            $this->resource,
+        );
     }
 }

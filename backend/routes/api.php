@@ -361,6 +361,9 @@ Route::prefix('v1')->group(function () {
                 Route::post('/communities/{id}/release-admin', [AdminCommunityController::class, 'releaseAdmin']);
                 Route::get('/communities/{id}/resident-features', [CommunityFeatureController::class, 'show'])->whereNumber('id');
                 Route::put('/communities/{id}/resident-features', [CommunityFeatureController::class, 'update'])->whereNumber('id');
+                Route::get('/feature-disable-requests', [CommunityFeatureController::class, 'disableRequests']);
+                Route::post('/feature-disable-requests/{id}/approve', [CommunityFeatureController::class, 'approveDisableRequest'])->whereNumber('id');
+                Route::post('/feature-disable-requests/{id}/reject', [CommunityFeatureController::class, 'rejectDisableRequest'])->whereNumber('id');
                 Route::get('/communities/{id}/activity-logs', [ActivityLogController::class, 'community'])->whereNumber('id');
                 Route::get('/community-admins/{id}/activity-logs', [ActivityLogController::class, 'communityAdmin'])->whereNumber('id');
 
@@ -388,9 +391,12 @@ Route::prefix('v1')->group(function () {
             });
 
             /* Community admin (+ system admin override) */
-            Route::middleware('community.admin')->group(function () {
+            Route::middleware(['community.admin', 'admin.feature'])->group(function () {
                 Route::get('/resident-features', [CommunityFeatureController::class, 'showMine']);
                 Route::put('/resident-features', [CommunityFeatureController::class, 'updateMine']);
+                Route::post('/resident-features/disable-requests', [CommunityFeatureController::class, 'requestDisable']);
+                Route::post('/resident-features/enable-requests', [CommunityFeatureController::class, 'requestEnable']);
+                Route::post('/resident-features/enable', [CommunityFeatureController::class, 'enableMine']);
 
                 /* Community Rules — admin CRUD */
                 Route::get('/community-rules',              [CommunityRuleController::class, 'adminIndex']);

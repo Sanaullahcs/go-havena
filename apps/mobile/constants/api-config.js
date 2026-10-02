@@ -261,7 +261,7 @@ export function describeApiConnectionHint() {
     return `Using Android emulator API at ${API_BASE_URL}. Run: npm run backend`;
   }
   if (API_BASE_URL.includes("192.168.") || /\/\/10\.\d/.test(API_BASE_URL)) {
-    return `Using LAN API at ${API_BASE_URL}. Phone must be on the same Wi-Fi and port ${DEFAULT_LAN_PORT} must be allowed in Windows Firewall.`;
+    return `Using LAN API at ${API_BASE_URL}. Phone and computer must be on the same Wi-Fi, and the API on port ${DEFAULT_LAN_PORT} must be running.`;
   }
   return `API: ${API_BASE_URL}. Run: npm run backend`;
 }

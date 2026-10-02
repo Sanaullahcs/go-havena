@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
@@ -104,7 +106,7 @@ export function AmenityMonthlyBillModal({
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-xs font-semibold text-slate-600">Billing month *</label>
-              <input
+              <ClearableInput
                 type="month"
                 className={inputClass(showError("billing_month", liveErrors.billing_month))}
                 value={form.billing_month}
@@ -117,7 +119,7 @@ export function AmenityMonthlyBillModal({
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold text-slate-600">Due date *</label>
-              <input
+              <ClearableInput
                 type="date"
                 className={inputClass(showError("due_date", liveErrors.due_date))}
                 value={form.due_date}
@@ -132,7 +134,7 @@ export function AmenityMonthlyBillModal({
 
           <div>
             <label className="mb-1.5 block text-xs font-semibold text-slate-600">Bill title *</label>
-            <input
+            <ClearableInput
               className={inputClass(showError("title", liveErrors.title))}
               value={form.title}
               onChange={(e) => setField("title", e.target.value)}
@@ -146,7 +148,7 @@ export function AmenityMonthlyBillModal({
 
           <div>
             <label className="mb-1.5 block text-xs font-semibold text-slate-600">Amount per resident *</label>
-            <input
+            <ClearableInput
               className={inputClass(showError("amount_per_resident", liveErrors.amount_per_resident))}
               value={form.amount_per_resident}
               onChange={(e) => setField("amount_per_resident", e.target.value.replace(/[^0-9.]/g, ""))}
@@ -161,7 +163,7 @@ export function AmenityMonthlyBillModal({
 
           <div>
             <label className="mb-1.5 block text-xs font-semibold text-slate-600">Bill screenshot / document *</label>
-            <input
+            <ClearableInput
               type="file"
               accept={BILL_FILE_ACCEPT}
               className={inputClass(showError("file", liveErrors.file))}
@@ -179,7 +181,7 @@ export function AmenityMonthlyBillModal({
 
           <div>
             <label className="mb-1.5 block text-xs font-semibold text-slate-600">Description</label>
-            <textarea
+            <ClearableTextarea
               className={`${inputClass()} min-h-[80px] resize-y`}
               value={form.description}
               onChange={(e) => setField("description", e.target.value)}

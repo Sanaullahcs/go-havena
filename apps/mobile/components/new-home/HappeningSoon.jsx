@@ -17,6 +17,8 @@ import {
 } from "../../services/notices-api";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
 import { navigateAppRoute } from "../../utils/app-navigation";
+import { useSessionUser } from "../../hooks/use-session-user";
+import { isHomeSectionEnabled } from "../../constants/resident-features";
 import { rnShadow } from "../../utils/shadow";
 import { sw, sf } from "../../utils/responsive";
 import { useHomeFrame } from "../../hooks/use-home-frame";
@@ -108,6 +110,7 @@ export default function HappeningSoon({ items = [] }) {
   const router = useRouter();
   const { t, i18n } = useTranslation();
   const frame = useHomeFrame();
+  const sessionUser = useSessionUser();
 
   const events = useMemo(
     () => items.map((notice) => mapEventToCard(notice, i18n.language)),
@@ -158,9 +161,11 @@ export default function HappeningSoon({ items = [] }) {
     [layout.cardWidth, layout.imageH, openEvent],
   );
 
+  if (!isHomeSectionEnabled(sessionUser, "events")) return null;
+
   if (!events.length) {
     return (
-      <View style={[homeStyles.section, styles.sectionTightTop, { marginHorizontal: frame.sideInset }]}>
+      <View style={[homeStyles.section, { alignSelf: "center", marginHorizontal: frame.sideInset, width: frame.contentWidth }]}>
         <HomeSectionHeader
           label={t("home.happeningSoon")}
           onPress={() => navigateAppRoute(router, PropertyManagementRoutes.NOTICES)}
@@ -171,7 +176,7 @@ export default function HappeningSoon({ items = [] }) {
   }
 
   return (
-    <View style={[homeStyles.section, styles.sectionTightTop, { marginHorizontal: frame.sideInset }]}>
+    <View style={[homeStyles.section, { alignSelf: "center", marginHorizontal: frame.sideInset, width: frame.contentWidth }]}>
       <HomeSectionHeader
         label={t("home.happeningSoon")}
         onPress={() => navigateAppRoute(router, PropertyManagementRoutes.NOTICES)}
@@ -187,7 +192,7 @@ export default function HappeningSoon({ items = [] }) {
         <FlatList
           data={events}
           horizontal
-          style={[styles.carousel, { height: layout.imageH + EVENT_BODY_H }]}
+          style={[styles.carousel, { width: frame.contentWidth, height: layout.imageH + EVENT_BODY_H }]}
           showsHorizontalScrollIndicator={false}
           decelerationRate="fast"
           snapToInterval={layout.snap}
@@ -206,9 +211,6 @@ export default function HappeningSoon({ items = [] }) {
 }
 
 const styles = StyleSheet.create({
-  sectionTightTop: {
-    paddingTop: 0,
-  },
   carousel: { flexGrow: 0, alignSelf: "stretch" },
   listContent: { paddingEnd: PEEK, alignItems: "flex-start" },
   card: {
@@ -269,6 +271,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: sw(6),
     writingDirection: "auto",
+    flexShrink: 1,
+    width: "100%",
   },
   metaBlock: {
     height: META_ROW_H * 3,

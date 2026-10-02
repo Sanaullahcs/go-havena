@@ -351,7 +351,7 @@ export default function AdminGuestsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={adminSharedStyles.screen} edges={["left", "right"]}>
-        <ScreenHeader title={t("admin.guestUsersTitle")} onBack={() => router.back()} />
+        <ScreenHeader title={t("admin.guestUsersTitle")} />
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={AdminTheme.accent} />
         </View>
@@ -361,7 +361,7 @@ export default function AdminGuestsScreen() {
 
   return (
     <SafeAreaView style={adminSharedStyles.screen} edges={["left", "right"]}>
-      <ScreenHeader title={t("admin.guestUsersTitle")} onBack={() => router.back()} />
+      <ScreenHeader title={t("admin.guestUsersTitle")} />
 
       <FlatList
         data={guests}

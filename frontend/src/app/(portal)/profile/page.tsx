@@ -129,16 +129,15 @@ export default function ProfilePage() {
     <div className="mx-auto max-w-4xl space-y-6">
       {/* Header card */}
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="h-28 w-full" style={{ background: "#1B4F8A" }} />
-        <div className="px-6 pb-6">
-          <div className="-mt-12 flex flex-wrap items-end gap-4">
+        <div className="bg-white px-6 py-6">
+          <div className="flex flex-wrap items-end gap-4">
             {/* Avatar */}
             <div className="relative shrink-0">
               {avatarUrl ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={avatarUrl} alt={name} className="h-24 w-24 rounded-2xl border-4 border-white object-cover shadow-lg" />
+                <img src={avatarUrl} alt={name} className="h-24 w-24 rounded-2xl border border-slate-200 object-cover shadow-sm" />
               ) : (
-                <div className="flex h-24 w-24 items-center justify-center rounded-2xl border-4 border-white text-3xl font-bold text-white shadow-lg" style={{ background: "linear-gradient(to bottom right, #14B8A6, #0A2A43)" }}>
+                <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-slate-200 text-3xl font-bold text-white shadow-sm" style={{ background: "#1B4F8A" }}>
                   {initials}
                 </div>
               )}

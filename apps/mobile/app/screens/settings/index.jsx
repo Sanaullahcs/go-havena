@@ -7,10 +7,12 @@ import MenuGroup from "../../../components/layout/menu-group";
 import ListRow from "../../../components/ui/list-row";
 import { Fonts } from "../../../constants/font";
 import { HomeTheme as T } from "../../../constants/home-theme";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
+import { isCommunityAdmin } from "../../../services/community-access";
+import { useSessionUser } from "../../../hooks/use-session-user";
 import * as WebBrowser from "expo-web-browser";
 import { confirmSignOut } from "../../../services/sign-out";
-import { deleteAccount } from "../../../services/auth-api";
+import { deleteAccount, fetchMe } from "../../../services/auth-api";
 import { getApiErrorMessage } from "../../../utils/auth-errors";
 import { setCurrentRole } from "../../../constants/role-session";
 import {
@@ -38,6 +40,7 @@ const LANGUAGE_OPTIONS = [
 
 export default function ProfileSetting() {
   const router = useRouter();
+  const sessionUser = useSessionUser();
   const dialog = useAppDialog();
   const { t } = useTranslation();
   const { language, changeLanguage } = useLanguage();
@@ -63,6 +66,10 @@ export default function ProfileSetting() {
   useEffect(() => {
     void refreshDevOverride();
   }, [refreshDevOverride]);
+
+  useFocusEffect(useCallback(() => {
+    fetchMe().catch(() => null);
+  }, []));
 
   const applyDevVersionScenario = useCallback(
     async (version) => {
@@ -166,6 +173,17 @@ export default function ProfileSetting() {
   };
 
   const accountData = [
+    ...(isCommunityAdmin(sessionUser)
+      ? [{
+          id: "adjust-features",
+          title: t("settings.adjustFeatures", { defaultValue: "Adjust Features" }),
+          subTitle: t("settings.adjustFeaturesSub", { defaultValue: "Request to turn community features on or off" }),
+          icon: "sliders",
+          iconColor: "#1B4F8A",
+          iconBg: "#D1FAF5",
+          onPress: () => router.push("/screens/adjust-features"),
+        }]
+      : []),
     {
       id: 1,
       title: t("settings.editProfile"),

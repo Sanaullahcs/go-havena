@@ -111,7 +111,7 @@ export default function CompleteBillingScreen() {
         navigateAfterAuth(router, user, { role: "admin" });
         return;
       }
-      if (nextStep && !["complete_billing_web", "await_approval", "ready"].includes(nextStep)) {
+      if (nextStep && !["complete_billing_web", "await_approval", "ready", "configure_resident_features"].includes(nextStep)) {
         openedPortalRef.current = false;
         clearPollTimers();
         navigateAfterAuth(router, user, { role: "admin" });
@@ -126,6 +126,7 @@ export default function CompleteBillingScreen() {
       // Exempt regions skip checkout — never treat them as needing a card.
       const nextAwaiting =
         nextStep === "await_approval" ||
+        nextStep === "configure_resident_features" ||
         exempt ||
         (!exempt && Boolean(user?.access?.card_on_file));
       awaitingApprovalRef.current = nextAwaiting;

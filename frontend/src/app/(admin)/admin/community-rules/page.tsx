@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { useEffect, useMemo, useState, useTransition, useRef } from "react";
 import {
   AlertTriangle,
@@ -417,7 +419,7 @@ export default function CommunityRulesPage() {
 
           {showCategoryForm ? (
             <div className="mb-3 space-y-2 rounded-xl border border-blue-200 bg-blue-50/40 p-3">
-              <input
+              <ClearableInput
                 className="nl-input"
                 placeholder="Category name *"
                 value={newCategoryName}
@@ -757,7 +759,7 @@ export default function CommunityRulesPage() {
                 <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Basic Info</p>
                 <div>
                   <label className="mb-1.5 block text-[13px] font-medium text-slate-700">Rule Title *</label>
-                  <input
+                  <ClearableInput
                     type="text"
                     className={inputClass(showError("title", liveErrors), "nl-input")}
                     placeholder="e.g. Quiet Hours Policy"
@@ -789,7 +791,7 @@ export default function CommunityRulesPage() {
                     }}
                   />
                   {categorySelect === RULE_OTHER_CATEGORY ? (
-                    <input
+                    <ClearableInput
                       type="text"
                       className={inputClass(showError("category", liveErrors), "nl-input mt-2 w-full")}
                       placeholder="Enter custom category name"
@@ -809,7 +811,7 @@ export default function CommunityRulesPage() {
 
                 <div>
                   <label className="mb-1.5 block text-[13px] font-medium text-slate-700">Description *</label>
-                  <textarea
+                  <ClearableTextarea
                     className={inputClass(showError("description", liveErrors), "nl-input min-h-[110px] resize-y")}
                     placeholder="Describe the rule clearly so residents understand what is expected…"
                     value={form.description}
@@ -855,7 +857,7 @@ export default function CommunityRulesPage() {
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 transition hover:border-blue-200">
-                    <input
+                    <ClearableInput
                       type="checkbox"
                       className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600"
                       checked={form.requires_acknowledgment}
@@ -870,7 +872,7 @@ export default function CommunityRulesPage() {
                   </label>
 
                   <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 transition hover:border-blue-200">
-                    <input
+                    <ClearableInput
                       type="checkbox"
                       className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600"
                       checked={form.status === "active"}

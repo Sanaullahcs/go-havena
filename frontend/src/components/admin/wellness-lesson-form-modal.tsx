@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { useEffect, useMemo, useState } from "react";
 import { FileUp, GraduationCap, Link2, Loader2, X } from "lucide-react";
 import {
@@ -157,7 +159,7 @@ export function WellnessLessonFormModal({
               required
               error={fieldsEnabled ? validation.showError("title", liveErrors) : null}
             >
-              <input
+              <ClearableInput
                 className={inputClass(
                   fieldsEnabled ? validation.showError("title", liveErrors) : null,
                   "nl-input w-full",
@@ -201,7 +203,7 @@ export function WellnessLessonFormModal({
                   <Link2 className="h-4 w-4 text-blue-600" />
                   Video / resource link
                 </div>
-                <input
+                <ClearableInput
                   className={inputClass(
                     validation.showError("link_url", liveErrors),
                     "nl-input w-full",
@@ -230,7 +232,7 @@ export function WellnessLessonFormModal({
                   <FileUp className="h-4 w-4 text-blue-600" />
                   Upload file
                 </div>
-                <input
+                <ClearableInput
                   type="file"
                   accept="video/*,.pdf,.doc,.docx"
                   disabled={!fieldsEnabled}
@@ -264,7 +266,7 @@ export function WellnessLessonFormModal({
                 : "Select a course to continue."
             }
           >
-            <textarea
+            <ClearableTextarea
               className="nl-input min-h-[72px] w-full resize-y"
               placeholder="What will residents learn in this lesson?"
               value={form.description}

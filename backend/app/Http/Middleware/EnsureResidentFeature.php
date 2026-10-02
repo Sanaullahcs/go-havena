@@ -29,11 +29,7 @@ class EnsureResidentFeature
         }
 
         $user = $request->user();
-        if (
-            ! $user
-            || AdminRoleService::isSystemAdmin($user)
-            || (AdminRoleService::isCommunityAdminRole($user) && ! AdminRoleService::isResidentMode($user))
-        ) {
+        if (! $user || AdminRoleService::isSystemAdmin($user)) {
             return $next($request);
         }
 

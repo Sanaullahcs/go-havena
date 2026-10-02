@@ -292,17 +292,42 @@ export default function CreateEventScreen() {
           </Text>
           <LocaleTextInput
             value={title}
-            onChangeText={(t) => {
-              setTitle(t);
+            onChangeText={(value) => {
+              const next = String(value ?? "");
+              if (next.length > LIMITS.eventTitle) {
+                setTitle(next.slice(0, LIMITS.eventTitle));
+                touch("title");
+                setErrors((prev) => ({
+                  ...prev,
+                  title: t("validation.maxChars", {
+                    field: t("validation.fields.eventName"),
+                    max: LIMITS.eventTitle,
+                  }),
+                }));
+                return;
+              }
+              setTitle(next);
               touch("title");
               clearError("title");
             }}
             placeholder={t('events.eventTitlePlaceholder')}
             placeholderTextColor="rgba(10, 10, 10, 0.5)"
             style={[styles.input, showError("title", fieldErrorsLive) && styles.inputError]}
-            maxLength={LIMITS.noticeTitle}
           />
-          {showError("title", fieldErrorsLive) ? <Text style={styles.errorText}>{showError("title", fieldErrorsLive)}</Text> : null}
+          {showError("title", fieldErrorsLive) || title.length > 0 ? (
+            <View style={styles.fieldFoot}>
+              {showError("title", fieldErrorsLive) ? (
+                <Text style={[styles.errorText, styles.fieldFootError]}>{showError("title", fieldErrorsLive)}</Text>
+              ) : (
+                <View style={styles.fieldFootSpacer} />
+              )}
+              {title.length > 0 ? (
+                <Text style={styles.counter}>
+                  {t("onboarding.characters", { count: title.length, max: LIMITS.eventTitle })}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
 
           <Text style={[styles.formLabel, styles.sectionGap]}>
             {t('events.description')} <Text style={styles.required}>*</Text>
@@ -327,6 +352,7 @@ export default function CreateEventScreen() {
             value={coverImage}
             onChange={setCoverImage}
             uploading={uploadingImage}
+            chooseSource
           />
 
           <View style={styles.sectionGap}>
@@ -767,5 +793,25 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     color: "#DC2626",
     marginTop: 4,
+  },
+  fieldFoot: {
+    marginTop: 4,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  fieldFootError: {
+    flex: 1,
+    marginTop: 0,
+  },
+  fieldFootSpacer: {
+    flex: 1,
+  },
+  counter: {
+    fontFamily: Fonts.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: "#94A3B8",
   },
 });

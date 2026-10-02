@@ -13,6 +13,7 @@ export default function NoticeCoverImageField({
   uploading = false,
   label,
   hint,
+  chooseSource = false,
 }) {
   const { t } = useTranslation();
   const resolvedLabel = label ?? t("notices.coverImage");
@@ -23,6 +24,10 @@ export default function NoticeCoverImageField({
     if (uploading) return;
     const asset = await pickImage(undefined, {
       showError: (title, message) => showFailure(title, { message }),
+      allowCamera: chooseSource,
+      cameraFirst: chooseSource,
+      promptTitle: chooseSource ? resolvedLabel : undefined,
+      promptMessage: chooseSource ? "" : undefined,
     });
     if (asset) onChange?.(asset);
   };

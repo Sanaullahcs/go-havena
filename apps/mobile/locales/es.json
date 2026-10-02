@@ -1935,6 +1935,10 @@
     "upTo": "Hasta {{capacity}}",
     "noFacilities": "Sin instalaciones aún",
     "noFacilitiesDesc": "El administrador de tu comunidad no ha publicado amenidades. Vuelve pronto o contacta a la oficina de administración.",
+    "offlineTitle": "Estás sin conexión",
+    "offlineBody": "Comprueba tu conexión a internet e inténtalo de nuevo.",
+    "loadFailed": "No se pudieron cargar las amenidades",
+    "retry": "Reintentar",
     "searchAmenities": "Buscar amenidades…",
     "noAmenitiesMatch": "Ninguna amenidad coincide con tu búsqueda.",
     "yourAmenities": "Tus Amenidades",
@@ -4476,6 +4480,7 @@
     "guestPermissionRequired": "Habilita al menos un permiso para el invitado.",
     "fields": {
       "title": "Título",
+      "eventName": "Nombre del evento",
       "description": "Descripción",
       "fullName": "Nombre completo",
       "unitNumber": "Número de unidad",

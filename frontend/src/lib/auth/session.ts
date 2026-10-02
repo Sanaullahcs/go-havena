@@ -214,6 +214,7 @@ export type WebUser = {
       group: string;
       group_label: string;
       enabled: boolean;
+      disabled_by?: "system_admin" | "community_admin" | null;
     }>;
   } | null;
   active_context?: "community_admin" | "resident" | string | null;

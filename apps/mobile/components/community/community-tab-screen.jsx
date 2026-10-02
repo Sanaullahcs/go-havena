@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -14,6 +14,8 @@ import { HomeTheme as T } from "../../constants/home-theme";
 import { MarketplaceTheme as MT } from "../../constants/marketplace-theme";
 import { Fonts } from "../../constants/font";
 import { sf, sw } from "../../utils/responsive";
+import { useSessionUser } from "../../hooks/use-session-user";
+import { isResidentFeatureEnabled } from "../../constants/resident-features";
 
 const TABS = [
   { id: "feed", labelKey: "community.feed", icon: "message-circle", color: T.navy },
@@ -31,7 +33,21 @@ const TAB_SUBTITLE_KEYS = {
 export default function CommunityTabScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const sessionUser = useSessionUser();
+  const tabs = useMemo(() => {
+    return TABS.filter((tab) => {
+      if (tab.id === "feed") return isResidentFeatureEnabled(sessionUser, "feed");
+      return isResidentFeatureEnabled(sessionUser, "marketplace");
+    });
+  }, [sessionUser]);
   const [activeTab, setActiveTab] = useState("feed");
+
+  useEffect(() => {
+    if (tabs.length === 0) return;
+    if (!tabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab(tabs[0].id);
+    }
+  }, [activeTab, tabs]);
 
   const headerRight = useCallback(() => {
     if (activeTab !== "feed") return null;
@@ -62,36 +78,45 @@ export default function CommunityTabScreen() {
         right={headerRight()}
       />
 
-      <View style={styles.tabBarWrap}>
-        <View style={styles.tabBar}>
-          {TABS.map((tab) => {
-            const active = activeTab === tab.id;
-            const label = t(tab.labelKey);
-            return (
-              <Pressable
-                key={tab.id}
-                style={[
-                  styles.tabButton,
-                  active && { backgroundColor: tab.color, borderColor: tab.color },
-                ]}
-                onPress={() => setActiveTab(tab.id)}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: active }}
-                accessibilityLabel={label}
-              >
-                <Feather
-                  name={tab.icon}
-                  size={sf(14)}
-                  color={active ? T.white : T.gray}
-                />
-                <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
+      {tabs.length > 0 ? (
+        <View style={styles.tabBarWrap}>
+          <View style={styles.tabBar}>
+            {tabs.map((tab) => {
+              const active = activeTab === tab.id;
+              const label = t(tab.labelKey);
+              return (
+                <Pressable
+                  key={tab.id}
+                  style={[
+                    styles.tabButton,
+                    active && { backgroundColor: tab.color, borderColor: tab.color },
+                  ]}
+                  onPress={() => setActiveTab(tab.id)}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={label}
+                >
+                  <Feather
+                    name={tab.icon}
+                    size={sf(14)}
+                    color={active ? T.white : T.gray}
+                  />
+                  <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
-      </View>
+      ) : (
+        <View style={styles.emptyWrap}>
+          <Text style={styles.emptyTitle}>{t("community.unavailable", { defaultValue: "Community features are turned off" })}</Text>
+          <Text style={styles.emptyBody}>
+            {t("community.unavailableHint", { defaultValue: "Feed and marketplace are not available for this community." })}
+          </Text>
+        </View>
+      )}
 
       <View style={styles.panelHost}>
         {activeTab === "feed" ? (
@@ -170,5 +195,25 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     backgroundColor: T.canvas,
+  },
+  emptyWrap: {
+    paddingHorizontal: sw(24),
+    paddingVertical: sw(28),
+    alignItems: "center",
+  },
+  emptyTitle: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(16),
+    lineHeight: sf(22),
+    color: T.navy,
+    textAlign: "center",
+  },
+  emptyBody: {
+    marginTop: sw(8),
+    fontFamily: Fonts.regular,
+    fontSize: sf(13),
+    lineHeight: sf(18),
+    color: T.gray,
+    textAlign: "center",
   },
 });

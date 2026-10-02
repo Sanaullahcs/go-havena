@@ -25,13 +25,76 @@ export type ResidentFeatureItem = {
   resident_paths?: string[];
   api_prefixes?: string[];
   enabled: boolean;
+  disabled_by?: "system_admin" | "community_admin" | null;
 };
+
+export type FeatureDisableRequest = {
+  id: number;
+  community_id: number;
+  community_name?: string | null;
+  feature_key: string;
+  feature_name: string;
+  action?: "disable" | "enable" | string;
+  reason: string;
+  status: "pending" | "approved" | "rejected" | string;
+  requested_by?: string | null;
+  requested_at?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+};
+
+export function featureRequestStatusLabel(status?: string | null) {
+  if (status === "approved") return "Approved";
+  if (status === "rejected") return "Rejected";
+  return "Pending";
+}
+
+export function featureRequestActionLabel(action?: string | null) {
+  return action === "enable" ? "Enable" : "Disable";
+}
 
 export type ResidentFeaturesPayload = {
   configured?: boolean;
   features?: Record<string, boolean>;
   catalog?: ResidentFeatureItem[];
+  pending_requests?: FeatureDisableRequest[];
+  requests?: FeatureDisableRequest[];
 };
+
+export const ADMIN_FEATURE_ROUTES: Array<{ prefix: string; key: string }> = [
+  { prefix: "/admin/messages", key: "messages" },
+  { prefix: "/admin/notices", key: "notices" },
+  { prefix: "/admin/events", key: "events" },
+  { prefix: "/admin/alerts", key: "alerts" },
+  { prefix: "/admin/community-rules", key: "community_rules" },
+  { prefix: "/admin/documents", key: "documents" },
+  { prefix: "/admin/amenities", key: "amenities" },
+  { prefix: "/admin/amenity-bills", key: "amenities" },
+  { prefix: "/admin/bookings", key: "bookings" },
+  { prefix: "/admin/feed", key: "feed" },
+  { prefix: "/admin/marketplace", key: "marketplace" },
+  { prefix: "/admin/businesses", key: "marketplace" },
+  { prefix: "/admin/guests", key: "guest_invites" },
+  { prefix: "/admin/refer-and-earn", key: "refer_and_earn" },
+];
+
+export function adminFeatureForPath(pathname: string): string | null {
+  const path = pathname.split("?")[0]?.split("#")[0] ?? pathname;
+  const match = ADMIN_FEATURE_ROUTES.find(
+    (item) => path === item.prefix || path.startsWith(`${item.prefix}/`),
+  );
+  return match?.key ?? null;
+}
+
+/** Community Admin Adjust Features lists only features a system admin has not turned off. */
+export function communityAdjustCatalog(payload?: ResidentFeaturesPayload | null): ResidentFeatureItem[] {
+  return (payload?.catalog ?? []).filter((item) => {
+    if (item.disabled_by === "system_admin") return false;
+    if (item.disabled_by === "community_admin") return true;
+    const enabled = payload?.features?.[item.key];
+    return enabled !== false && item.enabled !== false;
+  });
+}
 
 const DEFAULT_ON = true;
 

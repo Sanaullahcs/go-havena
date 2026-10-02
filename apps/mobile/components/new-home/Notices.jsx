@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
-import { Home, homeStyles } from "../../constants/home-styles";
+import { homeStyles } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
 import {
   formatDisplayTime12h,
@@ -35,19 +35,28 @@ import { MarketplaceRoutes } from "../../constants/marketplace-routes";
 import { navigateAppRoute } from "../../utils/app-navigation";
 import { arrowForward } from "../../utils/rtl";
 import { localizedField } from "../../i18n";
+import { useSessionUser } from "../../hooks/use-session-user";
+import { isHomeSectionEnabled, isResidentFeatureEnabled } from "../../constants/resident-features";
 
 const QUICK_ACTIONS = [
-  { id: "post", titleKey: "home.qa.post", icon: "edit-3", route: "/screens/create-post" },
-  { id: "book", titleKey: "home.qa.book", icon: "home", route: PropertyManagementRoutes.AMENITY_SCREEN },
-  { id: "sell", titleKey: "home.qa.sell", icon: "shopping-bag", route: MarketplaceRoutes.CREATE_LISTING },
-  { id: "notices", titleKey: "home.qa.notices", icon: "bell", route: PropertyManagementRoutes.NOTICES },
-  { id: "feed", titleKey: "home.qa.feed", icon: "message-circle", route: "/screens/community-feed" },
-  { id: "deals", titleKey: "home.qa.deals", icon: "percent", route: MarketplaceRoutes.DEALS },
-  { id: "wellness", titleKey: "home.qa.wellness", icon: "heart", route: "/(tabs)/wellness" },
-  { id: "docs", titleKey: "home.qa.docs", icon: "file-text", route: PropertyManagementRoutes.DOCUMENTS_SCREEN },
-  { id: "bookings", titleKey: "home.qa.bookings", icon: "clipboard", route: PropertyManagementRoutes.MY_BOOKING_SCREEN },
-  { id: "chat", titleKey: "home.qa.chat", icon: "mail", route: "/screens/messages" },
+  { id: "post", titleKey: "home.qa.post", icon: "edit-3", route: "/screens/create-post", feature: "feed" },
+  { id: "book", titleKey: "home.qa.book", icon: "home", route: PropertyManagementRoutes.AMENITY_SCREEN, feature: "amenities" },
+  { id: "sell", titleKey: "home.qa.sell", icon: "shopping-bag", route: MarketplaceRoutes.CREATE_LISTING, feature: "marketplace" },
+  { id: "notices", titleKey: "home.qa.notices", icon: "bell", route: PropertyManagementRoutes.NOTICES, feature: "notices" },
+  { id: "feed", titleKey: "home.qa.feed", icon: "message-circle", route: "/screens/community-feed", feature: "feed" },
+  { id: "deals", titleKey: "home.qa.deals", icon: "percent", route: MarketplaceRoutes.DEALS, feature: "marketplace" },
+  { id: "wellness", titleKey: "home.qa.wellness", icon: "heart", route: "/(tabs)/wellness", feature: "wellness" },
+  { id: "docs", titleKey: "home.qa.docs", icon: "file-text", route: PropertyManagementRoutes.DOCUMENTS_SCREEN, feature: "documents" },
+  { id: "bookings", titleKey: "home.qa.bookings", icon: "clipboard", route: PropertyManagementRoutes.MY_BOOKING_SCREEN, feature: "bookings" },
+  { id: "chat", titleKey: "home.qa.chat", icon: "mail", route: "/screens/messages", feature: "messages" },
 ];
+
+function noticeFeatureKey(notice) {
+  const category = String(notice?.category ?? "").toLowerCase();
+  if (category === "event") return "events";
+  if (category === "emergency" || category === "alert") return "alerts";
+  return "notices";
+}
 
 const HERO_HEIGHT_DESIGN = 175;
 /** Auto-advance interval for the home notices carousel. */
@@ -138,7 +147,7 @@ function NoticeHeroCard({ item, cardWidth, heroHeight, onPress, onImagePress }) 
             <Text style={styles.badgeText}>{item.badge}</Text>
           </View>
 
-          <Text style={styles.heroTitle} numberOfLines={2}>
+          <Text style={styles.heroTitle} numberOfLines={2} ellipsizeMode="tail">
             {item.title}
           </Text>
 {hasSchedule ? (
@@ -177,8 +186,22 @@ function QuickActionsRow() {
   const router = useRouter();
   const { t } = useTranslation();
   const frame = useHomeFrame();
+  const sessionUser = useSessionUser();
+  const actions = QUICK_ACTIONS.filter((item) => {
+    if (item.id === "notices") {
+      return (
+        isResidentFeatureEnabled(sessionUser, "notices") ||
+        isResidentFeatureEnabled(sessionUser, "events") ||
+        isResidentFeatureEnabled(sessionUser, "alerts")
+      );
+    }
+    return isResidentFeatureEnabled(sessionUser, item.feature);
+  });
   const tileW = frame.size(72);
   const gap = frame.size(8);
+  const rowWidth = actions.length * tileW + Math.max(0, actions.length - 1) * gap;
+  const centerRow = actions.length > 0 && rowWidth <= frame.contentWidth;
+  const listHeight = sw(44) + sw(6) + sf(14) * 2;
 
   const openAction = useCallback(
     (route) => {
@@ -187,8 +210,7 @@ function QuickActionsRow() {
     [router],
   );
 
-  const rowWidth = QUICK_ACTIONS.length * tileW + Math.max(0, QUICK_ACTIONS.length - 1) * gap;
-  const centerRow = rowWidth <= frame.contentWidth;
+  if (actions.length === 0) return null;
 
   return (
     <View style={styles.qaWrap}>
@@ -196,7 +218,7 @@ function QuickActionsRow() {
         {t("home.quickActions", { defaultValue: "Quick Actions" })}
       </Text>
       <FlatList
-        data={QUICK_ACTIONS}
+        data={actions}
         horizontal
         showsHorizontalScrollIndicator={false}
         keyExtractor={(item) => item.id}
@@ -206,6 +228,7 @@ function QuickActionsRow() {
         snapToAlignment="start"
         disableIntervalMomentum
         ItemSeparatorComponent={() => <View style={{ width: gap }} />}
+        style={[styles.qaList, { height: listHeight }]}
         contentContainerStyle={[
           styles.qaListContent,
           { paddingHorizontal: frame.sideInset },
@@ -233,7 +256,11 @@ function QuickActionsRow() {
                   <Feather name={item.icon} size={sf(18)} color={T.navy} />
                 </View>
               </View>
-              <Text style={[styles.qaLabel, { width: tileW, maxWidth: tileW }]} numberOfLines={2} ellipsizeMode="tail">
+              <Text
+                style={[styles.qaLabel, { width: tileW, maxWidth: tileW }]}
+                numberOfLines={2}
+                ellipsizeMode="tail"
+              >
                 {t(item.titleKey)}
               </Text>
             </Pressable>
@@ -244,9 +271,10 @@ function QuickActionsRow() {
   );
 }
 
-export default function Notices({ items = [] }) {
+export default function Notices({ items = [], noticesLoaded = false }) {
   const { t, i18n } = useTranslation();
   const router = useRouter();
+  const sessionUser = useSessionUser();
   const { width: screenWidth } = useWindowDimensions();
   const frame = useHomeFrame();
   const insets = useSafeAreaInsets();
@@ -258,13 +286,15 @@ export default function Notices({ items = [] }) {
   const activeIndexRef = useRef(0);
   const userScrollingRef = useRef(false);
 
+  const noticesOn = isHomeSectionEnabled(sessionUser, "notices");
+
   const carouselItems = useMemo(
     () =>
       items
-        .filter((n) => n && n.id)
+        .filter((n) => n && n.id && isResidentFeatureEnabled(sessionUser, noticeFeatureKey(n)))
         .slice(0, 7)
         .map((n) => mapNoticeToHero(n, t)),
-    [items, t, i18n.language],
+    [items, sessionUser, t, i18n.language],
   );
 
   useEffect(() => {
@@ -361,7 +391,7 @@ export default function Notices({ items = [] }) {
 
   return (
     <>
-      {carouselItems.length > 0 ? (
+      {noticesOn && carouselItems.length > 0 ? (
         <View style={styles.heroWrap}>
           <FlatList
             ref={listRef}
@@ -389,7 +419,7 @@ export default function Notices({ items = [] }) {
             }}
             keyExtractor={(item) => item.id}
             renderItem={renderHero}
-            style={[styles.heroFlatList, { height: heroHeight }]}
+            style={[styles.heroFlatList, { height: heroHeight, width: screenWidth }]}
             contentContainerStyle={[styles.heroFlatListContent, { height: heroHeight }]}
             getItemLayout={(_, index) => ({
               length: screenWidth,
@@ -408,13 +438,11 @@ export default function Notices({ items = [] }) {
             </View>
           ) : null}
         </View>
-      ) : (
-        <View style={styles.heroEmptyWrap}>
-          <View style={{ paddingHorizontal: frame.sideInset }}>
-            <HomeSectionEmpty message={t("home.noNotices")} />
-          </View>
+      ) : noticesOn && noticesLoaded ? (
+        <View style={[styles.heroEmptyWrap, { width: "100%", paddingHorizontal: frame.sideInset }]}>
+          <HomeSectionEmpty message={t("home.noNotices")} icon="bell" />
         </View>
-      )}
+      ) : null}
 
       <QuickActionsRow />
 
@@ -604,17 +632,25 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
   },
   qaHeader: {
-    paddingHorizontal: Home.gutter,
     marginBottom: sw(10),
   },
-  qaListContent: {},
+  qaList: {
+    width: "100%",
+    flexGrow: 0,
+  },
+  qaListContent: {
+    alignItems: "flex-start",
+  },
   qaListContentCentered: {
     flexGrow: 1,
     justifyContent: "center",
   },
-  qaItem: {},
+  qaItem: {
+    flexShrink: 0,
+  },
   qaTile: {
     alignItems: "center",
+    overflow: "hidden",
   },
   qaTilePressed: {
     opacity: 0.7,

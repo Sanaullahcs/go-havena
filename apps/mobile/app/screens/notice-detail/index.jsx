@@ -8,7 +8,7 @@ import {
   Pressable,
   Linking,
 } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import BackButton from "../../../components/ui/back-button";
@@ -21,7 +21,7 @@ import { fetchNotice, getCategoryTheme, formatDisplayTime12h, formatShortDate } 
 import { parseApiDate } from "../../../services/feed-api";
 import { billingFrequencyLabel } from "../../../services/property-services-api";
 import { PropertyManagementRoutes } from "../../../constants/property-management-routes";
-import { navigateAppRoute } from "../../../utils/app-navigation";
+import { navigateAppRoute, safeGoBack } from "../../../utils/app-navigation";
 import { sw, sf, hp } from "../../../utils/responsive";
 import { useTranslation } from 'react-i18next';
 import i18n, { localizedField } from "../../../i18n";
@@ -134,6 +134,10 @@ function SectionHeader({ icon, title, accent }) {
 
 export default function NoticeDetailScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
+  const goBack = useCallback(() => {
+    safeGoBack(router, navigation, { fallbackPath: "/(tabs)/notices" });
+  }, [navigation, router]);
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams();
@@ -258,7 +262,7 @@ export default function NoticeDetailScreen() {
             <View style={styles.heroTopBar}>
               <Pressable
                 style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
-                onPress={() => router.back()}
+                onPress={goBack}
                 accessibilityLabel={t('notices.goBack')}
               >
                 <Feather name={chevronBack()} size={sf(20)} color="#FFFFFF" />
@@ -527,13 +531,7 @@ export default function NoticeDetailScreen() {
         <BackButton
           iconOnly
           compact
-          onPress={() => {
-            if (router.canGoBack?.()) {
-              router.back();
-              return;
-            }
-            router.replace("/(tabs)/notices");
-          }}
+          onPress={goBack}
         />
       </View>
     </View>

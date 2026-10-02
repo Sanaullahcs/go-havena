@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getUser, isPakistanCommunityRegion, isSystemAdminUser } from "@/lib/auth/session";
-import { isResidentFeatureEnabled } from "@/lib/resident-features";
+import { FEATURES_UPDATED_EVENT } from "@/components/auth/feature-settings-sync";
+import { adminFeatureForPath, isResidentFeatureEnabled } from "@/lib/resident-features";
 import { isPlaidAvailable } from "@/lib/plaid-eligibility";
 import { fetchMessageUnreadCount } from "@/lib/api/messages";
 import { HavenaMark } from "@/components/shared/havena-mark";
@@ -27,6 +28,7 @@ import {
   MessageSquare,
   Newspaper,
   Scale,
+  Settings,
   Smartphone,
   Store,
   Ticket,
@@ -60,6 +62,7 @@ const systemAdminNav: NavItem[] = [
   { href: "/admin/referrals", label: "Referrals", icon: Gift },
   { href: "/admin/app-version", label: "App Version", icon: Smartphone },
   { href: "/admin/activity", label: "Activity Logs", icon: Activity },
+  { href: "/admin/feature-requests", label: "Feature Requests", icon: Settings },
 ];
 
 const communityAdminNav: NavItem[] = [
@@ -83,6 +86,10 @@ const communityAdminNav: NavItem[] = [
   { href: "/admin/feed", label: "Feed Moderation", icon: Newspaper },
   { href: "/admin/marketplace", label: "Marketplace", icon: Store },
   { href: "/admin/businesses", label: "Businesses", icon: Store },
+];
+
+const communitySettingsNav: NavItem[] = [
+  { href: "/admin/feature-settings", label: "Adjust Features", icon: Settings },
 ];
 
 /* ─── NavSection ─── */
@@ -201,9 +208,11 @@ function SidebarInner({
     const syncUser = () => setUser(getUser());
     syncUser();
     window.addEventListener("nbr-session-updated", syncUser);
+    window.addEventListener(FEATURES_UPDATED_EVENT, syncUser);
     window.addEventListener("storage", syncUser);
     return () => {
       window.removeEventListener("nbr-session-updated", syncUser);
+      window.removeEventListener(FEATURES_UPDATED_EVENT, syncUser);
       window.removeEventListener("storage", syncUser);
     };
   }, []);
@@ -235,6 +244,10 @@ function SidebarInner({
     .filter((item) => !(item.href === "/admin/billing" && user?.access?.billing_exempt))
     .filter((item) => !(item.href === "/admin/plaid" && !isPlaidAvailable(user)))
     .filter((item) => !(hideReferAndEarn && item.href === "/admin/refer-and-earn"))
+    .filter((item) => {
+      const featureKey = adminFeatureForPath(item.href);
+      return !featureKey || isResidentFeatureEnabled(user?.resident_features, featureKey);
+    })
     .map((item) =>
       item.href === "/admin/messages" ? { ...item, badge: messageUnread } : item,
     );
@@ -261,6 +274,7 @@ function SidebarInner({
           <>
             <NavSection items={overviewNav} pathname={pathname} onNavigate={onNavigate} />
             <NavSection title="Manage" items={communityNav} pathname={pathname} onNavigate={onNavigate} />
+            <NavSection title="Settings" items={communitySettingsNav} pathname={pathname} onNavigate={onNavigate} />
             <p className="px-2 pt-3 text-[11px] leading-relaxed text-slate-400">
               Approve residents, publish content, and moderate your community marketplace.
             </p>

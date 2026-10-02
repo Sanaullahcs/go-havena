@@ -3,7 +3,14 @@ import {
   amenityHoursFitSlotDuration,
   isValidAmenitySlotDurationMinutes,
 } from "@/lib/admin/amenity-slot-duration";
-import { parseHoursRange } from "@/lib/admin/hours-range-utils";
+import {
+  OPEN_24_HOURS_LABEL,
+  buildScheduleHours,
+  clockMinutes,
+  isNextScheduleDay,
+  isSameScheduleDay,
+  parseHoursRange,
+} from "@/lib/admin/hours-range-utils";
 
 export const SHARED_BILLING_TYPE = "all_residents";
 export const SHARED_BILLING_TYPE_LABEL = "All residents must pay";
@@ -40,6 +47,9 @@ export type AmenityForm = {
   capacity_booking_type?: "per_seat" | "full_slot";
   floor: string;
   hours: string;
+  opening_date?: string;
+  closing_date?: string;
+  open_24_hours?: boolean;
   weekends_available: boolean;
   slot_duration_minutes: string;
   icon_key: string;
@@ -144,6 +154,32 @@ export function visibleAmenityFormSteps(showSharedBilling: boolean, _billingEnab
   return steps;
 }
 
+/** Letters, numbers, spaces, and a single - & or ' between them. */
+function isValidAmenityName(value: string): boolean {
+  if (!/^[\p{L}\p{N} &'’-]+$/u.test(value)) return false;
+  if (!/^[\p{L}\p{N}]/u.test(value) || !/[\p{L}\p{N}]$/u.test(value)) return false;
+  if (/[-&'’]{2,}/u.test(value)) return false;
+  return true;
+}
+
+/** Letters, numbers, spaces, and address marks - / , . # without leading or repeated punctuation. */
+function isValidAmenityLocation(value: string): boolean {
+  if (!/^[\p{L}\p{N} \-\/,\.#]+$/u.test(value)) return false;
+  if (!/[\p{L}\p{N}]/u.test(value)) return false;
+  if (/^[,.\-\/]/u.test(value)) return false;
+  if (/[,#\-\/]$/u.test(value)) return false;
+  if (/[-/,.#]{2,}/u.test(value)) return false;
+  return true;
+}
+
+function amenityCapacityError(raw: string, required: boolean): string | undefined {
+  if (raw === "") return required ? "Capacity is required when Slots is selected." : undefined;
+  const capacity = Number(raw);
+  if (!Number.isInteger(capacity) || capacity < 1) return "Capacity must be at least 1.";
+  if (capacity > 1000) return "Capacity must be 1–1000.";
+  return undefined;
+}
+
 export function validateAmenityForm(form: AmenityForm): Record<string, string> {
   const errors: Record<string, string> = {};
   const name = form.name.trim();
@@ -165,16 +201,14 @@ export function validateAmenityForm(form: AmenityForm): Record<string, string> {
   }
 
   if (form.status === "bookable") {
-    if (capacityRaw === "") errors.capacity = "Capacity is required when Slots is selected.";
-    else {
-      const capacity = Number(capacityRaw);
-      if (!Number.isInteger(capacity) || capacity < 0 || capacity > 1000) {
-        errors.capacity = "Capacity must be 0–1000.";
-      }
-    }
+    const capacityError = amenityCapacityError(capacityRaw, true);
+    if (capacityError) errors.capacity = capacityError;
     if (form.capacity_booking_type && form.capacity_booking_type !== "per_seat" && form.capacity_booking_type !== "full_slot") {
       errors.capacity_booking_type = "Choose how capacity is booked.";
     }
+  } else if (form.status !== "open" && capacityRaw !== "") {
+    const capacityError = amenityCapacityError(capacityRaw, false);
+    if (capacityError) errors.capacity = capacityError;
   } else if (capacityRaw !== "") {
     const capacity = Number(capacityRaw);
     if (!Number.isInteger(capacity) || capacity < 0 || capacity > 1000) {
@@ -191,11 +225,24 @@ export function validateAmenityForm(form: AmenityForm): Record<string, string> {
     errors.custom_category = "Enter a custom category name.";
   }
 
-  if (!hours) errors.hours = "Open and close times are required.";
+  if (form.open_24_hours) {
+    // An explicit all-day choice. Identical clock times are not used.
+  } else if (!hours) errors.hours = "Open and close times are required.";
   else {
     const range = parseHoursRange(hours);
+    const openingDate = form.opening_date ?? "";
+    const closingDate = form.closing_date ?? "";
     if (!range.open || !range.close) {
       errors.hours = "Use a valid open–close time range.";
+    } else if (range.open === range.close && isSameScheduleDay(openingDate, closingDate)) {
+      errors.hours = "Opening and closing times cannot be the same.";
+    } else if (openingDate && closingDate && !isSameScheduleDay(openingDate, closingDate) && !isNextScheduleDay(openingDate, closingDate)) {
+      errors.hours = "Closing must be on the opening day or the next day.";
+    } else if (
+      isNextScheduleDay(openingDate, closingDate) &&
+      clockMinutes(range.close) > clockMinutes(range.open)
+    ) {
+      errors.hours = "A next-day closing time cannot be later than the opening time.";
     }
   }
 
@@ -229,6 +276,8 @@ export function validateAmenityForm(form: AmenityForm): Record<string, string> {
           : "Enter a reservation fee per person greater than 0.";
     } else if (form.status === "closed") {
       errors.booking_fee = "Closed amenities cannot have a booking fee.";
+    } else if (Math.round(fee * 100) > 99_999_999) {
+      errors.booking_fee = "Booking fee must not exceed 999,999.99.";
     }
   } else if (form.charge_model !== "monthly" && !form.shared_billing_enabled) {
     if (feeRaw !== "" && (!Number.isFinite(fee) || fee < 0)) {
@@ -264,6 +313,15 @@ export function validateAmenityForm(form: AmenityForm): Record<string, string> {
 export function amenityFormToPayload(form: AmenityForm) {
   const range = parseHoursRange(form.hours);
   const feeRaw = form.booking_fee.trim();
+  const openingDate = form.opening_date ?? "";
+  const closingDate = form.closing_date ?? "";
+  const open24Hours = Boolean(form.open_24_hours);
+  const closesNextDay = !open24Hours && isNextScheduleDay(openingDate, closingDate);
+  const hours = open24Hours
+    ? OPEN_24_HOURS_LABEL
+    : closesNextDay
+      ? buildScheduleHours(range.open, range.close, openingDate, closingDate)
+      : form.hours.trim() || null;
 
   return {
     name: form.name.trim(),
@@ -272,9 +330,13 @@ export function amenityFormToPayload(form: AmenityForm) {
     capacity: form.capacity.trim() === "" ? null : Math.max(0, parseInt(form.capacity, 10) || 0),
     capacity_booking_type: form.capacity_booking_type === "full_slot" ? "full_slot" : "per_seat",
     floor: form.floor.trim() || null,
-    hours: form.hours.trim() || null,
-    start_time: range.open || null,
-    end_time: range.close || null,
+    hours,
+    start_time: open24Hours ? "00:00" : range.open || null,
+    end_time: open24Hours ? "00:00" : range.close || null,
+    ...(open24Hours ? { open_24_hours: true } : {}),
+    ...(closesNextDay
+      ? { closes_next_day: true, opening_date: openingDate, closing_date: closingDate }
+      : {}),
     weekends_available: Boolean(form.weekends_available),
     slot_duration_minutes:
       form.status === "bookable" ? Number(form.slot_duration_minutes) || 60 : null,

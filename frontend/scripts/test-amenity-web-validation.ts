@@ -81,8 +81,98 @@ console.log("\nWeb amenity form validation");
 
   const ok = validateAmenityForm(valid);
   assert(!hasFieldErrors(ok), "accepts valid form");
-  assert(!hasFieldErrors(validateAmenityForm({ ...valid, floor: "A".repeat(40) })), "accepts 40-character location");
-  assert(Boolean(validateAmenityForm({ ...valid, floor: "B".repeat(41) }).floor), "rejects location over 40 characters");
+  assert(!hasFieldErrors(validateAmenityForm({ ...valid, floor: "A".repeat(25) })), "accepts 25-character location");
+  assert(
+    validateAmenityForm({ ...valid, floor: "B".repeat(26) }).floor === "Keep the location to 25 characters.",
+    "rejects location over 25 characters",
+  );
+  assert(
+    validateAmenityForm({ ...valid, floor: "A" }).floor === "Use at least 2 characters.",
+    "rejects a one-character location",
+  );
+  assert(
+    validateAmenityForm({ ...valid, name: "" }).name === "Amenity Name must contain at least 2 characters.",
+    "requires an amenity name of at least 2 characters",
+  );
+  assert(
+    validateAmenityForm({ ...valid, name: "A" }).name === "Amenity Name must contain at least 2 characters.",
+    "rejects a one-character amenity name on blur-equivalent validation",
+  );
+  assert(
+    validateAmenityForm({ ...valid, name: "AB" }).name === undefined,
+    "accepts a 2-character amenity name",
+  );
+  assert(
+    validateAmenityForm({ ...valid, name: "A".repeat(100) }).name === undefined,
+    "accepts a 100-character amenity name",
+  );
+  assert(
+    validateAmenityForm({ ...valid, name: "B".repeat(101) }).name === "Amenity Name must not exceed 100 characters.",
+    "rejects an amenity name over 100 characters",
+  );
+  assert(
+    validateAmenityForm({ ...valid, description: "Too short" }).description ===
+      "Description must be at least 10 characters.",
+    "rejects a description under 10 characters",
+  );
+  assert(
+    validateAmenityForm({ ...valid, description: "1234567890" }).description === undefined,
+    "accepts a 10-character description",
+  );
+  assert(
+    validateAmenityForm({ ...valid, description: `  ${"A".repeat(10)}  ` }).description === undefined,
+    "trims the description before checking length",
+  );
+  assert(
+    validateAmenityForm({ ...valid, description: "A".repeat(1000) }).description === undefined,
+    "accepts a 1000-character description",
+  );
+  assert(
+    validateAmenityForm({ ...valid, description: "A".repeat(1001) }).description ===
+      "Description must not exceed 1,000 characters.",
+    "rejects a description over 1000 characters",
+  );
+  assert(
+    amenityFormStepErrors({ ...valid, description: "Short" }, "details").description ===
+      "Description must be at least 10 characters.",
+    "blocks the details step when the description is too short",
+  );
+  assert(
+    validateAmenityForm({ ...valid, name: "  Pool & Spa  " }).name === undefined,
+    "trims and accepts a name with &",
+  );
+  assert(
+    validateAmenityForm({ ...valid, name: "O'Brien Court" }).name === undefined,
+    "accepts an apostrophe in the name",
+  );
+  assert(
+    validateAmenityForm({ ...valid, name: "Wi-Fi Lounge" }).name === undefined,
+    "accepts a hyphen in the name",
+  );
+  for (const name of ["Pool?", ",Pool", "Pool--House", "Pool&&Spa", "Pool''s", "?Pool"]) {
+    assert(
+      validateAmenityForm({ ...valid, name }).name === "Please enter a valid amenity name.",
+      `rejects amenity name ${JSON.stringify(name)}`,
+    );
+    assert(
+      amenityFormStepErrors({ ...valid, name }, "details").name === "Please enter a valid amenity name.",
+      `details step blocks amenity name ${JSON.stringify(name)}`,
+    );
+  }
+  assert(
+    validateAmenityForm({ ...valid, floor: "  Bldg A, #4 / Floor 2.  " }).floor === undefined,
+    "trims and accepts a normal location",
+  );
+  for (const floor of ["Floor?", ", Floor 2", "A//B", "Floor,,2", "Main St#", "??"]) {
+    assert(
+      validateAmenityForm({ ...valid, floor }).floor === "Please enter a valid location.",
+      `rejects location ${JSON.stringify(floor)}`,
+    );
+    assert(
+      amenityFormStepErrors({ ...valid, floor }, "details").floor === "Please enter a valid location.",
+      `details step blocks location ${JSON.stringify(floor)}`,
+    );
+  }
 
   const payload = amenityFormToPayload(valid);
   assert(payload.name === "Test Pool", "payload maps name");
@@ -120,6 +210,20 @@ console.log("\nWeb amenity form validation");
     amenityFormToPayload({ ...valid, charge_model: "booking", booking_fee: "10" }).booking_fee === 10,
     "payload stores per-person reservation fee",
   );
+  assert(
+    !validateAmenityForm({ ...valid, charge_model: "booking", booking_fee: "999999.99" }).booking_fee,
+    "accepts booking fee of 999,999.99",
+  );
+  const overMaxFee = { ...valid, charge_model: "booking" as const, booking_fee: "1000000" };
+  assert(
+    validateAmenityForm(overMaxFee).booking_fee === "Booking fee must not exceed 999,999.99.",
+    "rejects booking fee above 999,999.99",
+  );
+  const billingStepErrors = amenityFormStepErrors(overMaxFee, "billing", true);
+  assert(
+    billingStepErrors.booking_fee === "Booking fee must not exceed 999,999.99." && hasFieldErrors(billingStepErrors),
+    "billing step blocks a booking fee above 999,999.99",
+  );
 
   const billingOn = validateAmenityForm({
     ...valid,
@@ -150,6 +254,20 @@ console.log("\nWeb amenity form validation");
   assert(billingPayload.shared_billing_due_day === 10, "payload stores due day");
 
   assert(Boolean(validateAmenityForm({ ...valid, capacity: "" }).capacity), "requires capacity for slots");
+  assert(
+    validateAmenityForm({ ...valid, capacity: "0" }).capacity === "Capacity must be at least 1.",
+    "rejects a capacity of 0",
+  );
+  assert(
+    amenityFormStepErrors({ ...valid, capacity: "0" }, "availability").capacity === "Capacity must be at least 1.",
+    "availability step blocks a capacity of 0",
+  );
+  assert(!hasFieldErrors(validateAmenityForm({ ...valid, capacity: "1" })), "accepts a capacity of 1");
+  assert(!hasFieldErrors(validateAmenityForm({ ...valid, capacity: "2" })), "accepts a capacity of 2");
+  assert(
+    validateAmenityForm({ ...valid, status: "closed", capacity: "0" }).capacity === "Capacity must be at least 1.",
+    "rejects a closed amenity capacity of 0",
+  );
   assert(
     !hasFieldErrors(validateAmenityForm({ ...valid, status: "open", capacity: "" })),
     "open allows empty capacity",
@@ -254,6 +372,37 @@ console.log("\nWeb hours range utils");
   assert(overnight.open === "22:00", "parse 10 PM opening");
   assert(overnight.close === "02:00", "parse 2 AM closing as next-day clock time");
   assert(!hasFieldErrors(validateAmenityForm({ ...valid, hours: "10:00 PM - 2:00 AM" })), "accepts overnight hours");
+  assert(
+    validateAmenityForm({ ...valid, hours: "4:00 PM - 4:00 PM" }).hours ===
+      "Opening and closing times cannot be the same.",
+    "rejects identical opening and closing times on the same day",
+  );
+  assert(
+    amenityFormStepErrors({ ...valid, hours: "4:00 PM - 4:00 PM" }, "availability").hours ===
+      "Opening and closing times cannot be the same.",
+    "availability step blocks identical opening and closing times",
+  );
+  const nextDayHours = "Sep 29, 2026, 4:00 PM - Sep 30, 2026, 4:00 PM";
+  const nextDayForm = {
+    ...valid,
+    hours: nextDayHours,
+    opening_date: "2026-09-29",
+    closing_date: "2026-09-30",
+  };
+  assert(!hasFieldErrors(validateAmenityForm(nextDayForm)), "accepts the same clock time on the next day");
+  const nextDayPayload = amenityFormToPayload(nextDayForm);
+  assert(nextDayPayload.start_time === "16:00", "next-day payload keeps the opening time");
+  assert(nextDayPayload.end_time === "16:00", "next-day payload keeps the closing time");
+  assert(nextDayPayload.closes_next_day === true, "next-day payload marks an explicit closing date");
+  assert(nextDayPayload.hours === nextDayHours, "next-day payload keeps the dated hours label");
+  assert(
+    !hasFieldErrors(validateAmenityForm({ ...valid, open_24_hours: true, hours: "Open 24 Hours" })),
+    "accepts Open 24 Hours",
+  );
+  const allDayPayload = amenityFormToPayload({ ...valid, open_24_hours: true, hours: "Open 24 Hours" });
+  assert(allDayPayload.hours === "Open 24 Hours", "all-day payload stores Open 24 Hours");
+  assert(allDayPayload.start_time === "00:00" && allDayPayload.end_time === "00:00", "all-day payload uses a full-day window");
+  assert(allDayPayload.open_24_hours === true, "all-day payload sets the explicit flag");
   assert(amenityFormToPayload({ ...valid, hours: "10:00 PM - 2:00 AM" }).start_time === "22:00", "overnight payload start");
   assert(amenityFormToPayload({ ...valid, hours: "10:00 PM - 2:00 AM" }).end_time === "02:00", "overnight payload end");
 

@@ -161,12 +161,14 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: SolidFills.splash },
   content: { flex: 1, justifyContent: "center", alignItems: "center" },
-  brand: { alignItems: "center", gap: 10 },
+  brand: { alignItems: "center", gap: 10, paddingHorizontal: 24 },
   subtitle: {
     fontFamily: Fonts.regular,
     fontSize: 13,
     color: "rgba(27,79,138,0.62)",
-    lineHeight: 18,
+    lineHeight: 20,
+    textAlign: "center",
+    includeFontPadding: true,
   },
   loader: {
     marginTop: 42,

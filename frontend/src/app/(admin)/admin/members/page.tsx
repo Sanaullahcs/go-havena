@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { AdminBadge, StatTile, DataTable, DtTable, DtHead, DtRow, DtCell, DtPagination } from "@/components/admin/ui";
@@ -631,7 +633,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
         onFilter={(key) => setFilter(key as Filter)}
         filterAccessory={
           eligibleMembers.length > 0 ? (
-            <input
+            <ClearableInput
               ref={selectAllRef}
               type="checkbox"
               aria-label="Select all eligible members"
@@ -688,7 +690,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                   <DtCell first>
                     <div className="flex items-center gap-3">
                       {selectable ? (
-                        <input
+                        <ClearableInput
                           type="checkbox"
                           aria-label={`Select ${m.name}`}
                           checked={selected}
@@ -920,7 +922,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                   <label className="nl-label">
                     Full Name <span className="text-red-500">*</span>
                   </label>
-                  <input
+                  <ClearableInput
                     value={form.name}
                     onChange={(e) => {
                       clearError("name");
@@ -980,7 +982,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
                 <label className="nl-label">
                   Email Address <span className="text-red-500">*</span>
                 </label>
-                <input
+                <ClearableInput
                   type="email"
                   value={form.email}
                   onChange={(e) => {

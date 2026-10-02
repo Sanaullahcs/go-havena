@@ -27,7 +27,7 @@ export default function WellnessScreenHeader({
 
         <View style={styles.textBlock}>
           {title ? (
-            <Text style={styles.title} numberOfLines={1}>
+            <Text style={styles.title}>
               {title}
             </Text>
           ) : null}
@@ -37,7 +37,6 @@ export default function WellnessScreenHeader({
                 styles.subtitle,
                 { color: subtitleColor ?? meta?.color ?? WellnessTheme.brand },
               ]}
-              numberOfLines={1}
             >
               {subtitle}
             </Text>
@@ -71,18 +70,18 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: Fonts.bold,
     fontSize: sf(16),
-    lineHeight: sf(21),
+    lineHeight: sf(24),
     fontWeight: "700",
     color: WellnessTheme.text,
-    includeFontPadding: false,
+    includeFontPadding: true,
   },
   subtitle: {
     fontFamily: Fonts.medium,
-    fontSize: sf(11),
-    lineHeight: sf(15),
+    fontSize: sf(12),
+    lineHeight: sf(18),
     fontWeight: "500",
     marginTop: sw(2),
-    includeFontPadding: false,
+    includeFontPadding: true,
   },
   right: {
     flexShrink: 0,

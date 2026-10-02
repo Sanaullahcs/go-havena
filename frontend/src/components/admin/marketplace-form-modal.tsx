@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Listing, ListingFormData } from "@/lib/api/listings";
 import { LISTING_CONDITIONS } from "@/lib/api/listings";
@@ -286,7 +288,7 @@ export default function MarketplaceFormModal({
                   ? "Maximum photos added"
                   : `Add up to ${MAX_PHOTOS} photos (select multiple at once)`}
               </p>
-              <input
+              <ClearableInput
                 ref={fileRef}
                 type="file"
                 accept="image/*"
@@ -327,7 +329,7 @@ export default function MarketplaceFormModal({
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                 Title <span className="text-rose-500">*</span>
               </label>
-              <input
+              <ClearableInput
                 value={form.title}
                 onChange={(e) => set("title", e.target.value)}
                 onBlur={() => touch("title")}
@@ -343,7 +345,7 @@ export default function MarketplaceFormModal({
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                 Description <span className="text-rose-500">*</span>
               </label>
-              <textarea
+              <ClearableTextarea
                 value={form.description}
                 onChange={(e) => set("description", e.target.value)}
                 onBlur={() => touch("description")}
@@ -361,7 +363,7 @@ export default function MarketplaceFormModal({
                 <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                   Price (USD) <span className="text-rose-500">*</span>
                 </label>
-                <input
+                <ClearableInput
                   value={form.price}
                   onChange={(e) => set("price", e.target.value)}
                   onBlur={() => touch("price")}
@@ -377,7 +379,7 @@ export default function MarketplaceFormModal({
                 <label className="mb-1.5 block text-[13px] font-medium text-slate-700">
                   Category <span className="text-rose-500">*</span>
                 </label>
-                <input
+                <ClearableInput
                   value={form.category}
                   onChange={(e) => set("category", e.target.value)}
                   onBlur={() => touch("category")}
@@ -432,7 +434,7 @@ export default function MarketplaceFormModal({
 
             <div>
               <label className="mb-1.5 block text-[13px] font-medium text-slate-700">Location (optional)</label>
-              <input
+              <ClearableInput
                 value={form.location}
                 onChange={(e) => set("location", e.target.value)}
                 onBlur={() => touch("location")}

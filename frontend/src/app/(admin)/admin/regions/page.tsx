@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import {
@@ -439,7 +441,7 @@ export default function RegionsPage() {
                   Region details
                 </p>
                 <Field label="Title" required error={showError("title", liveErrors)}>
-                  <input
+                  <ClearableInput
                     className={inputClass(showError("title", liveErrors), "nl-input w-full")}
                     placeholder="Florida - Miami-Dade County"
                     value={form.title}
@@ -451,7 +453,7 @@ export default function RegionsPage() {
                   />
                 </Field>
                 <Field label="Area" required error={showError("area", liveErrors)}>
-                  <input
+                  <ClearableInput
                     className={inputClass(showError("area", liveErrors), "nl-input w-full")}
                     placeholder="Lahore Division"
                     value={form.area}
@@ -463,7 +465,7 @@ export default function RegionsPage() {
                   />
                 </Field>
                 <Field label="Users label">
-                  <input
+                  <ClearableInput
                     className="nl-input w-full"
                     placeholder="12,450 users"
                     value={form.users_label}
@@ -472,7 +474,7 @@ export default function RegionsPage() {
                 </Field>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Sort order">
-                    <input
+                    <ClearableInput
                       className="nl-input w-full"
                       type="number"
                       min={0}

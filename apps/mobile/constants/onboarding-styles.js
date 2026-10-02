@@ -169,7 +169,9 @@ export const onboardingStyles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   secondaryButton: {
-    height: 56,
+    minHeight: 56,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     borderRadius: Layout.buttonRadius,
     borderWidth: 1,
     borderColor: "rgba(229, 231, 235, 0.8)",
@@ -178,11 +180,14 @@ export const onboardingStyles = StyleSheet.create({
     justifyContent: "center",
   },
   secondaryButtonText: {
+    flexShrink: 1,
     fontFamily: Fonts.semiBold,
     fontSize: 16,
     lineHeight: 24,
     color: Colors.textBody,
     fontWeight: "600",
+    textAlign: "center",
+    includeFontPadding: true,
   },
   footerHint: {
     marginTop: 16,

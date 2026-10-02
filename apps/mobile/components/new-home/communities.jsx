@@ -20,6 +20,8 @@ import { homeStyles } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
 import HomeSectionHeader from "./section-header";
 import HomeSectionEmpty from "./home-section-empty";
+import { useSessionUser } from "../../hooks/use-session-user";
+import { isHomeSectionEnabled } from "../../constants/resident-features";
 import {
   likePost,
   applyLikeToPost,
@@ -211,6 +213,7 @@ export default function Communities({ posts = [], onPostsChange }) {
   const now = useNow(30000);
   const [sharePost, setSharePost] = useState(null);
   const frame = useHomeFrame();
+  const sessionUser = useSessionUser();
 
   const layout = useMemo(() => {
     const gap = frame.size(12);
@@ -289,9 +292,11 @@ export default function Communities({ posts = [], onPostsChange }) {
     [layout.cardWidth, layout.cardHeight, layout.imageH, now, router, handleLike, handleShare],
   );
 
+  if (!isHomeSectionEnabled(sessionUser, "feed")) return null;
+
   if (posts.length === 0) {
     return (
-      <View style={[homeStyles.section, { marginHorizontal: frame.sideInset }]}>
+      <View style={[homeStyles.section, { alignSelf: "center", marginHorizontal: frame.sideInset, width: frame.contentWidth }]}>
         <HomeSectionHeader
           label={t("community.feed")}
           onPress={() => navigateAppRoute(router, COMMUNITY_FEED_ROUTE)}
@@ -304,7 +309,7 @@ export default function Communities({ posts = [], onPostsChange }) {
   }
 
   return (
-    <View style={[homeStyles.section, { marginHorizontal: frame.sideInset }]}>
+    <View style={[homeStyles.section, { alignSelf: "center", marginHorizontal: frame.sideInset, width: frame.contentWidth }]}>
       <HomeSectionHeader
         label={t("community.feed")}
         onPress={() => navigateAppRoute(router, COMMUNITY_FEED_ROUTE)}
@@ -312,7 +317,7 @@ export default function Communities({ posts = [], onPostsChange }) {
       <FlatList
         data={posts}
         horizontal
-        style={[styles.carousel, { minHeight: layout.cardHeight }]}
+        style={[styles.carousel, { width: frame.contentWidth, minHeight: layout.cardHeight }]}
         showsHorizontalScrollIndicator={false}
         decelerationRate="fast"
         snapToInterval={layout.snap}

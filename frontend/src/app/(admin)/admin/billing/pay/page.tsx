@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -324,7 +326,7 @@ function CheckoutForm({
             </div>
           ) : (
             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <input
+              <ClearableInput
                 value={couponCode}
                 onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                 placeholder="Enter code"
@@ -584,7 +586,8 @@ function PayInner() {
             return;
           }
           const step = getCommunityAdminNextStep(getUser());
-          router.replace(communityAdminOnboardingPath(step === "complete_billing_web" ? "configure_resident_features" : step));
+          const next = step === "configure_resident_features" ? "await_approval" : step;
+          router.replace(communityAdminOnboardingPath(next));
           return;
         }
       } catch (err) {

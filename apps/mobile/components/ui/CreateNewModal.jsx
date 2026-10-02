@@ -17,6 +17,7 @@ import { useRouter } from "expo-router";
 import { getUser } from "../../services/auth-session";
 import { fetchMe } from "../../services/profile-api";
 import { canAccessDashboard, isCommunityAdmin } from "../../services/community-access";
+import { isResidentFeatureEnabled } from "../../constants/resident-features";
 import { PropertyManagementRoutes } from "../../constants/property-management-routes";
 import ThemedIconBox from "./themed-icon-box";
 import NoticeDrawer from "./noticeDrawer";
@@ -51,6 +52,7 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
   const router = useRouter();
   const [canManageCommunity, setCanManageCommunity] = useState(false);
   const [canCreateResidentEvent, setCanCreateResidentEvent] = useState(false);
+  const [featureUser, setFeatureUser] = useState(null);
   const [openNoticeDrawer, setOpenNoticeDrawer] = useState(false);
 
   useEffect(() => {
@@ -61,12 +63,14 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
         const user = await fetchMe();
         if (cancelled) return;
         const isAdmin = isCommunityAdmin(user);
+        setFeatureUser(user);
         setCanManageCommunity(isAdmin);
         setCanCreateResidentEvent(!isAdmin && canAccessDashboard(user));
       } catch {
         const user = await getUser();
         if (cancelled) return;
         const isAdmin = isCommunityAdmin(user);
+        setFeatureUser(user);
         setCanManageCommunity(isAdmin);
         setCanCreateResidentEvent(!isAdmin && canAccessDashboard(user));
       }
@@ -89,12 +93,14 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
         const user = await fetchMe();
         if (cancelled) return;
         const isAdmin = isCommunityAdmin(user);
+        setFeatureUser(user);
         setCanManageCommunity(isAdmin);
         setCanCreateResidentEvent(!isAdmin && canAccessDashboard(user));
       } catch {
         const user = await getUser();
         if (cancelled) return;
         const isAdmin = isCommunityAdmin(user);
+        setFeatureUser(user);
         setCanManageCommunity(isAdmin);
         setCanCreateResidentEvent(!isAdmin && canAccessDashboard(user));
       }
@@ -105,7 +111,15 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
     };
   }, [visible]);
 
-  const showCreateEvent = canManageCommunity || canCreateResidentEvent;
+  const showCreateEvent =
+    (canManageCommunity || canCreateResidentEvent) && isResidentFeatureEnabled(featureUser, "events");
+  const showFeed = isResidentFeatureEnabled(featureUser, "feed");
+  const showMarketplace = isResidentFeatureEnabled(featureUser, "marketplace");
+  const showNotices =
+    canManageCommunity &&
+    (isResidentFeatureEnabled(featureUser, "notices") || isResidentFeatureEnabled(featureUser, "alerts"));
+  const showRules = canManageCommunity && isResidentFeatureEnabled(featureUser, "community_rules");
+  const showDocuments = canManageCommunity && isResidentFeatureEnabled(featureUser, "documents");
   return (
     <>
       <AppModal visible={visible} onRequestClose={onClose}>
@@ -123,6 +137,7 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
               </View>
             </View>
 
+            {showFeed ? (
             <CreateOptionRow
               icon="edit-3"
               iconBg="#D1FAF5"
@@ -136,6 +151,7 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
                 router.push("/screens/create-post");
               }}
             />
+            ) : null}
 
             {showCreateEvent ? (
               <CreateOptionRow
@@ -155,6 +171,7 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
               />
             ) : null}
 
+            {showMarketplace ? (
             <CreateOptionRow
               icon="shopping-bag"
               iconBg="#D1FAE5"
@@ -168,7 +185,9 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
                 router.push({ pathname: "/screens/createListing", params: { type: "item" } });
               }}
             />
+            ) : null}
 
+            {showMarketplace ? (
             <CreateOptionRow
               icon="tool"
               iconBg="#ECFDF5"
@@ -182,8 +201,10 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
                 router.push({ pathname: "/screens/createListing", params: { type: "service" } });
               }}
             />
+            ) : null}
             {canManageCommunity && (
               <>
+                {showRules ? (
                 <CreateOptionRow
                   icon="book-open"
                   iconBg="#CCFBF1"
@@ -197,7 +218,9 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
                     router.push(PropertyManagementRoutes.RULE_FORM);
                   }}
                 />
+                ) : null}
 
+                {showDocuments ? (
                 <CreateOptionRow
                   icon="file-text"
                   iconBg="#FFEDD5"
@@ -211,7 +234,9 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
                     router.push(PropertyManagementRoutes.DOCUMENT_FORM);
                   }}
                 />
+                ) : null}
 
+                {showNotices ? (
                 <CreateOptionRow
                   icon="bell"
                   iconBg="#DBEAFE"
@@ -229,6 +254,7 @@ export default function CreateNewModal({ visible, onClose, onOpen }) {
                     setOpenNoticeDrawer(true);
                   }}
                 />
+                ) : null}
               </>
             )}
           </Pressable>

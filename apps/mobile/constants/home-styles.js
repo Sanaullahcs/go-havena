@@ -63,6 +63,7 @@ export const homeStyles = StyleSheet.create({
     fontWeight: "700",
   },
   sectionHeader: {
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",

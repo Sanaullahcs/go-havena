@@ -17,12 +17,18 @@ import { useHomeScreen } from "../../hooks/use-home-screen";
 import { HomeScreenSkeleton } from "../../components/ui/skeleton-loader";
 import GuestFeatureErrorState from "../../components/guest/guest-permission-denied-state";
 import { isFeatureAccessBlockedError } from "../../utils/guest-permission-errors";
+import { useSessionUser } from "../../hooks/use-session-user";
+import { isHomeSectionEnabled } from "../../constants/resident-features";
+import { sw } from "../../utils/responsive";
 
 export default function Home() {
   const { t } = useTranslation();
   const menu = useSideMenu();
+  const sessionUser = useSessionUser();
+  const featureOn = (key) => isHomeSectionEnabled(sessionUser, key);
   const {
     carouselNotices,
+    noticesLoaded,
     upcomingEvents,
     posts,
     setPosts,
@@ -46,7 +52,11 @@ export default function Home() {
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={homeStyles.scrollContent}
+          contentContainerStyle={[
+            homeStyles.scrollContent,
+            styles.scrollContent,
+            { paddingBottom: sw(24) },
+          ]}
           showsVerticalScrollIndicator={false}
           bounces
           refreshControl={
@@ -69,12 +79,12 @@ export default function Home() {
             />
           ) : (
             <>
-              <Notices items={carouselNotices} />
-              <HappeningSoon items={upcomingEvents} />
-              <Communities posts={posts} onPostsChange={setPosts} />
-              <DealsCornor items={deals} />
-              <Wellness items={wellnessCategories} />
-              <PropertyNew items={amenities} />
+              <Notices items={carouselNotices} noticesLoaded={noticesLoaded && featureOn("notices")} />
+              {featureOn("events") ? <HappeningSoon items={upcomingEvents} /> : null}
+              {featureOn("feed") ? <Communities posts={posts} onPostsChange={setPosts} /> : null}
+              {featureOn("marketplace") ? <DealsCornor items={deals} /> : null}
+              {featureOn("wellness") ? <Wellness items={wellnessCategories} /> : null}
+              {featureOn("amenities") ? <PropertyNew items={amenities} /> : null}
             </>
           )}
         </ScrollView>
@@ -84,5 +94,6 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1 },
+  scroll: { flex: 1, alignSelf: "stretch", overflow: "hidden" },
+  scrollContent: { width: "100%", alignItems: "stretch" },
 });

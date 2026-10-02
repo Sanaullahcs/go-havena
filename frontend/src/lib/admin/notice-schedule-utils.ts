@@ -230,6 +230,7 @@ export function toScheduleApiDateTime(date: string, time: string): string | unde
 }
 
 export const NOTICE_FUTURE_TIME_MESSAGE = "Please select a future time for this notice.";
+export const EVENT_PAST_TIME_MESSAGE = "Past time cannot be selected. Please select a future time.";
 
 /** Calendar date + minute-of-day in a timezone (defaults to the browser local zone). */
 export function zonedNowParts(now: Date = new Date(), timeZone?: string): { date: string; minutes: number } {

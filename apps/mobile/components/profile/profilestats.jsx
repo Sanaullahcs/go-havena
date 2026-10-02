@@ -11,7 +11,7 @@ import { sw, sf } from "../../utils/responsive";
 import { rnShadow } from "../../utils/shadow";
 
 
-export default function ProfileStats({ stats }) {
+export default function ProfileStats({ stats, showPoints = true, showPosts = true }) {
   const router = useRouter();
   const { t } = useTranslation();
 
@@ -23,36 +23,46 @@ export default function ProfileStats({ stats }) {
     const rank = stats?.rank;
 
     return [
-      {
-        id: "streak",
-        icon: "zap",
-        label: t("profile.currentStreak"),
-        value: t("profile.day", { count: streak }),
-        route: null,
-      },
-      {
-        id: "badges",
-        icon: "award",
-        label: t("profile.badgesEarned"),
-        value: t("profile.badgeCount", { earned: badgesEarned, total: badgesTotal }),
-        route: "/screens/achievements",
-      },
-      {
-        id: "posts",
-        icon: "edit-3",
-        label: t("profile.communityPosts"),
-        value: String(posts),
-        route: "/screens/profile/my-posts",
-      },
-      {
-        id: "rank",
-        icon: "bar-chart-2",
-        label: t("profile.communityRank"),
-        value: formatRank(rank),
-        route: "/screens/leaderboard",
-      },
-    ];
-  }, [stats, t]);
+      showPoints
+        ? {
+            id: "streak",
+            icon: "zap",
+            label: t("profile.currentStreak"),
+            value: t("profile.day", { count: streak }),
+            route: null,
+          }
+        : null,
+      showPoints
+        ? {
+            id: "badges",
+            icon: "award",
+            label: t("profile.badgesEarned"),
+            value: t("profile.badgeCount", { earned: badgesEarned, total: badgesTotal }),
+            route: "/screens/achievements",
+          }
+        : null,
+      showPosts
+        ? {
+            id: "posts",
+            icon: "edit-3",
+            label: t("profile.communityPosts"),
+            value: String(posts),
+            route: "/screens/profile/my-posts",
+          }
+        : null,
+      showPoints
+        ? {
+            id: "rank",
+            icon: "bar-chart-2",
+            label: t("profile.communityRank"),
+            value: formatRank(rank),
+            route: "/screens/leaderboard",
+          }
+        : null,
+    ].filter(Boolean);
+  }, [showPoints, showPosts, stats, t]);
+
+  if (!rows.length) return null;
 
   return (
     <View style={styles.container}>

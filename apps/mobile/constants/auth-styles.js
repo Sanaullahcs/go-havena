@@ -172,20 +172,25 @@ export const authStyles = StyleSheet.create({
   },
   button: {
     width: "100%",
-    height: 48,
+    minHeight: 52,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: Layout.buttonRadius,
     alignItems: "center",
     justifyContent: "center",
-    overflow: "hidden",
   },
   buttonDisabled: {
     backgroundColor: Colors.disabledBg,
   },
   buttonText: {
+    flexShrink: 1,
     fontSize: 16,
+    lineHeight: 24,
     fontWeight: "600",
     color: "#FFFFFF",
     fontFamily: Fonts.semiBold,
+    textAlign: "center",
+    includeFontPadding: true,
   },
   divider: {
     height: 1,

@@ -300,6 +300,7 @@ export default function AmenityFormScreen() {
             <LocaleTextInput
               style={[
                 styles.input,
+                singleLineInputStyle,
                 fieldError("custom_category", form.custom_category, AMENITY_FIELD_MAX.custom_category) && styles.inputError,
               ]}
               value={form.custom_category}
@@ -553,6 +554,7 @@ export default function AmenityFormScreen() {
               <LocaleTextInput
                 style={[
                   styles.input,
+                  singleLineInputStyle,
                   showError("shared_billing_amount", liveErrors) && styles.inputError,
                 ]}
                 value={String(form.shared_billing_amount ?? "")}
@@ -571,6 +573,7 @@ export default function AmenityFormScreen() {
               <LocaleTextInput
                 style={[
                   styles.input,
+                  singleLineInputStyle,
                   showError("shared_billing_due_day", liveErrors) && styles.inputError,
                 ]}
                 value={String(form.shared_billing_due_day ?? "")}

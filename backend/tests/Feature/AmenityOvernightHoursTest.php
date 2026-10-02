@@ -266,4 +266,57 @@ class AmenityOvernightHoursTest extends TestCase
         ])->assertCreated()
             ->assertJsonPath('data.date', $sessionDate);
     }
+
+    public function test_identical_clock_times_require_an_explicit_next_day_or_all_day_choice(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity();
+        Sanctum::actingAs($admin);
+
+        $base = [
+            'status' => 'bookable',
+            'capacity' => 10,
+            'icon_key' => 'hall',
+            'slot_duration_minutes' => 60,
+        ];
+
+        $this->postJson('/api/v1/admin/amenities', array_merge($base, [
+            'name' => 'Ambiguous Lounge',
+            'start_time' => '16:00',
+            'end_time' => '16:00',
+        ]), [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.end_time.0', 'Opening and closing times cannot be the same.');
+
+        $this->postJson('/api/v1/admin/amenities', array_merge($base, [
+            'name' => 'Next Day Lounge',
+            'start_time' => '16:00',
+            'end_time' => '16:00',
+            'opening_date' => '2026-09-29',
+            'closing_date' => '2026-09-30',
+            'closes_next_day' => true,
+            'hours' => 'Sep 29, 2026, 4:00 PM - Sep 30, 2026, 4:00 PM',
+        ]), [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.hours', 'Sep 29, 2026, 4:00 PM - Sep 30, 2026, 4:00 PM')
+            ->assertJsonPath('data.start_time', '16:00')
+            ->assertJsonPath('data.end_time', '16:00');
+
+        $this->postJson('/api/v1/admin/amenities', array_merge($base, [
+            'name' => 'All Day Hall',
+            'start_time' => '09:00',
+            'end_time' => '17:00',
+            'open_24_hours' => true,
+        ]), [
+            'X-Community-Id' => (string) $community->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.hours', 'Open 24 Hours')
+            ->assertJsonPath('data.start_time', '00:00')
+            ->assertJsonPath('data.end_time', '00:00')
+            ->assertJsonCount(24, 'data.slots');
+    }
 }

@@ -54,7 +54,6 @@ export default function Wellness() {
       <WellnessScreenHeader
         title={t('wellness.hubTitle')}
         subtitle={t('wellness.hubSubtitle')}
-        onBack={() => router.back()}
       />
 
       {!accessBlocked ? <WellnessStatBar stats={stats} /> : null}

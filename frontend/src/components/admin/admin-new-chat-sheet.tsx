@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
@@ -84,7 +86,7 @@ export function AdminNewChatSheet({ open, onClose, onSelect }: Props) {
         </header>
 
         <div className="border-b border-slate-100 p-3">
-          <input
+          <ClearableInput
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}

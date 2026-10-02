@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -520,7 +522,7 @@ export function ResidentActivityModal({ member, communityId, onClose }: Props) {
           <div className="nl-resident-activity-filter-row">
             <div className="nl-resident-activity-search">
               <Search className="h-4 w-4" strokeWidth={2} />
-              <input
+              <ClearableInput
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}

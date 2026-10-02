@@ -2,7 +2,11 @@ import { getCachedUser } from "../services/auth-session";
 import { isCommunityAdmin } from "../services/community-access";
 import modeBack from "./mode-back.cjs";
 
-const { currentRouteNameFromState, previousRouteNameFromState, resolveBackAction } = modeBack;
+const {
+  backContextFromNavigation,
+  isAdminStackRoute,
+  resolveBackAction,
+} = modeBack;
 
 /**
  * Navigate to app routes without breaking tab stacks.
@@ -21,6 +25,7 @@ export function navigateAppRoute(router, route) {
     path.startsWith("/(tabs)/") ||
     path.startsWith("/tabs/") ||
     path === "/home" ||
+    path === "/community" ||
     path === "/marketplace" ||
     path === "/services" ||
     path === "/profile" ||
@@ -38,33 +43,50 @@ export function navigateAppRoute(router, route) {
   router.push(route);
 }
 
-/** Back that never throws and never leaves Community Admin Mode for a leftover Resident route. */
-export function safeGoBack(router, navigation) {
-  if (!router) return;
+/**
+ * Pop to the screen that opened this one.
+ * Returns true when navigation was handled. Returns false when this screen
+ * is already the root of its mode, so the system back button can leave the app.
+ */
+export function safeGoBack(router, navigation, { fallbackPath } = {}) {
+  if (!router) return false;
 
-  const state = navigation?.getState?.() ?? null;
+  const fromStack = backContextFromNavigation(navigation);
+  const isAdminMode = isCommunityAdmin(getCachedUser());
   const action = resolveBackAction({
-    canGoBack: Boolean(router.canGoBack?.()),
-    previousRouteName: previousRouteNameFromState(state),
-    currentRouteName: currentRouteNameFromState(state),
-    isAdminMode: isCommunityAdmin(getCachedUser()),
+    canGoBack: fromStack.canGoBack || Boolean(router.canGoBack?.()),
+    previousRouteName: fromStack.previousRouteName,
+    currentRouteName: fromStack.currentRouteName,
+    isAdminMode,
+    fallbackPath,
   });
 
   try {
     if (action.type === "back") {
       router.back();
-      return;
+      return true;
     }
     if (action.type === "replace" && action.path) {
       router.replace(action.path);
+      return true;
     }
   } catch {
     try {
-      if (isCommunityAdmin(getCachedUser())) {
+      const onAdminScreen = isAdminStackRoute(fromStack.currentRouteName);
+      if (onAdminScreen && isAdminMode) {
         router.replace("/screens/admin-dashboard");
+        return true;
       }
+      if (fallbackPath) {
+        router.replace(fallbackPath);
+        return true;
+      }
+      router.replace("/(tabs)/home");
+      return true;
     } catch {
       // Stay on the current screen rather than crash.
     }
   }
+
+  return false;
 }

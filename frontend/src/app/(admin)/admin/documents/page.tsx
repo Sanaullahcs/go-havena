@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   ChevronRight,
@@ -336,7 +338,7 @@ export default function DocumentsPage() {
 
           {showCategoryForm ? (
             <div className="mb-3 space-y-2 rounded-xl border border-blue-200 bg-blue-50/40 p-3">
-              <input
+              <ClearableInput
                 className="nl-input"
                 placeholder="Category name *"
                 value={newCategoryName}
@@ -541,7 +543,7 @@ export default function DocumentsPage() {
             <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
               <div>
                 <label className="mb-1.5 block text-[13px] font-medium text-slate-700">Title *</label>
-                <input
+                <ClearableInput
                   className={inputClass(showError("title", liveErrors), "nl-input")}
                   value={form.title}
                   onChange={(e) => setF("title", e.target.value)}
@@ -571,7 +573,7 @@ export default function DocumentsPage() {
                   }}
                 />
                 {categorySelect === DOCUMENT_OTHER_CATEGORY ? (
-                  <input
+                  <ClearableInput
                     type="text"
                     className={inputClass(showError("category", liveErrors), "nl-input mt-2 w-full")}
                     placeholder="Enter custom category name"
@@ -590,11 +592,11 @@ export default function DocumentsPage() {
               </div>
               <div>
                 <label className="mb-1.5 block text-[13px] font-medium text-slate-700">Description</label>
-                <textarea className="nl-input min-h-[80px] resize-y" value={form.description} onChange={(e) => setF("description", e.target.value)} placeholder="Optional notes about this document…" />
+                <ClearableTextarea className="nl-input min-h-[80px] resize-y" value={form.description} onChange={(e) => setF("description", e.target.value)} placeholder="Optional notes about this document…" />
               </div>
               <div>
                 <label className="mb-1.5 block text-[13px] font-medium text-slate-700">{editingId ? "Replace File (optional)" : "File *"}</label>
-                <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => { setSelectedFile(e.target.files?.[0] ?? null); touch("file"); clearError("file"); }} />
+                <ClearableInput ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp" className="hidden" onChange={(e) => { setSelectedFile(e.target.files?.[0] ?? null); touch("file"); clearError("file"); }} />
                 <button type="button" onClick={() => fileInputRef.current?.click()} className={inputClass(showError("file", liveErrors), "flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm font-medium text-slate-600 transition hover:border-blue-300 hover:bg-blue-50/50")}>
                   <Upload className="h-4 w-4" />
                   {selectedFile ? selectedFile.name : editingId ? "Choose a new file to replace" : "Choose PDF, Word, or image file (max 10 MB)"}
@@ -604,7 +606,7 @@ export default function DocumentsPage() {
                 ) : null}
               </div>
               <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-blue-600" checked={form.status === "active"} onChange={(e) => setF("status", e.target.checked ? "active" : "inactive")} />
+                <ClearableInput type="checkbox" className="h-4 w-4 rounded border-slate-300 text-blue-600" checked={form.status === "active"} onChange={(e) => setF("status", e.target.checked ? "active" : "inactive")} />
                 Active (visible to residents)
               </label>
             </div>

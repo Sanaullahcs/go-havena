@@ -1003,18 +1003,70 @@ class AmenityController extends Controller
 
     private function validateAmenityPayload(Request $request, bool $creating): array
     {
+        $trimmed = [];
+        if ($request->exists('name') && is_string($request->input('name'))) {
+            $trimmed['name'] = trim($request->input('name'));
+        }
+        if ($request->exists('floor') && is_string($request->input('floor'))) {
+            $trimmed['floor'] = trim($request->input('floor'));
+        }
+        if ($request->exists('description') && is_string($request->input('description'))) {
+            $trimmed['description'] = trim($request->input('description'));
+        }
+        if ($trimmed !== []) {
+            $request->merge($trimmed);
+        }
+
+        if ($request->boolean('open_24_hours')) {
+            $request->merge([
+                'start_time' => '00:00',
+                'end_time' => '00:00',
+                'hours' => 'Open 24 Hours',
+            ]);
+        }
+
         $rules = [
-            'name' => ($creating ? 'required' : 'sometimes').'|string|max:100',
+            'name' => [
+                $creating ? 'required' : 'sometimes',
+                'string',
+                'min:2',
+                'max:100',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (! is_string($value) || mb_strlen(trim($value)) < 2) {
+                        return;
+                    }
+                    if (! $this->amenityNameIsValid(trim($value))) {
+                        $fail('Please enter a valid amenity name.');
+                    }
+                },
+            ],
             'name_es' => 'nullable|string|max:100',
             'name_ar' => 'nullable|string|max:100',
             'description' => 'nullable|string|max:500',
             'description_es' => 'nullable|string|max:500',
             'description_ar' => 'nullable|string|max:500',
             'status' => ($creating ? 'required' : 'sometimes').'|in:'.implode(',', self::STATUSES),
-            'capacity' => ($request->input('status') === 'bookable' ? 'required' : 'nullable').'|integer|min:0|max:1000',
+            'capacity' => ($request->input('status') === 'bookable' ? 'required' : 'nullable').'|integer|min:1|max:1000',
             'capacity_booking_type' => 'nullable|in:'.AmenityCapacityService::TYPE_PER_SEAT.','.AmenityCapacityService::TYPE_FULL_SLOT,
-            'floor' => 'nullable|string|max:40',
+            'floor' => [
+                'nullable',
+                'string',
+                'min:2',
+                'max:25',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (! is_string($value) || trim($value) === '') {
+                        return;
+                    }
+                    if (! $this->amenityLocationIsValid(trim($value))) {
+                        $fail('Please enter a valid location.');
+                    }
+                },
+            ],
             'hours' => 'nullable|string|max:100',
+            'open_24_hours' => 'nullable|boolean',
+            'closes_next_day' => 'nullable|boolean',
+            'opening_date' => 'nullable|date_format:Y-m-d',
+            'closing_date' => 'nullable|date_format:Y-m-d',
             'start_time' => ($creating ? 'required' : 'sometimes').'|date_format:H:i',
             'end_time' => [
                 ($creating ? 'required' : 'sometimes'),
@@ -1022,6 +1074,28 @@ class AmenityController extends Controller
                 function (string $attribute, mixed $value, \Closure $fail) use ($request) {
                     $start = $request->input('start_time');
                     if (! is_string($start) || $start === '' || ! is_string($value) || $value === '') {
+                        return;
+                    }
+
+                    if (substr($start, 0, 5) === substr($value, 0, 5)) {
+                        if ($request->boolean('open_24_hours') || $this->closingDateIsNextDay(
+                            $request->input('opening_date'),
+                            $request->input('closing_date'),
+                        )) {
+                            return;
+                        }
+
+                        $fail('Opening and closing times cannot be the same.');
+
+                        return;
+                    }
+
+                    if (
+                        $this->closingDateIsNextDay($request->input('opening_date'), $request->input('closing_date'))
+                        && substr($value, 0, 5) > substr($start, 0, 5)
+                    ) {
+                        $fail('A next-day closing time cannot be later than the opening time.');
+
                         return;
                     }
 
@@ -1034,7 +1108,7 @@ class AmenityController extends Controller
             'weekends_available' => 'nullable|boolean',
             'slot_duration_minutes' => 'nullable|integer|min:15|max:480',
             'icon_key' => 'nullable|string|in:'.implode(',', self::ICON_KEYS),
-            'custom_category' => 'nullable|string|max:80',
+            'custom_category' => 'nullable|string|min:2|max:25',
             'shared_billing_enabled' => 'nullable|boolean',
             'shared_billing_type' => 'nullable|string|in:'.self::SHARED_BILLING_TYPE_ALL_RESIDENTS,
             'shared_billing_frequency' => 'nullable|string|in:'.self::SHARED_BILLING_FREQUENCY_MONTHLY.','.self::SHARED_BILLING_FREQUENCY_YEARLY,
@@ -1053,21 +1127,110 @@ class AmenityController extends Controller
         }
 
         if (($request->input('icon_key') ?? '') === 'other') {
-            $rules['custom_category'] = ($creating ? 'required' : 'sometimes').'|string|min:2|max:80';
+            $rules['custom_category'] = ($creating ? 'required' : 'sometimes').'|string|min:2|max:25';
         }
 
-        return $request->validate($rules);
+        return $request->validate($rules, [
+            'capacity.min' => 'Capacity must be at least 1.',
+            'description.required' => 'Description must be at least 10 characters.',
+            'description.min' => 'Description must be at least 10 characters.',
+            'description.max' => 'Description must not exceed 1,000 characters.',
+            'name.required' => 'Amenity Name must contain at least 2 characters.',
+            'name.min' => 'Amenity Name must contain at least 2 characters.',
+            'name.max' => 'Amenity Name must not exceed 100 characters.',
+            'floor.min' => 'Use at least 2 characters.',
+            'floor.max' => 'Keep the location to 25 characters.',
+            'custom_category.min' => 'Use at least 2 characters.',
+            'custom_category.max' => 'Keep the category to 25 characters.',
+        ]);
+    }
+
+    private function amenityNameIsValid(string $value): bool
+    {
+        if (! preg_match("/^[\\p{L}\\p{N} &'’\\-]+$/u", $value)) {
+            return false;
+        }
+        if (! preg_match('/^[\p{L}\p{N}]/u', $value) || ! preg_match('/[\p{L}\p{N}]$/u', $value)) {
+            return false;
+        }
+        if (preg_match("/[-&'’]{2,}/u", $value)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function amenityLocationIsValid(string $value): bool
+    {
+        if (! preg_match('~^[\p{L}\p{N} \-/,.#]+$~u', $value)) {
+            return false;
+        }
+        if (! preg_match('~[\p{L}\p{N}]~u', $value)) {
+            return false;
+        }
+        if (preg_match('~^[,.\-/]~u', $value)) {
+            return false;
+        }
+        if (preg_match('~[,#\-/]$~u', $value)) {
+            return false;
+        }
+        if (preg_match('~[-/,.#]{2,}~u', $value)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function closingDateIsNextDay(mixed $opening, mixed $closing): bool
+    {
+        if (! is_string($opening) || ! is_string($closing) || $opening === '' || $closing === '') {
+            return false;
+        }
+
+        try {
+            $open = \Carbon\Carbon::createFromFormat('!Y-m-d', $opening);
+            $close = \Carbon\Carbon::createFromFormat('!Y-m-d', $closing);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        if (! $open instanceof \Carbon\Carbon || ! $close instanceof \Carbon\Carbon) {
+            return false;
+        }
+
+        return $open->startOfDay()->copy()->addDay()->equalTo($close->startOfDay());
+    }
+
+    private function hoursLabel(array $data, ?string $start, ?string $end): ?string
+    {
+        if (! empty($data['open_24_hours'])) {
+            return 'Open 24 Hours';
+        }
+
+        if (
+            ! empty($data['closes_next_day'])
+            && $this->closingDateIsNextDay($data['opening_date'] ?? null, $data['closing_date'] ?? null)
+            && is_string($start)
+            && is_string($end)
+            && substr($end, 0, 5) <= substr($start, 0, 5)
+            && is_string($data['hours'] ?? null)
+            && $data['hours'] !== ''
+        ) {
+            return $data['hours'];
+        }
+
+        return AmenitySlots::formatHoursDisplay(
+            $start ? $start.':00' : null,
+            $end ? $end.':00' : null,
+            $data['hours'] ?? null,
+        );
     }
 
     private function buildAmenityRow(array $data, int $communityId, int $userId, bool $isAdmin): array
     {
         $start = $data['start_time'] ?? null;
         $end = $data['end_time'] ?? null;
-        $hours = AmenitySlots::formatHoursDisplay(
-            $start ? $start.':00' : null,
-            $end ? $end.':00' : null,
-            $data['hours'] ?? null,
-        );
+        $hours = $this->hoursLabel($data, is_string($start) ? $start : null, is_string($end) ? $end : null);
 
         $status = $data['status'] ?? 'bookable';
         $slotDuration = $status === 'bookable'
@@ -1137,10 +1300,10 @@ class AmenityController extends Controller
         }
 
         if (isset($payload['start_time']) || isset($payload['end_time']) || array_key_exists('hours', $data)) {
-            $payload['hours'] = AmenitySlots::formatHoursDisplay(
-                $payload['start_time'] ?? null,
-                $payload['end_time'] ?? null,
-                $data['hours'] ?? null,
+            $payload['hours'] = $this->hoursLabel(
+                $data,
+                isset($payload['start_time']) ? substr((string) $payload['start_time'], 0, 5) : null,
+                isset($payload['end_time']) ? substr((string) $payload['end_time'], 0, 5) : null,
             );
         }
 

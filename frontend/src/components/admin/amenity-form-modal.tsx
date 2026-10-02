@@ -30,6 +30,7 @@ import {
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
 import { formatSlotDurationLabel } from "@/lib/admin/amenity-slot-duration";
+import { parseStoredSchedule } from "@/lib/admin/hours-range-utils";
 import type { Amenity } from "@/lib/api/amenities";
 
 const EMPTY_FORM: AmenityForm = {
@@ -40,6 +41,9 @@ const EMPTY_FORM: AmenityForm = {
   capacity_booking_type: "per_seat",
   floor: "",
   hours: "",
+  opening_date: "",
+  closing_date: "",
+  open_24_hours: false,
   weekends_available: true,
   slot_duration_minutes: "60",
   icon_key: "",
@@ -76,6 +80,7 @@ const STEP_COPY: Record<AmenityFormStep, { label: string; title: string; hint: s
 };
 
 function amenityToForm(amenity: Amenity): AmenityForm {
+  const schedule = parseStoredSchedule(amenity.hours ?? "");
   return {
     name: amenity.name ?? "",
     description: amenity.description ?? "",
@@ -84,6 +89,9 @@ function amenityToForm(amenity: Amenity): AmenityForm {
     capacity_booking_type: amenity.capacity_booking_type === "full_slot" ? "full_slot" : "per_seat",
     floor: amenity.floor ?? "",
     hours: amenity.hours ?? "",
+    opening_date: schedule.openingDate,
+    closing_date: schedule.closingDate,
+    open_24_hours: schedule.open24Hours,
     weekends_available: amenity.weekends_available !== false,
     slot_duration_minutes:
       amenity.slot_duration_minutes != null ? String(amenity.slot_duration_minutes) : "60",
@@ -148,11 +156,19 @@ function StepIndicator({
   );
 }
 
-function ReviewRow({ label, value }: { label: string; value: string }) {
+function ReviewRow({ label, value, long = false }: { label: string; value: string; long?: boolean }) {
   return (
     <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
       <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</dt>
-      <dd className="mt-0.5 text-sm font-semibold text-slate-900">{value}</dd>
+      <dd
+        className={
+          long
+            ? "mt-1 whitespace-pre-wrap break-words text-sm font-normal leading-relaxed text-slate-700"
+            : "mt-0.5 text-sm font-medium text-slate-900"
+        }
+      >
+        {value}
+      </dd>
     </div>
   );
 }
@@ -207,6 +223,8 @@ export function AmenityFormModal({
   const [step, setStep] = useState<AmenityFormStep>("details");
   const { touch, clearError, showError, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -234,6 +252,86 @@ export function AmenityFormModal({
       setStep(visibleSteps.includes("review") ? "review" : visibleSteps[visibleSteps.length - 1]);
     }
   }, [step, visibleSteps]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const html = document.documentElement;
+    const { body } = document;
+    const previous = {
+      htmlOverflow: html.style.overflow,
+      bodyOverflow: body.style.overflow,
+      htmlOverscroll: html.style.overscrollBehavior,
+      bodyOverscroll: body.style.overscrollBehavior,
+    };
+
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    html.style.overscrollBehavior = "none";
+    body.style.overscrollBehavior = "none";
+
+    const overlay = overlayRef.current;
+    const scrollEl = scrollRef.current;
+    let touchStartY = 0;
+
+    const canScroll = (el: HTMLElement, deltaY: number) => {
+      if (el.scrollHeight <= el.clientHeight + 1) return false;
+      if (deltaY < 0) return el.scrollTop > 0;
+      if (deltaY > 0) return el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+      return true;
+    };
+
+    const scrollableFrom = (target: EventTarget | null) => {
+      if (!scrollEl || !(target instanceof Node) || !scrollEl.contains(target)) return null;
+      let node = target instanceof Element ? target : target.parentElement;
+      while (node && node !== scrollEl) {
+        if (node instanceof HTMLElement) {
+          const overflowY = getComputedStyle(node).overflowY;
+          if ((overflowY === "auto" || overflowY === "scroll") && node.scrollHeight > node.clientHeight + 1) {
+            return node;
+          }
+        }
+        node = node.parentElement;
+      }
+      return scrollEl;
+    };
+
+    const blockBackgroundScroll = (event: WheelEvent | TouchEvent, deltaY: number) => {
+      if (!scrollEl || !(event.target instanceof Node) || !scrollEl.contains(event.target)) {
+        event.preventDefault();
+        return;
+      }
+      const nested = scrollableFrom(event.target);
+      if (nested && nested !== scrollEl && canScroll(nested, deltaY)) return;
+      if (canScroll(scrollEl, deltaY)) return;
+      event.preventDefault();
+    };
+
+    const onWheel = (event: WheelEvent) => {
+      blockBackgroundScroll(event, event.deltaY);
+    };
+    const onTouchStart = (event: TouchEvent) => {
+      touchStartY = event.touches[0]?.clientY ?? 0;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      const currentY = event.touches[0]?.clientY ?? touchStartY;
+      blockBackgroundScroll(event, touchStartY - currentY);
+    };
+
+    overlay?.addEventListener("wheel", onWheel, { passive: false });
+    overlay?.addEventListener("touchstart", onTouchStart, { passive: true });
+    overlay?.addEventListener("touchmove", onTouchMove, { passive: false });
+
+    return () => {
+      html.style.overflow = previous.htmlOverflow;
+      body.style.overflow = previous.bodyOverflow;
+      html.style.overscrollBehavior = previous.htmlOverscroll;
+      body.style.overscrollBehavior = previous.bodyOverscroll;
+      overlay?.removeEventListener("wheel", onWheel);
+      overlay?.removeEventListener("touchstart", onTouchStart);
+      overlay?.removeEventListener("touchmove", onTouchMove);
+    };
+  }, [open]);
 
   useLayoutEffect(() => {
     if (!open || step !== "details") return;
@@ -339,7 +437,10 @@ export function AmenityFormModal({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-4 sm:items-center">
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-50 flex items-end justify-center overscroll-none bg-slate-900/40 p-4 sm:items-center"
+    >
       <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="border-b border-slate-100 px-5 py-4">
           <div className="flex items-start justify-between gap-3">
@@ -364,7 +465,7 @@ export function AmenityFormModal({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-5 py-4">
           <p className="mb-3 text-sm font-semibold text-slate-900">{STEP_COPY[step].title}</p>
 
           {step === "details" ? (
@@ -374,7 +475,7 @@ export function AmenityFormModal({
                 <input
                   className={inputClass(fieldError("name", form.name, AMENITY_FIELD_MAX.name))}
                   value={form.name}
-                  onChange={(e) => setField("name", e.target.value)}
+                  onChange={(e) => setField("name", e.target.value.slice(0, 100))}
                   onBlur={() => touch("name")}
                   placeholder="e.g. Swimming Pool"
                 />
@@ -392,7 +493,7 @@ export function AmenityFormModal({
                   rows={3}
                   className={`${inputClass(fieldError("description", form.description, AMENITY_FIELD_MAX.description))} min-h-[88px] max-h-[min(16rem,40vh)] resize-none overflow-y-auto`}
                   value={form.description}
-                  onChange={(e) => setField("description", e.target.value)}
+                  onChange={(e) => setField("description", e.target.value.slice(0, AMENITY_FIELD_MAX.description))}
                   onBlur={() => touch("description")}
                   placeholder="Optional details for residents"
                 />
@@ -532,7 +633,15 @@ export function AmenityFormModal({
                   </p>
                   {fieldError("capacity") ? (
                     <p className="mt-1 text-xs text-red-600">{liveErrors.capacity}</p>
-                  ) : null}
+                  ) : (
+                    <p className="mt-1 text-xs text-slate-500">
+                      {form.status === "bookable"
+                        ? form.capacity_booking_type === "full_slot"
+                          ? "This many people fit in the slot. One booking still reserves the whole slot."
+                          : "Several residents can book the same slot until this many seats are reserved."
+                        : "Capacity is required when Slots is selected."}
+                    </p>
+                  )}
                 </div>
               ) : null}
 
@@ -637,7 +746,11 @@ export function AmenityFormModal({
                     </p>
                     {fieldError("charge_model") ? (
                       <p className="mt-1 text-xs text-red-600">{liveErrors.charge_model}</p>
-                    ) : null}
+                    ) : (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Choose a type to continue. Reservation fee is only needed for per-booking amenities.
+                      </p>
+                    )}
                   </div>
                   {chargeModel === "booking" ? (
                     <div>
@@ -659,7 +772,13 @@ export function AmenityFormModal({
                       </p>
                       {fieldError("booking_fee") ? (
                         <p className="mt-1 text-xs text-red-600">{liveErrors.booking_fee}</p>
-                      ) : null}
+                      ) : (
+                        <p className="mt-1 text-xs text-slate-400">
+                          {bookingFeeFullSlot
+                            ? "Flat fee for the whole slot at booking. Billed after the owner approves."
+                            : "Charged after approval. Two guests at $10 each pay $20."}
+                        </p>
+                      )}
                     </div>
                   ) : null}
                 </div>
@@ -727,7 +846,13 @@ export function AmenityFormModal({
                   </p>
                   {fieldError("booking_fee") ? (
                     <p className="mt-1 text-xs text-red-600">{liveErrors.booking_fee}</p>
-                  ) : null}
+                  ) : (
+                    <p className="mt-1 text-xs text-slate-400">
+                      {bookingFeeFullSlot
+                        ? "Flat fee for the whole slot at booking. Billed after the owner approves."
+                        : "Total at booking is this amount × number of guests. Billed after the owner approves."}
+                    </p>
+                  )}
                 </div>
               ) : null}
 
@@ -847,10 +972,14 @@ export function AmenityFormModal({
                 />
               ) : null}
               <div className="sm:col-span-2">
-                <ReviewRow label="Description" value={form.description.trim() || "None"} />
+                <ReviewRow label="Description" value={form.description.trim() || "None"} long />
               </div>
               <ReviewRow label="Availability" value={statusLabel(form.status)} />
-              <ReviewRow label="Hours" value={form.hours.trim() || "—"} />
+              <ReviewRow
+                label="Hours"
+                long={(form.open_24_hours ? "Open 24 Hours / All Day" : form.hours.trim() || "—").length > 40}
+                value={form.open_24_hours ? "Open 24 Hours / All Day" : form.hours.trim() || "—"}
+              />
               <ReviewRow label="Weekends" value={form.weekends_available ? "Available" : "Closed"} />
               <ReviewRow
                 label="Slot duration"

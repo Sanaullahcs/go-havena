@@ -14,11 +14,11 @@ export default function CategoryTile({ title, subtitle, width, onPress }) {
         onPress && pressed && styles.pressed,
       ]}
     >
-      <Text style={styles.title} numberOfLines={2}>
+      <Text style={styles.title}>
         {title}
       </Text>
       {subtitle ? (
-        <Text style={styles.subtitle} numberOfLines={1}>
+        <Text style={styles.subtitle}>
           {subtitle}
         </Text>
       ) : null}

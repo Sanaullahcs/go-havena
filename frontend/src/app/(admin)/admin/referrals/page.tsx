@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
@@ -153,7 +155,7 @@ function PrefixedNumberInput({
           {prefix}
         </span>
       ) : null}
-      <input
+      <ClearableInput
         type="number"
         min={min}
         max={max}
@@ -483,7 +485,7 @@ export default function ReferralsAdminPage() {
 
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3">
                 <label className="flex items-center gap-2.5 text-[13px] font-medium text-slate-700">
-                  <input
+                  <ClearableInput
                     type="checkbox"
                     checked={settings.is_active}
                     onChange={(e) => updateSettings({ is_active: e.target.checked })}

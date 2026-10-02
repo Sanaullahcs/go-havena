@@ -30,7 +30,7 @@ import { chevronForward, arrowForward } from "../../utils/rtl";
 import { navigateAppRoute } from "../../utils/app-navigation";
 import { confirmSignOut } from "../../services/sign-out";
 import { useAppDialog } from "../../providers/app-dialog-provider";
-import { getUser, getCachedUser } from "../../services/auth-session";
+import { getUser, getCachedUser, subscribeSessionUser } from "../../services/auth-session";
 import { isResidentFeatureEnabled } from "../../constants/resident-features";
 import { canSwitchModes, canSwitchToAdminMode, currentCommunityId, isGuestUser, isResidentMode } from "../../services/community-access";
 import { fetchMe, switchActiveContext } from "../../services/profile-api";
@@ -172,9 +172,15 @@ function SideMenuPanel({ visible, onClose }) {
   const [user, setUser] = useState(() => getCachedUser());
 
   useEffect(() => {
-    getUser().then((cached) => {
-      if (cached) setUser(cached);
+    let sawLiveUpdate = false;
+    const unsubscribe = subscribeSessionUser((next) => {
+      sawLiveUpdate = true;
+      setUser(next);
     });
+    getUser().then((cached) => {
+      if (cached && !sawLiveUpdate) setUser(cached);
+    });
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
@@ -660,8 +666,9 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   brandCopy: {
-    flex: 1,
+    flexShrink: 1,
     minWidth: 0,
+    alignItems: "flex-start",
   },
   brandSubtitle: {
     fontFamily: Fonts.regular,

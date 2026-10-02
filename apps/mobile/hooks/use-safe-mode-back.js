@@ -11,8 +11,7 @@ export function useSafeModeBack() {
   useFocusEffect(
     useCallback(() => {
       const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-        safeGoBack(router, navigation);
-        return true;
+        return safeGoBack(router, navigation);
       });
       return () => sub.remove();
     }, [navigation, router]),

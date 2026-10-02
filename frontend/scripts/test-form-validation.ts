@@ -819,6 +819,59 @@ console.log("\nNotice form validation");
   );
   assertNoErrors(earlyTomorrow, "allows any valid time on a future notice date");
 
+  const eventPastToday = validateNoticeForm(
+    {
+      title: "Evening social",
+      body: "Join neighbors for an evening social in the courtyard.",
+      category: "event",
+      location: "Courtyard",
+      event_date: todayIso,
+      event_time: pastTime,
+      event_time_end: "23:30",
+      event_capacity: "",
+    },
+    { kind: "event", publishNow: true, now: today },
+  );
+  if (pastHour < today.getHours() || (pastHour === today.getHours() && today.getMinutes() > 0)) {
+    assertHasError(eventPastToday, "event_time", "rejects a past event start time today");
+    assert(
+      eventPastToday.event_time === "Past time cannot be selected. Please select a future time.",
+      "event past start time uses the event message",
+    );
+    assert(!eventPastToday.event_time_end, "event end time is not marked past when it is after the start");
+  }
+
+  const eventEarlyTomorrow = validateNoticeForm(
+    {
+      title: "Morning meetup",
+      body: "Join neighbors for coffee before the workday starts.",
+      category: "event",
+      location: "Lobby",
+      event_date: tomorrowIso,
+      event_time: "01:00",
+      event_time_end: "02:00",
+      event_capacity: "",
+    },
+    { kind: "event", publishNow: true, now: today },
+  );
+  assertNoErrors(eventEarlyTomorrow, "allows any valid time on a future event date");
+
+  const eventEndBeforeStart = validateNoticeForm(
+    {
+      title: "Evening social",
+      body: "Join neighbors for an evening social in the courtyard.",
+      category: "event",
+      location: "Courtyard",
+      event_date: tomorrowIso,
+      event_time: "18:00",
+      event_time_end: "17:00",
+      event_capacity: "",
+    },
+    { kind: "event", publishNow: true, now: today },
+  );
+  assertHasError(eventEndBeforeStart, "event_time_end", "event end time must be later than the start");
+  assert(eventEndBeforeStart.event_time_end === "End time must be after start time.", "end before start message");
+
 
   const eventScheduleReady = validateNoticeForm(
     {

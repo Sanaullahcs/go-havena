@@ -15,10 +15,15 @@ import AppModal from "../layout/app-modal";
 import ThemedIconBox from "./themed-icon-box";
 import { sw } from "../../utils/responsive";
 import { chevronBack } from "../../utils/rtl";
+import { useSessionUser } from "../../hooks/use-session-user";
+import { isResidentFeatureEnabled } from "../../constants/resident-features";
 
 export default function NoticeDrawer({ visible, onClose, onBackToCreate }) {
   const { t } = useTranslation();
   const router = useRouter();
+  const sessionUser = useSessionUser();
+  const showNotice = isResidentFeatureEnabled(sessionUser, "notices");
+  const showAlert = isResidentFeatureEnabled(sessionUser, "alerts");
   return (
     <AppModal visible={visible} onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
@@ -47,8 +52,9 @@ export default function NoticeDrawer({ visible, onClose, onBackToCreate }) {
             </View>
           </View>
 
+          {showNotice ? (
           <TouchableOpacity
-            style={[styles.option, { marginBottom: 10 }]}
+            style={[styles.option, showAlert ? { marginBottom: 10 } : null]}
             onPress={() => {
               onClose();
               router.push("/screens/create-notice");
@@ -60,7 +66,9 @@ export default function NoticeDrawer({ visible, onClose, onBackToCreate }) {
               <Text style={styles.optionSubtitle}>{t("notices.generalNotice")}</Text>
             </View>
           </TouchableOpacity>
+          ) : null}
 
+          {showAlert ? (
           <TouchableOpacity
             style={styles.option}
             onPress={() => {
@@ -74,6 +82,7 @@ export default function NoticeDrawer({ visible, onClose, onBackToCreate }) {
               <Text style={styles.optionSubtitle}>{t("notices.urgentAlert")}</Text>
             </View>
           </TouchableOpacity>
+          ) : null}
         </Pressable>
       </Pressable>
     </AppModal>

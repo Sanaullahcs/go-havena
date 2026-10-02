@@ -1935,6 +1935,10 @@
     "upTo": "حتى {{capacity}}",
     "noFacilities": "لا توجد مرافق بعد",
     "noFacilitiesDesc": "لم ينشر مدير المجتمع أي مرافق بعد. تحقق لاحقاً أو تواصل مع مكتب الإدارة.",
+    "offlineTitle": "أنت غير متصل",
+    "offlineBody": "يُرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.",
+    "loadFailed": "تعذر تحميل المرافق",
+    "retry": "إعادة المحاولة",
     "searchAmenities": "البحث في المرافق…",
     "noAmenitiesMatch": "لا توجد مرافق تطابق بحثك.",
     "yourAmenities": "مرافقك",
@@ -4474,6 +4478,7 @@
     "guestPermissionRequired": "فعّل إذناً واحداً على الأقل للضيف.",
     "fields": {
       "title": "العنوان",
+      "eventName": "اسم الفعالية",
       "description": "الوصف",
       "fullName": "الاسم الكامل",
       "unitNumber": "رقم الوحدة",

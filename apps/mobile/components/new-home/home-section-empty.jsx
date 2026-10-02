@@ -1,14 +1,20 @@
 import { View, Text, StyleSheet } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { HomeTheme as T } from "../../constants/home-theme";
 import { sf, sw, hp } from "../../utils/responsive";
 
-/** @param {{ message: string, hint?: string, variant?: "default" | "accent" }} props */
-export default function HomeSectionEmpty({ message, hint, variant = "default" }) {
+/** @param {{ message: string, hint?: string, icon?: string, variant?: "default" | "accent" }} props */
+export default function HomeSectionEmpty({ message, hint, icon, variant = "default" }) {
   const accent = variant === "accent";
 
   return (
     <View style={[styles.box, accent && styles.boxAccent]}>
+      {icon ? (
+        <View style={styles.iconWell}>
+          <Feather name={icon} size={sf(15)} color={T.teal} />
+        </View>
+      ) : null}
       <Text style={[styles.message, accent && styles.messageAccent]}>{message}</Text>
       {hint ? (
         <Text style={[styles.hint, accent && styles.hintAccent]}>{hint}</Text>
@@ -26,6 +32,15 @@ const styles = StyleSheet.create({
     paddingVertical: hp(1.6),
     paddingHorizontal: sw(14),
     alignItems: "center",
+  },
+  iconWell: {
+    width: sw(32),
+    height: sw(32),
+    borderRadius: sw(16),
+    backgroundColor: T.mint,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: sw(8),
   },
   boxAccent: {
     backgroundColor: T.teal,

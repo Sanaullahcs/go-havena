@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import { useState } from "react";
 import { Upload, X } from "lucide-react";
 import { toastError } from "@/lib/alert";
@@ -153,7 +155,7 @@ export function MemberBatchUploadModal({
                 <label className="nl-btn-primary cursor-pointer focus-within:ring-2 focus-within:ring-[#1B4F8A]/30">
                   <Upload strokeWidth={2} aria-hidden />
                   Choose CSV File
-                  <input
+                  <ClearableInput
                     type="file"
                     accept=".csv,text/csv"
                     className="sr-only"

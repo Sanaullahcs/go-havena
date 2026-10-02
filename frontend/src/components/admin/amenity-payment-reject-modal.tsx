@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
@@ -87,7 +89,7 @@ export function AmenityPaymentRejectModal({
           {form.rejection_code === "other" ? (
             <div>
               <label className="mb-1.5 block text-xs font-semibold text-slate-600">Other reason *</label>
-              <textarea
+              <ClearableTextarea
                 value={form.rejection_reason}
                 onChange={(e) => {
                   touch("rejection_reason");

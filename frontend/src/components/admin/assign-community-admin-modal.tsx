@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import { useEffect, useState } from "react";
 import { AdminPhoneInput } from "@/components/admin/phone-input";
 import { AdminBadge } from "@/components/admin/ui";
@@ -136,7 +138,7 @@ export function AssignCommunityAdminModal({
         <div className="space-y-5 px-6 py-5">
           <div className="space-y-4">
             <Field label="Full name" hint="Optional — shown in the admin directory">
-              <input
+              <ClearableInput
                 className="nl-input w-full"
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -144,7 +146,7 @@ export function AssignCommunityAdminModal({
               />
             </Field>
             <Field label="Email address" required>
-              <input
+              <ClearableInput
                 type="email"
                 className="nl-input w-full"
                 value={form.email}

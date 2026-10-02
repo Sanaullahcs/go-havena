@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AppState } from "react-native";
 import { useFocusEffect } from "expo-router";
 import {
   fetchNotices,
@@ -18,10 +19,13 @@ import {
   resolveLoadRestriction,
 } from "../utils/account-access-sync";
 import { useLocationScope } from "../providers/location-scope-provider";
+import { fetchMe } from "../services/auth-api";
+import { subscribeSessionUser } from "../services/auth-session";
 
 export function useHomeScreen() {
   const { revision } = useLocationScope();
   const [notices, setNotices] = useState([]);
+  const [noticesLoaded, setNoticesLoaded] = useState(false);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [posts, setPosts] = useState([]);
   const [deals, setDeals] = useState([]);
@@ -34,6 +38,7 @@ export function useHomeScreen() {
 
   const clearHomeData = useCallback(() => {
     setNotices([]);
+    setNoticesLoaded(false);
     setUpcomingEvents([]);
     setPosts([]);
     setDeals([]);
@@ -49,6 +54,7 @@ export function useHomeScreen() {
     }
 
     try {
+      await fetchMe().catch(() => null);
       const preBlocked = await resolveLoadRestriction("feed");
       if (preBlocked) {
         setRestrictionError(preBlocked);
@@ -82,11 +88,14 @@ export function useHomeScreen() {
 
       setRestrictionError(null);
 
-      const allNotices =
-        noticesResult.status === "fulfilled" ? noticesResult.value.notices ?? [] : [];
-
-      setNotices(allNotices);
-      setUpcomingEvents(pickUpcomingEvents(allNotices));
+      if (noticesResult.status === "fulfilled") {
+        const allNotices = noticesResult.value.notices ?? [];
+        setNotices(allNotices);
+        setUpcomingEvents(pickUpcomingEvents(allNotices));
+        setNoticesLoaded(true);
+      } else {
+        setNoticesLoaded(false);
+      }
 
       if (feedResult.status === "fulfilled") {
         const nextPosts = pickHomeFeedPosts(feedResult.value.posts ?? []);
@@ -124,6 +133,17 @@ export function useHomeScreen() {
   }, [load]);
 
   useEffect(() => {
+    let signature = null;
+    return subscribeSessionUser((user) => {
+      const next = JSON.stringify(user?.resident_features ?? null);
+      if (signature !== null && signature !== next) {
+        load({ silent: true });
+      }
+      signature = next;
+    });
+  }, [load]);
+
+  useEffect(() => {
     return subscribeWellnessHub((hub) => {
       setWellnessCategories(hub?.categories ?? []);
     });
@@ -133,9 +153,13 @@ export function useHomeScreen() {
     useCallback(() => {
       if (!hasLoadedRef.current) {
         hasLoadedRef.current = true;
-        return;
+      } else {
+        load({ silent: true });
       }
-      load({ silent: true });
+      const sub = AppState.addEventListener("change", (state) => {
+        if (state === "active") load({ silent: true });
+      });
+      return () => sub.remove();
     }, [load]),
   );
 
@@ -150,6 +174,7 @@ export function useHomeScreen() {
 
   return {
     notices,
+    noticesLoaded,
     carouselNotices,
     upcomingEvents,
     posts,

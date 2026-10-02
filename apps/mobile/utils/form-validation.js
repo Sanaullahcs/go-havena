@@ -11,6 +11,7 @@ import { isScheduleEndBeforeStart, resolveEffectiveEndDate } from "./notice-sche
 
 export const LIMITS = {
   noticeTitle: 200,
+  eventTitle: 80,
   noticeBody: 5000,
   noticeBodyMin: 10,
   noticeTitleMin: 3,
@@ -146,10 +147,14 @@ export function validateNoticeForm(form, opts = {}) {
   const errors = {};
   const kind = opts.kind ?? "notice";
 
-  const titleErr = requiredText(form.title, "validation.fields.title", {
-    min: LIMITS.noticeTitleMin,
-    max: LIMITS.noticeTitle,
-  });
+  const titleErr = requiredText(
+    form.title,
+    kind === "event" ? "validation.fields.eventName" : "validation.fields.title",
+    {
+      min: LIMITS.noticeTitleMin,
+      max: kind === "event" ? LIMITS.eventTitle : LIMITS.noticeTitle,
+    },
+  );
   if (titleErr) errors.title = titleErr;
   else if (kind === "event") {
     const plain = noticePlainTextError(form.title, i18n.t("validation.fields.eventName"), { i18n });

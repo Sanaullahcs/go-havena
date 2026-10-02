@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search } from "lucide-react";
+import { ClearableInput } from "@/components/admin/clearable-field";
 import { useAnchoredPopover } from "@/components/ui/use-anchored-popover";
 
 export type SearchableSelectOption = {
@@ -165,7 +166,7 @@ export function SearchableSelect({
                   <div className="border-b border-slate-100 p-2">
                     <div className="nl-search-field">
                       <Search className="nl-search-icon" aria-hidden />
-                      <input
+                      <ClearableInput
                         ref={searchRef}
                         type="text"
                         value={query}

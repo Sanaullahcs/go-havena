@@ -17,6 +17,8 @@ import { fetchMe } from "../../../services/profile-api";
 import { fetchPointsStats, formatPoints } from "../../../services/points-api";
 import { fetchAchievements } from "../../../services/achievements-api";
 import { isCommunityAdmin } from "../../../services/community-access";
+import { useSessionUser } from "../../../hooks/use-session-user";
+import { isResidentFeatureEnabled } from "../../../constants/resident-features";
 import { getProfileFields } from "../../../utils/profile-display";
 import { useProfilePhoto } from "../../../hooks/use-profile-photo";
 import { sw, sf, hp } from "../../../utils/responsive";
@@ -26,6 +28,7 @@ import { rnShadow } from "../../../utils/shadow";
 export default function Profile() {
   const router = useRouter();
   const { t } = useTranslation();
+  const sessionUser = useSessionUser();
   const [profile, setProfile] = useState(null);
   const [pointsStats, setPointsStats] = useState(null);
   const [achievements, setAchievements] = useState(null);
@@ -35,12 +38,18 @@ export default function Profile() {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const [profileData, statsData, achievementsData] = await Promise.all([
-        fetchMe(),
+      const profileData = await fetchMe();
+      setProfile(profileData);
+      const showPoints = isResidentFeatureEnabled(profileData, "points");
+      if (!showPoints) {
+        setPointsStats(null);
+        setAchievements(null);
+        return;
+      }
+      const [statsData, achievementsData] = await Promise.all([
         fetchPointsStats().catch(() => null),
         fetchAchievements().catch(() => null),
       ]);
-      setProfile(profileData);
       setPointsStats(statsData);
       setAchievements(achievementsData);
     } catch {
@@ -68,6 +77,9 @@ export default function Profile() {
   const roleKey = fields.role === "guest" ? "guest" : fields.role === "community_admin" || fields.role === "admin" ? "admin" : "resident";
   const roleLabel = t(`profile.roles.${roleKey}`);
   const showSubscriptionTab = isCommunityAdmin(profile);
+  const featureUser = profile ?? sessionUser;
+  const showPoints = isResidentFeatureEnabled(featureUser, "points");
+  const showPosts = isResidentFeatureEnabled(featureUser, "feed");
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
@@ -167,16 +179,18 @@ export default function Profile() {
                   <Text style={styles.roleChipText}>{roleLabel}</Text>
                 </View>
 
-                <Pressable
-                  onPress={() => router.push("/screens/profile/points-history")}
-                  android_ripple={{ color: "rgba(0,82,223,0.08)" }}
-                  style={styles.pointsPill}
-                >
-                  <Feather name="star" size={sf(12)} color={Colors.brandPrimaryDeep} />
-                  <Text style={styles.pointsPillText}>
-                    {formatPoints(pointsStats?.total_points ?? 0)} {t("points.ptsLabel")}
-                  </Text>
-                </Pressable>
+                {showPoints ? (
+                  <Pressable
+                    onPress={() => router.push("/screens/profile/points-history")}
+                    android_ripple={{ color: "rgba(0,82,223,0.08)" }}
+                    style={styles.pointsPill}
+                  >
+                    <Feather name="star" size={sf(12)} color={Colors.brandPrimaryDeep} />
+                    <Text style={styles.pointsPillText}>
+                      {formatPoints(pointsStats?.total_points ?? 0)} {t("points.ptsLabel")}
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
 
               <View style={styles.divider} />
@@ -201,8 +215,8 @@ export default function Profile() {
           </>
         )}
 
-        {!loading ? <ProfileStats stats={pointsStats} /> : null}
-        <RecentAchievements achievements={achievements} />
+        {!loading ? <ProfileStats stats={pointsStats} showPoints={showPoints} showPosts={showPosts} /> : null}
+        {showPoints ? <RecentAchievements achievements={achievements} /> : null}
         <QuickAccess />
       </ScrollView>
       )}

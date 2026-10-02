@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput, ClearableTextarea } from "@/components/admin/clearable-field";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Business, BusinessFormData } from "@/lib/api/businesses";
 import { uploadBusinessImage } from "@/lib/api/businesses";
@@ -152,7 +154,7 @@ export default function BusinessFormModal({
                 <>Upload image</>
               )}
             </button>
-            <input
+            <ClearableInput
               ref={fileRef}
               type="file"
               accept="image/*"
@@ -171,7 +173,7 @@ export default function BusinessFormModal({
               <label className="mb-1.5 block text-sm font-semibold text-slate-800">
                 {label} {required ? <span className="text-red-500">*</span> : null}
               </label>
-              <input
+              <ClearableInput
                 value={form[key as keyof BusinessFormData] ?? ""}
                 onChange={(e) => {
                   setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -227,7 +229,7 @@ export default function BusinessFormModal({
             <label className="mb-1.5 block text-sm font-semibold text-slate-800">
               Description <span className="text-red-500">*</span>
             </label>
-            <textarea
+            <ClearableTextarea
               value={form.description}
               onChange={(e) => {
                 setForm((f) => ({ ...f, description: e.target.value.slice(0, 300) }));
@@ -247,7 +249,7 @@ export default function BusinessFormModal({
 
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-800">Amenities (comma separated)</label>
-            <input
+            <ClearableInput
               value={form.amenities ?? ""}
               onChange={(e) => setForm((f) => ({ ...f, amenities: e.target.value }))}
               placeholder="WiFi, Outdoor Seating, Takeout"

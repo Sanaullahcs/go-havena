@@ -94,6 +94,10 @@ export type AmenityFormPayload = {
   hours?: string | null;
   start_time?: string | null;
   end_time?: string | null;
+  open_24_hours?: boolean;
+  closes_next_day?: boolean;
+  opening_date?: string;
+  closing_date?: string;
   weekends_available?: boolean;
   slot_duration_minutes?: number | null;
   icon_key: string;

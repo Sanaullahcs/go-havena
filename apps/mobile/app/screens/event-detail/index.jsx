@@ -486,7 +486,6 @@ export default function EventDetailScreen() {
       <View style={styles.screen}>
         <EventDetailHeader
           title={t('events.eventDetail')}
-          onBack={() => router.back()}
           onShare={() => {}}
           shareDisabled
         />
@@ -502,7 +501,6 @@ export default function EventDetailScreen() {
       <View style={styles.screen}>
         <EventDetailHeader
           title={t('events.eventDetail')}
-          onBack={() => router.back()}
           onShare={() => {}}
           shareDisabled
         />
@@ -520,7 +518,6 @@ export default function EventDetailScreen() {
     <View style={styles.screen}>
       <EventDetailHeader
         title={t('events.eventDetail')}
-        onBack={() => router.back()}
         onShare={handleShare}
         canReport={canReport}
         onReport={() => setReportOpen(true)}
@@ -552,7 +549,9 @@ export default function EventDetailScreen() {
         </Pressable>
 
         <View style={styles.upcomingEvent}>
-          <Text style={styles.eventTitle}>{localizedField(event, "title") || event.title}</Text>
+          <Text style={styles.eventTitle} numberOfLines={4} ellipsizeMode="tail">
+            {localizedField(event, "title") || event.title}
+          </Text>
           {scheduleItems.length > 0 ? (
             <Text style={styles.eventSubtitle} numberOfLines={2}>
               {scheduleItems.map((item) => item.detail).join(" · ")}
@@ -1013,6 +1012,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#101828",
     fontFamily: Fonts.bold,
+    flexShrink: 1,
+    width: "100%",
   },
   reviewBannerPending: {
     marginHorizontal: 20,

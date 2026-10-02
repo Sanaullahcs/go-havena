@@ -18,6 +18,8 @@ import { rnShadow } from "../../utils/shadow";
 import { arrowForward } from "../../utils/rtl";
 import { getCurrentRole } from "../../constants/role-session";
 import { MarketplaceRoutes, dealDetailsParams } from "../../constants/marketplace-routes";
+import { useSessionUser } from "../../hooks/use-session-user";
+import { isHomeSectionEnabled } from "../../constants/resident-features";
 import { localizedField } from "../../i18n";
 
 const CARD_GAP = sw(12);
@@ -105,6 +107,7 @@ export default function DealsCornor({ items = [] }) {
   const router = useRouter();
   const { t, i18n } = useTranslation();
   const frame = useHomeFrame();
+  const sessionUser = useSessionUser();
   const activeRole = getCurrentRole();
 
   const cards = useMemo(() => (items ?? []).map((d, i) => mapDealToCard(d, i)), [items, i18n.language]);
@@ -140,6 +143,8 @@ export default function DealsCornor({ items = [] }) {
     ),
     [layout.cardWidth, layout.cardHeight, openDeal],
   );
+
+  if (!isHomeSectionEnabled(sessionUser, "marketplace")) return null;
 
   if (!cards.length) {
     return (
@@ -186,7 +191,7 @@ export default function DealsCornor({ items = [] }) {
 }
 
 const styles = StyleSheet.create({
-  carousel: { flexGrow: 0, alignSelf: "stretch" },
+  carousel: { flexGrow: 0, alignSelf: "stretch", width: "100%" },
   listContent: { paddingEnd: PEEK, alignItems: "flex-start" },
   card: {
     borderRadius: CARD_RADIUS,

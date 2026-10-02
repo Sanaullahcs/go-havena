@@ -7,13 +7,15 @@ export function useSessionUser() {
 
   useEffect(() => {
     let cancelled = false;
-
-    getUser().then((next) => {
-      if (!cancelled && next) setUser(next);
-    });
+    let sawLiveUpdate = false;
 
     const unsubscribe = subscribeSessionUser((next) => {
+      sawLiveUpdate = true;
       if (!cancelled) setUser(next);
+    });
+
+    getUser().then((next) => {
+      if (!cancelled && next && !sawLiveUpdate) setUser(next);
     });
 
     return () => {

@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import {
@@ -284,7 +286,7 @@ export function AmenityBookModal({
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
           <div>
             <label className="nl-label">Date</label>
-            <input
+            <ClearableInput
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
@@ -353,7 +355,7 @@ export function AmenityBookModal({
                   })}
                 </div>
               ) : (
-                <input
+                <ClearableInput
                   type="number"
                   min={1}
                   max={maxGuests}

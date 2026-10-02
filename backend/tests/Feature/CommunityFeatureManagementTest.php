@@ -114,30 +114,181 @@ class CommunityFeatureManagementTest extends TestCase
             ->assertJsonPath('data.resident_features.features.marketplace', true);
     }
 
-    public function test_community_admin_can_disable_and_enable_features(): void
+    public function test_community_admin_disable_requires_system_admin_approval(): void
     {
         $community = $this->seedCommunity();
         $admin = $this->seedCommunityAdmin($community);
+        $systemAdmin = $this->seedSystemAdmin();
 
         Sanctum::actingAs($admin);
 
         $this->putJson('/api/v1/admin/resident-features', [
-            'features' => ['feed' => false, 'marketplace' => true],
+            'features' => ['feed' => false],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['disable_reasons.feed']);
+
+        $this->postJson('/api/v1/admin/resident-features/disable-requests', [
+            'feature_key' => 'feed',
+            'reason' => 'Residents are not using the feed this season.',
         ])->assertOk()
-            ->assertJsonPath('data.features.feed', false)
-            ->assertJsonPath('data.features.marketplace', true);
+            ->assertJsonPath('data.status', 'pending')
+            ->assertJsonPath('data.feature_key', 'feed')
+            ->assertJsonPath('features.features.feed', true)
+            ->assertJsonPath('features.requests.0.status', 'pending')
+            ->assertJsonPath('features.requests.0.action', 'disable')
+            ->assertJsonPath('features.pending_requests.0.feature_key', 'feed');
 
-        $this->assertNotNull($community->fresh()->resident_features_configured_at);
+        $this->assertDatabaseHas('community_feature_disable_requests', [
+            'community_id' => $community->id,
+            'feature_key' => 'feed',
+            'status' => 'pending',
+        ]);
 
-        $this->putJson('/api/v1/admin/resident-features', [
+        Sanctum::actingAs($systemAdmin);
+        $requestId = \App\Models\CommunityFeatureDisableRequest::query()->value('id');
+        $this->postJson('/api/v1/admin/feature-disable-requests/'.$requestId.'/approve')
+            ->assertOk()
+            ->assertJsonPath('data.status', 'approved');
+
+        $this->assertFalse(app(CommunityFeatureService::class)->isEnabled($community->id, 'feed'));
+        $this->assertDatabaseHas('community_feature_flags', [
+            'community_id' => $community->id,
+            'feature_key' => 'feed',
+            'enabled' => false,
+            'disabled_by' => 'community_admin',
+        ]);
+
+        Sanctum::actingAs($admin);
+        $catalog = collect($this->getJson('/api/v1/admin/resident-features')->assertOk()->json('data.catalog'));
+        $this->assertTrue($catalog->contains(fn ($item) => $item['key'] === 'feed' && $item['disabled_by'] === 'community_admin'));
+
+        $this->postJson('/api/v1/admin/resident-features/enable-requests', [
+            'feature_key' => 'feed',
+            'reason' => 'Residents asked for the feed to come back.',
+        ])->assertOk()
+            ->assertJsonPath('data.action', 'enable')
+            ->assertJsonPath('data.status', 'pending')
+            ->assertJsonPath('features.features.feed', false);
+
+        $this->assertFalse(app(CommunityFeatureService::class)->isEnabled($community->id, 'feed'));
+
+        Sanctum::actingAs($systemAdmin);
+        $rejectedId = \App\Models\CommunityFeatureDisableRequest::query()->where('action', 'enable')->value('id');
+        $this->postJson('/api/v1/admin/feature-disable-requests/'.$rejectedId.'/reject')
+            ->assertOk()
+            ->assertJsonPath('data.status', 'rejected')
+            ->assertJsonPath('data.action', 'enable');
+        $this->assertFalse(app(CommunityFeatureService::class)->isEnabled($community->id, 'feed'));
+
+        Sanctum::actingAs($admin);
+        $afterReject = $this->getJson('/api/v1/admin/resident-features')->assertOk()->json('data');
+        $this->assertSame('rejected', $afterReject['requests'][0]['status']);
+        $this->assertSame('enable', $afterReject['requests'][0]['action']);
+        $this->assertCount(0, $afterReject['pending_requests']);
+        $this->assertFalse($afterReject['features']['feed']);
+        $this->assertTrue(collect($afterReject['catalog'])->contains(
+            fn ($item) => $item['key'] === 'feed' && $item['disabled_by'] === 'community_admin',
+        ));
+
+        $this->postJson('/api/v1/admin/resident-features/enable-requests', [
+            'feature_key' => 'feed',
+            'reason' => 'Residents asked again for the feed to come back.',
+        ])->assertOk()
+            ->assertJsonPath('data.status', 'pending')
+            ->assertJsonPath('features.features.feed', false);
+
+        Sanctum::actingAs($systemAdmin);
+        $enableId = \App\Models\CommunityFeatureDisableRequest::query()
+            ->where('action', 'enable')
+            ->where('status', 'pending')
+            ->value('id');
+        $this->postJson('/api/v1/admin/feature-disable-requests/'.$enableId.'/approve')
+            ->assertOk()
+            ->assertJsonPath('data.status', 'approved')
+            ->assertJsonPath('data.action', 'enable');
+
+        $flag = \App\Models\CommunityFeatureFlag::query()
+            ->where('community_id', $community->id)
+            ->where('feature_key', 'feed')
+            ->first();
+        $this->assertNotNull($flag);
+        $this->assertTrue($flag->enabled);
+        $this->assertNull($flag->disabled_by);
+
+        Sanctum::actingAs($admin);
+        $afterApprove = $this->getJson('/api/v1/admin/resident-features')->assertOk()->json('data');
+        $this->assertTrue($afterApprove['features']['feed']);
+        $this->assertSame('approved', $afterApprove['requests'][0]['status']);
+        $this->assertSame('enable', $afterApprove['requests'][0]['action']);
+        $this->assertTrue(collect($afterApprove['catalog'])->contains(
+            fn ($item) => $item['key'] === 'feed' && $item['enabled'] === true,
+        ));
+
+        Sanctum::actingAs($systemAdmin);
+        $this->putJson('/api/v1/admin/communities/'.$community->id.'/resident-features', [
             'features' => ['feed' => true],
         ])->assertOk()
             ->assertJsonPath('data.features.feed', true);
+    }
 
-        $this->assertDatabaseHas('activity_logs', [
-            'action' => 'community_features_updated',
-            'entity_id' => $community->id,
+    public function test_system_admin_disable_is_hidden_from_community_admin_and_cannot_be_reenabled(): void
+    {
+        $community = $this->seedCommunity();
+        $admin = $this->seedCommunityAdmin($community);
+        $resident = $this->seedResident($community);
+        $systemAdmin = $this->seedSystemAdmin();
+
+        Sanctum::actingAs($systemAdmin);
+        $this->putJson('/api/v1/admin/communities/'.$community->id.'/resident-features', [
+            'features' => ['marketplace' => false],
+        ])->assertOk()
+            ->assertJsonPath('data.features.marketplace', false);
+
+        $this->assertDatabaseHas('community_feature_flags', [
+            'community_id' => $community->id,
+            'feature_key' => 'marketplace',
+            'enabled' => false,
+            'disabled_by' => 'system_admin',
         ]);
+
+        Sanctum::actingAs($admin);
+        $payload = $this->getJson('/api/v1/admin/resident-features')->assertOk()->json('data');
+        $this->assertFalse($payload['features']['marketplace']);
+        $this->assertFalse(collect($payload['catalog'])->contains(fn ($item) => $item['key'] === 'marketplace'));
+
+        $meCatalog = collect($this->getJson('/api/v1/me')->assertOk()->json('data.resident_features.catalog'));
+        $this->assertFalse($meCatalog->contains(fn ($item) => $item['key'] === 'marketplace'));
+
+        $this->postJson('/api/v1/admin/resident-features/enable', [
+            'feature_key' => 'marketplace',
+        ])->assertUnprocessable();
+
+        $this->postJson('/api/v1/admin/resident-features/enable-requests', [
+            'feature_key' => 'marketplace',
+            'reason' => 'Please turn marketplace back on.',
+        ])->assertUnprocessable();
+
+        $this->putJson('/api/v1/admin/resident-features', [
+            'features' => ['marketplace' => true],
+        ])->assertUnprocessable();
+
+        Sanctum::actingAs($resident);
+        $this->getJson('/api/v1/me')
+            ->assertOk()
+            ->assertJsonPath('data.resident_features.features.marketplace', false);
+
+        Sanctum::actingAs($systemAdmin);
+        $this->putJson('/api/v1/admin/communities/'.$community->id.'/resident-features', [
+            'features' => ['marketplace' => true],
+        ])->assertOk()
+            ->assertJsonPath('data.features.marketplace', true);
+
+        Sanctum::actingAs($admin);
+        $restored = $this->getJson('/api/v1/admin/resident-features')->assertOk()->json('data');
+        $this->assertTrue($restored['features']['marketplace']);
+        $this->assertTrue(collect($restored['catalog'])->contains(
+            fn ($item) => $item['key'] === 'marketplace' && $item['enabled'] === true,
+        ));
     }
 
     public function test_system_admin_can_adjust_feature_sets(): void
@@ -165,8 +316,8 @@ class CommunityFeatureManagementTest extends TestCase
         $residentA = $this->seedResident($alpha);
         $residentB = $this->seedResident($beta);
 
-        Sanctum::actingAs($admin);
-        $this->putJson('/api/v1/admin/resident-features', [
+        Sanctum::actingAs($this->seedSystemAdmin());
+        $this->putJson('/api/v1/admin/communities/'.$alpha->id.'/resident-features', [
             'features' => ['feed' => false],
         ])->assertOk();
 
@@ -185,19 +336,15 @@ class CommunityFeatureManagementTest extends TestCase
             ->assertJsonPath('data.resident_features.features.feed', true);
     }
 
-    public function test_pending_community_requires_resident_features_step_after_billing(): void
+    public function test_pending_community_does_not_require_resident_features_during_signup(): void
     {
         $community = $this->seedCommunity('Pending Community', 'pending');
         $admin = $this->seedCommunityAdmin($community, 'pending', 'pending');
 
-        $this->assertTrue(app(CommunityFeatureService::class)->requiresOnboardingConfiguration($community->id));
-
-        Sanctum::actingAs($admin);
-        $this->putJson('/api/v1/admin/resident-features', [
-            'features' => CommunityFeatureCatalog::defaultFlags(),
-        ])->assertOk();
-
         $this->assertFalse(app(CommunityFeatureService::class)->requiresOnboardingConfiguration($community->id));
+
+        $access = app(\App\Services\CommunityAdminAccessService::class)->accessPayload($admin->fresh());
+        $this->assertNotSame('configure_resident_features', $access['next_step']);
     }
 
     public function test_resident_cannot_modify_feature_settings(): void
@@ -233,8 +380,8 @@ class CommunityFeatureManagementTest extends TestCase
         $community = $this->seedCommunity();
         $admin = $this->seedCommunityAdmin($community);
 
-        Sanctum::actingAs($admin);
-        $this->putJson('/api/v1/admin/resident-features', [
+        Sanctum::actingAs($this->seedSystemAdmin());
+        $this->putJson('/api/v1/admin/communities/'.$community->id.'/resident-features', [
             'features' => ['messages' => false],
         ])->assertOk();
 
@@ -259,8 +406,8 @@ class CommunityFeatureManagementTest extends TestCase
         $resident = $this->seedResident($community);
         $admin = $this->seedCommunityAdmin($community);
 
-        Sanctum::actingAs($admin);
-        $this->putJson('/api/v1/admin/resident-features', [
+        Sanctum::actingAs($this->seedSystemAdmin());
+        $this->putJson('/api/v1/admin/communities/'.$community->id.'/resident-features', [
             'features' => ['wellness' => false, 'messages' => false],
         ])->assertOk();
 
@@ -271,6 +418,9 @@ class CommunityFeatureManagementTest extends TestCase
         $this->assertFalse($me['features']['messages']);
         $this->assertTrue($me['features']['feed']);
         $this->assertNotEmpty($me['catalog']);
-        $this->assertSame(count(CommunityFeatureCatalog::keys()), count($me['catalog']));
+        $catalogKeys = collect($me['catalog'])->pluck('key');
+        $this->assertFalse($catalogKeys->contains('wellness'));
+        $this->assertFalse($catalogKeys->contains('messages'));
+        $this->assertTrue($catalogKeys->contains('feed'));
     }
 }

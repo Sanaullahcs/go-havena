@@ -174,7 +174,6 @@ export default function LessonVedio() {
         subtitle={headerSubtitle}
         categoryKey={categoryKey}
         subtitleColor={T.gray}
-        onBack={() => router.back()}
         right={
           <Pressable
             accessibilityRole="button"

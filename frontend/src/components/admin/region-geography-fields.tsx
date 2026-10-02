@@ -1,5 +1,7 @@
 "use client";
 
+import { ClearableInput } from "@/components/admin/clearable-field";
+
 import { useMemo, type ReactNode } from "react";
 import { Globe, MapPin, Plus } from "lucide-react";
 import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/searchable-select";
@@ -100,7 +102,7 @@ export function RegionGeographyFields({
             <p className="text-[12px] font-medium text-slate-600">No states for this country yet</p>
             <p className="mt-0.5 text-[11px] text-slate-500">Add the first state or province, then create the region.</p>
             <div className="mt-3 flex gap-2">
-              <input
+              <ClearableInput
                 className={inputClass(undefined, "nl-input flex-1")}
                 placeholder="e.g. Punjab, Ontario, Bavaria"
                 value={newStateName}
