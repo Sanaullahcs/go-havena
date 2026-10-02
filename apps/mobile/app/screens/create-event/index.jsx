@@ -802,7 +802,6 @@ const styles = StyleSheet.create({
     color: "#DC2626",
     marginTop: 4,
   },
-<<<<<<< Updated upstream
   fieldFoot: {
     marginTop: 4,
     flexDirection: "row",
@@ -817,12 +816,6 @@ const styles = StyleSheet.create({
   fieldFootSpacer: {
     flex: 1,
   },
-  counter: {
-    fontFamily: Fonts.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: "#94A3B8",
-=======
   charCounter: {
     marginTop: 4,
     fontFamily: Fonts.regular,
@@ -830,6 +823,5 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     color: "rgba(100, 116, 139, 1)",
     textAlign: "right",
->>>>>>> Stashed changes
   },
 });

@@ -1,14 +1,7 @@
 "use client";
 
-<<<<<<< Updated upstream
-import { ClearableInput } from "@/components/admin/clearable-field";
-
-import { useState } from "react";
-import { Upload, X } from "lucide-react";
-=======
 import { useRef, useState } from "react";
 import { Download, FileSpreadsheet, Upload, X } from "lucide-react";
->>>>>>> Stashed changes
 import { toastError } from "@/lib/alert";
 import { apiError } from "@/lib/api/client";
 import {
@@ -186,34 +179,6 @@ export function MemberBatchUploadModal({
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
           {step === "upload" ? (
             <>
-<<<<<<< Updated upstream
-              <button
-                type="button"
-                className="nl-btn-secondary"
-                onClick={() => downloadCsv("havena-members-template.csv", memberBatchTemplateCsv())}
-              >
-                Download template
-              </button>
-              <p className="text-sm text-slate-600">
-                Columns: Name, Email, Phone Number, Unit / Apartment, Residence Type. Valid rows are added as residents. Invitations are sent later from the Members list.
-                Residence Type must be Homeowner or Tenant. Phone numbers should include the country code, for example +12025550123.
-              </p>
-              <div className="flex flex-wrap items-center gap-3">
-                <label className="nl-btn-primary cursor-pointer focus-within:ring-2 focus-within:ring-[#1B4F8A]/30">
-                  <Upload strokeWidth={2} aria-hidden />
-                  Choose CSV File
-                  <ClearableInput
-                    type="file"
-                    accept=".csv,text/csv"
-                    className="sr-only"
-                    onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                  />
-                </label>
-                <p className={`min-w-0 text-sm ${file ? "font-medium text-slate-800" : "text-slate-500"}`}>
-                  {file ? file.name : "No file chosen"}
-                </p>
-              </div>
-=======
               <section className="rounded-xl border border-slate-200/80 bg-slate-50/80 px-4 py-4">
                 <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">Step 1</p>
                 <p className="mt-1 text-sm font-medium text-slate-800">Get the CSV template</p>
@@ -295,7 +260,6 @@ export function MemberBatchUploadModal({
                   </div>
                 </div>
               </section>
->>>>>>> Stashed changes
             </>
           ) : null}
 

@@ -4,7 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 
 /**
  * Ensures the platform system admin exists with known dev credentials.
@@ -31,11 +31,9 @@ class SystemAdminSeeder extends Seeder
         // then confirm Auth::attempt works (avoids silent "Invalid credentials").
         $user->forceFill(['password' => $password, 'status' => 'active', 'role' => 'system_admin'])->save();
 
-        if (! Auth::attempt(['email' => $email, 'password' => $password])) {
-            throw new \RuntimeException("SystemAdminSeeder: login verification failed for {$email}.");
+        if (! Hash::check($password, (string) $user->fresh()->password)) {
+            throw new \RuntimeException("SystemAdminSeeder: password verification failed for {$email}.");
         }
-
-        Auth::logout();
 
         $this->command?->info("SystemAdminSeeder: {$email} / {$password} (system_admin, id: {$user->id})");
     }

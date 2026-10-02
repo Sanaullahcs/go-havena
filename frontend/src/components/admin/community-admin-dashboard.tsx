@@ -120,12 +120,12 @@ export default function CommunityAdminDashboard() {
   }, [pathname, load]);
 
   useEffect(() => {
-<<<<<<< Updated upstream
     const sync = () => setFeatureRevision((current) => current + 1);
     window.addEventListener(FEATURES_UPDATED_EVENT, sync);
     return () => window.removeEventListener(FEATURES_UPDATED_EVENT, sync);
   }, []);
-=======
+
+  useEffect(() => {
     if (loading || !data) return;
     if (typeof window === "undefined") return;
     if (window.location.hash.replace(/^#/, "") !== ADMIN_REVIEW_QUEUE_ID) return;
@@ -133,7 +133,6 @@ export default function CommunityAdminDashboard() {
       document.getElementById(ADMIN_REVIEW_QUEUE_ID)?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   }, [loading, data]);
->>>>>>> Stashed changes
 
   const handleAction = useCallback(
     async (action: AdminDashboardPendingAction, verb: PendingVerb) => {
