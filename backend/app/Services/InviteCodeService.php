@@ -200,6 +200,43 @@ class InviteCodeService
         return InviteCode::query()->pendingForUser((int) $user->id)->exists();
     }
 
+    /**
+     * Block login for admin-provisioned invite placeholders whose invite was cancelled or expired
+     * and who never received a community membership.
+     *
+     * @return array{message: string, code: string, status?: string, reason?: ?string, rejected_by?: ?string}|null
+     */
+    public static function inactiveMemberInviteAuthenticationBlock(User $user): ?array
+    {
+        if (($user->role ?? '') !== 'resident' || $user->trashed()) {
+            return null;
+        }
+
+        if (CommunityMembership::query()->where('user_id', $user->id)->exists()) {
+            return null;
+        }
+
+        if (self::userNeedsInviteCode($user)) {
+            return null;
+        }
+
+        $wasInvitePlaceholder = InviteCode::withTrashed()
+            ->where('invited_user_id', $user->id)
+            ->exists();
+
+        if (! $wasInvitePlaceholder) {
+            return null;
+        }
+
+        return [
+            'message' => 'This invitation is no longer active. Contact your community admin for a new invite.',
+            'code' => 'MEMBER_INVITE_INACTIVE',
+            'status' => 'invitation_inactive',
+            'reason' => null,
+            'rejected_by' => null,
+        ];
+    }
+
     /** @return InviteCode|null */
     public static function pendingInviteFor(User $user): ?InviteCode
     {

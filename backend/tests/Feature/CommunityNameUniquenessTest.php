@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Community;
 use App\Models\Region;
 use App\Models\User;
+use App\Support\CommunityNameUniqueness;
 use Database\Seeders\SystemAdminSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -49,12 +50,13 @@ class CommunityNameUniquenessTest extends TestCase
             'region_id' => $region->id,
             'address' => '200 Green Valley Rd, Miami, FL',
         ])->assertStatus(422)
-            ->assertJsonValidationErrors(['name']);
+            ->assertJsonValidationErrors(['name'])
+            ->assertJsonPath('errors.name.0', CommunityNameUniqueness::DUPLICATE_MESSAGE);
 
         $this->assertSame(1, Community::query()->where('region_id', $region->id)->count());
     }
 
-    public function test_allows_same_name_in_different_regions(): void
+    public function test_rejects_same_name_in_different_regions(): void
     {
         Sanctum::actingAs($this->systemAdmin());
 
@@ -62,19 +64,20 @@ class CommunityNameUniquenessTest extends TestCase
         $texas = $this->region('Texas');
 
         $this->postJson('/api/v1/admin/communities', [
-            'name' => 'Green Valley',
+            'name' => 'Green Valley Residence',
             'region_id' => $florida->id,
             'address' => '100 Green Valley Rd, Miami, FL',
         ])->assertCreated();
 
         $this->postJson('/api/v1/admin/communities', [
-            'name' => 'GREEN VALLEY',
+            'name' => 'Green valley Residence',
             'region_id' => $texas->id,
             'address' => '100 Green Valley Rd, Austin, TX',
-        ])->assertCreated();
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors(['name'])
+            ->assertJsonPath('errors.name.0', CommunityNameUniqueness::DUPLICATE_MESSAGE);
 
-        $this->assertSame(1, Community::query()->where('region_id', $florida->id)->count());
-        $this->assertSame(1, Community::query()->where('region_id', $texas->id)->count());
+        $this->assertSame(1, Community::query()->count());
     }
 
     public function test_self_serve_rejects_pending_duplicate_in_same_region(): void

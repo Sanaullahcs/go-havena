@@ -11,7 +11,9 @@ import {
   LiveBadge,
   ManageLinkCard,
 } from "@/components/admin/dashboard/dashboard-shared";
-import ReviewQueueSection from "@/components/admin/dashboard/review-queue-section";
+import ReviewQueueSection, {
+  ADMIN_REVIEW_QUEUE_ID,
+} from "@/components/admin/dashboard/review-queue-section";
 import { ComposeRail, COMMUNITY_QUICK_ACTIONS } from "@/components/admin/dashboard/quick-actions-section";
 import { DashboardPanel } from "@/components/admin/dashboard/dashboard-panel";
 import {
@@ -69,6 +71,7 @@ import {
   confirmPublishCommunityContent,
   type PendingVerb,
 } from "@/lib/admin/dashboard-confirmations";
+import { PendingReviewBreakdown } from "@/lib/admin/pending-review-breakdown";
 
 type CreateKind = "notice" | "event" | "alert" | null;
 
@@ -121,6 +124,15 @@ export default function CommunityAdminDashboard() {
     window.addEventListener(FEATURES_UPDATED_EVENT, sync);
     return () => window.removeEventListener(FEATURES_UPDATED_EVENT, sync);
   }, []);
+
+  useEffect(() => {
+    if (loading || !data) return;
+    if (typeof window === "undefined") return;
+    if (window.location.hash.replace(/^#/, "") !== ADMIN_REVIEW_QUEUE_ID) return;
+    requestAnimationFrame(() => {
+      document.getElementById(ADMIN_REVIEW_QUEUE_ID)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [loading, data]);
 
   const handleAction = useCallback(
     async (action: AdminDashboardPendingAction, verb: PendingVerb) => {
@@ -233,7 +245,7 @@ export default function CommunityAdminDashboard() {
         value: String(stats.total_members),
         hint: stats.pending_members
           ? `${stats.pending_members} pending approval`
-          : "Residents in this community",
+          : "Active members who have joined",
         tone: "blue" as const,
         href: "/admin/members",
         icon: dashIcon(Users),
@@ -241,15 +253,11 @@ export default function CommunityAdminDashboard() {
       {
         label: "Pending Review",
         value: String(stats.pending_approval_total),
-        hint: [
-          `${stats.pending_members} members`,
-          `${stats.pending_listings ?? 0} listings`,
-          `${stats.pending_posts} posts`,
-          ...(stats.pending_bookings ? [`${stats.pending_bookings} bookings`] : []),
-          ...(stats.pending_businesses ? [`${stats.pending_businesses} businesses`] : []),
-        ].join(" · "),
+        hint: <PendingReviewBreakdown stats={stats} />,
         tone: "amber" as const,
-        href: "/admin/members?status=pending",
+        ...(stats.pending_approval_total > 0
+          ? { href: `/admin#${ADMIN_REVIEW_QUEUE_ID}` as const }
+          : {}),
         icon: dashIcon(Clock),
       },
       {

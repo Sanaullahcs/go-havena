@@ -126,6 +126,8 @@ function ReviewQueueRow({
   );
 }
 
+export const ADMIN_REVIEW_QUEUE_ID = "review-queue";
+
 export default function ReviewQueueSection({
   items,
   relTime,
@@ -142,7 +144,10 @@ export default function ReviewQueueSection({
   onReject: (action: AdminDashboardPendingAction) => void;
 }) {
   return (
-    <section className="overflow-hidden rounded-[1.25rem] border border-slate-200 bg-gradient-to-b from-[#fcfdff] to-white shadow-sm">
+    <section
+      id={ADMIN_REVIEW_QUEUE_ID}
+      className="scroll-mt-20 overflow-hidden rounded-[1.25rem] border border-slate-200 bg-gradient-to-b from-[#fcfdff] to-white shadow-sm"
+    >
       <header className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 px-5 pb-3.5 pt-4.5">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Inbox</p>

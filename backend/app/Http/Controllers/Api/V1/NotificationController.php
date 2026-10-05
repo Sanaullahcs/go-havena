@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Support\NotificationModule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -27,6 +28,10 @@ class NotificationController extends Controller
 
         if ($request->filled('type')) {
             $query->where('type', $request->string('type')->toString());
+        }
+
+        if ($request->filled('module')) {
+            NotificationModule::applyFilter($query, $request->string('module')->toString());
         }
 
         $perPage = min(max((int) $request->get('per_page', 10), 1), 50);
@@ -60,6 +65,8 @@ class NotificationController extends Controller
                 'total_all'    => $totalAll,
                 'warning'      => (clone $base)->where('type', 'warning')->count(),
                 'message'      => (clone $base)->where('type', 'message')->count(),
+                'system'       => (clone $base)->where('type', 'system')->count(),
+                ...NotificationModule::countAllModules($base),
             ],
         ]);
     }

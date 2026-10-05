@@ -21,6 +21,7 @@ import { Image } from "expo-image";
 import { Fonts } from "../constants/font";
 import { subscribeNotificationBanner } from "../services/notification-events";
 import { resolveNotificationVisual } from "../utils/notification-visual";
+import { notificationPreviewText } from "../utils/notification-preview";
 import i18n from "../i18n";
 import { rnShadow } from "../utils/shadow";
 
@@ -164,7 +165,9 @@ function ForegroundNotificationBanner({
         <View style={styles.copy}>
           <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
           {item.body ? (
-            <Text style={styles.body} numberOfLines={2}>{item.body}</Text>
+            <Text style={styles.body} numberOfLines={3}>
+              {notificationPreviewText(item.body)}
+            </Text>
           ) : null}
         </View>
         <Pressable

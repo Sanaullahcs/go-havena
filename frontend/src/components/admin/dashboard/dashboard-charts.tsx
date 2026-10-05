@@ -90,8 +90,8 @@ export function DashboardActivityChart({
   return (
     <div className="flex h-full min-h-[280px] flex-col">
       <div className="mb-4 flex flex-wrap gap-3">
-        <MetricPill label="7-day total" value={total.toLocaleString()} />
-        <MetricPill label="Peak day" value={peak.toLocaleString()} accent />
+        <MetricPill label="7-Day Activity" value={total.toLocaleString()} />
+        <MetricPill label="Peak Activity" value={peak.toLocaleString()} accent />
       </div>
       <ChartPlot>
         <ResponsiveContainer width="100%" height="100%">
@@ -158,15 +158,15 @@ export function DashboardMembersBarChart({
         <div className="nl-chart-minimal-stats">
           <div className="nl-chart-hero-stat">
             <span className="nl-chart-hero-value">{latest.new}</span>
-            <span className="nl-chart-hero-label">this month</span>
+            <span className="nl-chart-hero-label">This Month</span>
           </div>
           <div className="nl-chart-meta-line">
             <span>
-              <strong>{total}</strong> total new
+              <strong>{total}</strong> new members
             </span>
             <span aria-hidden>·</span>
             <span>
-              peak <strong>{peak.new}</strong> in {peak.month.split(" ")[0]}
+              highest growth <strong>{peak.new}</strong> in {peak.month.split(" ")[0]}
             </span>
           </div>
         </div>
@@ -200,9 +200,9 @@ export function DashboardMembersBarChart({
   return (
     <div className="flex h-full min-h-[280px] flex-col gap-3">
       <div className="flex flex-wrap gap-2">
-        <MetricPill label="Total new" value={total.toLocaleString()} accent={total > 0} compact />
-        <MetricPill label="Latest month" value={latest.new.toLocaleString()} compact />
-        <MetricPill label="Peak month" value={`${peak.new} · ${peak.month}`} compact />
+        <MetricPill label="New Members" value={total.toLocaleString()} accent={total > 0} compact />
+        <MetricPill label="This Month" value={latest.new.toLocaleString()} compact />
+        <MetricPill label="Highest Growth Month" value={`${peak.new} · ${peak.month}`} compact />
       </div>
       <ChartPlot>
         <ResponsiveContainer width="100%" height="100%">

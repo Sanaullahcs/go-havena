@@ -221,6 +221,13 @@ class AdminCommunityController extends Controller
 
         $region = Region::query()->where('status', 'active')->findOrFail($request->integer('region_id'));
 
+        CommunityNameUniqueness::assertUniqueInRegion(
+            $community->name,
+            $region->id,
+            field: 'name',
+            exceptCommunityId: $community->id,
+        );
+
         DB::transaction(function () use ($community, $region) {
             $community->update([
                 'status'         => 'active',

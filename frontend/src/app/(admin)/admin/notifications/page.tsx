@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -33,6 +33,12 @@ import { adminTableBusy } from "@/lib/admin/table-loading";
 import { NL } from "@/lib/design-tokens";
 import type { AppNotification } from "@/components/shared/notification-bell";
 import { resolveAdminNotificationHref } from "@/lib/notifications/resolve-admin-notification-href";
+import { notificationPreviewText } from "@/lib/notifications/notification-preview";
+import {
+  countNotificationsByModule,
+  filterNotificationsByModule,
+  type NotificationFeedModule,
+} from "@/lib/notifications/notification-feed-module";
 
 const FALLBACK: AppNotification[] = [
   {
@@ -93,7 +99,13 @@ function dbRowToNote(row: Record<string, unknown>): AppNotification {
   };
 }
 
-type Filter = "all" | "unread" | AppNotification["type"];
+const MODULE_FILTERS: NotificationFeedModule[] = ["events", "notices", "amenities", "others"];
+
+type Filter = "all" | "unread" | AppNotification["type"] | NotificationFeedModule;
+
+function isModuleFilter(filter: Filter): filter is NotificationFeedModule {
+  return MODULE_FILTERS.includes(filter as NotificationFeedModule);
+}
 
 function typeMeta(type: AppNotification["type"]) {
   switch (type) {
@@ -113,6 +125,7 @@ function typeMeta(type: AppNotification["type"]) {
 function filterNotes(notes: AppNotification[], filter: Filter): AppNotification[] {
   if (filter === "all") return notes;
   if (filter === "unread") return notes.filter((n) => !n.read);
+  if (isModuleFilter(filter)) return filterNotificationsByModule(notes, filter);
   return notes.filter((n) => n.type === filter);
 }
 
@@ -156,9 +169,11 @@ export default function AdminNotificationsPage() {
         page: number;
         unread_only?: boolean;
         type?: string;
+        module?: string;
       } = { page };
 
       if (filter === "unread") params.unread_only = true;
+      else if (isModuleFilter(filter)) params.module = filter;
       else if (filter !== "all") params.type = filter;
 
       const data = await fetchNotifications(params);
@@ -207,6 +222,18 @@ export default function AdminNotificationsPage() {
   const totalAll = meta?.total_all ?? notes.length;
   const warningCount = meta?.warning ?? notes.filter((n) => n.type === "warning").length;
   const messageCount = meta?.message ?? notes.filter((n) => n.type === "message").length;
+  const systemCount = meta?.system ?? notes.filter((n) => n.type === "system").length;
+  const moduleCounts = useMemo(() => {
+    if (meta?.events != null || meta?.notices != null || meta?.amenities != null || meta?.others != null) {
+      return {
+        events: meta?.events ?? 0,
+        notices: meta?.notices ?? 0,
+        amenities: meta?.amenities ?? 0,
+        others: meta?.others ?? 0,
+      };
+    }
+    return countNotificationsByModule(notes);
+  }, [meta?.amenities, meta?.events, meta?.notices, meta?.others, notes]);
   const lastPage = meta?.last_page ?? 1;
   const filteredTotal = meta?.total ?? notes.length;
   const listBusy = adminTableBusy(pageLoading, marking);
@@ -271,7 +298,11 @@ export default function AdminNotificationsPage() {
     { key: "unread", label: "Unread", count: unread },
     { key: "warning", label: "Alerts", count: warningCount },
     { key: "message", label: "Messages", count: messageCount },
-    { key: "system", label: "System" },
+    { key: "events", label: "Events", count: moduleCounts.events ?? 0 },
+    { key: "notices", label: "Notices", count: moduleCounts.notices ?? 0 },
+    { key: "amenities", label: "Amenities", count: moduleCounts.amenities ?? 0 },
+    { key: "others", label: "Others", count: moduleCounts.others ?? 0 },
+    { key: "system", label: "System", count: systemCount },
   ];
 
   return (
@@ -407,8 +438,11 @@ export default function AdminNotificationsPage() {
                         ) : null}
                       </div>
                       {n.body ? (
-                        <p className="mt-1 text-[12.5px] leading-relaxed" style={{ color: NL.textSecondary }}>
-                          {n.body}
+                        <p
+                          className="mt-1 line-clamp-3 text-[12.5px] leading-relaxed"
+                          style={{ color: NL.textSecondary }}
+                        >
+                          {notificationPreviewText(n.body)}
                         </p>
                       ) : null}
                       <div className="mt-2 flex flex-wrap items-center gap-3">

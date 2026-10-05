@@ -627,7 +627,7 @@ export default function MembersPage({ mode = "community" }: { mode?: MembersPage
         visibleCount={members.length}
         search={searchInput}
         onSearch={setSearchInput}
-        searchPlaceholder="Search by name, email, unit…"
+        searchPlaceholder="Search by name or email"
         filters={filters}
         activeFilter={filter}
         onFilter={(key) => setFilter(key as Filter)}

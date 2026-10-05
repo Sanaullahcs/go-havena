@@ -273,6 +273,21 @@ class MemberInviteTest extends TestCase
             ->assertJsonValidationErrors(['invite_code']);
 
         $this->assertNull(InviteCode::query()->where('code', $inviteCode)->first());
+
+        $this->postJson('/api/v1/auth/otp/request', [
+            'email' => 'onboarding.resident@example.com',
+            'intent' => 'login',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'MEMBER_INVITE_INACTIVE');
+
+        $this->postJson('/api/v1/auth/otp/verify', [
+            'email' => 'onboarding.resident@example.com',
+            'code' => '123456',
+            'intent' => 'login',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'MEMBER_INVITE_INACTIVE');
     }
 
     public function test_invite_status_moves_invitation_sent_to_onboarding_then_active(): void

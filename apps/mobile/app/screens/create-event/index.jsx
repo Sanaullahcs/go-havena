@@ -344,8 +344,16 @@ export default function CreateEventScreen() {
             style={[styles.textArea, showError("body", fieldErrorsLive) && styles.inputError]}
             multiline
             textAlignVertical="top"
-            maxLength={LIMITS.noticeBody}
+            maxLength={LIMITS.noticeDescription}
           />
+          {description.length > 0 ? (
+            <Text style={styles.charCounter}>
+              {t("onboarding.characters", {
+                count: description.length,
+                max: LIMITS.noticeDescription,
+              })}
+            </Text>
+          ) : null}
           {showError("body", fieldErrorsLive) ? <Text style={styles.errorText}>{showError("body", fieldErrorsLive)}</Text> : null}
 
           <NoticeCoverImageField
@@ -808,10 +816,12 @@ const styles = StyleSheet.create({
   fieldFootSpacer: {
     flex: 1,
   },
-  counter: {
+  charCounter: {
+    marginTop: 4,
     fontFamily: Fonts.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: "#94A3B8",
+    fontSize: 11,
+    lineHeight: 14,
+    color: "rgba(100, 116, 139, 1)",
+    textAlign: "right",
   },
 });

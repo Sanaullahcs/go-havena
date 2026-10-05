@@ -60,6 +60,7 @@ function LoginPageInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [otpRateLimit, setOtpRateLimit] = useState<unknown>(null);
+  const [otpExpiresAt, setOtpExpiresAt] = useState<string | null>(null);
   const verifyLock = useRef(false);
 
   const emailFieldError = validateEmailField(email);
@@ -125,9 +126,10 @@ function LoginPageInner() {
     setOtp("");
     setOtpSending(true);
     try {
-      const { intent, rate_limit } = await requestCommunityAdminOtp(email.trim(), "login");
+      const { intent, rate_limit, expires_at } = await requestCommunityAdminOtp(email.trim(), "login");
       setOtpIntent(intent);
       setOtpRateLimit(rate_limit);
+      setOtpExpiresAt(expires_at);
       setOtpStep("code");
     } catch (err) {
       await handleLoginError(err, setError);
@@ -167,9 +169,10 @@ function LoginPageInner() {
     setError(null);
     setOtpSending(true);
     try {
-      const { intent, rate_limit } = await requestCommunityAdminOtp(email.trim(), "login");
+      const { intent, rate_limit, expires_at } = await requestCommunityAdminOtp(email.trim(), "login");
       setOtpIntent(intent);
-      return { rate_limit };
+      setOtpExpiresAt(expires_at);
+      return { rate_limit, expires_at };
     } catch (err) {
       if (err instanceof ApiError && (err.code?.startsWith("OTP_") ?? false)) {
         if (err.rateLimit) setOtpRateLimit(err.rateLimit);
@@ -185,6 +188,7 @@ function LoginPageInner() {
   const goBackToEmail = () => {
     setOtpStep("email");
     setOtp("");
+    setOtpExpiresAt(null);
     setError(null);
   };
 
@@ -283,6 +287,8 @@ function LoginPageInner() {
                 verifying={loading}
                 error={Boolean(error)}
                 initialRateLimit={otpRateLimit}
+                expiresAt={otpExpiresAt}
+                onExpired={() => setError("This code has expired. Tap Resend code to get a new one.")}
               />
             )}
 
