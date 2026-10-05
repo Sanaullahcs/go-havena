@@ -174,7 +174,7 @@ class ProfileController extends Controller
             'bio'            => 'sometimes|nullable|string|max:500',
             'unit_number'    => 'sometimes|nullable|string|max:'.($isCommunityAdmin ? '20' : '50'),
             'residence_type' => 'sometimes|nullable|string|in:homeowner,tenant',
-            'office_address' => $isCommunityAdmin && $request->has('office_address')
+            'office_address' => $isCommunityAdmin && $request->exists('office_address')
                 ? 'required|string|max:255'
                 : 'sometimes|nullable|string|max:255',
             'region_id'      => [
@@ -192,7 +192,7 @@ class ProfileController extends Controller
         ] : []);
 
         $this->assertUtilityBillPresentIfRequired($user, $request);
-        $this->assertOfficeAddressPresentIfRequired($user, $request, $isCommunityAdmin);
+        $this->assertOfficeAddressPresentIfRequired($request, $isCommunityAdmin);
 
         $user->loadMissing('profile.region');
         $before = [
@@ -498,18 +498,13 @@ class ProfileController extends Controller
         ]);
     }
 
-    private function assertOfficeAddressPresentIfRequired(User $user, Request $request, bool $isCommunityAdmin): void
+    private function assertOfficeAddressPresentIfRequired(Request $request, bool $isCommunityAdmin): void
     {
-        if (! $isCommunityAdmin) {
+        if (! $isCommunityAdmin || ! $request->exists('office_address')) {
             return;
         }
 
-        $isCompletingProfile = $request->filled('display_name') || $request->has('office_address');
-        if (! $isCompletingProfile) {
-            return;
-        }
-
-        $office = trim((string) ($request->input('office_address') ?? $user->profile?->office_address ?? ''));
+        $office = trim((string) $request->input('office_address', ''));
         if ($office !== '') {
             return;
         }

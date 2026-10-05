@@ -153,6 +153,34 @@ class CommunityAdminUpdateTest extends TestCase
             ->assertJsonPath('data.profile.office_address', str_repeat('1', 255));
     }
 
+    public function test_profile_update_does_not_require_office_address_when_it_is_not_submitted(): void
+    {
+        $admin = $this->communityAdmin();
+        $admin->profile()->update([
+            'office_address' => null,
+            'utility_bill_url' => '/storage/utility-bills/existing.pdf',
+        ]);
+        Sanctum::actingAs($admin->fresh());
+
+        $this->postJson('/api/v1/me', [
+            'name' => 'Updated Name',
+            'display_name' => 'Updated Name',
+            'bio' => 'Updated community bio',
+            'phone' => '+14155552671',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Updated Name')
+            ->assertJsonPath('data.profile.bio', 'Updated community bio')
+            ->assertJsonPath('data.profile.office_address', null);
+
+        $this->postJson('/api/v1/me', [
+            'display_name' => 'Updated Name',
+            'office_address' => '   ',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.office_address.0', 'Office address is required.');
+    }
+
     public function test_community_admin_profile_update_enforces_the_same_limits(): void
     {
         $admin = $this->communityAdmin();
