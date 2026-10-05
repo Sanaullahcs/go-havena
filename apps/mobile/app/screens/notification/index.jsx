@@ -24,17 +24,33 @@ import {
 } from "../../../services/notifications-api";
 import { mergeNotifications } from "../../../utils/notification-pagination";
 import { useApiAction } from "../../../hooks/use-api-action";
-import { sw, sf } from "../../../utils/responsive";
+import { sw, sf, SCREEN_WIDTH } from "../../../utils/responsive";
+import { previewNotificationText } from "../../../utils/notification-preview";
 
 const ICON_SIZE = sw(36);
 const UNREAD_DOT = sw(8);
 const PAGE_SIZE = 15;
 const TITLE_LINE_H = sf(18);
+const DESC_FONT = sf(12);
 const DESC_LINE_H = sf(18);
-const DESC_LINES = 2;
+const DESC_LINES = 3;
 const TIME_LINE_H = sf(14);
 
+function fallbackDescriptionWidth() {
+  return Math.max(
+    80,
+    SCREEN_WIDTH - sw(16) * 2 - sw(14) * 2 - ICON_SIZE - sw(12) - UNREAD_DOT - sw(8),
+  );
+}
+
 function NotificationRow({ item, onPress }) {
+  const [bodyWidth, setBodyWidth] = useState(0);
+  const description = previewNotificationText(item.description, {
+    width: bodyWidth || fallbackDescriptionWidth(),
+    fontSize: DESC_FONT,
+    lines: DESC_LINES,
+  });
+
   return (
     <TouchableOpacity activeOpacity={0.9} onPress={() => onPress(item)}>
       <View style={[styles.notificationItem, item.read && styles.notificationItemRead]}>
@@ -42,21 +58,23 @@ function NotificationRow({ item, onPress }) {
           <View>
             <Image source={item.icon} style={styles.itemIcon} />
           </View>
-          <View style={styles.itemBody}>
-            <Text
-              style={styles.notificationTitle}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              {item.title}
-            </Text>
-            <Text
-              style={styles.notificationDescription}
-              numberOfLines={DESC_LINES}
-              ellipsizeMode="tail"
-            >
-              {item.description?.trim() ? item.description : " "}
-            </Text>
+          <View
+            style={styles.itemBody}
+            onLayout={(event) => {
+              const next = Math.floor(event.nativeEvent.layout.width);
+              setBodyWidth((current) => (current === next ? current : next));
+            }}
+          >
+            <Text style={styles.notificationTitle}>{item.title}</Text>
+            {description ? (
+              <Text
+                style={styles.notificationDescription}
+                numberOfLines={DESC_LINES}
+                ellipsizeMode="tail"
+              >
+                {description}
+              </Text>
+            ) : null}
             <Text style={styles.notificationTime} numberOfLines={1} ellipsizeMode="tail">
               {item.time}
             </Text>
@@ -388,20 +406,20 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: sf(13),
     lineHeight: TITLE_LINE_H,
-    height: TITLE_LINE_H,
     color: "rgba(15, 23, 42, 1)",
     fontWeight: "700",
     flexShrink: 1,
   },
   notificationDescription: {
     fontFamily: Fonts.medium,
-    fontSize: sf(12),
+    fontSize: DESC_FONT,
     lineHeight: DESC_LINE_H,
-    height: DESC_LINE_H * DESC_LINES,
+    maxHeight: DESC_LINE_H * DESC_LINES,
     color: "rgba(54, 65, 83, 1)",
     fontWeight: "500",
     flexShrink: 1,
     marginTop: sw(2),
+    overflow: "hidden",
   },
   notificationTime: {
     fontFamily: Fonts.medium,

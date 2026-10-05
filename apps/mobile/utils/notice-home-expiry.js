@@ -25,14 +25,14 @@ function parseClockTime(timeStr) {
   return { hour, minute };
 }
 
-/** True when a notice should be hidden from home sections after its schedule window ends. */
+/**
+ * True when a notice should leave Home after its schedule window ends.
+ * A notice with no start date is an ongoing announcement and stays visible,
+ * matching the notices list on the server.
+ */
 export function isNoticeExpiredForHome(notice, now = new Date()) {
   const dayKey = noticeDayKey(notice?.eventDate ?? notice?.event_date);
-  if (!dayKey) {
-    if (isAlertNotice(notice) || isFinanceNotice(notice)) return false;
-    if (isEventNotice(notice)) return true;
-    return true;
-  }
+  if (!dayKey) return false;
 
   const endDayKey = effectiveEndDayKey(notice);
   const todayKey = todayDayKey(now);

@@ -20,7 +20,7 @@ import {
 } from "../utils/account-access-sync";
 import { useLocationScope } from "../providers/location-scope-provider";
 import { fetchMe } from "../services/auth-api";
-import { subscribeSessionUser } from "../services/auth-session";
+import { getCachedUser, subscribeSessionUser } from "../services/auth-session";
 
 export function useHomeScreen() {
   const { revision } = useLocationScope();
@@ -133,13 +133,12 @@ export function useHomeScreen() {
   }, [load]);
 
   useEffect(() => {
-    let signature = null;
+    let signature = JSON.stringify(getCachedUser()?.resident_features?.features ?? null);
     return subscribeSessionUser((user) => {
-      const next = JSON.stringify(user?.resident_features ?? null);
-      if (signature !== null && signature !== next) {
-        load({ silent: true });
-      }
+      const next = JSON.stringify(user?.resident_features?.features ?? null);
+      if (signature === next) return;
       signature = next;
+      load({ silent: true });
     });
   }, [load]);
 

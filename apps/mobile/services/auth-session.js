@@ -110,10 +110,14 @@ export async function setSession({ token, user }) {
 }
 
 export async function getUser({ reload = false } = {}) {
-  if (!reload && memoryUser) return memoryUser;
+  // Keep the live session. A disk read can still hold the previous feature flags
+  // while /me is being saved, and must not put that older set back in memory.
+  if (memoryUser) return memoryUser;
+  void reload;
   const raw = await storageGet(USER_KEY);
   if (!raw) return null;
   try {
+    if (memoryUser) return memoryUser;
     memoryUser = JSON.parse(raw);
     return memoryUser;
   } catch {

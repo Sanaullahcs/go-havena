@@ -74,8 +74,8 @@ assert(
 );
 
 assert(
-  "legacy general notice without schedule is expired",
-  isNoticeExpiredForHome({ category: "general", title: "Welcome" }),
+  "undated general notice stays visible",
+  !isNoticeExpiredForHome({ category: "general", title: "Welcome" }),
 );
 
 assert(
@@ -93,8 +93,8 @@ assert(
 );
 
 assert(
-  "legacy event without schedule is expired",
-  isNoticeExpiredForHome({ category: "event", title: "Old BBQ", isEvent: true }),
+  "undated event stays visible",
+  !isNoticeExpiredForHome({ category: "event", title: "Old BBQ", isEvent: true }),
 );
 
 assert(

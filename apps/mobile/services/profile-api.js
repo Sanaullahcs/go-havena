@@ -1,7 +1,7 @@
 import { apiRequest } from "./api-client";
 import { getToken, getUser, setCommunityId } from "./auth-session";
 import { canSwitchModes } from "./community-access";
-import { beginMeSync, isLatestMeSync, syncUserFromApi } from "./auth-api";
+import { beginMeSync, commitMeSync, syncUserFromApi } from "./auth-api";
 import { API_BASE_URL } from "../constants/api-config";
 import { getProfileFields, resolveMediaUrl } from "../utils/profile-display";
 import { guessImageMeta, normalizeUploadAsset, uploadMultipartFile } from "../utils/upload-form-data";
@@ -22,9 +22,8 @@ function normalizeMe(data) {
 export async function fetchMe() {
   const seq = beginMeSync();
   const res = await apiRequest("/me", { community: false, cache: "no-store" });
-  if (!isLatestMeSync(seq)) return normalizeMe(await getUser());
-  await syncUserFromApi(res.data);
-  return normalizeMe((await getUser()) ?? res.data);
+  const data = await commitMeSync(seq, res.data);
+  return normalizeMe(data);
 }
 
 export async function switchActiveContext(context, communityId) {

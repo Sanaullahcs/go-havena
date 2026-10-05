@@ -28,29 +28,6 @@ import { subscribeSessionUser } from "../../../services/auth-session";
 import { getApiErrorMessage } from "../../../utils/api-error-core";
 import { sw, sf } from "../../../utils/responsive";
 
-function requestStatusLabel(status) {
-  if (status === "approved") return "Approved";
-  if (status === "rejected") return "Rejected";
-  return "Pending";
-}
-
-function requestActionLabel(action) {
-  return action === "enable" ? "Enable" : "Disable";
-}
-
-function statusColor(status) {
-  if (status === "approved") return "#047857";
-  if (status === "rejected") return "#B91C1C";
-  return "#B45309";
-}
-
-function formatWhen(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString();
-}
-
 const REASON_ACCESSORY_ID = "adjust-feature-reason";
 
 function groupCatalog(catalog) {
@@ -77,7 +54,6 @@ export default function AdjustFeaturesScreen() {
   const [catalog, setCatalog] = useState([]);
   const [values, setValues] = useState({});
   const [pending, setPending] = useState([]);
-  const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [target, setTarget] = useState(null);
@@ -96,7 +72,6 @@ export default function AdjustFeaturesScreen() {
     setCatalog(nextCatalog);
     setValues(payload?.features ?? {});
     setPending(payload?.pending_requests ?? []);
-    setRequests(payload?.requests ?? payload?.pending_requests ?? []);
   }, []);
 
   useEffect(() => subscribeSessionUser((user) => {
@@ -179,7 +154,6 @@ export default function AdjustFeaturesScreen() {
   })).current;
 
   const pendingFor = (key) => pending.find((item) => item.feature_key === key && item.status === "pending");
-  const latestFor = (key) => requests.find((item) => item.feature_key === key);
 
   const onToggle = (feature, next) => {
     if (pendingFor(feature.key) || submitting) return;
@@ -231,18 +205,13 @@ export default function AdjustFeaturesScreen() {
               {group.features.map((feature) => {
                 const enabled = values[feature.key] !== false;
                 const request = pendingFor(feature.key);
-                const latest = request ?? latestFor(feature.key);
                 const canReenable = !enabled && feature.disabled_by === "community_admin";
                 return (
                   <View key={feature.key} style={styles.row}>
                     <View style={styles.copy}>
                       <Text style={styles.title}>{feature.label}</Text>
                       <Text style={styles.desc}>{feature.description}</Text>
-                      {latest ? (
-                        <Text style={[styles.status, { color: statusColor(latest.status) }]}>
-                          {requestActionLabel(latest.action)} · {requestStatusLabel(latest.status)}
-                        </Text>
-                      ) : null}
+                      {request ? <Text style={styles.pending}>Pending approval</Text> : null}
                       {canReenable && !request ? <Text style={styles.off}>Off — request to turn this back on</Text> : null}
                     </View>
                     <Switch
@@ -257,22 +226,6 @@ export default function AdjustFeaturesScreen() {
               })}
             </View>
           ))}
-          <View style={styles.group}>
-            <Text style={styles.groupLabel}>Feature requests</Text>
-            {requests.length === 0 ? (
-              <Text style={styles.empty}>Requests you send show up here as Pending, Approved, or Rejected.</Text>
-            ) : requests.map((item) => (
-              <View key={item.id} style={styles.requestCard}>
-                <View style={styles.requestHead}>
-                  <Text style={styles.title}>{item.feature_name || item.feature_key}</Text>
-                  <Text style={[styles.badge, { color: statusColor(item.status) }]}>{requestStatusLabel(item.status)}</Text>
-                </View>
-                <Text style={styles.desc}>{requestActionLabel(item.action)} request</Text>
-                {item.reason ? <Text style={styles.reason}>{item.reason}</Text> : null}
-                {formatWhen(item.requested_at) ? <Text style={styles.when}>{formatWhen(item.requested_at)}</Text> : null}
-              </View>
-            ))}
-          </View>
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </ScrollView>
       )}
@@ -310,6 +263,7 @@ export default function AdjustFeaturesScreen() {
               returnKeyType="done"
               onSubmitEditing={() => Keyboard.dismiss()}
               inputAccessoryViewID={Platform.OS === "ios" ? REASON_ACCESSORY_ID : undefined}
+              scrollEnabled
               style={[styles.input, keyboardHeight > 0 && styles.inputCompact]}
             />
             <View style={styles.actions}>
@@ -370,21 +324,8 @@ const styles = StyleSheet.create({
   copy: { flex: 1, minWidth: 0 },
   title: { fontFamily: Fonts.semiBold, fontSize: sf(14), lineHeight: sf(20), color: "#101828" },
   desc: { marginTop: 2, fontFamily: Fonts.regular, fontSize: sf(12), lineHeight: sf(18), color: "#64748B" },
-  status: { marginTop: 6, fontFamily: Fonts.semiBold, fontSize: sf(12) },
-  badge: { fontFamily: Fonts.semiBold, fontSize: sf(12) },
+  pending: { marginTop: 6, fontFamily: Fonts.semiBold, fontSize: sf(12), color: "#B45309" },
   off: { marginTop: 6, fontFamily: Fonts.semiBold, fontSize: sf(12), color: "#64748B" },
-  empty: { fontFamily: Fonts.regular, fontSize: sf(13), lineHeight: sf(19), color: "#64748B" },
-  requestCard: {
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 8,
-  },
-  requestHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  reason: { marginTop: 6, fontFamily: Fonts.regular, fontSize: sf(12), lineHeight: sf(18), color: "#334155" },
-  when: { marginTop: 4, fontFamily: Fonts.regular, fontSize: sf(11), color: "#94A3B8" },
   error: { color: "#DC2626", fontFamily: Fonts.medium, marginTop: 8 },
   modalRoot: { flex: 1, justifyContent: "flex-end" },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(15,23,42,0.45)" },
@@ -402,8 +343,7 @@ const styles = StyleSheet.create({
   modalBody: { marginTop: 6, fontFamily: Fonts.regular, fontSize: sf(13), lineHeight: sf(20), color: "#64748B" },
   input: {
     marginTop: 14,
-    minHeight: 96,
-    maxHeight: 140,
+    height: 96,
     borderWidth: 1,
     borderColor: "#E2E8F0",
     borderRadius: 12,
@@ -414,7 +354,7 @@ const styles = StyleSheet.create({
     color: "#101828",
     textAlignVertical: "top",
   },
-  inputCompact: { minHeight: 72, maxHeight: 88 },
+  inputCompact: { height: 72 },
   actions: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14 },
   cancel: {
     flex: 1,

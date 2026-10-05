@@ -19,22 +19,35 @@ export const RESIDENT_FEATURE_KEYS = [
 
 export function serverFeatureFlags(user) {
   const features = user?.resident_features?.features;
-  if (!features || typeof features !== "object") return null;
+  if (!features || typeof features !== "object" || Array.isArray(features)) return null;
   return features;
+}
+
+/** The features map is the only visibility source. Request history is not. */
+function isExplicitlyOff(value) {
+  return value === false || value === 0 || value === "0" || value === "false";
 }
 
 export function flagsFromUser(user) {
   const incoming = serverFeatureFlags(user) ?? {};
   const flags = {};
   RESIDENT_FEATURE_KEYS.forEach((key) => {
-    flags[key] = incoming[key] === true;
+    flags[key] = !isExplicitlyOff(incoming[key]);
   });
   return flags;
 }
 
-/** True only when the latest account payload explicitly enables the feature. */
+/**
+ * True when the latest feature map has this key on.
+ * An older approved disable request does not override a flag that is on now.
+ * A missing key stays on, matching the server default. No payload yet stays off
+ * so menus do not open a feature before /me returns.
+ */
 export function isResidentFeatureEnabled(user, key) {
-  return serverFeatureFlags(user)?.[key] === true;
+  const features = serverFeatureFlags(user);
+  if (!features) return false;
+  if (!Object.prototype.hasOwnProperty.call(features, key)) return true;
+  return !isExplicitlyOff(features[key]);
 }
 
 /**
@@ -43,8 +56,9 @@ export function isResidentFeatureEnabled(user, key) {
  * server default.
  */
 export function isHomeSectionEnabled(user, key) {
-  const value = serverFeatureFlags(user)?.[key];
-  return value !== false && value !== 0 && value !== "0" && value !== "false";
+  const features = serverFeatureFlags(user);
+  if (!features || !Object.prototype.hasOwnProperty.call(features, key)) return true;
+  return !isExplicitlyOff(features[key]);
 }
 
 /** Create sheet and the center tab button share this so a disabled feature cannot be started. */

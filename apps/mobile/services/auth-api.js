@@ -63,6 +63,8 @@ async function applyCommunityFromUser(user, { preferStored = false } = {}) {
 }
 
 let meSyncSeq = 0;
+let lastAppliedMeSeq = 0;
+let meWriteQueue = Promise.resolve();
 
 /** Later /me responses win. An older in-flight response must not restore previous feature flags. */
 export function beginMeSync() {
@@ -71,7 +73,28 @@ export function beginMeSync() {
 }
 
 export function isLatestMeSync(seq) {
-  return seq === meSyncSeq;
+  return seq >= lastAppliedMeSeq;
+}
+
+/**
+ * Store a completed /me payload.
+ * A newer request that has not finished yet must not throw this success away.
+ * A response that started earlier is ignored only after a newer one was stored.
+ */
+export function commitMeSync(seq, data) {
+  const run = meWriteQueue.then(async () => {
+    if (!data || seq < lastAppliedMeSeq) {
+      return (await getUser()) ?? data;
+    }
+    lastAppliedMeSeq = seq;
+    await syncSessionFromMe(data);
+    return data;
+  });
+  meWriteQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
 }
 
 async function syncSessionFromMe(data) {
@@ -194,9 +217,7 @@ export async function deleteAccount() {
 export async function fetchMe() {
   const seq = beginMeSync();
   const result = await apiRequest("/me", { community: false, cache: "no-store" });
-  if (!isLatestMeSync(seq)) return (await getUser()) ?? result.data;
-  await syncSessionFromMe(result.data);
-  return result.data;
+  return commitMeSync(seq, result.data);
 }
 
 /** One-time code so the in-app browser can open Billing already signed in. */
