@@ -111,6 +111,11 @@ console.log("\nWeb amenity form validation");
     "rejects an amenity name over 100 characters",
   );
   assert(
+    validateAmenityForm({ ...valid, description: "s" }).description ===
+      "Description must be at least 10 characters.",
+    "rejects a one-character description",
+  );
+  assert(
     validateAmenityForm({ ...valid, description: "Too short" }).description ===
       "Description must be at least 10 characters.",
     "rejects a description under 10 characters",
@@ -124,13 +129,13 @@ console.log("\nWeb amenity form validation");
     "trims the description before checking length",
   );
   assert(
-    validateAmenityForm({ ...valid, description: "A".repeat(1000) }).description === undefined,
-    "accepts a 1000-character description",
+    validateAmenityForm({ ...valid, description: "A".repeat(500) }).description === undefined,
+    "accepts a 500-character description",
   );
   assert(
-    validateAmenityForm({ ...valid, description: "A".repeat(1001) }).description ===
-      "Description must not exceed 1,000 characters.",
-    "rejects a description over 1000 characters",
+    validateAmenityForm({ ...valid, description: "A".repeat(501) }).description ===
+      "Description must be 500 characters or fewer.",
+    "rejects a description over 500 characters",
   );
   assert(
     amenityFormStepErrors({ ...valid, description: "Short" }, "details").description ===

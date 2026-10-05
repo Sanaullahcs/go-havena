@@ -1,6 +1,9 @@
 import type { FieldErrors } from "@/lib/admin/form-validation-utils";
 import { validateRequiredName } from "@/lib/admin/form-validation-utils";
 
+export const DUPLICATE_COMMUNITY_NAME_MESSAGE =
+  "A community with this name already exists. Please use a different name.";
+
 export type CommunityFormLike = {
   name: string;
   region_id: number | "";
@@ -10,11 +13,31 @@ export type CommunityFormLike = {
   longitude?: number | null;
 };
 
-export function validateCommunityForm(form: CommunityFormLike): FieldErrors {
+export type ExistingCommunityName = {
+  id: number;
+  name: string;
+};
+
+export function normalizeCommunityName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+export function validateCommunityForm(
+  form: CommunityFormLike,
+  options?: { existing?: ExistingCommunityName[]; exceptId?: number | null },
+): FieldErrors {
   const errors: FieldErrors = {};
 
   const nameError = validateRequiredName(form.name, "Community name");
-  if (nameError) errors.name = nameError;
+  if (nameError) {
+    errors.name = nameError;
+  } else {
+    const normalized = normalizeCommunityName(form.name);
+    const duplicate = (options?.existing ?? []).some(
+      (item) => item.id !== options?.exceptId && normalizeCommunityName(item.name) === normalized,
+    );
+    if (duplicate) errors.name = DUPLICATE_COMMUNITY_NAME_MESSAGE;
+  }
 
   if (!form.region_id) {
     errors.region_id = "Select a region.";

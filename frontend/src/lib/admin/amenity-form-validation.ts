@@ -192,8 +192,11 @@ export function validateAmenityForm(form: AmenityForm): Record<string, string> {
   else if (!name) errors.name = "Name is required.";
   else if (name.length < 2) errors.name = "Use at least 2 characters.";
 
+  const description = form.description.trim();
   if (form.description.length > AMENITY_FIELD_MAX.description) {
     errors.description = "Description must be 500 characters or fewer.";
+  } else if (description.length > 0 && description.length < 10) {
+    errors.description = "Description must be at least 10 characters.";
   }
 
   if (!["open", "bookable", "closed"].includes(form.status)) {

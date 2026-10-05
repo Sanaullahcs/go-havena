@@ -53,6 +53,14 @@ console.log("\nMobile amenity validation");
   });
   assert(empty.name, "requires name");
   assert(!empty.description, "description is optional");
+  assert(
+    mobile.validateAmenityForm({ ...validForm, description: "s" }).description,
+    "rejects a one-character description",
+  );
+  assert(
+    !mobile.validateAmenityForm({ ...validForm, description: "1234567890" }).description,
+    "accepts a 10-character description",
+  );
   assert(empty.capacity, "requires capacity");
   assert(empty.floor, "requires floor");
   assert(empty.hours, "requires hours");

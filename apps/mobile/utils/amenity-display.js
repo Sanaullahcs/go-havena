@@ -231,8 +231,11 @@ export function validateAmenityForm(form) {
   else if (!name) errors.name = i18n.t("amenities.validation.nameRequired");
   else if (name.length < 2) errors.name = i18n.t("amenities.validation.nameMinLength");
 
+  const description = String(form.description ?? "").trim();
   if (String(form.description ?? "").length > 500) {
     errors.description = i18n.t("amenities.validation.descriptionTooLong");
+  } else if (description.length > 0 && description.length < 10) {
+    errors.description = i18n.t("amenities.validation.descriptionMinLength");
   }
 
   if (!["open", "bookable", "closed"].includes(status)) {

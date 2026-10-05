@@ -1703,9 +1703,18 @@ class NoticeController extends Controller
 
         $now = NoticeExpiry::nowInTimezone($communityId);
         $today = $now->toDateString();
-        $message = 'Please select a future time for this notice.';
+        $message = 'Please select a future date and time.';
         $errors = [];
         $nowMinutes = ((int) $now->format('H')) * 60 + (int) $now->format('i');
+
+        if ($startDate < $today) {
+            $errors['event_date'] = [$message];
+        }
+
+        $endDay = substr($endDate, 0, 10);
+        if ($endDay !== '' && $endDay < $today) {
+            $errors['event_end_date'] = [$message];
+        }
 
         if ($today === $startDate) {
             $raw = isset($validated['event_time']) ? trim((string) $validated['event_time']) : '';

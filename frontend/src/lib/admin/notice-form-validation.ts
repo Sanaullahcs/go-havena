@@ -1,7 +1,7 @@
 import { type FieldErrors } from "@/lib/admin/form-validation-utils";
 import { noticePlainTextError } from "@/lib/admin/notice-text-validation";
 import {
-  EVENT_PAST_TIME_MESSAGE,
+  isNoticeDateInPast,
   isNoticeTimeInPast,
   isScheduleEndBeforeStart,
   NOTICE_FUTURE_TIME_MESSAGE,
@@ -100,17 +100,24 @@ export function validateNoticeForm(
   }
 
   const effectiveEndDate = resolveEffectiveEndDate(form.event_date, form.event_end_date);
+  const pastMessage = NOTICE_FUTURE_TIME_MESSAGE;
 
-  if (enforceFutureTimes && form.event_date.trim()) {
-    if (form.event_time.trim() && isNoticeTimeInPast(form.event_date, form.event_time, now, opts.timeZone)) {
-      errors.event_time = NOTICE_FUTURE_TIME_MESSAGE;
+  if (enforceFutureTimes) {
+    if (form.event_date.trim() && isNoticeDateInPast(form.event_date, now, opts.timeZone)) {
+      errors.event_date = pastMessage;
+    }
+    if (kind !== "alert" && form.event_end_date.trim() && isNoticeDateInPast(form.event_end_date, now, opts.timeZone)) {
+      errors.event_end_date = pastMessage;
+    }
+    if (form.event_date.trim() && form.event_time.trim() && isNoticeTimeInPast(form.event_date, form.event_time, now, opts.timeZone)) {
+      errors.event_time = pastMessage;
     }
     if (
       form.event_time_end.trim() &&
       effectiveEndDate &&
       isNoticeTimeInPast(effectiveEndDate, form.event_time_end, now, opts.timeZone)
     ) {
-      errors.event_time_end = NOTICE_FUTURE_TIME_MESSAGE;
+      errors.event_time_end = pastMessage;
     }
   }
 

@@ -1011,7 +1011,8 @@ class AmenityController extends Controller
             $trimmed['floor'] = trim($request->input('floor'));
         }
         if ($request->exists('description') && is_string($request->input('description'))) {
-            $trimmed['description'] = trim($request->input('description'));
+            $description = trim($request->input('description'));
+            $trimmed['description'] = $description === '' ? null : $description;
         }
         if ($trimmed !== []) {
             $request->merge($trimmed);
@@ -1042,7 +1043,7 @@ class AmenityController extends Controller
             ],
             'name_es' => 'nullable|string|max:100',
             'name_ar' => 'nullable|string|max:100',
-            'description' => 'nullable|string|max:500',
+            'description' => 'nullable|string|min:10|max:500',
             'description_es' => 'nullable|string|max:500',
             'description_ar' => 'nullable|string|max:500',
             'status' => ($creating ? 'required' : 'sometimes').'|in:'.implode(',', self::STATUSES),
@@ -1134,7 +1135,7 @@ class AmenityController extends Controller
             'capacity.min' => 'Capacity must be at least 1.',
             'description.required' => 'Description must be at least 10 characters.',
             'description.min' => 'Description must be at least 10 characters.',
-            'description.max' => 'Description must not exceed 1,000 characters.',
+            'description.max' => 'Description must be 500 characters or fewer.',
             'name.required' => 'Amenity Name must contain at least 2 characters.',
             'name.min' => 'Amenity Name must contain at least 2 characters.',
             'name.max' => 'Amenity Name must not exceed 100 characters.',

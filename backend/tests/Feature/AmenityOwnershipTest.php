@@ -774,7 +774,7 @@ class AmenityOwnershipTest extends TestCase
             ->assertJsonPath('errors.name.0', 'Amenity Name must not exceed 100 characters.');
     }
 
-    public function test_description_must_be_between_10_and_1000_characters_when_provided(): void
+    public function test_description_must_be_between_10_and_500_characters_when_provided(): void
     {
         ['community' => $community, 'admin' => $admin] = $this->seedCommunity();
         Sanctum::actingAs($admin);
@@ -797,12 +797,12 @@ class AmenityOwnershipTest extends TestCase
             ->assertJsonPath('errors.description.0', 'Description must be at least 10 characters.');
 
         $this->postJson('/api/v1/admin/amenities', array_merge($base, [
-            'description' => str_repeat('A', 1001),
+            'description' => str_repeat('A', 501),
         ]), [
             'X-Community-Id' => (string) $community->id,
         ])
             ->assertUnprocessable()
-            ->assertJsonPath('errors.description.0', 'Description must not exceed 1,000 characters.');
+            ->assertJsonPath('errors.description.0', 'Description must be 500 characters or fewer.');
 
         $this->postJson('/api/v1/admin/amenities', array_merge($base, [
             'description' => '  '.str_repeat('B', 10).'  ',

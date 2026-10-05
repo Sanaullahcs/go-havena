@@ -19,8 +19,6 @@ import { hasFieldErrors, inputClass, type FieldErrors } from "@/lib/admin/form-v
 import {
   addMinutesToTime,
   buildSchedulePreview,
-  minTimeForNoticeDate,
-  NOTICE_FUTURE_TIME_MESSAGE,
   parseScheduledAtForForm,
   toScheduleApiDateTime,
   type SchedulePreview,
@@ -200,8 +198,7 @@ export default function NoticeFormModal({
     if (!form.event_time.trim()) return;
     const end = addMinutesToTime(form.event_time, hours * 60);
     set("event_time_end", end);
-    clearFieldError("event_time_end");
-    applyEventTimeErrors({ event_time_end: end });
+    noteScheduleIssues({ event_time_end: end });
   };
 
   const isAlertForm = lockedCategory === "emergency";
@@ -225,17 +222,27 @@ export default function NoticeFormModal({
 
   const formKind: NoticeFormKind = isEventForm ? "event" : isAlertForm ? "alert" : "notice";
   const enforceFutureTimes = mode === "create";
-  const noticeMinTime = useMemo(
-    () => (enforceFutureTimes ? minTimeForNoticeDate(form.event_date) ?? undefined : undefined),
-    [enforceFutureTimes, form.event_date],
-  );
-  const noticeEndMinTime = useMemo(() => {
-    if (!enforceFutureTimes) return undefined;
-    const endDay = form.event_end_date.trim() || form.event_date.trim();
-    return minTimeForNoticeDate(endDay) ?? undefined;
-  }, [enforceFutureTimes, form.event_date, form.event_end_date]);
 
   const touch = (field: string) => setTouched((prev) => ({ ...prev, [field]: true }));
+
+  const noteScheduleIssues = (patch: Partial<NoticeFormValues>) => {
+    const next = validateNoticeForm(
+      { ...form, ...patch },
+      { kind: formKind, lockedCategory, publishNow: false, enforceFutureTimes },
+    );
+    const keys = ["event_date", "event_end_date", "event_time", "event_time_end"] as const;
+    setErrors((prev) => {
+      const merged = { ...prev };
+      for (const key of keys) {
+        if (next[key]) merged[key] = next[key];
+        else delete merged[key];
+      }
+      return merged;
+    });
+    for (const key of keys) {
+      if (next[key]) touch(key);
+    }
+  };
 
   const clearFieldError = (field: string) => {
     setErrors((prev) => {
@@ -574,8 +581,10 @@ export default function NoticeFormModal({
                     active={form.event_date === todayIso()}
                     onClick={() => {
                       const day = todayIso();
+                      const nextEnd = isAlertForm ? form.event_end_date : day;
                       set("event_date", day);
                       if (!isAlertForm) set("event_end_date", day);
+                      noteScheduleIssues({ event_date: day, event_end_date: nextEnd });
                     }}
                   />
                   <ScheduleShortcut
@@ -583,8 +592,10 @@ export default function NoticeFormModal({
                     active={form.event_date === tomorrowIso()}
                     onClick={() => {
                       const day = tomorrowIso();
+                      const nextEnd = isAlertForm ? form.event_end_date : day;
                       set("event_date", day);
                       if (!isAlertForm) set("event_end_date", day);
+                      noteScheduleIssues({ event_date: day, event_end_date: nextEnd });
                     }}
                   />
                   <ScheduleShortcut
@@ -595,6 +606,12 @@ export default function NoticeFormModal({
                       set("event_end_date", "");
                       set("event_time", "");
                       set("event_time_end", "");
+                      noteScheduleIssues({
+                        event_date: "",
+                        event_end_date: "",
+                        event_time: "",
+                        event_time_end: "",
+                      });
                     }}
                   />
                 </div>
@@ -605,126 +622,81 @@ export default function NoticeFormModal({
               ) : null}
 
               <div className="nl-notice-schedule-grid">
-                <ThemedDatePicker
-                  label={isAlertForm ? "Alert date" : "Start date"}
-                  placeholder="Select date"
-                  icon={<IcoCalendarSmall />}
-                  value={form.event_date}
-                  fieldKey="event_date"
-                  error={showError("event_date") ? errors.event_date : undefined}
-                  onBlur={() => {
-                    touch("event_date");
-                    const next = runValidation(false);
-                    setErrors((prev) => ({ ...prev, event_date: next.event_date }));
-                  }}
-                  onChange={(v) => {
-                    set("event_date", v);
-                    if (!isAlertForm) {
-                      const endDay = form.event_end_date.trim();
-                      if (!endDay || endDay < v) {
-                        set("event_end_date", v);
-                      }
-                    }
-                  }}
-                />
-                <ThemedTimePicker
-                  label={isAlertForm ? "Start time (optional)" : "Start time"}
-                  placeholder={isAlertForm ? "Optional" : "Start time"}
-                  icon={<IcoClock />}
-                  value={form.event_time}
-                  fieldKey="event_time"
-                  commitOnDone={isEventForm}
-                  minTime={isEventForm ? undefined : noticeMinTime}
-                  minTimeMessage={NOTICE_FUTURE_TIME_MESSAGE}
-                  error={showError("event_time") ? errors.event_time : undefined}
-                  onChange={(v) => {
-                    const end =
-                      !isAlertForm && v && !form.event_time_end.trim()
-                        ? addMinutesToTime(v, 60)
-                        : form.event_time_end;
-                    set("event_time", v);
-                    if (end !== form.event_time_end) set("event_time_end", end);
-                    if (isEventForm) {
-                      applyEventTimeErrors({ event_time: v, event_time_end: end });
-                      return;
-                    }
-                    if (form.event_time_end.trim()) {
-                      const next = runValidation(false);
-                      setErrors((prev) => ({
-                        ...prev,
-                        event_time: next.event_time,
-                        event_time_end: next.event_time_end,
-                      }));
-                      if (next.event_time_end) touch("event_time_end");
-                    }
-                  }}
-                  onBlur={() => {
-                    if (isEventForm) return;
-                    touch("event_time");
-                    const next = runValidation(false);
-                    setErrors((prev) => ({
-                      ...prev,
-                      event_time: next.event_time,
-                      event_time_end: next.event_time_end,
-                    }));
-                  }}
-                />
-                {!isAlertForm ? (
+                <div>
                   <ThemedDatePicker
-                    label="End date"
+                    label={isAlertForm ? "Alert date" : "Start date"}
                     placeholder="Select date"
                     icon={<IcoCalendarSmall />}
-                    value={form.event_end_date}
-                    fieldKey="event_end_date"
-                    error={showError("event_end_date") ? errors.event_end_date : undefined}
-                    onBlur={() => {
-                      touch("event_end_date");
-                      const next = runValidation(false);
-                      setErrors((prev) => ({ ...prev, event_end_date: next.event_end_date }));
+                    value={form.event_date}
+                    fieldKey="event_date"
+                    error={showError("event_date")}
+                    onBlur={() => touch("event_date")}
+                    onChange={(v) => {
+                      const endDay = form.event_end_date.trim();
+                      const nextEnd = !isAlertForm && (!endDay || endDay < v) ? v : form.event_end_date;
+                      set("event_date", v);
+                      if (nextEnd !== form.event_end_date) set("event_end_date", nextEnd);
+                      noteScheduleIssues({ event_date: v, event_end_date: nextEnd });
                     }}
-                    onChange={(v) => set("event_end_date", v)}
                   />
+                  {showError("event_date") ? <FieldError>{showError("event_date")}</FieldError> : null}
+                </div>
+                <div>
+                  <ThemedTimePicker
+                    label={isAlertForm ? "Start time (optional)" : "Start time"}
+                    placeholder={isAlertForm ? "Optional" : "Start time"}
+                    icon={<IcoClock />}
+                    value={form.event_time}
+                    fieldKey="event_time"
+                    error={showError("event_time")}
+                    onBlur={() => touch("event_time")}
+                    onChange={(v) => {
+                      const end =
+                        !isAlertForm && v && !form.event_time_end.trim()
+                          ? addMinutesToTime(v, 60)
+                          : form.event_time_end;
+                      set("event_time", v);
+                      if (end !== form.event_time_end) set("event_time_end", end);
+                      noteScheduleIssues({ event_time: v, event_time_end: end });
+                    }}
+                  />
+                  {showError("event_time") ? <FieldError>{showError("event_time")}</FieldError> : null}
+                </div>
+                {!isAlertForm ? (
+                  <div>
+                    <ThemedDatePicker
+                      label="End date"
+                      placeholder="Select date"
+                      icon={<IcoCalendarSmall />}
+                      value={form.event_end_date}
+                      fieldKey="event_end_date"
+                      error={showError("event_end_date")}
+                      onBlur={() => touch("event_end_date")}
+                      onChange={(v) => {
+                        set("event_end_date", v);
+                        noteScheduleIssues({ event_end_date: v });
+                      }}
+                    />
+                    {showError("event_end_date") ? <FieldError>{showError("event_end_date")}</FieldError> : null}
+                  </div>
                 ) : null}
-                <ThemedTimePicker
-                  label={isAlertForm ? "End time (optional)" : "End time"}
-                  placeholder={isAlertForm ? "Optional" : "End time"}
-                  icon={<IcoClock />}
-                  value={form.event_time_end}
-                  fieldKey="event_time_end"
-                  minTime={isAlertForm ? noticeMinTime : noticeEndMinTime}
-                  minTimeMessage={NOTICE_FUTURE_TIME_MESSAGE}
-                  error={showError("event_time_end") ? errors.event_time_end : undefined}
-                  onBlur={() => {
-                    if (isEventForm) return;
-                    touch("event_time_end");
-                    const next = runValidation(false);
-                    setErrors((prev) => ({
-                      ...prev,
-                      event_time_end: next.event_time_end,
-                      event_time: next.event_time,
-                      event_date: next.event_date,
-                      event_end_date: next.event_end_date,
-                    }));
-                  }}
-                  onChange={(v) => {
-                    set("event_time_end", v);
-                    if (isEventForm) applyEventTimeErrors({ event_time_end: v });
-                  }}
-                />
+                <div>
+                  <ThemedTimePicker
+                    label={isAlertForm ? "End time (optional)" : "End time"}
+                    placeholder={isAlertForm ? "Optional" : "End time"}
+                    icon={<IcoClock />}
+                    value={form.event_time_end}
+                    fieldKey="event_time_end"
+                    error={showError("event_time_end")}
+                    onBlur={() => touch("event_time_end")}
+                    onChange={(v) => {
+                      set("event_time_end", v);
+                      noteScheduleIssues({ event_time_end: v });
+                    }}
+                  />
+                  {showError("event_time_end") ? <FieldError>{showError("event_time_end")}</FieldError> : null}
+                </div>
               </div>
-
-              {showError("event_date") && errors.event_date ? (
-                <FieldError>{errors.event_date}</FieldError>
-              ) : null}
-              {!isAlertForm && showError("event_end_date") && errors.event_end_date ? (
-                <FieldError>{errors.event_end_date}</FieldError>
-              ) : null}
-              {showError("event_time") && errors.event_time ? (
-                <FieldError>{errors.event_time}</FieldError>
-              ) : null}
-              {showError("event_time_end") && errors.event_time_end ? (
-                <FieldError>{errors.event_time_end}</FieldError>
-              ) : null}
 
               {isEventForm && form.event_time.trim() ? (
                 <div className="nl-notice-duration-shortcuts">

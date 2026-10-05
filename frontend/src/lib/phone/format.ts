@@ -1,5 +1,6 @@
 import {
   AsYouType,
+  Metadata,
   parsePhoneNumberFromString,
   isValidPhoneNumber,
   validatePhoneNumberLength,
@@ -7,6 +8,7 @@ import {
 } from "libphonenumber-js/max";
 import { DEFAULT_PHONE_COUNTRY, formatDialLabel, getCountryByCode } from "./countries";
 
+const metadataReader = new Metadata();
 const maxLengthCache = new Map<string, number>();
 
 export type PhoneFieldState = {
@@ -89,29 +91,41 @@ function phoneLengthStatus(digits: string, country: string): ReturnType<typeof v
   }
 }
 
+/** Longest national number the selected country can accept. */
 function maxNationalLength(country: string): number {
   const cached = maxLengthCache.get(country);
   if (cached) return cached;
   let max = 15;
-  for (let length = 1; length <= 16; length += 1) {
-    if (phoneLengthStatus("9".repeat(length), country) === "TOO_LONG") {
-      max = length - 1;
-      break;
+  try {
+    metadataReader.selectNumberingPlan(country as never);
+    const lengths = metadataReader.numberingPlan.possibleLengths();
+    if (lengths.length) max = Math.max(...lengths);
+  } catch {
+    for (let length = 1; length <= 16; length += 1) {
+      if (phoneLengthStatus("9".repeat(length), country) === "TOO_LONG") {
+        max = length - 1;
+        break;
+      }
     }
   }
+  if (max < 1) max = 15;
   maxLengthCache.set(country, max);
   return max;
 }
 
 /**
- * Keep at most one digit past the country's maximum so an over-long paste
- * stays invalid instead of being trimmed into a shorter valid number.
+ * Stop at the selected country's maximum. Extra typed or pasted digits are
+ * dropped so the field never holds a number that is too long.
  */
 function clampNationalDigits(digits: string, country: string): string {
   const next = digits.replace(/\D/g, "");
   if (!next) return "";
-  const limit = maxNationalLength(country) + 1;
-  return next.length > limit ? next.slice(0, limit) : next;
+  const limit = maxNationalLength(country);
+  let clamped = next.length > limit ? next.slice(0, limit) : next;
+  while (clamped.length > 0 && phoneLengthStatus(clamped, country) === "TOO_LONG") {
+    clamped = clamped.slice(0, -1);
+  }
+  return clamped;
 }
 
 /** True while the number is still shorter than the selected country's minimum. */
@@ -168,7 +182,9 @@ export function extractNationalDigits(input: string, country = DEFAULT_PHONE_COU
     const typer = new AsYouType(country as never);
     typer.input(raw);
     const parsed = typer.getNumber();
-    if (parsed?.nationalNumber) return parsed.nationalNumber.replace(/\D/g, "");
+    if (parsed?.nationalNumber) {
+      return clampNationalDigits(parsed.nationalNumber.replace(/\D/g, ""), country);
+    }
   } catch {
     // Fall through to digit extraction when libphonenumber metadata is unavailable.
   }
@@ -186,7 +202,7 @@ export function parsePhoneInputChange(text: string, country: string, previousDig
   const prevDisplay = formatNationalDisplay(previousDigits, country);
   const rawDigits = cleaned.replace(/\D/g, "");
   if (previousDigits) {
-    if (rawDigits.length < previousDigits.length) return rawDigits;
+    if (rawDigits.length < previousDigits.length) return clampNationalDigits(rawDigits, country);
     if (cleaned.length < prevDisplay.length && rawDigits.length >= previousDigits.length) {
       return previousDigits.slice(0, -1);
     }

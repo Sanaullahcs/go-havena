@@ -9,9 +9,16 @@ class CommunityNameUniqueness
 {
     public const DUPLICATE_MESSAGE = 'A community with this name already exists. Please use a different name.';
 
+    public static function trim(string $name): string
+    {
+        $trimmed = preg_replace('/^[\s\x{00A0}\x{FEFF}]+|[\s\x{00A0}\x{FEFF}]+$/u', '', $name);
+
+        return is_string($trimmed) ? $trimmed : trim($name);
+    }
+
     public static function normalize(string $name): string
     {
-        return mb_strtolower(trim($name));
+        return mb_strtolower(self::trim($name));
     }
 
     public static function exists(string $name, ?int $exceptCommunityId = null): bool
@@ -22,10 +29,6 @@ class CommunityNameUniqueness
         }
 
         $query = Community::query()
-            ->where(function ($w) {
-                $w->whereNull('review_status')
-                    ->orWhereIn('review_status', ['approved', 'pending']);
-            })
             ->whereRaw('LOWER(TRIM(name)) = ?', [$normalized]);
 
         if ($exceptCommunityId) {

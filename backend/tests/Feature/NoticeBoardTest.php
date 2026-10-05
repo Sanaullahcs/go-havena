@@ -1483,8 +1483,8 @@ class NoticeBoardTest extends TestCase
                 'event_time_end' => '17:00',
             ])
                 ->assertStatus(422)
-                ->assertJsonPath('message', 'Please select a future time for this notice.')
-                ->assertJsonPath('errors.event_time.0', 'Please select a future time for this notice.');
+                ->assertJsonPath('message', 'Please select a future date and time.')
+                ->assertJsonPath('errors.event_time.0', 'Please select a future date and time.');
         } finally {
             \Carbon\Carbon::setTestNow();
         }
@@ -1524,5 +1524,37 @@ class NoticeBoardTest extends TestCase
         } finally {
             \Carbon\Carbon::setTestNow();
         }
+    }
+
+    public function test_events_board_loads_when_notices_feature_is_off(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunityWithAdmin();
+
+        DB::table('community_feature_flags')->insert([
+            'community_id' => $community->id,
+            'feature_key' => 'notices',
+            'enabled' => false,
+            'disabled_by' => 'system_admin',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/v1/admin/events', array_merge([
+            'title' => 'Courtyard social',
+            'body' => 'Join neighbors after dinner.',
+            'location' => 'Courtyard',
+            'status' => 'published',
+        ], $this->scheduleFields(now()->addDay()->toDateString())))->assertCreated();
+
+        $this->getJson('/api/v1/admin/notices?category_group=events')
+            ->assertOk()
+            ->assertJsonPath('data.0.title', 'Courtyard social')
+            ->assertJsonPath('data.0.category', 'event');
+
+        $this->getJson('/api/v1/admin/notices?category_group=notices')
+            ->assertForbidden()
+            ->assertJsonPath('message', 'Notices is not available in this community.');
     }
 }

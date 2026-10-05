@@ -10,6 +10,7 @@ import {
 } from "@/lib/phone/countries";
 import {
   buildPhoneField,
+  extractNationalDigits,
   formatNationalDisplay,
   formatPhoneDisplay,
   getPhonePlaceholder,
@@ -154,7 +155,7 @@ export function AdminPhoneInput({
 
   const selectCountry = (code: string) => {
     setTouched(true);
-    updateField(code, field.digits);
+    updateField(code, extractNationalDigits(field.digits, code));
     setCountryQuery("");
     setCountryOpen(false);
   };

@@ -229,8 +229,7 @@ export function toScheduleApiDateTime(date: string, time: string): string | unde
   return local.toISOString();
 }
 
-export const NOTICE_FUTURE_TIME_MESSAGE = "Please select a future time for this notice.";
-export const EVENT_PAST_TIME_MESSAGE = "Past time cannot be selected. Please select a future time.";
+export const NOTICE_FUTURE_TIME_MESSAGE = "Please select a future date and time.";
 
 /** Calendar date + minute-of-day in a timezone (defaults to the browser local zone). */
 export function zonedNowParts(now: Date = new Date(), timeZone?: string): { date: string; minutes: number } {
@@ -279,6 +278,17 @@ export function minTimeForNoticeDate(
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/** True when the calendar date is before today in the active timezone. */
+export function isNoticeDateInPast(
+  date: string,
+  now: Date = new Date(),
+  timeZone?: string,
+): boolean {
+  const trimmed = date.trim().slice(0, 10);
+  if (!trimmed) return false;
+  return trimmed < zonedNowParts(now, timeZone).date;
 }
 
 /** True when date is today and time is strictly before the current minute. */

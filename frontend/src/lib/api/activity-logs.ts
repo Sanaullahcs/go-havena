@@ -137,20 +137,33 @@ export async function fetchActivityLogStats(): Promise<ActivityLogStats> {
   };
 }
 
-const UNSET_ACTIVITY_LABELS = new Set(["", "(empty)", "null", "undefined"]);
+const UNSET_ACTIVITY_LABELS = new Set(["", "(empty)", "null", "undefined", "not set"]);
 
-/** Friendly label for a missing previous/next audit value. Does not change stored data. */
+/** True when an audit value was blank and should not be shown. */
+export function isUnsetActivityValue(value: string | number | null | undefined): boolean {
+  if (value == null) return true;
+  return UNSET_ACTIVITY_LABELS.has(String(value).trim().toLowerCase());
+}
+
+/** Display text for one side of a change. Blank previous or next values stay hidden. */
 export function formatActivityChangeValue(value: string | number | null | undefined): string {
-  if (value == null) return "Not set";
-  const trimmed = String(value).trim();
-  if (UNSET_ACTIVITY_LABELS.has(trimmed.toLowerCase())) return "Not set";
+  if (isUnsetActivityValue(value)) return "";
   return String(value);
 }
 
-/** Replace stored "(empty)" tokens in activity descriptions for display only. */
+/**
+ * Drop stored "(empty)" placeholders from activity summaries.
+ * "Residence Type: (empty) → Homeowner" displays as "Residence Type: Homeowner".
+ */
 export function formatActivityDescription(description: string | null | undefined): string {
   if (!description) return "";
-  return description.replace(/\(empty\)/gi, "Not set");
+  return description
+    .replace(/\(empty\)\s*→\s*/gi, "")
+    .replace(/\s*→\s*\(empty\)/gi, "")
+    .replace(/\(empty\)/gi, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
 }
 
 /**

@@ -126,11 +126,11 @@ class AdminCommunityController extends Controller
         ]);
 
         $validated = CommunityLocation::applyOnCreate($validated, $geocoding);
+        $validated['name'] = CommunityNameUniqueness::trim($validated['name']);
         $region = Region::query()->where('status', 'active')->findOrFail($validated['region_id']);
 
-        CommunityNameUniqueness::assertUniqueInRegion(
+        CommunityNameUniqueness::assertUnique(
             $validated['name'],
-            $region->id,
             field: 'name',
         );
 
@@ -388,11 +388,12 @@ class AdminCommunityController extends Controller
             $validated['region'] = $region->title;
         }
 
+        if (array_key_exists('name', $validated)) {
+            $validated['name'] = CommunityNameUniqueness::trim((string) $validated['name']);
+        }
         $nextName = array_key_exists('name', $validated) ? (string) $validated['name'] : $community->name;
-        $nextRegionId = (int) (array_key_exists('region_id', $validated) ? $validated['region_id'] : $community->region_id);
-        CommunityNameUniqueness::assertUniqueInRegion(
+        CommunityNameUniqueness::assertUnique(
             $nextName,
-            $nextRegionId,
             field: 'name',
             exceptCommunityId: $community->id,
         );

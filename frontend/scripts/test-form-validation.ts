@@ -783,7 +783,7 @@ console.log("\nNotice form validation");
   );
   if (pastHour < today.getHours() || (pastHour === today.getHours() && today.getMinutes() > 0)) {
     assertHasError(pastTimeToday, "event_time", "rejects past start time when notice date is today");
-    assert(pastTimeToday.event_time === "Please select a future time for this notice.", "past time uses exact message");
+    assert(pastTimeToday.event_time === "Please select a future date and time.", "past time uses exact message");
   }
 
   const futureTimeToday = validateNoticeForm(
@@ -819,6 +819,27 @@ console.log("\nNotice form validation");
   );
   assertNoErrors(earlyTomorrow, "allows any valid time on a future notice date");
 
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayIso = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
+  const pastDate = validateNoticeForm(
+    {
+      title: "Pool maintenance",
+      body: "The pool will be closed for cleaning this weekend.",
+      category: "maintenance",
+      location: "",
+      event_date: yesterdayIso,
+      event_end_date: yesterdayIso,
+      event_time: "18:00",
+      event_time_end: "19:00",
+      event_capacity: "",
+    },
+    { kind: "notice", publishNow: true, now: today },
+  );
+  assert(pastDate.event_date === "Please select a future date and time.", "past date uses the future date message");
+  assert(pastDate.event_end_date === "Please select a future date and time.", "past end date uses the future date message");
+  assert(!pastDate.event_time, "a past date does not also mark the clock time");
+
   const eventPastToday = validateNoticeForm(
     {
       title: "Evening social",
@@ -835,8 +856,8 @@ console.log("\nNotice form validation");
   if (pastHour < today.getHours() || (pastHour === today.getHours() && today.getMinutes() > 0)) {
     assertHasError(eventPastToday, "event_time", "rejects a past event start time today");
     assert(
-      eventPastToday.event_time === "Past time cannot be selected. Please select a future time.",
-      "event past start time uses the event message",
+      eventPastToday.event_time === "Please select a future date and time.",
+      "event past start time uses the same future date message as notices",
     );
     assert(!eventPastToday.event_time_end, "event end time is not marked past when it is after the start");
   }

@@ -4649,6 +4649,7 @@
       "nameRequired": "El nombre es obligatorio",
       "nameMinLength": "El nombre debe tener al menos 2 caracteres",
       "nameMaxLength": "El nombre debe tener 100 caracteres o menos",
+      "descriptionMinLength": "La descripción debe tener al menos 10 caracteres.",
       "descriptionTooLong": "La descripción debe tener 500 caracteres o menos",
       "customCategoryMaxLength": "La categoría personalizada debe tener 80 caracteres o menos",
       "statusRequired": "Selecciona un estado",

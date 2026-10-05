@@ -18,6 +18,7 @@ import { confirmAction, toastError, toastSuccess } from "@/lib/alert";
 import {
   approveCommunityRequest,
   createAdminCommunity,
+  fetchAdminCommunities,
   fetchAdminCommunitiesList,
   releaseCommunityAdmin,
   fetchCommunityRequests,
@@ -34,7 +35,7 @@ import { AdjustFeatureSetModal } from "@/components/admin/adjust-feature-set-mod
 import { ContextualActivityModal } from "@/components/admin/contextual-activity-modal";
 import { ProvisionUserModal, type PresetCommunityAssignment } from "@/components/admin/provision-user-modal";
 import { fetchRegions, type Region } from "@/lib/api/regions";
-import { apiError } from "@/lib/api/client";
+import { apiError, apiFieldErrors } from "@/lib/api/client";
 import { PhoneDisplay } from "@/components/admin/phone-display";
 import { UtilityBillPreview } from "@/components/admin/utility-bill-preview";
 import { PageError, PageLoader } from "@/components/shared/page-states";
@@ -43,7 +44,11 @@ import { adminTableBusy, isAdminSearchPending, shouldSkipStalePageFetch } from "
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { Check, X } from "lucide-react";
 import { useTouchedFieldErrors } from "@/hooks/use-touched-field-errors";
-import { validateCommunityForm } from "@/lib/admin/community-form-validation";
+import {
+  DUPLICATE_COMMUNITY_NAME_MESSAGE,
+  validateCommunityForm,
+  type ExistingCommunityName,
+} from "@/lib/admin/community-form-validation";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
 import { CommunityAddressPicker } from "@/components/admin/community-address-picker";
 
@@ -122,7 +127,8 @@ export default function CommunitiesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<AdminCommunity | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const { touch, clearError, showError, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
+  const { touch, clearError, showError, validateOnSubmit, resetTouched, setErrors } = useTouchedFieldErrors();
+  const [knownNames, setKnownNames] = useState<ExistingCommunityName[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [viewing, setViewing] = useState<CommunityRequest | null>(null);
   const [approveRegionId, setApproveRegionId] = useState<number | "">("");
@@ -138,14 +144,50 @@ export default function CommunitiesPage() {
 
   const isAdminSuspended = (item: AdminCommunity) => item.admin_user?.status === "suspended";
 
-  const liveErrors = useMemo(() => validateCommunityForm(form), [form]);
+  const existingNames = useMemo(() => {
+    const byId = new Map<number, string>();
+    for (const item of [...knownNames, ...communities, ...requests]) {
+      byId.set(item.id, item.name);
+    }
+    return [...byId.entries()].map(([id, name]) => ({ id, name }));
+  }, [knownNames, communities, requests]);
+
+  const liveErrors = useMemo(
+    () => validateCommunityForm(form, { existing: existingNames, exceptId: editing?.id ?? null }),
+    [form, existingNames, editing],
+  );
   const canSubmitForm = !hasFieldErrors(liveErrors);
+  const nameFieldError =
+    showError("name", liveErrors) ??
+    (liveErrors.name === DUPLICATE_COMMUNITY_NAME_MESSAGE ? liveErrors.name : undefined);
 
   useEffect(() => {
     fetchRegions({ status: "active", per_page: 100 })
       .then((res) => setRegions(res.data.filter((r) => r.status === "active")))
       .catch(() => setRegions([]));
   }, []);
+
+  useEffect(() => {
+    if (!modalOpen) return;
+    let cancelled = false;
+    Promise.all([
+      fetchAdminCommunities().catch(() => ({ data: [] })),
+      fetchAdminCommunitiesList({ per_page: 100, page: 1, status: "inactive" }).catch(() => ({ data: [] })),
+      fetchAdminCommunitiesList({ per_page: 100, page: 1, review_status: "rejected" }).catch(() => ({ data: [] })),
+      fetchCommunityRequests({ per_page: 100, page: 1 }).catch(() => ({ data: [] })),
+    ]).then(([active, inactive, rejected, pending]) => {
+      if (cancelled) return;
+      setKnownNames([
+        ...active.data.map((item) => ({ id: item.id, name: item.name })),
+        ...inactive.data.map((item) => ({ id: item.id, name: item.name })),
+        ...rejected.data.map((item) => ({ id: item.id, name: item.name })),
+        ...pending.data.map((item) => ({ id: item.id, name: item.name })),
+      ]);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [modalOpen]);
 
   const load = useCallback(async (silent = false) => {
     if (!hasLoadedOnce.current) setInitialLoading(true);
@@ -254,6 +296,12 @@ export default function CommunitiesPage() {
       setForm(emptyForm);
       load(true);
     } catch (err) {
+      const fields = apiFieldErrors(err);
+      if (fields.name) {
+        setErrors({ name: fields.name });
+        touch("name");
+        return;
+      }
       toastError(apiError(err));
     } finally {
       setSubmitting(false);
@@ -645,11 +693,11 @@ export default function CommunitiesPage() {
                     setForm((f) => ({ ...f, name: e.target.value }));
                   }}
                   onBlur={() => touch("name")}
-                  className={inputClass(showError("name", liveErrors), "nl-input mt-1.5")}
+                  className={inputClass(nameFieldError, "nl-input mt-1.5")}
                   placeholder="Oak Valley Residences"
                 />
-                {showError("name", liveErrors) ? (
-                  <p className="mt-1 text-xs text-red-600">{showError("name", liveErrors)}</p>
+                {nameFieldError ? (
+                  <p className="mt-1 text-xs text-red-600">{nameFieldError}</p>
                 ) : null}
               </div>
               <div>

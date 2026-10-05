@@ -179,7 +179,10 @@ export function ActivityAuditDetails({
             Changes
           </p>
           <ul className="min-w-0 max-w-full space-y-1.5">
-            {changes!.map((change, index) => (
+            {changes!.map((change, index) => {
+              const previous = formatActivityChangeValue(change.previous);
+              const next = formatActivityChangeValue(change.next);
+              return (
               <li
                 key={`${change.field}-${index}`}
                 className="nl-activity-change-row text-[12.5px] leading-relaxed"
@@ -188,15 +191,20 @@ export function ActivityAuditDetails({
                 <span className="font-semibold" style={{ color: NL.textPrimary }}>
                   {change.field}:
                 </span>{" "}
-                <ActivityWrappedValue value={formatActivityChangeValue(change.previous)} style={{ color: NL.textSecondary }} />
-                <span style={{ color: NL.textMuted }}> → </span>
-                <ActivityWrappedValue
-                  value={formatActivityChangeValue(change.next)}
-                  className="font-medium"
-                  style={{ color: NL.textPrimary }}
-                />
+                {previous ? (
+                  <ActivityWrappedValue value={previous} style={{ color: NL.textSecondary }} />
+                ) : null}
+                {previous && next ? <span style={{ color: NL.textMuted }}> → </span> : null}
+                {next ? (
+                  <ActivityWrappedValue
+                    value={next}
+                    className="font-medium"
+                    style={{ color: NL.textPrimary }}
+                  />
+                ) : null}
               </li>
-            ))}
+              );
+            })}
           </ul>
         </div>
       ) : null}

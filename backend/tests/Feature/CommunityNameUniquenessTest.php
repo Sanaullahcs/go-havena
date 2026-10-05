@@ -56,6 +56,35 @@ class CommunityNameUniquenessTest extends TestCase
         $this->assertSame(1, Community::query()->where('region_id', $region->id)->count());
     }
 
+    public function test_rejects_duplicate_name_with_extra_spaces_and_allows_a_unique_name(): void
+    {
+        Sanctum::actingAs($this->systemAdmin());
+
+        $region = $this->region('Florida');
+
+        $this->postJson('/api/v1/admin/communities', [
+            'name' => '  Harbor Point  ',
+            'region_id' => $region->id,
+            'address' => '100 Harbor Point Rd, Miami, FL',
+        ])->assertCreated()
+            ->assertJsonPath('data.name', 'Harbor Point');
+
+        $this->postJson('/api/v1/admin/communities', [
+            'name' => 'harbor point',
+            'region_id' => $region->id,
+            'address' => '200 Harbor Point Rd, Miami, FL',
+        ])->assertStatus(422)
+            ->assertJsonPath('errors.name.0', CommunityNameUniqueness::DUPLICATE_MESSAGE);
+
+        $this->postJson('/api/v1/admin/communities', [
+            'name' => 'Cedar Court',
+            'region_id' => $region->id,
+            'address' => '10 Cedar Court, Miami, FL',
+        ])->assertCreated();
+
+        $this->assertSame(2, Community::query()->count());
+    }
+
     public function test_rejects_same_name_in_different_regions(): void
     {
         Sanctum::actingAs($this->systemAdmin());
@@ -139,5 +168,10 @@ class CommunityNameUniquenessTest extends TestCase
         $target->refresh();
         $this->assertSame('Sunset Ridge', $target->name);
         $this->assertSame($existing->id, Community::query()->whereRaw('LOWER(TRIM(name)) = ?', ['green valley'])->value('id'));
+
+        $this->putJson("/api/v1/admin/communities/{$existing->id}", [
+            'name' => '  Green Valley  ',
+        ])->assertOk()
+            ->assertJsonPath('data.name', 'Green Valley');
     }
 }

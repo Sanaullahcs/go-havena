@@ -4686,6 +4686,7 @@
       "nameRequired": "Amenity name is required",
       "nameMinLength": "Name must be at least 2 characters",
       "nameMaxLength": "Name must be 100 characters or fewer",
+      "descriptionMinLength": "Description must be at least 10 characters.",
       "descriptionTooLong": "Description must be 500 characters or fewer",
       "customCategoryMaxLength": "Custom category must be 80 characters or fewer",
       "statusRequired": "Please select a status",
