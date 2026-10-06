@@ -146,6 +146,54 @@ function FieldMeta({ error, value, max }: { error?: string; value?: string; max?
   );
 }
 
+const SERVICE_AMOUNT_MAX = 999999.99;
+const SERVICE_SUBSCRIBER_MIN = 1;
+const SERVICE_SUBSCRIBER_MAX = 100000;
+
+function sanitizeSubscriberInput(raw: string): number | string | null {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  if (!digits) return null;
+  if (/^0+$/.test(digits)) return 0;
+  const trimmed = digits.replace(/^0+(?=\d)/, "");
+  if (trimmed.length > 6) return trimmed;
+  return Number(trimmed);
+}
+
+function serviceSubscriberError(value: PropertyServiceForm["max_subscribers"]): string | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const raw = String(value).trim();
+  if (!/^\d+$/.test(raw)) return "Enter at least 1 subscriber.";
+  const numeric = Number(raw);
+  if (!Number.isSafeInteger(numeric) || numeric < SERVICE_SUBSCRIBER_MIN) return "Enter at least 1 subscriber.";
+  if (numeric > SERVICE_SUBSCRIBER_MAX) return "Enter 100,000 subscribers or fewer.";
+  return undefined;
+}
+
+function sanitizeServiceAmountInput(raw: string): string {
+  const cleaned = String(raw ?? "").replace(/[^\d.]/g, "");
+  if (!cleaned) return "";
+  const dot = cleaned.indexOf(".");
+  let whole = (dot === -1 ? cleaned : cleaned.slice(0, dot)).replace(/^0+(?=\d)/, "");
+  if (!whole) whole = "0";
+  if (whole.length > 6) return "999999.99";
+  const fraction = dot === -1 ? null : cleaned.slice(dot + 1).replace(/\./g, "").slice(0, 2);
+  const next = fraction === null ? whole : `${whole}.${fraction}`;
+  const numeric = Number(next.endsWith(".") ? next.slice(0, -1) : next);
+  if (Number.isFinite(numeric) && numeric > SERVICE_AMOUNT_MAX) return "999999.99";
+  return next;
+}
+
+function serviceAmountError(value: PropertyServiceForm["amount"]): string | undefined {
+  const raw = String(value ?? "").trim();
+  if (!raw || raw === ".") return "Enter an amount of at least 0.01.";
+  const fraction = raw.split(".")[1] ?? "";
+  if (fraction.length > 2) return "Enter an amount with up to 2 decimal places.";
+  const numeric = Number(raw.endsWith(".") ? raw.slice(0, -1) : raw);
+  if (!Number.isFinite(numeric) || numeric < 0.01) return "Enter an amount of at least 0.01.";
+  if (numeric > SERVICE_AMOUNT_MAX) return "Enter an amount of 999,999.99 or less.";
+  return undefined;
+}
+
 function validateServiceForm(form: PropertyServiceForm, step: number): Record<string, string> {
   const errors: Record<string, string> = {};
   if (form.name.length > SERVICE_FIELD_MAX.name) errors.name = "Service name must be 120 characters or fewer.";
@@ -171,8 +219,8 @@ function validateServiceForm(form: PropertyServiceForm, step: number): Record<st
       else if (form.name.trim().length < 2) errors.name = "Service name must be at least 2 characters.";
     }
     if (!form.category) errors.category = "Category is required.";
-    else if (!errors.custom_category && form.category === "other" && !String(form.custom_category ?? "").trim()) {
-      errors.custom_category = "Enter a custom category name.";
+    else if (!errors.custom_category && form.category === "other" && String(form.custom_category ?? "").trim().length < 2) {
+      errors.custom_category = "Custom category must be at least 2 characters.";
     }
   }
   if (step >= 2) {
@@ -181,8 +229,11 @@ function validateServiceForm(form: PropertyServiceForm, step: number): Record<st
     if (form.application_type === "automatic" && form.billing_frequency === "one_time") {
       errors.billing_frequency = "Automatic services must bill monthly or yearly.";
     }
-    if (!form.amount || Number(form.amount) <= 0) {
-      errors.amount = "Enter an amount greater than 0.";
+    const amountError = serviceAmountError(form.amount);
+    if (amountError) errors.amount = amountError;
+    if (form.application_type === "optional") {
+      const subscriberError = serviceSubscriberError(form.max_subscribers);
+      if (subscriberError) errors.max_subscribers = subscriberError;
     }
     const recurring = form.billing_frequency === "monthly" || form.billing_frequency === "yearly";
     if (recurring) {
@@ -245,7 +296,7 @@ export function PropertyServiceFormModal({
       ? ["name", "category", "custom_category", "description"]
       : step === 3
         ? ["notice_title", "notice_body"]
-        : ["application_type", "billing_frequency", "amount", "due_day", "first_billing_month", "due_month", "payment_instructions"];
+        : ["application_type", "billing_frequency", "amount", "due_day", "first_billing_month", "due_month", "payment_instructions", "max_subscribers"];
     setTouched((current) => ({
       ...current,
       ...Object.fromEntries(stepKeys.map((key) => [key, true])),
@@ -262,12 +313,14 @@ export function PropertyServiceFormModal({
         ...current,
         name: true,
         category: true,
+        custom_category: true,
         application_type: true,
         billing_frequency: true,
         amount: true,
         due_day: true,
         first_billing_month: true,
         due_month: true,
+        max_subscribers: true,
       }));
       return;
     }
@@ -276,7 +329,7 @@ export function PropertyServiceFormModal({
       title: editing ? "Save these changes?" : "Publish this service?",
       text: editing
         ? "Confirm the reviewed details before updating this service."
-        : "Publishing will notify unit billing contacts. This does not happen until you confirm.",
+        : "Publishing this service will notify the unit billing contacts. Notifications will only be sent after you confirm.",
       confirmText: editing ? "Save" : "Publish",
       color: "green",
     });
@@ -341,7 +394,6 @@ export function PropertyServiceFormModal({
                       active ? "bg-[#1B4F8A] text-white" : done ? "bg-[#E8F0F7] text-[#1B4F8A]" : "bg-slate-100 text-slate-500",
                     ].join(" ")}
                   >
-                    <span className="tabular-nums">{item}</span>
                     {STEP_COPY[item].label}
                   </span>
                 </li>
@@ -360,7 +412,8 @@ export function PropertyServiceFormModal({
                 <input
                   className={inputClass(fieldError("name", form.name, SERVICE_FIELD_MAX.name))}
                   value={form.name}
-                  onChange={(e) => setField("name", e.target.value)}
+                  maxLength={SERVICE_FIELD_MAX.name}
+                  onChange={(e) => setField("name", e.target.value.slice(0, SERVICE_FIELD_MAX.name))}
                   onFocus={() => touch("name")}
                   onBlur={() => touch("name")}
                   placeholder="e.g. Parking dues"
@@ -397,7 +450,8 @@ export function PropertyServiceFormModal({
                   <input
                     className={inputClass(fieldError("custom_category", form.custom_category ?? "", SERVICE_FIELD_MAX.custom_category))}
                     value={form.custom_category ?? ""}
-                    onChange={(e) => setField("custom_category", e.target.value)}
+                    maxLength={SERVICE_FIELD_MAX.custom_category}
+                    onChange={(e) => setField("custom_category", e.target.value.slice(0, SERVICE_FIELD_MAX.custom_category))}
                     onFocus={() => touch("custom_category")}
                     onBlur={() => touch("custom_category")}
                     placeholder="e.g. Concierge"
@@ -423,9 +477,10 @@ export function PropertyServiceFormModal({
               <div>
                 <FieldLabel>Description</FieldLabel>
                 <textarea
-                  className={`${inputClass(fieldError("description", form.description, SERVICE_FIELD_MAX.description))} min-h-[88px] resize-y`}
+                  className={`${inputClass(fieldError("description", form.description, SERVICE_FIELD_MAX.description))} h-[88px] min-h-[88px] max-h-[88px] resize-none overflow-y-auto`}
                   value={form.description}
-                  onChange={(e) => setField("description", e.target.value)}
+                  maxLength={SERVICE_FIELD_MAX.description}
+                  onChange={(e) => setField("description", e.target.value.slice(0, SERVICE_FIELD_MAX.description))}
                   placeholder="Optional details for residents"
                 />
                 <FieldMeta
@@ -504,12 +559,11 @@ export function PropertyServiceFormModal({
               <div>
                 <FieldLabel required>Amount</FieldLabel>
                 <ClearableInput
-                  type="number"
-                  min="0.01"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
                   className={inputClass(fieldError("amount") ? liveErrors.amount : undefined)}
                   value={form.amount ?? ""}
-                  onChange={(e) => setField("amount", e.target.value ? Number(e.target.value) : null)}
+                  onChange={(e) => setField("amount", sanitizeServiceAmountInput(e.target.value))}
                   onFocus={() => touch("amount")}
                   onBlur={() => touch("amount")}
                   placeholder="e.g. 200"
@@ -581,13 +635,17 @@ export function PropertyServiceFormModal({
                   <div>
                     <FieldLabel>Max subscribers</FieldLabel>
                     <ClearableInput
-                      type="number"
-                      min="1"
-                      className={inputClass()}
+                      type="text"
+                      inputMode="numeric"
+                      className={`${inputClass()} ${fieldError("max_subscribers") ? "!border-red-300 !ring-1 !ring-red-100" : ""}`}
                       value={form.max_subscribers ?? ""}
-                      onChange={(e) => setField("max_subscribers", e.target.value ? Number(e.target.value) : null)}
+                      onChange={(e) => setField("max_subscribers", sanitizeSubscriberInput(e.target.value))}
+                      onBlur={() => touch("max_subscribers")}
                       placeholder="Optional"
                     />
+                    {fieldError("max_subscribers") ? (
+                      <p className="mt-1 text-xs text-red-600">{liveErrors.max_subscribers}</p>
+                    ) : null}
                   </div>
                 </>
               ) : null}
@@ -596,7 +654,8 @@ export function PropertyServiceFormModal({
                 <textarea
                   className={`${inputClass(fieldError("payment_instructions", form.payment_instructions, SERVICE_FIELD_MAX.payment_instructions))} min-h-[88px] resize-y`}
                   value={form.payment_instructions}
-                  onChange={(e) => setField("payment_instructions", e.target.value)}
+                  maxLength={SERVICE_FIELD_MAX.payment_instructions}
+                  onChange={(e) => setField("payment_instructions", e.target.value.slice(0, SERVICE_FIELD_MAX.payment_instructions))}
                   placeholder="How residents should pay"
                 />
                 <FieldMeta
@@ -615,7 +674,8 @@ export function PropertyServiceFormModal({
                 <input
                   className={inputClass(fieldError("notice_title", form.notice_title ?? "", SERVICE_FIELD_MAX.notice_title))}
                   value={isNoticeTemplate(form.notice_title) ? noticeTitleDisplay(form) : (form.notice_title ?? "")}
-                  onChange={(e) => setField("notice_title", e.target.value)}
+                  maxLength={SERVICE_FIELD_MAX.notice_title}
+                  onChange={(e) => setField("notice_title", e.target.value.slice(0, SERVICE_FIELD_MAX.notice_title))}
                   placeholder={`${form.name.trim() || "Service"} — Unit ${NOTICE_PREVIEW_UNIT}`}
                 />
                 <FieldMeta
@@ -632,7 +692,8 @@ export function PropertyServiceFormModal({
                 <textarea
                   className={`${inputClass(fieldError("notice_body", form.notice_body ?? "", SERVICE_FIELD_MAX.notice_body))} min-h-[88px] resize-y`}
                   value={isNoticeTemplate(form.notice_body) ? noticeBodyDisplay(form) : (form.notice_body ?? "")}
-                  onChange={(e) => setField("notice_body", e.target.value)}
+                  maxLength={SERVICE_FIELD_MAX.notice_body}
+                  onChange={(e) => setField("notice_body", e.target.value.slice(0, SERVICE_FIELD_MAX.notice_body))}
                   placeholder="Shown on the resident Home notice."
                 />
                 <FieldMeta

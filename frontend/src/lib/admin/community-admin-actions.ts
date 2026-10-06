@@ -15,10 +15,10 @@ const ACTIONS_BY_STATUS: Record<CommunityAdminLifecycleStatus, CommunityAdminAct
 export function resolveCommunityAdminLifecycle(
   item: CommunityAdminApplicant,
 ): CommunityAdminLifecycleStatus {
+  if (item.community_admin_status === "approved" && item.status === "suspended") return "suspended";
   if (item.lifecycle_status) return item.lifecycle_status;
   if (item.community_admin_status === "pending") return "pending";
   if (item.community_admin_status === "rejected") return "rejected";
-  if (item.community_admin_status === "approved" && item.status === "suspended") return "suspended";
   if (item.community_admin_status === "approved" && (item.needs_reassign || !item.community_request)) {
     return "reassign";
   }
@@ -29,9 +29,10 @@ export function communityAdminAllows(
   item: CommunityAdminApplicant,
   action: CommunityAdminAction,
 ): boolean {
-  const actions = item.allowed_actions?.length
-    ? item.allowed_actions
-    : ACTIONS_BY_STATUS[resolveCommunityAdminLifecycle(item)];
+  const lifecycle = resolveCommunityAdminLifecycle(item);
+  const actions = lifecycle === "suspended" || !item.allowed_actions?.length
+    ? ACTIONS_BY_STATUS[lifecycle]
+    : item.allowed_actions;
 
   if (action === "delete") {
     return actions.includes("delete") || actions.includes("delete_record");

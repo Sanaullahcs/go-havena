@@ -27,6 +27,8 @@ class AdminCommunityAdminController extends Controller
         $status = $request->string('status')->trim()->toString() ?: 'pending';
         $search = $request->string('search')->trim()->toString();
 
+        app(CommunityLifecycleService::class)->retireSupersededCommunityAdmins();
+
         $query = User::query()
             ->with(['profile', 'memberships.community'])
             ->where('role', 'community_admin');
@@ -648,11 +650,18 @@ class AdminCommunityAdminController extends Controller
     private function transform(User $user, array $reassignCommunityIds = []): array
     {
         $user->loadMissing(['profile', 'memberships.community']);
-        $membership = $user->memberships->first(
-            fn ($item) => $item->role === 'admin' && in_array($item->status, ['approved', 'pending'], true),
-        );
-        $community  = $membership?->community;
+        $membership = $user->memberships
+            ->filter(fn ($item) => $item->role === 'admin' && in_array($item->status, ['approved', 'pending'], true))
+            ->sortByDesc(fn ($item) => $item->updated_at?->getTimestamp() ?? 0)
+            ->first();
         $lifecycleStatus = CommunityAdminRecordStatus::resolve($user);
+        if (! $membership && $lifecycleStatus === CommunityAdminRecordStatus::SUSPENDED) {
+            $membership = $user->memberships
+                ->filter(fn ($item) => $item->role === 'admin')
+                ->sortByDesc(fn ($item) => $item->updated_at?->getTimestamp() ?? 0)
+                ->first();
+        }
+        $community  = $membership?->community;
         $needsReassign = $lifecycleStatus === CommunityAdminRecordStatus::REASSIGN;
 
         return [

@@ -189,6 +189,54 @@ const singleLineInputStyle = {
   includeFontPadding: false,
 };
 
+const SERVICE_AMOUNT_MAX = 999999.99;
+const SERVICE_SUBSCRIBER_MIN = 1;
+const SERVICE_SUBSCRIBER_MAX = 100000;
+
+function sanitizeSubscriberInput(raw) {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (/^0+$/.test(digits)) return "0";
+  return digits.replace(/^0+(?=\d)/, "");
+}
+
+function serviceSubscriberError(value, t) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  if (!/^\d+$/.test(raw)) return t("services.createServiceMaxSubscribersMin");
+  const numeric = Number(raw);
+  if (!Number.isSafeInteger(numeric) || numeric < SERVICE_SUBSCRIBER_MIN) {
+    return t("services.createServiceMaxSubscribersMin");
+  }
+  if (numeric > SERVICE_SUBSCRIBER_MAX) return t("services.createServiceMaxSubscribersMax");
+  return null;
+}
+
+function sanitizeServiceAmountInput(raw) {
+  const cleaned = String(raw ?? "").replace(/[^\d.]/g, "");
+  if (!cleaned) return "";
+  const dot = cleaned.indexOf(".");
+  let whole = (dot === -1 ? cleaned : cleaned.slice(0, dot)).replace(/^0+(?=\d)/, "");
+  if (!whole) whole = "0";
+  if (whole.length > 6) return "999999.99";
+  const fraction = dot === -1 ? null : cleaned.slice(dot + 1).replace(/\./g, "").slice(0, 2);
+  const next = fraction === null ? whole : `${whole}.${fraction}`;
+  const numeric = Number(next.endsWith(".") ? next.slice(0, -1) : next);
+  if (Number.isFinite(numeric) && numeric > SERVICE_AMOUNT_MAX) return "999999.99";
+  return next;
+}
+
+function serviceAmountError(value, t) {
+  const raw = String(value ?? "").trim();
+  if (!raw || raw === ".") return t("services.createServiceAmountRequired");
+  const fraction = raw.split(".")[1] ?? "";
+  if (fraction.length > 2) return t("services.createServiceAmountDecimals");
+  const numeric = Number(raw.endsWith(".") ? raw.slice(0, -1) : raw);
+  if (!Number.isFinite(numeric) || numeric < 0.01) return t("services.createServiceAmountRequired");
+  if (numeric > SERVICE_AMOUNT_MAX) return t("services.createServiceAmountMax");
+  return null;
+}
+
 function validateServiceForm(form, step, t) {
   const errors = {};
   if (String(form.name ?? "").length > SERVICE_FIELD_MAX.name) {
@@ -217,8 +265,8 @@ function validateServiceForm(form, step, t) {
       else if (name.length < 2) errors.name = t("services.createServiceNameShort");
     }
     if (!form.category) errors.category = t("services.createServiceCategoryRequired");
-    else if (!errors.custom_category && form.category === "other" && !String(form.custom_category ?? "").trim()) {
-      errors.custom_category = t("services.createServiceCustomCategoryRequired");
+    else if (!errors.custom_category && form.category === "other" && String(form.custom_category ?? "").trim().length < 2) {
+      errors.custom_category = t("services.createServiceCustomCategoryShort");
     }
   }
   if (step >= 2) {
@@ -227,8 +275,11 @@ function validateServiceForm(form, step, t) {
     if (form.application_type === "automatic" && form.billing_frequency === "one_time") {
       errors.billing_frequency = t("services.createServiceAutomaticOneTime");
     }
-    if (!form.amount || Number(form.amount) <= 0) {
-      errors.amount = t("services.createServiceAmountRequired");
+    const amountError = serviceAmountError(form.amount, t);
+    if (amountError) errors.amount = amountError;
+    if (form.application_type === "optional") {
+      const subscriberError = serviceSubscriberError(form.max_subscribers, t);
+      if (subscriberError) errors.max_subscribers = subscriberError;
     }
     const recurring = form.billing_frequency === "monthly" || form.billing_frequency === "yearly";
     if (recurring) {
@@ -401,8 +452,14 @@ export default function AdminServiceFormScreen() {
   };
 
   const setF = (key, value) => {
+    const max = key === "name" || key === "description" || key === "payment_instructions" || key === "custom_category" || key === "notice_title" || key === "notice_body"
+      ? SERVICE_FIELD_MAX[key]
+      : null;
+    const nextValue = max != null && typeof value === "string" && value.length > max
+      ? value.slice(0, max)
+      : value;
     setForm((prev) => {
-      const next = { ...prev, [key]: value };
+      const next = { ...prev, [key]: nextValue };
       if (key === "application_type") {
         if (value === "automatic" && next.billing_frequency === "one_time") {
           next.billing_frequency = "monthly";
@@ -439,7 +496,7 @@ export default function AdminServiceFormScreen() {
       ? ["name", "category", "custom_category", "description"]
       : step === 3
         ? ["notice_title", "notice_body"]
-        : ["application_type", "billing_frequency", "amount", "due_day", "first_billing_month", "due_month", "payment_instructions"];
+        : ["application_type", "billing_frequency", "amount", "due_day", "first_billing_month", "due_month", "payment_instructions", "max_subscribers"];
     stepKeys.forEach((key) => touch(key));
     if (hasFieldErrors(validateServiceForm(form, step, t))) return;
     setReviewed(false);
@@ -552,7 +609,7 @@ export default function AdminServiceFormScreen() {
                     done && !active && styles.stepPillTextDone,
                     active && styles.stepPillTextActive,
                   ]}>
-                    {item} {stepCopy[item].label}
+                    {stepCopy[item].label}
                   </Text>
                 </View>
               </View>
@@ -569,6 +626,7 @@ export default function AdminServiceFormScreen() {
               <LocaleTextInput
                 style={[styles.input, singleLineInputStyle, fieldError("name", form.name, SERVICE_FIELD_MAX.name) && styles.inputError]}
                 value={form.name}
+                maxLength={SERVICE_FIELD_MAX.name}
                 onChangeText={(value) => setF("name", value)}
                 onBlur={() => touch("name")}
                 onFocus={() => scrollIntoView(nameFieldRef)}
@@ -598,6 +656,7 @@ export default function AdminServiceFormScreen() {
                 <LocaleTextInput
                   style={[styles.input, singleLineInputStyle, fieldError("custom_category", form.custom_category, SERVICE_FIELD_MAX.custom_category) && styles.inputError]}
                   value={form.custom_category}
+                  maxLength={SERVICE_FIELD_MAX.custom_category}
                   onChangeText={(value) => setF("custom_category", value)}
                   onBlur={() => touch("custom_category")}
                   placeholder={t("propertyMgmt.customCategoryPlaceholder")}
@@ -628,6 +687,7 @@ export default function AdminServiceFormScreen() {
               <LocaleTextInput
                 style={[styles.input, styles.textArea, fieldError("description", form.description, SERVICE_FIELD_MAX.description) && styles.inputError]}
                 value={form.description}
+                maxLength={SERVICE_FIELD_MAX.description}
                 onChangeText={(value) => setF("description", value)}
                 placeholder={t("services.createServiceDescriptionPlaceholder")}
                 placeholderTextColor="#94A3B8"
@@ -688,7 +748,7 @@ export default function AdminServiceFormScreen() {
               <LocaleTextInput
                 style={[styles.input, singleLineInputStyle, showError("amount", liveErrors) && styles.inputError]}
                 value={String(form.amount ?? "")}
-                onChangeText={(value) => setF("amount", value.replace(/[^0-9.]/g, ""))}
+                onChangeText={(value) => setF("amount", sanitizeServiceAmountInput(value))}
                 onBlur={() => touch("amount")}
                 onFocus={() => scrollIntoView(amountFieldRef)}
                 placeholder={t("services.createServiceAmountPlaceholder")}
@@ -746,13 +806,17 @@ export default function AdminServiceFormScreen() {
                 <View style={styles.field}>
                   <RequiredLabel required={false}>{t("services.createServiceMaxSubscribers")}</RequiredLabel>
                   <LocaleTextInput
-                    style={[styles.input, singleLineInputStyle]}
+                    style={[styles.input, singleLineInputStyle, showError("max_subscribers", liveErrors) && styles.inputError]}
                     value={String(form.max_subscribers ?? "")}
-                    onChangeText={(value) => setF("max_subscribers", value.replace(/[^0-9]/g, ""))}
+                    onChangeText={(value) => setF("max_subscribers", sanitizeSubscriberInput(value))}
+                    onBlur={() => touch("max_subscribers")}
                     placeholder={t("services.createServiceMaxSubscribersPlaceholder")}
                     placeholderTextColor="#94A3B8"
                     keyboardType="number-pad"
                   />
+                  {showError("max_subscribers", liveErrors) ? (
+                    <Text style={styles.errorText}>{showError("max_subscribers", liveErrors)}</Text>
+                  ) : null}
                 </View>
               </>
             ) : null}
@@ -762,6 +826,7 @@ export default function AdminServiceFormScreen() {
               <LocaleTextInput
                 style={[styles.input, styles.textArea, fieldError("payment_instructions", form.payment_instructions, SERVICE_FIELD_MAX.payment_instructions) && styles.inputError]}
                 value={form.payment_instructions}
+                maxLength={SERVICE_FIELD_MAX.payment_instructions}
                 onChangeText={(value) => setF("payment_instructions", value)}
                 placeholder={t("services.createServicePaymentInstructionsPlaceholder")}
                 placeholderTextColor="#94A3B8"
@@ -783,6 +848,7 @@ export default function AdminServiceFormScreen() {
               <LocaleTextInput
                 style={[styles.input, singleLineInputStyle, fieldError("notice_title", form.notice_title, SERVICE_FIELD_MAX.notice_title) && styles.inputError]}
                 value={isNoticeTemplate(form.notice_title) ? noticeTitleDisplay(form) : form.notice_title}
+                maxLength={SERVICE_FIELD_MAX.notice_title}
                 onChangeText={(value) => setF("notice_title", value)}
                 placeholder={`${String(form.name).trim() || "Service"} — Unit ${NOTICE_PREVIEW_UNIT}`}
                 placeholderTextColor="#94A3B8"
@@ -802,6 +868,7 @@ export default function AdminServiceFormScreen() {
               <LocaleTextInput
                 style={[styles.input, styles.textArea, fieldError("notice_body", form.notice_body, SERVICE_FIELD_MAX.notice_body) && styles.inputError]}
                 value={isNoticeTemplate(form.notice_body) ? noticeBodyDisplay(form) : form.notice_body}
+                maxLength={SERVICE_FIELD_MAX.notice_body}
                 onChangeText={(value) => setF("notice_body", value)}
                 placeholder={t("services.createServiceNoticeBodyPlaceholder")}
                 placeholderTextColor="#94A3B8"

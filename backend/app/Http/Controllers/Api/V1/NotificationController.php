@@ -3,7 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Services\AdminRoleService;
+use App\Services\CommunityFeatureService;
+use App\Support\CommunityFeatureCatalog;
 use App\Support\NotificationModule;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -16,6 +20,7 @@ class NotificationController extends Controller
     {
         $user = $request->user();
         $base = DB::table('app_notifications')->where('user_id', $user->id);
+        $this->applyFeatureVisibility($base, $user);
 
         $unread = (clone $base)->whereNull('read_at')->count();
         $totalAll = (clone $base)->count();
@@ -85,12 +90,78 @@ class NotificationController extends Controller
     /** POST /notifications/read-all */
     public function markAllRead(Request $request): JsonResponse
     {
-        DB::table('app_notifications')
-            ->where('user_id', $request->user()->id)
-            ->whereNull('read_at')
-            ->update(['read_at' => now()]);
+        $user = $request->user();
+        $query = DB::table('app_notifications')
+            ->where('user_id', $user->id)
+            ->whereNull('read_at');
+        $this->applyFeatureVisibility($query, $user);
+        $query->update(['read_at' => now()]);
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Hide notifications whose feature is off for this user right now.
+     * Rows stay stored, so turning the feature back on shows them again.
+     */
+    private function applyFeatureVisibility(Builder $query, mixed $user): void
+    {
+        if (AdminRoleService::isSystemAdmin($user)) {
+            return;
+        }
+
+        $service = app(CommunityFeatureService::class);
+        $flags = $service->flagsForCommunity($service->communityIdForUser($user));
+        $disabled = array_keys(array_filter(
+            $flags,
+            static fn (bool $enabled): bool => ! $enabled,
+        ));
+        if ($disabled === []) {
+            return;
+        }
+
+        $rows = (clone $query)->get(['id', 'title', 'body', 'action_url', 'data']);
+        $noticeIds = [];
+        foreach ($rows as $row) {
+            $noticeId = CommunityFeatureCatalog::noticeIdFromActionUrl($row->action_url ?? null);
+            if ($noticeId) {
+                $noticeIds[] = $noticeId;
+            }
+        }
+
+        $noticeCategories = $noticeIds === []
+            ? []
+            : DB::table('notices')->whereIn('id', array_values(array_unique($noticeIds)))->pluck('category', 'id')->all();
+
+        $hiddenIds = [];
+        foreach ($rows as $row) {
+            $keys = CommunityFeatureCatalog::featureKeysForNotification(
+                $row->action_url ?? null,
+                $row->title ?? null,
+                $row->body ?? null,
+                $row->data ?? null,
+                $noticeCategories,
+            );
+            if ($keys === []) {
+                continue;
+            }
+
+            $allowed = false;
+            foreach ($keys as $key) {
+                if ($flags[$key] ?? true) {
+                    $allowed = true;
+                    break;
+                }
+            }
+
+            if (! $allowed) {
+                $hiddenIds[] = (int) $row->id;
+            }
+        }
+
+        if ($hiddenIds !== []) {
+            $query->whereNotIn('id', $hiddenIds);
+        }
     }
 
     private function enrichNoticeNotifications(Collection $notifications): Collection

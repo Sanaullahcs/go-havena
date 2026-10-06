@@ -86,6 +86,11 @@ class AdminCommunityController extends Controller
             });
         }
 
+        $assignment = $request->string('assignment')->trim()->toString();
+        if (in_array($assignment, ['assigned', 'unassigned'], true)) {
+            $this->applyCommunityAdminAssignment($query, $assignment === 'assigned');
+        }
+
         $items = $query->orderByDesc('created_at')
             ->paginate(min((int) ($request->per_page ?? 15), 100));
 
@@ -96,20 +101,7 @@ class AdminCommunityController extends Controller
                 'last_page'    => $items->lastPage(),
                 'total'        => $items->total(),
                 'per_page'     => $items->perPage(),
-                'stats'        => [
-                    'total'    => Community::query()->where(function ($w) {
-                        $w->whereNull('review_status')->orWhere('review_status', 'approved');
-                    })->count(),
-                    'active'   => Community::query()->where('status', 'active')->where(function ($w) {
-                        $w->whereNull('review_status')->orWhere('review_status', 'approved');
-                    })->count(),
-                    'inactive' => Community::query()->where('status', 'inactive')->where(function ($w) {
-                        $w->whereNull('review_status')->orWhere('review_status', 'approved');
-                    })->count(),
-                    'pending'  => Community::query()->where('review_status', 'pending')->count(),
-                    'approved' => Community::query()->where('review_status', 'approved')->count(),
-                    'rejected' => Community::query()->where('review_status', 'rejected')->count(),
-                ],
+                'stats'        => $this->communityIndexStats(),
             ],
         ]);
     }
@@ -166,9 +158,14 @@ class AdminCommunityController extends Controller
     /** GET /v1/admin/community-requests */
     public function index(Request $request): JsonResponse
     {
+        $reviewStatus = $request->string('review_status')->trim()->toString();
+        if (! in_array($reviewStatus, ['pending', 'rejected'], true)) {
+            $reviewStatus = 'pending';
+        }
+
         $query = Community::query()
             ->with(['regionRecord', 'requester.profile', 'plaidConnection'])
-            ->where('review_status', 'pending');
+            ->where('review_status', $reviewStatus);
 
         if ($q = $request->string('q')->trim()->toString()) {
             $query->where(function ($w) use ($q) {
@@ -187,11 +184,7 @@ class AdminCommunityController extends Controller
                 'last_page'    => $items->lastPage(),
                 'total'        => $items->total(),
                 'per_page'     => $items->perPage(),
-                'stats'        => [
-                    'pending'  => Community::query()->where('review_status', 'pending')->count(),
-                    'approved' => Community::query()->where('review_status', 'approved')->count(),
-                    'rejected' => Community::query()->where('review_status', 'rejected')->count(),
-                ],
+                'stats'        => $this->communityIndexStats(),
             ],
         ]);
     }
@@ -752,7 +745,7 @@ class AdminCommunityController extends Controller
             'plaid_connection' => $this->plaidConnectionPayload($community),
         ];
 
-        if ($profile && ($detailed || $community->review_status === 'pending')) {
+        if ($profile && ($detailed || in_array($community->review_status, ['pending', 'rejected'], true))) {
             $payload['requester_profile'] = [
                 'unit_number'      => $profile->unit_number,
                 'residence_type'   => $profile->residence_type,
@@ -761,6 +754,64 @@ class AdminCommunityController extends Controller
         }
 
         return $payload;
+    }
+
+    /** Counts used by the System Admin community tabs. */
+    private function communityIndexStats(): array
+    {
+        $approvedScope = function ($query) {
+            $query->where(function ($w) {
+                $w->whereNull('review_status')->orWhere('review_status', 'approved');
+            });
+        };
+
+        $assigned = Community::query()->where('status', 'active');
+        $approvedScope($assigned);
+        $this->applyCommunityAdminAssignment($assigned, true);
+
+        $unassigned = Community::query()->where('status', 'active');
+        $approvedScope($unassigned);
+        $this->applyCommunityAdminAssignment($unassigned, false);
+
+        return [
+            'total'      => Community::query()->tap($approvedScope)->count(),
+            'active'     => Community::query()->where('status', 'active')->tap($approvedScope)->count(),
+            'inactive'   => Community::query()->where('status', 'inactive')->tap($approvedScope)->count(),
+            'pending'    => Community::query()->where('review_status', 'pending')->count(),
+            'approved'   => Community::query()->where('review_status', 'approved')->count(),
+            'rejected'   => Community::query()->where('review_status', 'rejected')->count(),
+            'assigned'   => $assigned->count(),
+            'unassigned' => $unassigned->count(),
+        ];
+    }
+
+    /**
+     * Assigned means an approved, active Community Admin membership.
+     * Matches CommunityLifecycleService::hasCommunityAdminAssigned().
+     */
+    private function applyCommunityAdminAssignment($query, bool $assigned): void
+    {
+        $constraint = function ($memberships) {
+            $memberships->where('role', 'admin')
+                ->where('status', 'approved')
+                ->whereHas('user', function ($user) {
+                    $user->where('status', 'active')
+                        ->where(function ($roleQuery) {
+                            $roleQuery
+                                ->where(function ($communityAdmin) {
+                                    $communityAdmin->where('role', 'community_admin')
+                                        ->where('community_admin_status', 'approved');
+                                })
+                                ->orWhereIn('role', ['system_admin', 'admin']);
+                        });
+                });
+        };
+
+        if ($assigned) {
+            $query->whereHas('memberships', $constraint);
+        } else {
+            $query->whereDoesntHave('memberships', $constraint);
+        }
     }
 
     /** Approved resident memberships scoped to this community. */

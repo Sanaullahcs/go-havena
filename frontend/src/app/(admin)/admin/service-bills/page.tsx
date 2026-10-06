@@ -1,6 +1,7 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useState, useTransition } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import { CalendarDays, CheckCircle2, Clock3, Receipt, X, XCircle } from "lucide-react";
 import { AdminActionsMenu } from "@/components/admin/admin-actions-menu";
 import { AmenityPaymentRejectModal } from "@/components/admin/amenity-payment-reject-modal";
@@ -84,6 +85,20 @@ function billStatusMeta(bill: Pick<UnitServiceBill, "status" | "status_label">) 
   return { label: bill.status_label || "Unpaid", tone: "slate" as const };
 }
 
+function formatAcknowledgedAt(value?: string | null): string {
+  if (!value) return "—";
+  const normalized = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : `${value.replace(" ", "T")}Z`;
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function reviewActionLabel(action?: string | null) {
   if (action === "approved") return "Approved";
   if (action === "rejected") return "Rejected";
@@ -107,6 +122,9 @@ export default function AdminServiceBillsPage() {
   const [saving, setSaving] = useState(false);
   const [viewing, setViewing] = useState<UnitServiceBill | null>(null);
   const [rejecting, setRejecting] = useState<UnitServiceBill | null>(null);
+  const searchParams = useSearchParams();
+  const focusBill = searchParams.get("bill");
+  const openedBillRef = useRef<string | null>(null);
 
   async function load(silent = false) {
     if (silent) setRefreshing(true);
@@ -126,6 +144,14 @@ export default function AdminServiceBillsPage() {
   useEffect(() => {
     void load();
   }, []);
+
+  useEffect(() => {
+    if (!focusBill || loading || bills.length === 0 || openedBillRef.current === focusBill) return;
+    const match = bills.find((bill) => String(bill.id) === focusBill);
+    if (!match) return;
+    openedBillRef.current = focusBill;
+    void openDetails(match);
+  }, [focusBill, loading, bills]);
 
   const scoped = useMemo(
     () => bills.filter((bill) => billMatchesTab(bill, typeTab)),
@@ -514,6 +540,17 @@ function ServiceBillDetailModal({
                 <dt className="text-[11px] font-semibold uppercase tracking-wide text-rose-500">Rejection reason</dt>
                 <dd className="mt-1 text-sm text-rose-700">{bill.rejection_reason}</dd>
               </div>
+            ) : null}
+            {bill.acknowledged_at ? (
+              <>
+                <DetailRow
+                  label="Member"
+                  value={bill.acknowledged_by_name || bill.billing_contact?.name || "—"}
+                />
+                <DetailRow label="Acknowledgement" value="Acknowledged" />
+                <DetailRow label="Acknowledged" value={formatAcknowledgedAt(bill.acknowledged_at)} />
+                <DetailRow label="Bill" value={bill.title || bill.service_name || `Bill #${bill.id}`} />
+              </>
             ) : null}
           </dl>
 

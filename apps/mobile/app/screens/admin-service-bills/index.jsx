@@ -34,6 +34,21 @@ function formatAmount(amount) {
   return `$${value.toFixed(value % 1 === 0 ? 0 : 2)}`;
 }
 
+function formatAcknowledgedAt(value) {
+  if (!value) return null;
+  const raw = String(value);
+  const normalized = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw) ? raw : `${raw.replace(" ", "T")}Z`;
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function formatDueDate(value) {
   if (!value) return null;
   const date = new Date(`${String(value).slice(0, 10)}T12:00:00`);
@@ -128,6 +143,16 @@ function BillCard({ bill, busy, onApprove, onReject, t }) {
           </View>
         ) : null}
       </View>
+
+      {bill.acknowledged_at ? (
+        <Text style={styles.ackLine}>
+          {t("services.serviceBillsAcknowledgedLine", {
+            name: bill.acknowledged_by_name || bill.billing_contact?.name || t("services.serviceBillsMember"),
+            when: formatAcknowledgedAt(bill.acknowledged_at),
+            bill: bill.title || bill.service_name || "",
+          })}
+        </Text>
+      ) : null}
 
       {reviewable ? (
         <View style={styles.actions}>
@@ -413,6 +438,13 @@ const styles = {
     fontSize: sf(16),
     lineHeight: sf(22),
     color: PropertyHubTheme.text,
+  },
+  ackLine: {
+    marginTop: sw(10),
+    fontFamily: Fonts.regular,
+    fontSize: sf(12),
+    lineHeight: sf(17),
+    color: PropertyHubTheme.textMuted,
   },
   billMeta: {
     marginTop: sw(2),

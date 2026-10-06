@@ -52,14 +52,44 @@ import {
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
 import { CommunityAddressPicker } from "@/components/admin/community-address-picker";
 
-type Tab = "communities" | "requests";
+type Tab = "pending" | "communities" | "assigned" | "unassigned" | "inactive" | "rejected";
+
+const COMMUNITY_TABS: { key: Tab; label: string }[] = [
+  { key: "pending", label: "Pending Requests" },
+  { key: "communities", label: "All Communities" },
+  { key: "assigned", label: "Assigned Communities" },
+  { key: "unassigned", label: "Unassigned Communities" },
+  { key: "inactive", label: "Inactive Communities" },
+  { key: "rejected", label: "Rejected Requests" },
+];
 
 function getInitialTab(): Tab {
-  if (typeof window !== "undefined") {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("tab") === "requests") return "requests";
-  }
+  if (typeof window === "undefined") return "communities";
+  const value = new URLSearchParams(window.location.search).get("tab");
+  if (value === "requests" || value === "pending") return "pending";
+  if (COMMUNITY_TABS.some((item) => item.key === value)) return value as Tab;
   return "communities";
+}
+
+function isRequestTab(tab: Tab) {
+  return tab === "pending" || tab === "rejected";
+}
+
+function tabCount(tab: Tab, stats: AdminCommunityStats) {
+  switch (tab) {
+    case "pending":
+      return stats.pending;
+    case "communities":
+      return stats.total;
+    case "assigned":
+      return stats.assigned ?? 0;
+    case "unassigned":
+      return stats.unassigned ?? 0;
+    case "inactive":
+      return stats.inactive ?? 0;
+    case "rejected":
+      return stats.rejected;
+  }
 }
 
 const EMPTY_STATS: AdminCommunityStats = { total: 0, pending: 0, approved: 0, rejected: 0 };
@@ -195,33 +225,31 @@ export default function CommunitiesPage() {
     setError(null);
 
     try {
-      if (tab === "communities") {
+      const search = debouncedSearch.trim();
+      if (isRequestTab(tab)) {
+        const res = await fetchCommunityRequests({
+          page,
+          per_page: ADMIN_TABLE_PAGE_SIZE,
+          review_status: tab === "rejected" ? "rejected" : "pending",
+          ...(search ? { q: search } : {}),
+        });
+        setRequests(res.data);
+        setTotal(res.meta.total);
+        setLastPage(res.meta.last_page);
+        if (res.meta.stats) setStats(res.meta.stats);
+      } else {
         const res = await fetchAdminCommunitiesList({
           page,
           per_page: ADMIN_TABLE_PAGE_SIZE,
-          ...(debouncedSearch.trim() ? { q: debouncedSearch.trim() } : {}),
+          ...(search ? { q: search } : {}),
+          ...(tab === "assigned" ? { status: "active", assignment: "assigned" } : {}),
+          ...(tab === "unassigned" ? { status: "active", assignment: "unassigned" } : {}),
+          ...(tab === "inactive" ? { status: "inactive" } : {}),
         });
         setCommunities(res.data);
         setTotal(res.meta.total);
         setLastPage(res.meta.last_page);
         if (res.meta.stats) setStats(res.meta.stats);
-      } else {
-        const res = await fetchCommunityRequests({
-          page,
-          per_page: ADMIN_TABLE_PAGE_SIZE,
-          ...(debouncedSearch.trim() ? { q: debouncedSearch.trim() } : {}),
-        });
-        setRequests(res.data);
-        setTotal(res.meta.total);
-        setLastPage(res.meta.last_page);
-        if (res.meta.stats) {
-          setStats({
-            total: res.meta.stats.approved,
-            pending: res.meta.stats.pending,
-            approved: res.meta.stats.approved,
-            rejected: res.meta.stats.rejected,
-          });
-        }
       }
     } catch (err) {
       setError(apiError(err));
@@ -434,7 +462,40 @@ export default function CommunitiesPage() {
     return <PageError message={error} onRetry={() => load()} />;
   }
 
-  const rows = tab === "communities" ? communities : requests;
+  const requestTab = isRequestTab(tab);
+  const rows = requestTab ? requests : communities;
+  const tableCopy = {
+    pending: {
+      title: "Pending requests",
+      empty: "No pending community requests.",
+      search: "Search by name or address…",
+    },
+    communities: {
+      title: "All communities",
+      empty: "No communities yet. Add one to get started.",
+      search: "Search by name, region, or address…",
+    },
+    assigned: {
+      title: "Assigned communities",
+      empty: "No communities have a Community Admin assigned.",
+      search: "Search by name, region, or address…",
+    },
+    unassigned: {
+      title: "Unassigned communities",
+      empty: "No approved communities are waiting for a Community Admin.",
+      search: "Search by name, region, or address…",
+    },
+    inactive: {
+      title: "Inactive communities",
+      empty: "No inactive communities.",
+      search: "Search by name, region, or address…",
+    },
+    rejected: {
+      title: "Rejected requests",
+      empty: "No rejected community requests.",
+      search: "Search by name or address…",
+    },
+  }[tab];
 
   return (
     <div className="space-y-6">
@@ -457,20 +518,17 @@ export default function CommunitiesPage() {
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-1">
-        {([
-          { key: "communities" as Tab, label: "All Communities", count: stats.total },
-          { key: "requests" as Tab, label: "Pending Requests", count: stats.pending },
-        ]).map((item) => (
+      <div className="flex gap-1 overflow-x-auto border-b border-slate-200 pb-1">
+        {COMMUNITY_TABS.map((item) => (
           <button
             key={item.key}
             type="button"
             onClick={() => setTab(item.key)}
             className={[
-              "inline-flex items-center gap-2 rounded-t-lg px-4 py-2.5 text-sm font-semibold transition",
+              "inline-flex shrink-0 items-center gap-2 rounded-t-lg px-3 py-2.5 text-sm font-semibold transition sm:px-4",
               tab === item.key
-                ? "border-b-2 border-blue-600 text-blue-700"
-                : "text-slate-500 hover:text-slate-700",
+                ? "border-b-2 border-blue-600 bg-blue-50 text-blue-700"
+                : "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
             ].join(" ")}
           >
             {item.label}
@@ -478,7 +536,7 @@ export default function CommunitiesPage() {
               "rounded-full px-2 py-0.5 text-[11px] font-bold",
               tab === item.key ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500",
             ].join(" ")}>
-              {item.count}
+              {tabCount(item.key, stats)}
             </span>
           </button>
         ))}
@@ -486,18 +544,18 @@ export default function CommunitiesPage() {
 
       <div className="relative">
         <DataTable
-          title={tab === "communities" ? "All communities" : "Pending requests"}
+          title={tableCopy.title}
           totalCount={total}
           visibleCount={rows.length}
           search={searchInput}
           onSearch={setSearchInput}
           searching={isSearchPending}
           loading={adminTableBusy(refreshing, statusSubmitting, reviewSubmitting)}
-          searchPlaceholder={tab === "communities" ? "Search by name, region, or address…" : "Search by name or address…"}
+          searchPlaceholder={tableCopy.search}
           isEmpty={rows.length === 0}
-          empty={tab === "communities" ? "No communities yet. Add one to get started." : "No pending community requests."}
+          empty={tableCopy.empty}
         >
-          {tab === "communities" ? (
+          {!requestTab ? (
             <DtTable>
               <DtHead
                 cols={[
@@ -580,7 +638,7 @@ export default function CommunitiesPage() {
                             onClick: () => openManage(item),
                           },
                           {
-                            label: item.status === "active" ? "Deactivate" : "Activate",
+                            label: item.status === "active" ? "Deactivate" : "Reactivate",
                             icon: item.status === "active" ? "ban" : "approve",
                             tone: item.status === "active" ? "danger" : "success",
                             onClick: () => handleToggleStatus(item),
@@ -600,6 +658,7 @@ export default function CommunitiesPage() {
                   { label: "Region" },
                   { label: "Requested by" },
                   { label: "Submitted" },
+                  ...(tab === "rejected" ? [{ label: "Reason" }] : []),
                   { label: "Status" },
                   { label: "", right: true },
                 ]}
@@ -617,13 +676,24 @@ export default function CommunitiesPage() {
                       <PhoneDisplay value={item.requested_by?.phone ?? item.requested_by?.email} compact />
                     </DtCell>
                     <DtCell nowrap muted>{formatDate(item.created_at)}</DtCell>
+                    {tab === "rejected" ? (
+                      <DtCell>
+                        <p className="max-w-xs text-sm text-slate-600">{item.rejection_reason?.trim() || "—"}</p>
+                      </DtCell>
+                    ) : null}
                     <DtCell nowrap>
-                      <AdminBadge tone="amber">Pending</AdminBadge>
+                      <AdminBadge tone={tab === "rejected" ? "red" : "amber"}>
+                        {tab === "rejected" ? "Rejected" : "Pending"}
+                      </AdminBadge>
                     </DtCell>
                     <DtCell last right>
                       <AdminActionsMenu
-                        actions={[
-                          { label: "Review", icon: "view", tone: "primary", onClick: () => openReview(item) },
+                        actions={tab === "rejected" ? [
+                          { label: "View Details", icon: "view", tone: "primary", onClick: () => openReview(item) },
+                        ] : [
+                          { label: "View Details", icon: "view", tone: "primary", onClick: () => openReview(item) },
+                          { label: "Approve", icon: "approve", tone: "success", onClick: () => openReview(item) },
+                          { label: "Reject", icon: "ban", tone: "danger", onClick: () => openReview(item) },
                           { label: "Adjust Feature Set", icon: "edit", onClick: () => setFeatureTarget({ id: item.id, name: item.name }) },
                         ]}
                       />
@@ -781,7 +851,9 @@ export default function CommunitiesPage() {
           <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl border border-slate-200">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-600">Pending request</p>
+                <p className={`text-[11px] font-semibold uppercase tracking-wide ${viewing.review_status === "rejected" ? "text-red-600" : "text-amber-600"}`}>
+                  {viewing.review_status === "rejected" ? "Rejected request" : "Pending request"}
+                </p>
                 <h2 className="mt-1 text-lg font-bold text-slate-900">{viewing.name}</h2>
                 <p className="mt-1 text-sm text-slate-500">{viewing.address}</p>
               </div>
@@ -819,6 +891,12 @@ export default function CommunitiesPage() {
               </div>
             ) : null}
 
+            {viewing.review_status === "rejected" ? (
+              <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-800">
+                <p className="text-xs font-semibold uppercase tracking-wide text-red-500">Rejection reason</p>
+                <p className="mt-1 whitespace-pre-wrap">{viewing.rejection_reason?.trim() || "No reason was recorded."}</p>
+              </div>
+            ) : (
             <div className="mt-6 space-y-4 border-t border-slate-100 pt-4">
               <div>
                 <label className="nl-label">Assign region <span className="text-red-500">*</span></label>
@@ -864,6 +942,7 @@ export default function CommunitiesPage() {
                 </button>
               </div>
             </div>
+            )}
           </div>
         </div>
       )}

@@ -201,7 +201,7 @@ class PropertyServiceController extends Controller
             'application_type' => [$required, Rule::in(['automatic', 'optional'])],
             'billing_frequency' => ['sometimes', Rule::in(['monthly', 'yearly', 'one_time'])],
             'amount_type' => ['sometimes', Rule::in(['fixed', 'variable'])],
-            'amount' => 'nullable|numeric|min:0.01|max:999999.99',
+            'amount' => ['nullable', 'numeric', 'min:0.01', 'max:999999.99', 'regex:/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/'],
             'due_day' => 'nullable|integer|min:1|max:31',
             'first_billing_month' => 'nullable|string',
             'payment_instructions' => 'nullable|string|max:2000',
@@ -221,7 +221,26 @@ class PropertyServiceController extends Controller
             $rules['custom_category'] = ($creating ? 'required' : 'sometimes').'|string|min:2|max:80';
         }
 
-        return $request->validate($rules);
+        if (($request->input('amount_type') ?? 'fixed') !== 'variable') {
+            $rules['amount'] = ['required', 'numeric', 'min:0.01', 'max:999999.99', 'regex:/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/'];
+        }
+
+        return $request->validate($rules, [
+            'name.max' => 'Service name must be 120 characters or fewer.',
+            'description.max' => 'Description must be 500 characters or fewer.',
+            'payment_instructions.max' => 'Payment instructions must be 2,000 characters or fewer.',
+            'custom_category.required' => 'Custom category must be at least 2 characters.',
+            'custom_category.min' => 'Custom category must be at least 2 characters.',
+            'custom_category.max' => 'Custom category must be 80 characters or fewer.',
+            'amount.required' => 'Enter an amount of at least 0.01.',
+            'amount.numeric' => 'Enter an amount of at least 0.01.',
+            'amount.min' => 'Enter an amount of at least 0.01.',
+            'amount.max' => 'Enter an amount of 999,999.99 or less.',
+            'amount.regex' => 'Enter an amount with up to 2 decimal places.',
+            'max_subscribers.integer' => 'Enter at least 1 subscriber.',
+            'max_subscribers.min' => 'Enter at least 1 subscriber.',
+            'max_subscribers.max' => 'Enter 100,000 subscribers or fewer.',
+        ]);
     }
 
     private function findAdminService(Request $request, int $id): object

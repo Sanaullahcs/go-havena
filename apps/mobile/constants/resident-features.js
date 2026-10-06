@@ -115,6 +115,13 @@ export function anyResidentFeatureEnabled(user, keys) {
   return keys.some((key) => isResidentFeatureEnabled(user, key));
 }
 
+/** False only when a feature payload is present and every known feature is off. */
+export function hasAnyEnabledResidentFeature(user) {
+  const features = serverFeatureFlags(user);
+  if (!features) return true;
+  return RESIDENT_FEATURE_KEYS.some((key) => isResidentFeatureEnabled(user, key));
+}
+
 export function catalogFromUser(user) {
   return user?.resident_features?.catalog ?? [];
 }

@@ -316,10 +316,29 @@ class PropertyServiceCatalogService
         }
 
         $amount = $data['amount'] ?? $existing?->amount;
-        if ($amountType === self::AMOUNT_FIXED && ($amount === null || (float) $amount <= 0)) {
-            throw ValidationException::withMessages([
-                'amount' => 'Enter a default amount for this service.',
-            ]);
+        if ($amount === null || $amount === '') {
+            if ($amountType === self::AMOUNT_FIXED) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Enter an amount of at least 0.01.',
+                ]);
+            }
+        } else {
+            $rawAmount = trim((string) $amount);
+            if (! is_numeric($rawAmount) || (float) $rawAmount < 0.01) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Enter an amount of at least 0.01.',
+                ]);
+            }
+            if ((float) $rawAmount > 999999.99) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Enter an amount of 999,999.99 or less.',
+                ]);
+            }
+            if (preg_match('/\.\d{3,}/', $rawAmount)) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Enter an amount with up to 2 decimal places.',
+                ]);
+            }
         }
 
         $dueDay = $data['due_day'] ?? $existing?->due_day;
@@ -344,9 +363,9 @@ class PropertyServiceCatalogService
             ? self::normalizeCustomCategory($category, $data['custom_category'] ?? null)
             : self::normalizeCustomCategory($category, $existing->custom_category ?? null);
 
-        if ($category === 'other' && ($customCategory === null || $customCategory === '')) {
+        if ($category === 'other' && mb_strlen((string) $customCategory) < 2) {
             throw ValidationException::withMessages([
-                'custom_category' => 'Enter a custom category name.',
+                'custom_category' => 'Custom category must be at least 2 characters.',
             ]);
         }
 

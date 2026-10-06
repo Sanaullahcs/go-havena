@@ -26,6 +26,8 @@ class UnitServiceBillReminderService
 
     public const KIND_REJECTED = 'rejected';
 
+    public const KIND_ADMIN_ACKNOWLEDGED = 'admin_acknowledged';
+
     public const DUE_SOON_DAYS = 3;
 
     public const CREATED_TITLE = 'New Service Bill';
@@ -186,6 +188,64 @@ class UnitServiceBillReminderService
     public function notifyProofSubmitted(object $bill): void
     {
         $this->notifyLifecycle($bill, self::KIND_PROOF_SUBMITTED, 'info', self::PROOF_SUBMITTED_TITLE, self::PROOF_SUBMITTED_BODY);
+    }
+
+    public function notifyAdminsAcknowledged(object $bill, int $actorId): void
+    {
+        if (! $this->claimNotification((int) $bill->id, self::KIND_ADMIN_ACKNOWLEDGED)) {
+            return;
+        }
+
+        $adminIds = DB::table('community_memberships as cm')
+            ->join('users', 'users.id', '=', 'cm.user_id')
+            ->where('cm.community_id', (int) $bill->community_id)
+            ->whereIn('cm.role', ['admin', 'moderator'])
+            ->where('cm.status', 'approved')
+            ->where('users.status', '!=', 'deleted')
+            ->where('cm.user_id', '!=', $actorId)
+            ->pluck('users.id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if ($adminIds === []) {
+            return;
+        }
+
+        $profile = DB::table('users')
+            ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
+            ->where('users.id', $actorId)
+            ->first(['users.name', 'profiles.display_name']);
+        $memberName = trim((string) ($profile->display_name ?? ''));
+        if ($memberName === '') {
+            $memberName = trim((string) ($profile->name ?? ''));
+        }
+        if ($memberName === '') {
+            $memberName = 'A resident';
+        }
+
+        $serviceName = trim((string) ($bill->service_name ?? '')) ?: 'service';
+        $billTitle = trim((string) ($bill->title ?? ''));
+        $reference = $billTitle !== '' ? $billTitle : "{$serviceName} bill";
+        $unitNumber = trim((string) ($bill->unit_number ?? ''));
+        $unitLabel = $unitNumber !== '' ? " (Unit {$unitNumber})" : '';
+        $amount = $this->formatAmount((float) ($bill->amount ?? 0));
+        $body = "{$memberName}{$unitLabel} acknowledged {$reference} ({$serviceName}, {$amount}).";
+
+        foreach ($adminIds as $adminId) {
+            NotificationService::send(
+                $adminId,
+                'info',
+                'Service bill acknowledged',
+                $body,
+                '/screens/admin-service-bills?billId='.(int) $bill->id,
+                [
+                    'kind' => 'service_bill_'.self::KIND_ADMIN_ACKNOWLEDGED,
+                    'bill_id' => (int) $bill->id,
+                    'service_id' => (int) ($bill->service_id ?? 0),
+                    'unit_id' => (int) ($bill->unit_id ?? 0),
+                ],
+            );
+        }
     }
 
     public function notifyApproved(object $bill, string $serviceName): void

@@ -216,14 +216,11 @@ export default function AdminServicesPage() {
   );
 
   const scheduleOptions = useMemo(
-    () => SCHEDULE_FILTERS.map((filter) => {
-      const count = scoped.filter((service) => matchesScheduleFilter(service, filter)).length;
-      return {
-        value: filter,
-        label: count > 0 ? `${scheduleFilterLabel(filter)} (${count})` : scheduleFilterLabel(filter),
-      };
-    }),
-    [scoped],
+    () => SCHEDULE_FILTERS.map((filter) => ({
+      value: filter,
+      label: scheduleFilterLabel(filter),
+    })),
+    [],
   );
 
   const filtered = useMemo(() => {
@@ -444,7 +441,8 @@ export default function AdminServicesPage() {
         search={searchInput}
         onSearch={(value) => startTransition(() => { setSearchInput(value); setPage(1); })}
         searching={isSearchPending}
-        searchPlaceholder="Search by name, category, type…"
+        searchPlaceholder="Search by service name, category, or type"
+        searchClassName="min-w-[14rem] w-full max-w-[22rem] sm:w-[22rem] sm:max-w-[22rem]"
         filters={filters}
         activeFilter={typeFilter}
         onFilter={(key) => startTransition(() => {
@@ -566,8 +564,18 @@ export default function AdminServicesPage() {
       </DataTable>
 
       {viewing && (
-        <ModalShell onClose={() => setViewing(null)} title="Service detail" subtitle={viewing.name}>
-          <dl className="grid gap-3 sm:grid-cols-2">
+        <ModalShell
+          onClose={() => setViewing(null)}
+          title="Service detail"
+          subtitle={viewing.name}
+          footer={
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" className="nl-btn-secondary" onClick={() => setViewing(null)}>Close</button>
+              <button type="button" className="nl-btn-primary" onClick={() => openEdit(viewing)}>Update</button>
+            </div>
+          }
+        >
+          <dl className="grid min-w-0 gap-3 sm:grid-cols-2">
             <DetailRow label="Type" value={viewing.application_type === "automatic" ? "Automatic" : "Optional"} />
             <DetailRow label="Category" value={serviceCategoryLabel(viewing.category, viewing.custom_category)} />
             <DetailRow label="Status" value={viewing.status === "active" ? "Active" : "Inactive"} />
@@ -603,17 +611,13 @@ export default function AdminServicesPage() {
             />
             <DetailRow label="Approval required" value={viewing.requires_admin_approval ? "Yes" : "No"} />
             <DetailRow label="Payment proof" value={viewing.require_payment_proof ? "Required" : "Optional"} />
-            <div className="sm:col-span-2">
+            <div className="min-w-0 sm:col-span-2">
               <DetailRow label="Description" value={viewing.description || "—"} />
             </div>
-            <div className="sm:col-span-2">
+            <div className="min-w-0 sm:col-span-2">
               <DetailRow label="Payment instructions" value={viewing.payment_instructions || "—"} />
             </div>
           </dl>
-          <div className="mt-5 flex flex-wrap justify-end gap-2">
-            <button type="button" className="nl-btn-secondary" onClick={() => setViewing(null)}>Close</button>
-            <button type="button" className="nl-btn-primary" onClick={() => openEdit(viewing)}>Update</button>
-          </div>
         </ModalShell>
       )}
 
@@ -695,6 +699,14 @@ export default function AdminServicesPage() {
                                 ].filter(Boolean).join(" · ")}
                               </p>
                             ) : null}
+                            {item.latest_bill?.acknowledged_at ? (
+                              <p className="mt-0.5 text-xs text-slate-500">
+                                {(item.latest_bill.acknowledged_by_name || item.requester_name || "Member")}
+                                {" acknowledged "}
+                                {formatAcknowledgedAt(item.latest_bill.acknowledged_at)}
+                                {item.latest_bill.title ? ` · ${item.latest_bill.title}` : ""}
+                              </p>
+                            ) : null}
                           </div>
                         </div>
 
@@ -771,6 +783,20 @@ function subscriptionStatusMeta(status: string, label?: string | null) {
   return { label: label || status, tone: "slate" as const };
 }
 
+function formatAcknowledgedAt(value?: string | null): string {
+  if (!value) return "—";
+  const normalized = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : `${value.replace(" ", "T")}Z`;
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function billStatusMeta(bill?: ServiceSubscription["latest_bill"]) {
   if (!bill?.status) return { label: "No bill", tone: "slate" as const };
   if (bill.status === "paid") return { label: bill.status_label || "Paid", tone: "emerald" as const };
@@ -787,30 +813,33 @@ function ModalShell({
   subtitle,
   onClose,
   children,
+  footer,
 }: {
   title: string;
   subtitle?: string;
   onClose: () => void;
   children: React.ReactNode;
+  footer?: React.ReactNode;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-start justify-between border-b border-slate-100 px-5 py-4">
-          <div>
+      <div className="flex max-h-[min(40rem,calc(100dvh-2rem))] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div className="min-w-0">
             <h2 className="text-lg font-bold text-slate-900">{title}</h2>
-            {subtitle ? <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p> : null}
+            {subtitle ? <p className="mt-0.5 break-words text-sm text-slate-500">{subtitle}</p> : null}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            className="shrink-0 rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
             aria-label="Close"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="px-5 py-4">{children}</div>
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-5 py-4">{children}</div>
+        {footer ? <div className="shrink-0 border-t border-slate-100 px-5 py-4">{footer}</div> : null}
       </div>
     </div>
   );
@@ -818,9 +847,9 @@ function ModalShell({
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</dt>
-      <dd className="mt-1 text-sm text-slate-800">{value}</dd>
+      <dd className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-800">{value}</dd>
     </div>
   );
 }

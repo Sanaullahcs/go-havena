@@ -86,6 +86,57 @@ function statusMeta(status, t) {
   return { label: t("services.availableServicesStatus", { status }), tone: "muted" };
 }
 
+function ExpandableServiceName({ name, t }) {
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const [width, setWidth] = useState(0);
+  const label = String(name ?? "");
+
+  function handleMeasure(event) {
+    const next = event.nativeEvent.lines.length > 2;
+    setOverflows((current) => (current === next ? current : next));
+    if (!next) setExpanded((current) => (current ? false : current));
+  }
+
+  return (
+    <View
+      onLayout={(event) => {
+        const next = Math.floor(event.nativeEvent.layout.width);
+        setWidth((current) => (current === next ? current : next));
+      }}
+    >
+      {width > 0 ? (
+        <Text
+          accessible={false}
+          importantForAccessibility="no-hide-descendants"
+          style={[styles.serviceName, styles.serviceNameMeasure, { width }]}
+          onTextLayout={handleMeasure}
+        >
+          {label}
+        </Text>
+      ) : null}
+      <Text style={styles.serviceName} numberOfLines={expanded ? undefined : 2}>
+        {label}
+      </Text>
+      {overflows ? (
+        <Pressable
+          onPress={() => setExpanded((value) => !value)}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+          style={styles.nameToggleBtn}
+        >
+          <Text style={styles.nameToggle}>
+            {expanded
+              ? t("services.availableServicesShowLess")
+              : t("services.availableServicesShowMore")}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 function ServiceCard({ service, isContact, busy, onSubscribe, onUnsubscribe, t }) {
   const category = String(service.category ?? "other");
   const tone = categoryTone(category);
@@ -100,7 +151,7 @@ function ServiceCard({ service, isContact, busy, onSubscribe, onUnsubscribe, t }
           <Feather name={CATEGORY_ICON[category] || "grid"} size={sf(18)} color={tone.color} />
         </View>
         <View style={styles.headerCopy}>
-          <Text style={styles.serviceName} numberOfLines={2}>{service.name}</Text>
+          <ExpandableServiceName name={service.name} t={t} />
           <Text style={styles.categoryLabel} numberOfLines={1}>{serviceCategoryLabel(category)}</Text>
         </View>
         {status ? (
@@ -358,6 +409,22 @@ const styles = {
     fontSize: sf(16),
     lineHeight: sf(22),
     color: PropertyHubTheme.text,
+  },
+  serviceNameMeasure: {
+    position: "absolute",
+    opacity: 0,
+    left: 0,
+    top: 0,
+  },
+  nameToggleBtn: {
+    alignSelf: "flex-start",
+    marginTop: sw(2),
+  },
+  nameToggle: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(12),
+    lineHeight: sf(16),
+    color: PropertyHubTheme.deepTeal,
   },
   categoryLabel: {
     marginTop: sw(2),

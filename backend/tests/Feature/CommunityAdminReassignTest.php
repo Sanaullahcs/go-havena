@@ -238,4 +238,94 @@ class CommunityAdminReassignTest extends TestCase
         $this->assertSame('pending', $pending[0]['community_admin_status']);
         $this->assertSame('pending', $pending[0]['lifecycle_status']);
     }
+
+    public function test_replaced_admin_stays_suspended_and_reactivate_does_not_replace_the_current_admin(): void
+    {
+        $region = $this->seedRegion();
+        ['community' => $community, 'admin' => $previous] = $this->seedCommunityWithAdmin($region);
+        Sanctum::actingAs($this->systemAdmin());
+
+        $this->postJson("/api/v1/admin/communities/{$community->id}/assign-admin", [
+            'name'  => 'Testing mem',
+            'email' => 'testingmem@gmail.com',
+            'phone' => '+14785093854',
+        ])->assertOk();
+
+        $this->assertSame('suspended', $previous->fresh()->status);
+
+        $active = $this->getJson('/api/v1/admin/community-admins?status=approved')
+            ->assertOk()
+            ->json('data');
+
+        $this->assertCount(1, $active);
+        $this->assertSame('testingmem@gmail.com', $active[0]['email']);
+        $this->assertSame('active', $active[0]['status']);
+        $this->assertSame('active', $active[0]['lifecycle_status']);
+        $this->assertContains('suspend', $active[0]['allowed_actions']);
+        $this->assertNotContains('reactivate', $active[0]['allowed_actions']);
+
+        $suspended = $this->getJson('/api/v1/admin/community-admins?status=suspended')
+            ->assertOk()
+            ->json('data');
+
+        $this->assertSame($previous->id, $suspended[0]['id']);
+        $this->assertSame('suspended', $suspended[0]['status']);
+        $this->assertSame('suspended', $suspended[0]['lifecycle_status']);
+        $this->assertSame(['view', 'edit', 'reactivate', 'delete'], $suspended[0]['allowed_actions']);
+        $this->assertSame($community->id, $suspended[0]['community_request']['id']);
+
+        $this->postJson("/api/v1/admin/community-admins/{$previous->id}/reactivate")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'active')
+            ->assertJsonPath('data.lifecycle_status', 'reassign')
+            ->assertJsonPath('data.community_request', null);
+
+        $stillActive = $this->getJson('/api/v1/admin/community-admins?status=approved')
+            ->assertOk()
+            ->json('data');
+
+        $this->assertCount(1, $stillActive);
+        $this->assertSame('testingmem@gmail.com', $stillActive[0]['email']);
+        $this->assertSame($community->id, $stillActive[0]['community_request']['id']);
+    }
+
+    public function test_listing_admins_suspends_an_older_admin_who_still_looks_assigned(): void
+    {
+        $region = $this->seedRegion();
+        ['community' => $community, 'admin' => $previous] = $this->seedCommunityWithAdmin($region);
+
+        $current = User::factory()->create([
+            'name'                   => 'Testing mem',
+            'role'                   => 'community_admin',
+            'community_admin_status' => 'approved',
+            'status'                 => 'active',
+            'email'                  => 'testingmem@gmail.com',
+            'phone'                  => '+14785093855',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $current->id,
+            'community_id' => $community->id,
+            'role'         => 'admin',
+            'status'       => 'approved',
+        ]);
+
+        Sanctum::actingAs($this->systemAdmin());
+
+        $active = $this->getJson('/api/v1/admin/community-admins?status=approved')
+            ->assertOk()
+            ->json('data');
+
+        $this->assertCount(1, $active);
+        $this->assertSame($current->id, $active[0]['id']);
+        $this->assertSame('active', $active[0]['lifecycle_status']);
+
+        $this->assertSame('suspended', $previous->fresh()->status);
+        $this->assertDatabaseHas('community_memberships', [
+            'user_id'      => $previous->id,
+            'community_id' => $community->id,
+            'role'         => 'admin',
+            'status'       => 'banned',
+        ]);
+    }
 }

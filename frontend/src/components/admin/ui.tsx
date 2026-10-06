@@ -195,6 +195,7 @@ export function DataTable<K extends string>({
   search,
   onSearch,
   searchPlaceholder = "Search…",
+  searchClassName,
   searching = false,
   loading,
   filters,
@@ -216,6 +217,8 @@ export function DataTable<K extends string>({
   search: string;
   onSearch: (v: string) => void;
   searchPlaceholder?: string;
+  /** Replaces the default search width when a longer placeholder must stay visible. */
+  searchClassName?: string;
   searching?: boolean;
   /** Preferred name — same as `searching`. Shows progress overlay on the table body. */
   loading?: boolean;
@@ -265,7 +268,10 @@ export function DataTable<K extends string>({
               value={search}
               hideClear={showProgress}
               onChange={(e) => onSearch(e.target.value)}
-              className="h-8 w-full min-w-[14rem] max-w-[18rem] rounded-lg border border-slate-200 bg-slate-50 py-1.5 pr-8 text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition sm:w-64"
+              className={[
+                "h-8 w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pr-8 text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition",
+                searchClassName ?? "min-w-[14rem] max-w-[18rem] sm:w-64",
+              ].join(" ")}
               style={{ paddingLeft: "1.875rem" }}
             />
             {showProgress ? (

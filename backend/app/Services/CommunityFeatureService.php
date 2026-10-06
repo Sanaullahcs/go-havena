@@ -138,11 +138,7 @@ class CommunityFeatureService
 
     public static function featureKeyForNoticeCategory(?string $category): string
     {
-        return match (strtolower((string) $category)) {
-            'event' => 'events',
-            'emergency' => 'alerts',
-            default => 'notices',
-        };
+        return CommunityFeatureCatalog::featureKeyForNoticeCategory($category);
     }
 
     /**

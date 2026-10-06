@@ -160,6 +160,8 @@ export interface UnitServiceBill {
   can_submit_proof?: boolean;
   can_review?: boolean;
   acknowledged_at?: string | null;
+  acknowledged_by?: number | null;
+  acknowledged_by_name?: string | null;
   reviews?: ServiceBillReview[];
 }
 
@@ -179,12 +181,15 @@ export interface ServiceSubscription {
   ends_at?: string | null;
   latest_bill?: {
     id: number;
+    title?: string | null;
     status: string;
     status_label?: string | null;
     amount?: number | null;
     billing_period?: string | null;
     billing_period_label?: string | null;
     due_date?: string | null;
+    acknowledged_at?: string | null;
+    acknowledged_by_name?: string | null;
   } | null;
 }
 
@@ -198,7 +203,7 @@ export type PropertyServiceForm = {
   application_type: ServiceApplicationType;
   billing_frequency?: "monthly" | "yearly" | "one_time";
   amount_type?: "fixed" | "variable";
-  amount?: number | null;
+  amount?: number | string | null;
   due_day?: number | null;
   first_billing_month?: string | null;
   payment_instructions?: string;
@@ -210,7 +215,7 @@ export type PropertyServiceForm = {
   notice_title?: string;
   notice_body?: string;
   requires_admin_approval?: boolean;
-  max_subscribers?: number | null;
+  max_subscribers?: number | string | null;
   unsubscribe_mode?: "end_of_period" | "immediate";
 };
 

@@ -384,6 +384,8 @@ class UnitServiceBillService
             'status_to' => self::STATUS_ACKNOWLEDGED,
         ]);
 
+        app(UnitServiceBillReminderService::class)->notifyAdminsAcknowledged($ownedBill, $userId);
+
         return $this->formatResidentBill(
             $this->findOwnedBill((int) $ownedBill->id, $userId, (int) $ownedBill->community_id),
             request(),
@@ -505,11 +507,13 @@ class UnitServiceBillService
 
         return DB::table('unit_service_bill_reviews as r')
             ->leftJoin('users as actor', 'actor.id', '=', 'r.actor_id')
+            ->leftJoin('profiles as actor_profile', 'actor_profile.user_id', '=', 'actor.id')
             ->where('r.bill_id', $billId)
             ->orderBy('r.created_at')
             ->orderBy('r.id')
             ->select([
                 'r.id', 'r.action', 'r.actor_id', 'actor.name as actor_name',
+                'actor_profile.display_name as actor_display_name',
                 'r.status_from', 'r.status_to', 'r.proof_file_path', 'r.proof_file_name',
                 'r.proof_file_size', 'r.proof_mime_type', 'r.payment_date',
                 'r.payment_reference', 'r.payment_note', 'r.rejection_reason', 'r.created_at',
@@ -519,7 +523,7 @@ class UnitServiceBillService
                 'id' => (int) $row->id,
                 'action' => $row->action,
                 'actor_id' => $row->actor_id ? (int) $row->actor_id : null,
-                'actor_name' => $row->actor_name,
+                'actor_name' => $this->preferredPersonName($row->actor_display_name ?? null, $row->actor_name ?? null),
                 'status_from' => $row->status_from,
                 'status_to' => $row->status_to,
                 'proof' => $this->formatPaymentProof($row, $request),
@@ -726,6 +730,8 @@ class UnitServiceBillService
                     ->on('latest_bills.unit_id', '=', 'uss.unit_id');
             })
             ->leftJoin('unit_service_bills as bill', 'bill.id', '=', 'latest_bills.latest_id')
+            ->leftJoin('users as acknowledger', 'acknowledger.id', '=', 'bill.acknowledged_by')
+            ->leftJoin('profiles as acknowledger_profile', 'acknowledger_profile.user_id', '=', 'acknowledger.id')
             ->where('uss.community_id', $communityId)
             ->select([
                 'uss.*',
@@ -734,10 +740,14 @@ class UnitServiceBillService
                 'users.name as requester_name',
                 'profiles.display_name',
                 'bill.id as latest_bill_id',
+                'bill.title as latest_bill_title',
                 'bill.status as latest_bill_status',
                 'bill.amount as latest_bill_amount',
                 'bill.billing_period as latest_billing_period',
                 'bill.due_date as latest_bill_due_date',
+                'bill.acknowledged_at as latest_bill_acknowledged_at',
+                'acknowledger.name as latest_acknowledged_by_name',
+                'acknowledger_profile.display_name as latest_acknowledged_by_display_name',
             ])
             ->orderByRaw("CASE uss.status WHEN 'pending' THEN 0 WHEN 'active' THEN 1 ELSE 2 END")
             ->orderByDesc('uss.id');
@@ -1337,6 +1347,8 @@ class UnitServiceBillService
             ->join('units', 'units.id', '=', 'usb.unit_id')
             ->leftJoin('users', 'users.id', '=', DB::raw('COALESCE(usb.billing_contact_user_id, units.billing_contact_user_id)'))
             ->leftJoin('profiles', 'profiles.user_id', '=', 'users.id')
+            ->leftJoin('users as acknowledger', 'acknowledger.id', '=', 'usb.acknowledged_by')
+            ->leftJoin('profiles as acknowledger_profile', 'acknowledger_profile.user_id', '=', 'acknowledger.id')
             ->where('usb.community_id', $communityId)
             ->select($this->adminBillSelect());
     }
@@ -1352,6 +1364,8 @@ class UnitServiceBillService
             'units.billing_contact_user_id as unit_billing_contact_user_id',
             'users.name as billing_contact_name',
             'profiles.display_name as billing_contact_display_name',
+            'acknowledger.name as acknowledged_by_user_name',
+            'acknowledger_profile.display_name as acknowledged_by_display_name',
         ];
     }
 
@@ -1380,6 +1394,11 @@ class UnitServiceBillService
             ] : null,
             'missing_billing_contact' => $contactId < 1,
             'can_review' => (string) $row->status === self::STATUS_PENDING,
+            'acknowledged_by' => ! empty($row->acknowledged_by) ? (int) $row->acknowledged_by : null,
+            'acknowledged_by_name' => $this->preferredPersonName(
+                $row->acknowledged_by_display_name ?? null,
+                $row->acknowledged_by_user_name ?? null,
+            ),
         ]);
     }
 
@@ -1451,6 +1470,17 @@ class UnitServiceBillService
         ], true) && ! $this->mustAcknowledgeBeforePayment($row);
 
         return $core;
+    }
+
+    private function preferredPersonName(mixed $displayName, mixed $userName): ?string
+    {
+        $display = trim((string) $displayName);
+        if ($display !== '') {
+            return $display;
+        }
+        $name = trim((string) $userName);
+
+        return $name !== '' ? $name : null;
     }
 
     private function formatBillCore(object $row, Request $request): array
@@ -1530,6 +1560,7 @@ class UnitServiceBillService
             'created_at' => $row->created_at,
             'latest_bill' => $latestBillId ? [
                 'id' => (int) $latestBillId,
+                'title' => $row->latest_bill_title ?? null,
                 'status' => $row->latest_bill_status,
                 'status_label' => $this->statusLabel((string) $row->latest_bill_status),
                 'amount' => $row->latest_bill_amount !== null ? round((float) $row->latest_bill_amount, 2) : null,
@@ -1540,6 +1571,11 @@ class UnitServiceBillService
                     ? Carbon::parse($row->latest_billing_period)->format('M Y')
                     : null,
                 'due_date' => $row->latest_bill_due_date ?? null,
+                'acknowledged_at' => $row->latest_bill_acknowledged_at ?? null,
+                'acknowledged_by_name' => $this->preferredPersonName(
+                    $row->latest_acknowledged_by_display_name ?? null,
+                    $row->latest_acknowledged_by_name ?? null,
+                ),
             ] : null,
         ];
     }

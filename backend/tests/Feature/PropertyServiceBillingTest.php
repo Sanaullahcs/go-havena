@@ -376,6 +376,39 @@ class PropertyServiceBillingTest extends TestCase
             ->assertJsonPath('data.status', 'acknowledged')
             ->assertJsonPath('data.can_acknowledge', false);
 
+        $adminNotice = DB::table('app_notifications')
+            ->where('user_id', $admin->id)
+            ->where('title', 'Service bill acknowledged')
+            ->first();
+        $this->assertNotNull($adminNotice);
+        $this->assertSame(1, DB::table('app_notifications')->where('user_id', $admin->id)->where('title', 'Service bill acknowledged')->count());
+        $this->assertStringContainsString('Ahmed', (string) $adminNotice->body);
+        $this->assertStringContainsString('Unit 4B', (string) $adminNotice->body);
+        $this->assertStringContainsString('Waste', (string) $adminNotice->body);
+        $this->assertSame('/screens/admin-service-bills?billId='.$billId, $adminNotice->action_url);
+        $this->assertSame(0, DB::table('app_notifications')->where('user_id', $ahmed->id)->where('title', 'Service bill acknowledged')->count());
+
+        $this->postJson("/api/v1/service-bills/{$billId}/acknowledge")->assertStatus(422);
+        $this->assertSame(1, DB::table('app_notifications')->where('user_id', $admin->id)->where('title', 'Service bill acknowledged')->count());
+        $this->assertSame(1, DB::table('unit_service_bill_reviews')->where('bill_id', $billId)->where('action', 'acknowledged')->count());
+
+        Sanctum::actingAs($admin);
+        $adminBill = $this->withHeaders($this->headers($community->id))
+            ->getJson("/api/v1/admin/service-bills/{$billId}")
+            ->assertOk()
+            ->json('data');
+        $this->assertSame('acknowledged', $adminBill['status']);
+        $this->assertSame('Acknowledged', $adminBill['status_label']);
+        $this->assertNotEmpty($adminBill['acknowledged_at']);
+        $this->assertSame('Ahmed', $adminBill['acknowledged_by_name']);
+        $this->assertNotEmpty($adminBill['title']);
+        $ackReview = collect($adminBill['reviews'])->firstWhere('action', 'acknowledged');
+        $this->assertNotNull($ackReview);
+        $this->assertSame('Ahmed', $ackReview['actor_name']);
+        $this->assertNotEmpty($ackReview['created_at']);
+
+        Sanctum::actingAs($ahmed);
+
         $listed = $this->getJson('/api/v1/service-bills')->assertOk()->json('data.0');
         $this->assertFalse($listed['can_acknowledge']);
         $this->assertNotEmpty($listed['acknowledged_at']);
@@ -1628,6 +1661,164 @@ class PropertyServiceBillingTest extends TestCase
         $this->assertTrue(collect($bills)->contains(
             fn ($row) => (int) ($row['service_id'] ?? 0) === (int) $serviceId,
         ));
+    }
+
+    public function test_service_name_and_description_reject_text_past_the_character_limit(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity(420);
+        Sanctum::actingAs($admin);
+        $headers = $this->headers($community->id);
+        $payload = [
+            'category' => 'water',
+            'application_type' => 'automatic',
+            'billing_frequency' => 'monthly',
+            'amount' => 25,
+            'due_day' => 10,
+            'first_billing_month' => '2026-09',
+        ];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', array_merge($payload, [
+                'name' => str_repeat('A', 121),
+                'description' => 'Water service',
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.name.0', 'Service name must be 120 characters or fewer.');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', array_merge($payload, [
+                'name' => 'Water',
+                'description' => str_repeat('B', 501),
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.description.0', 'Description must be 500 characters or fewer.');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', array_merge($payload, [
+                'name' => 'Water',
+                'payment_instructions' => str_repeat('C', 2001),
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.payment_instructions.0', 'Payment instructions must be 2,000 characters or fewer.');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', array_merge($payload, [
+                'name' => str_repeat('A', 120),
+                'description' => str_repeat('B', 500),
+                'payment_instructions' => str_repeat('C', 2000),
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('data.name', str_repeat('A', 120))
+            ->assertJsonPath('data.description', str_repeat('B', 500))
+            ->assertJsonPath('data.payment_instructions', str_repeat('C', 2000));
+    }
+
+    public function test_custom_category_must_be_between_2_and_80_characters(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity(421);
+        Sanctum::actingAs($admin);
+        $headers = $this->headers($community->id);
+        $payload = [
+            'name' => 'Concierge',
+            'category' => 'other',
+            'application_type' => 'automatic',
+            'billing_frequency' => 'monthly',
+            'amount' => 25,
+            'due_day' => 10,
+            'first_billing_month' => '2026-09',
+        ];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', array_merge($payload, [
+                'custom_category' => 'A',
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.custom_category.0', 'Custom category must be at least 2 characters.');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', array_merge($payload, [
+                'custom_category' => str_repeat('D', 81),
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.custom_category.0', 'Custom category must be 80 characters or fewer.');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', array_merge($payload, [
+                'custom_category' => str_repeat('D', 80),
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('data.custom_category', str_repeat('D', 80));
+    }
+
+    public function test_service_amount_must_be_between_one_cent_and_the_maximum(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity(422);
+        Sanctum::actingAs($admin);
+        $headers = $this->headers($community->id);
+        $payload = [
+            'name' => 'Water',
+            'category' => 'water',
+            'application_type' => 'automatic',
+            'billing_frequency' => 'monthly',
+            'due_day' => 10,
+            'first_billing_month' => '2026-09',
+        ];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', array_merge($payload, ['amount' => 0]))
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.amount.0', 'Enter an amount of at least 0.01.');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', array_merge($payload, ['amount' => -5]))
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.amount.0', 'Enter an amount of at least 0.01.');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', array_merge($payload, ['amount' => 1000000]))
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.amount.0', 'Enter an amount of 999,999.99 or less.');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', array_merge($payload, ['amount' => 1.239]))
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.amount.0', 'Enter an amount with up to 2 decimal places.');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', array_merge($payload, ['amount' => 999999.99]))
+            ->assertCreated()
+            ->assertJsonPath('data.amount', 999999.99);
+    }
+
+    public function test_optional_service_subscriber_limit_must_be_between_one_and_the_maximum(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity(423);
+        Sanctum::actingAs($admin);
+        $headers = $this->headers($community->id);
+        $payload = [
+            'name' => 'Parking',
+            'category' => 'parking',
+            'application_type' => 'optional',
+            'billing_frequency' => 'monthly',
+            'amount' => 25,
+            'due_day' => 10,
+            'first_billing_month' => '2026-09',
+        ];
+
+        $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', array_merge($payload, ['max_subscribers' => 0]))
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.max_subscribers.0', 'Enter at least 1 subscriber.');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', array_merge($payload, ['max_subscribers' => 100001]))
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.max_subscribers.0', 'Enter 100,000 subscribers or fewer.');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', array_merge($payload, ['max_subscribers' => 100000]))
+            ->assertCreated()
+            ->assertJsonPath('data.max_subscribers', 100000);
     }
 
     private function addUnitResident(int $communityId, string $name, string $unitNumber, string $phone): User

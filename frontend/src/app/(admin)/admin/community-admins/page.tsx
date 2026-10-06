@@ -292,7 +292,7 @@ export default function CommunityAdminsPage() {
   const handleReactivate = async (item: CommunityAdminApplicant) => {
     const ok = await confirmAction({
       title: `Reactivate ${item.name}?`,
-      text: "This restores dashboard access and returns the admin to Active.",
+      text: "This restores the admin account. If another Community Admin is already assigned to the community, that assignment stays in place.",
       confirmText: "Reactivate admin",
       color: "green",
     });
@@ -300,10 +300,16 @@ export default function CommunityAdminsPage() {
 
     setBusyId(item.id);
     try {
-      await reactivateCommunityAdmin(item.id);
-      toastSuccess("Community admin reactivated.");
-      setStatus("approved");
-      await load(true);
+      const res = await reactivateCommunityAdmin(item.id);
+      const next = res.data?.lifecycle_status;
+      toastSuccess(
+        next === "reassign"
+          ? "Community admin reactivated. The current community assignment was left unchanged."
+          : "Community admin reactivated.",
+      );
+      const nextTab: StatusTab = next === "reassign" ? "reassign" : next === "suspended" ? "suspended" : "approved";
+      if (nextTab !== status) setStatus(nextTab);
+      else await load(true);
     } catch (err) {
       toastError(apiError(err));
     } finally {
@@ -463,7 +469,7 @@ export default function CommunityAdminsPage() {
                     </DtCell>
                     <DtCell>
                       <AdminAccountStatusBadge
-                        accountStatus={item.status}
+                        accountStatus={lifecycle === "suspended" ? "suspended" : item.status}
                         applicationStatus={item.community_admin_status}
                         needsReassign={lifecycle === "reassign"}
                       />
@@ -503,21 +509,21 @@ export default function CommunityAdminsPage() {
                             label: lifecycle === "active" ? "Revoke Access" : "Reject",
                             icon: "reject",
                             tone: "danger",
-                            hidden: lifecycle === "active" ? false : !can("reject"),
+                            hidden: lifecycle === "active" ? false : lifecycle === "suspended" || !can("reject"),
                             onClick: () => handleReject(item.id, lifecycle === "active"),
                           },
                           {
                             label: "Suspend",
                             icon: "ban",
                             tone: "danger",
-                            hidden: !can("suspend"),
+                            hidden: lifecycle !== "active" || !can("suspend"),
                             onClick: () => handleSuspend(item),
                           },
                           {
                             label: "Reactivate",
                             icon: "approve",
                             tone: "primary",
-                            hidden: !can("reactivate"),
+                            hidden: lifecycle !== "suspended" || !can("reactivate"),
                             onClick: () => handleReactivate(item),
                           },
                           {

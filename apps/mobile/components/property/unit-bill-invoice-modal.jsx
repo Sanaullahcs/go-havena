@@ -39,10 +39,10 @@ function isImageInvoice(invoice) {
   return /\.(jpe?g|png|webp|heic|heif|gif)$/i.test(name);
 }
 
-function InvoiceRow({ label, value }) {
+function InvoiceRow({ label, value, isLast = false }) {
   if (!value) return null;
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, isLast ? styles.rowLast : null]}>
       <Text style={styles.rowLabel}>{label}</Text>
       <Text style={styles.rowValue}>{value}</Text>
     </View>
@@ -70,6 +70,18 @@ export default function UnitBillInvoiceModal({
   const invoice = bill?.invoice ?? null;
   const invoiceUrl = invoice?.file_url || null;
   const scrollMaxHeight = Math.round(WINDOW_HEIGHT * 0.9) - sw(168) - insets.bottom;
+  const invoiceRows = [
+    { key: "service", label: t("services.unitBillsInvoiceService"), value: bill?.title },
+    {
+      key: "type",
+      label: t("notices.billType"),
+      value: billingFrequencyLabel(bill?.billing_frequency, t),
+    },
+    { key: "period", label: t("propertyMgmt.billingMonth"), value: bill?.billing_period_label },
+    { key: "due", label: t("propertyMgmt.billDueDate"), value: formatDate(bill?.due_date) },
+    { key: "unit", label: t("services.unitBillsInvoiceUnit"), value: bill?.unit_number },
+  ].filter((row) => row.value);
+  const lastInvoiceRowKey = invoiceRows[invoiceRows.length - 1]?.key;
 
   async function openInvoiceFile() {
     if (!invoiceUrl) return;
@@ -122,25 +134,14 @@ export default function UnitBillInvoiceModal({
             </View>
 
             <View style={styles.detailsCard}>
-              <InvoiceRow label={t("services.unitBillsInvoiceService")} value={bill?.title} />
-              <InvoiceRow
-                label={t("notices.billType")}
-                value={billingFrequencyLabel(bill?.billing_frequency, t)}
-              />
-              <InvoiceRow
-                label={t("propertyMgmt.billingMonth")}
-                value={bill?.billing_period_label}
-              />
-              <InvoiceRow
-                label={t("propertyMgmt.billDueDate")}
-                value={formatDate(bill?.due_date)}
-              />
-              {bill?.unit_number ? (
+              {invoiceRows.map((row) => (
                 <InvoiceRow
-                  label={t("services.unitBillsInvoiceUnit")}
-                  value={bill.unit_number}
+                  key={row.key}
+                  label={row.label}
+                  value={row.value}
+                  isLast={!bill?.description && row.key === lastInvoiceRowKey}
                 />
-              ) : null}
+              ))}
               {bill?.description ? (
                 <Text style={styles.description}>{bill.description}</Text>
               ) : null}
@@ -317,6 +318,9 @@ const styles = {
     paddingVertical: sw(10),
     borderBottomWidth: 1,
     borderBottomColor: PropertyHubTheme.border,
+  },
+  rowLast: {
+    borderBottomWidth: 0,
   },
   rowLabel: {
     flexShrink: 0,

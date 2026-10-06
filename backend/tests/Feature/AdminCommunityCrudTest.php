@@ -220,4 +220,113 @@ class AdminCommunityCrudTest extends TestCase
             ->assertJsonPath('data.0.residents_count', 1)
             ->assertJsonPath('data.0.has_admin', false);
     }
+
+    public function test_community_lists_follow_approval_assignment_and_active_status(): void
+    {
+        Sanctum::actingAs($this->systemAdmin());
+
+        $unassigned = $this->approvedCommunity();
+        $regionId = $unassigned->region_id;
+
+        $assigned = Community::query()->create([
+            'name'          => 'Assigned Heights',
+            'region_id'     => $regionId,
+            'region'        => $unassigned->region,
+            'address'       => '9 Palm Road',
+            'status'        => 'active',
+            'review_status' => 'approved',
+        ]);
+
+        $admin = User::factory()->create([
+            'name'                   => 'Assigned Admin',
+            'role'                   => 'community_admin',
+            'community_admin_status' => 'approved',
+            'status'                 => 'active',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $admin->id,
+            'community_id' => $assigned->id,
+            'role'         => 'admin',
+            'status'       => 'approved',
+        ]);
+
+        $inactive = Community::query()->create([
+            'name'          => 'Quiet Court',
+            'region_id'     => $regionId,
+            'region'        => $unassigned->region,
+            'address'       => '4 Quiet Lane',
+            'status'        => 'inactive',
+            'review_status' => 'approved',
+        ]);
+
+        $inactiveAdmin = User::factory()->create([
+            'name'                   => 'Inactive Admin',
+            'role'                   => 'community_admin',
+            'community_admin_status' => 'approved',
+            'status'                 => 'active',
+        ]);
+
+        CommunityMembership::query()->create([
+            'user_id'      => $inactiveAdmin->id,
+            'community_id' => $inactive->id,
+            'role'         => 'admin',
+            'status'       => 'approved',
+        ]);
+
+        $pending = Community::query()->create([
+            'name'          => 'Pending Court',
+            'region_id'     => $regionId,
+            'region'        => $unassigned->region,
+            'address'       => '2 Request Road',
+            'status'        => 'inactive',
+            'review_status' => 'pending',
+        ]);
+
+        $rejected = Community::query()->create([
+            'name'             => 'Rejected Court',
+            'region_id'        => $regionId,
+            'region'           => $unassigned->region,
+            'address'          => '8 Closed Road',
+            'status'           => 'inactive',
+            'review_status'    => 'rejected',
+            'rejection_reason' => 'Incomplete documents',
+        ]);
+
+        $ids = fn (string $url) => collect($this->getJson($url)->assertOk()->json('data'))->pluck('id');
+
+        $all = $ids('/api/v1/admin/communities?per_page=50&page=1');
+        $this->assertTrue($all->contains($unassigned->id));
+        $this->assertTrue($all->contains($assigned->id));
+        $this->assertTrue($all->contains($inactive->id));
+        $this->assertFalse($all->contains($pending->id));
+        $this->assertFalse($all->contains($rejected->id));
+
+        $assignedIds = $ids('/api/v1/admin/communities?per_page=50&page=1&status=active&assignment=assigned');
+        $this->assertEqualsCanonicalizing([$assigned->id], $assignedIds->all());
+
+        $unassignedIds = $ids('/api/v1/admin/communities?per_page=50&page=1&status=active&assignment=unassigned');
+        $this->assertEqualsCanonicalizing([$unassigned->id], $unassignedIds->all());
+
+        $inactiveIds = $ids('/api/v1/admin/communities?per_page=50&page=1&status=inactive');
+        $this->assertEqualsCanonicalizing([$inactive->id], $inactiveIds->all());
+
+        $pendingResponse = $this->getJson('/api/v1/admin/community-requests?per_page=50&page=1');
+        $pendingResponse->assertOk()
+            ->assertJsonPath('meta.stats.assigned', 1)
+            ->assertJsonPath('meta.stats.unassigned', 1)
+            ->assertJsonPath('meta.stats.inactive', 1)
+            ->assertJsonPath('meta.stats.pending', 1)
+            ->assertJsonPath('meta.stats.rejected', 1);
+        $this->assertEqualsCanonicalizing(
+            [$pending->id],
+            collect($pendingResponse->json('data'))->pluck('id')->all(),
+        );
+
+        $rejectedResponse = $this->getJson('/api/v1/admin/community-requests?per_page=50&page=1&review_status=rejected');
+        $rejectedResponse->assertOk()
+            ->assertJsonPath('data.0.id', $rejected->id)
+            ->assertJsonPath('data.0.review_status', 'rejected')
+            ->assertJsonPath('data.0.rejection_reason', 'Incomplete documents');
+    }
 }

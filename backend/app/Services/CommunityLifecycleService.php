@@ -266,6 +266,91 @@ class CommunityLifecycleService
             'status'            => 'active',
             'suspension_reason' => null,
         ]);
+
+        $admin->unsetRelation('memberships');
+        $admin->load('memberships.community');
+
+        foreach ($admin->memberships as $membership) {
+            if ($membership->role !== 'admin' || ! in_array($membership->status, ['approved', 'pending'], true)) {
+                continue;
+            }
+
+            $community = $membership->community;
+            if (! $community) {
+                continue;
+            }
+
+            $current = $this->getCommunityAdmin($community);
+            if ($current && (int) $current->id !== (int) $admin->id) {
+                $membership->update(['status' => 'banned']);
+            }
+        }
+    }
+
+    /**
+     * A community has one current admin. Older approved admin memberships are
+     * kept as suspended accounts so they stay available for history.
+     */
+    public function retireSupersededCommunityAdmins(): void
+    {
+        $approved = CommunityMembership::query()
+            ->where('role', 'admin')
+            ->where('status', 'approved')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->get(['id', 'user_id', 'community_id']);
+
+        foreach ($approved->groupBy('community_id') as $memberships) {
+            $currentMembership = null;
+
+            foreach ($memberships as $membership) {
+                $user = User::query()->find($membership->user_id);
+                if ($this->isEligibleCurrentCommunityAdmin($user)) {
+                    $currentMembership = $membership;
+                    break;
+                }
+            }
+
+            if (! $currentMembership) {
+                continue;
+            }
+
+            foreach ($memberships as $membership) {
+                if ((int) $membership->id === (int) $currentMembership->id) {
+                    continue;
+                }
+
+                CommunityMembership::query()
+                    ->where('id', $membership->id)
+                    ->update(['status' => 'banned']);
+
+                $user = User::query()->find($membership->user_id);
+                if (
+                    $user
+                    && $user->role === 'community_admin'
+                    && ($user->community_admin_status ?? '') === 'approved'
+                    && $user->status === 'active'
+                ) {
+                    $user->update([
+                        'status'            => 'suspended',
+                        'suspension_reason' => self::REASON_ADMIN_SUSPENDED,
+                    ]);
+                }
+            }
+        }
+    }
+
+    private function isEligibleCurrentCommunityAdmin(?User $user): bool
+    {
+        if (! $user || $user->status !== 'active') {
+            return false;
+        }
+
+        if ($user->role === 'community_admin' && ($user->community_admin_status ?? '') === 'approved') {
+            return true;
+        }
+
+        return in_array($user->role, ['system_admin', 'admin'], true);
     }
 
     public function assignCommunityAdmin(Community $community, User $newAdmin, bool $keepSystemAdminRole = false): User
@@ -278,12 +363,30 @@ class CommunityLifecycleService
         $this->assertCanAdminCommunity($newAdmin, $community);
 
         DB::transaction(function () use ($community, $newAdmin, $keepSystemAdminRole) {
+            $replacedAdminIds = CommunityMembership::query()
+                ->where('community_id', $community->id)
+                ->where('role', 'admin')
+                ->where('user_id', '!=', $newAdmin->id)
+                ->where('status', 'approved')
+                ->pluck('user_id');
+
             CommunityMembership::query()
                 ->where('community_id', $community->id)
                 ->where('role', 'admin')
                 ->where('user_id', '!=', $newAdmin->id)
                 ->where('status', 'approved')
                 ->update(['status' => 'banned']);
+
+            if ($replacedAdminIds->isNotEmpty()) {
+                User::query()
+                    ->whereIn('id', $replacedAdminIds)
+                    ->where('role', 'community_admin')
+                    ->where('status', '!=', 'deleted')
+                    ->update([
+                        'status'            => 'suspended',
+                        'suspension_reason' => self::REASON_ADMIN_SUSPENDED,
+                    ]);
+            }
 
             if (! $keepSystemAdminRole) {
                 $newAdmin->update([

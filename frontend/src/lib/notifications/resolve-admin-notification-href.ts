@@ -106,7 +106,8 @@ function mapMobileScreenToAdminHref(pathname: string, query = ""): string | null
   }
 
   if (path.includes("/screens/admin-service-bills") || path.includes("/screens/property-management/unit-bills")) {
-    return "/admin/service-bills";
+    const billId = params.get("billId") ?? params.get("bill_id") ?? params.get("bill");
+    return billId ? `/admin/service-bills?bill=${encodeURIComponent(billId)}` : "/admin/service-bills";
   }
 
   if (path.includes("/screens/admin-services") || path.includes("/screens/property-management/available-services")) {

@@ -32,11 +32,7 @@ export interface CommunityRequest {
   reviewed_at: string | null;
 }
 
-export interface CommunityRequestStats {
-  pending: number;
-  approved: number;
-  rejected: number;
-}
+export interface CommunityRequestStats extends AdminCommunityStats {}
 
 export interface AdminCommunityOption {
   id: number;
@@ -95,6 +91,8 @@ export interface AdminCommunityStats {
   pending: number;
   approved: number;
   rejected: number;
+  assigned?: number;
+  unassigned?: number;
 }
 
 /** Simple active list for dropdowns (invite member, etc.) */
