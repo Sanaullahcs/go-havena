@@ -273,12 +273,17 @@ class CommunityAdminReassignTest extends TestCase
         $this->assertSame('suspended', $suspended[0]['lifecycle_status']);
         $this->assertSame(['view', 'edit', 'reactivate', 'delete'], $suspended[0]['allowed_actions']);
         $this->assertSame($community->id, $suspended[0]['community_request']['id']);
+        $this->assertTrue($suspended[0]['reactivate_blocked']);
+        $this->assertSame(
+            'This community is already assigned to another Community Admin.',
+            $suspended[0]['reactivate_blocked_reason'],
+        );
 
         $this->postJson("/api/v1/admin/community-admins/{$previous->id}/reactivate")
-            ->assertOk()
-            ->assertJsonPath('data.status', 'active')
-            ->assertJsonPath('data.lifecycle_status', 'reassign')
-            ->assertJsonPath('data.community_request', null);
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'This community is already assigned to another Community Admin.');
+
+        $this->assertSame('suspended', $previous->fresh()->status);
 
         $stillActive = $this->getJson('/api/v1/admin/community-admins?status=approved')
             ->assertOk()
@@ -287,6 +292,20 @@ class CommunityAdminReassignTest extends TestCase
         $this->assertCount(1, $stillActive);
         $this->assertSame('testingmem@gmail.com', $stillActive[0]['email']);
         $this->assertSame($community->id, $stillActive[0]['community_request']['id']);
+
+        $this->postJson("/api/v1/admin/community-admins/{$stillActive[0]['id']}/release")->assertOk();
+
+        $released = $this->getJson('/api/v1/admin/community-admins?status=suspended')
+            ->assertOk()
+            ->json('data');
+
+        $this->assertSame($previous->id, $released[0]['id']);
+        $this->assertFalse($released[0]['reactivate_blocked']);
+        $this->assertNull($released[0]['reactivate_blocked_reason']);
+
+        $this->postJson("/api/v1/admin/community-admins/{$previous->id}/reactivate")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'active');
     }
 
     public function test_listing_admins_suspends_an_older_admin_who_still_looks_assigned(): void

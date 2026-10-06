@@ -262,6 +262,10 @@ class CommunityLifecycleService
             abort(422, 'This community admin is not suspended.');
         }
 
+        if ($blocked = $this->reactivationBlockedReason($admin)) {
+            abort(422, $blocked);
+        }
+
         $admin->update([
             'status'            => 'active',
             'suspension_reason' => null,
@@ -285,6 +289,35 @@ class CommunityLifecycleService
                 $membership->update(['status' => 'banned']);
             }
         }
+    }
+
+    /**
+     * Suspended admins stay reactivatable until their last community
+     * already has a different active Community Admin.
+     */
+    public function reactivationBlockedReason(User $admin): ?string
+    {
+        if (($admin->status ?? '') !== 'suspended') {
+            return null;
+        }
+
+        $admin->loadMissing('memberships.community');
+        $membership = $admin->memberships
+            ->filter(fn ($item) => $item->role === 'admin' && $item->community)
+            ->sortByDesc(fn ($item) => $item->updated_at?->getTimestamp() ?? 0)
+            ->first();
+
+        $community = $membership?->community;
+        if (! $community) {
+            return null;
+        }
+
+        $current = $this->getCommunityAdmin($community);
+        if ($current && (int) $current->id !== (int) $admin->id) {
+            return 'This community is already assigned to another Community Admin.';
+        }
+
+        return null;
     }
 
     /**

@@ -33,6 +33,8 @@ export type CommunityAdminApplicant = {
   reassign_summary?: string | null;
   lifecycle_status?: CommunityAdminLifecycleStatus;
   allowed_actions?: CommunityAdminAction[];
+  reactivate_blocked?: boolean;
+  reactivate_blocked_reason?: string | null;
   previous_admin?: {
     id: number;
     name: string;

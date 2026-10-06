@@ -18,6 +18,7 @@ export type AdminMenuAction = {
   onClick: () => void | Promise<void>;
   disabled?: boolean;
   hidden?: boolean;
+  title?: string;
 };
 
 const TONE_TEXT: Record<AdminActionTone, string> = {
@@ -117,26 +118,32 @@ export function AdminActionsMenu({
             >
               {visible.map((action) => {
                 const tone = action.tone ?? "neutral";
+                const itemDisabled = Boolean(action.disabled || disabled);
                 return (
-                  <button
-                    key={action.id ?? action.label}
-                    type="button"
-                    role="menuitem"
-                    disabled={action.disabled || disabled}
-                    onClick={() => runAction(action)}
-                    className={[
-                      "nl-admin-menu-item flex w-full items-center gap-2.5 rounded-lg bg-white px-3 py-2 text-left text-[13px] font-medium",
-                      "disabled:cursor-not-allowed disabled:opacity-50",
-                      TONE_TEXT[tone],
-                    ].join(" ")}
-                  >
-                    {action.icon ? (
-                      <AdminActionIcon icon={action.icon} className="h-4 w-4 shrink-0" />
-                    ) : (
-                      <span className="h-4 w-4 shrink-0" aria-hidden />
-                    )}
-                    <span className="truncate">{action.label}</span>
-                  </button>
+                  <span key={action.id ?? action.label} title={action.title} className="block">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={itemDisabled}
+                      title={action.title}
+                      onClick={() => {
+                        if (itemDisabled) return;
+                        void runAction(action);
+                      }}
+                      className={[
+                        "nl-admin-menu-item flex w-full items-center gap-2.5 rounded-lg bg-white px-3 py-2 text-left text-[13px] font-medium",
+                        "disabled:cursor-not-allowed disabled:opacity-50",
+                        TONE_TEXT[tone],
+                      ].join(" ")}
+                    >
+                      {action.icon ? (
+                        <AdminActionIcon icon={action.icon} className="h-4 w-4 shrink-0" />
+                      ) : (
+                        <span className="h-4 w-4 shrink-0" aria-hidden />
+                      )}
+                      <span className="truncate">{action.label}</span>
+                    </button>
+                  </span>
                 );
               })}
             </div>,

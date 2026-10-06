@@ -290,6 +290,7 @@ export default function CommunityAdminsPage() {
   };
 
   const handleReactivate = async (item: CommunityAdminApplicant) => {
+    if (item.reactivate_blocked) return;
     const ok = await confirmAction({
       title: `Reactivate ${item.name}?`,
       text: "This restores the admin account. If another Community Admin is already assigned to the community, that assignment stays in place.",
@@ -524,6 +525,10 @@ export default function CommunityAdminsPage() {
                             icon: "approve",
                             tone: "primary",
                             hidden: lifecycle !== "suspended" || !can("reactivate"),
+                            disabled: Boolean(item.reactivate_blocked),
+                            title: item.reactivate_blocked
+                              ? item.reactivate_blocked_reason || "This community is already assigned to another Community Admin."
+                              : undefined,
                             onClick: () => handleReactivate(item),
                           },
                           {
@@ -598,6 +603,8 @@ export default function CommunityAdminsPage() {
           }
           onReject={communityAdminAllows(viewing, "reject") ? () => handleReject(viewing.id) : undefined}
           onReactivate={communityAdminAllows(viewing, "reactivate") ? () => handleReactivate(viewing) : undefined}
+          reactivateBlocked={Boolean(viewing.reactivate_blocked)}
+          reactivateBlockedReason={viewing.reactivate_blocked_reason}
           onAssign={communityAdminAllows(viewing, "assign_community") ? () => openAssign(viewing) : undefined}
           approveLabel={resolveCommunityAdminLifecycle(viewing) === "rejected" ? "Approve" : "Approve"}
           rejectLabel="Reject"
@@ -636,6 +643,8 @@ function CommunityAdminDetailModal({
   onApprove,
   onReject,
   onReactivate,
+  reactivateBlocked = false,
+  reactivateBlockedReason,
   onAssign,
   onDelete,
   approveLabel = "Approve",
@@ -648,6 +657,8 @@ function CommunityAdminDetailModal({
   onApprove?: () => void;
   onReject?: () => void;
   onReactivate?: () => void;
+  reactivateBlocked?: boolean;
+  reactivateBlockedReason?: string | null;
   onAssign?: () => void;
   onDelete?: () => void;
   approveLabel?: string;
@@ -780,9 +791,21 @@ function CommunityAdminDetailModal({
               </button>
             ) : null}
             {onReactivate ? (
-              <button type="button" disabled={busy} onClick={onReactivate} className="nl-btn-primary">
-                Reactivate
-              </button>
+              <span
+                title={reactivateBlocked
+                  ? reactivateBlockedReason || "This community is already assigned to another Community Admin."
+                  : undefined}
+                className="inline-flex"
+              >
+                <button
+                  type="button"
+                  disabled={busy || reactivateBlocked}
+                  onClick={onReactivate}
+                  className="nl-btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Reactivate
+                </button>
+              </span>
             ) : null}
             {onDelete ? (
               <button

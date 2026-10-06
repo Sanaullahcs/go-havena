@@ -663,6 +663,7 @@ class AdminCommunityAdminController extends Controller
         }
         $community  = $membership?->community;
         $needsReassign = $lifecycleStatus === CommunityAdminRecordStatus::REASSIGN;
+        $reactivationBlock = app(CommunityLifecycleService::class)->reactivationBlockedReason($user);
 
         return [
             'id'                     => $user->id,
@@ -677,6 +678,8 @@ class AdminCommunityAdminController extends Controller
             'suspension_reason'              => $user->suspension_reason,
             'lifecycle_status'       => $lifecycleStatus,
             'allowed_actions'        => CommunityAdminRecordStatus::actionsFor($lifecycleStatus),
+            'reactivate_blocked'     => $reactivationBlock !== null,
+            'reactivate_blocked_reason' => $reactivationBlock,
             'needs_reassign'         => $needsReassign,
             'reassign_summary'       => $needsReassign
                 ? 'This admin is not assigned to a community. Assign a community to restore Active status.'
