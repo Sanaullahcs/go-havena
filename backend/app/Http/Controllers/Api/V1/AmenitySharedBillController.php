@@ -291,6 +291,9 @@ class AmenitySharedBillController extends Controller
 
         $bill = $this->bills->findAdminResidentBill((int) $amenity->id, $residentBillId);
         abort_if(! $bill, 404, 'Bill not found.');
+        if ($this->bills->isBookingPaymentBill($bill)) {
+            $this->bills->assertAdminCanReviewBookingPayment((int) $amenity->id, (int) $request->user()->id);
+        }
 
         return $bill;
     }

@@ -578,13 +578,12 @@ export default function NoticeViewModal({ notice, onClose, onEdit, onNoticeUpdat
 
 
 
-          <div className="nl-notice-view-section">
-
-            <p className="nl-notice-view-section-title">Description</p>
-
-            <p className="nl-notice-view-body">{detail.body}</p>
-
-          </div>
+          {detail.body?.trim() ? (
+            <div className="nl-notice-view-section">
+              <p className="nl-notice-view-section-title">Description</p>
+              <p className="nl-notice-view-body">{detail.body}</p>
+            </div>
+          ) : null}
 
         </div>
 

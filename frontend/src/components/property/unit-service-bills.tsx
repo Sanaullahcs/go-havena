@@ -102,9 +102,10 @@ export function UnitServiceWorkspace() {
                 {service.amount != null ? ` · $${service.amount}` : ""}
                 {service.billing_frequency ? ` · ${service.billing_frequency.replace("_", " ")}` : ""}
               </p>
-              {service.unit_subscription && (
+              {service.unit_subscription &&
+              ["active", "pending"].includes(service.unit_subscription.status) ? (
                 <p className="mt-1 text-xs text-slate-500">Status: {service.unit_subscription.status}</p>
-              )}
+              ) : null}
               {!isContact && <p className="mt-2 text-xs text-amber-700">Ask your unit billing contact to subscribe.</p>}
               {isContact && service.can_subscribe && (
                 <button

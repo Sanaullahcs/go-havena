@@ -228,6 +228,82 @@ class AmenitySharedBillService
         ], $authorId, $request);
     }
 
+    /** Drop unpaid booking-fee bills when the resident cancels the reservation. Paid history is kept. */
+    public function withdrawOpenBillsForCancelledBooking(int $bookingId): void
+    {
+        if ($bookingId < 1 || ! Schema::hasTable('amenity_resident_bills') || ! Schema::hasTable('amenity_monthly_bills')) {
+            return;
+        }
+
+        $hasResidentBooking = Schema::hasColumn('amenity_resident_bills', 'booking_id');
+        $hasMonthlyBooking = Schema::hasColumn('amenity_monthly_bills', 'booking_id');
+        if (! $hasResidentBooking && ! $hasMonthlyBooking) {
+            return;
+        }
+
+        $openStatuses = [
+            self::RESIDENT_STATUS_UNPAID,
+            self::RESIDENT_STATUS_OVERDUE,
+            self::RESIDENT_STATUS_PENDING,
+            self::RESIDENT_STATUS_REJECTED,
+        ];
+
+        $query = DB::table('amenity_resident_bills as rb')
+            ->join('amenity_monthly_bills as mb', 'mb.id', '=', 'rb.monthly_bill_id')
+            ->whereIn('rb.status', $openStatuses);
+
+        if ($hasResidentBooking) {
+            $query->where('rb.booking_id', $bookingId);
+        } else {
+            $query->where('mb.booking_id', $bookingId);
+        }
+
+        $select = ['rb.id', 'rb.monthly_bill_id'];
+        if (Schema::hasColumn('amenity_resident_bills', 'finance_notice_id')) {
+            $select[] = 'rb.finance_notice_id';
+        }
+        if (Schema::hasColumn('amenity_monthly_bills', 'finance_notice_id')) {
+            $select[] = 'mb.finance_notice_id as monthly_finance_notice_id';
+        }
+
+        $rows = $query->get($select);
+        if ($rows->isEmpty()) {
+            return;
+        }
+
+        $monthlyIds = [];
+        foreach ($rows as $row) {
+            foreach (['finance_notice_id', 'monthly_finance_notice_id'] as $key) {
+                $noticeId = (int) ($row->{$key} ?? 0);
+                if ($noticeId > 0) {
+                    $this->removeFinanceNotice($noticeId);
+                }
+            }
+            $monthlyIds[(int) $row->monthly_bill_id] = true;
+        }
+
+        DB::table('amenity_resident_bills')
+            ->whereIn('id', $rows->pluck('id')->map(fn ($id) => (int) $id)->all())
+            ->delete();
+
+        foreach (array_keys($monthlyIds) as $monthlyBillId) {
+            $monthlyBillId = (int) $monthlyBillId;
+            if ($monthlyBillId < 1) {
+                continue;
+            }
+            $stillLinked = DB::table('amenity_resident_bills')->where('monthly_bill_id', $monthlyBillId)->exists();
+            if ($stillLinked) {
+                continue;
+            }
+            $monthlyBookingId = $hasMonthlyBooking
+                ? (int) DB::table('amenity_monthly_bills')->where('id', $monthlyBillId)->value('booking_id')
+                : 0;
+            if ($monthlyBookingId > 0) {
+                DB::table('amenity_monthly_bills')->where('id', $monthlyBillId)->delete();
+            }
+        }
+    }
+
     /**
      * @param  array{title: string, description?: ?string, amount_per_resident: float|int|string, due_date: string, billing_month: string, booking_id?: int, resident_ids?: list<int>, file_path?: ?string, file_name?: ?string, file_size?: ?int, mime_type?: ?string}  $data
      * @return array<string, mixed>|null
@@ -367,7 +443,7 @@ class AmenitySharedBillService
     {
         app(AmenityBillReminderService::class)->markOverdue();
 
-        $query = $this->communityResidentBillQuery($communityId);
+        $query = $this->applyCommunityAdminBookingPaymentVisibility($this->communityResidentBillQuery($communityId));
         $status = trim((string) $request->query('status', 'all'));
         if ($status !== '' && $status !== 'all') {
             abort_unless(in_array($status, [
@@ -390,7 +466,11 @@ class AmenitySharedBillService
             ->orderByDesc('mb.billing_month')
             ->orderBy('users.name')
             ->get()
-            ->map(fn ($row) => $this->formatAdminResidentBill($row, $request))
+            ->map(fn ($row) => $this->formatAdminResidentBill(
+                $row,
+                $request,
+                $this->viewerMayReviewBookingPayment($row, $request),
+            ))
             ->all();
     }
 
@@ -398,8 +478,9 @@ class AmenitySharedBillService
     {
         app(AmenityBillReminderService::class)->markOverdue();
 
-        $query = $this->communityResidentBillQuery($communityId)
-            ->where('a.created_by', $ownerId);
+        $query = $this->applyExcludeInactiveBookingBills(
+            $this->communityResidentBillQuery($communityId)->where('a.created_by', $ownerId),
+        );
         $status = trim((string) $request->query('status', 'all'));
         if ($status !== '' && $status !== 'all') {
             abort_unless(in_array($status, [
@@ -422,7 +503,7 @@ class AmenitySharedBillService
             ->orderByDesc('mb.billing_month')
             ->orderBy('users.name')
             ->get()
-            ->map(fn ($row) => $this->formatAdminResidentBill($row, $request))
+            ->map(fn ($row) => $this->formatAdminResidentBill($row, $request, true))
             ->all();
     }
 
@@ -561,6 +642,8 @@ class AmenitySharedBillService
         if (Schema::hasColumn('amenity_resident_bills', 'booking_id')) {
             $rows->addSelect('rb.booking_id');
         }
+
+        $this->applyExcludeInactiveBookingBills($rows);
 
         $rows = $rows->get();
 
@@ -1728,6 +1811,16 @@ class AmenitySharedBillService
         }
     }
 
+    private function removeFinanceNotice(int $noticeId): void
+    {
+        if ($noticeId < 1) {
+            return;
+        }
+
+        DB::table('notice_recipients')->where('notice_id', $noticeId)->delete();
+        DB::table('notices')->where('id', $noticeId)->delete();
+    }
+
     /** @return list<int> */
     private function financeNoticeIdsForBill(object $bill): array
     {
@@ -1803,6 +1896,99 @@ class AmenitySharedBillService
         return $this->residentBillQuery()->where('rb.community_id', $communityId);
     }
 
+    /** Booking reservation fees are reviewed only by the amenity creator (owner bills), not community admins. */
+    public function isBookingPaymentBill(object $row): bool
+    {
+        if ((int) ($row->booking_id ?? 0) > 0) {
+            return true;
+        }
+
+        if (Schema::hasColumn('amenity_monthly_bills', 'booking_id')) {
+            return (int) ($row->monthly_booking_id ?? 0) > 0;
+        }
+
+        return false;
+    }
+
+    /**
+     * Community admin bill inbox: shared monthly bills for all amenities, plus booking-fee
+     * payments only for amenities created by community staff (not resident-owned amenities).
+     */
+    private function applyCommunityAdminBookingPaymentVisibility($query)
+    {
+        if (! Schema::hasColumn('amenity_resident_bills', 'booking_id')) {
+            return $query;
+        }
+
+        return $query->where(function ($outer) {
+            $outer->where(function ($sharedOnly) {
+                if (Schema::hasColumn('amenity_resident_bills', 'booking_id')) {
+                    $sharedOnly->where(function ($inner) {
+                        $inner->whereNull('rb.booking_id')->orWhere('rb.booking_id', 0);
+                    });
+                }
+                if (Schema::hasColumn('amenity_monthly_bills', 'booking_id')) {
+                    $sharedOnly->where(function ($inner) {
+                        $inner->whereNull('mb.booking_id')->orWhere('mb.booking_id', 0);
+                    });
+                }
+            });
+            $outer->orWhereExists(function ($sub) {
+                $sub->select(DB::raw(1))
+                    ->from('users as amenity_creator')
+                    ->whereColumn('amenity_creator.id', 'a.created_by')
+                    ->where(function ($roles) {
+                        $roles->whereIn('amenity_creator.role', ['community_admin', 'admin']);
+                        if (Schema::hasColumn('users', 'is_admin')) {
+                            $roles->orWhere('amenity_creator.is_admin', true);
+                        }
+                    });
+            });
+        });
+    }
+
+    public function viewerMayReviewBookingPayment(object $row, Request $request): bool
+    {
+        if (! $this->isBookingPaymentBill($row)) {
+            return false;
+        }
+
+        $viewerId = (int) ($request->user()?->id ?? 0);
+        $creatorId = (int) ($row->amenity_created_by ?? 0);
+        if ($creatorId < 1) {
+            $creatorId = (int) DB::table('amenities')->where('id', (int) ($row->amenity_id ?? 0))->value('created_by');
+        }
+
+        return $viewerId > 0 && $creatorId > 0 && $viewerId === $creatorId;
+    }
+
+    public function assertAdminCanReviewBookingPayment(int $amenityId, int $viewerId): void
+    {
+        $creatorId = (int) DB::table('amenities')->where('id', $amenityId)->value('created_by');
+        abort_if(
+            $creatorId !== $viewerId,
+            403,
+            'Only the amenity creator can review this payment.',
+        );
+    }
+
+    /** Booking-fee bills exist only after the amenity creator approves the request. */
+    private function applyExcludeInactiveBookingBills($query)
+    {
+        if (! Schema::hasColumn('amenity_resident_bills', 'booking_id')) {
+            return $query;
+        }
+
+        $query->whereNotExists(function ($sub) {
+            $sub->select(DB::raw(1))
+                ->from('bookings as booking_row')
+                ->whereColumn('booking_row.id', 'rb.booking_id')
+                ->whereIn('booking_row.status', ['pending', 'cancelled', 'rejected']);
+        });
+
+        return $query;
+    }
+
     private function residentBillQuery()
     {
         $query = DB::table('amenity_resident_bills as rb')
@@ -1819,6 +2005,7 @@ class AmenitySharedBillService
                 'mb.due_date',
                 'mb.amount_per_resident',
                 'a.name as amenity_name',
+                'a.created_by as amenity_created_by',
                 'users.name as resident_name',
                 'profiles.unit_number',
                 'rb.id as resident_bill_id',
@@ -1847,15 +2034,19 @@ class AmenitySharedBillService
         if (Schema::hasColumn('amenity_resident_bills', 'booking_id')) {
             $query->addSelect('rb.booking_id');
         }
+        if (Schema::hasColumn('amenity_monthly_bills', 'booking_id')) {
+            $query->addSelect('mb.booking_id as monthly_booking_id');
+        }
 
         return $query;
     }
 
     /** @return array<string, mixed> */
-    public function formatAdminResidentBill(object $row, Request $request): array
+    public function formatAdminResidentBill(object $row, Request $request, bool $creatorReviewContext = false): array
     {
         $status = (string) ($row->resident_status ?? self::RESIDENT_STATUS_UNPAID);
         $month = $this->displayBillingMonth($row);
+        $bookingPayment = $this->isBookingPaymentBill($row);
 
         return [
             'id' => (int) $row->resident_bill_id,
@@ -1873,7 +2064,7 @@ class AmenitySharedBillService
             'due_date' => ! empty($row->due_date) ? Carbon::parse((string) $row->due_date)->toDateString() : null,
             'status' => $status,
             'status_label' => $this->statusLabel($status),
-            'can_review' => $status === self::RESIDENT_STATUS_PENDING,
+            'can_review' => $status === self::RESIDENT_STATUS_PENDING && (! $bookingPayment || $creatorReviewContext),
             'payment_proof' => $this->formatPaymentProof($row, $request),
             'payment_acknowledgement' => $this->formatPaymentAcknowledgement($row, $status),
             'rejection_reason' => $row->rejection_reason ?? null,

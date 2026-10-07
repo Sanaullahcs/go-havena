@@ -28,6 +28,7 @@ import { formatDisplayDate } from "../../utils/form-datetime";
 import { useApiAction } from "../../hooks/use-api-action";
 import { getApiErrorMessage } from "../../utils/auth-errors";
 import { submitAmenityBillProof } from "../../services/amenity-api";
+import { isRejectedBillStatus } from "../../constants/payment-rejection";
 
 function todayDate() {
   const now = new Date();
@@ -89,6 +90,7 @@ export default function AmenityPaymentProofModal({
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { showSuccess } = useApiAction();
+  const proofResubmit = isRejectedBillStatus(bill?.status);
   const [fileAsset, setFileAsset] = useState(null);
   const [paymentDate, setPaymentDate] = useState(todayDate);
   const [iosDraft, setIosDraft] = useState(todayDate);
@@ -404,7 +406,9 @@ export default function AmenityPaymentProofModal({
                     <Text style={styles.submitText}>{t("propertyMgmt.submittingProof")}</Text>
                   </View>
                 ) : (
-                  <Text style={styles.submitText}>{t("propertyMgmt.submitProof")}</Text>
+                  <Text style={styles.submitText}>
+                    {proofResubmit ? t("services.myAmenityBillsResubmitPay") : t("propertyMgmt.submitProof")}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>

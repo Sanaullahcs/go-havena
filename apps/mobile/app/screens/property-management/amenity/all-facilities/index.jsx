@@ -175,6 +175,7 @@ export default function AllFacilities() {
         bookingFee: String(bookingFee ?? "0"),
         capacity: String(capacity ?? "0"),
         capacityBookingType: String(capacityBookingType ?? "per_seat"),
+        sharedBillingEnabled: String(sharedBillingEnabled ?? "0"),
       },
     });
   };

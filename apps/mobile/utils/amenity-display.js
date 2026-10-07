@@ -549,9 +549,10 @@ export function isFullSlotCapacity(type) {
   return normalizeCapacityBookingType(type) === "full_slot";
 }
 
-export function reservationFeeTotal(unitFee, guests, fullSlot = false) {
+export function reservationFeeTotal(unitFee, guests, fullSlot = false, openAccess = false) {
   if (!(Number(unitFee) > 0)) return 0;
-  return fullSlot ? Number(unitFee) : Number(unitFee) * Math.max(1, guests);
+  if (fullSlot || openAccess) return Number(unitFee);
+  return Number(unitFee) * Math.max(1, guests);
 }
 
 export function maxBookableSeats({ capacity, remaining, remainingForward, fullSlot = false } = {}) {

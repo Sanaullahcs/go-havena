@@ -5,6 +5,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
+import PaymentRejectionModal from "../../../components/property/payment-rejection-modal";
 import { propertyStyles } from "../../../constants/property-styles";
 import { PropertyHubTheme } from "../../../constants/property-management-theme";
 import { PropertyManagementRoutes } from "../../../constants/property-management-routes";
@@ -19,6 +20,7 @@ import {
   rejectAdminServiceBill,
   serviceCategoryLabel,
 } from "../../../services/property-services-api";
+import { isRejectedBillStatus, mergeBillRow, normalizeRejectedBillRow } from "../../../constants/payment-rejection";
 
 const TABS = [
   { id: "all", labelKey: "services.serviceBillsTabAll" },
@@ -102,6 +104,8 @@ function BillCard({ bill, busy, onApprove, onReject, t }) {
   const status = statusMeta(bill, t);
   const due = formatDueDate(bill.due_date);
   const reviewable = canReviewBill(bill);
+  const rejectionReason = String(bill.rejection_reason ?? "").trim();
+  const isRejected = isRejectedBillStatus(bill.status);
 
   return (
     <View style={styles.card}>
@@ -154,6 +158,13 @@ function BillCard({ bill, busy, onApprove, onReject, t }) {
         </Text>
       ) : null}
 
+      {isRejected ? (
+        <View style={styles.rejectBox}>
+          <Text style={styles.rejectLabel}>{t("propertyMgmt.rejectionReason")}:</Text>
+          <Text style={styles.rejectReason}>{rejectionReason || "—"}</Text>
+        </View>
+      ) : null}
+
       {reviewable ? (
         <View style={styles.actions}>
           <Pressable
@@ -183,12 +194,13 @@ function BillCard({ bill, busy, onApprove, onReject, t }) {
 export default function AdminServiceBillsScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { runAction, dialog, showFailure } = useApiAction();
+  const { runAction, showFailure } = useApiAction();
   const [bills, setBills] = useState([]);
   const [tab, setTab] = useState("all");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState(null);
+  const [rejectingBill, setRejectingBill] = useState(null);
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -223,20 +235,22 @@ export default function AdminServiceBillsScreen() {
     setBusyId(null);
   }
 
-  async function handleReject(bill) {
-    const choice = await dialog.showConfirm(
-      t("services.serviceBillsRejectTitle"),
-      t("services.serviceBillsRejectMsg"),
-      { confirmLabel: t("services.serviceBillsReject"), destructive: true },
-    );
-    if (choice !== "confirm") return;
-    setBusyId(bill.id);
+  async function submitRejectPayment(payload) {
+    if (!rejectingBill) return;
+    setBusyId(rejectingBill.id);
     await runAction({
-      action: () => rejectAdminServiceBill(bill.id, "unclear_proof"),
+      action: () => rejectAdminServiceBill(rejectingBill.id, payload),
       successTitle: t("services.serviceBillsRejectedTitle"),
       successMessage: t("services.serviceBillsRejectedMsg"),
       errorTitle: t("services.serviceBillsCouldNotReview"),
-      onSuccess: () => load({ silent: true }),
+      onSuccess: (updated) => {
+        const row = normalizeRejectedBillRow(updated);
+        if (row) {
+          setBills((prev) => mergeBillRow(prev, row));
+        }
+        setRejectingBill(null);
+        void load({ silent: true });
+      },
     });
     setBusyId(null);
   }
@@ -311,13 +325,25 @@ export default function AdminServiceBillsScreen() {
                 bill={bill}
                 busy={busyId === bill.id}
                 onApprove={() => void handleApprove(bill)}
-                onReject={() => void handleReject(bill)}
+                onReject={() => setRejectingBill(bill)}
                 t={t}
               />
             ))
           )}
         </ScrollView>
       )}
+
+      <PaymentRejectionModal
+        visible={Boolean(rejectingBill)}
+        subtitle={
+          rejectingBill
+            ? `${rejectingBill.service_name || rejectingBill.title || ""} · ${t("services.serviceBillsUnit", { number: rejectingBill.unit_number || "—" })}`
+            : undefined
+        }
+        submitting={Boolean(rejectingBill && busyId === rejectingBill.id)}
+        onClose={() => setRejectingBill(null)}
+        onSubmit={(payload) => submitRejectPayment(payload)}
+      />
     </SafeAreaView>
   );
 }
@@ -507,6 +533,26 @@ const styles = {
     fontFamily: Fonts.semiBold,
     fontSize: sf(12),
     color: PropertyHubTheme.textMuted,
+  },
+  rejectBox: {
+    marginTop: sw(12),
+    padding: sw(12),
+    borderRadius: sw(12),
+    backgroundColor: PropertyHubTheme.dangerBg,
+    borderWidth: 1,
+    borderColor: PropertyHubTheme.dangerBorder,
+  },
+  rejectLabel: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(12),
+    color: PropertyHubTheme.dangerText,
+    marginBottom: sw(4),
+  },
+  rejectReason: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(13),
+    color: PropertyHubTheme.dangerText,
+    lineHeight: sf(18),
   },
   actions: {
     flexDirection: "row",

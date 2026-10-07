@@ -20,6 +20,7 @@ import {
   resolveViewerBillingAccess,
   submitServiceBillProof,
 } from "../../../../services/property-services-api";
+import { isRejectedBillStatus } from "../../../../constants/payment-rejection";
 
 function formatAmount(amount) {
   if (amount == null || amount === "") return "—";
@@ -63,6 +64,10 @@ function billWasAcknowledged(bill) {
   return ["acknowledged", "pending_verification", "paid"].includes(status);
 }
 
+function isRejectedBill(bill) {
+  return isRejectedBillStatus(bill?.status);
+}
+
 function mergeAcknowledgedBill(bill, updated) {
   const next = updated && typeof updated === "object" ? { ...bill, ...updated } : { ...bill };
   return {
@@ -74,13 +79,19 @@ function mergeAcknowledgedBill(bill, updated) {
   };
 }
 
-function BillCard({ bill, busy, onAcknowledge, onViewInvoice, t }) {
+function BillCard({ bill, busy, onAcknowledge, onViewInvoice, onViewReason, t }) {
   const status = statusMeta(bill, t);
   const due = formatDueDate(bill.due_date);
   const acknowledged = billWasAcknowledged(bill);
+  const rejected = isRejectedBill(bill);
+  const rejectionReason = String(bill.rejection_reason ?? "").trim();
   const showAcknowledgeButton = Boolean(bill.can_acknowledge) && !acknowledged;
-  const showAcknowledged = !showAcknowledgeButton && (acknowledged || Boolean(bill.require_acknowledgement && !bill.can_acknowledge));
-  const viewInvoicePrimary = !showAcknowledgeButton && Boolean(bill.can_submit_proof);
+  const showAcknowledged = !showAcknowledgeButton && !rejected
+    && (acknowledged || Boolean(bill.require_acknowledgement && !bill.can_acknowledge));
+  const viewActionPrimary = !showAcknowledgeButton && !showAcknowledged && Boolean(bill.can_submit_proof);
+  const viewActionHandler = rejected ? onViewReason : onViewInvoice;
+  const viewActionLabel = rejected ? t("services.unitBillsViewReason") : t("services.unitBillsViewInvoice");
+  const viewActionIcon = rejected ? "alert-circle" : "file-text";
 
   return (
     <View style={styles.card}>
@@ -120,6 +131,13 @@ function BillCard({ bill, busy, onAcknowledge, onViewInvoice, t }) {
         ) : null}
       </View>
 
+      {rejected ? (
+        <View style={styles.rejectBox}>
+          <Text style={styles.rejectLabel}>{t("propertyMgmt.rejectionReason")}:</Text>
+          <Text style={styles.rejectReason}>{rejectionReason || "—"}</Text>
+        </View>
+      ) : null}
+
       {showAcknowledgeButton ? (
         <Pressable
           disabled={busy}
@@ -141,9 +159,13 @@ function BillCard({ bill, busy, onAcknowledge, onViewInvoice, t }) {
 
       <Pressable
         disabled={busy}
-        onPress={onViewInvoice}
+        onPress={viewActionHandler}
         style={[
-          viewInvoicePrimary ? styles.primaryBtn : styles.secondaryBtn,
+          rejected
+            ? styles.viewReasonBtn
+            : viewActionPrimary
+              ? styles.primaryBtn
+              : styles.secondaryBtn,
           (showAcknowledgeButton || showAcknowledged) ? styles.followAction : styles.firstAction,
           busy ? styles.disabled : null,
         ]}
@@ -151,13 +173,13 @@ function BillCard({ bill, busy, onAcknowledge, onViewInvoice, t }) {
         <View style={styles.actionInner}>
           <View style={styles.actionIcon}>
             <Feather
-              name="file-text"
+              name={viewActionIcon}
               size={sf(15)}
-              color={viewInvoicePrimary ? "#FFFFFF" : PropertyHubTheme.deepTeal}
+              color={rejected || viewActionPrimary ? "#FFFFFF" : PropertyHubTheme.deepTeal}
             />
           </View>
-          <Text style={viewInvoicePrimary ? styles.primaryText : styles.secondaryText}>
-            {t("services.unitBillsViewInvoice")}
+          <Text style={rejected || viewActionPrimary ? styles.primaryText : styles.secondaryText}>
+            {viewActionLabel}
           </Text>
         </View>
       </Pressable>
@@ -287,6 +309,7 @@ export default function UnitBillsScreen() {
                 busy={busyId === bill.id}
                 onAcknowledge={() => void handleAcknowledge(bill)}
                 onViewInvoice={() => setInvoiceFor(bill)}
+                onViewReason={() => setInvoiceFor(bill)}
                 t={t}
               />
             ))
@@ -483,6 +506,26 @@ const styles = {
     fontSize: sf(12),
     color: PropertyHubTheme.textMuted,
   },
+  rejectBox: {
+    marginTop: sw(12),
+    padding: sw(12),
+    borderRadius: sw(12),
+    backgroundColor: PropertyHubTheme.dangerBg,
+    borderWidth: 1,
+    borderColor: PropertyHubTheme.dangerBorder,
+  },
+  rejectLabel: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(12),
+    color: PropertyHubTheme.dangerText,
+    marginBottom: sw(4),
+  },
+  rejectReason: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(13),
+    color: PropertyHubTheme.dangerText,
+    lineHeight: sf(18),
+  },
   ackedSlot: {
     marginTop: sw(14),
     minHeight: sw(44),
@@ -511,6 +554,14 @@ const styles = {
     minHeight: sw(44),
     borderRadius: sw(12),
     backgroundColor: PropertyHubTheme.text,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  viewReasonBtn: {
+    marginTop: sw(14),
+    minHeight: sw(44),
+    borderRadius: sw(12),
+    backgroundColor: PropertyHubTheme.dangerText,
     alignItems: "center",
     justifyContent: "center",
   },

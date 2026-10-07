@@ -5,6 +5,7 @@ import { HOME_SECTION_CARD_LIMIT } from "../constants/home-sections";
 import { guessImageMeta, persistUploadAsset, uploadMultipartFile } from "../utils/upload-form-data";
 import i18n from "../i18n";
 import { normalizeCapacityBookingType } from "../utils/amenity-display";
+import { buildPaymentRejectionBody } from "../constants/payment-rejection";
 
 export async function fetchAmenities() {
   const res = await apiRequest("/amenities");
@@ -209,14 +210,14 @@ export async function fetchAmenityBills(amenityId) {
 
 /** All shared amenity bills for the signed-in resident. */
 export async function fetchMyAmenityBills() {
-  const res = await apiRequest("/amenity-bills");
+  const res = await apiRequest("/amenity-bills", { cache: "no-store" });
   return res.data ?? [];
 }
 
 /** Bills for amenities the signed-in user created. */
 export async function fetchAmenityOwnerBills(status = "all") {
   const query = status && status !== "all" ? `?status=${encodeURIComponent(status)}` : "";
-  const res = await apiRequest(`/amenity-owner-bills${query}`);
+  const res = await apiRequest(`/amenity-owner-bills${query}`, { cache: "no-store" });
   return res.data ?? [];
 }
 
@@ -229,14 +230,17 @@ export async function approveAmenityOwnerPayment(amenityId, residentBillId) {
 }
 
 export async function rejectAmenityOwnerPayment(amenityId, residentBillId, rejection_code, rejection_reason) {
+  const payload = typeof rejection_code === "object" && rejection_code !== null
+    ? rejection_code
+    : { rejection_code, rejection_reason };
   const res = await apiRequest(
     `/amenities/${amenityId}/resident-bills/${residentBillId}/reject`,
     {
       method: "PATCH",
-      body: { rejection_code, rejection_reason },
+      body: buildPaymentRejectionBody(payload.rejection_code, payload.rejection_reason),
     },
   );
-  return res.data;
+  return res?.data ?? null;
 }
 
 const PROOF_UPLOAD_TIMEOUT_MS = 30000;
@@ -318,7 +322,7 @@ export async function submitAmenityBillProof(amenityId, residentBillId, { fileAs
 
 export async function fetchAdminCommunityAmenityBills(status = "all") {
   const query = status && status !== "all" ? `?status=${encodeURIComponent(status)}` : "";
-  const res = await apiRequest(`/admin/amenity-bills${query}`);
+  const res = await apiRequest(`/admin/amenity-bills${query}`, { cache: "no-store" });
   return res.data ?? [];
 }
 
@@ -331,14 +335,17 @@ export async function approveAmenityResidentPayment(amenityId, residentBillId) {
 }
 
 export async function rejectAmenityResidentPayment(amenityId, residentBillId, rejection_code, rejection_reason) {
+  const payload = typeof rejection_code === "object" && rejection_code !== null
+    ? rejection_code
+    : { rejection_code, rejection_reason };
   const res = await apiRequest(
     `/admin/amenities/${amenityId}/resident-bills/${residentBillId}/reject`,
     {
       method: "PATCH",
-      body: { rejection_code, rejection_reason },
+      body: buildPaymentRejectionBody(payload.rejection_code, payload.rejection_reason),
     },
   );
-  return res.data;
+  return res?.data ?? null;
 }
 
 export async function publishAmenityMonthlyBill(amenityId, {

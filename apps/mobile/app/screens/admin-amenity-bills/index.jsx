@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import InternalScreenHeader from "../../../components/layout/internal-screen-header";
 import AmenityPaymentProofModal from "../../../components/property/amenity-payment-proof-modal";
+import PaymentRejectionModal from "../../../components/property/payment-rejection-modal";
 import FormDatePickerSheet from "../../../components/forms/form-date-picker-sheet";
 import { propertyStyles } from "../../../constants/property-styles";
 import { PropertyHubTheme } from "../../../constants/property-management-theme";
@@ -25,6 +26,12 @@ import { useApiAction } from "../../../hooks/use-api-action";
 import { sf, sw } from "../../../utils/responsive";
 import { rnShadow } from "../../../utils/shadow";
 import { pickImageFile } from "../../../utils/pickImage";
+import {
+  isRejectedBillStatus,
+  mergeBillRow,
+  normalizeRejectedBillRow,
+  paymentBillKey,
+} from "../../../constants/payment-rejection";
 import {
   approveAmenityResidentPayment,
   fetchAdminAmenities,
@@ -118,6 +125,9 @@ function BillCard({ bill, busy, onApprove, onReject, onPay, t }) {
   const reviewable = !onPay && canReviewBill(bill);
   const payable = Boolean(onPay) && canPayBill(bill);
   const amount = bill.amount ?? bill.resident_amount ?? bill.amount_per_resident;
+  const rejectionReason = String(bill.rejection_reason ?? "").trim();
+  const isRejected = isRejectedBillStatus(bill.status);
+  const isPayRejected = payable && isRejected;
 
   return (
     <View style={styles.card}>
@@ -156,6 +166,13 @@ function BillCard({ bill, busy, onApprove, onReject, onPay, t }) {
         ) : null}
       </View>
 
+      {isRejected ? (
+        <View style={styles.rejectBox}>
+          <Text style={styles.rejectLabel}>{t("propertyMgmt.rejectionReason")}:</Text>
+          <Text style={styles.rejectReason}>{rejectionReason || "—"}</Text>
+        </View>
+      ) : null}
+
       {payable ? (
         <Pressable
           onPress={onPay}
@@ -165,7 +182,9 @@ function BillCard({ bill, busy, onApprove, onReject, onPay, t }) {
           {busy ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
           ) : (
-            <Text style={styles.approveText}>{t("services.myAmenityBillsPay")}</Text>
+            <Text style={styles.approveText}>
+              {isPayRejected ? t("services.myAmenityBillsResubmitPay") : t("services.myAmenityBillsPay")}
+            </Text>
           )}
         </Pressable>
       ) : reviewable ? (
@@ -394,7 +413,7 @@ function PublishBillModal({ visible, amenities, submitting, onClose, onSubmit, t
 export default function AdminAmenityBillsScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { runAction, dialog, showFailure } = useApiAction();
+  const { runAction, showFailure } = useApiAction();
   const [bills, setBills] = useState([]);
   const [myBills, setMyBills] = useState([]);
   const [billingAmenities, setBillingAmenities] = useState([]);
@@ -408,6 +427,7 @@ export default function AdminAmenityBillsScreen() {
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [proofFor, setProofFor] = useState(null);
+  const [rejectingPayment, setRejectingPayment] = useState(null);
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -458,20 +478,23 @@ export default function AdminAmenityBillsScreen() {
     setBusyId(null);
   }
 
-  async function handleReject(bill) {
-    const choice = await dialog.showConfirm(
-      t("services.amenityBillsRejectTitle"),
-      t("services.amenityBillsRejectMsg"),
-      { confirmLabel: t("services.amenityBillsReject"), destructive: true },
-    );
-    if (choice !== "confirm") return;
-    setBusyId(bill.resident_bill_id);
+  async function submitRejectPayment(payload) {
+    if (!rejectingPayment) return;
+    const billId = rejectingPayment.resident_bill_id ?? rejectingPayment.id;
+    setBusyId(billId);
     await runAction({
-      action: () => rejectAmenityResidentPayment(bill.amenity_id, bill.resident_bill_id, "unclear_proof"),
+      action: () => rejectAmenityResidentPayment(rejectingPayment.amenity_id, billId, payload),
       successTitle: t("services.amenityBillsRejectedTitle"),
       successMessage: t("services.amenityBillsRejectedMsg"),
       errorTitle: t("services.amenityBillsCouldNotReview"),
-      onSuccess: () => load({ silent: true }),
+      onSuccess: (updated) => {
+        const row = normalizeRejectedBillRow(updated);
+        if (row) {
+          setBills((prev) => mergeBillRow(prev, row));
+        }
+        setRejectingPayment(null);
+        void load({ silent: true });
+      },
     });
     setBusyId(null);
   }
@@ -642,7 +665,7 @@ export default function AdminAmenityBillsScreen() {
                     bill={bill}
                     busy={busyId === bill.resident_bill_id}
                     onApprove={() => void handleApprove(bill)}
-                    onReject={() => void handleReject(bill)}
+                    onReject={() => setRejectingPayment(bill)}
                     t={t}
                   />
                 ))
@@ -674,6 +697,18 @@ export default function AdminAmenityBillsScreen() {
           }}
         />
       ) : null}
+
+      <PaymentRejectionModal
+        visible={Boolean(rejectingPayment)}
+        subtitle={
+          rejectingPayment
+            ? `${rejectingPayment.resident_name || t("services.amenityBillsResident")} · ${rejectingPayment.amenity_name || ""}`
+            : undefined
+        }
+        submitting={Boolean(rejectingPayment && busyId === paymentBillKey(rejectingPayment))}
+        onClose={() => setRejectingPayment(null)}
+        onSubmit={(payload) => submitRejectPayment(payload)}
+      />
     </SafeAreaView>
   );
 }
@@ -907,6 +942,26 @@ const styles = {
     fontFamily: Fonts.semiBold,
     fontSize: sf(12),
     color: PropertyHubTheme.textMuted,
+  },
+  rejectBox: {
+    marginTop: sw(12),
+    padding: sw(12),
+    borderRadius: sw(12),
+    backgroundColor: PropertyHubTheme.dangerBg,
+    borderWidth: 1,
+    borderColor: PropertyHubTheme.dangerBorder,
+  },
+  rejectLabel: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(12),
+    color: PropertyHubTheme.dangerText,
+    marginBottom: sw(4),
+  },
+  rejectReason: {
+    fontFamily: Fonts.regular,
+    fontSize: sf(13),
+    color: PropertyHubTheme.dangerText,
+    lineHeight: sf(18),
   },
   actions: { flexDirection: "row", gap: sw(10), marginTop: sw(14) },
   approveBtn: {

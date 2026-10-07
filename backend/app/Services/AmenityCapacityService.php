@@ -263,6 +263,10 @@ class AmenityCapacityService
             return round($unit, 2);
         }
 
+        if (! $timedSlot) {
+            return round($unit, 2);
+        }
+
         return round($unit * max(1, $guests), 2);
     }
 

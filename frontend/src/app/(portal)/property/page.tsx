@@ -217,7 +217,8 @@ export default function PropertyPage() {
     }
 
     const unitFee = amenity.shared_billing_enabled ? 0 : bookingFeeAmount(amenity.booking_fee);
-    const fee = reservationFeeTotal(unitFee, guestCount, fullSlot);
+    const openAccess = amenity.status === "open";
+    const fee = reservationFeeTotal(unitFee, guestCount, fullSlot, openAccess);
     const step = paidBookingPlaidStep(fee, capability);
     if (step === "link") {
       bookAmenityRef.current = amenity;
@@ -836,16 +837,19 @@ export default function PropertyPage() {
                   bookModal.shared_billing_enabled ? 0 : bookingFeeAmount(bookModal.booking_fee),
                   Math.max(1, parseInt(bookForm.guests, 10) || 1),
                   isFullSlotCapacity(bookModal.capacity_booking_type) && bookModal.status === "bookable",
+                  bookModal.status === "open",
                 )}
                 guests={Math.max(1, parseInt(bookForm.guests, 10) || 1)}
                 unitFee={bookModal.shared_billing_enabled ? 0 : bookingFeeAmount(bookModal.booking_fee)}
                 fullSlot={isFullSlotCapacity(bookModal.capacity_booking_type) && bookModal.status === "bookable"}
+                openAccess={bookModal.status === "open"}
               />
               <BookingPaymentFields
                 fee={bookStep === "proof" ? reservationFeeTotal(
                   bookModal.shared_billing_enabled ? 0 : bookingFeeAmount(bookModal.booking_fee),
                   Math.max(1, parseInt(bookForm.guests, 10) || 1),
                   isFullSlotCapacity(bookModal.capacity_booking_type) && bookModal.status === "bookable",
+                  bookModal.status === "open",
                 ) : 0}
                 form={payment}
                 errors={paymentErrors}

@@ -22,20 +22,20 @@ class LocalLoginAccountRestorer
             return false;
         }
 
-        $hasSystem = User::query()
+        return ! User::query()
             ->where('email', self::SYSTEM_ADMIN_EMAIL)
             ->whereNull('deleted_at')
             ->exists();
-        $hasTgi = User::query()
-            ->where('email', TgiCommunitySeeder::ADMIN_EMAIL)
-            ->whereNull('deleted_at')
-            ->exists();
-
-        return ! $hasSystem || ! $hasTgi;
     }
 
-    /** Fast path for HTTP: recreate the two login users without geography/demo data. */
+    /** Fast path for HTTP boot: recreate platform system admin only (no demo community admin). */
     public function restoreUsers(): void
+    {
+        $this->ensureSystemAdmin(verifyLogin: false);
+    }
+
+    /** Full local demo logins — use `php artisan havena:ensure-login-accounts` instead of HTTP boot. */
+    public function restoreDemoLoginUsers(): void
     {
         $this->ensureSystemAdmin(verifyLogin: false);
         $this->ensureTgiCommunityAdmin();

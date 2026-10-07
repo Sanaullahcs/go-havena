@@ -426,6 +426,12 @@ class PropertyServiceBillingTest extends TestCase
             ])->assertOk()->assertJsonPath('data.status', 'rejected');
 
         Sanctum::actingAs($ahmed);
+        $listed = collect($this->getJson('/api/v1/service-bills')->assertOk()->json('data'))
+            ->firstWhere('id', $billId);
+        $this->assertSame('rejected', $listed['status'] ?? null);
+        $this->assertSame('Payment proof is unclear', $listed['rejection_reason'] ?? null);
+        $this->assertTrue($listed['can_submit_proof'] ?? false);
+
         $this->post("/api/v1/service-bills/{$billId}/proof", [
             'payment_date' => '2026-09-21',
             'file' => UploadedFile::fake()->image('receipt-2.jpg', 400, 400),
@@ -436,6 +442,69 @@ class PropertyServiceBillingTest extends TestCase
             ->patchJson("/api/v1/admin/service-bills/{$billId}/approve")
             ->assertOk()
             ->assertJsonPath('data.status', 'paid');
+    }
+
+    public function test_service_bill_notice_includes_service_description_when_set(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $ahmed] = $this->seedCommunity(305);
+
+        $serviceDescription = 'Monthly cleaning service for common areas.';
+
+        Sanctum::actingAs($admin);
+        $serviceId = $this->withHeaders($this->headers($community->id))
+            ->postJson('/api/v1/admin/property-services', [
+                'name' => 'Common Area Cleaning',
+                'category' => 'maintenance',
+                'application_type' => 'automatic',
+                'amount' => 25,
+                'due_day' => 15,
+                'first_billing_month' => '2026-09',
+                'description' => $serviceDescription,
+                // No custom notice template — default bill message + service description.
+            ])->assertCreated()->json('data.id');
+
+        $noticeBodyTemplate = DB::table('property_services')->where('id', $serviceId)->value('notice_body');
+        $this->assertTrue($noticeBodyTemplate === null || trim((string) $noticeBodyTemplate) === '');
+
+        $noticeId = (int) DB::table('unit_service_bills')->where('service_id', $serviceId)->value('notice_id');
+        $this->assertGreaterThan(0, $noticeId);
+
+        $body = (string) DB::table('notices')->where('id', $noticeId)->value('body');
+        $this->assertStringContainsString('Common Area Cleaning', $body);
+        $this->assertStringContainsString('$25', $body);
+        $this->assertStringContainsString($serviceDescription, $body);
+
+        Sanctum::actingAs($ahmed);
+        $this->withHeaders($this->headers($community->id))
+            ->getJson("/api/v1/notices/{$noticeId}")
+            ->assertOk()
+            ->assertJsonPath('data.body', fn ($apiBody) => str_contains((string) $apiBody, $serviceDescription));
+    }
+
+    public function test_water_bill_notice_uses_correct_grammar_and_service_description(): void
+    {
+        ['community' => $community, 'admin' => $admin] = $this->seedCommunity(306);
+
+        Sanctum::actingAs($admin);
+        $serviceId = $this->withHeaders($this->headers($community->id))
+            ->postJson('/api/v1/admin/property-services', [
+                'name' => 'Water Bill',
+                'category' => 'water',
+                'application_type' => 'automatic',
+                'amount' => 100,
+                'due_day' => 10,
+                'first_billing_month' => '2026-09',
+                'description' => 'monthly water bill',
+            ])->assertCreated()->json('data.id');
+
+        $noticeId = (int) DB::table('unit_service_bills')->where('service_id', $serviceId)->value('notice_id');
+        $this->assertGreaterThan(0, $noticeId);
+
+        $body = (string) DB::table('notices')->where('id', $noticeId)->value('body');
+        $this->assertStringContainsString('Your Water Bill of $100', $body);
+        $this->assertStringNotContainsString('Bill bill', $body);
+        $this->assertStringContainsString('Due date: September 10.', $body);
+        $this->assertStringContainsString('monthly water bill', $body);
     }
 
     public function test_service_bill_notices_and_notifications_follow_review_lifecycle(): void
@@ -1819,6 +1888,95 @@ class PropertyServiceBillingTest extends TestCase
             ->postJson('/api/v1/admin/property-services', array_merge($payload, ['max_subscribers' => 100000]))
             ->assertCreated()
             ->assertJsonPath('data.max_subscribers', 100000);
+    }
+
+    public function test_optional_unsubscribe_withdraws_open_bills_but_keeps_paid_history(): void
+    {
+        Storage::fake('public');
+        ['community' => $community, 'admin' => $admin, 'resident' => $ahmed] = $this->seedCommunity(360);
+        $headers = $this->headers($community->id);
+
+        Sanctum::actingAs($admin);
+        $serviceId = $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', [
+                'name' => 'Garden Care',
+                'category' => 'maintenance',
+                'application_type' => 'optional',
+                'billing_frequency' => 'monthly',
+                'amount' => 45,
+                'due_day' => 12,
+                'requires_admin_approval' => false,
+                'first_billing_month' => '2026-09',
+                'unsubscribe_mode' => 'end_of_period',
+            ])->assertCreated()->json('data.id');
+
+        Sanctum::actingAs($ahmed);
+        $this->postJson("/api/v1/property-services/{$serviceId}/subscribe")->assertCreated();
+
+        $openBillId = (int) DB::table('unit_service_bills')->where('service_id', $serviceId)->value('id');
+        $this->assertGreaterThan(0, $openBillId);
+        $openNoticeId = (int) DB::table('unit_service_bills')->where('id', $openBillId)->value('notice_id');
+
+        $this->postJson("/api/v1/property-services/{$serviceId}/unsubscribe")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'cancelled');
+
+        $this->getJson('/api/v1/service-bills')
+            ->assertOk()
+            ->assertJsonMissing(['id' => $openBillId]);
+        $this->assertDatabaseMissing('unit_service_bills', ['id' => $openBillId]);
+        if ($openNoticeId > 0) {
+            $this->assertDatabaseMissing('notices', ['id' => $openNoticeId]);
+        }
+        $this->assertDatabaseHas('unit_service_subscriptions', [
+            'service_id' => $serviceId,
+            'status' => UnitServiceBillService::SUB_CANCELLED,
+        ]);
+        $catalog = collect($this->getJson('/api/v1/property-services')->assertOk()->json('data'));
+        $gardenCare = $catalog->firstWhere('id', $serviceId);
+        $this->assertTrue($gardenCare['can_subscribe'] ?? false);
+        $this->assertNull($gardenCare['unit_subscription'] ?? null);
+
+        Sanctum::actingAs($admin);
+        $paidServiceId = $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', [
+                'name' => 'Pool Pass',
+                'category' => 'water',
+                'application_type' => 'optional',
+                'billing_frequency' => 'one_time',
+                'amount' => 90,
+                'requires_admin_approval' => false,
+            ])->assertCreated()->json('data.id');
+
+        Sanctum::actingAs($ahmed);
+        $this->postJson("/api/v1/property-services/{$paidServiceId}/subscribe")->assertCreated();
+        $paidBillId = (int) DB::table('unit_service_bills')->where('service_id', $paidServiceId)->value('id');
+        $this->assertGreaterThan(0, $paidBillId);
+
+        $this->post("/api/v1/service-bills/{$paidBillId}/proof", [
+            'payment_date' => '2026-09-20',
+            'file' => UploadedFile::fake()->image('pool-pass.jpg', 400, 400),
+        ])->assertOk();
+
+        Sanctum::actingAs($admin);
+        $this->withHeaders($headers)
+            ->patchJson("/api/v1/admin/service-bills/{$paidBillId}/approve")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'paid');
+
+        Sanctum::actingAs($ahmed);
+        $this->postJson("/api/v1/property-services/{$paidServiceId}/unsubscribe")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'cancelled');
+
+        $this->getJson('/api/v1/service-bills')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $paidBillId, 'status' => 'paid']);
+
+        Sanctum::actingAs($admin);
+        $adminBills = collect($this->withHeaders($headers)->getJson('/api/v1/admin/service-bills')->assertOk()->json('data'));
+        $this->assertTrue($adminBills->contains(fn ($row) => (int) ($row['id'] ?? 0) === $paidBillId && ($row['status'] ?? '') === 'paid'));
+        $this->assertFalse($adminBills->contains(fn ($row) => (int) ($row['id'] ?? 0) === $openBillId));
     }
 
     private function addUnitResident(int $communityId, string $name, string $unitNumber, string $phone): User

@@ -48,9 +48,11 @@ export default function ReservationCalender() {
   const { t } = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
-  const { id, name, status, isMine, bookingFee, capacity, capacityBookingType } = useLocalSearchParams();
+  const { id, name, status, isMine, bookingFee, capacity, capacityBookingType, sharedBillingEnabled } =
+    useLocalSearchParams();
   const amenityId = Number(id);
   const isOpenMode = String(status) === "open";
+  const isSharedBilling = sharedBillingEnabled === "1" || sharedBillingEnabled === "true";
   const ownedByMe = isMine === "1" || isMine === "true";
   const unitFee = bookingFeeAmount(bookingFee);
   const amenityCapacity = Math.max(0, Number(capacity) || 0);
@@ -58,6 +60,7 @@ export default function ReservationCalender() {
     normalizeCapacityBookingType(capacityBookingType),
   );
   const fullSlot = !isOpenMode && isFullSlotCapacity(slotCapacityType);
+  const showGuestCount = !isOpenMode && !isSharedBilling && !fullSlot;
 
   const [selectedDate, setSelectedDate] = useState(DATES[0]?.key ?? null);
   const [selectedSlot, setSelectedSlot] = useState(null);
@@ -100,7 +103,7 @@ export default function ReservationCalender() {
     remainingForward: selectedSlotRow?.remaining_forward,
     fullSlot,
   });
-  const fee = reservationFeeTotal(unitFee, Math.max(1, guests), fullSlot);
+  const fee = reservationFeeTotal(unitFee, Math.max(1, guests), fullSlot, isOpenMode);
 
   useEffect(() => {
     setSlotCapacityType(normalizeCapacityBookingType(capacityBookingType));
@@ -192,7 +195,7 @@ export default function ReservationCalender() {
           amenity_id: amenityId,
           date: selectedDate,
           time_slot: isOpenMode ? undefined : selectedSlot,
-          guests,
+          guests: showGuestCount ? guests : 1,
           paymentMethod,
         }),
         successTitle: t("propertyMgmt.requestSubmitted"),
@@ -214,7 +217,7 @@ export default function ReservationCalender() {
         errorTitle: t("propertyMgmt.couldNotBook"),
         onSuccess: () => router.replace(amenityFlowRoutes(pathname).myBooking),
       });
-  }, [amenityId, guests, isOpenMode, name, pathname, router, runAction, selectedDate, selectedSlot, t]);
+  }, [amenityId, guests, isOpenMode, name, pathname, router, runAction, selectedDate, selectedSlot, showGuestCount, t]);
 
   const openPlaid = useCallback(async () => {
     let url = `${resolveAdminPortalBaseUrl()}/payments?connect=1&from=app`;
@@ -426,7 +429,7 @@ export default function ReservationCalender() {
                           remainingForward: slot.remaining_forward,
                         });
                         setGuests((prev) => Math.min(Math.max(1, prev), max));
-                        if (!fullSlot && max > 1) setSeatPickerOpen(true);
+                        if (showGuestCount && max > 1) setSeatPickerOpen(true);
                       }}
                       style={[
                         styles.slot,
@@ -471,7 +474,7 @@ export default function ReservationCalender() {
           {(isOpenMode || selectedSlot) && !selectedDateBooked ? (
             fullSlot ? (
               <Text style={styles.summaryLine}>{t("propertyMgmt.fullSlotBooksEntire", { capacity: amenityCapacity })}</Text>
-            ) : (
+            ) : showGuestCount ? (
               <View style={styles.guestRow}>
                 <Text style={styles.summaryLine}>{t("propertyMgmt.howManyGuests")}</Text>
                 <View style={styles.guestStepper}>
@@ -492,7 +495,7 @@ export default function ReservationCalender() {
                   </TouchableOpacity>
                 </View>
               </View>
-            )
+            ) : null
           ) : null}
           {fee > 0 ? (
             <View style={styles.feePanel}>
@@ -503,12 +506,14 @@ export default function ReservationCalender() {
               <Text style={styles.feeDetail}>
                 {fullSlot
                   ? t("propertyMgmt.feeForFullSlot", { amount: formatUsdAmount(unitFee) })
-                  : guests > 1
-                    ? t("propertyMgmt.feePerGuest", {
-                        amount: formatUsdAmount(unitFee),
-                        count: guests,
-                      })
-                    : t("propertyMgmt.feeForOneGuest")}
+                  : isOpenMode
+                    ? t("propertyMgmt.feeFlatPerRequest", { amount: formatUsdAmount(unitFee) })
+                    : guests > 1
+                      ? t("propertyMgmt.feePerGuest", {
+                          amount: formatUsdAmount(unitFee),
+                          count: guests,
+                        })
+                      : t("propertyMgmt.feeForOneGuest")}
               </Text>
               <Text style={styles.feeNote}>
                 {canChargeBank
@@ -573,7 +578,7 @@ export default function ReservationCalender() {
       </View>
 
       <Modal
-        visible={seatPickerOpen}
+        visible={showGuestCount && seatPickerOpen}
         transparent
         animationType="fade"
         onRequestClose={() => setSeatPickerOpen(false)}

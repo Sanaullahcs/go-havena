@@ -3,6 +3,7 @@ import { apiRequest, ApiError } from "./api-client";
 import { getCommunityId, getToken, getUser } from "./auth-session";
 import { persistUploadAsset, uploadMultipartFile } from "../utils/upload-form-data";
 import i18n from "../i18n";
+import { buildPaymentRejectionBody } from "../constants/payment-rejection";
 
 const SERVICE_CATEGORY_KEYS = [
   "electricity",
@@ -142,7 +143,7 @@ export async function unsubscribeFromPropertyService(id) {
 }
 
 export async function fetchServiceBills() {
-  const res = await apiRequest("/service-bills");
+  const res = await apiRequest("/service-bills", { cache: "no-store" });
   return res.data ?? [];
 }
 
@@ -203,7 +204,7 @@ export async function generateAdminServiceBills(id, payload) {
 
 export async function fetchAdminServiceBills(status = "all") {
   const query = status && status !== "all" ? `?status=${encodeURIComponent(status)}` : "";
-  const res = await apiRequest(`/admin/service-bills${query}`);
+  const res = await apiRequest(`/admin/service-bills${query}`, { cache: "no-store" });
   return res.data ?? [];
 }
 
@@ -213,9 +214,12 @@ export async function approveAdminServiceBill(id) {
 }
 
 export async function rejectAdminServiceBill(id, rejection_code, rejection_reason) {
+  const payload = typeof rejection_code === "object" && rejection_code !== null
+    ? rejection_code
+    : { rejection_code, rejection_reason };
   const res = await apiRequest(`/admin/service-bills/${id}/reject`, {
     method: "PATCH",
-    body: { rejection_code, rejection_reason },
+    body: buildPaymentRejectionBody(payload.rejection_code, payload.rejection_reason),
   });
-  return res.data;
+  return res?.data ?? null;
 }

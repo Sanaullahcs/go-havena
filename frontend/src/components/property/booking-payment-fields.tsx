@@ -31,9 +31,15 @@ export function isFullSlotCapacity(type?: string | string[] | null): boolean {
   return normalizeCapacityBookingType(type) === "full_slot";
 }
 
-export function reservationFeeTotal(unitFee: number, guests: number, fullSlot = false): number {
+export function reservationFeeTotal(
+  unitFee: number,
+  guests: number,
+  fullSlot = false,
+  openAccess = false,
+): number {
   if (!(unitFee > 0)) return 0;
-  return fullSlot ? unitFee : unitFee * Math.max(1, guests);
+  if (fullSlot || openAccess) return unitFee;
+  return unitFee * Math.max(1, guests);
 }
 
 export function maxBookableSeats(options: {
@@ -58,6 +64,7 @@ export function BookingPaymentSummary({
   guests,
   unitFee,
   fullSlot = false,
+  openAccess = false,
 }: {
   amenityName: string;
   date: string;
@@ -66,6 +73,7 @@ export function BookingPaymentSummary({
   guests?: number;
   unitFee?: number;
   fullSlot?: boolean;
+  openAccess?: boolean;
 }) {
   const guestCount = Math.max(1, Number(guests) || 1);
   const perPerson = unitFee != null && unitFee > 0 ? unitFee : guestCount > 1 && fee > 0 ? fee / guestCount : fee;
@@ -84,7 +92,7 @@ export function BookingPaymentSummary({
         <span className="font-semibold text-slate-500">Slot: </span>
         {slot || "Open access"}
       </p>
-      {!fullSlot && guestCount > 0 ? (
+      {!fullSlot && !openAccess && guestCount > 0 ? (
         <p className="mt-1">
           <span className="font-semibold text-slate-500">Seats: </span>
           {guestCount}
@@ -101,9 +109,11 @@ export function BookingPaymentSummary({
         <span className="font-bold text-slate-900">
           {fee > 0 && fullSlot
             ? `${formatUsdAmount(fee)} (per slot)`
-            : fee > 0 && perPerson > 0 && guestCount > 1
-              ? `${formatUsdAmount(perPerson)} × ${guestCount} = ${formatUsdAmount(fee)}`
-              : formatUsdAmount(fee)}
+            : fee > 0 && openAccess
+              ? `${formatUsdAmount(fee)} (per request)`
+              : fee > 0 && perPerson > 0 && guestCount > 1
+                ? `${formatUsdAmount(perPerson)} × ${guestCount} = ${formatUsdAmount(fee)}`
+                : formatUsdAmount(fee)}
         </span>
       </p>
     </div>

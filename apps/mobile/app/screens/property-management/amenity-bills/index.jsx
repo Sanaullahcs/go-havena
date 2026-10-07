@@ -15,6 +15,7 @@ import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../../components/layout/internal-screen-header";
 import AmenityPaymentProofModal from "../../../../components/property/amenity-payment-proof-modal";
+import PaymentRejectionModal from "../../../../components/property/payment-rejection-modal";
 import AmenityIcon from "../../../../components/property/amenity-icon";
 import { propertyStyles } from "../../../../constants/property-styles";
 import { PropertyHubTheme } from "../../../../constants/property-management-theme";
@@ -23,7 +24,6 @@ import { Layout } from "../../../../constants/tokens";
 import {
   approveAmenityOwnerPayment,
   approveBooking,
-  fetchAmenities,
   fetchAmenityOwnerBills,
   fetchBookingInbox,
   fetchMyAmenityBills,
@@ -35,8 +35,10 @@ import { sf, sw } from "../../../../utils/responsive";
 import { rnShadow } from "../../../../utils/shadow";
 import { formatBookingDisplayFee, formatUsdAmount } from "../../../../utils/amenity-display";
 import { localizedField } from "../../../../i18n";
+import { mergeBillRow, normalizeRejectedBillRow, paymentBillKey } from "../../../../constants/payment-rejection";
 
-const MINE_TAB = "mine";
+const PAY_TAB = "pay";
+const RECEIVE_TAB = "receive";
 
 function formatDueDate(value) {
   if (!value) return null;
@@ -76,6 +78,29 @@ function bookingStatusMeta(booking, t) {
   return { label: t("propertyMgmt.statusPending"), tone: "pending" };
 }
 
+function billStatusOverridesBooking(bill) {
+  const key = String(bill?.status ?? "").toLowerCase();
+  return ["rejected", "pending_verification", "paid"].includes(key);
+}
+
+function receivedPaymentStatusMeta(booking, bill, t) {
+  if (booking && String(booking.status ?? "").toLowerCase() === "pending" && !bill) {
+    return { label: t("services.myAmenityBillsBookingRequest"), tone: "pending" };
+  }
+  if (bill && billStatusOverridesBooking(bill)) {
+    const key = String(bill.status ?? "").toLowerCase();
+    if (key === "rejected") {
+      return {
+        label: bill.status_label || t("services.myAmenityBillsPaymentRejected"),
+        tone: "danger",
+      };
+    }
+    return statusMeta(bill, t);
+  }
+  if (booking) return bookingStatusMeta(booking, t);
+  return statusMeta(bill || {}, t);
+}
+
 function canPay(bill) {
   const status = String(bill.status ?? "").toLowerCase();
   return ["unpaid", "rejected", "overdue"].includes(status);
@@ -85,6 +110,9 @@ function BillCard({ bill, busy, onPay, t }) {
   const status = statusMeta(bill, t);
   const due = formatDueDate(bill.due_date);
   const amount = bill.amount ?? bill.resident_amount ?? bill.amount_per_resident;
+  const billStatus = String(bill.status ?? "").toLowerCase();
+  const isRejected = billStatus === "rejected";
+  const rejectionReason = String(bill.rejection_reason ?? "").trim();
 
   return (
     <View style={styles.card}>
@@ -117,8 +145,11 @@ function BillCard({ bill, busy, onPay, t }) {
         ) : null}
       </View>
 
-      {bill.rejection_reason ? (
-        <Text style={styles.rejectReason}>{bill.rejection_reason}</Text>
+      {isRejected ? (
+        <View style={styles.rejectBox}>
+          <Text style={styles.rejectLabel}>{t("propertyMgmt.rejectionReason")}:</Text>
+          <Text style={styles.rejectReason}>{rejectionReason || "—"}</Text>
+        </View>
       ) : null}
 
       {canPay(bill) ? (
@@ -130,7 +161,9 @@ function BillCard({ bill, busy, onPay, t }) {
           {busy ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.primaryText}>{t("services.myAmenityBillsPay")}</Text>
+            <Text style={styles.primaryText}>
+              {isRejected ? t("services.myAmenityBillsResubmitPay") : t("services.myAmenityBillsPay")}
+            </Text>
           )}
         </Pressable>
       ) : (
@@ -148,12 +181,17 @@ function BillCard({ bill, busy, onPay, t }) {
 }
 
 function ReceivedPaymentCard({ booking, bill, busy, onApprove, onReject, onApprovePayment, onRejectPayment, t }) {
-  const status = booking ? bookingStatusMeta(booking, t) : statusMeta(bill || {}, t);
+  const status = receivedPaymentStatusMeta(booking, bill, t);
+  const billStatus = String(bill?.status ?? "").toLowerCase();
+  const rejectionReason = String(bill?.rejection_reason ?? "").trim();
   const amenityName = localizedField(booking || bill || {}, "amenity_name") || booking?.amenity_name || bill?.amenity_name;
   const dateLabel = formatDueDate(booking?.date || bill?.due_date);
   const proof = bill?.payment_proof || booking?.payment_proof;
-  const canReviewBooking = booking?.status === "pending";
+  const bookingPending = String(booking?.status ?? "").toLowerCase() === "pending";
+  const canReviewBooking = bookingPending && !bill;
   const canReviewPayment = bill?.can_review === true || String(bill?.status ?? "").toLowerCase() === "pending_verification";
+  const awaitingGuestPayment =
+    String(booking?.status ?? "").toLowerCase() === "awaiting_payment" && !canReviewPayment && !bill;
 
   return (
     <View style={styles.card}>
@@ -195,7 +233,11 @@ function ReceivedPaymentCard({ booking, bill, busy, onApprove, onReject, onAppro
         ) : null}
       </View>
 
-      {proof ? (
+      {canReviewBooking ? (
+        <Text style={styles.infoText}>{t("services.myAmenityBillsBookingRequestHint")}</Text>
+      ) : awaitingGuestPayment ? (
+        <Text style={styles.infoText}>{t("services.myAmenityBillsAwaitingGuestPayment")}</Text>
+      ) : proof ? (
         <View style={styles.proofBox}>
           <Text style={styles.proofLine}>
             {t("propertyMgmt.paymentDate")}: {proof.payment_date || "—"}
@@ -209,9 +251,16 @@ function ReceivedPaymentCard({ booking, bill, busy, onApprove, onReject, onAppro
             </Pressable>
           ) : null}
         </View>
-      ) : (
+      ) : bill ? (
         <Text style={styles.infoText}>{t("services.myAmenityBillsNoProof")}</Text>
-      )}
+      ) : null}
+
+      {billStatus === "rejected" ? (
+        <View style={styles.rejectBox}>
+          <Text style={styles.rejectLabel}>{t("propertyMgmt.rejectionReason")}:</Text>
+          <Text style={styles.rejectReason}>{rejectionReason || "—"}</Text>
+        </View>
+      ) : null}
 
       {canReviewBooking ? (
         <View style={styles.reviewRow}>
@@ -264,13 +313,13 @@ function ReceivedPaymentCard({ booking, bill, busy, onApprove, onReject, onAppro
 
 export default function MyAmenityBillsScreen() {
   const { t } = useTranslation();
-  const { runAction, dialog, showFailure } = useApiAction();
-  const [tab, setTab] = useState(MINE_TAB);
+  const { runAction, showFailure } = useApiAction();
+  const [tab, setTab] = useState(PAY_TAB);
   const [bills, setBills] = useState([]);
   const [ownerBills, setOwnerBills] = useState([]);
-  const [amenities, setAmenities] = useState([]);
   const [inbox, setInbox] = useState([]);
   const [proofFor, setProofFor] = useState(null);
+  const [rejectingPayment, setRejectingPayment] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -278,15 +327,13 @@ export default function MyAmenityBillsScreen() {
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
-      const [nextBills, nextOwnerBills, nextAmenities, nextInbox] = await Promise.all([
+      const [nextBills, nextOwnerBills, nextInbox] = await Promise.all([
         fetchMyAmenityBills().catch(() => []),
         fetchAmenityOwnerBills().catch(() => []),
-        fetchAmenities().catch(() => []),
         fetchBookingInbox().catch(() => []),
       ]);
       setBills(Array.isArray(nextBills) ? nextBills : []);
       setOwnerBills(Array.isArray(nextOwnerBills) ? nextOwnerBills : []);
-      setAmenities(Array.isArray(nextAmenities) ? nextAmenities : []);
       setInbox(Array.isArray(nextInbox) ? nextInbox : []);
     } catch (error) {
       await showFailure(t("services.myAmenityBillsTitle"), error);
@@ -298,50 +345,52 @@ export default function MyAmenityBillsScreen() {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const myAmenities = useMemo(() => {
-    const fromList = amenities.filter((item) => item.is_mine);
-    const byId = new Map(fromList.map((item) => [Number(item.id), item]));
-    for (const booking of inbox) {
-      const id = Number(booking.amenity_id);
-      if (!id || byId.has(id)) continue;
-      byId.set(id, {
-        id,
-        name: booking.amenity_name,
-        name_es: booking.amenity_name_es,
-        name_ar: booking.amenity_name_ar,
-        icon_key: booking.amenity_icon_key,
-        is_mine: true,
-      });
-    }
-    return [...byId.values()];
-  }, [amenities, inbox]);
+  const tabs = useMemo(
+    () => [
+      { id: PAY_TAB, label: t("services.myAmenityBillsTabPay") },
+      { id: RECEIVE_TAB, label: t("services.myAmenityBillsTabReceive") },
+    ],
+    [t],
+  );
 
-  const tabs = useMemo(() => [
-    { id: MINE_TAB, label: t("services.myAmenityBillsTabMine") },
-    ...myAmenities.map((amenity) => ({
-      id: `amenity-${amenity.id}`,
-      amenityId: Number(amenity.id),
-      label: localizedField(amenity, "name") || amenity.name,
-    })),
-  ], [myAmenities, t]);
-
-  const selectedAmenityId = tab.startsWith("amenity-") ? Number(tab.replace("amenity-", "")) : null;
-  const receivedPayments = useMemo(() => {
-    if (!selectedAmenityId) return [];
-    const amenityBookings = inbox.filter((booking) => Number(booking.amenity_id) === selectedAmenityId);
-    const amenityBills = ownerBills.filter((bill) => Number(bill.amenity_id) === selectedAmenityId);
+  const billsToReceive = useMemo(() => {
     const usedBillIds = new Set();
-    const items = amenityBookings.map((booking) => {
-      const bill = amenityBills.find((row) => Number(row.booking_id) === Number(booking.id));
+    const items = [];
+
+    for (const booking of inbox) {
+      const status = String(booking.status ?? "").toLowerCase();
+      if (status === "cancelled" || status === "rejected") continue;
+
+      const bill = ownerBills.find((row) => Number(row.booking_id) === Number(booking.id)) || null;
       if (bill?.resident_bill_id) usedBillIds.add(Number(bill.resident_bill_id));
-      return { key: `booking-${booking.id}`, booking, bill };
-    });
-    for (const bill of amenityBills) {
+
+      if (status === "pending") {
+        items.push({ key: `booking-${booking.id}`, booking, bill: null });
+        continue;
+      }
+
+      if (bill) {
+        const billStatus = String(bill.status ?? "").toLowerCase();
+        const needsReview = bill.can_review === true || billStatus === "pending_verification";
+        const openForGuest = billStatus === "unpaid" || billStatus === "rejected" || billStatus === "overdue";
+        if (needsReview || openForGuest || status === "awaiting_payment") {
+          items.push({ key: `booking-${booking.id}`, booking, bill });
+        }
+        continue;
+      }
+
+      if (status === "awaiting_payment") {
+        items.push({ key: `booking-${booking.id}`, booking, bill: null });
+      }
+    }
+
+    for (const bill of ownerBills) {
       if (usedBillIds.has(Number(bill.resident_bill_id))) continue;
       items.push({ key: `bill-${bill.resident_bill_id}`, booking: null, bill });
     }
+
     return items;
-  }, [inbox, ownerBills, selectedAmenityId]);
+  }, [inbox, ownerBills]);
 
   async function handleSubmitted() {
     setProofFor(null);
@@ -393,34 +442,42 @@ export default function MyAmenityBillsScreen() {
     }
   }
 
-  async function handleRejectPayment(bill) {
-    const choice = await dialog.showConfirm(
-      t("services.amenityBillsRejectTitle"),
-      t("services.amenityBillsRejectMsg"),
-      { confirmLabel: t("services.amenityBillsReject"), destructive: true },
-    );
-    if (choice !== "confirm") return;
-    setBusyId(bill.resident_bill_id);
+  async function submitRejectPayment(payload) {
+    if (!rejectingPayment) return;
+    const billId = rejectingPayment.resident_bill_id ?? rejectingPayment.id;
+    setBusyId(billId);
     try {
       await runAction({
-        action: () => rejectAmenityOwnerPayment(bill.amenity_id, bill.resident_bill_id, "unclear_proof"),
+        action: () => rejectAmenityOwnerPayment(
+          rejectingPayment.amenity_id,
+          billId,
+          payload,
+        ),
         successTitle: t("services.amenityBillsRejectedTitle"),
         successMessage: t("services.amenityBillsRejectedMsg"),
         errorTitle: t("services.amenityBillsCouldNotReview"),
-        onSuccess: () => load({ silent: true }),
+        onSuccess: (updated) => {
+          const row = normalizeRejectedBillRow(updated);
+          if (row) {
+            setOwnerBills((prev) => mergeBillRow(prev, row));
+            setBills((prev) => mergeBillRow(prev, row));
+          }
+          setRejectingPayment(null);
+          void load({ silent: true });
+        },
       });
     } finally {
       setBusyId(null);
     }
   }
 
-  const showingMine = tab === MINE_TAB;
+  const showingPay = tab === PAY_TAB;
 
   return (
     <SafeAreaView style={propertyStyles.screenMuted} edges={["left", "right"]}>
       <InternalScreenHeader
         title={t("services.myAmenityBillsTitle")}
-        subtitle={showingMine ? t("services.myAmenityBillsSub") : t("services.myAmenityBillsReceivedSub")}
+        subtitle={showingPay ? t("services.myAmenityBillsSub") : t("services.myAmenityBillsReceivedSub")}
       />
 
       <View style={styles.toolbar}>
@@ -468,7 +525,7 @@ export default function MyAmenityBillsScreen() {
           <View style={styles.loader}>
             <ActivityIndicator color={PropertyHubTheme.teal} />
           </View>
-        ) : showingMine ? (
+        ) : showingPay ? (
           bills.length === 0 ? (
             <View style={styles.empty}>
               <Feather name="file-text" size={sf(28)} color={PropertyHubTheme.muted} />
@@ -486,14 +543,14 @@ export default function MyAmenityBillsScreen() {
               />
             ))
           )
-        ) : receivedPayments.length === 0 ? (
+        ) : billsToReceive.length === 0 ? (
           <View style={styles.empty}>
             <Feather name="credit-card" size={sf(28)} color={PropertyHubTheme.muted} />
             <Text style={styles.emptyTitle}>{t("services.myAmenityBillsReceivedEmptyTitle")}</Text>
             <Text style={styles.emptyBody}>{t("services.myAmenityBillsReceivedEmptyBody")}</Text>
           </View>
         ) : (
-          receivedPayments.map((item) => (
+          billsToReceive.map((item) => (
             <ReceivedPaymentCard
               key={item.key}
               booking={item.booking}
@@ -502,7 +559,7 @@ export default function MyAmenityBillsScreen() {
               onApprove={() => item.booking && void handleApprove(item.booking)}
               onReject={() => item.booking && void handleReject(item.booking)}
               onApprovePayment={() => item.bill && void handleApprovePayment(item.bill)}
-              onRejectPayment={() => item.bill && void handleRejectPayment(item.bill)}
+              onRejectPayment={() => item.bill && setRejectingPayment(item.bill)}
               t={t}
             />
           ))
@@ -519,6 +576,18 @@ export default function MyAmenityBillsScreen() {
           onSubmitted={() => void handleSubmitted()}
         />
       ) : null}
+
+      <PaymentRejectionModal
+        visible={Boolean(rejectingPayment)}
+        subtitle={
+          rejectingPayment
+            ? `${rejectingPayment.resident_name || t("admin.resident")} · ${localizedField(rejectingPayment, "amenity_name") || rejectingPayment.amenity_name || ""}`
+            : undefined
+        }
+        submitting={Boolean(rejectingPayment && busyId === paymentBillKey(rejectingPayment))}
+        onClose={() => setRejectingPayment(null)}
+        onSubmit={(payload) => submitRejectPayment(payload)}
+      />
     </SafeAreaView>
   );
 }
@@ -624,10 +693,25 @@ const styles = StyleSheet.create({
     paddingVertical: sw(5),
   },
   chipText: { fontFamily: Fonts.semiBold, fontSize: sf(12), color: "#1B4F8A" },
+  rejectBox: {
+    borderRadius: sw(10),
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    backgroundColor: "#FEF2F2",
+    paddingHorizontal: sw(12),
+    paddingVertical: sw(10),
+    gap: sw(4),
+  },
+  rejectLabel: {
+    fontFamily: Fonts.semiBold,
+    fontSize: sf(12),
+    color: "#991B1B",
+  },
   rejectReason: {
     fontFamily: Fonts.regular,
-    fontSize: sf(12),
-    color: "#B91C1C",
+    fontSize: sf(13),
+    lineHeight: sf(18),
+    color: "#7F1D1D",
   },
   primaryBtn: {
     backgroundColor: PropertyHubTheme.deepTeal,

@@ -72,7 +72,8 @@ class UtilityBillVerificationPipeline
             return UtilityBillDocumentVerdict::review('ocr_unavailable_confirm');
         }
 
-        return UtilityBillDocumentVerdict::reject('image_no_readable_bill_text');
+        // Heuristic already passed (review = ambiguous scan / phone photo of a bill).
+        return $middleware;
     }
 
     private function mergeVerdicts(
@@ -81,12 +82,6 @@ class UtilityBillVerificationPipeline
         UploadedFile $file,
         string $combined,
     ): UtilityBillDocumentVerdict {
-        if ($this->ocrStrictForImages($file)
-            && $middleware->reviewStatus === UtilityBillDocumentVerdict::REVIEW
-            && UtilityBillTextScorer::score($combined)['document'] === 0) {
-            return UtilityBillDocumentVerdict::reject('image_no_bill_or_lease_terms');
-        }
-
         if ($middleware->reviewStatus === UtilityBillDocumentVerdict::LIKELY
             && $ocr->reviewStatus === UtilityBillDocumentVerdict::LIKELY) {
             return UtilityBillDocumentVerdict::likely('middleware_and_ocr');
@@ -118,6 +113,6 @@ class UtilityBillVerificationPipeline
         }
 
         return str_starts_with($mime, 'image/')
-            || preg_match('/\.(jpe?g|png|gif|webp|bmp|heic|heif)$/i', $name) === 1;
+            || preg_match('/\.(jpe?g|jfif|png|gif|webp|bmp|heic|heif)$/i', $name) === 1;
     }
 }

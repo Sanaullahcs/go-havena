@@ -612,6 +612,11 @@ class UnitServiceBillService
 
     public function cancelSubscription(object $service, object $unit, int $userId): array
     {
+        if ($service->application_type !== PropertyServiceCatalogService::TYPE_OPTIONAL) {
+            throw ValidationException::withMessages([
+                'service' => 'Only optional services can be unsubscribed.',
+            ]);
+        }
         if ((int) ($unit->billing_contact_user_id ?? 0) !== $userId) {
             throw ValidationException::withMessages([
                 'service' => self::NOT_BILLING_CONTACT_MESSAGE,
@@ -625,7 +630,7 @@ class UnitServiceBillService
         abort_if(! $subscription || $subscription->status !== self::SUB_ACTIVE, 422, 'No active subscription found.');
 
         $now = now();
-        if (($service->unsubscribe_mode ?? 'end_of_period') === 'immediate') {
+        DB::transaction(function () use ($subscription, $service, $unit, $userId, $now) {
             DB::table('unit_service_subscriptions')->where('id', $subscription->id)->update([
                 'status' => self::SUB_CANCELLED,
                 'cancelled_at' => $now,
@@ -633,16 +638,44 @@ class UnitServiceBillService
                 'ends_at' => $now,
                 'updated_at' => $now,
             ]);
-        } else {
-            DB::table('unit_service_subscriptions')->where('id', $subscription->id)->update([
-                'ends_at' => now()->endOfMonth(),
-                'cancelled_at' => $now,
-                'cancelled_by' => $userId,
-                'updated_at' => $now,
-            ]);
-        }
+            $this->withdrawOpenBillsForUnsubscribe((int) $service->id, (int) $unit->id);
+        });
 
         return $this->formatSubscription(DB::table('unit_service_subscriptions')->find($subscription->id));
+    }
+
+    /** Remove unpaid optional-service bills from the resident list; paid history is kept. */
+    private function withdrawOpenBillsForUnsubscribe(int $serviceId, int $unitId): void
+    {
+        $openStatuses = [
+            self::STATUS_UNPAID,
+            self::STATUS_OVERDUE,
+            self::STATUS_ACKNOWLEDGED,
+            self::STATUS_REJECTED,
+            self::STATUS_PENDING,
+        ];
+
+        $bills = DB::table('unit_service_bills')
+            ->where('service_id', $serviceId)
+            ->where('unit_id', $unitId)
+            ->whereIn('status', $openStatuses)
+            ->get(['id', 'notice_id']);
+
+        if ($bills->isEmpty()) {
+            return;
+        }
+
+        foreach ($bills as $bill) {
+            $noticeId = (int) ($bill->notice_id ?? 0);
+            if ($noticeId > 0) {
+                DB::table('notice_recipients')->where('notice_id', $noticeId)->delete();
+                DB::table('notices')->where('id', $noticeId)->delete();
+            }
+        }
+
+        DB::table('unit_service_bills')
+            ->whereIn('id', $bills->pluck('id')->map(fn ($id) => (int) $id)->all())
+            ->delete();
     }
 
     public function reviewSubscription(object $subscription, int $adminId, string $action, ?string $reason = null): array
@@ -1170,21 +1203,37 @@ class UnitServiceBillService
     {
         $template = trim((string) ($service->notice_body ?? ''));
         if ($template === '') {
-            return app(UnitServiceBillReminderService::class)->createdMessage(
+            $body = app(UnitServiceBillReminderService::class)->createdMessage(
+                (string) ($service->name ?? 'service'),
+                $bill,
+            );
+        } else {
+            $body = $this->interpolateNoticeTemplate($template, $service, $bill, $unitNumber);
+        }
+
+        if ($template !== '' && preg_match('/\{\{\s*(service|unit|month|amount)\s*\}\}/i', $body)) {
+            $body = app(UnitServiceBillReminderService::class)->createdMessage(
                 (string) ($service->name ?? 'service'),
                 $bill,
             );
         }
 
-        $body = $this->interpolateNoticeTemplate($template, $service, $bill, $unitNumber);
-        if (preg_match('/\{\{\s*(service|unit|month|amount)\s*\}\}/i', $body)) {
-            return app(UnitServiceBillReminderService::class)->createdMessage(
-                (string) ($service->name ?? 'service'),
-                $bill,
-            );
+        return $this->appendBillOrServiceDescription($body, $service, $bill);
+    }
+
+    private function appendBillOrServiceDescription(string $body, object $service, object $bill): string
+    {
+        $billDescription = trim((string) ($bill->description ?? ''));
+        $serviceDescription = trim((string) ($service->description ?? ''));
+        $extra = $billDescription !== '' ? $billDescription : $serviceDescription;
+
+        if ($extra === '') {
+            return $body;
         }
 
-        return $body;
+        $body = trim($body);
+
+        return $body === '' ? $extra : $body."\n\n".$extra;
     }
 
     private function publishFinanceNotice(object $service, object $bill, int $authorId, string $unitNumber): void

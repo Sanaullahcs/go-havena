@@ -41,6 +41,7 @@ export interface Amenity {
   user_next_booking_time_slot?: string | null;
   user_next_booking_status?: string | null;
   user_next_booking_guests?: number | null;
+  user_next_booking_can_cancel?: boolean;
   user_next_booking_bill?: AmenityMonthlyBill | null;
   created_at?: string;
   updated_at?: string;

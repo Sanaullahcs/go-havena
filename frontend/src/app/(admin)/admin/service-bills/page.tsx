@@ -386,6 +386,9 @@ export default function AdminServiceBillsPage() {
                   </DtCell>
                   <DtCell>
                     <AdminBadge tone={status.tone}>{status.label}</AdminBadge>
+                    {bill.status === "rejected" && bill.rejection_reason ? (
+                      <p className="mt-1 max-w-[12rem] text-xs text-rose-700">{bill.rejection_reason}</p>
+                    ) : null}
                   </DtCell>
                   <DtCell last right>
                     <AdminActionsMenu

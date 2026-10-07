@@ -70,7 +70,7 @@ const STEP_COPY: Record<AmenityFormStep, { label: string; title: string; hint: s
   billing: {
     label: "Billing",
     title: "Resident billing",
-    hint: "Choose free, a reservation fee per person, or shared billing per resident. Community admins are never billed.",
+    hint: "Choose free, a per-booking reservation fee, or shared billing per resident. Community admins are never billed.",
   },
   review: {
     label: "Review",
@@ -240,6 +240,20 @@ export function AmenityFormModal({
   );
   const chargeModel = amenityChargeModel(form);
   const bookingFeeFullSlot = form.capacity_booking_type === "full_slot";
+  const isOpenAccess = form.status === "open";
+  const bookingFeeLabel = isOpenAccess
+    ? "Reservation fee"
+    : bookingFeeFullSlot
+      ? "Reservation fee per slot"
+      : "Reservation fee per person";
+  const bookingFeeHint = isOpenAccess
+    ? "Flat fee for each open-access request. Billed after the owner approves."
+    : bookingFeeFullSlot
+      ? "Flat fee for the whole slot at booking. Billed after the owner approves."
+      : "Total at booking is this amount × number of guests. Billed after the owner approves.";
+  const perBookingChargeHint = isOpenAccess
+    ? "Charge a flat reservation fee for each access request."
+    : "Charge per person for seat-based slots, or once per booking for full-slot amenities.";
   const fieldError = (field: string, value?: string, max?: number) => {
     const message = liveErrors[field];
     if (!message) return undefined;
@@ -252,6 +266,10 @@ export function AmenityFormModal({
       setStep(visibleSteps.includes("review") ? "review" : visibleSteps[visibleSteps.length - 1]);
     }
   }, [step, visibleSteps]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
 
   useEffect(() => {
     if (!open) return;
@@ -383,7 +401,9 @@ export function AmenityFormModal({
       validateOnSubmit(stepErrors);
       return;
     }
-    setStep(visibleSteps[currentIndex + 1]);
+    const nextStep = visibleSteps[currentIndex + 1];
+    if (!nextStep) return;
+    setStep(nextStep);
   };
 
   const handleSubmit = async () => {
@@ -427,7 +447,7 @@ export function AmenityFormModal({
     {
       key: "booking",
       title: "Per booking",
-      hint: "Charge a reservation fee per person for per-seat amenities, or once per booking for full-slot amenities.",
+      hint: perBookingChargeHint,
     },
     {
       key: "monthly",
@@ -624,13 +644,6 @@ export function AmenityFormModal({
                     inputMode="numeric"
                     disabled={form.status === "closed"}
                   />
-                  <p className="mt-1 text-xs text-slate-500">
-                    {form.status === "bookable"
-                      ? form.capacity_booking_type === "full_slot"
-                        ? "This many people fit in the slot. One booking still reserves the whole slot."
-                        : "Several residents can book the same slot until this many seats are reserved."
-                      : "Capacity is required when Slots is selected."}
-                  </p>
                   {fieldError("capacity") ? (
                     <p className="mt-1 text-xs text-red-600">{liveErrors.capacity}</p>
                   ) : (
@@ -741,9 +754,6 @@ export function AmenityFormModal({
                         );
                       })}
                     </div>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Choose a type to continue. Reservation fee is only needed for per-booking amenities.
-                    </p>
                     {fieldError("charge_model") ? (
                       <p className="mt-1 text-xs text-red-600">{liveErrors.charge_model}</p>
                     ) : (
@@ -754,9 +764,7 @@ export function AmenityFormModal({
                   </div>
                   {chargeModel === "booking" ? (
                     <div>
-                      <FormLabel required>
-                        {bookingFeeFullSlot ? "Reservation fee per slot" : "Reservation fee per person"}
-                      </FormLabel>
+                      <FormLabel required>{bookingFeeLabel}</FormLabel>
                       <input
                         className={inputClass(fieldError("booking_fee"))}
                         value={form.booking_fee}
@@ -765,19 +773,10 @@ export function AmenityFormModal({
                         placeholder="e.g. 10"
                         inputMode="decimal"
                       />
-                      <p className="mt-1 text-xs text-slate-400">
-                        {bookingFeeFullSlot
-                          ? "Flat fee for the whole slot at booking. Billed after the owner approves."
-                          : "Charged after approval. Two guests at $10 each pay $20."}
-                      </p>
                       {fieldError("booking_fee") ? (
                         <p className="mt-1 text-xs text-red-600">{liveErrors.booking_fee}</p>
                       ) : (
-                        <p className="mt-1 text-xs text-slate-400">
-                          {bookingFeeFullSlot
-                            ? "Flat fee for the whole slot at booking. Billed after the owner approves."
-                            : "Charged after approval. Two guests at $10 each pay $20."}
-                        </p>
+                        <p className="mt-1 text-xs text-slate-400">{bookingFeeHint}</p>
                       )}
                     </div>
                   ) : null}
@@ -828,9 +827,7 @@ export function AmenityFormModal({
 
               {chargeModel === "booking" ? (
                 <div>
-                  <FormLabel required>
-                    {bookingFeeFullSlot ? "Reservation fee per slot" : "Reservation fee per person"}
-                  </FormLabel>
+                  <FormLabel required>{bookingFeeLabel}</FormLabel>
                   <input
                     className={inputClass(fieldError("booking_fee"))}
                     value={form.booking_fee}
@@ -839,19 +836,10 @@ export function AmenityFormModal({
                     placeholder="e.g. 10"
                     inputMode="decimal"
                   />
-                  <p className="mt-1 text-xs text-slate-400">
-                    {bookingFeeFullSlot
-                      ? "Flat fee for the whole slot at booking. Billed after the owner approves."
-                      : "Total at booking is this amount × number of guests. Billed after the owner approves."}
-                  </p>
                   {fieldError("booking_fee") ? (
                     <p className="mt-1 text-xs text-red-600">{liveErrors.booking_fee}</p>
                   ) : (
-                    <p className="mt-1 text-xs text-slate-400">
-                      {bookingFeeFullSlot
-                        ? "Flat fee for the whole slot at booking. Billed after the owner approves."
-                        : "Total at booking is this amount × number of guests. Billed after the owner approves."}
-                    </p>
+                    <p className="mt-1 text-xs text-slate-400">{bookingFeeHint}</p>
                   )}
                 </div>
               ) : null}
@@ -1005,10 +993,12 @@ export function AmenityFormModal({
                   />
                   {chargeModel === "booking" ? (
                     <ReviewRow
-                      label={bookingFeeFullSlot ? "Reservation fee per slot" : "Reservation fee per person"}
+                      label={bookingFeeLabel}
                       value={
                         Number(form.booking_fee) > 0
-                          ? `${formatUsdAmount(Number(form.booking_fee))} / ${bookingFeeFullSlot ? "slot" : "person"}`
+                          ? isOpenAccess
+                            ? formatUsdAmount(Number(form.booking_fee))
+                            : `${formatUsdAmount(Number(form.booking_fee))} / ${bookingFeeFullSlot ? "slot" : "person"}`
                           : "None"
                       }
                     />

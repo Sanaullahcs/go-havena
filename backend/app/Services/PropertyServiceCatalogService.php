@@ -250,18 +250,23 @@ class PropertyServiceCatalogService
                 ->where('service_id', $service->id)
                 ->where('unit_id', $viewerUnit->id)
                 ->first();
-            $payload['unit_subscription'] = $subscription ? [
-                'id' => (int) $subscription->id,
-                'status' => $subscription->status,
-                'starts_at' => $subscription->starts_at,
-                'ends_at' => $subscription->ends_at,
-                'note' => $subscription->note,
-                'rejection_reason' => $subscription->rejection_reason,
-            ] : null;
+            $payload['unit_subscription'] = ($subscription && in_array($subscription->status, ['active', 'pending'], true))
+                ? [
+                    'id' => (int) $subscription->id,
+                    'status' => $subscription->status,
+                    'starts_at' => $subscription->starts_at,
+                    'ends_at' => $subscription->ends_at,
+                    'note' => $subscription->note,
+                    'rejection_reason' => $subscription->rejection_reason,
+                ]
+                : null;
             $payload['can_subscribe'] = $service->application_type === self::TYPE_OPTIONAL
                 && $service->status === self::STATUS_ACTIVE
                 && (int) ($viewerUnit->billing_contact_user_id ?? 0) > 0
                 && (! $subscription || in_array($subscription->status, ['rejected', 'cancelled'], true));
+            $payload['can_unsubscribe'] = $service->application_type === self::TYPE_OPTIONAL
+                && (int) ($viewerUnit->billing_contact_user_id ?? 0) > 0
+                && ($subscription->status ?? null) === 'active';
             $payload['subscribe_blocked_reason'] = $this->subscribeBlockedReason($service, $viewerUnit, $subscription);
         }
 

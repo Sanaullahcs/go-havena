@@ -497,9 +497,11 @@ export default function AmenityFormScreen() {
         {(form.status === "bookable" || form.status === "open") && form.pricing_type === "per_booking" ? (
           <View style={styles.field}>
             <RequiredLabel>
-              {form.capacity_booking_type === "full_slot"
-                ? t("propertyMgmt.reservationFeePerSlot")
-                : t("propertyMgmt.reservationFeePerPerson")}
+              {form.status === "open"
+                ? t("propertyMgmt.reservationFeeFlat")
+                : form.capacity_booking_type === "full_slot"
+                  ? t("propertyMgmt.reservationFeePerSlot")
+                  : t("propertyMgmt.reservationFeePerPerson")}
             </RequiredLabel>
             <LocaleTextInput
               style={[
@@ -515,9 +517,11 @@ export default function AmenityFormScreen() {
               keyboardType="decimal-pad"
             />
             <Text style={styles.modeSub}>
-              {form.capacity_booking_type === "full_slot"
-                ? t("propertyMgmt.reservationFeePerSlotHint")
-                : t("propertyMgmt.reservationFeePerPersonHint")}
+              {form.status === "open"
+                ? t("propertyMgmt.reservationFeeFlatHint")
+                : form.capacity_booking_type === "full_slot"
+                  ? t("propertyMgmt.reservationFeePerSlotHint")
+                  : t("propertyMgmt.reservationFeePerPersonHint")}
             </Text>
             {showError("booking_fee", liveErrors) ? (
               <Text style={styles.errorText}>{liveErrors.booking_fee}</Text>
