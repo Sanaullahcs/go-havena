@@ -652,7 +652,7 @@ export function PropertyServiceFormModal({
               <div>
                 <FieldLabel>Payment instructions</FieldLabel>
                 <textarea
-                  className={`${inputClass(fieldError("payment_instructions", form.payment_instructions, SERVICE_FIELD_MAX.payment_instructions))} min-h-[88px] resize-y`}
+                  className={`${inputClass(fieldError("payment_instructions", form.payment_instructions, SERVICE_FIELD_MAX.payment_instructions))} h-[88px] min-h-[88px] max-h-[88px] resize-none overflow-y-auto`}
                   value={form.payment_instructions}
                   maxLength={SERVICE_FIELD_MAX.payment_instructions}
                   onChange={(e) => setField("payment_instructions", e.target.value.slice(0, SERVICE_FIELD_MAX.payment_instructions))}
@@ -690,7 +690,7 @@ export function PropertyServiceFormModal({
               <div>
                 <FieldLabel>Notice body</FieldLabel>
                 <textarea
-                  className={`${inputClass(fieldError("notice_body", form.notice_body ?? "", SERVICE_FIELD_MAX.notice_body))} min-h-[88px] resize-y`}
+                  className={`${inputClass(fieldError("notice_body", form.notice_body ?? "", SERVICE_FIELD_MAX.notice_body))} h-[88px] min-h-[88px] max-h-[88px] resize-none overflow-y-auto`}
                   value={isNoticeTemplate(form.notice_body) ? noticeBodyDisplay(form) : (form.notice_body ?? "")}
                   maxLength={SERVICE_FIELD_MAX.notice_body}
                   onChange={(e) => setField("notice_body", e.target.value.slice(0, SERVICE_FIELD_MAX.notice_body))}

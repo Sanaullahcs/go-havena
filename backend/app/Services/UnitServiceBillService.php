@@ -305,6 +305,11 @@ class UnitServiceBillService
             $query->where('usb.unit_id', (int) $request->unit_id);
         }
 
+        $query->where(function ($inner) {
+            $inner->where('ps.application_type', '!=', PropertyServiceCatalogService::TYPE_AUTOMATIC)
+                ->orWhereNotNull('usb.billing_contact_user_id');
+        });
+
         $rows = $query
             ->orderByRaw("CASE usb.status
                 WHEN '".self::STATUS_PENDING."' THEN 0
@@ -845,7 +850,12 @@ class UnitServiceBillService
             return array_values(array_filter($units, fn ($unit) => in_array((int) $unit->id, $subscribedIds, true)));
         }
 
-        return $units;
+        $assignments = app(UnitAssignmentService::class);
+
+        return array_values(array_filter(
+            $units,
+            fn ($unit) => $assignments->hasActiveResident((int) $unit->id),
+        ));
     }
 
     private function generateSubscriptionBill(object $service, object $unit, int $createdBy): void
@@ -860,6 +870,11 @@ class UnitServiceBillService
     public function generateBillForUnit(object $service, object $unit, int $createdBy, array $data = []): ?int
     {
         if (($service->status ?? '') !== PropertyServiceCatalogService::STATUS_ACTIVE) {
+            return null;
+        }
+
+        if (($service->application_type ?? '') === PropertyServiceCatalogService::TYPE_AUTOMATIC
+            && ! app(UnitAssignmentService::class)->hasActiveResident((int) $unit->id)) {
             return null;
         }
 
@@ -938,7 +953,7 @@ class UnitServiceBillService
             return;
         }
 
-        if (! $units->effectiveBillingContactUserId($unit)) {
+        if (! $units->hasActiveResident($unitId) || ! $units->effectiveBillingContactUserId($unit)) {
             return;
         }
 

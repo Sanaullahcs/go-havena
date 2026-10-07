@@ -1821,6 +1821,125 @@ class PropertyServiceBillingTest extends TestCase
             ->assertJsonPath('data.max_subscribers', 100000);
     }
 
+    public function test_automatic_bills_skip_vacant_units_and_start_when_a_resident_is_assigned(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $ahmed] = $this->seedCommunity(430);
+        $units = app(UnitAssignmentService::class);
+        $vacant = $units->createUnit((int) $community->id, '201');
+
+        Sanctum::actingAs($admin);
+        $headers = $this->headers($community->id);
+        $serviceId = $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', [
+                'name' => 'Water',
+                'category' => 'water',
+                'application_type' => 'automatic',
+                'billing_frequency' => 'monthly',
+                'amount' => 40,
+                'due_day' => 10,
+                'first_billing_month' => '2026-09',
+                'auto_generate_bills' => true,
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->assertSame(UnitAssignmentService::STATUS_ACTIVE, DB::table('units')->where('id', $vacant->id)->value('status'));
+        $this->assertDatabaseMissing('unit_service_bills', [
+            'service_id' => $serviceId,
+            'unit_id' => $vacant->id,
+        ]);
+        $this->assertDatabaseHas('unit_service_bills', [
+            'service_id' => $serviceId,
+            'billing_contact_user_id' => $ahmed->id,
+            'billing_period' => '2026-09-01',
+        ]);
+
+        $listed = $this->withHeaders($headers)->getJson('/api/v1/admin/property-services')->assertOk()->json('data');
+        $this->assertSame(1, collect($listed)->firstWhere('id', $serviceId)['active_subscribers']);
+
+        Carbon::setTestNow(Carbon::parse('2026-10-16 12:00:00'));
+        app(UnitServiceBillService::class)->generateDueAutomaticBills();
+        $this->assertDatabaseMissing('unit_service_bills', [
+            'service_id' => $serviceId,
+            'unit_id' => $vacant->id,
+        ]);
+        $this->assertDatabaseHas('unit_service_bills', [
+            'service_id' => $serviceId,
+            'billing_contact_user_id' => $ahmed->id,
+            'billing_period' => '2026-10-01',
+        ]);
+
+        $newResident = User::factory()->create([
+            'role' => 'resident',
+            'status' => 'active',
+            'phone' => '+201800000439',
+        ]);
+        $newResident->profile()->updateOrCreate(['user_id' => $newResident->id], [
+            'display_name' => 'New Resident',
+            'unit_number' => '201',
+            'residence_type' => 'tenant',
+        ]);
+        CommunityMembership::query()->create([
+            'user_id' => $newResident->id,
+            'community_id' => $community->id,
+            'role' => 'member',
+            'status' => 'approved',
+        ]);
+        $units->syncUserToCommunity($newResident->fresh('profile'), (int) $community->id);
+
+        $this->assertDatabaseHas('unit_service_bills', [
+            'service_id' => $serviceId,
+            'unit_id' => $vacant->id,
+            'billing_contact_user_id' => $newResident->id,
+            'billing_period' => '2026-10-01',
+        ]);
+        $this->assertDatabaseMissing('unit_service_bills', [
+            'service_id' => $serviceId,
+            'unit_id' => $vacant->id,
+            'billing_period' => '2026-09-01',
+        ]);
+
+        $octoberBillId = (int) DB::table('unit_service_bills')
+            ->where('service_id', $serviceId)
+            ->where('unit_id', $vacant->id)
+            ->value('id');
+
+        DB::table('community_memberships')
+            ->where('user_id', $newResident->id)
+            ->where('community_id', $community->id)
+            ->update(['status' => 'inactive', 'updated_at' => now()]);
+        DB::table('unit_residents')
+            ->where('user_id', $newResident->id)
+            ->where('unit_id', $vacant->id)
+            ->update([
+                'status' => UnitAssignmentService::RESIDENT_LEFT,
+                'left_at' => now(),
+                'updated_at' => now(),
+            ]);
+        DB::table('units')->where('id', $vacant->id)->update([
+            'billing_contact_user_id' => null,
+            'updated_at' => now(),
+        ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-11-16 12:00:00'));
+        app(UnitServiceBillService::class)->generateDueAutomaticBills();
+
+        $this->assertSame(UnitAssignmentService::STATUS_ACTIVE, DB::table('units')->where('id', $vacant->id)->value('status'));
+        $this->assertDatabaseHas('unit_service_bills', [
+            'id' => $octoberBillId,
+            'billing_contact_user_id' => $newResident->id,
+            'billing_period' => '2026-10-01',
+        ]);
+        $this->assertDatabaseMissing('unit_service_bills', [
+            'service_id' => $serviceId,
+            'unit_id' => $vacant->id,
+            'billing_period' => '2026-11-01',
+        ]);
+
+        $adminBills = $this->withHeaders($headers)->getJson('/api/v1/admin/service-bills')->assertOk()->json('data');
+        $this->assertTrue(collect($adminBills)->contains(fn ($row) => (int) $row['id'] === $octoberBillId));
+    }
+
     private function addUnitResident(int $communityId, string $name, string $unitNumber, string $phone): User
     {
         $user = User::factory()->create([

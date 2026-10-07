@@ -419,6 +419,52 @@ class UnitAssignmentService
             ->all();
     }
 
+    /** Active residential units that currently have an approved resident. */
+    public function occupiedResidentialUnits(int $communityId): array
+    {
+        return array_values(array_filter(
+            $this->eligibleResidentialUnits($communityId),
+            fn ($unit) => $this->hasActiveResident((int) $unit->id),
+        ));
+    }
+
+    public function occupiedResidentialUnitCount(int $communityId): int
+    {
+        return DB::table('units')
+            ->where('community_id', $communityId)
+            ->where('kind', self::KIND_RESIDENTIAL)
+            ->where('status', self::STATUS_ACTIVE)
+            ->whereExists(fn ($query) => $this->constrainToActiveResident($query))
+            ->count();
+    }
+
+    public function hasActiveResident(int $unitId): bool
+    {
+        return DB::table('units')
+            ->where('id', $unitId)
+            ->where('kind', self::KIND_RESIDENTIAL)
+            ->where('status', self::STATUS_ACTIVE)
+            ->whereExists(fn ($query) => $this->constrainToActiveResident($query))
+            ->exists();
+    }
+
+    private function constrainToActiveResident($query): void
+    {
+        $query->selectRaw('1')
+            ->from('unit_residents as ur')
+            ->join('users', 'users.id', '=', 'ur.user_id')
+            ->join('community_memberships as cm', function ($join) {
+                $join->on('cm.user_id', '=', 'ur.user_id')
+                    ->on('cm.community_id', '=', 'ur.community_id');
+            })
+            ->whereColumn('ur.unit_id', 'units.id')
+            ->where('ur.status', self::RESIDENT_ACTIVE)
+            ->where('users.role', 'resident')
+            ->where('users.status', '!=', 'deleted')
+            ->where('cm.status', 'approved')
+            ->where('cm.role', 'member');
+    }
+
     /** @return list<array{user_id: int, unit_id: int, unit_number: string}> */
     public function billingContactsForCommunity(int $communityId): array
     {

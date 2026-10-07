@@ -84,11 +84,7 @@ class PropertyServiceCatalogService
             ->orderBy('name')
             ->get();
 
-        $residentialUnits = DB::table('units')
-            ->where('community_id', $communityId)
-            ->where('kind', 'residential')
-            ->where('status', self::STATUS_ACTIVE)
-            ->count();
+        $residentialUnits = app(UnitAssignmentService::class)->occupiedResidentialUnitCount($communityId);
 
         $optionalCounts = $rows->isEmpty()
             ? collect()
@@ -227,11 +223,7 @@ class PropertyServiceCatalogService
             $payload['subscriber_count'] = $activeSubscribers + ($pendingSubscribers ?? 0);
         } elseif ($admin || ($service->application_type === self::TYPE_OPTIONAL && $viewerUnit)) {
             $payload['active_subscribers'] = $service->application_type === self::TYPE_AUTOMATIC
-                ? DB::table('units')
-                    ->where('community_id', $service->community_id)
-                    ->where('kind', 'residential')
-                    ->where('status', self::STATUS_ACTIVE)
-                    ->count()
+                ? app(UnitAssignmentService::class)->occupiedResidentialUnitCount((int) $service->community_id)
                 : DB::table('unit_service_subscriptions')
                     ->where('service_id', $service->id)
                     ->where('status', 'active')

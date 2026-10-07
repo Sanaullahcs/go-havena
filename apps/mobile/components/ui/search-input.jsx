@@ -13,6 +13,9 @@ export default function SearchInput({
   onChangeText,
   autoFocus = false,
   imeSync = true,
+  onFocus,
+  inputRef,
+  editable = true,
 }) {
   const { t } = useTranslation();
   const [internal, setInternal] = useState("");
@@ -28,12 +31,16 @@ export default function SearchInput({
     <View style={styles.searchContainer}>
       <Ionicons name="search-outline" size={sf(16)} color="#99A1AF" style={styles.icon} />
       <LocaleTextInput
+        ref={inputRef}
         style={[styles.input]}
         placeholder={placeholder ?? t("common.search")}
         placeholderTextColor="rgba(10, 10, 10, 0.45)"
         value={value}
         onChangeText={handleChange}
+        onFocus={onFocus}
         autoFocus={autoFocus}
+        editable={editable}
+        showSoftInputOnFocus={editable}
         autoCorrect={false}
         autoCapitalize="none"
         returnKeyType="search"

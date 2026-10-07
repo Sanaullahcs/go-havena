@@ -278,27 +278,14 @@ export default function AdminUnitsPage() {
         </button>
       </div>
 
+      {residentialUnits.length > 0 ? (
+        <>
       <div className="grid gap-3 sm:grid-cols-3">
         <StatTile label="Residential units" value={String(stats.total)} icon={<Home className="h-4 w-4" />} />
         <StatTile label="Missing billing contact" value={String(stats.missing)} icon={<UserRound className="h-4 w-4" />} tone="amber" />
         <StatTile label="Assigned residents" value={String(stats.residents)} icon={<Users className="h-4 w-4" />} />
       </div>
 
-      {residentialUnits.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
-            <Home className="h-5 w-5" />
-          </div>
-          <p className="mt-4 text-sm font-semibold text-slate-900">No units yet</p>
-          <p className="mt-1 max-w-sm text-sm text-slate-500">
-            Add a unit number or let residents create one from Complete Profile.
-          </p>
-          <button type="button" onClick={openCreate} className="nl-btn-primary mt-5">
-            <Plus className="h-4 w-4" />
-            Add unit
-          </button>
-        </div>
-      ) : (
         <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white via-[#F6F8FB] to-[#E8F0F7]/40 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/60 px-5 py-4">
             <div className="flex items-center gap-2.5">
@@ -419,7 +406,8 @@ export default function AdminUnitsPage() {
             )}
           </div>
         </section>
-      )}
+        </>
+      ) : null}
 
       {creating && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center">
