@@ -26,13 +26,14 @@ import {
   fetchCommunityRules,
 } from "../../../../services/community-rules-api";
 import { getCurrentRole } from "../../../../constants/role-session";
+import { useAppDialog } from "../../../../providers/app-dialog-provider";
 import { useSubmitLock } from "../../../../hooks/use-submit-lock";
 import { rnShadow } from "../../../../utils/shadow";
 
 
 const SEV = {
   important: { accent: "#DC2626", bg: "#FEF2F2", label: "propertyMgmt.importantLabel", icon: "alert-circle" },
-  standard: { accent: "#D97706", bg: "#FFFBEB", label: "propertyMgmt.standardLabel", icon: "alert-triangle" },
+  standard: { accent: "#1B4F8A", bg: "#E8F1FA", label: "propertyMgmt.standardLabel", icon: "minus-circle" },
   info: { accent: T.deepTeal, bg: T.mint, label: "propertyMgmt.infoLabel", icon: "info" },
 };
 
@@ -57,6 +58,7 @@ export default function RuleDetail() {
   const { ruleId } = useLocalSearchParams();
   const isAdmin = getCurrentRole() === "admin";
   const { submitting, run } = useSubmitLock();
+  const { showConfirm } = useAppDialog();
 
   const [rule, setRule] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -84,7 +86,14 @@ export default function RuleDetail() {
 
   useFocusEffect(useCallback(() => { load(hasLoadedOnce.current); }, [load]));
 
-  const handleAcknowledge = () => {
+  const handleAcknowledge = async () => {
+    const confirmed = await showConfirm(
+      t("propertyMgmt.ackNeeded"),
+      t("propertyMgmt.ackConfirmBody"),
+      { confirmLabel: t("propertyMgmt.iAcknowledge"), cancelLabel: t("common.cancel") },
+    );
+    if (confirmed !== "confirm") return;
+
     run(async () => {
       await acknowledgeRule(rule.id);
       setRule((prev) => ({ ...prev, acknowledged: true, needs_action: false }));

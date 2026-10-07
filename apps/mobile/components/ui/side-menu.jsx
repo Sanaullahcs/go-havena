@@ -305,6 +305,20 @@ function SideMenuPanel({ visible, onClose }) {
           route: PropertyManagementRoutes.HOME,
         }
       : null,
+    isResidentFeatureEnabled(user, "community_rules")
+      ? {
+          iconName: "shield",
+          titleKey: "services.communityRules",
+          route: PropertyManagementRoutes.COMMUNITY_RULES,
+        }
+      : null,
+    isResidentFeatureEnabled(user, "documents")
+      ? {
+          iconName: "file-text",
+          titleKey: "services.documents",
+          route: PropertyManagementRoutes.DOCUMENTS,
+        }
+      : null,
     {
       iconName: "user",
       titleKey: "nav.profile",

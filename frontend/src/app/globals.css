@@ -796,28 +796,6 @@ body {
 .nl-notice-textarea {
   min-height: 4.75rem;
 }
-.nl-notice-input-icon {
-  position: relative;
-}
-.nl-notice-input-icon-mark {
-  pointer-events: none;
-  position: absolute;
-  left: 0.75rem;
-  top: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1rem;
-  color: #94a3b8;
-}
-.nl-notice-input-icon-mark svg {
-  display: block;
-  flex-shrink: 0;
-}
-.nl-notice-input-with-icon {
-  padding-left: 2.375rem !important;
-}
 .nl-notice-schedule {
   border-radius: 0.875rem;
   border: 1px solid #eef2f6;

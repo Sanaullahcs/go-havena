@@ -552,9 +552,9 @@ export default function EventDetailScreen() {
           <Text style={styles.eventTitle} numberOfLines={4} ellipsizeMode="tail">
             {localizedField(event, "title") || event.title}
           </Text>
-          {scheduleItems.length > 0 ? (
-            <Text style={styles.eventSubtitle} numberOfLines={2}>
-              {scheduleItems.map((item) => item.detail).join(" · ")}
+          {(localizedField(event, "body") || event.body) ? (
+            <Text style={styles.eventDescription}>
+              {localizedField(event, "body") || event.body}
             </Text>
           ) : null}
         </View>
@@ -586,13 +586,6 @@ export default function EventDetailScreen() {
                 detail={item.detail}
               />
             ))}
-          </View>
-        ) : null}
-
-        {(localizedField(event, "body") || event.body) ? (
-          <View style={styles.section}>
-            <Text style={styles.attendeeTitle}>{t("events.aboutThisEvent")}</Text>
-            <Text style={styles.eventDescription}>{localizedField(event, "body") || event.body}</Text>
           </View>
         ) : null}
 
@@ -1046,15 +1039,8 @@ const styles = StyleSheet.create({
     lineHeight: sf(17),
     color: "#475569",
   },
-  eventSubtitle: {
-    marginTop: 6,
-    fontSize: sf(13),
-    lineHeight: sf(18),
-    fontWeight: "500",
-    color: "#667085",
-    fontFamily: Fonts.medium,
-  },
   eventDescription: {
+    marginTop: 8,
     fontSize: sf(13),
     lineHeight: sf(19),
     fontWeight: "400",
@@ -1062,6 +1048,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
   },
   eventDetailContainer: {
+    marginTop: 16,
     paddingHorizontal: 20,
     flexDirection: "column",
     gap: 12,

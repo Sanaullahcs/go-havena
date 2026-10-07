@@ -18,7 +18,6 @@ import PropertyHubHero from "../property/property-hub-hero";
 import PropertyHubSectionHeader from "../property/property-hub-section-header";
 import PropertyHubStats from "../property/property-hub-stats";
 import PropertyQuickGrid from "../property/property-quick-grid";
-import PropertyHubLinkCards from "../property/property-hub-link-cards";
 import PropertyHubApprovalQueue from "../property/property-hub-approval-queue";
 import { PropertyManagementRoutes, navigatePropertyHubRoute } from "../../constants/property-management-routes";
 import { getCurrentRole } from "../../constants/role-session";
@@ -32,7 +31,6 @@ import { sf, sw } from "../../utils/responsive";
 import {
   PropertyHubTheme,
   getPropertyHubServices,
-  getPropertyCommunityServices,
   filterPropertyServicesForViewer,
 } from "../../constants/property-management-theme";
 import { resolveViewerBillingAccess } from "../../services/property-services-api";
@@ -109,10 +107,6 @@ export default function PropertyManagment() {
     const visible = isAdmin ? services : filterPropertyServicesForViewer(services, { isBillingContact });
     return visible.filter((item) => isServiceRouteEnabled(sessionUser, item.routeKey));
   }, [isAdmin, isBillingContact, sessionUser, t]);
-  const communityServices = useMemo(
-    () => getPropertyCommunityServices(t).filter((item) => isServiceRouteEnabled(sessionUser, item.routeKey)),
-    [sessionUser, t],
-  );
   const showReservations = isServiceRouteEnabled(sessionUser, "MY_BOOKING");
 
   const [refreshing, setRefreshing] = useState(false);
@@ -306,16 +300,6 @@ export default function PropertyManagment() {
                 approveRequestCount: bookingCounts.approveRequestCount,
               }}
             />
-          </View>
-        ) : null}
-
-        {communityServices.length > 0 ? (
-          <View style={styles.section}>
-            <PropertyHubSectionHeader
-              title={t("services.rulesSection")}
-              subtitle={t("services.rulesSectionSub")}
-            />
-            <PropertyHubLinkCards items={communityServices} onAction={goTo} />
           </View>
         ) : null}
 

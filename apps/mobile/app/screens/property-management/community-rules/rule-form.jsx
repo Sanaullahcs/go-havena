@@ -23,16 +23,19 @@ import { useTouchedFieldErrors } from "../../../../hooks/use-touched-field-error
 
 import {
   RULE_OTHER_CATEGORY,
+  RULE_SEVERITIES,
   buildCategoryOptions,
   resolveRuleCategory,
   splitRuleCategory,
 } from "../../../../constants/community-rule-categories";
 
-const SEVERITIES = [
-  { key: "important", label: "propertyMgmt.importantLabel", icon: "alert-circle",   color: "#E7000B", bg: "#FEF2F2" },
-  { key: "standard",  label: "propertyMgmt.standardLabel",  icon: "alert-triangle", color: "#E17100", bg: "#FFFBEB" },
-  { key: "info",      label: "propertyMgmt.infoLabel",      icon: "info",           color: "#4A5565", bg: "#F9FAFB" },
-];
+const SEVERITIES = RULE_SEVERITIES.map((item) => ({
+  key: item.key,
+  label: item.labelKey,
+  icon: item.icon,
+  color: item.color,
+  bg: item.bg,
+}));
 
 const DEFAULT_FORM = {
   title: "",

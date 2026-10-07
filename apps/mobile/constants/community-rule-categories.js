@@ -1,5 +1,14 @@
 export const RULE_OTHER_CATEGORY = "Other";
 
+/** Severity values stored by the community-rules API. */
+export const RULE_SEVERITIES = [
+  { key: "important", labelKey: "propertyMgmt.importantLabel", icon: "alert-circle", color: "#E7000B", bg: "#FEF2F2" },
+  { key: "standard", labelKey: "propertyMgmt.standardLabel", icon: "alert-triangle", color: "#E17100", bg: "#FFFBEB" },
+  { key: "info", labelKey: "propertyMgmt.infoLabel", icon: "info", color: "#4A5565", bg: "#F9FAFB" },
+];
+
+export const RULE_SEVERITY_KEYS = RULE_SEVERITIES.map((item) => item.key);
+
 /** @deprecated Not shown in the rule form — use community-managed categories from the API. */
 export const RULE_PRESET_CATEGORIES = [
   "Noise & Quiet Hours",

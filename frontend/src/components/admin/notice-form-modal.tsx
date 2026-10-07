@@ -542,27 +542,22 @@ export default function NoticeFormModal({
             {!isAlertForm ? (
             <div className="nl-notice-field">
               <FieldLabel required={isEventForm}>Location</FieldLabel>
-              <div className="nl-notice-input-icon">
-                <span className="nl-notice-input-icon-mark" aria-hidden>
-                  <IcoPin />
-                </span>
-                <ClearableInput
-                  data-field="location"
-                  value={form.location}
-                  maxLength={255}
-                  onBlur={() => {
-                    touch("location");
-                    const next = runValidation(false);
-                    setErrors((prev) => ({ ...prev, location: next.location }));
-                  }}
-                  onChange={(e) => {
-                    touch("location");
-                    set("location", e.target.value);
-                  }}
-                  className={inputClass(showError("location"), "nl-input w-full nl-notice-input-with-icon")}
-                  placeholder="Courtyard, Block A, Pool area…"
-                />
-              </div>
+              <ClearableInput
+                data-field="location"
+                value={form.location}
+                maxLength={255}
+                onBlur={() => {
+                  touch("location");
+                  const next = runValidation(false);
+                  setErrors((prev) => ({ ...prev, location: next.location }));
+                }}
+                onChange={(e) => {
+                  touch("location");
+                  set("location", e.target.value);
+                }}
+                className={inputClass(showError("location"), "nl-input w-full")}
+                placeholder="Courtyard, Block A, Pool area…"
+              />
               {showError("location") ? (
                 <FieldError>{showError("location")}</FieldError>
               ) : null}
@@ -1070,15 +1065,6 @@ function IcoImage() {
       <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" />
       <circle cx="9" cy="10" r="1.5" fill="currentColor" />
       <path d="M3 16l5-5 4 4 3-3 6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IcoPin() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M12 21s6-5.2 6-10a6 6 0 10-12 0c0 4.8 6 10 6 10z" stroke="currentColor" strokeWidth="1.6" />
-      <circle cx="12" cy="11" r="2" stroke="currentColor" strokeWidth="1.6" />
     </svg>
   );
 }

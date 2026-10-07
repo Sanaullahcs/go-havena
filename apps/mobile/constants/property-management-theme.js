@@ -240,6 +240,7 @@ export function getPropertyResidentServices(t) {
       subtitle: t("services.billingContactSub"),
       routeKey: "BILLING_CONTACT",
     },
+    ...getPropertyCommunityServices(t),
   ];
 }
 
@@ -296,6 +297,7 @@ export function getPropertyAdminServices(t) {
       subtitle: t("services.amenityBillsSub"),
       routeKey: "ADMIN_AMENITY_BILLS",
     },
+    ...getPropertyCommunityServices(t),
   ];
 }
 

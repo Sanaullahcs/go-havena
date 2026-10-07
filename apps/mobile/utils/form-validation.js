@@ -3,6 +3,7 @@
  * (frontend/src/lib/admin/*-validation.ts) and backend Laravel rules.
  */
 
+import { RULE_SEVERITY_KEYS } from "../constants/community-rule-categories";
 import { getPhoneValidationError } from "./phone";
 import { normalizeGuestPermissions } from "../constants/guest-permissions";
 import i18n from "../i18n";
@@ -630,7 +631,7 @@ export function validateCommunityRuleForm(form) {
   const descErr = requiredText(form.description, "validation.fields.description");
   if (descErr) errors.description = descErr;
 
-  if (form.severity && !["important", "standard", "info"].includes(form.severity)) {
+  if (form.severity && !RULE_SEVERITY_KEYS.includes(form.severity)) {
     errors.severity = i18n.t("validation.severityInvalid");
   }
 
