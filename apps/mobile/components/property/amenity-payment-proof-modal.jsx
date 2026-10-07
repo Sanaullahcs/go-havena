@@ -8,11 +8,12 @@ import {
   TextInput,
   Platform,
   ScrollView,
-  KeyboardAvoidingView,
   Image,
   Pressable,
   ActivityIndicator,
   Dimensions,
+  Keyboard,
+  useWindowDimensions,
 } from "react-native";
 import DateTimePicker, {
   DateTimePickerAndroid,
@@ -67,7 +68,41 @@ function fileLabel(asset) {
 }
 
 const PICK_OPTIONS = { documentPick: true, allowPdf: true, uploadBaseName: "payment-proof" };
-const WINDOW_HEIGHT = Dimensions.get("window").height;
+
+/**
+ * Plain object, not StyleSheet. The text-metrics patch adds lineHeight inside
+ * StyleSheet.create, and iOS then top-aligns a single-line placeholder.
+ * Height matches the previous vertical padding plus that line box.
+ */
+const REFERENCE_INPUT_HEIGHT = sw(10) * 2 + Math.ceil(sf(13) * 1.5);
+const referenceInputStyle = {
+  borderWidth: 1,
+  borderColor: "rgba(0,0,0,0.08)",
+  borderRadius: sw(12),
+  height: REFERENCE_INPUT_HEIGHT,
+  paddingHorizontal: sw(12),
+  paddingTop: 0,
+  paddingBottom: 0,
+  paddingVertical: 0,
+  fontFamily: Fonts.regular,
+  fontSize: sf(13),
+  color: Colors.textPrimary,
+  textAlignVertical: "center",
+  includeFontPadding: false,
+};
+
+function keyboardCoverFromEvent(event) {
+  const height = event?.endCoordinates?.height ?? 0;
+  const screenY = event?.endCoordinates?.screenY;
+  const windowHeight = Dimensions.get("window").height;
+  if (!Number.isFinite(screenY) || screenY <= 0) {
+    return Math.max(0, height);
+  }
+  if (screenY >= windowHeight - 1) {
+    return 0;
+  }
+  return Math.max(0, Math.min(height, windowHeight - screenY));
+}
 
 function waitForNextPaint() {
   return new Promise((resolve) => {
@@ -88,7 +123,10 @@ export default function AmenityPaymentProofModal({
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const { showSuccess } = useApiAction();
+  const scrollRef = useRef(null);
+  const noteFocusedRef = useRef(false);
   const [fileAsset, setFileAsset] = useState(null);
   const [paymentDate, setPaymentDate] = useState(todayDate);
   const [iosDraft, setIosDraft] = useState(todayDate);
@@ -99,13 +137,21 @@ export default function AmenityPaymentProofModal({
   const [note, setNote] = useState("");
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [keyboardCover, setKeyboardCover] = useState(0);
   const submitLockRef = useRef(false);
 
   const dateIso = useMemo(() => toIsoDate(paymentDate), [paymentDate]);
   const todayIso = toIsoDate(todayDate());
   const dateValid = Boolean(dateIso) && dateIso <= todayIso;
   const canSubmit = Boolean(fileAsset?.uri) && dateValid && !submitting && !picking;
-  const scrollMaxHeight = Math.round(WINDOW_HEIGHT * 0.9) - sw(168) - insets.bottom;
+  const keyboardOpen = keyboardCover > 0;
+  const sheetMax = keyboardOpen
+    ? Math.max(sw(240), windowHeight - keyboardCover - insets.top - sw(8))
+    : Math.round(windowHeight * 0.9);
+  const scrollMaxHeight = Math.max(
+    sw(120),
+    sheetMax - sw(168) - (keyboardOpen ? sw(12) : insets.bottom),
+  );
 
   const reset = useCallback(() => {
     const today = todayDate();
@@ -128,8 +174,45 @@ export default function AmenityPaymentProofModal({
     }
   }, [visible, reset]);
 
+  useEffect(() => {
+    if (!visible) {
+      setKeyboardCover(0);
+      noteFocusedRef.current = false;
+      return undefined;
+    }
+
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const onShow = (event) => setKeyboardCover(keyboardCoverFromEvent(event));
+    const onHide = () => setKeyboardCover(0);
+    const subs = [
+      Keyboard.addListener(showEvent, onShow),
+      Keyboard.addListener(hideEvent, onHide),
+    ];
+    if (Platform.OS === "ios") {
+      subs.push(Keyboard.addListener("keyboardDidShow", onShow));
+    }
+
+    return () => {
+      subs.forEach((sub) => sub.remove());
+    };
+  }, [visible]);
+
+  const revealNote = useCallback(() => {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!visible || !noteFocusedRef.current) return undefined;
+    const timer = setTimeout(revealNote, Platform.OS === "ios" ? 60 : 120);
+    return () => clearTimeout(timer);
+  }, [visible, keyboardCover, windowHeight, revealNote]);
+
   const handleClose = () => {
     if (submitting) return;
+    Keyboard.dismiss();
     reset();
     onClose?.();
   };
@@ -166,6 +249,7 @@ export default function AmenityPaymentProofModal({
 
   const openDatePicker = () => {
     if (submitting) return;
+    Keyboard.dismiss();
     const current = clampToToday(paymentDate || todayDate());
     if (Platform.OS === "android") {
       try {
@@ -212,6 +296,7 @@ export default function AmenityPaymentProofModal({
       return;
     }
 
+    Keyboard.dismiss();
     submitLockRef.current = true;
     setSubmitting(true);
     setError(null);
@@ -256,12 +341,18 @@ export default function AmenityPaymentProofModal({
       statusBarTranslucent
       onRequestClose={handleClose}
     >
-        <KeyboardAvoidingView
-          style={styles.overlay}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
-        >
-          <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, sw(12)) }]}>
+        <View style={styles.overlay}>
+          <Pressable style={styles.backdrop} onPress={Keyboard.dismiss} />
+          <View
+            style={[
+              styles.sheet,
+              {
+                maxHeight: keyboardOpen ? sheetMax : "90%",
+                marginBottom: keyboardCover,
+                paddingBottom: keyboardOpen ? sw(12) : Math.max(insets.bottom, sw(12)),
+              },
+            ]}
+          >
             <View style={styles.header}>
               <View style={styles.headerCopy}>
                 <Text style={styles.title}>
@@ -280,15 +371,20 @@ export default function AmenityPaymentProofModal({
             </View>
 
             <ScrollView
+              ref={scrollRef}
               keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
+              keyboardDismissMode="none"
+              nestedScrollEnabled
               style={{ maxHeight: scrollMaxHeight }}
               contentContainerStyle={styles.body}
             >
               <Text style={styles.label}>{t("propertyMgmt.paymentProof")} *</Text>
               <TouchableOpacity
                 style={styles.fileBtn}
-                onPress={() => setShowSources((open) => !open)}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setShowSources((open) => !open);
+                }}
                 activeOpacity={0.8}
                 disabled={submitting}
               >
@@ -357,12 +453,15 @@ export default function AmenityPaymentProofModal({
 
               <Text style={styles.label}>{t("propertyMgmt.paymentReference")}</Text>
               <TextInput
-                style={styles.input}
+                style={referenceInputStyle}
                 value={reference}
                 onChangeText={setReference}
                 placeholder={t("propertyMgmt.optional")}
                 placeholderTextColor={Colors.textMuted}
                 editable={!submitting}
+                returnKeyType="done"
+                blurOnSubmit
+                onSubmitEditing={Keyboard.dismiss}
               />
 
               <Text style={styles.label}>{t("propertyMgmt.paymentNote")}</Text>
@@ -374,6 +473,17 @@ export default function AmenityPaymentProofModal({
                 placeholderTextColor={Colors.textMuted}
                 multiline
                 editable={!submitting}
+                returnKeyType="done"
+                blurOnSubmit
+                submitBehavior="blurAndSubmit"
+                onFocus={() => {
+                  noteFocusedRef.current = true;
+                  revealNote();
+                }}
+                onBlur={() => {
+                  noteFocusedRef.current = false;
+                }}
+                onSubmitEditing={Keyboard.dismiss}
               />
 
               {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -440,7 +550,7 @@ export default function AmenityPaymentProofModal({
               </View>
             ) : null}
           </View>
-        </KeyboardAvoidingView>
+        </View>
     </Modal>
   );
 }
@@ -464,6 +574,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
     backgroundColor: "rgba(15,23,42,0.4)",
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
   },
   sheet: {
     position: "relative",
