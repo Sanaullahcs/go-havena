@@ -24,8 +24,9 @@ export function useTouchedFieldErrors() {
 
   const showError = useCallback(
     (field: string, liveErrors: FieldErrors = {}) => {
-      if (!(submitAttempted || touched[field])) return undefined;
-      return errors[field] || liveErrors[field];
+      if (touched[field]) return errors[field] || liveErrors[field];
+      if (submitAttempted && errors[field]) return errors[field];
+      return undefined;
     },
     [errors, submitAttempted, touched],
   );

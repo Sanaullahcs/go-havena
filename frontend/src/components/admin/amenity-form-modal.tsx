@@ -221,7 +221,14 @@ export function AmenityFormModal({
 }) {
   const [form, setForm] = useState<AmenityForm>(EMPTY_FORM);
   const [step, setStep] = useState<AmenityFormStep>("details");
-  const { touch, clearError, showError, validateOnSubmit, resetTouched } = useTouchedFieldErrors();
+  const {
+    touch,
+    clearError,
+    showError,
+    validateOnSubmit,
+    resetTouched,
+    errors: submittedErrors,
+  } = useTouchedFieldErrors();
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -633,15 +640,7 @@ export function AmenityFormModal({
                   </p>
                   {fieldError("capacity") ? (
                     <p className="mt-1 text-xs text-red-600">{liveErrors.capacity}</p>
-                  ) : (
-                    <p className="mt-1 text-xs text-slate-500">
-                      {form.status === "bookable"
-                        ? form.capacity_booking_type === "full_slot"
-                          ? "This many people fit in the slot. One booking still reserves the whole slot."
-                          : "Several residents can book the same slot until this many seats are reserved."
-                        : "Capacity is required when Slots is selected."}
-                    </p>
-                  )}
+                  ) : null}
                 </div>
               ) : null}
 
@@ -822,8 +821,10 @@ export function AmenityFormModal({
                 })}
               </div>
 
-              {fieldError("charge_model") ? (
-                <p className="text-xs text-red-600">{liveErrors.charge_model}</p>
+              {submittedErrors.charge_model || !chargeModel ? (
+                <p className={`text-xs ${submittedErrors.charge_model ? "text-red-600" : "text-slate-500"}`}>
+                  Choose how residents pay.
+                </p>
               ) : null}
 
               {chargeModel === "booking" ? (
@@ -913,7 +914,7 @@ export function AmenityFormModal({
                     <div>
                       <FormLabel required>Due day</FormLabel>
                       <select
-                        className={inputClass(fieldError("shared_billing_due_day"))}
+                        className={inputClass(fieldError("shared_billing_due_day"), "nl-input nl-select w-full")}
                         value={form.shared_billing_due_day}
                         onChange={(e) => setChoice("shared_billing_due_day", e.target.value)}
                         onBlur={() => touch("shared_billing_due_day")}
