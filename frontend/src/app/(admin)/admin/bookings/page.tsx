@@ -32,7 +32,7 @@ import { PageError, PageLoader } from "@/components/shared/page-states";
 import { getAdminCache, setAdminCache } from "@/lib/admin/navigation-cache";
 import { adminTableBusy } from "@/lib/admin/table-loading";
 import { formatBookingDisplayFee } from "@/lib/admin/amenity-display";
-import { formatUsdAmount } from "@/lib/admin/amenity-bill-validation";
+import { formatCommunityMoney } from "@/lib/money";
 
 type DomainTab = "amenity" | "services";
 type StatusFilter = "all" | "pending" | "confirmed" | "rejected";
@@ -518,7 +518,7 @@ export default function AdminBookingsPage() {
                     <DtCell>
                       {subscription.latest_bill ? (
                         <div>
-                          <p>{formatUsdAmount(subscription.latest_bill.amount)}</p>
+                          <p>{formatCommunityMoney(subscription.latest_bill.amount)}</p>
                           <p className="text-xs text-slate-500">
                             {subscription.latest_bill.status_label || subscription.latest_bill.status}
                           </p>

@@ -17,6 +17,7 @@ import {
   unsubscribeFromPropertyService,
 } from "../../../../services/property-services-api";
 import { showApiFailure } from "../../../../utils/auth-errors";
+import { formatCommunityMoney } from "../../../../utils/money";
 
 const CATEGORY_ICON = {
   electricity: "zap",
@@ -62,8 +63,8 @@ function categoryTone(category) {
 function formatAmount(amount) {
   if (amount == null || amount === "") return null;
   const value = Number(amount);
-  if (Number.isNaN(value)) return `$${amount}`;
-  return `$${value.toFixed(value % 1 === 0 ? 0 : 2)}`;
+  if (Number.isNaN(value)) return String(amount);
+  return formatCommunityMoney(value);
 }
 
 function frequencyLabel(frequency, t) {

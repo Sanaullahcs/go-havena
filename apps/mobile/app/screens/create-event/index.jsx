@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import { KeyboardScroll } from "../../../components/ui/keyboard-form";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { Fonts } from "../../../constants/font";
 import { useRouter } from "expo-router";
@@ -285,7 +286,7 @@ export default function CreateEventScreen() {
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <ScreenHeader layout="inline" title={t('events.createEvent')} iconOnly />
 
-      <ScrollView showsVerticalScrollIndicator={false} style={styles.contentWrap}>
+      <KeyboardScroll showsVerticalScrollIndicator={false} style={styles.contentWrap}>
         <View style={styles.formWrap}>
           <Text style={styles.formLabel}>
             {t('events.title')} <Text style={styles.required}>*</Text>
@@ -598,7 +599,7 @@ export default function CreateEventScreen() {
             </>
           ) : null}
         </View>
-      </ScrollView>
+      </KeyboardScroll>
 
       <View style={styles.publishWrap}>
         <TouchableOpacity

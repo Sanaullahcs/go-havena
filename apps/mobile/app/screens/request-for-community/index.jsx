@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import { KeyboardScroll } from "../../../components/ui/keyboard-form";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -176,7 +177,7 @@ export default function RequestForCommunityScreen() {
         </Text>
       </View>
 
-      <ScrollView
+      <KeyboardScroll
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -363,7 +364,7 @@ export default function RequestForCommunityScreen() {
             {t('guests.completeProfileHint')}
           </Text>
         </View>
-      </ScrollView>
+      </KeyboardScroll>
 
       <RegionPicker
         visible={pickerVisible}

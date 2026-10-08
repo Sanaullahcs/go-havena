@@ -38,6 +38,12 @@ class ResidentPlaidConnection extends Model
         'disconnected_at',
     ];
 
+    protected $hidden = [
+        'plaid_access_token',
+        'ach_account',
+        'ach_routing',
+    ];
+
     protected function casts(): array
     {
         return [

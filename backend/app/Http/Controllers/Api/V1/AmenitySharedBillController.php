@@ -270,7 +270,10 @@ class AmenitySharedBillController extends Controller
         $user = $request->user();
         abort_if(GuestAccessService::isGuest($user), 403, 'Guests cannot send bank payments.');
 
-        $transfer = app(PlaidAchService::class)->paySharedBill($user, $id, $residentBillId);
+        $transfer = app(PlaidAchService::class)->paySharedBill($user, $id, $residentBillId, [
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
         $owned = $this->bills->findOwnedResidentBill($id, $residentBillId, (int) $user->id);
 
         return response()->json([
@@ -279,8 +282,8 @@ class AmenitySharedBillController extends Controller
                 'transfer' => $transfer->toPublicPayload(),
             ],
             'message' => $transfer->isSuccessful()
-                ? 'Paid from your bank to the community account.'
-                : 'Bank payment submitted.',
+                ? 'Your bank payment was submitted. ACH payments can still be returned by your bank.'
+                : 'Bank payment submitted. We will update this bill when your bank confirms it.',
         ], 201);
     }
 

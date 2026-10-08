@@ -172,6 +172,21 @@ class PropertyServiceCatalogService
         $name = (string) $service->name;
         $id = (int) $service->id;
 
+        // Deleting cascades to the bills; never let that erase money KuickPay collected or is collecting.
+        $hasOnlinePayments = DB::table('payment_attempts')
+            ->where('payable_type', \App\Models\PaymentAttempt::PAYABLE_SERVICE_BILL)
+            ->whereIn('payable_id', DB::table('unit_service_bills')->where('service_id', $id)->select('id'))
+            ->whereIn('status', array_merge(\App\Models\PaymentAttempt::ACTIVE_STATUSES, [
+                \App\Models\PaymentAttempt::STATUS_SUCCEEDED,
+                \App\Models\PaymentAttempt::STATUS_REFUND_PENDING,
+            ]))
+            ->exists();
+        if ($hasOnlinePayments) {
+            throw ValidationException::withMessages([
+                'service' => 'This service has online payments recorded. Set it to inactive instead of deleting it.',
+            ]);
+        }
+
         DB::table('property_services')->where('id', $id)->delete();
 
         ActivityLogService::user('property_service_deleted', "Deleted service: \"{$name}\"", 'PropertyService', $id);
@@ -386,8 +401,7 @@ class PropertyServiceCatalogService
             'send_notification' => (bool) ($data['send_notification'] ?? $existing?->send_notification ?? true),
             'notice_title' => $this->nullableString($data['notice_title'] ?? $existing?->notice_title),
             'notice_body' => $this->nullableString($data['notice_body'] ?? $existing?->notice_body),
-            'requires_admin_approval' => $type === self::TYPE_OPTIONAL
-                && (bool) ($data['requires_admin_approval'] ?? $existing?->requires_admin_approval ?? false),
+            'requires_admin_approval' => $type === self::TYPE_OPTIONAL,
             'max_subscribers' => $type === self::TYPE_OPTIONAL && ! empty($data['max_subscribers'] ?? $existing?->max_subscribers)
                 ? (int) ($data['max_subscribers'] ?? $existing?->max_subscribers)
                 : null,

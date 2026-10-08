@@ -27,10 +27,10 @@ import {
 } from "../../../../../../services/amenity-api";
 import { resolveAdminPortalBaseUrl } from "../../../../../../constants/api-config";
 import { createWebHandoff } from "../../../../../../services/auth-api";
+import { formatCommunityMoney } from "../../../../../../utils/money";
 import {
   buildUpcomingDates,
   formatLongDate,
-  formatUsdAmount,
   bookingFeeAmount,
   isDateBookedByUser,
   isFullSlotCapacity,
@@ -48,9 +48,11 @@ export default function ReservationCalender() {
   const { t } = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
-  const { id, name, status, isMine, bookingFee, capacity, capacityBookingType } = useLocalSearchParams();
+  const { id, name, status, isMine, bookingFee, capacity, capacityBookingType, sharedBillingEnabled } = useLocalSearchParams();
   const amenityId = Number(id);
   const isOpenMode = String(status) === "open";
+  const sharedBilling = String(sharedBillingEnabled) === "1" || String(sharedBillingEnabled) === "true";
+  const hideGuestCount = isOpenMode || sharedBilling;
   const ownedByMe = isMine === "1" || isMine === "true";
   const unitFee = bookingFeeAmount(bookingFee);
   const amenityCapacity = Math.max(0, Number(capacity) || 0);
@@ -100,15 +102,16 @@ export default function ReservationCalender() {
     remainingForward: selectedSlotRow?.remaining_forward,
     fullSlot,
   });
-  const fee = reservationFeeTotal(unitFee, Math.max(1, guests), fullSlot);
+  const bookingGuests = hideGuestCount || fullSlot ? 1 : Math.max(1, guests);
+  const fee = reservationFeeTotal(unitFee, bookingGuests, fullSlot);
 
   useEffect(() => {
     setSlotCapacityType(normalizeCapacityBookingType(capacityBookingType));
   }, [capacityBookingType]);
 
   useEffect(() => {
-    if (fullSlot) setGuests(1);
-  }, [fullSlot]);
+    if (fullSlot || hideGuestCount) setGuests(1);
+  }, [fullSlot, hideGuestCount]);
 
   useEffect(() => {
     if (!ownedByMe) return;
@@ -192,7 +195,7 @@ export default function ReservationCalender() {
           amenity_id: amenityId,
           date: selectedDate,
           time_slot: isOpenMode ? undefined : selectedSlot,
-          guests,
+          guests: bookingGuests,
           paymentMethod,
         }),
         successTitle: t("propertyMgmt.requestSubmitted"),
@@ -214,7 +217,7 @@ export default function ReservationCalender() {
         errorTitle: t("propertyMgmt.couldNotBook"),
         onSuccess: () => router.replace(amenityFlowRoutes(pathname).myBooking),
       });
-  }, [amenityId, guests, isOpenMode, name, pathname, router, runAction, selectedDate, selectedSlot, t]);
+  }, [amenityId, bookingGuests, isOpenMode, name, pathname, router, runAction, selectedDate, selectedSlot, t]);
 
   const openPlaid = useCallback(async () => {
     let url = `${resolveAdminPortalBaseUrl()}/payments?connect=1&from=app`;
@@ -416,7 +419,7 @@ export default function ReservationCalender() {
                       activeOpacity={0.85}
                       onPress={() => {
                         setSelectedSlot(slot.value);
-                        if (fullSlot) {
+                        if (fullSlot || hideGuestCount) {
                           setGuests(1);
                           return;
                         }
@@ -471,7 +474,7 @@ export default function ReservationCalender() {
           {(isOpenMode || selectedSlot) && !selectedDateBooked ? (
             fullSlot ? (
               <Text style={styles.summaryLine}>{t("propertyMgmt.fullSlotBooksEntire", { capacity: amenityCapacity })}</Text>
-            ) : (
+            ) : hideGuestCount ? null : (
               <View style={styles.guestRow}>
                 <Text style={styles.summaryLine}>{t("propertyMgmt.howManyGuests")}</Text>
                 <View style={styles.guestStepper}>
@@ -498,18 +501,20 @@ export default function ReservationCalender() {
             <View style={styles.feePanel}>
               <View style={styles.feePanelTop}>
                 <Text style={styles.feeEyebrow}>{t("propertyMgmt.reservationTotal")}</Text>
-                <Text style={styles.feeAmount}>{formatUsdAmount(fee)}</Text>
+                <Text style={styles.feeAmount}>{formatCommunityMoney(fee)}</Text>
               </View>
+              {hideGuestCount && !fullSlot ? null : (
               <Text style={styles.feeDetail}>
                 {fullSlot
-                  ? t("propertyMgmt.feeForFullSlot", { amount: formatUsdAmount(unitFee) })
+                  ? t("propertyMgmt.feeForFullSlot", { amount: formatCommunityMoney(unitFee) })
                   : guests > 1
                     ? t("propertyMgmt.feePerGuest", {
-                        amount: formatUsdAmount(unitFee),
+                        amount: formatCommunityMoney(unitFee),
                         count: guests,
                       })
                     : t("propertyMgmt.feeForOneGuest")}
               </Text>
+              )}
               <Text style={styles.feeNote}>
                 {canChargeBank
                   ? t("propertyMgmt.feeBankAccountNote", {
@@ -556,7 +561,7 @@ export default function ReservationCalender() {
                     : needsPlaidLink
                       ? t("propertyMgmt.connectBankToReserve")
                       : canChargeBank
-                      ? t("propertyMgmt.confirmReservationAmount", { amount: formatUsdAmount(fee) })
+                      ? t("propertyMgmt.confirmReservationAmount", { amount: formatCommunityMoney(fee) })
                       : isOpenMode
                         ? selectedDate
                           ? t("propertyMgmt.requestDate", { date: formatLongDate(selectedDate) })
@@ -573,7 +578,7 @@ export default function ReservationCalender() {
       </View>
 
       <Modal
-        visible={seatPickerOpen}
+        visible={seatPickerOpen && !hideGuestCount}
         transparent
         animationType="fade"
         onRequestClose={() => setSeatPickerOpen(false)}

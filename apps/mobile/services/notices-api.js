@@ -3,7 +3,6 @@ import { getToken } from "./auth-session";
 import { API_BASE_URL } from "../constants/api-config";
 import { extractStoragePath, resolveMediaUrl } from "../utils/profile-display";
 import { guessImageMeta, uploadMultipartFile } from "../utils/upload-form-data";
-import { toApiDate } from "../utils/form-datetime";
 import { HOME_SECTION_CARD_LIMIT } from "../constants/home-sections";
 import {
   isNoticeExpiredForHome,
@@ -11,7 +10,7 @@ import {
 } from "../utils/notice-home-expiry";
 import i18n, { localizedField } from "../i18n";
 import { getLocaleForLang } from "../hooks/use-app-locale";
-import { parseApiDate } from "./feed-api";
+import { parseApiDate } from "../utils/parse-api-date";
 
 export { isNoticeExpiredForHome, isCarouselNotice };
 

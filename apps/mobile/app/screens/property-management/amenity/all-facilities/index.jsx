@@ -13,11 +13,11 @@ import { pageStyles } from "../../../../../constants/page-styles";
 import { PropertyManagementRoutes, amenityFlowRoutes } from "../../../../../constants/property-management-routes";
 import { fetchAmenityBills, fetchMyBookings } from "../../../../../services/amenity-api";
 import AmenityPaymentProofModal from "../../../../../components/property/amenity-payment-proof-modal";
+import { formatCommunityMoney } from "../../../../../utils/money";
 import {
   getAmenityVisual,
   getAmenityStatus,
   formatLongDate,
-  formatUsdAmount,
   bookingFeeAmount,
   hasUpcomingUserBooking,
   getNextUserBookingDate,
@@ -147,12 +147,12 @@ export default function AllFacilities() {
               : t("propertyMgmt.bookingFee"),
           value:
             String(sharedBillingEnabled) === "1"
-              ? `${formatUsdAmount(displayFee ?? bookingFee)} / ${
+              ? `${formatCommunityMoney(displayFee ?? bookingFee)} / ${
                   sharedBillingFrequency === "yearly"
                     ? t("admin.sharedBillingYearly")
                     : t("admin.sharedBillingMonthly")
                 }`
-              : formatUsdAmount(displayFee ?? bookingFee) +
+              : formatCommunityMoney(displayFee ?? bookingFee) +
                 (feeIsFullSlot ? t("propertyMgmt.perSlotSuffix") : t("propertyMgmt.perPersonSuffix")),
         }
       : null,
@@ -175,6 +175,7 @@ export default function AllFacilities() {
         bookingFee: String(bookingFee ?? "0"),
         capacity: String(capacity ?? "0"),
         capacityBookingType: String(capacityBookingType ?? "per_seat"),
+        sharedBillingEnabled: String(sharedBillingEnabled ?? "0"),
       },
     });
   };

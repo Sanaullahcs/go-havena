@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Switch } from "react-native";
+import { KeyboardScroll } from "../../../../components/ui/keyboard-form";
 import LocaleTextInput from "../../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -151,7 +152,7 @@ export default function DocumentForm() {
     <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
       <InternalScreenHeader title={isEdit ? t("propertyMgmt.editDocument") : t("propertyMgmt.addDocument")} />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <KeyboardScroll showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.field}>
           <Text style={styles.label}>{t("propertyMgmt.docTitleLabel")}</Text>
           <LocaleTextInput style={[styles.input, showError("title", liveErrors) && styles.inputError]} placeholder={t("propertyMgmt.docTitlePlaceholder")} placeholderTextColor="#9CA3AF" value={form.title} onChangeText={(v) => setF("title", v)} maxLength={LIMITS.documentTitle} />
@@ -231,7 +232,7 @@ export default function DocumentForm() {
             thumbColor={form.status === "active" ? "#1B4F8A" : "#FFFFFF"}
           />
         </View>
-      </ScrollView>
+      </KeyboardScroll>
 
       <View style={styles.footer}>
         <Pressable style={[styles.submitBtn, (!canSubmit || submitting) && styles.submitBtnDisabled]} disabled={!canSubmit || submitting} onPress={handleSubmit}>

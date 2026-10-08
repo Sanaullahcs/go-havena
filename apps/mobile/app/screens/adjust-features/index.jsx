@@ -4,7 +4,6 @@ import {
   AppState,
   InputAccessoryView,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
   PanResponder,
   Platform,
@@ -15,6 +14,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -239,7 +239,7 @@ export default function AdjustFeaturesScreen() {
       >
         <KeyboardAvoidingView
           style={styles.modalRoot}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior="padding"
           enabled={keyboardHeight === 0}
         >
           <Pressable style={styles.backdrop} onPress={onBackdrop} />

@@ -10,12 +10,15 @@ import {
   StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import InternalScreenHeader from "../../../../components/layout/internal-screen-header";
 import AmenityPaymentProofModal from "../../../../components/property/amenity-payment-proof-modal";
 import AmenityIcon from "../../../../components/property/amenity-icon";
+import KuickpayPaySheet from "../../../../components/payments/kuickpay-pay-sheet";
+import { PAYABLE } from "../../../../services/payments-api";
+import { PAYMENT_RESULT_ROUTE } from "../../../../hooks/use-kuickpay-pay";
 import { propertyStyles } from "../../../../constants/property-styles";
 import { PropertyHubTheme } from "../../../../constants/property-management-theme";
 import { Fonts } from "../../../../constants/font";
@@ -33,8 +36,20 @@ import {
 import { useApiAction } from "../../../../hooks/use-api-action";
 import { sf, sw } from "../../../../utils/responsive";
 import { rnShadow } from "../../../../utils/shadow";
-import { formatBookingDisplayFee, formatUsdAmount } from "../../../../utils/amenity-display";
+import { formatBookingDisplayFee } from "../../../../utils/amenity-display";
+import { formatCommunityMoney } from "../../../../utils/money";
 import { localizedField } from "../../../../i18n";
+import BillDetailSheet from "../../../../components/payments/bill-detail-sheet";
+import {
+  BillCard,
+  BillEmpty,
+  BillFilters,
+  BillSummary,
+  defaultBillFilter,
+  filterBills,
+} from "../../../../components/payments/bill-list-parts";
+import { buildBillDocument, canPayBill, sortBills, summarizeBills } from "../../../../utils/bill-document";
+import { useSessionUser } from "../../../../hooks/use-session-user";
 
 const MINE_TAB = "mine";
 
@@ -76,75 +91,9 @@ function bookingStatusMeta(booking, t) {
   return { label: t("propertyMgmt.statusPending"), tone: "pending" };
 }
 
-function canPay(bill) {
-  const status = String(bill.status ?? "").toLowerCase();
-  return ["unpaid", "rejected", "overdue"].includes(status);
-}
-
-function BillCard({ bill, busy, onPay, t }) {
-  const status = statusMeta(bill, t);
-  const due = formatDueDate(bill.due_date);
-  const amount = bill.amount ?? bill.resident_amount ?? bill.amount_per_resident;
-
-  return (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.iconWell}>
-          <AmenityIcon iconKey={bill.amenity_icon_key} name={bill.amenity_name} size={sf(18)} />
-        </View>
-        <View style={styles.headerCopy}>
-          <Text style={styles.billTitle} numberOfLines={2}>
-            {bill.title || bill.amenity_name || t("services.myAmenityBillsTitle")}
-          </Text>
-          <Text style={styles.billMeta} numberOfLines={1}>
-            {bill.amenity_name}
-            {bill.billing_month_label ? ` · ${bill.billing_month_label}` : ""}
-          </Text>
-        </View>
-        <View style={[styles.statusBadge, styles[`status_${status.tone}`]]}>
-          <Text style={[styles.statusText, styles[`statusText_${status.tone}`]]}>{status.label}</Text>
-        </View>
-      </View>
-
-      <View style={styles.chips}>
-        <View style={styles.chip}>
-          <Text style={styles.chipText}>{formatUsdAmount(amount)}</Text>
-        </View>
-        {due ? (
-          <View style={styles.chip}>
-            <Text style={styles.chipText}>{t("services.unitBillsDue", { date: due })}</Text>
-          </View>
-        ) : null}
-      </View>
-
-      {bill.rejection_reason ? (
-        <Text style={styles.rejectReason}>{bill.rejection_reason}</Text>
-      ) : null}
-
-      {canPay(bill) ? (
-        <Pressable
-          disabled={busy}
-          onPress={onPay}
-          style={[styles.primaryBtn, busy ? styles.disabled : null]}
-        >
-          {busy ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.primaryText}>{t("services.myAmenityBillsPay")}</Text>
-          )}
-        </Pressable>
-      ) : (
-        <View style={styles.infoRow}>
-          <Feather name="info" size={sf(14)} color={PropertyHubTheme.muted} />
-          <Text style={styles.infoText}>
-            {status.tone === "success"
-              ? t("services.myAmenityBillsPaidHint")
-              : t("services.myAmenityBillsPendingHint")}
-          </Text>
-        </View>
-      )}
-    </View>
-  );
+function payActionLabel(bill, t) {
+  if (bill.online_payment?.available) return t("bills.list.payNow");
+  return String(bill.status ?? "").toLowerCase() === "rejected" ? t("bills.list.resubmitProof") : t("bills.list.uploadProof");
 }
 
 function ReceivedPaymentCard({ booking, bill, busy, onApprove, onReject, onApprovePayment, onRejectPayment, t }) {
@@ -180,7 +129,7 @@ function ReceivedPaymentCard({ booking, bill, busy, onApprove, onReject, onAppro
       <View style={styles.chips}>
         <View style={styles.chip}>
           <Text style={styles.chipText}>
-            {booking ? formatBookingDisplayFee(booking) : formatUsdAmount(bill?.amount)}
+            {booking ? formatBookingDisplayFee(booking) : formatCommunityMoney(bill?.amount)}
           </Text>
         </View>
         {dateLabel ? (
@@ -264,7 +213,9 @@ function ReceivedPaymentCard({ booking, bill, busy, onApprove, onReject, onAppro
 
 export default function MyAmenityBillsScreen() {
   const { t } = useTranslation();
+  const router = useRouter();
   const { runAction, dialog, showFailure } = useApiAction();
+  const [payFor, setPayFor] = useState(null);
   const [tab, setTab] = useState(MINE_TAB);
   const [bills, setBills] = useState([]);
   const [ownerBills, setOwnerBills] = useState([]);
@@ -274,6 +225,24 @@ export default function MyAmenityBillsScreen() {
   const [busyId, setBusyId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState(null);
+  const [detailFor, setDetailFor] = useState(null);
+  const sessionUser = useSessionUser();
+
+  const myBills = useMemo(() => sortBills(bills, t), [bills, t]);
+  const summary = useMemo(() => summarizeBills(myBills, t), [myBills, t]);
+  const activeFilter = filter ?? defaultBillFilter(summary);
+  const visibleBills = useMemo(() => filterBills(myBills, activeFilter, t), [myBills, activeFilter, t]);
+  const detailDoc = useMemo(
+    () => (detailFor ? buildBillDocument(detailFor, { kind: "amenity", user: sessionUser, communityId: detailFor.community_id, t }) : null),
+    [detailFor, sessionUser, t],
+  );
+
+  function startPayment(bill) {
+    setDetailFor(null);
+    if (bill.online_payment?.available) setPayFor(bill);
+    else setProofFor(bill);
+  }
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -469,22 +438,43 @@ export default function MyAmenityBillsScreen() {
             <ActivityIndicator color={PropertyHubTheme.teal} />
           </View>
         ) : showingMine ? (
-          bills.length === 0 ? (
+          myBills.length === 0 ? (
             <View style={styles.empty}>
               <Feather name="file-text" size={sf(28)} color={PropertyHubTheme.muted} />
               <Text style={styles.emptyTitle}>{t("services.myAmenityBillsEmptyTitle")}</Text>
               <Text style={styles.emptyBody}>{t("services.myAmenityBillsEmptyBody")}</Text>
             </View>
           ) : (
-            bills.map((bill) => (
-              <BillCard
-                key={bill.resident_bill_id || bill.id}
-                bill={bill}
-                busy={false}
-                onPay={() => setProofFor(bill)}
-                t={t}
-              />
-            ))
+            <>
+              <BillSummary summary={summary} t={t} />
+              <BillFilters value={activeFilter} onChange={setFilter} summary={summary} t={t} />
+              {visibleBills.length === 0 ? (
+                <BillEmpty filter={activeFilter} t={t} />
+              ) : (
+                visibleBills.map((bill) => (
+                  <BillCard
+                    key={bill.resident_bill_id || bill.id}
+                    bill={bill}
+                    t={t}
+                    icon={<AmenityIcon iconKey={bill.amenity_icon_key} name={bill.amenity_name} size={sf(18)} />}
+                    title={bill.title || bill.amenity_name || t("services.myAmenityBillsTitle")}
+                    subtitle={[bill.title && bill.title !== bill.amenity_name ? bill.amenity_name : null, bill.billing_month_label]
+                      .filter(Boolean)
+                      .join(" · ")}
+                    payLabel={payActionLabel(bill, t)}
+                    onPay={() => startPayment(bill)}
+                    onPress={() => {
+                      const active = bill.online_payment?.active_payment;
+                      if (active?.status === "processing") {
+                        router.push({ pathname: PAYMENT_RESULT_ROUTE, params: { id: active.id } });
+                        return;
+                      }
+                      setDetailFor(bill);
+                    }}
+                  />
+                ))
+              )}
+            </>
           )
         ) : receivedPayments.length === 0 ? (
           <View style={styles.empty}>
@@ -509,6 +499,13 @@ export default function MyAmenityBillsScreen() {
         )}
       </ScrollView>
 
+      <BillDetailSheet
+        visible={Boolean(detailFor)}
+        doc={detailDoc}
+        primaryLabel={detailFor && canPayBill(detailFor) ? payActionLabel(detailFor, t) : null}
+        onPrimary={() => detailFor && startPayment(detailFor)}
+        onClose={() => setDetailFor(null)}
+      />
       {proofFor ? (
         <AmenityPaymentProofModal
           visible
@@ -517,6 +514,24 @@ export default function MyAmenityBillsScreen() {
           amenityName={proofFor.amenity_name}
           onClose={() => setProofFor(null)}
           onSubmitted={() => void handleSubmitted()}
+        />
+      ) : null}
+      {payFor ? (
+        <KuickpayPaySheet
+          visible
+          payableType={PAYABLE.AMENITY_BILL}
+          payableId={payFor.resident_bill_id}
+          bill={{
+            title: payFor.title || payFor.amenity_name,
+            subtitle: [payFor.amenity_name, payFor.billing_month_label].filter(Boolean).join(" · "),
+            amount: payFor.amount ?? payFor.resident_amount ?? payFor.amount_per_resident,
+            dueDate: payFor.due_date,
+            isPastDue: String(payFor.status) === "overdue",
+            onlinePayment: payFor.online_payment,
+          }}
+          onClose={() => setPayFor(null)}
+          onSettled={() => load({ silent: true })}
+          onUploadProof={() => { const bill = payFor; setPayFor(null); setProofFor(bill); }}
         />
       ) : null}
     </SafeAreaView>
@@ -637,6 +652,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   reviewPrimary: { flex: 1 },
+  kuickpayBtn: { backgroundColor: "#EF4B23" },
+  processingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: sw(8),
+    borderRadius: sw(12),
+    padding: sw(10),
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+  processingText: { flex: 1, fontFamily: Fonts.medium, fontSize: sf(12), color: "#B45309" },
   primaryText: { fontFamily: Fonts.semiBold, fontSize: sf(14), color: "#FFFFFF" },
   secondaryBtn: {
     flex: 1,

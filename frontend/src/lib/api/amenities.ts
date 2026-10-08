@@ -324,6 +324,7 @@ export type AmenityMonthlyBill = {
   booking_id?: number | null;
   can_submit_proof?: boolean;
   payment_method?: string | null;
+  online_payment?: import("./kuickpay").OnlinePayment | null;
   ach_status?: string | null;
   payment_proof?: AmenityPaymentProof | null;
   payment_acknowledgement?: AmenityPaymentAcknowledgement | null;

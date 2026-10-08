@@ -12,6 +12,7 @@ export class ApiError extends Error {
     rateLimit,
     rejectionReason,
     guestInvitation,
+    meta,
   } = {}) {
     super(message);
     this.name = "ApiError";
@@ -27,5 +28,6 @@ export class ApiError extends Error {
     this.rateLimit = rateLimit ?? null;
     this.rejectionReason = rejectionReason ?? null;
     this.guestInvitation = guestInvitation ?? null;
+    this.meta = meta ?? null;
   }
 }

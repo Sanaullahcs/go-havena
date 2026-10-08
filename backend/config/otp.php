@@ -32,6 +32,8 @@ return [
             'community@gohavena.com' => env('OTP_DEMO_COMMUNITY_CODE', '221322'),
             'acton@gohavena.com' => env('OTP_DEMO_ACTON_CODE', '221322'),
             'resident.acton@gohavena.com' => env('OTP_DEMO_ACTON_RESIDENT_CODE', '221322'),
+            'haly@gohavena.com' => env('OTP_DEMO_HALY_CODE', '221322'),
+            'haly.resident@gohavena.com' => env('OTP_DEMO_HALY_RESIDENT_CODE', '221322'),
             'umer@namuve.com' => env('OTP_DEMO_UMER_CODE', '221322'),
             'tgi.admin@havena.app' => env('OTP_DEMO_TGI_ADMIN_CODE', '123456'),
             'tgiadmin@havena.app' => env('OTP_DEMO_TGI_ADMIN_CODE', '123456'),

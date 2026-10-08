@@ -22,6 +22,7 @@ import { parseApiDate } from "../../../services/feed-api";
 import { billingFrequencyLabel } from "../../../services/property-services-api";
 import { PropertyManagementRoutes } from "../../../constants/property-management-routes";
 import { navigateAppRoute, safeGoBack } from "../../../utils/app-navigation";
+import { formatCommunityMoney } from "../../../utils/money";
 import { sw, sf, hp } from "../../../utils/responsive";
 import { useTranslation } from 'react-i18next';
 import i18n, { localizedField } from "../../../i18n";
@@ -117,8 +118,7 @@ function billStatusMeta(status, label, t) {
 
 function formatBillAmount(amount) {
   if (amount == null || Number.isNaN(Number(amount))) return "";
-  const value = Number(amount);
-  return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
+  return formatCommunityMoney(amount);
 }
 
 function SectionHeader({ icon, title, accent }) {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import { KeyboardScroll } from "../../../components/ui/keyboard-form";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { Fonts } from "../../../constants/font";
 import { useRouter } from "expo-router";
@@ -221,7 +222,7 @@ export default function CreateAlertScreen() {
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <ScreenHeader layout="inline" title={t('alerts.createAlert')} iconOnly />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <KeyboardScroll showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.formWrap}>
           <Text style={styles.formLabel}>
             {t('alerts.title')} <Text style={styles.required}>*</Text>
@@ -409,7 +410,7 @@ export default function CreateAlertScreen() {
             )}
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </KeyboardScroll>
     </SafeAreaView>
   );
 }

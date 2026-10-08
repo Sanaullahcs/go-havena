@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { toastError, toastSuccess } from "@/lib/alert";
 import { apiError } from "@/lib/api/client";
+import { formatCommunityMoney } from "@/lib/money";
 import {
   acknowledgeServiceBill,
   fetchResidentPropertyServices,
@@ -15,6 +16,7 @@ import {
   type UnitServiceBill,
 } from "@/lib/api/property-services";
 import { AmenityPaymentProofModal } from "@/components/property/amenity-payment-proof-modal";
+import { KuickpayPayButton } from "@/components/payments/kuickpay-pay-button";
 
 export function UnitServiceWorkspace() {
   const [bills, setBills] = useState<UnitServiceBill[]>([]);
@@ -51,7 +53,7 @@ export function UnitServiceWorkspace() {
                 <div>
                   <p className="font-semibold text-slate-900">{bill.title}</p>
                   <p className="text-xs text-slate-500">
-                    ${bill.amount}
+                    {formatCommunityMoney(bill.amount)}
                     {bill.billing_frequency === "yearly"
                       ? " · per year"
                       : bill.billing_frequency === "one_time"
@@ -80,11 +82,32 @@ export function UnitServiceWorkspace() {
                   First acknowledge, then pay the bill
                 </button>
               )}
-              {bill.can_submit_proof && (
+              {bill.can_submit_proof && bill.online_payment?.available ? (
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <KuickpayPayButton
+                    payableType="unit_service_bill"
+                    payableId={bill.id}
+                    title={bill.title}
+                    subtitle={[bill.service_name, bill.unit_number ? `Unit ${bill.unit_number}` : null].filter(Boolean).join(" · ")}
+                    amount={Number(bill.amount)}
+                    dueDate={bill.due_date}
+                    onlinePayment={bill.online_payment}
+                    onSettled={() => void load()}
+                  />
+                  {bill.online_payment.active_payment?.status !== "processing" ? (
+                    <button type="button" className="text-xs font-semibold text-slate-500" onClick={() => setProofFor(bill)}>
+                      Upload proof instead
+                    </button>
+                  ) : null}
+                </div>
+              ) : bill.can_submit_proof ? (
                 <button type="button" className="mt-2 ml-3 text-xs font-semibold text-slate-800" onClick={() => setProofFor(bill)}>
                   Pay now
                 </button>
-              )}
+              ) : null}
+              {bill.status === "paid" && bill.payment_method === "kuickpay" ? (
+                <p className="mt-1 text-xs font-medium text-emerald-700">Paid online with KuickPay</p>
+              ) : null}
             </article>
           ))}
         </div>
@@ -99,7 +122,7 @@ export function UnitServiceWorkspace() {
               <p className="font-semibold text-slate-900">{service.name}</p>
               <p className="text-xs text-slate-500">
                 {serviceCategoryLabel(service.category, service.custom_category)}
-                {service.amount != null ? ` · $${service.amount}` : ""}
+                {service.amount != null ? ` · ${formatCommunityMoney(service.amount)}` : ""}
                 {service.billing_frequency ? ` · ${service.billing_frequency.replace("_", " ")}` : ""}
               </p>
               {service.unit_subscription && (

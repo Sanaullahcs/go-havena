@@ -3,12 +3,9 @@
 import { useEffect, useState } from "react";
 import { AmenityPaymentAcknowledgementCard } from "@/components/property/amenity-payment-acknowledgement";
 import { AmenityPaymentProofModal } from "@/components/property/amenity-payment-proof-modal";
-import {
-  billStatusTone,
-  formatBillAmount,
-  formatBillDate,
-  formatUsdAmount,
-} from "@/lib/admin/amenity-bill-validation";
+import { KuickpayPayButton } from "@/components/payments/kuickpay-pay-button";
+import { formatCommunityMoney } from "@/lib/money";
+import { billStatusTone, formatBillAmount, formatBillDate } from "@/lib/admin/amenity-bill-validation";
 import { toastError, toastSuccess } from "@/lib/alert";
 import { apiError } from "@/lib/api/client";
 import {
@@ -177,6 +174,18 @@ export function AmenityResidentBills({ amenity }: { amenity: Amenity }) {
             ) : null}
             {bill.can_submit_proof && bill.resident_bill_id ? (
               <div className="mt-2 space-y-1.5">
+                {bill.online_payment?.available ? (
+                  <KuickpayPayButton
+                    payableType="amenity_resident_bill"
+                    payableId={bill.resident_bill_id}
+                    title={bill.title || amenity.name}
+                    subtitle={[amenity.name, bill.billing_month_label].filter(Boolean).join(" · ")}
+                    amount={Number(bill.amount ?? bill.amount_per_resident)}
+                    dueDate={bill.due_date}
+                    onlinePayment={bill.online_payment}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#EF4B23] py-1.5 text-[12px] font-bold text-white hover:bg-[#C23812]"
+                  />
+                ) : null}
                 {capability?.can_pay_with_bank ? (
                   <button
                     type="button"
@@ -203,7 +212,7 @@ export function AmenityResidentBills({ amenity }: { amenity: Amenity }) {
                   >
                     {payingId === bill.resident_bill_id
                       ? "Sending ACH…"
-                      : `Pay ${formatUsdAmount(bill.amount ?? bill.amount_per_resident)} with bank`}
+                      : `Pay ${formatCommunityMoney(bill.amount ?? bill.amount_per_resident)} with bank`}
                   </button>
                 ) : null}
                 <button

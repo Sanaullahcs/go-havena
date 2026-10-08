@@ -1,211 +1,43 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { Keyboard, Platform, Pressable, StyleSheet, View } from "react-native";
 import {
-  Dimensions,
-  Keyboard,
   KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from "react-native";
+  KeyboardAwareScrollView,
+  KeyboardEvents,
+  KeyboardStickyView,
+} from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const FOOTER_KEYBOARD_GAP = 12;
-/** Extra scroll padding above sticky footer when keyboard is open */
-const KEYBOARD_FIELD_FOOTER_GAP = 28;
-const LIFT_EPSILON = 2;
-/** One delayed re-measure for Android adjustResize (window shrinks after keyboardDidShow). */
-const RESIZE_RETRY_MS = 120;
-const IOS_KEYBOARD_AVOID = Platform.OS === "ios";
+/** Space kept between the focused field and the keyboard (or the footer riding on it). */
+const FIELD_GAP = 20;
 
-function resolveKeyboardTop(event) {
-  const { screenY, height } = event.endCoordinates;
-  const windowHeight = Dimensions.get("window").height;
-  const topFromHeight = windowHeight - height;
-
-  if (Number.isFinite(screenY) && screenY > 0 && screenY < windowHeight) {
-    return Math.min(screenY, topFromHeight);
-  }
-
-  return topFromHeight;
-}
-
-/** Lifts a pinned footer (composer, submit bar) above the software keyboard on iOS and Android. */
-export function useKeyboardFooterLift(hasFooter) {
-  const footerMeasureRef = useRef(null);
-  const keyboardTopRef = useRef(null);
-  const retryTimerRef = useRef(null);
-  const [lift, setLift] = useState(0);
-
-  const setLiftStable = useCallback((next) => {
-    setLift((current) => (Math.abs(current - next) < LIFT_EPSILON ? current : next));
-  }, []);
-
-  const computeLift = useCallback(() => {
-    const keyboardTop = keyboardTopRef.current;
-
-    if (!hasFooter || keyboardTop == null || !footerMeasureRef.current) {
-      setLiftStable(0);
-      return;
-    }
-
-    footerMeasureRef.current.measureInWindow((_x, y, _w, height) => {
-      const overlap = y + height - keyboardTop + FOOTER_KEYBOARD_GAP;
-      setLiftStable(overlap > 0 ? overlap : 0);
-    });
-  }, [hasFooter, setLiftStable]);
-
-  const clearRetry = useCallback(() => {
-    if (retryTimerRef.current) {
-      clearTimeout(retryTimerRef.current);
-      retryTimerRef.current = null;
-    }
-  }, []);
+function useKeyboardHeight() {
+  const [height, setHeight] = useState(0);
 
   useEffect(() => {
-    if (!hasFooter) return undefined;
-
-    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
-    const onShow = (event) => {
-      keyboardTopRef.current = resolveKeyboardTop(event);
-      requestAnimationFrame(computeLift);
-      clearRetry();
-      retryTimerRef.current = setTimeout(computeLift, RESIZE_RETRY_MS);
-    };
-
-    const onHide = () => {
-      keyboardTopRef.current = null;
-      clearRetry();
-      setLiftStable(0);
-    };
-
-    const showSub = Keyboard.addListener(showEvent, onShow);
-    const hideSub = Keyboard.addListener(hideEvent, onHide);
-
+    const show = KeyboardEvents.addListener("keyboardWillShow", (event) => setHeight(event?.height ?? 0));
+    const hide = KeyboardEvents.addListener("keyboardWillHide", () => setHeight(0));
     return () => {
-      clearRetry();
-      showSub.remove();
-      hideSub.remove();
+      show.remove();
+      hide.remove();
     };
-  }, [hasFooter, clearRetry, computeLift, setLiftStable]);
+  }, []);
 
-  return { footerMeasureRef, lift };
+  return height;
 }
 
 /** True while the software keyboard is visible. */
 export function useKeyboardVisible() {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const showEvent = "keyboardWillShow";
-    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
-    const onShow = () => setVisible(true);
-    const onHide = () => setVisible(false);
-
-    const showSub = Keyboard.addListener(showEvent, onShow);
-    const hideSub = Keyboard.addListener(hideEvent, onHide);
-
-    // Android fallback when keyboardWillShow is not emitted.
-    const didShowSub =
-      Platform.OS === "android" ? Keyboard.addListener("keyboardDidShow", onShow) : null;
-    const willHideSub =
-      Platform.OS === "android" ? Keyboard.addListener("keyboardWillHide", onHide) : null;
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-      didShowSub?.remove();
-      willHideSub?.remove();
-    };
-  }, []);
-
-  return visible;
+  return useKeyboardHeight() > 0;
 }
 
 /**
  * Bottom offset for absolutely positioned composers (chat, comment bars).
- * iOS: keyboard overlays the window — lift by keyboard height.
- * Android: only lift when adjustResize did not shrink the window.
+ * The keyboard overlays the window on both platforms (edge-to-edge), so lift by its height.
  */
 export function useKeyboardBottomOffset() {
   const insets = useSafeAreaInsets();
-  const baselineHeightRef = useRef(Dimensions.get("window").height);
-  const retryTimerRef = useRef(null);
-  const bottomOffsetRef = useRef(0);
-  const [bottomOffset, setBottomOffset] = useState(0);
-
-  useEffect(() => {
-    bottomOffsetRef.current = bottomOffset;
-  }, [bottomOffset]);
-
-  const resolveOffset = useCallback((event) => {
-    const { height = 0, screenY } = event?.endCoordinates ?? {};
-    const windowHeight = Dimensions.get("window").height;
-    const screenHeight = Dimensions.get("screen").height;
-
-    // Prefer the keyboard's own height. Mixing screenY with window height
-    // under-lifts and hides docked composers behind the keyboard.
-    let keyboardHeight = height;
-    if (!(keyboardHeight > 0) && Number.isFinite(screenY) && screenY > 0) {
-      keyboardHeight = Math.max(0, screenHeight - screenY);
-    }
-
-    if (keyboardHeight <= 0) {
-      setBottomOffset(0);
-      return;
-    }
-
-    const resizedBy = Math.max(0, baselineHeightRef.current - windowHeight);
-    setBottomOffset(Math.max(0, keyboardHeight - resizedBy));
-  }, []);
-
-  const clearRetry = useCallback(() => {
-    if (retryTimerRef.current) {
-      clearTimeout(retryTimerRef.current);
-      retryTimerRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    const onShow = (event) => {
-      resolveOffset(event);
-      clearRetry();
-      retryTimerRef.current = setTimeout(() => resolveOffset(event), RESIZE_RETRY_MS);
-    };
-
-    const onHide = () => {
-      clearRetry();
-      baselineHeightRef.current = Dimensions.get("window").height;
-      setBottomOffset(0);
-    };
-
-    const dimSub = Dimensions.addEventListener("change", ({ window }) => {
-      if (bottomOffsetRef.current === 0) {
-        baselineHeightRef.current = window.height;
-      }
-    });
-
-    const showSubs = [
-      Keyboard.addListener("keyboardWillShow", onShow),
-      Keyboard.addListener("keyboardDidShow", onShow),
-    ];
-    const hideSubs = [
-      Keyboard.addListener("keyboardWillHide", onHide),
-      Keyboard.addListener("keyboardDidHide", onHide),
-    ];
-
-    return () => {
-      clearRetry();
-      showSubs.forEach((sub) => sub.remove());
-      hideSubs.forEach((sub) => sub.remove());
-      dimSub?.remove?.();
-    };
-  }, [clearRetry, resolveOffset]);
-
+  const bottomOffset = useKeyboardHeight();
   return {
     bottomOffset,
     safeBottom: Math.max(insets.bottom, 12),
@@ -213,160 +45,44 @@ export function useKeyboardBottomOffset() {
 }
 
 /**
- * Scroll a focused field above the keyboard (+ optional footer height).
- * Uses window measurements so it works with pinned footers and adjustResize.
+ * Kept for screens built before KeyboardSafeScreen scrolled focused fields itself.
+ * KeyboardAwareScrollView now keeps the focused field above the keyboard and footer.
  */
-export function useScrollFieldRefIntoView(
-  scrollRef,
-  {
-    delayMs = Platform.OS === "android" ? 320 : 280,
-    topPad = 16,
-    footerHeight = 0,
-  } = {},
-) {
-  const keyboardTopRef = useRef(null);
-  const scrollOffsetRef = useRef(0);
-  const pendingFieldRef = useRef(null);
-
-  const measureAndScroll = useCallback(
-    (fieldRef) => {
-      if (!scrollRef?.current || !fieldRef?.current) return;
-
-      // Wait for the keyboard. Measuring against the full window minus the
-      // footer would scroll lower fields on mount / first-field focus.
-      const keyboardTop = keyboardTopRef.current;
-      if (keyboardTop == null) return;
-
-      fieldRef.current?.measureInWindow((_x, fieldY, _w, fieldHeight) => {
-        const visibleBottom = keyboardTop - footerHeight - topPad;
-        const fieldBottom = fieldY + fieldHeight;
-
-        if (fieldBottom <= visibleBottom) return;
-
-        scrollRef.current?.scrollTo({
-          y: Math.max(0, scrollOffsetRef.current + (fieldBottom - visibleBottom)),
-          animated: true,
-        });
-      });
-    },
-    [scrollRef, footerHeight, topPad],
-  );
-
-  const scheduleScroll = useCallback(
-    (fieldRef) => {
-      pendingFieldRef.current = fieldRef;
-      requestAnimationFrame(() => {
-        setTimeout(() => measureAndScroll(fieldRef), delayMs);
-        if (Platform.OS === "android") {
-          setTimeout(() => measureAndScroll(fieldRef), delayMs + RESIZE_RETRY_MS);
-        }
-      });
-    },
-    [measureAndScroll, delayMs],
-  );
-
-  useEffect(() => {
-    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
-    const onShow = (event) => {
-      keyboardTopRef.current = resolveKeyboardTop(event);
-      if (pendingFieldRef.current) scheduleScroll(pendingFieldRef.current);
-    };
-    const onHide = () => {
-      keyboardTopRef.current = null;
-    };
-
-    const showSub = Keyboard.addListener(showEvent, onShow);
-    const hideSub = Keyboard.addListener(hideEvent, onHide);
-    const didShowSub =
-      Platform.OS === "ios" ? Keyboard.addListener("keyboardDidShow", onShow) : null;
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-      didShowSub?.remove();
-    };
-  }, [scheduleScroll]);
-
-  useEffect(() => {
-    if (pendingFieldRef.current) scheduleScroll(pendingFieldRef.current);
-  }, [footerHeight, scheduleScroll]);
-
-  const onScroll = useCallback((event) => {
-    scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
-  }, []);
-
-  const scrollIntoView = useCallback(
-    (fieldRef) => {
-      scheduleScroll(fieldRef);
-    },
-    [scheduleScroll],
-  );
-
-  const clearPending = useCallback(() => {
-    pendingFieldRef.current = null;
-  }, []);
-
-  return { scrollIntoView, onScroll, clearPending };
+export function useScrollFieldRefIntoView() {
+  const noop = useCallback(() => {}, []);
+  return { scrollIntoView: noop, onScroll: noop, clearPending: noop };
 }
 
-/**
- * Scroll long forms so a focused field stays above the keyboard + sticky footer.
- * Pass a content-offset Y (from onLayout) to land on that field; omit to scroll to end.
- */
-export function useScrollFieldIntoView(
-  scrollRef,
-  { delayMs = Platform.OS === "android" ? 280 : 250, topPad = 20 } = {},
-) {
+/** Scroll a long form to a content offset (or to the end when omitted). */
+export function useScrollFieldIntoView(scrollRef, { delayMs = 250, topPad = 20 } = {}) {
   return useCallback(
     (targetY) => {
       if (!scrollRef?.current) return;
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          if (typeof targetY === "number" && Number.isFinite(targetY)) {
-            scrollRef.current?.scrollTo({
-              y: Math.max(0, targetY - topPad),
-              animated: true,
-            });
-            return;
-          }
-          scrollRef.current?.scrollToEnd({ animated: true });
-        }, delayMs);
-      });
+      setTimeout(() => {
+        if (typeof targetY === "number" && Number.isFinite(targetY)) {
+          scrollRef.current?.scrollTo({ y: Math.max(0, targetY - topPad), animated: true });
+          return;
+        }
+        scrollRef.current?.scrollToEnd({ animated: true });
+      }, delayMs);
     },
     [scrollRef, delayMs, topPad],
   );
 }
 
-/**
- * Lifts scroll content above the software keyboard.
- * Prefer KeyboardSafeScreen for forms with a sticky footer.
- */
-export function KeyboardSafeView({
-  children,
-  style,
-  keyboardVerticalOffset = 0,
-}) {
-  if (Platform.OS === "android") {
-    return <View style={[styles.flex, style]}>{children}</View>;
-  }
-
+/** Lifts content above the software keyboard on iOS and Android. */
+export function KeyboardSafeView({ children, style, keyboardVerticalOffset = 0 }) {
   return (
-    <KeyboardAvoidingView
-      style={[styles.flex, style]}
-      behavior="padding"
-      keyboardVerticalOffset={keyboardVerticalOffset}
-    >
+    <KeyboardAvoidingView style={[styles.flex, style]} behavior="padding" keyboardVerticalOffset={keyboardVerticalOffset}>
       {children}
     </KeyboardAvoidingView>
   );
 }
 
 /**
- * Scrollable body + optional pinned footer (submit / post buttons).
- * iOS: KeyboardAvoidingView keeps footer in layout flow (no translateY overlap).
- * Android: automaticallyAdjustKeyboardInsets + optional footer lift.
+ * Scrollable form body + optional pinned footer (submit / post buttons).
+ * The focused field is always scrolled above the keyboard, and the footer rides on
+ * top of the keyboard unless `footerKeyboardLift` is false.
  */
 export default function KeyboardSafeScreen({
   children,
@@ -377,52 +93,53 @@ export default function KeyboardSafeScreen({
   footerBorderless = false,
   footerStyle,
   scrollProps,
-  keyboardVerticalOffset = 0,
   onFooterHeight,
   dismissKeyboardOnPress = false,
-  /** When false, iOS uses ScrollView keyboard insets instead of KeyboardAvoidingView (better for long forms). */
-  keyboardAvoiding = true,
-  /** When false, sticky footer stays at the layout bottom (no translateY lift above keyboard). */
+  /** When false, the footer stays at the bottom and the keyboard covers it. */
   footerKeyboardLift = true,
-  /** Extra bottom padding while keyboard is open so lower fields can scroll above the CTA */
+  /** Extra space between a focused field and the footer. */
   keyboardFieldGap,
   /** Pin footer to the home indicator with no extra gap below the field. */
   dockFooter = false,
 }) {
   const insets = useSafeAreaInsets();
+  const [footerHeight, setFooterHeight] = useState(0);
   const hasFooter = Boolean(footer);
-  const keyboardVisible = useKeyboardVisible();
-  const resolvedFieldGap =
-    keyboardFieldGap ??
-    (hasFooter ? KEYBOARD_FIELD_FOOTER_GAP : 0);
-  const fieldFooterGap = keyboardVisible && hasFooter ? resolvedFieldGap : 0;
-  const enableFooterLift = hasFooter && footerKeyboardLift && !IOS_KEYBOARD_AVOID;
-  const { footerMeasureRef, lift } = useKeyboardFooterLift(enableFooterLift);
-  const footerBottomPad = keyboardVisible
-    ? 6
-    : dockFooter
-      ? 6
-      : Math.max(insets.bottom, 12);
-  const flattenedContent = StyleSheet.flatten(contentContainerStyle) || {};
-  const baseContentPad =
-    typeof flattenedContent.paddingBottom === "number" ? flattenedContent.paddingBottom : 0;
+  const liftFooter = hasFooter && footerKeyboardLift;
+  const footerBottomPad = dockFooter ? 6 : Math.max(insets.bottom, 12);
+  const bottomOffset = FIELD_GAP + (liftFooter ? footerHeight + (keyboardFieldGap ?? 0) : 0);
 
-  const body = (
+  const footerNode = hasFooter ? (
+    <View
+      collapsable={false}
+      onLayout={(event) => {
+        const next = Math.ceil(event.nativeEvent.layout.height);
+        setFooterHeight(next);
+        onFooterHeight?.(next);
+      }}
+      style={[
+        styles.footerMeasure,
+        footerBorderless && !dockFooter && styles.footerMeasureBorderless,
+        dockFooter && styles.footerMeasureDocked,
+        { paddingBottom: footerBottomPad },
+      ]}
+    >
+      <View style={[styles.footer, footerBorderless && styles.footerBorderless, dockFooter && styles.footerDocked, footerStyle]}>
+        {footer}
+      </View>
+    </View>
+  ) : null;
+
+  return (
     <View style={styles.flex}>
-      <ScrollView
+      <KeyboardAwareScrollView
         ref={scrollRef}
         style={[styles.flex, scrollStyle]}
-        contentContainerStyle={[
-          styles.scrollContent,
-          contentContainerStyle,
-          fieldFooterGap > 0 && { paddingBottom: baseContentPad + fieldFooterGap },
-        ]}
+        contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
+        bottomOffset={bottomOffset}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
         showsVerticalScrollIndicator={false}
-        automaticallyAdjustKeyboardInsets={
-          keyboardAvoiding ? !IOS_KEYBOARD_AVOID : true
-        }
         {...scrollProps}
       >
         {dismissKeyboardOnPress ? (
@@ -432,53 +149,17 @@ export default function KeyboardSafeScreen({
         ) : (
           children
         )}
-      </ScrollView>
-      {footer ? (
-        <View
-          ref={footerMeasureRef}
-          collapsable={false}
-          onLayout={(event) => {
-            onFooterHeight?.(Math.ceil(event.nativeEvent.layout.height));
-          }}
-          style={[
-            styles.footerMeasure,
-            footerBorderless && !dockFooter && styles.footerMeasureBorderless,
-            dockFooter && styles.footerMeasureDocked,
-            // Keyboard covers the home indicator — don't stack large bottom inset on top of it
-            {
-              paddingBottom: footerBottomPad,
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.footer,
-              footerBorderless && styles.footerBorderless,
-              dockFooter && styles.footerDocked,
-              lift > 0 && { transform: [{ translateY: -lift }] },
-              footerStyle,
-            ]}
-          >
-            {footer}
-          </View>
-        </View>
-      ) : null}
+      </KeyboardAwareScrollView>
+      {liftFooter ? (
+        // The keyboard already covers the home indicator, so drop that padding while it is open.
+        <KeyboardStickyView offset={{ closed: 0, opened: Math.max(0, footerBottomPad - 6) }}>
+          {footerNode}
+        </KeyboardStickyView>
+      ) : (
+        footerNode
+      )}
     </View>
   );
-
-  if (IOS_KEYBOARD_AVOID && keyboardAvoiding) {
-    return (
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior="padding"
-        keyboardVerticalOffset={keyboardVerticalOffset}
-      >
-        {body}
-      </KeyboardAvoidingView>
-    );
-  }
-
-  return body;
 }
 
 const styles = StyleSheet.create({
@@ -504,7 +185,7 @@ const styles = StyleSheet.create({
   },
   footerBorderless: {
     borderTopWidth: 0,
-    // Keep a real gap above Send Code / primary CTA (was 0 → button sat on the field)
+    // Keep a real gap above the primary CTA so it never sits on the field.
     paddingTop: 16,
     backgroundColor: "transparent",
   },

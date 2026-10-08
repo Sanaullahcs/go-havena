@@ -292,6 +292,8 @@ class UnitServiceBillReminderService
                 'service_id' => (int) ($bill->service_id ?? 0),
             ],
         );
+
+        app(PaymentMailService::class)->unitBill((int) $bill->id, $kind);
     }
 
     private function notify(object $row, string $kind, string $type, string $title, string $body): bool
@@ -312,6 +314,16 @@ class UnitServiceBillReminderService
                 'service_id' => (int) ($row->service_id ?? 0),
             ],
         );
+
+        $mailKind = [
+            self::KIND_CREATED => 'created',
+            self::KIND_DUE_SOON => 'due_soon',
+            self::KIND_DUE_DATE => 'due_date',
+            self::KIND_OVERDUE => 'overdue',
+        ][$kind] ?? null;
+        if ($mailKind) {
+            app(PaymentMailService::class)->unitBill((int) $row->id, $mailKind);
+        }
 
         return true;
     }

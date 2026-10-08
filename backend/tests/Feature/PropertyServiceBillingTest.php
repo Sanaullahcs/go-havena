@@ -280,15 +280,25 @@ class PropertyServiceBillingTest extends TestCase
             'id' => $subscriptionId,
             'status' => 'pending',
         ]);
-        $this->assertDatabaseHas('unit_service_bills', [
+        $this->assertDatabaseMissing('unit_service_bills', [
             'service_id' => $serviceId,
-            'billing_contact_user_id' => $ahmed->id,
-            'amount' => 80,
+        ]);
+        $this->assertDatabaseMissing('notices', [
+            'category' => 'finance',
+            'title' => 'Parking — Unit 4B',
         ]);
 
         Sanctum::actingAs($ahmed);
         $pendingBills = $this->getJson('/api/v1/service-bills')->assertOk()->json('data');
-        $this->assertTrue(collect($pendingBills)->contains(
+        $this->assertFalse(collect($pendingBills)->contains(
+            fn ($row) => (int) $row['service_id'] === (int) $serviceId
+        ));
+        $this->assertDatabaseMissing('unit_service_bills', [
+            'service_id' => $serviceId,
+        ]);
+
+        Sanctum::actingAs($maria);
+        $this->assertFalse(collect($this->getJson('/api/v1/service-bills')->assertOk()->json('data'))->contains(
             fn ($row) => (int) $row['service_id'] === (int) $serviceId
         ));
 
@@ -323,9 +333,35 @@ class PropertyServiceBillingTest extends TestCase
 
         $this->assertDatabaseHas('unit_service_bills', [
             'service_id' => $serviceId,
+            'billing_contact_user_id' => $ahmed->id,
             'amount' => 80,
         ]);
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $ahmed->id,
+            'title' => 'Subscription approved',
+            'body' => 'Your subscription request for Parking has been approved.',
+        ]);
 
+        Sanctum::actingAs($ahmed);
+        $approvedBills = $this->getJson('/api/v1/service-bills')->assertOk()->json('data');
+        $this->assertTrue(collect($approvedBills)->contains(
+            fn ($row) => (int) $row['service_id'] === (int) $serviceId
+        ));
+        $noticeId = (int) DB::table('unit_service_bills')->where('service_id', $serviceId)->value('notice_id');
+        $this->assertGreaterThan(0, $noticeId);
+        $this->assertTrue(collect($this->getJson('/api/v1/notices')->assertOk()->json('data'))->pluck('id')->contains($noticeId));
+
+        Sanctum::actingAs($maria);
+        $this->assertFalse(collect($this->getJson('/api/v1/service-bills')->assertOk()->json('data'))->contains(
+            fn ($row) => (int) $row['service_id'] === (int) $serviceId
+        ));
+        $this->assertFalse(collect($this->getJson('/api/v1/notices')->assertOk()->json('data'))->pluck('id')->contains($noticeId));
+        $this->assertDatabaseMissing('notice_recipients', [
+            'notice_id' => $noticeId,
+            'user_id' => $maria->id,
+        ]);
+
+        Sanctum::actingAs($admin);
         $this->withHeaders($this->headers($community->id))
             ->post("/api/v1/admin/property-services/{$serviceId}/generate-bills", [
                 'billing_period' => '2026-09',
@@ -339,6 +375,59 @@ class PropertyServiceBillingTest extends TestCase
             ->assertJsonPath('data.0.latest_bill.amount', 80)
             ->json('data.0');
         $this->assertContains($subscription['latest_bill']['status'], ['unpaid', 'overdue']);
+    }
+
+    public function test_declined_optional_subscription_notifies_resident_and_creates_no_bill(): void
+    {
+        ['community' => $community, 'admin' => $admin, 'resident' => $ahmed] = $this->seedCommunity(215);
+
+        Sanctum::actingAs($admin);
+        $headers = $this->headers($community->id);
+        $serviceId = $this->withHeaders($headers)
+            ->postJson('/api/v1/admin/property-services', [
+                'name' => 'House Cleaning',
+                'category' => 'house_cleaning',
+                'application_type' => 'optional',
+                'billing_frequency' => 'monthly',
+                'amount' => 80,
+                'due_day' => 15,
+            ])->assertCreated()->json('data.id');
+
+        Sanctum::actingAs($ahmed);
+        $subscriptionId = $this->postJson("/api/v1/property-services/{$serviceId}/subscribe")
+            ->assertCreated()
+            ->assertJsonPath('message', 'Subscription request submitted for admin approval.')
+            ->assertJsonPath('data.status', 'pending')
+            ->json('data.id');
+
+        Sanctum::actingAs($admin);
+        $this->withHeaders($headers)
+            ->patchJson("/api/v1/admin/service-subscriptions/{$subscriptionId}/reject", [
+                'rejection_reason' => 'Not offered for this unit',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'rejected');
+
+        $this->assertDatabaseMissing('unit_service_bills', [
+            'service_id' => $serviceId,
+        ]);
+        $this->assertDatabaseMissing('notices', [
+            'category' => 'finance',
+            'title' => 'House Cleaning — Unit 4B',
+        ]);
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $ahmed->id,
+            'title' => 'Subscription declined',
+            'body' => 'Your subscription request for House Cleaning has been declined. Reason: Not offered for this unit',
+        ]);
+
+        Sanctum::actingAs($ahmed);
+        $this->assertFalse(collect($this->getJson('/api/v1/service-bills')->assertOk()->json('data'))->contains(
+            fn ($row) => (int) $row['service_id'] === (int) $serviceId
+        ));
+        $this->assertFalse(collect($this->getJson('/api/v1/notices')->assertOk()->json('data'))->contains(
+            fn ($row) => ($row['title'] ?? '') === 'House Cleaning — Unit 4B'
+        ));
     }
 
     public function test_resident_can_acknowledge_submit_proof_and_admin_can_reject_then_approve(): void
@@ -589,7 +678,20 @@ class PropertyServiceBillingTest extends TestCase
             ])->assertCreated()->json('data.id');
 
         Sanctum::actingAs($ahmed);
-        $this->postJson("/api/v1/property-services/{$serviceId}/subscribe")->assertCreated();
+        $subscriptionId = $this->postJson("/api/v1/property-services/{$serviceId}/subscribe")
+            ->assertCreated()
+            ->assertJsonPath('data.status', 'pending')
+            ->json('data.id');
+        $this->assertDatabaseMissing('unit_service_bills', ['service_id' => $serviceId]);
+        $this->assertDatabaseMissing('notices', [
+            'category' => 'finance',
+            'title' => 'House Cleaning — Unit 4B',
+        ]);
+
+        Sanctum::actingAs($admin);
+        $this->withHeaders($headers)
+            ->patchJson("/api/v1/admin/service-subscriptions/{$subscriptionId}/approve")
+            ->assertOk();
 
         $bill = DB::table('unit_service_bills')->where('service_id', $serviceId)->first();
         $this->assertNotNull($bill);
@@ -610,6 +712,7 @@ class PropertyServiceBillingTest extends TestCase
             'user_id' => $ahmed->id,
         ]);
 
+        Sanctum::actingAs($ahmed);
         $this->getJson('/api/v1/notices')
             ->assertOk()
             ->assertJsonFragment(['id' => (int) $bill->notice_id]);
@@ -636,14 +739,11 @@ class PropertyServiceBillingTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.status', 'pending');
 
-        $this->assertDatabaseHas('unit_service_bills', [
+        $this->assertDatabaseMissing('unit_service_bills', [
             'service_id' => $serviceId,
-            'billing_contact_user_id' => $ahmed->id,
-            'amount' => 100,
-            'status' => UnitServiceBillService::STATUS_UNPAID,
         ]);
-        $this->assertTrue(collect($this->getJson('/api/v1/service-bills')->assertOk()->json('data'))->contains(
-            fn ($row) => (int) $row['service_id'] === (int) $serviceId && (int) round((float) $row['amount']) === 100
+        $this->assertFalse(collect($this->getJson('/api/v1/service-bills')->assertOk()->json('data'))->contains(
+            fn ($row) => (int) $row['service_id'] === (int) $serviceId
         ));
 
         Sanctum::actingAs($admin);
@@ -732,29 +832,54 @@ class PropertyServiceBillingTest extends TestCase
         ]);
 
         Sanctum::actingAs($ahmed);
-        $this->postJson("/api/v1/property-services/{$optionalMonthlyId}/subscribe")
+        $monthlySubscriptionId = $this->postJson("/api/v1/property-services/{$optionalMonthlyId}/subscribe")
             ->assertCreated()
-            ->assertJsonPath('data.status', 'active');
+            ->assertJsonPath('data.status', 'pending')
+            ->json('data.id');
+        $this->assertDatabaseMissing('unit_service_bills', [
+            'service_id' => $optionalMonthlyId,
+        ]);
+        $this->assertDatabaseMissing('app_notifications', [
+            'user_id' => $ahmed->id,
+            'title' => UnitServiceBillReminderService::CREATED_TITLE,
+            'body' => 'Your House Cleaning bill of $80 is now available. Due date: September 15.',
+        ]);
+
+        $oneTimeSubscriptionId = $this->postJson("/api/v1/property-services/{$optionalOneTimeId}/subscribe")
+            ->assertCreated()
+            ->assertJsonPath('data.status', 'pending')
+            ->json('data.id');
+        $this->assertDatabaseMissing('unit_service_bills', [
+            'service_id' => $optionalOneTimeId,
+        ]);
+
+        Sanctum::actingAs($admin);
+        $this->withHeaders($headers)
+            ->patchJson("/api/v1/admin/service-subscriptions/{$monthlySubscriptionId}/approve")
+            ->assertOk();
+        $this->withHeaders($headers)
+            ->patchJson("/api/v1/admin/service-subscriptions/{$oneTimeSubscriptionId}/approve")
+            ->assertOk();
+
         $this->assertDatabaseHas('unit_service_bills', [
             'service_id' => $optionalMonthlyId,
             'billing_contact_user_id' => $ahmed->id,
             'status' => UnitServiceBillService::STATUS_UNPAID,
             'amount' => 80,
         ]);
-        $monthlyBills = $this->getJson('/api/v1/service-bills')->assertOk()->json('data');
-        $this->assertTrue(collect($monthlyBills)->contains(
-            fn ($row) => (int) ($row['service_id'] ?? 0) === (int) $optionalMonthlyId
-                && (int) round((float) ($row['amount'] ?? 0)) === 80
-                && in_array($row['status'] ?? null, ['unpaid', 'overdue'], true)
-        ));
         $this->assertDatabaseHas('app_notifications', [
             'user_id' => $ahmed->id,
             'title' => UnitServiceBillReminderService::CREATED_TITLE,
             'body' => 'Your House Cleaning bill of $80 is now available. Due date: September 15.',
         ]);
 
-        $this->postJson("/api/v1/property-services/{$optionalOneTimeId}/subscribe")->assertCreated();
+        Sanctum::actingAs($ahmed);
         $allBills = $this->getJson('/api/v1/service-bills')->assertOk()->json('data');
+        $this->assertTrue(collect($allBills)->contains(
+            fn ($row) => (int) ($row['service_id'] ?? 0) === (int) $optionalMonthlyId
+                && (int) round((float) ($row['amount'] ?? 0)) === 80
+                && in_array($row['status'] ?? null, ['unpaid', 'overdue'], true)
+        ));
         $this->assertTrue(collect($allBills)->contains(
             fn ($row) => (int) $row['service_id'] === (int) $optionalOneTimeId
                 && (int) round((float) $row['amount']) === 120
@@ -762,10 +887,12 @@ class PropertyServiceBillingTest extends TestCase
         ));
 
         Sanctum::actingAs($fatima);
+        $cleaningNoticeId = (int) DB::table('unit_service_bills')->where('service_id', $optionalMonthlyId)->value('notice_id');
         $fatimaBills = $this->getJson('/api/v1/service-bills')->assertOk()->json('data');
         $this->assertFalse(collect($fatimaBills)->contains(
             fn ($row) => in_array((int) $row['service_id'], [(int) $optionalMonthlyId, (int) $optionalOneTimeId], true)
         ));
+        $this->assertFalse(collect($this->getJson('/api/v1/notices')->assertOk()->json('data'))->pluck('id')->contains($cleaningNoticeId));
         $this->assertTrue(collect($fatimaBills)->contains(
             fn ($row) => (int) $row['service_id'] === (int) $automaticId
         ));
@@ -1277,10 +1404,21 @@ class PropertyServiceBillingTest extends TestCase
             ->json('data.id');
 
         Sanctum::actingAs($ahmed);
-        $this->postJson("/api/v1/property-services/{$optionalId}/subscribe")->assertCreated();
+        $subscriptionId = $this->postJson("/api/v1/property-services/{$optionalId}/subscribe")
+            ->assertCreated()
+            ->assertJsonPath('data.status', 'pending')
+            ->json('data.id');
+        $this->assertDatabaseMissing('unit_service_bills', [
+            'service_id' => $optionalId,
+        ]);
         $this->postJson("/api/v1/property-services/{$closedOptionalId}/subscribe")
             ->assertStatus(422)
             ->assertJsonPath('errors.service.0', 'This service is not accepting subscriptions.');
+
+        Sanctum::actingAs($admin);
+        $this->withHeaders($headers)
+            ->patchJson("/api/v1/admin/service-subscriptions/{$subscriptionId}/approve")
+            ->assertOk();
 
         $this->assertDatabaseHas('unit_service_bills', [
             'service_id' => $automaticId,
@@ -1379,10 +1517,15 @@ class PropertyServiceBillingTest extends TestCase
             fn ($bill) => (int) $bill['service_id'] === (int) $automaticId && str_starts_with((string) $bill['billing_period'], '2026-10')
         ));
 
-        $this->postJson("/api/v1/property-services/{$closedOptionalId}/subscribe")->assertCreated();
+        $this->postJson("/api/v1/property-services/{$closedOptionalId}/subscribe")
+            ->assertCreated()
+            ->assertJsonPath('data.status', 'pending');
         $this->assertDatabaseHas('unit_service_subscriptions', [
             'service_id' => $closedOptionalId,
-            'status' => 'active',
+            'status' => 'pending',
+        ]);
+        $this->assertDatabaseMissing('unit_service_bills', [
+            'service_id' => $closedOptionalId,
         ]);
     }
 
@@ -1416,9 +1559,14 @@ class PropertyServiceBillingTest extends TestCase
             ])->assertCreated()->json('data.id');
 
         Sanctum::actingAs($ahmed);
-        $this->postJson("/api/v1/property-services/{$optionalId}/subscribe")->assertCreated();
+        $subscriptionId = $this->postJson("/api/v1/property-services/{$optionalId}/subscribe")
+            ->assertCreated()
+            ->json('data.id');
 
         Sanctum::actingAs($admin);
+        $this->withHeaders($headers)
+            ->patchJson("/api/v1/admin/service-subscriptions/{$subscriptionId}/approve")
+            ->assertOk();
         $this->withHeaders($headers)
             ->post("/api/v1/admin/property-services/{$optionalId}/generate-bills", [
                 'billing_period' => '2026-09',

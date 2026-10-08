@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, RefreshControl, Platform, Animated, Easing, useWindowDimensions, Keyboard, KeyboardAvoidingView } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, RefreshControl, Platform, Animated, Easing, useWindowDimensions, Keyboard } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -466,7 +467,7 @@ export default function CommunityListingsScreen({ embedded = false }) {
     <Root {...rootProps}>
       <KeyboardAvoidingView
         style={styles.searchKeyboardAvoid}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior="padding"
         enabled={searchExpanded}
       >
         <View style={[styles.topSection, isWide && styles.topSectionWide]}>

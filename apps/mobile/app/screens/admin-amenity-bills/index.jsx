@@ -34,6 +34,7 @@ import {
   rejectAmenityResidentPayment,
 } from "../../../services/amenity-api";
 import { getUser } from "../../../services/auth-session";
+import { formatCommunityMoney } from "../../../utils/money";
 
 const MODE_TABS = [
   { id: "receive", labelKey: "services.amenityBillsTabReceive" },
@@ -71,8 +72,8 @@ function defaultDueDate(billingMonth, dueDay) {
 function formatAmount(amount) {
   if (amount == null || amount === "") return "—";
   const value = Number(amount);
-  if (Number.isNaN(value)) return `$${amount}`;
-  return `$${value.toFixed(value % 1 === 0 ? 0 : 2)}`;
+  if (Number.isNaN(value)) return String(amount);
+  return formatCommunityMoney(value);
 }
 
 function formatDueDate(value) {

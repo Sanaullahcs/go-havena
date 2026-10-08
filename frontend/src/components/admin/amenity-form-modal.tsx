@@ -10,7 +10,8 @@ import {
   AMENITY_STATUS_OPTIONS,
   getAmenityVisual,
 } from "@/lib/admin/amenity-display";
-import { formatBillAmount, formatUsdAmount } from "@/lib/admin/amenity-bill-validation";
+import { formatCommunityMoney } from "@/lib/money";
+import { formatBillAmount } from "@/lib/admin/amenity-bill-validation";
 import {
   AMENITY_FIELD_MAX,
   amenityChargeModel,
@@ -1009,7 +1010,7 @@ export function AmenityFormModal({
                       label={bookingFeeFullSlot ? "Reservation fee per slot" : "Reservation fee per person"}
                       value={
                         Number(form.booking_fee) > 0
-                          ? `${formatUsdAmount(Number(form.booking_fee))} / ${bookingFeeFullSlot ? "slot" : "person"}`
+                          ? `${formatCommunityMoney(Number(form.booking_fee))} / ${bookingFeeFullSlot ? "slot" : "person"}`
                           : "None"
                       }
                     />

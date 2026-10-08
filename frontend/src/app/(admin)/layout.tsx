@@ -53,6 +53,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/members": "Members",
   "/admin/billing": "Billing",
   "/admin/plaid": "Plaid",
+  "/admin/kuickpay": "KuickPay",
   "/admin/billing/pay": "Checkout",
   "/admin/billing/done": "Return to app",
   "/admin/setup": "Community setup",

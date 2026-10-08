@@ -16,6 +16,7 @@ import ListingViewModal from "@/components/admin/listing-view-modal";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { adminTableBusy, isAdminSearchPending, shouldSkipStalePageFetch } from "@/lib/admin/table-loading";
+import { formatCommunityMoney } from "@/lib/money";
 
 const EMPTY_STATS: ListingStats = { total: 0, pending: 0, active: 0, rejected: 0, sold: 0 };
 
@@ -246,7 +247,7 @@ export default function MarketplacePage() {
                     </span>
                   </DtCell>
                   <DtCell nowrap>
-                    <span className="font-semibold text-slate-900">{l.price != null ? `$${l.price}` : "—"}</span>
+                    <span className="font-semibold text-slate-900">{l.price != null ? formatCommunityMoney(l.price) : "—"}</span>
                   </DtCell>
                   <DtCell nowrap muted>{new Date(l.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</DtCell>
                   <DtCell nowrap>

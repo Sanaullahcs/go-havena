@@ -19,6 +19,7 @@ class Community extends Model
         'latitude',
         'longitude',
         'timezone',
+        'currency',
         'settings',
         'estimated_residents',
         'status',
@@ -39,6 +40,25 @@ class Community extends Model
             'latitude'             => 'float',
             'longitude'            => 'float',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        // Every creation path (API, admin, seeders) should land with a currency
+        // set, derived from the region's country unless one was passed in.
+        static::creating(function (Community $community) {
+            if (\App\Support\Currency::isSupported($community->currency)) {
+                $community->currency = \App\Support\Currency::normalize($community->currency);
+
+                return;
+            }
+
+            $region = $community->region_id
+                ? Region::query()->with('stateRecord.country')->find($community->region_id)
+                : null;
+
+            $community->currency = app(\App\Services\CommunityCurrencyService::class)->forRegion($region);
+        });
     }
 
     public function featureFlags(): HasMany

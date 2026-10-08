@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState, useMemo } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, Pressable, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Modal, ActivityIndicator, Pressable, ScrollView } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
@@ -335,7 +336,7 @@ export default function AdminMembersScreen() {
       <Modal visible={inviteOpen} transparent animationType="slide" onRequestClose={closeInvite}>
         <Pressable style={styles.modalOverlay} onPress={closeInvite}>
           <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            behavior="padding"
             style={styles.modalKeyboard}
           >
             <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
@@ -449,7 +450,7 @@ export default function AdminMembersScreen() {
       <Modal visible={Boolean(rejectTarget)} transparent animationType="slide" onRequestClose={closeReject}>
         <Pressable style={styles.modalOverlay} onPress={closeReject}>
           <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            behavior="padding"
             style={styles.modalKeyboard}
           >
             <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>

@@ -9,6 +9,7 @@ import { ThemedSelect } from "@/components/ui/themed-select";
 import { confirmAction } from "@/lib/alert";
 import { hasFieldErrors, inputClass } from "@/lib/admin/form-validation-utils";
 import { SERVICE_CATEGORY_OPTIONS, type PropertyServiceForm } from "@/lib/api/property-services";
+import { formatCommunityMoney } from "@/lib/money";
 
 export const NOTICE_TITLE_TEMPLATE = "{{service}} — Unit {{unit}}";
 const NOTICE_PREVIEW_UNIT = "201";
@@ -511,6 +512,7 @@ export function PropertyServiceFormModal({
                         ? "monthly"
                         : form.billing_frequency,
                       amount_type: nextType === "optional" ? "fixed" : form.amount_type,
+                      requires_admin_approval: nextType === "optional",
                       auto_generate_bills: form.billing_frequency !== "one_time",
                     });
                     touch("application_type");
@@ -624,14 +626,9 @@ export function PropertyServiceFormModal({
               ) : null}
               {form.application_type === "optional" ? (
                 <>
-                  <label className="flex items-center gap-2 text-sm text-slate-700">
-                    <ClearableInput
-                      type="checkbox"
-                      checked={!!form.requires_admin_approval}
-                      onChange={(e) => setField("requires_admin_approval", e.target.checked)}
-                    />
-                    Requires admin approval
-                  </label>
+                  <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    Residents request this service for their unit. You approve the request before a bill is created for the unit billing contact.
+                  </p>
                   <div>
                     <FieldLabel>Max subscribers</FieldLabel>
                     <ClearableInput
@@ -744,7 +741,11 @@ export function PropertyServiceFormModal({
               />
               <ReviewRow
                 label="Amount"
-                value={form.amount_type === "variable" ? "Entered when bills are generated" : `$${form.amount || 0}`}
+                value={
+                  form.amount_type === "variable"
+                    ? "Entered when bills are generated"
+                    : formatCommunityMoney(form.amount || 0)
+                }
               />
               <ReviewRow label="Status" value={form.status === "inactive" ? "Inactive" : "Active"} />
               <ReviewRow label="Notice title" value={noticeTitleDisplay(form)} />

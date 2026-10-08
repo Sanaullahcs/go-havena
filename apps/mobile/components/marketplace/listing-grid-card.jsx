@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Fonts } from "../../constants/font";
 import { MarketplaceType } from "../../constants/marketplace-type";
 import { getListingTypeTheme } from "../../constants/marketplace-theme";
+import { formatCommunityMoney } from "../../utils/money";
 import { mediaImageSource } from "../../utils/profile-display";
 import { rnShadow } from "../../utils/shadow";
 import { getLocaleForLang } from "../../hooks/use-app-locale";
@@ -19,7 +20,7 @@ export function formatListingPrice(price) {
   const n = Number(price);
   if (Number.isNaN(n)) return i18n.t("marketplace.makeOfferPrice");
   if (n === 0) return i18n.t("marketplace.free");
-  return `$${n % 1 === 0 ? n.toFixed(0) : n.toFixed(2)}`;
+  return formatCommunityMoney(n);
 }
 
 export function formatListingTimeAgo(iso) {

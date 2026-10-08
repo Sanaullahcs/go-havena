@@ -1,5 +1,5 @@
 import { isPlaidAvailable } from "@/lib/plaid-eligibility";
-import { isCommunityAdminUser, isSystemAdminUser, type WebUser } from "@/lib/auth/session";
+import { isCommunityAdminUser, isPakistanCommunityRegion, isSystemAdminUser, type WebUser } from "@/lib/auth/session";
 
 /** Routes reserved for system administrators (platform scope). */
 export const SYSTEM_ADMIN_ROUTE_PREFIXES = [
@@ -12,6 +12,7 @@ export const SYSTEM_ADMIN_ROUTE_PREFIXES = [
   "/admin/wellness",
   "/admin/billing-plans",
   "/admin/billing-coupons",
+  "/admin/bank-payments",
   "/admin/referrals",
   "/admin/app-version",
   "/admin/moderation",
@@ -27,6 +28,7 @@ export const COMMUNITY_ADMIN_ROUTE_PREFIXES = [
   "/admin/members",
   "/admin/billing",
   "/admin/plaid",
+  "/admin/kuickpay",
   "/admin/guests",
   "/admin/messages",
   "/admin/notices",
@@ -104,6 +106,9 @@ export function resolveAdminPortalRedirect(pathname: string, user: WebUser | nul
 
   if (isCommunityAdminUser(user)) {
     if (matchesPrefix(pathname, "/admin/plaid") && !isPlaidAvailable(user)) {
+      return "/admin";
+    }
+    if (matchesPrefix(pathname, "/admin/kuickpay") && !isPakistanCommunityRegion(user)) {
       return "/admin";
     }
     if (!isSystemAdminRoute(pathname)) return null;

@@ -13,7 +13,7 @@ import {
 import { apiError } from "@/lib/api/client";
 import { toastError, toastSuccess } from "@/lib/alert";
 import { BookingPaymentSummary, bookingFeeAmount, isFullSlotCapacity, maxBookableSeats, reservationFeeTotal } from "@/components/property/booking-payment-fields";
-import { formatUsdAmount } from "@/lib/admin/amenity-bill-validation";
+import { formatCommunityMoney } from "@/lib/money";
 import { useResidentPlaidConnect } from "@/components/plaid/use-resident-plaid-connect";
 import { fetchAchCapability, type AchCapability, type PlaidExchangePayload } from "@/lib/api/resident-plaid";
 import { COMMUNITY_BANK_MISSING_MESSAGE, paidBookingPlaidStep } from "@/lib/plaid/paid-booking";
@@ -409,7 +409,7 @@ export function AmenityBookModal({
                 : bookStep === "link"
                   ? "Continue to Plaid"
                   : bookStep === "charge"
-                    ? `Pay ${formatUsdAmount(fee)} with bank`
+                    ? `Pay ${formatCommunityMoney(fee)} with bank`
                     : bookStep === "community_bank"
                       ? "Receiving account needed"
                       : amenity.status === "bookable" && slotsLoading

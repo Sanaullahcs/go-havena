@@ -237,7 +237,7 @@ export default function PlaidPage() {
 
   const description = useMemo(() => {
     if (isConnected) {
-      return "This is the community receiving account. Resident amenity fees and shared bills debit their bank and credit this account via ACH.";
+      return "This is the community receiving account. Resident amenity fees and shared bills are debited by ACH into Havena's Plaid account and then paid out to this account.";
     }
     if (needsReconnect) {
       return connection?.error_message
@@ -246,8 +246,10 @@ export default function PlaidPage() {
     if (isDisconnected) {
       return "No active Plaid Item is linked. Connect a bank again to restore the community connection.";
     }
-    return "Use Plaid Link to authenticate with a Sandbox institution. Havena exchanges the connection securely on the server — no access tokens are exposed to the browser.";
-  }, [connection?.error_message, isConnected, isDisconnected, needsReconnect]);
+    return connection?.environment === "production"
+      ? "Use Plaid Link to connect the community bank account. Havena exchanges the connection securely on the server — no access tokens are exposed to the browser."
+      : `Plaid is in ${connection?.environment ?? "sandbox"} mode: use a Plaid test institution. No real money moves. Access tokens never reach the browser.`;
+  }, [connection?.environment, connection?.error_message, isConnected, isDisconnected, needsReconnect]);
 
   if (loadingConnection) {
     return <PageLoader text="Loading bank connection…" variant="form" />;
@@ -271,6 +273,9 @@ export default function PlaidPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <AdminBadge tone="teal">Plaid</AdminBadge>
+          {connection?.environment && connection.environment !== "production" ? (
+            <AdminBadge tone="amber">{connection.environment === "sandbox" ? "Sandbox — test money" : connection.environment}</AdminBadge>
+          ) : null}
           {isConnected ? <AdminBadge tone="green">Connected</AdminBadge> : null}
           {needsReconnect ? <AdminBadge tone="amber">Needs attention</AdminBadge> : null}
           {isDisconnected ? <AdminBadge tone="slate">Disconnected</AdminBadge> : null}
@@ -474,7 +479,7 @@ export default function PlaidPage() {
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <h3 className="text-base font-semibold text-slate-900">Incoming ACH</h3>
         <p className="mt-1 text-sm text-slate-500">
-          Resident bank payments into this community account. Posted payments do not need screenshot review.
+          Resident bank payments for this community. Statuses come from Plaid. A posted or settled ACH payment can still be returned by the resident&apos;s bank.
         </p>
         {payments.length === 0 ? (
           <p className="mt-4 text-sm text-slate-500">No resident bank payments yet.</p>
@@ -489,7 +494,7 @@ export default function PlaidPage() {
                     {payment.source?.mask ? ` · •••• ${payment.source.mask}` : ""}
                     {" → "}
                     {payment.destination?.mask ? `•••• ${payment.destination.mask}` : "community bank"}
-                    {payment.simulated ? " · ledgered sandbox" : " · live ACH"}
+                    {payment.simulated ? " · simulated (no money moved)" : " · Plaid ACH"}
                   </p>
                 </div>
                 <div className="text-right">
@@ -507,16 +512,16 @@ export default function PlaidPage() {
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <h3 className="text-base font-semibold text-[#0A2A43]">How residents pay amenities</h3>
         <p className="mt-1 text-sm text-slate-500">
-          Money always moves resident bank → this community account. Havena never takes the funds.
-          Live Plaid Transfer runs when the product is enabled on the Plaid dashboard; otherwise sandbox posts a ledgered payment so bookings still complete.
+          Plaid Transfer debits the resident into Havena&apos;s Plaid Ledger, then sends a separate payout to this account.
+          If Plaid is unavailable the payment fails; it is never marked paid without Plaid confirming it.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {[
-            ["Resort pool booking", "$25 weekend swim. Resident pays at reserve. Cancel or decline refunds the ACH."],
-            ["Clubhouse event", "$150 private party. Admin can approve after the bank payment posts."],
+            ["Resort pool booking", "Resident pays at reserve. Cancelling before the debit is submitted cancels it; after that Havena requests a refund and shows it as pending until Plaid confirms."],
+            ["Clubhouse event", "Admin can approve after the bank payment posts."],
             ["Tennis court", "Booking fails if the community bank is not linked. No reservation is left behind."],
-            ["Fitness center dues", "October gym bill. One tap Pay with bank marks the resident paid — no screenshot review."],
-            ["Pool chemicals", "Shared monthly charge. Paying twice is blocked after the first posted transfer."],
+            ["Fitness center dues", "Pay with bank shows Pending until Plaid reports the debit posted. A later bank return reopens the bill."],
+            ["Pool chemicals", "Shared monthly charge. A second payment is blocked while one is in progress or paid."],
             ["Guest suite fallback", "If a resident has not linked a bank, they still upload payment proof."],
           ].map(([title, copy]) => (
             <div key={title} className="rounded-xl border border-slate-100 bg-[#F4F8FD] px-4 py-3">

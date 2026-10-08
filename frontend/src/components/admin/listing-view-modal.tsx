@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { AdminBadge } from "@/components/admin/ui";
 import type { Listing } from "@/lib/api/listings";
+import { formatCommunityMoney } from "@/lib/money";
 
 const STATUS_META: Record<string, { label: string; tone: "green" | "amber" | "red" | "slate" }> = {
   approved: { label: "Active", tone: "green" },
@@ -110,7 +111,7 @@ export default function ListingViewModal({ listing, onClose }: Props) {
           )}
 
           <p className="text-2xl font-bold text-slate-900">
-            {listing.price != null ? `$${Number(listing.price).toLocaleString()}` : "Contact for price"}
+            {listing.price != null ? formatCommunityMoney(listing.price) : "Contact for price"}
           </p>
 
           {listing.description ? (

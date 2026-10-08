@@ -9,6 +9,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import "../global.css";
 import "../nativewind-interop";
 import "react-native-reanimated";
@@ -120,6 +121,7 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={styles.root}>
+    <KeyboardProvider>
     <LanguageProvider>
     <LocationScopeProvider>
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
@@ -464,6 +466,26 @@ export default function RootLayout() {
           name="screens/property-management/documents/document-form"
           options={{ headerShown: false }}
         />
+        <Stack.Screen
+          name="screens/bills/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/payment-result/index"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="screens/payments-history/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/utilities/index"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="screens/utilities/add"
+          options={{ headerShown: false }}
+        />
 
         <Stack.Screen
           name="screens/community-feed/index"
@@ -523,6 +545,7 @@ export default function RootLayout() {
     </SafeAreaProvider>
     </LocationScopeProvider>
     </LanguageProvider>
+    </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

@@ -1,6 +1,5 @@
-import { Platform, StatusBar } from "react-native";
+import { Dimensions, Platform, StatusBar } from "react-native";
 import * as SystemUI from "expo-system-ui";
-import { Colors } from "../../constants/tokens";
 
 /** Most screens — white headers and light surfaces. */
 export const SYSTEM_CHROME_COLOR = "#FFFFFF";
@@ -11,6 +10,8 @@ export const PAGE_CHROME_COLOR = "#F8FAFC";
 /** Splash / welcome — matches expo-splash-screen backgroundColor. */
 export const SPLASH_CHROME_COLOR = "#FFFFFF";
 
+let statusBarTranslucent = true;
+
 /** Single source of truth for status bar + window background on Android. */
 export function setAppChrome({ color, barStyle, edgeToEdge = false }) {
   SystemUI.setBackgroundColorAsync(color).catch(() => {});
@@ -19,6 +20,7 @@ export function setAppChrome({ color, barStyle, edgeToEdge = false }) {
     return;
   }
 
+  statusBarTranslucent = edgeToEdge;
   if (edgeToEdge) {
     StatusBar.setTranslucent(true);
     StatusBar.setBackgroundColor("transparent");
@@ -66,13 +68,23 @@ export function applyOverlayChrome() {
   });
 }
 
-/** Reliable top inset under edge-to-edge (Android often reports 0 briefly). */
+/**
+ * Reliable top inset under edge-to-edge (Android often reports 0 briefly).
+ * When the window already starts below the status bar (opaque bar, or edge-to-edge
+ * not in effect), no fallback is added — otherwise headers get a double gap.
+ */
 export function getTopInset(insets) {
   const top = insets?.top ?? 0;
-  if (Platform.OS === "android") {
-    return Math.max(top, StatusBar.currentHeight ?? 0);
+  if (Platform.OS !== "android" || top > 0 || !statusBarTranslucent) {
+    return top;
   }
-  return top;
+
+  const statusBarHeight = StatusBar.currentHeight ?? 0;
+  const window = Dimensions.get("window");
+  const screen = Dimensions.get("screen");
+  const windowBelowStatusBar = screen.height - window.height >= statusBarHeight - 1;
+
+  return windowBelowStatusBar ? 0 : statusBarHeight;
 }
 
 /** @deprecated Use getTopInset */

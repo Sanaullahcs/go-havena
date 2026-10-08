@@ -30,7 +30,8 @@ import {
   reservationFeeTotal,
   type BookingPaymentForm,
 } from "@/components/property/booking-payment-fields";
-import { formatUsdAmount, todayIsoDate, validatePaymentProofForm } from "@/lib/admin/amenity-bill-validation";
+import { formatCommunityMoney } from "@/lib/money";
+import { todayIsoDate, validatePaymentProofForm } from "@/lib/admin/amenity-bill-validation";
 import { bankAccountLabel, fetchAchCapability, type AchCapability, type PlaidExchangePayload } from "@/lib/api/resident-plaid";
 import { useResidentPlaidConnect } from "@/components/plaid/use-resident-plaid-connect";
 import { COMMUNITY_BANK_MISSING_MESSAGE, paidBookingPlaidStep } from "@/lib/plaid/paid-booking";
@@ -237,18 +238,18 @@ export default function PropertyPage() {
     if (!options?.skipConfirm) {
       const feeLine =
         step === "charge"
-          ? ` Pay ${formatUsdAmount(fee)} from your linked bank through Plaid now.`
+          ? ` Pay ${formatCommunityMoney(fee)} from your linked bank through Plaid now.`
           : fee > 0
             ? fullSlot
-              ? ` Reservation fee ${formatUsdAmount(fee)}.`
-              : ` Reservation fee ${formatUsdAmount(fee)} (${formatUsdAmount(unitFee)} × ${guestCount}).`
+              ? ` Reservation fee ${formatCommunityMoney(fee)}.`
+              : ` Reservation fee ${formatCommunityMoney(fee)} (${formatCommunityMoney(unitFee)} × ${guestCount}).`
             : amenity.shared_billing_enabled
-              ? ` Shared fee ${formatUsdAmount(amenity.display_fee ?? amenity.shared_billing_amount)} must already be paid.`
+              ? ` Shared fee ${formatCommunityMoney(amenity.display_fee ?? amenity.shared_billing_amount)} must already be paid.`
               : "";
       const r = await confirmAction({
         title: step === "charge" ? `Pay for ${amenity.name}?` : `Request ${amenity.name}?`,
         text: `Date: ${bookForm.date}${amenity.status === "bookable" ? ` · ${slotLabel}` : ""}.${feeLine} The amenity creator will review your request.`,
-        confirmText: step === "charge" ? `Pay ${formatUsdAmount(fee)} with bank` : "Submit request",
+        confirmText: step === "charge" ? `Pay ${formatCommunityMoney(fee)} with bank` : "Submit request",
         color: "green",
       });
       if (!r.isConfirmed) return;
@@ -464,9 +465,9 @@ export default function PropertyPage() {
                       <span className="text-slate-200">·</span>
                       <span>
                         {a.shared_billing_enabled
-                          ? `${formatUsdAmount(a.display_fee ?? a.shared_billing_amount)} / ${a.shared_billing_frequency === "yearly" ? "year" : "month"}`
+                          ? `${formatCommunityMoney(a.display_fee ?? a.shared_billing_amount)} / ${a.shared_billing_frequency === "yearly" ? "year" : "month"}`
                           : Number(a.display_fee ?? a.booking_fee ?? 0) > 0
-                            ? formatUsdAmount(a.display_fee ?? a.booking_fee)
+                            ? formatCommunityMoney(a.display_fee ?? a.booking_fee)
                             : "Free"}
                       </span>
                     </div>
@@ -585,7 +586,7 @@ export default function PropertyPage() {
                   <p className="font-bold text-slate-900">{b.amenity_name}</p>
                   <p className="text-[12.5px] text-slate-500">
                     {b.date} · {b.time_slot}
-                    {Number(b.booking_fee ?? 0) > 0 ? ` · Fee ${formatUsdAmount(b.booking_fee)}` : ""}
+                    {Number(b.booking_fee ?? 0) > 0 ? ` · Fee ${formatCommunityMoney(b.booking_fee)}` : ""}
                   </p>
                   {b.status === "rejected" && b.rejection_reason ? (
                     <p className="mt-1 text-[12px] text-rose-600">{b.rejection_reason}</p>
@@ -632,7 +633,7 @@ export default function PropertyPage() {
                       {b.user_name || "Resident"}
                       {b.user_unit ? ` · Unit ${b.user_unit}` : ""} · {b.date}
                       {b.time_slot ? ` · ${b.time_slot}` : " · Open access"}
-                      {Number(b.booking_fee ?? 0) > 0 ? ` · ${formatUsdAmount(b.booking_fee)}` : ""}
+                      {Number(b.booking_fee ?? 0) > 0 ? ` · ${formatCommunityMoney(b.booking_fee)}` : ""}
                     </p>
                   </div>
                   <span
@@ -871,7 +872,7 @@ export default function PropertyPage() {
                     : bookStep === "link"
                       ? "Continue to Plaid"
                       : bookStep === "charge"
-                        ? `Pay ${formatUsdAmount(bookFee)} with bank`
+                        ? `Pay ${formatCommunityMoney(bookFee)} with bank`
                         : bookStep === "community_bank"
                           ? "Receiving account needed"
                           : bookModal.status === "bookable" && slotsLoading

@@ -36,6 +36,7 @@ import {
   UserCog,
   UserPlus,
   Users,
+  Wallet,
   X,
 } from "lucide-react";
 
@@ -59,6 +60,7 @@ const systemAdminNav: NavItem[] = [
   { href: "/admin/wellness", label: "Wellness Programs", icon: HeartPulse },
   { href: "/admin/billing-plans", label: "Billing & Plans", icon: CreditCard },
   { href: "/admin/billing-coupons", label: "Coupons", icon: Ticket },
+  { href: "/admin/bank-payments", label: "US Bank Payments", icon: Landmark },
   { href: "/admin/referrals", label: "Referrals", icon: Gift },
   { href: "/admin/app-version", label: "App Version", icon: Smartphone },
   { href: "/admin/activity", label: "Activity Logs", icon: Activity },
@@ -69,6 +71,7 @@ const communityAdminNav: NavItem[] = [
   { href: "/admin/members", label: "Members", icon: Users },
   { href: "/admin/billing", label: "Billing", icon: CreditCard },
   { href: "/admin/plaid", label: "Plaid", icon: Landmark },
+  { href: "/admin/kuickpay", label: "KuickPay", icon: Wallet },
   { href: "/admin/refer-and-earn", label: "Refer & Earn", icon: Gift },
   { href: "/admin/guests", label: "Guest Users", icon: UserPlus },
   { href: "/admin/messages", label: "Messages", icon: MessageSquare },
@@ -243,6 +246,7 @@ function SidebarInner({
   const communityNav = communityAdminNav
     .filter((item) => !(item.href === "/admin/billing" && user?.access?.billing_exempt))
     .filter((item) => !(item.href === "/admin/plaid" && !isPlaidAvailable(user)))
+    .filter((item) => !(item.href === "/admin/kuickpay" && !isPakistanCommunityRegion(user)))
     .filter((item) => !(hideReferAndEarn && item.href === "/admin/refer-and-earn"))
     .filter((item) => {
       const featureKey = adminFeatureForPath(item.href);

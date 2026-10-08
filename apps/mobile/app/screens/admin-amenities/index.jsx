@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Pressable, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, Switch, useWindowDimensions } from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Pressable, ActivityIndicator, ScrollView, Platform, Switch, useWindowDimensions } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -819,7 +820,7 @@ export default function AdminAmenitiesScreen() {
         <View style={[styles.formScreen, { paddingTop: formTopPad }]}>
           {formOpen ? <StatusBar style="dark" /> : null}
           <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            behavior="padding"
             style={styles.formScreenBody}
             enabled={Platform.OS === "ios"}
           >

@@ -23,6 +23,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->singleton(\App\Services\Payments\PaymentRouting::class);
+
+        $this->app->singleton(\App\Services\Kuickpay\KuickpayGateway::class, function () {
+            return in_array(config('kuickpay.mode'), ['uat', 'live'], true)
+                ? new \App\Services\Kuickpay\KuickpayHttpGateway
+                : new \App\Services\Kuickpay\KuickpaySandboxGateway;
+        });
+
         $this->app->bind(UtilityBillOcrEngine::class, function () {
             if (! config('utility_bill.ocr_enabled', true)) {
                 return new NullUtilityBillOcrEngine;

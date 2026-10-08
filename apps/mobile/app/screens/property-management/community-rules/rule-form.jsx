@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Switch } from "react-native";
+import { KeyboardScroll } from "../../../../components/ui/keyboard-form";
 import LocaleTextInput from "../../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -146,7 +147,7 @@ export default function RuleForm() {
     <SafeAreaView style={propertyStyles.screen} edges={["left", "right"]}>
       <InternalScreenHeader title={isEdit ? t("propertyMgmt.editRule") : t("propertyMgmt.addRuleTitle")} />
 
-      <ScrollView
+      <KeyboardScroll
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
@@ -293,7 +294,7 @@ export default function RuleForm() {
         </View>
 
         <View style={{ height: hp(4) }} />
-      </ScrollView>
+      </KeyboardScroll>
 
       {/* Footer */}
       <View style={styles.footer}>

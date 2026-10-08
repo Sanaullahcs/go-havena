@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Pressable, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Pressable, ActivityIndicator, ScrollView } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import LocaleTextInput from "../ui/locale-text-input";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
@@ -95,7 +96,7 @@ export default function ListingOfferSheet({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.overlay}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior="padding"
       >
         <Pressable style={styles.backdrop} onPress={loading ? undefined : onClose} />
 

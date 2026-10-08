@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Share, Platform } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Share, Platform } from "react-native";
+import { KeyboardScroll } from "../ui/keyboard-form";
 import LocaleTextInput from "../ui/locale-text-input";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -512,7 +513,7 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
 
   if (result) {
     return (
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <KeyboardScroll contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <InviteSuccessCard
           result={result}
           variant={variant}
@@ -521,7 +522,7 @@ export default function GuestInviteForm({ variant = "resident", createInvitation
           onInviteAnother={resetForm}
           onDone={onDone}
         />
-      </ScrollView>
+      </KeyboardScroll>
     );
   }
 

@@ -4,6 +4,7 @@ import type {
   AmenityPaymentProofForm,
   AmenityPaymentRejectionCode,
 } from "@/lib/api/amenities";
+import { formatCommunityMoney } from "@/lib/money";
 
 export const PAYMENT_REJECTION_REASONS: Array<{ code: AmenityPaymentRejectionCode; label: string }> = [
   { code: "unclear_proof", label: "Payment proof is unclear" },
@@ -53,16 +54,7 @@ export function formatBillDate(value?: string | null): string {
 
 export function formatBillAmount(value?: number | null): string {
   if (value == null || Number.isNaN(value)) return "—";
-  return value.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-}
-
-export function formatUsdAmount(value?: number | null): string {
-  const amount = Number(value ?? 0);
-  if (!Number.isFinite(amount)) return "$0";
-  return `$${amount.toLocaleString("en-US", {
-    minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
-    maximumFractionDigits: 2,
-  })}`;
+  return formatCommunityMoney(value);
 }
 
 export function validateAmenityBillForm(form: AmenityMonthlyBillForm): FieldErrors {

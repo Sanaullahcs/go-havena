@@ -24,12 +24,13 @@ import {
 } from "../../../services/admin-api";
 import { useApiAction } from "../../../hooks/use-api-action";
 import { useAppDialog } from "../../../providers/app-dialog-provider";
+import { formatCommunityMoney } from "../../../utils/money";
 
 function formatPrice(price, t) {
   if (price == null || price === "") return t("admin.freeContact");
   const n = Number(price);
   if (Number.isNaN(n)) return String(price);
-  return `$${n.toFixed(n % 1 === 0 ? 0 : 2)}`;
+  return formatCommunityMoney(n);
 }
 
 function ListingRow({ item, busy, onApprove, onReject, t }) {

@@ -46,6 +46,12 @@ use App\Http\Controllers\Api\V1\SubscriptionCouponController;
 use App\Http\Controllers\Api\V1\ReferralController;
 use App\Http\Controllers\Api\V1\ReferralProgramController;
 use App\Http\Controllers\Api\V1\AppVersionController;
+use App\Http\Controllers\Api\V1\AdminPaymentController;
+use App\Http\Controllers\Api\V1\KuickpayGatewayController;
+use App\Http\Controllers\Api\V1\KuickpayInstitutionController;
+use App\Http\Controllers\Api\V1\PaymentController;
+use App\Http\Controllers\Api\V1\UtilityBillController;
+use App\Http\Controllers\Api\V1\AdminPlaidController;
 use App\Http\Controllers\Api\V1\PlaidController;
 use App\Http\Controllers\Api\V1\PlaidPaymentController;
 use App\Http\Controllers\Api\V1\PlaidWebhookController;
@@ -66,6 +72,18 @@ Route::prefix('v1')->group(function () {
     /* ── Stripe webhooks (no auth; verified by signature) ── */
     Route::post('/billing/stripe/webhook', StripeWebhookController::class);
     Route::post('/plaid/webhook', PlaidWebhookController::class);
+
+    /* ── KuickPay browser flow + Institution callbacks (no auth; verified by signature / credentials) ── */
+    Route::get('/payments/kuickpay/launch/{token}', [KuickpayGatewayController::class, 'launch'])
+        ->where('token', '[A-Za-z0-9]{32,64}')->middleware('throttle:60,1');
+    Route::match(['get', 'post'], '/payments/kuickpay/return/{payment}', [KuickpayGatewayController::class, 'handleReturn'])
+        ->where('payment', '[0-9a-fA-F-]{36}')->middleware('throttle:60,1');
+    Route::get('/payments/kuickpay/sandbox/{session}', [KuickpayGatewayController::class, 'sandbox'])
+        ->where('session', '[0-9a-fA-F-]{36}');
+    Route::post('/payments/kuickpay/sandbox/{session}', [KuickpayGatewayController::class, 'sandboxSubmit'])
+        ->where('session', '[0-9a-fA-F-]{36}')->middleware('throttle:30,1');
+    Route::post('/integrations/kuickpay/bill-inquiry', [KuickpayInstitutionController::class, 'inquiry'])->middleware('throttle:120,1');
+    Route::post('/integrations/kuickpay/bill-payment', [KuickpayInstitutionController::class, 'payment'])->middleware('throttle:120,1');
     Route::get('/billing/plans', [SubscriptionPlanController::class, 'publicIndex']);
     Route::get('/app/version-policy', [AppVersionController::class, 'policy']);
     Route::get('/public/invite-qr.png', [InviteQrImageController::class, 'show'])
@@ -311,6 +329,19 @@ Route::prefix('v1')->group(function () {
             Route::post('/reconnect', [ResidentPlaidController::class, 'reconnect']);
             Route::post('/disconnect', [ResidentPlaidController::class, 'disconnect']);
         });
+        /* KuickPay — resident payments + utility bills (Pakistan) */
+        Route::get('/payments/capability', [PaymentController::class, 'capability']);
+        Route::get('/payments', [PaymentController::class, 'index']);
+        Route::post('/payments', [PaymentController::class, 'store'])->middleware('throttle:20,1');
+        Route::get('/payments/{id}', [PaymentController::class, 'show'])->where('id', '[0-9a-fA-F-]{36}');
+        Route::post('/payments/{id}/cancel', [PaymentController::class, 'cancel'])->where('id', '[0-9a-fA-F-]{36}');
+        Route::get('/utilities/billers', [UtilityBillController::class, 'billers']);
+        Route::get('/utilities/accounts', [UtilityBillController::class, 'index']);
+        Route::post('/utilities/accounts', [UtilityBillController::class, 'store'])->middleware('throttle:10,1');
+        Route::post('/utilities/accounts/{id}/refresh', [UtilityBillController::class, 'refresh'])->whereNumber('id')->middleware('throttle:30,1');
+        Route::patch('/utilities/accounts/{id}', [UtilityBillController::class, 'update'])->whereNumber('id');
+        Route::delete('/utilities/accounts/{id}', [UtilityBillController::class, 'destroy'])->whereNumber('id');
+
         Route::get('/plaid/resident/payments', [PlaidPaymentController::class, 'index']);
         Route::post('/plaid/payments/booking', [PlaidPaymentController::class, 'payBooking']);
         Route::post('/plaid/payments/shared-bill', [PlaidPaymentController::class, 'paySharedBill']);
@@ -347,6 +378,16 @@ Route::prefix('v1')->group(function () {
                 Route::delete('/community-admins/{id}', [AdminCommunityAdminController::class, 'destroy']);
 
                 Route::post('/users', [AdminUserController::class, 'store']);
+
+                /* Plaid (US) — platform operations: health, readiness, reconciliation */
+                Route::get('/plaid/overview', [AdminPlaidController::class, 'overview']);
+                Route::get('/plaid/transfers', [AdminPlaidController::class, 'transfers']);
+                Route::get('/plaid/transfers/{id}', [AdminPlaidController::class, 'show'])->where('id', '[0-9a-fA-F-]{36}');
+                Route::post('/plaid/transfers/{id}/refresh', [AdminPlaidController::class, 'refresh'])->where('id', '[0-9a-fA-F-]{36}')->middleware('throttle:30,1');
+                Route::post('/plaid/transfers/{id}/resolve-exception', [AdminPlaidController::class, 'resolveException'])->where('id', '[0-9a-fA-F-]{36}');
+                Route::post('/plaid/sync-events', [AdminPlaidController::class, 'syncEvents'])->middleware('throttle:10,1');
+                Route::get('/plaid/events', [AdminPlaidController::class, 'events']);
+                Route::patch('/plaid/communities/{id}/payments', [AdminPlaidController::class, 'updateCommunityPayments'])->whereNumber('id');
 
                 Route::get('/community-requests', [AdminCommunityController::class, 'index']);
                 Route::get('/community-requests/{id}', [AdminCommunityController::class, 'show']);
@@ -500,6 +541,14 @@ Route::prefix('v1')->group(function () {
                 Route::get('/service-bills/{id}/reviews',     [UnitServiceBillController::class, 'adminReviews'])->whereNumber('id');
                 Route::patch('/service-bills/{id}/approve',   [UnitServiceBillController::class, 'adminApprove'])->whereNumber('id');
                 Route::patch('/service-bills/{id}/reject',    [UnitServiceBillController::class, 'adminReject'])->whereNumber('id');
+
+                /* KuickPay (Pakistan) — payments ledger, exceptions, settings */
+                Route::get('/payments',                       [AdminPaymentController::class, 'index']);
+                Route::get('/payments/summary',               [AdminPaymentController::class, 'summary']);
+                Route::patch('/payments/settings',            [AdminPaymentController::class, 'updateSettings']);
+                Route::get('/payments/{id}',                  [AdminPaymentController::class, 'show']);
+                Route::post('/payments/{id}/reconcile',       [AdminPaymentController::class, 'reconcile']);
+                Route::post('/payments/{id}/refunded',        [AdminPaymentController::class, 'markRefunded']);
 
                 Route::get('/amenity-bills',                  [AmenitySharedBillController::class, 'communityIndex']);
                 Route::get('/amenities',                      [AmenityController::class, 'adminIndex']);

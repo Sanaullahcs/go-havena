@@ -13,6 +13,7 @@ import {
   sharedBillingDueDayLabel,
 } from "@/lib/admin/amenity-form-validation";
 import type { Amenity } from "@/lib/api/amenities";
+import { formatCommunityMoney } from "@/lib/money";
 import { AmenitySharedBillsSection } from "@/components/admin/amenity-shared-bills-section";
 
 export function AmenityViewModal({
@@ -138,9 +139,9 @@ export function AmenityViewModal({
               </dt>
               <dd className="mt-0.5 font-semibold text-slate-900">
                 {amenity.shared_billing_enabled && Number(amenity.shared_billing_amount ?? amenity.display_fee ?? 0) > 0
-                  ? `$${Number(amenity.shared_billing_amount ?? amenity.display_fee).toLocaleString("en-US", { maximumFractionDigits: 2 })} per ${amenity.shared_billing_frequency === "yearly" ? "year" : "month"}`
+                  ? `${formatCommunityMoney(amenity.shared_billing_amount ?? amenity.display_fee)} per ${amenity.shared_billing_frequency === "yearly" ? "year" : "month"}`
                   : Number(amenity.booking_fee ?? amenity.display_fee ?? 0) > 0
-                    ? `$${Number(amenity.booking_fee ?? amenity.display_fee).toLocaleString("en-US", { maximumFractionDigits: 2 })} per reservation`
+                    ? `${formatCommunityMoney(amenity.booking_fee ?? amenity.display_fee)} per reservation`
                     : "Free"}
               </dd>
             </div>

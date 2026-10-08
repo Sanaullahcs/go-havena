@@ -2,6 +2,7 @@
 
 import i18n from "../i18n";
 import { getLocaleForLang } from "../hooks/use-app-locale";
+import { formatCommunityMoney } from "./money";
 
 const VISUALS = [
   { key: "gym", match: ["gym", "workout", "gymnasium"], tint: "#DB2777", soft: "#FCE7F3", labelKey: "amenities.types.gym" },
@@ -467,15 +468,6 @@ export function getNextUserBookingDate(bookings, amenityId) {
   return dates[0] ?? null;
 }
 
-export function formatUsdAmount(value) {
-  const amount = Number(value ?? 0);
-  if (!Number.isFinite(amount)) return "$0";
-  return `$${amount.toLocaleString("en-US", {
-    minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
-
 export function bookingFeeAmount(value) {
   const amount = Number(value ?? 0);
   return Number.isFinite(amount) && amount > 0 ? amount : 0;
@@ -492,7 +484,7 @@ export function amenityDisplayFee(amenity) {
 export function formatAmenityFeeLabel(amenity) {
   const amount = amenityDisplayFee(amenity);
   if (amount <= 0) return i18n.t("propertyMgmt.bookingAmountFree");
-  const formatted = formatUsdAmount(amount);
+  const formatted = formatCommunityMoney(amount);
   if (amenity?.shared_billing_enabled || amenity?.display_fee_kind === "monthly" || amenity?.display_fee_kind === "yearly") {
     const yearly = amenity?.display_fee_kind === "yearly" || amenity?.shared_billing_frequency === "yearly";
     return `${formatted} / ${yearly ? i18n.t("admin.sharedBillingYearly") : i18n.t("admin.sharedBillingMonthly")}`;
@@ -503,7 +495,7 @@ export function formatAmenityFeeLabel(amenity) {
 export function formatBookingDisplayFee(booking) {
   const amount = bookingFeeAmount(booking?.display_fee ?? booking?.booking_fee);
   if (amount <= 0) return i18n.t("propertyMgmt.bookingAmountFree");
-  const formatted = formatUsdAmount(amount);
+  const formatted = formatCommunityMoney(amount);
   if (booking?.display_fee_kind === "yearly") return `${formatted} / ${i18n.t("admin.sharedBillingYearly")}`;
   if (booking?.display_fee_kind === "monthly") return `${formatted} / ${i18n.t("admin.sharedBillingMonthly")}`;
   return formatted;

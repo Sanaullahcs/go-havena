@@ -166,9 +166,7 @@ class PropertyServiceController extends Controller
 
         return response()->json([
             'data' => $this->bills->requestSubscription($service, $unit, (int) $request->user()->id, $data['note'] ?? null),
-            'message' => $service->requires_admin_approval
-                ? 'Subscription request submitted for admin approval.'
-                : 'Your unit is now subscribed.',
+            'message' => 'Subscription request submitted for admin approval.',
         ], 201);
     }
 

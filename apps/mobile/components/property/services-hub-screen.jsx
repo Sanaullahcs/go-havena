@@ -22,6 +22,7 @@ import PropertyHubApprovalQueue from "../property/property-hub-approval-queue";
 import { PropertyManagementRoutes, navigatePropertyHubRoute } from "../../constants/property-management-routes";
 import { getCurrentRole } from "../../constants/role-session";
 import { fetchMe } from "../../services/auth-api";
+import { usesKuickpay } from "../../utils/payment-provider";
 import { isServiceRouteEnabled } from "../../constants/resident-features";
 import { useSessionUser } from "../../hooks/use-session-user";
 import { Fonts } from "../../constants/font";
@@ -104,7 +105,9 @@ export default function PropertyManagment() {
   const [isBillingContact, setIsBillingContact] = useState(false);
   const hubServices = useMemo(() => {
     const services = getPropertyHubServices(isAdmin, t);
-    const visible = isAdmin ? services : filterPropertyServicesForViewer(services, { isBillingContact });
+    const visible = isAdmin
+      ? services
+      : filterPropertyServicesForViewer(services, { isBillingContact, kuickpay: usesKuickpay(sessionUser) });
     return visible.filter((item) => isServiceRouteEnabled(sessionUser, item.routeKey));
   }, [isAdmin, isBillingContact, sessionUser, t]);
   const showReservations = isServiceRouteEnabled(sessionUser, "MY_BOOKING");

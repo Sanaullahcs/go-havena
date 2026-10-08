@@ -21,6 +21,8 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 
+import { formatCommunityMoney } from "@/lib/money";
+
 const VISUALS = [
   { key: "gym", match: ["gym", "workout", "gymnasium"], tint: "#DB2777", soft: "#FCE7F3", label: "Gymnasium access" },
   { key: "yoga", match: ["yoga", "fitness", "pilates"], tint: "#BE185D", soft: "#FDF2F8", label: "Yoga / Fitness" },
@@ -136,7 +138,7 @@ export function formatAmenityFeeLabel(amenity: {
       : (amenity.display_fee ?? amenity.booking_fee ?? 0),
   );
   if (!Number.isFinite(amount) || amount <= 0) return "Free";
-  const formatted = `$${amount.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+  const formatted = formatCommunityMoney(amount);
   if (shared) {
     return `${formatted} / ${amenity.display_fee_kind === "yearly" || amenity.shared_billing_frequency === "yearly" ? "year" : "month"}`;
   }
@@ -150,7 +152,7 @@ export function formatBookingDisplayFee(booking: {
 }): string {
   const amount = Number(booking.display_fee ?? booking.booking_fee ?? 0);
   if (!Number.isFinite(amount) || amount <= 0) return "Free";
-  const formatted = `$${amount.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+  const formatted = formatCommunityMoney(amount);
   if (booking.display_fee_kind === "yearly") return `${formatted} / year`;
   if (booking.display_fee_kind === "monthly") return `${formatted} / month`;
   return formatted;

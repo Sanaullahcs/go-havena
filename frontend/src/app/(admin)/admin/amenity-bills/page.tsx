@@ -18,12 +18,8 @@ import {
 import { PageError, PageLoader } from "@/components/shared/page-states";
 import { ThemedSelect } from "@/components/ui/themed-select";
 import { confirmAction, toastError, toastSuccess } from "@/lib/alert";
-import {
-  billStatusTone,
-  currentBillingMonth,
-  formatBillDate,
-  formatUsdAmount,
-} from "@/lib/admin/amenity-bill-validation";
+import { formatCommunityMoney } from "@/lib/money";
+import { billStatusTone, currentBillingMonth, formatBillDate } from "@/lib/admin/amenity-bill-validation";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { adminClientTableBusy, isAdminSearchPending } from "@/lib/admin/table-loading";
@@ -205,7 +201,7 @@ export default function AdminAmenityBillsPage() {
   async function handleApprove(bill: AmenityResidentPayment) {
     const ok = await confirmAction({
       title: "Approve this payment?",
-      text: `${bill.resident_name || "Resident"} · Unit ${bill.unit_number || "—"} · ${formatUsdAmount(bill.amount)} will be marked as paid.`,
+      text: `${bill.resident_name || "Resident"} · Unit ${bill.unit_number || "—"} · ${formatCommunityMoney(bill.amount)} will be marked as paid.`,
       confirmText: "Approve",
       color: "green",
     });
@@ -335,7 +331,7 @@ export default function AdminAmenityBillsPage() {
                   <DtCell>
                     <p className="text-slate-800">{bill.resident_name || "Resident"}</p>
                   </DtCell>
-                  <DtCell nowrap>{formatUsdAmount(bill.amount)}</DtCell>
+                  <DtCell nowrap>{formatCommunityMoney(bill.amount)}</DtCell>
                   <DtCell>
                     <p>{bill.billing_month_label || bill.billing_month || "—"}</p>
                     <p className="text-xs text-slate-400">Per month · Due {formatBillDate(bill.due_date)}</p>
@@ -464,7 +460,7 @@ function AmenityBillDetailModal({
           <dl className="grid gap-3 sm:grid-cols-2">
             <DetailRow label="Resident" value={bill.resident_name || "—"} />
             <DetailRow label="Unit" value={bill.unit_number || "—"} />
-            <DetailRow label="Amount" value={formatUsdAmount(bill.amount)} />
+            <DetailRow label="Amount" value={formatCommunityMoney(bill.amount)} />
             <DetailRow label="Bill type" value="Per month" />
             <DetailRow label="Billing period" value={bill.billing_month_label || bill.billing_month || "—"} />
             <DetailRow label="Due date" value={formatBillDate(bill.due_date)} />

@@ -118,6 +118,117 @@ class UtilityBillVerificationPipelineTest extends TestCase
         $this->assertFalse($verdict->shouldReject());
     }
 
+    public function test_compressed_utility_pdf_is_accepted_from_its_text(): void
+    {
+        $file = $this->uploadRawPdf($this->flatePdf(
+            'BT /F1 12 Tf 72 700 Td (Electric utility bill account number 4588219 amount due service address due date billing period) Tj ET',
+        ));
+
+        $verdict = $this->pipeline(null)->verify($file);
+
+        $this->assertFalse($verdict->shouldReject(), $verdict->reason);
+        $this->assertSame(UtilityBillDocumentVerdict::LIKELY, $verdict->reviewStatus);
+    }
+
+    public function test_kerning_split_utility_pdf_is_accepted(): void
+    {
+        $stream = 'BT [(Elec) 8 (tric ) -240 (utility ) -240 (bill ) -260 (account ) -240 (number ) -220 (amount ) -220 (due ) -200 (service ) -200 (address)] TJ ET';
+        $file = $this->uploadRawPdf($this->flatePdf($stream));
+
+        $verdict = $this->pipeline(null)->verify($file);
+
+        $this->assertFalse($verdict->shouldReject(), $verdict->reason);
+    }
+
+    public function test_compressed_non_bill_pdf_is_rejected(): void
+    {
+        $file = $this->uploadRawPdf($this->flatePdf(
+            'BT (The quick brown fox jumps over the lazy dog near the river bank today) Tj ET',
+        ));
+
+        $verdict = $this->pipeline(null)->verify($file);
+
+        $this->assertTrue($verdict->shouldReject(), $verdict->reason);
+    }
+
+    public function test_unrelated_pdf_text_is_rejected(): void
+    {
+        $file = $this->pdfWithText('Vacation selfie from Instagram scenery landscape birthday party');
+
+        $verdict = $this->pipeline(null)->verify($file);
+
+        $this->assertTrue($verdict->shouldReject());
+        $this->assertSame('pdf_unrelated_text', $verdict->reason);
+    }
+
+    public function test_photo_of_bill_is_accepted_when_ocr_reads_bill_terms(): void
+    {
+        config(['utility_bill.ocr_enabled' => true]);
+        $file = $this->sceneryImage();
+
+        $verdict = $this->pipeline(
+            'Eversource electric utility bill account number 883311 amount due 142.18 service address due date kwh',
+        )->verify($file);
+
+        $this->assertFalse($verdict->shouldReject(), $verdict->reason);
+    }
+
+    public function test_photo_without_bill_text_is_rejected(): void
+    {
+        config(['utility_bill.ocr_enabled' => true]);
+        $file = $this->sceneryImage();
+
+        $verdict = $this->pipeline(
+            'Beautiful mountains and a lake with friends hiking all afternoon under the sun',
+        )->verify($file);
+
+        $this->assertTrue($verdict->shouldReject(), $verdict->reason);
+    }
+
+    public function test_document_shaped_bill_is_not_rejected_when_ocr_returns_nothing(): void
+    {
+        config(['utility_bill.ocr_enabled' => true]);
+        $file = $this->utilityBillImage();
+
+        $verdict = $this->pipeline(null)->verify($file);
+
+        $this->assertFalse($verdict->shouldReject(), $verdict->reason);
+    }
+
+    private function pipeline(?string $ocrText): UtilityBillVerificationPipeline
+    {
+        return new UtilityBillVerificationPipeline(
+            app(UtilityBillDocumentValidator::class),
+            app(UtilityBillTextExtractor::class),
+            new class($ocrText) implements UtilityBillOcrEngine
+            {
+                public function __construct(private readonly ?string $text) {}
+
+                public function extractText(UploadedFile $file): ?string
+                {
+                    return $this->text;
+                }
+            },
+            app(UtilityBillOcrTextValidator::class),
+        );
+    }
+
+    private function flatePdf(string $content): string
+    {
+        $compressed = gzcompress($content);
+        $length = strlen($compressed);
+
+        return "%PDF-1.4\n1 0 obj\n<< /Length {$length} /Filter /FlateDecode >>\nstream\n{$compressed}\nendstream\nendobj\ntrailer<<>>\n%%EOF\n";
+    }
+
+    private function uploadRawPdf(string $raw): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'bill').'.pdf';
+        file_put_contents($path, $raw);
+
+        return new UploadedFile($path, 'utility-bill.pdf', 'application/pdf', null, true);
+    }
+
     private function pdfWithText(string $text): UploadedFile
     {
         $escaped = str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $text);
@@ -161,5 +272,57 @@ class UtilityBillVerificationPipelineTest extends TestCase
         imagedestroy($image);
 
         return new UploadedFile($path, 'scanned-bill.jpg', 'image/jpeg', null, true);
+    }
+
+    private function sceneryImage(): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'scene').'.jpg';
+        $image = imagecreatetruecolor(800, 600);
+        $sky = imagecolorallocate($image, 78, 162, 228);
+        $sun = imagecolorallocate($image, 255, 210, 70);
+        $grass = imagecolorallocate($image, 52, 164, 74);
+        imagefilledrectangle($image, 0, 0, 799, 299, $sky);
+        imagefilledellipse($image, 640, 90, 110, 110, $sun);
+        imagefilledrectangle($image, 0, 300, 799, 599, $grass);
+        imagejpeg($image, $path, 90);
+        imagedestroy($image);
+
+        return new UploadedFile($path, 'landscape.jpg', 'image/jpeg', null, true);
+    }
+
+    private function utilityBillImage(): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'doc').'.jpg';
+        $image = imagecreatetruecolor(800, 1100);
+        $paper = imagecolorallocate($image, 248, 246, 240);
+        $ink = imagecolorallocate($image, 28, 28, 28);
+        imagefilledrectangle($image, 0, 0, 799, 1099, $paper);
+        $lines = [
+            'CITY POWER ELECTRIC UTILITY BILL',
+            'Account Number 4588219 Statement Date',
+            'Service Address 14 Maple Street',
+            'Billing Period August 2026',
+            'Meter reading 12044 kWh Usage 642',
+            'Amount Due 105.65 Due Date Sept 18',
+            'Please pay the amount due by the due date',
+            'Provider City Power Energy',
+            'Return this stub with your payment',
+            'Keep this statement for your records',
+        ];
+        $y = 56;
+        foreach ($lines as $line) {
+            imagestring($image, 5, 48, $y, $line, $ink);
+            $extra = $line.' '.$line;
+            for ($x = 48, $i = 0; $x < 740 && $i < strlen($extra); $x += 11, $i++) {
+                if ($extra[$i] !== ' ') {
+                    imagefilledrectangle($image, $x, $y + 14, $x + 6, $y + 18, $ink);
+                }
+            }
+            $y += 48;
+        }
+        imagejpeg($image, $path, 92);
+        imagedestroy($image);
+
+        return new UploadedFile($path, 'utility-bill.jpg', 'image/jpeg', null, true);
     }
 }

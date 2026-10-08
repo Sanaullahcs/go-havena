@@ -160,6 +160,20 @@ export const PROPERTY_SERVICE_META = {
     bg: "#CFFAFE",
     border: "rgba(14, 116, 144, 0.22)",
   },
+  utilities: {
+    lucide: "Zap",
+    icon: "zap",
+    color: "#B45309",
+    bg: "#FFFBEB",
+    border: "rgba(180, 83, 9, 0.22)",
+  },
+  payments: {
+    lucide: "History",
+    icon: "clock",
+    color: "#C23812",
+    bg: "#FFF1EC",
+    border: "rgba(239, 75, 35, 0.22)",
+  },
 };
 
 /** Themed icons for admin stats and approval queue cards. */
@@ -225,6 +239,22 @@ export function getPropertyResidentServices(t) {
       title: t("services.myAmenityBillsTitle"),
       subtitle: t("services.myAmenityBillsSub"),
       routeKey: "AMENITY_BILLS",
+    },
+    {
+      id: "utilities",
+      key: "utilities",
+      title: t("utilities.title"),
+      subtitle: t("utilities.tileSub"),
+      routeKey: "UTILITIES",
+      requiresKuickpay: true,
+    },
+    {
+      id: "payments",
+      key: "payments",
+      title: t("payments.historyTitle"),
+      subtitle: t("payments.tileSub"),
+      routeKey: "PAYMENTS_HISTORY",
+      requiresKuickpay: true,
     },
     {
       id: "available-services",
@@ -356,9 +386,10 @@ export function getPropertyHubServices(isAdmin, t) {
   return isAdmin ? getPropertyAdminServices(t) : getPropertyResidentServices(t);
 }
 
-/** Hide billing-contact-only tiles (e.g. unit bills) for other unit residents. */
-export function filterPropertyServicesForViewer(services, { isBillingContact = false } = {}) {
-  return services.filter((item) => !item.requiresBillingContact || isBillingContact);
+/** Hide billing-contact-only tiles for other residents and KuickPay tiles outside Pakistan. */
+export function filterPropertyServicesForViewer(services, { isBillingContact = false, kuickpay = false } = {}) {
+  return services.filter((item) =>
+    (!item.requiresBillingContact || isBillingContact) && (!item.requiresKuickpay || kuickpay));
 }
 
 export function getPropertyBookActions(isAdmin, t) {

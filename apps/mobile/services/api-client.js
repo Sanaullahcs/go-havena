@@ -102,6 +102,7 @@ async function parseResponse(response) {
       rateLimit: body?.rate_limit ?? null,
       rejectionReason: body?.rejection_reason ?? null,
       guestInvitation: body?.invitation ?? null,
+      meta: body?.meta ?? null,
     });
 
     if (response.status === 403 && isAccountRestrictedError(apiError)) {

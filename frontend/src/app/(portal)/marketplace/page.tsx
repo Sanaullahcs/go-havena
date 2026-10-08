@@ -5,6 +5,7 @@ import { confirmAction, toastSuccess, toastInfo, toastError } from "@/lib/alert"
 import { fetchListings, createListing, toggleSaveListing, type Listing } from "@/lib/api/listings";
 import { fetchDeals, type Deal } from "@/lib/api/deals";
 import { apiError } from "@/lib/api/client";
+import { formatCommunityMoney } from "@/lib/money";
 import { PageLoader } from "@/components/shared/page-states";
 
 type Category = "all" | "deal" | "sale" | "service" | "wanted";
@@ -249,7 +250,7 @@ export default function ResidentMarketplacePage() {
                   <div className="mt-3 flex items-center justify-between gap-2">
                     <div>
                       <p className="text-[15px] font-bold text-slate-900">
-                        {l.price != null ? `$${l.price}` : "—"}
+                        {l.price != null ? formatCommunityMoney(l.price) : "—"}
                       </p>
                     </div>
                     <button

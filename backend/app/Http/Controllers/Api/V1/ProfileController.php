@@ -457,6 +457,7 @@ class ProfileController extends Controller
             'address'       => $community->address,
             'status'        => $community->status,
             'review_status' => $community->review_status,
+            'currency'      => app(\App\Services\CommunityCurrencyService::class)->forCommunity($community),
         ];
     }
 

@@ -561,6 +561,9 @@ class AmenitySharedBillService
         if (Schema::hasColumn('amenity_resident_bills', 'booking_id')) {
             $rows->addSelect('rb.booking_id');
         }
+        if (Schema::hasColumn('amenity_resident_bills', 'payment_method')) {
+            $rows->addSelect('rb.payment_method');
+        }
 
         $rows = $rows->get();
 
@@ -835,7 +838,78 @@ class AmenitySharedBillService
             'approved_at' => $row->approved_at ?? null,
             'rejected_at' => $row->rejected_at ?? null,
             'payment_acknowledgement' => $this->formatPaymentAcknowledgement($row, $status),
+            'online_payment' => app(\App\Services\Payments\OnlinePaymentPresenter::class)->forPayable(
+                \App\Models\PaymentAttempt::PAYABLE_AMENITY_BILL,
+                (int) $row->resident_bill_id,
+                (int) ($row->community_id ?? 0),
+            ),
         ]);
+    }
+
+    /**
+     * Settles a resident bill from a confirmed KuickPay payment. Runs the same
+     * follow-ups as an admin approval (notice hidden, booking confirmed).
+     */
+    public function applyOnlinePayment(int $residentBillId, \App\Models\PaymentAttempt $attempt): bool
+    {
+        $applied = DB::transaction(function () use ($residentBillId, $attempt) {
+            $bill = DB::table('amenity_resident_bills')->where('id', $residentBillId)->lockForUpdate()->first();
+            if (! $bill || ($bill->status ?? '') === self::RESIDENT_STATUS_PAID) {
+                return false;
+            }
+
+            $now = now();
+            DB::table('amenity_resident_bills')->where('id', $residentBillId)->update([
+                'status' => self::RESIDENT_STATUS_PAID,
+                'payment_method' => 'kuickpay',
+                'payment_attempt_id' => $attempt->id,
+                'payment_date' => $now->toDateString(),
+                'payment_reference' => $attempt->reference,
+                'payment_note' => 'Paid online with KuickPay'.($attempt->methodLabel() ? ' ('.$attempt->methodLabel().')' : '').'.',
+                'proof_submitted_at' => $now,
+                'proof_submitted_by' => (int) $attempt->user_id,
+                'approved_at' => $now,
+                'approved_by' => null,
+                'rejected_at' => null,
+                'rejected_by' => null,
+                'rejection_reason' => null,
+                'updated_at' => $now,
+            ]);
+
+            $this->writeReview([
+                'resident_bill_id' => $residentBillId,
+                'monthly_bill_id' => (int) $bill->monthly_bill_id,
+                'amenity_id' => (int) $bill->amenity_id,
+                'community_id' => (int) $bill->community_id,
+                'user_id' => (int) $bill->user_id,
+                'action' => 'paid_online',
+                'actor_id' => (int) $attempt->user_id,
+                'status_from' => (string) ($bill->status ?? self::RESIDENT_STATUS_UNPAID),
+                'status_to' => self::RESIDENT_STATUS_PAID,
+                'proof_file_path' => null,
+                'proof_file_name' => null,
+                'proof_file_size' => null,
+                'proof_mime_type' => null,
+                'payment_date' => $now->toDateString(),
+                'payment_reference' => $attempt->reference,
+                'payment_note' => 'Paid online with KuickPay',
+                'rejection_reason' => null,
+            ]);
+
+            return (int) $bill->amenity_id;
+        });
+
+        if (! $applied) {
+            return false;
+        }
+
+        $updated = $this->findAdminResidentBill((int) $applied, $residentBillId);
+        if ($updated) {
+            $this->hideFinanceNoticeFromHome($updated);
+            $this->confirmAwaitingPaymentBooking($updated);
+        }
+
+        return true;
     }
 
     public function findOwnedResidentBill(int $amenityId, int $residentBillId, int $userId): ?object
@@ -974,6 +1048,7 @@ class AmenitySharedBillService
                 ],
             );
         }
+        app(PaymentMailService::class)->amenityBill((int) $updated->resident_bill_id, 'approved');
 
         return $formatted;
     }
@@ -1050,6 +1125,7 @@ class AmenitySharedBillService
 
         $updated = $this->findAdminResidentBill((int) $bill->amenity_id, (int) $bill->resident_bill_id);
         abort_if(! $updated, 500, 'Payment could not be loaded after rejection.');
+        app(PaymentMailService::class)->amenityBill((int) $bill->resident_bill_id, 'rejected');
 
         return $this->formatAdminResidentBill($updated, $request);
     }
@@ -1089,6 +1165,10 @@ class AmenitySharedBillService
         }
 
         $this->assertCanSubmitProof((string) ($ownedBill->resident_status ?? ''));
+        app(\App\Services\Payments\OnlinePaymentPresenter::class)->assertNoPaymentInFlight(
+            \App\Models\PaymentAttempt::PAYABLE_AMENITY_BILL,
+            (int) $ownedBill->resident_bill_id,
+        );
 
         $fileMeta = $this->storeProofFile(
             $file,
@@ -1180,6 +1260,7 @@ class AmenitySharedBillService
         $formatted['has_outstanding_previous_bill'] = $formatted['outstanding_previous_bill'] !== null;
 
         $this->notifyAmenityOwnerOfPaymentProof($ownedBill, $formatted);
+        app(PaymentMailService::class)->amenityBill((int) $ownedBill->resident_bill_id, 'proof_submitted');
 
         return $formatted;
     }
@@ -1282,7 +1363,7 @@ class AmenitySharedBillService
             'payment_reference' => $row->payment_reference ?? null,
             'status' => self::RESIDENT_STATUS_PAID,
             'status_label' => $this->statusLabel(self::RESIDENT_STATUS_PAID),
-            'acknowledged_by_label' => 'Community Admin',
+            'acknowledged_by_label' => ($row->payment_method ?? null) === 'kuickpay' ? 'KuickPay' : 'Community Admin',
             'message' => $this->acknowledgementMessage($amenityName, $month->toDateString()),
         ];
     }
@@ -1347,16 +1428,60 @@ class AmenitySharedBillService
         $this->assertCanSubmitProof($status);
     }
 
-    public function applyAchTransfer(\App\Models\PlaidTransfer $transfer): void
+    /**
+     * Mirror a Plaid transfer onto the resident bill it pays for.
+     *
+     * - A refund never reopens the bill automatically (the charge may have been waived).
+     * - A failure/return only reopens the bill when this transfer is the payment on record.
+     * - A collection on a bill already paid another way is reported, not applied.
+     *
+     * @return string|null `duplicate_collection` when money arrived for an already-covered bill
+     */
+    public function applyAchTransfer(\App\Models\PlaidTransfer $transfer, ?string $achStatus = null): ?string
     {
         $billId = (int) $transfer->payable_id;
         $bill = DB::table('amenity_resident_bills')->where('id', $billId)->first();
         if (! $bill) {
-            return;
+            return null;
         }
 
         $from = (string) ($bill->status ?? self::RESIDENT_STATUS_UNPAID);
         $now = now();
+        $achStatus ??= (string) $transfer->status;
+        $ownsBill = (int) ($bill->plaid_transfer_id ?? 0) === (int) $transfer->id;
+        $paidElsewhere = $from === self::RESIDENT_STATUS_PAID && ! $ownsBill;
+
+        if ($transfer->refundActive() || $transfer->refund_status !== null) {
+            if ($ownsBill) {
+                DB::table('amenity_resident_bills')->where('id', $billId)->update(['ach_status' => $achStatus, 'updated_at' => $now]);
+            }
+
+            return null;
+        }
+
+        if ($transfer->isSuccessful()) {
+            if ($paidElsewhere) {
+                return \App\Models\PlaidTransfer::EXCEPTION_DUPLICATE_COLLECTION;
+            }
+            if ($ownsBill && $from === self::RESIDENT_STATUS_PAID) {
+                DB::table('amenity_resident_bills')->where('id', $billId)->update(['ach_status' => $achStatus, 'updated_at' => $now]);
+
+                return null;
+            }
+        } elseif ($transfer->isFailed() || $transfer->status === \App\Models\PlaidTransfer::STATUS_REFUNDED) {
+            if (! $ownsBill && ! empty($bill->plaid_transfer_id)) {
+                return null;
+            }
+            if (! $ownsBill && $from === self::RESIDENT_STATUS_PAID) {
+                return null;
+            }
+        } elseif ($paidElsewhere || ($ownsBill && $from === self::RESIDENT_STATUS_PENDING)) {
+            if ($ownsBill) {
+                DB::table('amenity_resident_bills')->where('id', $billId)->update(['ach_status' => $achStatus, 'updated_at' => $now]);
+            }
+
+            return null;
+        }
 
         if ($transfer->isSuccessful()) {
             $to = self::RESIDENT_STATUS_PAID;
@@ -1365,7 +1490,7 @@ class AmenitySharedBillService
                 'status' => $to,
                 'payment_method' => 'bank_ach',
                 'plaid_transfer_id' => $transfer->id,
-                'ach_status' => $transfer->status,
+                'ach_status' => $achStatus,
                 'payment_date' => $now->toDateString(),
                 'payment_reference' => $transfer->public_id,
                 'payment_note' => 'Paid by bank transfer to the community account.',
@@ -1384,7 +1509,7 @@ class AmenitySharedBillService
                 'status' => $to,
                 'payment_method' => 'bank_ach',
                 'plaid_transfer_id' => $transfer->id,
-                'ach_status' => $transfer->status,
+                'ach_status' => $achStatus,
                 'updated_at' => $now,
             ];
         } elseif ($transfer->isFailed()) {
@@ -1394,7 +1519,7 @@ class AmenitySharedBillService
                 'status' => $to,
                 'payment_method' => 'bank_ach',
                 'plaid_transfer_id' => $transfer->id,
-                'ach_status' => $transfer->status,
+                'ach_status' => $achStatus,
                 'updated_at' => $now,
             ];
         } else {
@@ -1404,7 +1529,7 @@ class AmenitySharedBillService
                 'status' => $to,
                 'payment_method' => 'bank_ach',
                 'plaid_transfer_id' => $transfer->id,
-                'ach_status' => $transfer->status,
+                'ach_status' => $achStatus,
                 'payment_date' => $now->toDateString(),
                 'payment_reference' => $transfer->public_id,
                 'proof_submitted_at' => $now,
@@ -1433,6 +1558,8 @@ class AmenitySharedBillService
             'payment_note' => $transfer->isSuccessful() ? 'Paid by bank transfer' : ($transfer->failure_message ?: null),
             'rejection_reason' => $transfer->isFailed() ? ($transfer->failure_message ?: 'Bank payment failed') : null,
         ]);
+
+        return null;
     }
 
     private function assertCanSubmitProof(string $status): void
@@ -1841,6 +1968,9 @@ class AmenitySharedBillService
                 'rb.rejection_reason',
             ]);
 
+        if (Schema::hasColumn('amenity_resident_bills', 'payment_method')) {
+            $query->addSelect('rb.payment_method');
+        }
         if (Schema::hasColumn('amenity_resident_bills', 'finance_notice_id')) {
             $query->addSelect('rb.finance_notice_id');
         }

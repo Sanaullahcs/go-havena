@@ -230,6 +230,7 @@ class CommunityAdminAccessService
      *   billing_url: string,
      *   billing_exempt: bool,
      *   country_code: ?string,
+     *   currency: string,
      *   plaid_available: bool,
      *   blocking_reasons: string[]
      * }
@@ -322,6 +323,7 @@ class CommunityAdminAccessService
             'billing_complete' => $billingComplete,
             'billing_exempt' => $billingExempt,
             'country_code' => $countryCode,
+            'currency' => app(CommunityCurrencyService::class)->forCommunity($community),
             'plaid_available' => $this->plaidEligibility->isCommunityEligible($communityId),
             'can_use_dashboard' => $canUse,
             'can_use_mobile_app' => $canUse,

@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Fonts } from "../../constants/font";
 import { PropertyHubTheme } from "../../constants/property-management-theme";
 import { billingFrequencyLabel } from "../../services/property-services-api";
+import { formatCommunityMoney } from "../../utils/money";
 import { sf, sw } from "../../utils/responsive";
 
 const WINDOW_HEIGHT = Dimensions.get("window").height;
@@ -23,8 +24,8 @@ const WINDOW_HEIGHT = Dimensions.get("window").height;
 function formatAmount(amount) {
   if (amount == null || amount === "") return "—";
   const value = Number(amount);
-  if (Number.isNaN(value)) return `$${amount}`;
-  return `$${value.toFixed(value % 1 === 0 ? 0 : 2)}`;
+  if (Number.isNaN(value)) return String(amount);
+  return formatCommunityMoney(value);
 }
 
 function formatDate(value) {

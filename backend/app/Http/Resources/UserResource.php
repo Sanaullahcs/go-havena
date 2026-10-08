@@ -60,12 +60,20 @@ class UserResource extends JsonResource
                         'status' => $m->community->status,
                         'review_status' => $m->community->review_status,
                         'rejection_reason' => $m->community->rejection_reason,
+                        'currency' => app(\App\Services\CommunityCurrencyService::class)
+                            ->forCommunity($m->community),
+                        'payment_provider' => app(\App\Services\Payments\PaymentRouting::class)
+                            ->provider((int) $m->community->id),
                     ] : null,
                 ]);
             }),
             'unit' => app(UnitAssignmentService::class)->userUnitBrief($this->resource),
             'guest_access' => \App\Services\GuestAccessService::guestAccessSummary($this->resource),
             'family' => \App\Services\FamilyService::onboardingBrief($this->resource),
+            // Money display for the community the user is currently acting in.
+            // Clients read this once per session instead of threading a
+            // currency through every amenity, bill, and listing payload.
+            'currency' => app(\App\Services\CommunityCurrencyService::class)->forUser($this->resource),
             'needs_invite_code' => \App\Services\InviteCodeService::userNeedsInviteCode($this->resource),
             'invited_by_admin' => OnboardingContext::invitedByAdmin($this->resource),
             'resident_features' => $this->residentFeaturesPayload(),

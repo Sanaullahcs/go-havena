@@ -47,7 +47,7 @@ class PlaidPaymentController extends Controller
             'booking_id' => ['required', 'integer'],
         ]);
 
-        $transfer = $this->ach->payBooking($user, (int) $validated['booking_id']);
+        $transfer = $this->ach->payBooking($user, (int) $validated['booking_id'], $this->context($request));
 
         return response()->json([
             'success' => true,
@@ -68,6 +68,7 @@ class PlaidPaymentController extends Controller
             $user,
             (int) $validated['amenity_id'],
             (int) $validated['resident_bill_id'],
+            $this->context($request),
         );
 
         return response()->json([
@@ -100,13 +101,24 @@ class PlaidPaymentController extends Controller
         return $user;
     }
 
+    /**
+     * @return array{ip_address: string|null, user_agent: string|null}
+     */
+    private function context(Request $request): array
+    {
+        return ['ip_address' => $request->ip(), 'user_agent' => $request->userAgent()];
+    }
+
     private function messageFor(PlaidTransfer $transfer): string
     {
         if ($transfer->isSuccessful()) {
-            return 'Bank payment sent to the community account.';
+            return 'Bank payment submitted. ACH payments can still be returned by your bank.';
+        }
+        if ($transfer->status === PlaidTransfer::STATUS_AUTHORIZED) {
+            return 'We are confirming this bank payment with your bank. Do not pay again; we will update it shortly.';
         }
         if ($transfer->isPending()) {
-            return 'Bank payment submitted. ACH usually posts in 1–3 business days.';
+            return 'Bank payment submitted. We will update it when your bank confirms it.';
         }
 
         return $transfer->failure_message ?: 'Bank payment could not be completed.';

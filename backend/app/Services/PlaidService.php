@@ -183,10 +183,6 @@ class PlaidService
 
         $this->assertConfigured();
 
-        if ($replace && $connection?->hasAccessToken()) {
-            $this->removeItemQuietly($connection->plaid_access_token);
-        }
-
         $exchange = $this->exchangePublicToken($publicToken);
         $institution = $this->resolveInstitution($exchange['access_token']);
         $account = $this->resolveSelectedAccount(
@@ -196,8 +192,13 @@ class PlaidService
         );
         $ach = $this->fetchAchNumbers($exchange['access_token'], $account['account_id'] ?? null);
 
+        $previousAccessToken = $connection?->hasAccessToken() ? $connection->plaid_access_token : null;
+        $previousMask = $connection?->account_mask;
+
         $connection ??= new CommunityPlaidConnection(['community_id' => $communityId]);
         $connection->fill([
+            'transfer_access_token' => null,
+            'transfer_account_id' => null,
             'community_id' => $communityId,
             'connected_by_user_id' => $user->id,
             'plaid_item_id' => $exchange['item_id'],
@@ -219,6 +220,10 @@ class PlaidService
         ]);
         $connection->save();
 
+        if ($previousAccessToken && $previousAccessToken !== $exchange['access_token']) {
+            $this->removeItemQuietly($previousAccessToken);
+        }
+
         $action = 'plaid_bank_connected';
         $description = $this->actorName($user).' connected a bank for community #'.$communityId;
         if ($hadConnectedBank && $replace) {
@@ -235,9 +240,27 @@ class PlaidService
             $description = $this->actorName($user).' completed Plaid reconnection for community #'.$communityId;
         }
 
-        $this->logAction($action, $description, $user, $communityId, $connection);
+        $this->logAction($action, $description, $user, $communityId, $connection, [
+            'previous_account_mask' => $previousMask,
+            'account_mask' => $connection->account_mask,
+            'reason' => $options['reason'] ?? null,
+            'pending_payments' => $this->pendingPaymentCount($communityId),
+        ]);
 
         return $this->decoratePayload($connection);
+    }
+
+    public function pendingPaymentCount(int $communityId): int
+    {
+        return \App\Models\PlaidTransfer::query()
+            ->where('community_id', $communityId)
+            ->where(fn ($q) => $q->whereIn('status', [
+                \App\Models\PlaidTransfer::STATUS_AUTHORIZING,
+                \App\Models\PlaidTransfer::STATUS_AUTHORIZED,
+                \App\Models\PlaidTransfer::STATUS_PROCESSING,
+                \App\Models\PlaidTransfer::STATUS_POSTED,
+            ])->orWhereIn('refund_status', ['pending', 'posted']))
+            ->count();
     }
 
     /**
@@ -305,7 +328,7 @@ class PlaidService
     /**
      * @return array<string, mixed>
      */
-    public function disconnectCommunityAccount(User $user): array
+    public function disconnectCommunityAccount(User $user, ?string $reason = null): array
     {
         $communityId = $this->resolveManagedCommunityId($user);
         $this->eligibility->assertCommunityEligible($communityId);
@@ -314,6 +337,7 @@ class PlaidService
         if (! $connection) {
             throw PlaidException::notConnected();
         }
+        $previousMask = $connection->account_mask;
 
         if ($connection->hasAccessToken() && $this->configured()) {
             $this->removeItemQuietly($connection->plaid_access_token);
@@ -339,6 +363,11 @@ class PlaidService
             $user,
             $communityId,
             $connection,
+            [
+                'previous_account_mask' => $previousMask,
+                'reason' => $reason,
+                'pending_payments' => $this->pendingPaymentCount($communityId),
+            ],
         );
 
         return $this->decoratePayload($connection);
@@ -865,6 +894,7 @@ class PlaidService
         User $user,
         int $communityId,
         CommunityPlaidConnection $connection,
+        array $extra = [],
     ): void {
         ActivityLogService::user(
             $action,
@@ -873,12 +903,13 @@ class PlaidService
             $communityId,
             'info',
             $user->id,
-            [
+            array_merge([
                 'community_id' => $communityId,
                 'institution_name' => $connection->institution_name,
+                'account_mask' => $connection->account_mask,
                 'status' => $connection->status,
                 'related_item' => $connection->institution_name ?: 'Plaid',
-            ],
+            ], array_filter($extra, static fn ($value) => $value !== null)),
         );
     }
 

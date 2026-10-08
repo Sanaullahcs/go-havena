@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, Pressable, Share, Modal, KeyboardAvoidingView, Platform, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, Pressable, Share, Modal, TouchableOpacity } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -700,7 +701,7 @@ function CreateFamilyModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.modalOverlay} onPress={onClose}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalKeyboard}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalKeyboard}>
           <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>{t("family.createMyFamily")}</Text>
             <Text style={styles.modalHint}>
@@ -762,7 +763,7 @@ function JoinModal({ visible, value, onChange, onClose, onSubmit, t }) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.modalOverlay} onPress={onClose}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalKeyboard}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalKeyboard}>
           <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>{t("family.joinExistingFamily")}</Text>
             <Text style={styles.modalHint}>{t("family.joinFamilyHint")}</Text>

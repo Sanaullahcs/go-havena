@@ -119,11 +119,8 @@ class PlaidResidentService
 
         $this->plaid->assertConfigured();
 
-        if ($replace && $connection?->hasAccessToken()) {
-            $this->plaid->removeItemQuietlyPublic($connection->plaid_access_token);
-        }
-
         $exchange = $this->plaid->exchangePublicToken($publicToken);
+        $previousAccessToken = $connection?->hasAccessToken() ? $connection->plaid_access_token : null;
         $institution = $this->plaid->resolveInstitution($exchange['access_token']);
         $account = $this->plaid->selectAccount(
             $exchange['access_token'],
@@ -157,6 +154,10 @@ class PlaidResidentService
             'disconnected_at' => null,
         ]);
         $connection->save();
+
+        if ($previousAccessToken && $previousAccessToken !== $exchange['access_token']) {
+            $this->plaid->removeItemQuietlyPublic($previousAccessToken);
+        }
 
         $this->logAction(
             $replace ? 'plaid_resident_bank_replaced' : 'plaid_resident_bank_connected',

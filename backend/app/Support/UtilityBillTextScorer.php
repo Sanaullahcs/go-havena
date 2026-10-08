@@ -34,9 +34,17 @@ class UtilityBillTextScorer
     public static function score(string $text): array
     {
         $normalized = strtolower(preg_replace('/\s+/', ' ', $text) ?? '');
+        $compact = str_replace(' ', '', $normalized);
         $document = 0;
         foreach ([...self::UTILITY_TERMS, ...self::LEASE_TERMS] as $term) {
             if (str_contains($normalized, $term)) {
+                $document++;
+
+                continue;
+            }
+
+            $compactTerm = str_replace(' ', '', $term);
+            if (strlen($compactTerm) >= 6 && str_contains($compact, $compactTerm)) {
                 $document++;
             }
         }

@@ -21,6 +21,7 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { adminClientTableBusy, isAdminSearchPending } from "@/lib/admin/table-loading";
 import { apiError } from "@/lib/api/client";
+import { formatCommunityMoney } from "@/lib/money";
 import {
   approveServiceSubscription,
   createPropertyService,
@@ -119,7 +120,7 @@ function serviceToForm(service: PropertyService): PropertyServiceForm {
 
 function amountLabel(service: Pick<PropertyService, "amount_type" | "amount">) {
   if (service.amount_type === "variable" || service.amount == null) return "Variable";
-  return `$${Number(service.amount).toFixed(2)}`;
+  return formatCommunityMoney(service.amount);
 }
 
 function frequencyLabel(service: PropertyService) {
@@ -298,6 +299,7 @@ export default function AdminServicesPage() {
         custom_category: form.category === "other" ? String(form.custom_category ?? "").trim() : null,
         amount: form.amount_type === "variable" ? null : Number(form.amount || 0),
         max_subscribers: form.max_subscribers || null,
+        requires_admin_approval: form.application_type === "optional",
         auto_generate_bills: form.billing_frequency !== "one_time",
       };
       if (editing) {
@@ -406,7 +408,7 @@ export default function AdminServicesPage() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Unit billing</p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Services</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            Automatic services bill every residential unit. Optional services bill only subscribed units.
+            Automatic services bill every residential unit. Optional services bill the unit billing contact only after you approve the subscription request.
           </p>
         </div>
         <button type="button" onClick={openCreate} className="nl-btn-primary inline-flex items-center gap-2">
@@ -609,7 +611,10 @@ export default function AdminServicesPage() {
                 ].filter(Boolean).join(" · ")
               }
             />
-            <DetailRow label="Approval required" value={viewing.requires_admin_approval ? "Yes" : "No"} />
+            <DetailRow
+              label="Approval required"
+              value={viewing.application_type === "optional" || viewing.requires_admin_approval ? "Yes" : "No"}
+            />
             <DetailRow label="Payment proof" value={viewing.require_payment_proof ? "Required" : "Optional"} />
             <div className="min-w-0 sm:col-span-2">
               <DetailRow label="Description" value={viewing.description || "—"} />
@@ -695,7 +700,7 @@ export default function AdminServicesPage() {
                               <p className="mt-0.5 text-xs text-slate-500">
                                 {[
                                   item.latest_bill.billing_period_label,
-                                  item.latest_bill.amount != null ? `$${Number(item.latest_bill.amount).toFixed(2)}` : null,
+                                  item.latest_bill.amount != null ? formatCommunityMoney(item.latest_bill.amount) : null,
                                 ].filter(Boolean).join(" · ")}
                               </p>
                             ) : null}

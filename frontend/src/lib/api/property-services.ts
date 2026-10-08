@@ -163,6 +163,8 @@ export interface UnitServiceBill {
   acknowledged_by?: number | null;
   acknowledged_by_name?: string | null;
   reviews?: ServiceBillReview[];
+  payment_method?: string | null;
+  online_payment?: import("./kuickpay").OnlinePayment | null;
 }
 
 export interface ServiceSubscription {

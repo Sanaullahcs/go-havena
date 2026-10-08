@@ -111,13 +111,16 @@ class PlaidAchPaymentTest extends TestCase
         $this->assertSame(0, PlaidTransfer::query()->where('user_id', $resident->id)->count());
     }
 
-    public function test_live_charge_books_without_sending_idempotency_key(): void
+    public function test_live_charge_sends_idempotency_key_only_where_plaid_accepts_it(): void
     {
         config(['plaid.transfer.simulate' => false]);
 
         $this->mock(PlaidHttpClient::class, function ($mock) {
             $mock->shouldReceive('post')->andReturnUsing(function (string $path, array $payload) {
-                if (array_key_exists('idempotency_key', $payload)) {
+                if ($path === '/transfer/authorization/create' && empty($payload['idempotency_key'])) {
+                    throw new \RuntimeException('authorization sent without idempotency_key');
+                }
+                if ($path === '/transfer/create' && array_key_exists('idempotency_key', $payload)) {
                     throw new \RuntimeException('the following fields are not recognized by this endpoint: idempotency_key');
                 }
 
@@ -172,7 +175,7 @@ class PlaidAchPaymentTest extends TestCase
         $this->assertSame(1, DB::table('booking_slot_allocations')->where('amenity_id', $arboretumId)->count());
     }
 
-    public function test_sandbox_ssl_failure_still_completes_the_booking(): void
+    public function test_sandbox_ssl_failure_fails_the_booking_instead_of_faking_payment(): void
     {
         config([
             'plaid.transfer.simulate' => null,
@@ -193,15 +196,14 @@ class PlaidAchPaymentTest extends TestCase
             'amenity_id' => $amenityId,
             'date' => now()->addDay()->toDateString(),
             'payment_method' => 'bank_ach',
-        ])->assertCreated()
-            ->assertJsonPath('data.payment_method', 'bank_ach')
-            ->assertJsonPath('data.payment_verification_status', 'accepted');
+        ])->assertStatus(422);
 
+        $this->assertDatabaseMissing('bookings', ['amenity_id' => $amenityId]);
         $this->assertDatabaseHas('plaid_transfers', [
             'user_id' => $resident->id,
             'payable_type' => PlaidTransfer::PAYABLE_BOOKING,
-            'status' => PlaidTransfer::STATUS_POSTED,
-            'simulated' => 1,
+            'status' => PlaidTransfer::STATUS_FAILED,
+            'simulated' => 0,
         ]);
     }
 
@@ -287,12 +289,13 @@ class PlaidAchPaymentTest extends TestCase
         $this->assertDatabaseHas('plaid_transfers', [
             'payable_type' => PlaidTransfer::PAYABLE_BOOKING,
             'payable_id' => $bookingId,
-            'status' => PlaidTransfer::STATUS_REFUNDED,
+            'status' => PlaidTransfer::STATUS_POSTED,
+            'refund_status' => PlaidTransfer::REFUND_SETTLED,
         ]);
         $this->assertDatabaseHas('bookings', [
             'id' => $bookingId,
             'status' => 'cancelled',
-            'ach_status' => PlaidTransfer::STATUS_REFUNDED,
+            'ach_status' => 'refunded',
         ]);
     }
 
@@ -315,12 +318,12 @@ class PlaidAchPaymentTest extends TestCase
 
         $this->assertDatabaseHas('plaid_transfers', [
             'payable_id' => $bookingId,
-            'status' => PlaidTransfer::STATUS_REFUNDED,
+            'refund_status' => PlaidTransfer::REFUND_SETTLED,
         ]);
         $this->assertDatabaseHas('bookings', [
             'id' => $bookingId,
             'status' => 'rejected',
-            'ach_status' => PlaidTransfer::STATUS_REFUNDED,
+            'ach_status' => 'refunded',
         ]);
     }
 

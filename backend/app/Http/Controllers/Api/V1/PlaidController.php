@@ -34,6 +34,7 @@ class PlaidController extends Controller
     {
         $user = $this->communityAdmin($request);
         $this->assertEligible($user);
+        $this->assertCanManagePayoutAccount($user);
 
         $mode = $request->string('mode')->toString();
         if (! in_array($mode, ['create', 'update', 'replace'], true)) {
@@ -55,6 +56,7 @@ class PlaidController extends Controller
     {
         $user = $this->communityAdmin($request);
         $this->assertEligible($user);
+        $this->assertCanManagePayoutAccount($user);
 
         $validated = $request->validate([
             'public_token' => ['required', 'string', 'max:512'],
@@ -68,6 +70,7 @@ class PlaidController extends Controller
             'institution_id' => ['nullable', 'string', 'max:64'],
             'institution_name' => ['nullable', 'string', 'max:160'],
             'replace' => ['sometimes', 'boolean'],
+            'reason' => ['nullable', 'string', 'max:255'],
         ]);
 
         $options = array_filter([
@@ -76,6 +79,7 @@ class PlaidController extends Controller
             'institution_id' => $validated['institution_id'] ?? null,
             'institution_name' => $validated['institution_name'] ?? null,
             'replace' => (bool) ($validated['replace'] ?? false),
+            'reason' => $validated['reason'] ?? null,
         ], static fn ($value) => $value !== null && $value !== false && $value !== []);
 
         $payload = $options === []
@@ -93,6 +97,7 @@ class PlaidController extends Controller
     {
         $user = $this->communityAdmin($request);
         $this->assertEligible($user);
+        $this->assertCanManagePayoutAccount($user);
 
         return response()->json([
             'success' => true,
@@ -105,10 +110,12 @@ class PlaidController extends Controller
     {
         $user = $this->communityAdmin($request);
         $this->assertEligible($user);
+        $this->assertCanManagePayoutAccount($user);
+        $reason = $request->validate(['reason' => ['nullable', 'string', 'max:255']])['reason'] ?? null;
 
         return response()->json([
             'success' => true,
-            'data' => $this->plaid->disconnectCommunityAccount($user),
+            'data' => $this->plaid->disconnectCommunityAccount($user, $reason),
         ]);
     }
 
@@ -121,6 +128,18 @@ class PlaidController extends Controller
         }
 
         return $user;
+    }
+
+    /** Only the community's admin (not moderators) may change where community money is paid. */
+    private function assertCanManagePayoutAccount(\App\Models\User $user): void
+    {
+        $membership = AdminRoleService::getApprovedAdminMembership($user);
+        $role = (string) ($membership->role ?? '');
+        $allowed = $membership && ($role === 'admin'
+            || (AdminRoleService::isCommunityAdminApproved($user) && $role !== 'moderator'));
+        if (! $allowed) {
+            abort(403, 'Only the community admin can change the community bank account.');
+        }
     }
 
     private function assertEligible(\App\Models\User $user): void

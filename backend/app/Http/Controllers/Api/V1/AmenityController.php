@@ -518,21 +518,27 @@ class AmenityController extends Controller
                 'guests' => $guests,
                 'booking_fee' => $bookingFee,
                 'status' => 'pending',
-                'payment_verification_status' => self::PAYMENT_NOT_REQUIRED,
+                'payment_verification_status' => $payWithBank ? 'pending' : self::PAYMENT_NOT_REQUIRED,
+                'payment_method' => $payWithBank ? 'bank_ach' : null,
                 'notes' => $request->notes,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
             $draftBookingId = (int) $bookingId;
 
-            if ($payWithBank) {
-                app(PlaidAchService::class)->payBooking($user, (int) $bookingId);
-            }
-
             $capacityService->storeAllocations($bookingId, (int) $amenity->id, $date, $allocations);
 
             return $bookingId;
         });
+
+            // The debit runs after the reservation commits so a later rollback can never
+            // erase the record of money that already left the resident's bank.
+            if ($payWithBank) {
+                app(PlaidAchService::class)->payBooking($user, (int) $id, [
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]);
+            }
         } catch (\Throwable $e) {
             if ($draftBookingId) {
                 $this->discardFailedBookingAttempt($draftBookingId);
@@ -582,19 +588,20 @@ class AmenityController extends Controller
             return;
         }
 
+        // Failed attempts stay as history; a reservation whose debit may exist at Plaid is kept.
+        $moneyMayHaveMoved = PlaidTransfer::query()
+            ->where('payable_type', PlaidTransfer::PAYABLE_BOOKING)
+            ->where('payable_id', $bookingId)
+            ->where(fn ($q) => $q->whereNotNull('debit_transfer_id')
+                ->orWhereNotIn('status', [PlaidTransfer::STATUS_FAILED, PlaidTransfer::STATUS_CANCELLED]))
+            ->exists();
+        if ($moneyMayHaveMoved) {
+            return;
+        }
+
         if (Schema::hasTable('booking_slot_allocations')) {
             DB::table('booking_slot_allocations')->where('booking_id', $bookingId)->delete();
         }
-
-        DB::table('plaid_transfers')
-            ->where('payable_type', PlaidTransfer::PAYABLE_BOOKING)
-            ->where('payable_id', $bookingId)
-            ->whereNotIn('status', [
-                PlaidTransfer::STATUS_POSTED,
-                PlaidTransfer::STATUS_SETTLED,
-                PlaidTransfer::STATUS_PROCESSING,
-            ])
-            ->delete();
 
         DB::table('bookings')->where('id', $bookingId)->delete();
     }
@@ -619,7 +626,7 @@ class AmenityController extends Controller
             ], 422);
         }
 
-        $this->refundBookingAchIfNeeded($booking, auth()->user());
+        $this->refundBookingAchIfNeeded($booking, auth()->user(), 'Resident cancelled the reservation');
 
         DB::table('bookings')->where('id', $id)->update(['status' => 'cancelled', 'updated_at' => now()]);
 
@@ -725,7 +732,7 @@ class AmenityController extends Controller
         }
 
         $reason = $request->filled('reason') ? trim((string) $request->reason) : null;
-        $this->refundBookingAchIfNeeded($booking, $request->user());
+        $this->refundBookingAchIfNeeded($booking, $request->user(), 'Booking declined'.($reason ? ': '.$reason : ''));
         $paymentStatus = ($booking->payment_verification_status ?? self::PAYMENT_NOT_REQUIRED) === self::PAYMENT_PENDING
             ? self::PAYMENT_REJECTED
             : ($booking->payment_verification_status ?? self::PAYMENT_NOT_REQUIRED);
@@ -1578,21 +1585,27 @@ class AmenityController extends Controller
         ];
     }
 
-    private function refundBookingAchIfNeeded(object $booking, $actor): void
+    private function refundBookingAchIfNeeded(object $booking, $actor, string $reason): void
     {
         if (($booking->payment_method ?? null) !== 'bank_ach' || empty($booking->plaid_transfer_id) || ! $actor) {
             return;
         }
 
         $transfer = PlaidTransfer::query()->find($booking->plaid_transfer_id);
-        if (! $transfer || ! $transfer->canRefund()) {
+        if (! $transfer || $transfer->isFailed() || $transfer->refundActive()) {
             return;
         }
 
+        $ach = app(PlaidAchService::class);
         try {
-            app(PlaidAchService::class)->refund($transfer, $actor);
+            $ach->reverseForCancellation($transfer, $actor, $reason);
         } catch (\Throwable $e) {
             report($e);
+            $ach->flagException(
+                $transfer->fresh() ?? $transfer,
+                PlaidTransfer::EXCEPTION_REFUND_REQUIRED,
+                'The reservation was cancelled but the bank payment could not be reversed automatically.',
+            );
         }
     }
 

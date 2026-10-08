@@ -425,6 +425,12 @@ class AdminCommunityController extends Controller
             ], 422);
         }
 
+        if (\App\Models\PlaidTransfer::query()->where('community_id', $community->id)->exists()) {
+            return response()->json([
+                'message' => 'This community has bank payment history and cannot be deleted. Deactivate it instead.',
+            ], 422);
+        }
+
         $name = $community->name;
         $communityId = $community->id;
 
@@ -859,6 +865,7 @@ class AdminCommunityController extends Controller
             'region'         => $community->region,
             'region_id'      => $community->region_id,
             'region_title'   => $community->regionRecord?->title ?? $community->region,
+            'currency'       => app(\App\Services\CommunityCurrencyService::class)->forCommunity($community),
             'status'         => $community->status,
             'review_status'  => $community->review_status,
             'rejection_reason' => $community->rejection_reason,

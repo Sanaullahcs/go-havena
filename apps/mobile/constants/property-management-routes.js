@@ -40,6 +40,8 @@ export const PropertyManagementRoutes = {
   ADMIN_AMENITY_BILLS: "/screens/admin-amenity-bills",
   ADMIN_SERVICE_FORM: "/screens/admin-service-form",
   ADMIN_UNITS: "/screens/admin-units",
+  UTILITIES: "/screens/utilities",
+  PAYMENTS_HISTORY: "/screens/payments-history",
   NOTICES: "/(tabs)/notices",
   MARKETPLACE: MarketplaceRoutes.HOME,
   COMMUNITY_LISTINGS: MarketplaceRoutes.COMMUNITY_LISTINGS,

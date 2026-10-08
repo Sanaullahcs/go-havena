@@ -140,12 +140,39 @@ class PlaidException extends Exception
         );
     }
 
+    public static function paymentsUnavailable(string $reason, string $message): self
+    {
+        return new self($message, 'PLAID_PAYMENTS_UNAVAILABLE', 422, ['reason' => $reason]);
+    }
+
+    public static function userActionRequired(): self
+    {
+        return new self(
+            'Your bank needs you to sign in again before this payment can be sent. Reconnect your bank and try again.',
+            'PLAID_USER_ACTION_REQUIRED',
+            422,
+        );
+    }
+
+    public static function chargeNotPayable(string $message): self
+    {
+        return new self($message, 'PLAID_CHARGE_NOT_PAYABLE', 422);
+    }
+
+    /** True when Plaid may have acted on the request even though we did not get a usable answer. */
+    public function outcomeUncertain(): bool
+    {
+        return $this->status >= 500 || $this->codeKey === 'PLAID_CONNECT_FAILED';
+    }
+
     public function render(): JsonResponse
     {
+        $public = array_intersect_key($this->meta, array_flip(['missing', 'environment', 'reason']));
+
         return response()->json([
             'message' => $this->getMessage(),
             'code' => $this->codeKey,
-            'meta' => $this->meta ?: (object) [],
+            'meta' => $public ?: (object) [],
         ], $this->status);
     }
 }

@@ -1,5 +1,9 @@
 import os from "node:os";
+import path from "node:path";
 import type { NextConfig } from "next";
+
+/** The repo root also has a package-lock.json; pin the app root to this folder. */
+const appRoot = path.resolve(__dirname);
 
 function lanDevOrigins(): string[] {
   const origins = new Set<string>([
@@ -37,6 +41,8 @@ function lanDevOrigins(): string[] {
 }
 
 const nextConfig: NextConfig = {
+  outputFileTracingRoot: appRoot,
+  turbopack: { root: appRoot },
   // Phone / LAN access to `next dev` (Expo billing redirect) needs this or
   // /_next assets never load and /admin/billing stays on the skeleton forever.
   allowedDevOrigins: lanDevOrigins(),

@@ -19,6 +19,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('billing:prune-reservations')->hourly();
         $schedule->command('amenity-bills:process-reminders')->hourly();
         $schedule->command('service-bills:process-reminders')->hourly();
+        $schedule->command('kuickpay:reconcile')->everyMinute()->withoutOverlapping();
+        $schedule->command('kuickpay:sync-billers')->dailyAt('03:15');
+        $schedule->command('plaid:sync-events')->everyFiveMinutes()->withoutOverlapping();
+        $schedule->command('plaid:reconcile')->hourly()->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->prepend(\Illuminate\Http\Middleware\HandleCors::class);

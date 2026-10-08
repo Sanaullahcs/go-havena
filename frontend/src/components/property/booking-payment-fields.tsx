@@ -1,10 +1,7 @@
 "use client";
 
-import {
-  BILL_FILE_ACCEPT,
-  formatUsdAmount,
-  todayIsoDate,
-} from "@/lib/admin/amenity-bill-validation";
+import { formatCommunityMoney } from "@/lib/money";
+import { BILL_FILE_ACCEPT, todayIsoDate } from "@/lib/admin/amenity-bill-validation";
 import { inputClass, type FieldErrors } from "@/lib/admin/form-validation-utils";
 
 export type BookingPaymentForm = {
@@ -100,10 +97,10 @@ export function BookingPaymentSummary({
         <span className="font-semibold text-slate-500">Reservation fee: </span>
         <span className="font-bold text-slate-900">
           {fee > 0 && fullSlot
-            ? `${formatUsdAmount(fee)} (per slot)`
+            ? `${formatCommunityMoney(fee)} (per slot)`
             : fee > 0 && perPerson > 0 && guestCount > 1
-              ? `${formatUsdAmount(perPerson)} × ${guestCount} = ${formatUsdAmount(fee)}`
-              : formatUsdAmount(fee)}
+              ? `${formatCommunityMoney(perPerson)} × ${guestCount} = ${formatCommunityMoney(fee)}`
+              : formatCommunityMoney(fee)}
         </span>
       </p>
     </div>
@@ -136,7 +133,7 @@ export function BookingPaymentFields({
   return (
     <div className="space-y-3 rounded-xl border border-teal-200 bg-[#D1FAF5]/70 p-4">
       <p className="text-sm font-medium text-[#0A2A43]">
-        Pay {formatUsdAmount(fee)} to the community
+        Pay {formatCommunityMoney(fee)} to the community
         {communityBankReady ? " — from your bank or with a screenshot." : " and upload your payment proof."}
       </p>
       {bankAvailable ? (
@@ -151,7 +148,7 @@ export function BookingPaymentFields({
                 : "border-slate-200 bg-white/70 text-slate-600",
             ].join(" ")}
           >
-            Pay {formatUsdAmount(fee)} with bank
+            Pay {formatCommunityMoney(fee)} with bank
             {bankLabel ? <span className="mt-0.5 block font-medium text-slate-500">{bankLabel}</span> : null}
           </button>
           <button

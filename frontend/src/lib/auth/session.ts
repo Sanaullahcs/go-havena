@@ -172,8 +172,9 @@ export type CommunityAdminAccess = {
   subscription_status?: string | null;
   plan_slug?: string | null;
   card_on_file?: boolean;
-  billing_exempt?: boolean;
   country_code?: string | null;
+  /** ISO-4217 code the community's money is displayed in. */
+  currency?: string | null;
   plaid_available?: boolean;
   trial_ends_at?: string | null;
   admin_transition?: boolean;
@@ -195,12 +196,19 @@ export type WebUser = {
   role?: string;
   community_id?: number;
   community_admin_status?: string | null;
+  /** Currency of the community the user is acting in. See lib/money.ts. */
+  currency?: string | null;
   memberships?: Array<{
     id: number;
     community_id: number;
     role: string;
     status: string;
-    community?: { id: number; name: string; review_status?: string | null };
+    community?: {
+      id: number;
+      name: string;
+      review_status?: string | null;
+      currency?: string | null;
+    };
   }>;
   profile?: { display_name?: string; avatar?: string; avatar_url?: string };
   access?: CommunityAdminAccess | null;

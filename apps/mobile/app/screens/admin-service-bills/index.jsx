@@ -19,6 +19,7 @@ import {
   rejectAdminServiceBill,
   serviceCategoryLabel,
 } from "../../../services/property-services-api";
+import { formatCommunityMoney } from "../../../utils/money";
 
 const TABS = [
   { id: "all", labelKey: "services.serviceBillsTabAll" },
@@ -30,8 +31,8 @@ const TABS = [
 function formatAmount(amount) {
   if (amount == null || amount === "") return "—";
   const value = Number(amount);
-  if (Number.isNaN(value)) return `$${amount}`;
-  return `$${value.toFixed(value % 1 === 0 ? 0 : 2)}`;
+  if (Number.isNaN(value)) return String(amount);
+  return formatCommunityMoney(value);
 }
 
 function formatAcknowledgedAt(value) {

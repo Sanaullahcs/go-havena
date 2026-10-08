@@ -18,11 +18,8 @@ import {
 } from "@/components/admin/ui";
 import { PageError, PageLoader } from "@/components/shared/page-states";
 import { confirmAction, toastError, toastSuccess } from "@/lib/alert";
-import {
-  currentBillingMonth,
-  formatBillDate,
-  formatUsdAmount,
-} from "@/lib/admin/amenity-bill-validation";
+import { formatCommunityMoney } from "@/lib/money";
+import { currentBillingMonth, formatBillDate } from "@/lib/admin/amenity-bill-validation";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { ADMIN_TABLE_PAGE_SIZE } from "@/lib/admin/table-pagination";
 import { adminClientTableBusy, isAdminSearchPending } from "@/lib/admin/table-loading";
@@ -237,7 +234,7 @@ export default function AdminServiceBillsPage() {
   async function handleApprove(bill: UnitServiceBill) {
     const ok = await confirmAction({
       title: "Approve this payment?",
-      text: `Unit ${bill.unit_number || "—"} · ${formatUsdAmount(bill.amount)} will be marked as paid.`,
+      text: `Unit ${bill.unit_number || "—"} · ${formatCommunityMoney(bill.amount)} will be marked as paid.`,
       confirmText: "Approve",
       color: "green",
     });
@@ -370,7 +367,7 @@ export default function AdminServiceBillsPage() {
                       <p className="text-xs text-amber-700">Missing contact</p>
                     ) : null}
                   </DtCell>
-                  <DtCell nowrap>{formatUsdAmount(bill.amount)}</DtCell>
+                  <DtCell nowrap>{formatCommunityMoney(bill.amount)}</DtCell>
                   <DtCell>
                     <p>{bill.billing_period_label || bill.billing_period || "—"}</p>
                     <p className="text-xs text-slate-400">
@@ -510,7 +507,7 @@ function ServiceBillDetailModal({
             <DetailRow label="Title" value={bill.title || "—"} />
             <DetailRow label="Unit" value={bill.unit_number || "—"} />
             <DetailRow label="Billing contact" value={bill.billing_contact?.name || "No billing contact"} />
-            <DetailRow label="Amount" value={formatUsdAmount(bill.amount)} />
+            <DetailRow label="Amount" value={formatCommunityMoney(bill.amount)} />
             <DetailRow
               label="Bill type"
               value={

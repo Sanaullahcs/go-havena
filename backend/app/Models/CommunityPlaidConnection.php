@@ -38,6 +38,16 @@ class CommunityPlaidConnection extends Model
         'last_webhook_code',
         'last_webhook_at',
         'disconnected_at',
+        'payments_paused_at',
+        'payments_paused_by',
+        'payments_pause_reason',
+    ];
+
+    protected $hidden = [
+        'plaid_access_token',
+        'ach_account',
+        'ach_routing',
+        'transfer_access_token',
     ];
 
     protected function casts(): array
@@ -49,7 +59,13 @@ class CommunityPlaidConnection extends Model
             'transfer_access_token' => 'encrypted',
             'last_webhook_at' => 'datetime',
             'disconnected_at' => 'datetime',
+            'payments_paused_at' => 'datetime',
         ];
+    }
+
+    public function paymentsPaused(): bool
+    {
+        return $this->payments_paused_at !== null;
     }
 
     public function community(): BelongsTo

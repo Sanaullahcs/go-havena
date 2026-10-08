@@ -165,6 +165,32 @@ class UtilityBillUploadTest extends TestCase
         $this->assertRejected($this->pdfWithText(''));
     }
 
+    public function test_compressed_utility_pdf_is_accepted(): void
+    {
+        $user = $this->actingResident();
+
+        $this->post('/api/v1/me/utility-bill', [
+            'utility_bill' => $this->compressedPdf(
+                'BT [(Elec) 10 (tric ) -240 (utility ) -240 (bill ) -240 (account ) -220 (number ) -220 (amount ) -200 (due)] TJ ET',
+            ),
+        ], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJsonPath('data.utility_bill_verified', false);
+
+        $this->assertNotEmpty($user->fresh()->profile?->utility_bill_url);
+        $this->assertContains($user->fresh()->profile?->utility_bill_review_status, [
+            UtilityBillDocumentVerdict::LIKELY,
+            UtilityBillDocumentVerdict::REVIEW,
+        ]);
+    }
+
+    public function test_compressed_non_bill_pdf_is_rejected(): void
+    {
+        $this->assertRejected($this->compressedPdf(
+            'BT (The quick brown fox jumps over the lazy dog near the river bank today) Tj ET',
+        ));
+    }
+
     private function assertRejected(UploadedFile $file): void
     {
         $user = $this->actingResident();
@@ -423,6 +449,16 @@ class UtilityBillUploadTest extends TestCase
         file_put_contents($path, $pdf);
 
         return new UploadedFile($path, 'document.pdf', 'application/pdf', null, true);
+    }
+
+    private function compressedPdf(string $content): UploadedFile
+    {
+        $compressed = gzcompress($content);
+        $pdf = "%PDF-1.4\n1 0 obj\n<< /Length ".strlen($compressed)." /Filter /FlateDecode >>\nstream\n{$compressed}\nendstream\nendobj\ntrailer<<>>\n%%EOF\n";
+        $path = tempnam(sys_get_temp_dir(), 'flate').'.pdf';
+        file_put_contents($path, $pdf);
+
+        return new UploadedFile($path, 'utility-bill.pdf', 'application/pdf', null, true);
     }
 
     private function scannedPdf(): UploadedFile

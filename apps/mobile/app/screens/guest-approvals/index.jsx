@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, RefreshControl, ScrollView, Modal, KeyboardAvoidingView, Platform, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, RefreshControl, ScrollView, Modal, TouchableOpacity } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import LocaleTextInput from "../../../components/ui/locale-text-input";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -410,7 +411,7 @@ export default function GuestApprovalsScreen() {
       <Modal visible={Boolean(rejectTarget)} transparent animationType="slide" onRequestClose={closeReject}>
         <Pressable style={styles.modalOverlay} onPress={closeReject}>
           <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            behavior="padding"
             style={styles.modalKeyboard}
           >
             <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>

@@ -11,8 +11,12 @@ import {
 } from "react-native";
 import React, { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useBillsSummary } from "../../hooks/use-bills-summary";
+import { isGuestUser } from "../../services/community-access";
+import Tap from "../ui/tap";
 import { Fonts } from "../../constants/font";
 import { homeStyles } from "../../constants/home-styles";
 import { HomeTheme as T } from "../../constants/home-theme";
@@ -39,16 +43,16 @@ import { useSessionUser } from "../../hooks/use-session-user";
 import { isHomeSectionEnabled, isResidentFeatureEnabled } from "../../constants/resident-features";
 
 const QUICK_ACTIONS = [
-  { id: "post", titleKey: "home.qa.post", icon: "edit-3", route: "/screens/create-post", feature: "feed" },
+  { id: "bills", titleKey: "home.qa.bills", icon: "credit-card", route: "/screens/bills", feature: null, highlight: true },
   { id: "book", titleKey: "home.qa.book", icon: "home", route: PropertyManagementRoutes.AMENITY_SCREEN, feature: "amenities" },
   { id: "sell", titleKey: "home.qa.sell", icon: "shopping-bag", route: MarketplaceRoutes.CREATE_LISTING, feature: "marketplace" },
-  { id: "notices", titleKey: "home.qa.notices", icon: "bell", route: PropertyManagementRoutes.NOTICES, feature: "notices" },
   { id: "feed", titleKey: "home.qa.feed", icon: "message-circle", route: "/screens/community-feed", feature: "feed" },
   { id: "deals", titleKey: "home.qa.deals", icon: "percent", route: MarketplaceRoutes.DEALS, feature: "marketplace" },
   { id: "wellness", titleKey: "home.qa.wellness", icon: "heart", route: "/(tabs)/wellness", feature: "wellness" },
   { id: "docs", titleKey: "home.qa.docs", icon: "file-text", route: PropertyManagementRoutes.DOCUMENTS_SCREEN, feature: "documents" },
   { id: "bookings", titleKey: "home.qa.bookings", icon: "clipboard", route: PropertyManagementRoutes.MY_BOOKING_SCREEN, feature: "bookings" },
   { id: "chat", titleKey: "home.qa.chat", icon: "mail", route: "/screens/messages", feature: "messages" },
+  { id: "notices", titleKey: "home.qa.notices", icon: "bell", route: PropertyManagementRoutes.NOTICES, feature: "notices" },
 ];
 
 function noticeFeatureKey(notice) {
@@ -187,7 +191,13 @@ function QuickActionsRow() {
   const { t } = useTranslation();
   const frame = useHomeFrame();
   const sessionUser = useSessionUser();
+  const guest = isGuestUser(sessionUser);
+  const { summary: bills, refresh: refreshBills } = useBillsSummary({ enabled: !guest });
+  useFocusEffect(useCallback(() => { void refreshBills(); }, [refreshBills]));
+  const billsDue = bills?.dueCount ?? 0;
+  const billsOverdue = (bills?.overdueCount ?? 0) > 0;
   const actions = QUICK_ACTIONS.filter((item) => {
+    if (item.id === "bills") return !guest;
     if (item.id === "notices") {
       return (
         isResidentFeatureEnabled(sessionUser, "notices") ||
@@ -197,8 +207,9 @@ function QuickActionsRow() {
     }
     return isResidentFeatureEnabled(sessionUser, item.feature);
   });
-  const tileW = frame.size(72);
-  const gap = frame.size(8);
+  const gap = frame.size(4);
+  const fitW = actions.length > 0 ? (frame.contentWidth - gap * (actions.length - 1)) / actions.length : 0;
+  const tileW = Math.min(frame.size(68), Math.max(frame.size(56), Math.floor(fitW)));
   const rowWidth = actions.length * tileW + Math.max(0, actions.length - 1) * gap;
   const centerRow = actions.length > 0 && rowWidth <= frame.contentWidth;
   const listHeight = sw(44) + sw(6) + sf(14) * 2;
@@ -241,20 +252,37 @@ function QuickActionsRow() {
         })}
         renderItem={({ item }) => (
           <View style={[styles.qaItem, { width: tileW, maxWidth: tileW }]}>
-            <Pressable
+            <Tap
               onPress={() => openAction(item.route)}
-              style={({ pressed }) => [
-                styles.qaTile,
-                { width: tileW, maxWidth: tileW },
-                pressed && styles.qaTilePressed,
-              ]}
+              style={[styles.qaTile, { width: tileW, maxWidth: tileW }]}
+              pressedStyle={styles.qaTilePressed}
               accessibilityRole="button"
-              accessibilityLabel={t(item.titleKey)}
+              accessibilityLabel={
+                item.id === "bills" && billsDue > 0
+                  ? `${t(item.titleKey)}, ${t("bills.billsDue", { count: billsDue })}`
+                  : t(item.titleKey)
+              }
             >
               <View style={[styles.qaIconSlot, { width: tileW }]}>
-                <View style={styles.qaIcon}>
-                  <Feather name={item.icon} size={sf(18)} color={T.navy} />
-                </View>
+                {item.highlight ? (
+                  <LinearGradient
+                    colors={billsOverdue ? ["#EF4B23", "#C23812"] : [T.navy, T.teal]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.qaIcon}
+                  >
+                    <Feather name={item.icon} size={sf(18)} color="#FFFFFF" />
+                  </LinearGradient>
+                ) : (
+                  <View style={styles.qaIcon}>
+                    <Feather name={item.icon} size={sf(18)} color={T.navy} />
+                  </View>
+                )}
+                {item.id === "bills" && billsDue > 0 ? (
+                  <View style={[styles.qaBadge, billsOverdue && styles.qaBadgeAlert]}>
+                    <Text style={styles.qaBadgeText}>{billsDue > 9 ? "9+" : billsDue}</Text>
+                  </View>
+                ) : null}
               </View>
               <Text
                 style={[styles.qaLabel, { width: tileW, maxWidth: tileW }]}
@@ -263,7 +291,7 @@ function QuickActionsRow() {
               >
                 {t(item.titleKey)}
               </Text>
-            </Pressable>
+            </Tap>
           </View>
         )}
       />
@@ -666,6 +694,27 @@ const styles = StyleSheet.create({
     backgroundColor: T.mint,
     alignItems: "center",
     justifyContent: "center",
+  },
+  qaBadge: {
+    position: "absolute",
+    top: -sw(2),
+    end: sw(10),
+    minWidth: sw(18),
+    height: sw(18),
+    paddingHorizontal: sw(4),
+    borderRadius: sw(9),
+    backgroundColor: T.teal,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qaBadgeAlert: { backgroundColor: "#EF4B23" },
+  qaBadgeText: {
+    fontFamily: Fonts.bold,
+    fontSize: sf(9),
+    color: "#FFFFFF",
+    includeFontPadding: false,
   },
   qaLabel: {
     fontFamily: Fonts.medium,

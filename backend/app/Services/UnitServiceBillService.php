@@ -401,6 +401,10 @@ class UnitServiceBillService
     {
         $this->assertAcknowledgedIfRequired($ownedBill);
         $this->assertCanSubmitProof((string) $ownedBill->status);
+        app(\App\Services\Payments\OnlinePaymentPresenter::class)->assertNoPaymentInFlight(
+            \App\Models\PaymentAttempt::PAYABLE_SERVICE_BILL,
+            (int) $ownedBill->id,
+        );
 
         $fileMeta = $this->storeProofFile($file, (int) $ownedBill->community_id, (int) $ownedBill->id);
 
@@ -579,16 +583,15 @@ class UnitServiceBillService
             ]);
         }
 
-        $status = $service->requires_admin_approval ? self::SUB_PENDING : self::SUB_ACTIVE;
         $now = now();
         $payload = [
             'community_id' => (int) $service->community_id,
             'service_id' => (int) $service->id,
             'unit_id' => (int) $unit->id,
             'requested_by' => $userId,
-            'status' => $status,
+            'status' => self::SUB_PENDING,
             'note' => $note,
-            'starts_at' => $status === self::SUB_ACTIVE ? $now : null,
+            'starts_at' => null,
             'ends_at' => null,
             'cancelled_at' => null,
             'cancelled_by' => null,
@@ -607,10 +610,7 @@ class UnitServiceBillService
             ]));
         }
 
-        $this->generateSubscriptionBill($service, $unit, $userId);
-        if ($status === self::SUB_PENDING) {
-            $this->notifyAdminsSubscriptionPending($service, $unit, $userId);
-        }
+        $this->notifyAdminsSubscriptionPending($service, $unit, $userId);
 
         return $this->formatSubscription(DB::table('unit_service_subscriptions')->find($id));
     }
@@ -658,9 +658,14 @@ class UnitServiceBillService
             ]);
         }
 
+        $service = DB::table('property_services')->find($subscription->service_id);
+        $serviceName = trim((string) ($service?->name ?? ''));
+        if ($serviceName === '') {
+            $serviceName = 'this service';
+        }
+
         $now = now();
         if ($action === 'approve') {
-            $service = DB::table('property_services')->find($subscription->service_id);
             if ($service && ($service->status ?? '') !== PropertyServiceCatalogService::STATUS_ACTIVE) {
                 throw ValidationException::withMessages([
                     'subscription' => 'This service is not accepting subscriptions.',
@@ -702,13 +707,17 @@ class UnitServiceBillService
 
         $updated = DB::table('unit_service_subscriptions')->find($subscription->id);
         if ($updated->requested_by) {
+            $declineBody = "Your subscription request for {$serviceName} has been declined.";
+            if ($reason) {
+                $declineBody .= ' Reason: '.$reason;
+            }
             NotificationService::send(
                 (int) $updated->requested_by,
                 $action === 'approve' ? 'success' : 'warning',
                 $action === 'approve' ? 'Subscription approved' : 'Subscription declined',
                 $action === 'approve'
-                    ? 'Your unit subscription was approved.'
-                    : ('Your unit subscription was declined'.($reason ? ': '.$reason : '.')),
+                    ? "Your subscription request for {$serviceName} has been approved."
+                    : $declineBody,
                 '/screens/property-management/available-services',
                 ['kind' => 'service_subscription_'.$action, 'subscription_id' => (int) $updated->id],
             );
@@ -1034,7 +1043,7 @@ class UnitServiceBillService
         $subscriptions = DB::table('unit_service_subscriptions')
             ->where('community_id', $communityId)
             ->whereIn('unit_id', $unitIds)
-            ->whereIn('status', [self::SUB_PENDING, self::SUB_ACTIVE])
+            ->where('status', self::SUB_ACTIVE)
             ->get();
 
         foreach ($subscriptions as $subscription) {
@@ -1056,11 +1065,28 @@ class UnitServiceBillService
 
     private function removeUnpaidSubscriptionBills(int $serviceId, int $unitId): void
     {
-        DB::table('unit_service_bills')
+        $bills = DB::table('unit_service_bills')
             ->where('service_id', $serviceId)
             ->where('unit_id', $unitId)
             ->whereIn('status', [self::STATUS_UNPAID, self::STATUS_OVERDUE, self::STATUS_REJECTED])
-            ->delete();
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('payment_attempts')
+                    ->whereColumn('payment_attempts.payable_id', 'unit_service_bills.id')
+                    ->where('payment_attempts.payable_type', \App\Models\PaymentAttempt::PAYABLE_SERVICE_BILL)
+                    ->whereIn('payment_attempts.status', \App\Models\PaymentAttempt::ACTIVE_STATUSES);
+            })
+            ->get(['id', 'notice_id']);
+        if ($bills->isEmpty()) {
+            return;
+        }
+
+        $noticeIds = $bills->pluck('notice_id')->filter()->map(fn ($id) => (int) $id)->all();
+        DB::table('unit_service_bills')->whereIn('id', $bills->pluck('id'))->delete();
+        if ($noticeIds !== []) {
+            DB::table('notice_recipients')->whereIn('notice_id', $noticeIds)->delete();
+            DB::table('notices')->whereIn('id', $noticeIds)->where('category', 'finance')->delete();
+        }
     }
 
     private function notifyAdminsSubscriptionPending(object $service, object $unit, int $requestedBy): void
@@ -1433,13 +1459,20 @@ class UnitServiceBillService
                     $query->whereNull('billing_contact_user_id')
                         ->orWhere('billing_contact_user_id', '!=', $contactId);
                 })
+                // A proof under review belongs to whoever submitted it, so it never moves.
                 ->whereIn('status', [
                     self::STATUS_UNPAID,
                     self::STATUS_OVERDUE,
                     self::STATUS_ACKNOWLEDGED,
                     self::STATUS_REJECTED,
-                    self::STATUS_PENDING,
                 ])
+                ->whereNotExists(function ($query) {
+                    $query->select(DB::raw(1))
+                        ->from('payment_attempts')
+                        ->whereColumn('payment_attempts.payable_id', 'unit_service_bills.id')
+                        ->where('payment_attempts.payable_type', \App\Models\PaymentAttempt::PAYABLE_SERVICE_BILL)
+                        ->whereIn('payment_attempts.status', \App\Models\PaymentAttempt::ACTIVE_STATUSES);
+                })
                 ->pluck('id')
                 ->map(fn ($id) => (int) $id)
                 ->all();
@@ -1450,10 +1483,31 @@ class UnitServiceBillService
                     continue;
                 }
 
-                DB::table('unit_service_bills')->where('id', $billId)->update([
+                $updates = [
                     'billing_contact_user_id' => $contactId,
                     'updated_at' => now(),
-                ]);
+                ];
+                if (! empty($bill->billing_contact_user_id)) {
+                    // The previous contact's proof and payment notes stay in the review history, not on the new contact's bill.
+                    $updates += [
+                        'proof_file_path' => null,
+                        'proof_file_name' => null,
+                        'proof_file_size' => null,
+                        'proof_mime_type' => null,
+                        'payment_date' => null,
+                        'payment_reference' => null,
+                        'payment_note' => null,
+                        'proof_submitted_at' => null,
+                        'proof_submitted_by' => null,
+                        'rejection_reason' => null,
+                    ];
+                    if ((string) $bill->status === self::STATUS_REJECTED) {
+                        $updates['status'] = Carbon::parse((string) $bill->due_date)->endOfDay()->isPast()
+                            ? self::STATUS_OVERDUE
+                            : self::STATUS_UNPAID;
+                    }
+                }
+                DB::table('unit_service_bills')->where('id', $billId)->update($updates);
 
                 $bill = DB::table('unit_service_bills')->find($billId);
                 if (! $bill || ! empty($bill->notice_id)) {
@@ -1483,6 +1537,11 @@ class UnitServiceBillService
         $core['can_submit_proof'] = in_array((string) $row->status, [
             self::STATUS_UNPAID, self::STATUS_ACKNOWLEDGED, self::STATUS_REJECTED, self::STATUS_OVERDUE,
         ], true) && ! $this->mustAcknowledgeBeforePayment($row);
+        $core['online_payment'] = app(\App\Services\Payments\OnlinePaymentPresenter::class)->forPayable(
+            \App\Models\PaymentAttempt::PAYABLE_SERVICE_BILL,
+            (int) $row->id,
+            (int) $row->community_id,
+        );
 
         return $core;
     }
@@ -1496,6 +1555,60 @@ class UnitServiceBillService
         $name = trim((string) $userName);
 
         return $name !== '' ? $name : null;
+    }
+
+    /** Settles a bill from a confirmed KuickPay payment, with the same follow-ups as an admin approval. */
+    public function applyOnlinePayment(int $billId, \App\Models\PaymentAttempt $attempt): bool
+    {
+        $applied = DB::transaction(function () use ($billId, $attempt) {
+            $locked = DB::table('unit_service_bills')->where('id', $billId)->lockForUpdate()->first();
+            if (! $locked || (string) $locked->status === self::STATUS_PAID) {
+                return false;
+            }
+
+            $now = now();
+            DB::table('unit_service_bills')->where('id', $billId)->update([
+                'status' => self::STATUS_PAID,
+                'payment_method' => 'kuickpay',
+                'payment_attempt_id' => $attempt->id,
+                'payment_date' => $now->toDateString(),
+                'payment_reference' => $attempt->reference,
+                'payment_note' => 'Paid online with KuickPay'.($attempt->methodLabel() ? ' ('.$attempt->methodLabel().')' : '').'.',
+                'proof_submitted_at' => $now,
+                'proof_submitted_by' => (int) $attempt->user_id,
+                'approved_by' => null,
+                'approved_at' => $now,
+                'rejected_by' => null,
+                'rejected_at' => null,
+                'rejection_reason' => null,
+                'updated_at' => $now,
+            ]);
+
+            $this->writeReview([
+                'bill_id' => (int) $locked->id,
+                'community_id' => (int) $locked->community_id,
+                'service_id' => (int) $locked->service_id,
+                'unit_id' => (int) $locked->unit_id,
+                'actor_id' => (int) $attempt->user_id,
+                'action' => 'paid_online',
+                'status_from' => (string) $locked->status,
+                'status_to' => self::STATUS_PAID,
+                'payment_date' => $now->toDateString(),
+                'payment_reference' => $attempt->reference,
+                'payment_note' => 'Paid online with KuickPay',
+            ]);
+
+            return true;
+        });
+
+        if ($applied) {
+            $updated = $this->findAdminBill($billId, (int) $attempt->community_id);
+            if ($updated) {
+                $this->hideFinanceNoticeFromHome($updated);
+            }
+        }
+
+        return $applied;
     }
 
     private function formatBillCore(object $row, Request $request): array
@@ -1527,6 +1640,7 @@ class UnitServiceBillService
             ] : null,
             'acknowledged_at' => $row->acknowledged_at,
             'payment_proof' => $this->formatPaymentProof($row, $request),
+            'payment_method' => $row->payment_method ?? null,
             'rejection_reason' => $row->rejection_reason,
             'created_at' => $row->created_at,
         ];

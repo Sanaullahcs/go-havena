@@ -288,6 +288,16 @@ class AmenityBillReminderService
             ],
         );
 
+        $mailKind = [
+            self::KIND_CREATED => 'created',
+            self::KIND_DUE_SOON => 'due_soon',
+            self::KIND_DUE_DATE => 'due_date',
+            self::KIND_OVERDUE => 'overdue',
+        ][$kind] ?? null;
+        if ($mailKind) {
+            app(PaymentMailService::class)->amenityBill($residentBillId, $mailKind);
+        }
+
         return true;
     }
 

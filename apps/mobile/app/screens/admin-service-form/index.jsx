@@ -21,6 +21,7 @@ import { useApiAction } from "../../../hooks/use-api-action";
 import { useTouchedFieldErrors } from "../../../hooks/use-touched-field-errors";
 import { dateOnly, formatDisplayDate, toApiDate } from "../../../utils/form-datetime";
 import { safeGoBack } from "../../../utils/app-navigation";
+import { formatCommunityMoney } from "../../../utils/money";
 
 const CATEGORIES = [
   "electricity",
@@ -320,7 +321,7 @@ function buildPayload(form) {
     send_notice: Boolean(form.send_notice),
     send_notification: Boolean(form.send_notification),
     ...noticeFieldsForSave(form),
-    requires_admin_approval: form.application_type === "optional" ? Boolean(form.requires_admin_approval) : false,
+    requires_admin_approval: form.application_type === "optional",
     max_subscribers: form.application_type === "optional" && form.max_subscribers
       ? Number(form.max_subscribers)
       : null,
@@ -554,7 +555,7 @@ export default function AdminServiceFormScreen() {
       : t("services.createServicePerMonth");
   const amountReview = form.amount_type === "variable"
     ? t("services.createServiceAmountVariableReview")
-    : `$${form.amount || 0}`;
+    : formatCommunityMoney(form.amount || 0);
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
@@ -798,11 +799,7 @@ export default function AdminServiceFormScreen() {
 
             {form.application_type === "optional" ? (
               <>
-                <SwitchRow
-                  title={t("services.createServiceRequiresApproval")}
-                  value={form.requires_admin_approval}
-                  onChange={(value) => setF("requires_admin_approval", value)}
-                />
+                <Text style={styles.hintText}>{t("services.createServiceApprovalNote")}</Text>
                 <View style={styles.field}>
                   <RequiredLabel required={false}>{t("services.createServiceMaxSubscribers")}</RequiredLabel>
                   <LocaleTextInput
